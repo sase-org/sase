@@ -209,7 +209,9 @@ def _plan_status(meta: AgentMetaWire) -> str | None:
             return EPIC_APPROVED_STATUS
         return PLAN_APPROVED_STATUS
     if meta.plan_submitted_at and not (meta.approve or meta.auto_approve_plan_action):
-        return pending_plan_status_for_tier(cached_plan_tier(meta.plan_path))
+        return pending_plan_status_for_tier(
+            cached_plan_tier(meta.plan_path, relative_to=meta.workspace_dir)
+        )
     return None
 
 

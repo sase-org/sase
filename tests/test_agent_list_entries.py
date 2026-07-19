@@ -219,6 +219,29 @@ def test_plan_marker_uses_authored_tier(tmp_path: Path) -> None:
         assert entry.needs_user_action is True
 
 
+def test_plan_marker_resolves_relative_plan_from_recorded_workspace(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    plan_path = workspace / "plans" / "epic.md"
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text("---\ntier: epic\n---\n# Plan\n", encoding="utf-8")
+
+    entry = _build_agent_list_entry(
+        _agent(),
+        record=_record(
+            agent_meta=AgentMetaWire(
+                plan=True,
+                plan_path="plans/epic.md",
+                workspace_dir=str(workspace),
+                plan_submitted_at=["2026-07-09T12:01:00Z"],
+            )
+        ),
+    )
+
+    assert entry.status == "EPIC"
+
+
 def test_children_summary_is_preserved() -> None:
     running = _build_agent_list_entry(
         _agent(name="run"),

@@ -329,7 +329,10 @@ def enrich_agent_from_meta(
             plan_submitted=plan_submitted,
             auto_approved=meta_auto_approved,
             plan_tier=(
-                cached_plan_tier(data.get("plan_path"))
+                cached_plan_tier(
+                    data.get("plan_path"),
+                    relative_to=agent.workspace_dir,
+                )
                 if plan_submitted and not plan_approved and not meta_auto_approved
                 else None
             ),

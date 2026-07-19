@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sase.agent.status_buckets import PENDING_EPIC_STATUS, PENDING_TALE_STATUS
+from sase.agent.status_buckets import (
+    PENDING_EPIC_STATUS,
+    PENDING_PLAN_STATUS,
+    PENDING_TALE_STATUS,
+    is_pending_plan_review_status,
+)
 
 from ._notification_utils import refresh_notification_agent_or_request
 
@@ -81,11 +86,14 @@ class AgentNotificationStatusMixin:
 
                 if notification.action in {"PlanApproval", "EpicApproval"}:
                     if pending_plan_status is None:
-                        from ...models._agent_status_family import (
-                            pending_plan_status_for_agent,
+                        # Legacy bundles do not encode the tier. Reuse the
+                        # tier-aware status computed by the off-thread agent
+                        # loader, falling back to the historical PLAN label.
+                        pending_plan_status = (
+                            agent.status
+                            if is_pending_plan_review_status(agent.status)
+                            else PENDING_PLAN_STATUS
                         )
-
-                        pending_plan_status = pending_plan_status_for_agent(agent)
                     if (  # type: ignore[attr-defined]
                         self._agent_status_overrides.get(agent.identity)
                         != pending_plan_status

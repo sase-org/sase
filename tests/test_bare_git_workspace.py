@@ -391,6 +391,7 @@ class TestInitBareGitProject:
         tracked.write_text("content\n", encoding="utf-8")
         lock_path = tmp_path / ".git" / "index.lock"
         lock_path.touch()
+        os.utime(lock_path, (1, 1))
         monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0.001")
 
         result = _run_git(["add", "tracked.txt"], cwd=tmp_path)

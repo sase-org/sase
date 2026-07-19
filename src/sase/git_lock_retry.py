@@ -3,15 +3,18 @@
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 import logging
+import math
 import os
 from pathlib import Path
 import re
 import subprocess
 import time
+from time import monotonic
 from typing import Any
 
 ENV_GIT_LOCK_RETRY_DELAYS = "SASE_GIT_LOCK_RETRY_DELAYS"
 DEFAULT_GIT_LOCK_RETRY_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6, 3.2)
+STALE_GIT_INDEX_LOCK_OBSERVATION_SECONDS = sum(DEFAULT_GIT_LOCK_RETRY_DELAYS)
 STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS = 15.0
 
 _logger = logging.getLogger(__name__)
@@ -66,7 +69,7 @@ def git_lock_retry_delays() -> tuple[float, ...]:
         delays = tuple(float(value.strip()) for value in raw.split(","))
     except ValueError:
         return DEFAULT_GIT_LOCK_RETRY_DELAYS
-    if not delays or any(delay < 0 for delay in delays):
+    if not delays or any(not math.isfinite(delay) or delay < 0 for delay in delays):
         return DEFAULT_GIT_LOCK_RETRY_DELAYS
     return delays
 
@@ -128,6 +131,7 @@ def run_with_git_lock_retry[ResultT](
     if not is_retryable_git_lock_error(returncode, output):
         return result, GitLockRetryOutcome(attempts=attempts)
 
+    observation_started_at = monotonic()
     first_lock_path = _resolved_error_index_lock_path(repo_path, output)
     latest_lock_path = first_lock_path
     first_identity = _lock_identity(first_lock_path)
@@ -170,11 +174,15 @@ def run_with_git_lock_retry[ResultT](
     if final_identity != first_identity:
         identity_unchanged = False
     lock_age = _lock_age_seconds(latest_lock_path)
-    persisted_through_retries = sum(retry_delays) > 0 and identity_unchanged
+    observation_seconds = monotonic() - observation_started_at
+    persisted_through_safe_window = (
+        identity_unchanged
+        and observation_seconds >= STALE_GIT_INDEX_LOCK_OBSERVATION_SECONDS
+    )
     old_enough = (
         lock_age is not None and lock_age >= STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS
     )
-    if not (persisted_through_retries or old_enough):
+    if not (persisted_through_safe_window or old_enough):
         return result, GitLockRetryOutcome(
             attempts=attempts,
             lock_path=latest_lock_path,
@@ -213,8 +221,8 @@ def run_with_git_lock_retry[ResultT](
 
 def _validated_retry_delays(delays: Iterable[float]) -> tuple[float, ...]:
     values = tuple(float(delay) for delay in delays)
-    if any(delay < 0 for delay in values):
-        raise ValueError("git lock retry delays must be non-negative")
+    if any(not math.isfinite(delay) or delay < 0 for delay in values):
+        raise ValueError("git lock retry delays must be finite and non-negative")
     return values
 
 
@@ -308,6 +316,7 @@ __all__ = [
     "ENV_GIT_LOCK_RETRY_DELAYS",
     "GitLockResultAdapter",
     "GitLockRetryOutcome",
+    "STALE_GIT_INDEX_LOCK_OBSERVATION_SECONDS",
     "STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS",
     "git_index_lock_path",
     "git_lock_retry_delays",

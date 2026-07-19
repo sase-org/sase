@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import subprocess
 import threading
 from pathlib import Path
@@ -576,6 +577,7 @@ def test_git_commit_push_worker_backs_off_then_removes_stale_index_lock(
     (tmp_path / ".git").mkdir()
     lock = tmp_path / ".git" / "index.lock"
     lock.write_text("stale", encoding="utf-8")
+    os.utime(lock, (1, 1))
     commit_attempts = 0
 
     def run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
@@ -155,6 +156,7 @@ def test_run_dev_update_command_recovers_stale_git_index_lock(
     git_dir.mkdir()
     lock = git_dir / "index.lock"
     lock.write_text("stale", encoding="utf-8")
+    os.utime(lock, (1, 1))
     attempts = 0
 
     def fake_run(

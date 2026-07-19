@@ -215,6 +215,42 @@ def test_manual_plan_after_submission_uses_authored_tier(
     assert wire_agent.status == expected
 
 
+def test_manual_plan_tier_resolves_relative_to_recorded_workspace(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    plan_path = workspace / "plans" / "epic.md"
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text("---\ntier: epic\n---\n# Plan\n", encoding="utf-8")
+    meta = {
+        "pid": 1234,
+        "plan": True,
+        "plan_path": "plans/epic.md",
+        "workspace_dir": str(workspace),
+        "plan_submitted_at": "2026-04-27T15:05:00Z",
+    }
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text(json.dumps(meta))
+
+    filesystem_agent = make_agent()
+    wire_agent = make_agent()
+    enrich_agent_from_meta(filesystem_agent, str(artifacts))
+    enrich_agent_from_meta_wire(
+        wire_agent,
+        AgentMetaWire(
+            plan=True,
+            plan_path="plans/epic.md",
+            workspace_dir=str(workspace),
+            plan_submitted_at=["2026-04-27T15:05:00Z"],
+        ),
+        None,
+    )
+
+    assert filesystem_agent.status == "EPIC"
+    assert wire_agent.status == "EPIC"
+
+
 def test_manual_plan_after_submission_overrides_starting(tmp_path: Path) -> None:
     """Plan review markers override pre-run STARTING rows."""
     meta = {

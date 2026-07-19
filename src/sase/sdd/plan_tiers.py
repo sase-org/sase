@@ -69,12 +69,19 @@ def read_plan_tier(path: Path) -> str | None:
     return read_plan_tier_from_content(content)
 
 
-def cached_plan_tier(path: str | Path | None) -> str | None:
+def cached_plan_tier(
+    path: str | Path | None,
+    *,
+    relative_to: str | Path | None = None,
+) -> str | None:
     """Read a plan tier through a bounded, file-signature-aware cache."""
     if path is None:
         return None
     try:
-        normalized = Path(path).expanduser().resolve(strict=False)
+        candidate = Path(path).expanduser()
+        if not candidate.is_absolute() and relative_to is not None:
+            candidate = Path(relative_to).expanduser() / candidate
+        normalized = candidate.resolve(strict=False)
     except (OSError, RuntimeError, TypeError, ValueError):
         return None
     try:

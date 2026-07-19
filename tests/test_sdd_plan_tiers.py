@@ -51,6 +51,18 @@ def test_cached_plan_tier_recovers_when_missing_file_appears(tmp_path: Path) -> 
     assert cached_plan_tier(plan) == "tale"
 
 
+def test_cached_plan_tier_resolves_relative_path_from_workspace(tmp_path: Path) -> None:
+    plan = _write(
+        tmp_path / "workspace" / "plans" / "epic.md",
+        "---\ntier: epic\n---\n# Plan\n",
+    )
+
+    assert (
+        cached_plan_tier("plans/epic.md", relative_to=tmp_path / "workspace") == "epic"
+    )
+    assert plan.is_file()
+
+
 def test_list_and_validate_canonical_plan_files(tmp_path: Path) -> None:
     root = tmp_path / "sdd"
     _write(

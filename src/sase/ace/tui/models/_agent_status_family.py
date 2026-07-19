@@ -33,7 +33,9 @@ EPIC_CREATED_STATUS = "EPIC CREATED"
 def pending_plan_status_for_agent(agent: Agent) -> str:
     """Return an agent's tier-aware pending plan-review status."""
     plan_path = agent.plan_path or agent.sdd_plan_path or agent.archived_plan_path
-    return pending_plan_status_for_tier(cached_plan_tier(plan_path))
+    return pending_plan_status_for_tier(
+        cached_plan_tier(plan_path, relative_to=agent.workspace_dir)
+    )
 
 
 def append_unique_timestamps(target: list[datetime], source: list[datetime]) -> None:

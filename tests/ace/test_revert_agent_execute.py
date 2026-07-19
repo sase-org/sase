@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -65,6 +66,7 @@ def test_revert_git_runner_recovers_stale_index_lock(
     (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
     lock = repo / ".git" / "index.lock"
     lock.write_text("stale", encoding="utf-8")
+    os.utime(lock, (1, 1))
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
 
     result = run_git(str(repo), ["add", "feature.txt"])

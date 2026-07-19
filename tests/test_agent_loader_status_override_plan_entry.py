@@ -26,6 +26,7 @@ def _agent(
     agent_family_role: str | None = None,
     plan_chain_root: bool = False,
     plan_path: str | None = None,
+    workspace_dir: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=agent_type,
@@ -44,6 +45,7 @@ def _agent(
         agent_family_role=agent_family_role,
         plan_chain_root=plan_chain_root,
         plan_path=plan_path,
+        workspace_dir=workspace_dir,
     )
 
 
@@ -84,6 +86,28 @@ def test_apply_status_overrides_uses_pending_plan_tier(
     _apply_status_overrides([planner])
 
     assert planner.status == expected
+
+
+def test_apply_status_overrides_resolves_relative_plan_from_agent_workspace(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    plan_path = workspace / "plans" / "epic.md"
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text("---\ntier: epic\n---\n# Plan\n", encoding="utf-8")
+    planner = _agent(
+        start_time=datetime(2026, 5, 29, 9, 30, 0),
+        raw_suffix="20260529093000",
+        parent_timestamp="20260529090000",
+        role_suffix="-plan",
+        plan_times=[datetime(2026, 5, 29, 9, 35, 0)],
+        plan_path="plans/epic.md",
+        workspace_dir=str(workspace),
+    )
+
+    _apply_status_overrides([planner])
+
+    assert planner.status == "EPIC"
 
 
 def test_apply_status_overrides_family_root_mirrors_plan_entry() -> None:

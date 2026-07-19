@@ -4,6 +4,7 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 import fcntl
 import logging
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -138,7 +139,7 @@ def _git_lock_retry_delays() -> tuple[float, ...]:
         delays = tuple(float(value.strip()) for value in raw.split(","))
     except ValueError:
         return DEFAULT_GIT_LOCK_RETRY_DELAYS
-    if not delays or any(delay < 0 for delay in delays):
+    if not delays or any(not math.isfinite(delay) or delay < 0 for delay in delays):
         return DEFAULT_GIT_LOCK_RETRY_DELAYS
     return delays
 

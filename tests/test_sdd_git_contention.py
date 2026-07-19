@@ -5,8 +5,13 @@ from pathlib import Path
 import subprocess
 import time
 
+import pytest
+
 from sase.sdd._git_contention import (
+    DEFAULT_GIT_LOCK_RETRY_DELAYS,
+    ENV_GIT_LOCK_RETRY_DELAYS,
     STORE_WRITE_LOCK_FILENAME,
+    _git_lock_retry_delays,
     store_git_write_lock,
 )
 
@@ -29,3 +34,13 @@ def test_store_git_write_lock_has_bounded_fail_open_timeout(tmp_path: Path) -> N
 
     with store_git_write_lock(tmp_path, timeout=0) as acquired:
         assert acquired is True
+
+
+@pytest.mark.parametrize("raw", ["nan", "inf", "-inf"])
+def test_sdd_git_lock_retry_non_finite_env_uses_default(
+    monkeypatch: pytest.MonkeyPatch,
+    raw: str,
+) -> None:
+    monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, raw)
+
+    assert _git_lock_retry_delays() == DEFAULT_GIT_LOCK_RETRY_DELAYS

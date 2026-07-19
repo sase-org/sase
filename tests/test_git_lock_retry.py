@@ -11,6 +11,7 @@ import pytest
 from sase.git_lock_retry import (
     DEFAULT_GIT_LOCK_RETRY_DELAYS,
     ENV_GIT_LOCK_RETRY_DELAYS,
+    STALE_GIT_INDEX_LOCK_OBSERVATION_SECONDS,
     git_index_lock_path,
     git_lock_retry_delays,
     is_retryable_git_lock_error,
@@ -73,7 +74,10 @@ def test_git_lock_retry_delays_defaults_and_env_override(
     assert git_lock_retry_delays() == (0.0, 0.025, 1.5)
 
 
-@pytest.mark.parametrize("raw", ["", "wat", "0.1,,0.2", "-0.1,0.2"])
+@pytest.mark.parametrize(
+    "raw",
+    ["", "wat", "0.1,,0.2", "-0.1,0.2", "nan", "inf", "-inf"],
+)
 def test_git_lock_retry_delays_invalid_env_uses_default(
     monkeypatch: pytest.MonkeyPatch,
     raw: str,
@@ -117,6 +121,7 @@ def test_run_with_git_lock_retry_succeeds_mid_schedule(
 
 def test_run_with_git_lock_retry_removes_lock_persisting_through_window(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lock_path = _make_repo_and_lock(tmp_path)
     calls = 0
@@ -126,10 +131,11 @@ def test_run_with_git_lock_retry_removes_lock_persisting_through_window(
         calls += 1
         return _lock_error(lock_path) if lock_path.exists() else _success()
 
+    observed = iter((100.0, 100.0 + STALE_GIT_INDEX_LOCK_OBSERVATION_SECONDS + 1))
+    monkeypatch.setattr("sase.git_lock_retry.monotonic", lambda: next(observed))
+
     result, outcome = run_with_git_lock_retry(
-        attempt,
-        cwd=tmp_path,
-        delays=(0.001, 0.001),
+        attempt, cwd=tmp_path, delays=(0.001, 0.001)
     )
 
     assert result.returncode == 0
@@ -138,6 +144,39 @@ def test_run_with_git_lock_retry_removes_lock_persisting_through_window(
     assert outcome.lock_removed is True
     assert outcome.lock_path == lock_path
     assert not lock_path.exists()
+
+
+def test_run_with_git_lock_retry_keeps_young_lock_after_shortened_window(
+    tmp_path: Path,
+) -> None:
+    lock_path = _make_repo_and_lock(tmp_path)
+    failure = _lock_error(lock_path)
+    calls = 0
+
+    def attempt() -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        calls += 1
+        return failure
+
+    result, outcome = run_with_git_lock_retry(
+        attempt,
+        cwd=tmp_path,
+        delays=(0.001, 0.001),
+    )
+
+    assert result is failure
+    assert calls == 3
+    assert outcome.lock_removed is False
+    assert lock_path.exists()
+
+
+@pytest.mark.parametrize("delay", [float("nan"), float("inf"), float("-inf")])
+def test_run_with_git_lock_retry_rejects_non_finite_explicit_delays(
+    tmp_path: Path,
+    delay: float,
+) -> None:
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        run_with_git_lock_retry(lambda: _success(), cwd=tmp_path, delays=(delay,))
 
 
 def test_run_with_git_lock_retry_does_not_remove_young_churning_lock(
@@ -328,6 +367,8 @@ def test_run_with_git_lock_retry_deletion_failure_returns_original_error(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     lock_path = _make_repo_and_lock(tmp_path)
+    old = time.time() - 60
+    os.utime(lock_path, (old, old))
     failure = _lock_error(lock_path)
     original_unlink = Path.unlink
 

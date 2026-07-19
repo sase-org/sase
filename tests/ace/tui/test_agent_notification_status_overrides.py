@@ -110,6 +110,24 @@ def test_plan_approval_root_timestamp_sets_parent_planning_override() -> None:
     assert app.refilter_calls == 1
 
 
+def test_legacy_plan_notification_preserves_loaded_pending_tier() -> None:
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="oo",
+        project_file="/tmp/test.sase",
+        status="EPIC",
+        start_time=datetime(2026, 5, 12, 9, 0, 0),
+        raw_suffix="20260512090000",
+        role_suffix=".plan",
+        plan_path="missing-relative-plan.md",
+    )
+    app = _NotificationApp([parent])
+
+    app._apply_notification_status_overrides([_notification()])
+
+    assert app._agent_status_overrides[parent.identity] == "EPIC"
+
+
 @pytest.mark.parametrize(
     ("action", "kind", "expected_status"),
     [("PlanApproval", "plan", "TALE"), ("EpicApproval", "epic_plan", "EPIC")],

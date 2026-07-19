@@ -216,7 +216,10 @@ def enrich_agent_from_meta_wire(
             plan_submitted=plan_submitted,
             auto_approved=agent.approve,
             plan_tier=(
-                cached_plan_tier(meta.plan_path)
+                cached_plan_tier(
+                    meta.plan_path,
+                    relative_to=agent.workspace_dir,
+                )
                 if plan_submitted and not meta.plan_approved and not agent.approve
                 else None
             ),

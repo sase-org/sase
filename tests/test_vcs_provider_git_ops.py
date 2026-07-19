@@ -3,6 +3,7 @@
 Covers: commit, amend, rename_branch, rebase, archive, prune, stash_and_clean.
 """
 
+import os
 from pathlib import Path
 import subprocess
 from unittest.mock import MagicMock, patch
@@ -41,6 +42,7 @@ def test_git_runner_removes_persistent_index_lock_after_retries(
     tracked.write_text("content\n", encoding="utf-8")
     lock_path = tmp_path / ".git" / "index.lock"
     lock_path.touch()
+    os.utime(lock_path, (1, 1))
     monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0.001")
 
     success, error = BareGitPlugin().vcs_add_remove(str(tmp_path))

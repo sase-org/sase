@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -162,6 +163,7 @@ def test_auto_commit_git_runner_recovers_stale_index_lock(
     path.write_text("plan\n", encoding="utf-8")
     lock = repo / ".git" / "index.lock"
     lock.write_text("stale", encoding="utf-8")
+    os.utime(lock, (1, 1))
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
 
     result = finalizer_git._run_git(str(repo), ["add", "plan.md"])

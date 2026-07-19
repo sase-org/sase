@@ -1,6 +1,7 @@
 """Tests for committing SDD files."""
 
 import json
+import os
 import subprocess
 import tempfile
 import threading
@@ -408,6 +409,7 @@ def test_commit_sdd_files_removes_persistent_index_lock_after_retry_exhausted(
     (repo / "plan.md").write_text("plan\n", encoding="utf-8")
     lock_path = repo / ".git/index.lock"
     lock_path.touch()
+    os.utime(lock_path, (1, 1))
     monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0.001,0.001")
 
     assert commit_sdd_files(repo, "Recover after contention") is True

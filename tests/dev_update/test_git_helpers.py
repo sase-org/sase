@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -246,6 +247,7 @@ def test_run_git_recovers_stale_index_lock(
     (tmp_path / "feature.txt").write_text("feature\n", encoding="utf-8")
     lock = tmp_path / ".git" / "index.lock"
     lock.write_text("stale", encoding="utf-8")
+    os.utime(lock, (1, 1))
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
 
     assert _git.run_git(tmp_path, "add", "feature.txt") == ""
