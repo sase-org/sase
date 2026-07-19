@@ -3,124 +3,47 @@
 from __future__ import annotations
 
 import dataclasses
-import heapq
-import json
 import math
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
+from sase.notification_gates.debug_artifacts import (
+    MAX_ARTIFACT_BYTES,
+    MAX_ERROR_EXCERPT_BYTES,
+    bound_text,
+    error_artifacts,
+    notification_row_artifact,
+    parsed_json,
+    read_json_artifact,
+    resource_integrity,
+    terminal_artifact,
+)
+from sase.notification_gates.debug_models import (
+    GateDebugArtifact,
+    GateDebugBundlePaths,
+    GateDebugContext,
+    GateDebugError as _GateDebugError,
+    GateDebugResource as _GateDebugResource,
+    GateDebugSnapshot,
+    GateDebugStatus,
+)
 from sase.notification_gates.debug_rendering import (
     build_gate_debug_overview,
     build_no_bundle_overview,
 )
-from sase.notification_gates.durability import sha256_file, verify_mode
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import (
     CANCELLATION_FILENAME,
     REQUEST_FILENAME,
     RESPONSE_FILENAME,
     bundle_paths,
-    owned_resource_path,
     resolve_action_bundle,
 )
 from sase.notification_gates.registry import adapter_for_action
 from sase.notifications.models import Notification
-
-MAX_ARTIFACT_BYTES = 256 * 1024
-MAX_ERROR_EXCERPT_BYTES = 16 * 1024
-MAX_ERROR_RECORDS = 50
-_TRUNCATION_BANNER = "\n\n--- truncated after {limit} bytes ---"
-
-ArtifactStatus = Literal["ok", "missing", "error"]
-GateDebugStatus = Literal[
-    "PENDING",
-    "ANSWERED",
-    "CANCELLED",
-    "TIMED OUT",
-    "OVERDUE",
-    "UNKNOWN",
-]
-
-
-@dataclass(frozen=True)
-class GateDebugContext:
-    """Stable in-hand input used to open a gate debug surface immediately."""
-
-    notification: Notification
-    action_data: Mapping[str, str]
-
-
-@dataclass(frozen=True)
-class GateDebugArtifact:
-    """One bounded artifact rendered by a debug tab."""
-
-    status: ArtifactStatus
-    body: str
-    raw_text: str
-    path: Path | None = None
-    error: str | None = None
-    truncated: bool = False
-
-
-@dataclass(frozen=True)
-class _GateDebugResource:
-    """Live integrity result for one reviewed bundle resource."""
-
-    path: str
-    role: str
-    executable: bool
-    size: int | None
-    integrity: Literal["ok", "mismatch", "missing", "error"]
-    detail: str
-
-
-@dataclass(frozen=True)
-class _GateDebugError:
-    """One execution-error record from the bundle's errors directory."""
-
-    path: Path
-    code: str
-    message: str
-    source: str
-    returncode: int | None
-    stdout: str | None
-    stderr: str | None
-    body: str
-
-
-@dataclass(frozen=True)
-class GateDebugSnapshot:
-    """Complete, immutable debug projection for a notification gate."""
-
-    kind: str
-    request_id: str
-    notification_id: str
-    icon: str
-    status: GateDebugStatus
-    created_at: str | None
-    age: str
-    bundle_path: Path | None
-    overview: GateDebugArtifact
-    request: GateDebugArtifact
-    response: GateDebugArtifact
-    errors: tuple[_GateDebugError, ...]
-    error_count: int
-    errors_artifact: GateDebugArtifact
-    row: GateDebugArtifact
-    resources: tuple[_GateDebugResource, ...]
-
-
-@dataclass(frozen=True)
-class _ResolvedPaths:
-    root: Path
-    request: Path
-    response: Path
-    cancellation: Path
-    legacy: bool
 
 
 def debug_context_from_notification(notification: Notification) -> GateDebugContext:
@@ -155,7 +78,7 @@ def build_gate_debug_snapshot(
         request = GateDebugArtifact("missing", empty, empty)
         response = GateDebugArtifact("missing", empty, empty)
         errors_artifact = GateDebugArtifact("missing", empty, empty)
-        row = _notification_row_artifact(notification)
+        row = notification_row_artifact(notification)
         overview_text = build_no_bundle_overview(notification, kind, request_id)
         return GateDebugSnapshot(
             kind=kind,
@@ -176,16 +99,16 @@ def build_gate_debug_snapshot(
             resources=(),
         )
 
-    request = _read_json_artifact(paths.request, label=paths.request.name)
-    envelope = _parsed_json(request)
+    request = read_json_artifact(paths.request, label=paths.request.name)
+    envelope = parsed_json(request)
     kind = str(envelope.get("kind") or kind) if envelope else kind
     request_id = (
         str(envelope.get("request_id") or request_id) if envelope else request_id
     )
-    response, terminal_payload, terminal_kind = _terminal_artifact(paths)
-    errors, error_count, errors_artifact = _error_artifacts(paths.root / "errors")
-    resources = _resource_integrity(paths.root, envelope)
-    row = _notification_row_artifact(notification)
+    response, terminal_payload, terminal_kind = terminal_artifact(paths)
+    errors, error_count, errors_artifact = error_artifacts(paths.root / "errors")
+    resources = resource_integrity(paths.root, envelope)
+    row = notification_row_artifact(notification)
 
     created_at, created_unix = _created_time(envelope, notification.timestamp)
     timeout = _number(envelope.get("gate_timeout_seconds")) if envelope else None
@@ -219,7 +142,7 @@ def build_gate_debug_snapshot(
         deadline=deadline,
         now=current,
     )
-    overview_text, overview_truncated = _bound_text(overview_text)
+    overview_text, overview_truncated = bound_text(overview_text)
     overview = GateDebugArtifact(
         "ok" if request.status == "ok" else "error",
         overview_text,
@@ -281,13 +204,13 @@ def _string_list(value: object) -> list[str]:
 
 def _resolve_paths(
     action: str | None, action_data: Mapping[str, str]
-) -> _ResolvedPaths | None:
+) -> GateDebugBundlePaths | None:
     try:
         resolved = resolve_action_bundle(action, action_data)
     except Exception:
         resolved = None
     if resolved is not None:
-        return _ResolvedPaths(
+        return GateDebugBundlePaths(
             resolved.root,
             resolved.request,
             resolved.response,
@@ -300,7 +223,7 @@ def _resolve_paths(
     response_value = action_data.get("response_path")
     if root_value:
         root = Path(root_value).expanduser()
-        return _ResolvedPaths(
+        return GateDebugBundlePaths(
             root,
             Path(request_value).expanduser()
             if request_value
@@ -314,7 +237,7 @@ def _resolve_paths(
     if request_value:
         request = Path(request_value).expanduser()
         root = request.parent
-        return _ResolvedPaths(
+        return GateDebugBundlePaths(
             root,
             request,
             Path(response_value).expanduser()
@@ -334,7 +257,7 @@ def _resolve_paths(
             neutral = bundle_paths(request_kind, request_id)
         except GateError:
             return None
-        return _ResolvedPaths(
+        return GateDebugBundlePaths(
             neutral.root,
             neutral.request,
             neutral.response,
@@ -342,312 +265,6 @@ def _resolve_paths(
             False,
         )
     return None
-
-
-def _bounded_read(path: Path, *, limit: int = MAX_ARTIFACT_BYTES) -> tuple[str, bool]:
-    with path.open("rb") as stream:
-        value = stream.read(limit + 1)
-    truncated = len(value) > limit
-    if truncated:
-        value = value[:limit]
-    text = value.decode("utf-8", errors="replace")
-    if truncated:
-        text += _TRUNCATION_BANNER.format(limit=limit)
-    return text, truncated
-
-
-def _read_json_artifact(path: Path, *, label: str) -> GateDebugArtifact:
-    try:
-        raw, truncated = _bounded_read(path)
-    except FileNotFoundError:
-        body = f"⚠ {label} is missing: {path}"
-        return GateDebugArtifact("missing", body, body, path=path)
-    except Exception as exc:
-        body = f"✗ {label}: {exc}"
-        return GateDebugArtifact("error", body, body, path=path, error=str(exc))
-    if truncated:
-        body = f"✗ {label}: artifact exceeds the bounded read limit\n\n{raw}"
-        return GateDebugArtifact(
-            "error",
-            body,
-            raw,
-            path=path,
-            error="artifact was truncated before JSON parsing",
-            truncated=True,
-        )
-    try:
-        parsed = json.loads(raw)
-        if not isinstance(parsed, dict):
-            raise ValueError("top-level JSON value is not an object")
-    except Exception as exc:
-        body = f"✗ {label}: {exc}\n\n{raw}"
-        return GateDebugArtifact("error", body, raw, path=path, error=str(exc))
-    pretty = json.dumps(parsed, indent=2, ensure_ascii=False, sort_keys=False)
-    body, pretty_truncated = _bound_text(pretty)
-    return GateDebugArtifact("ok", body, raw, path=path, truncated=pretty_truncated)
-
-
-def _parsed_json(artifact: GateDebugArtifact) -> dict[str, Any]:
-    if artifact.status != "ok":
-        return {}
-    try:
-        value = json.loads(artifact.raw_text)
-    except Exception:
-        return {}
-    return value if isinstance(value, dict) else {}
-
-
-def _terminal_artifact(
-    paths: _ResolvedPaths,
-) -> tuple[GateDebugArtifact, dict[str, Any], str | None]:
-    if paths.response.exists() or paths.response.is_symlink():
-        artifact = _read_json_artifact(paths.response, label=paths.response.name)
-        return artifact, _parsed_json(artifact), "response"
-    if paths.cancellation.exists() or paths.cancellation.is_symlink():
-        artifact = _read_json_artifact(
-            paths.cancellation, label=paths.cancellation.name
-        )
-        return artifact, _parsed_json(artifact), "cancellation"
-    body = (
-        "Pending — no response has been written yet.\n\n"
-        f"A response will appear at:\n{paths.response}\n\n"
-        f"A cancellation will appear at:\n{paths.cancellation}"
-    )
-    return GateDebugArtifact("missing", body, body, path=paths.response), {}, None
-
-
-def _error_artifacts(
-    directory: Path,
-) -> tuple[tuple[_GateDebugError, ...], int, GateDebugArtifact]:
-    try:
-        newest: list[tuple[str, Path]] = []
-        count = 0
-        for path in directory.iterdir():
-            if not path.name.endswith(".json"):
-                continue
-            count += 1
-            heapq.heappush(newest, (path.name, path))
-            if len(newest) > MAX_ERROR_RECORDS:
-                heapq.heappop(newest)
-        paths = [path for _name, path in sorted(newest, reverse=True)]
-    except FileNotFoundError:
-        text = "No gate execution errors recorded."
-        return (), 0, GateDebugArtifact("missing", text, text, path=directory)
-    except Exception as exc:
-        text = f"✗ Could not list {directory}: {exc}"
-        return (
-            (),
-            0,
-            GateDebugArtifact("error", text, text, path=directory, error=str(exc)),
-        )
-
-    omitted = max(0, count - len(paths))
-    records: list[_GateDebugError] = []
-    bodies: list[str] = []
-    for path in paths:
-        artifact = _read_json_artifact(path, label=path.name)
-        payload = _parsed_json(artifact)
-        stdout = _bounded_excerpt(payload.get("stdout"))
-        stderr = _bounded_excerpt(payload.get("stderr"))
-        returncode = payload.get("returncode")
-        if not isinstance(returncode, int):
-            returncode = None
-        code = str(payload.get("code") or "unreadable")
-        message = str(payload.get("message") or artifact.error or "")
-        source = str(payload.get("source") or "unknown")
-        lines = [
-            f"✗ {path.name}",
-            f"  code: {code}",
-            f"  message: {message or '(none)'}",
-            f"  source: {source}",
-            f"  returncode: {returncode if returncode is not None else '(none)'}",
-        ]
-        if stdout:
-            lines.extend(("  stdout:", _indent(stdout, "    ")))
-        if stderr:
-            lines.extend(("  stderr:", _indent(stderr, "    ")))
-        if artifact.status != "ok":
-            lines.extend(("  raw diagnostic:", _indent(artifact.body, "    ")))
-        body = "\n".join(lines)
-        bodies.append(body)
-        records.append(
-            _GateDebugError(
-                path=path,
-                code=code,
-                message=message,
-                source=source,
-                returncode=returncode,
-                stdout=stdout,
-                stderr=stderr,
-                body=body,
-            )
-        )
-    if omitted:
-        bodies.append(f"⚠ {omitted} older error record(s) omitted.")
-    text = "\n\n".join(bodies) if bodies else "No gate execution errors recorded."
-    text, truncated = _bound_text(text)
-    status: ArtifactStatus = "ok" if records else "missing"
-    return (
-        tuple(records),
-        count,
-        GateDebugArtifact(status, text, text, path=directory, truncated=truncated),
-    )
-
-
-def _bounded_excerpt(value: object) -> str | None:
-    if value is None:
-        return None
-    raw = str(value).encode("utf-8", errors="replace")
-    truncated = len(raw) > MAX_ERROR_EXCERPT_BYTES
-    raw = raw[:MAX_ERROR_EXCERPT_BYTES]
-    text = raw.decode("utf-8", errors="replace")
-    if truncated:
-        text += _TRUNCATION_BANNER.format(limit=MAX_ERROR_EXCERPT_BYTES)
-    return text
-
-
-def _resource_integrity(
-    root: Path, envelope: Mapping[str, Any]
-) -> tuple[_GateDebugResource, ...]:
-    raw_resources = envelope.get("resources")
-    hashes = envelope.get("hashes")
-    expected_resources = hashes.get("resources") if isinstance(hashes, dict) else {}
-    if not isinstance(raw_resources, list):
-        return ()
-    if not isinstance(expected_resources, dict):
-        expected_resources = {}
-    results: list[_GateDebugResource] = []
-    for index, value in enumerate(raw_resources):
-        if not isinstance(value, dict):
-            results.append(
-                _GateDebugResource(
-                    f"resources[{index}]",
-                    "unknown",
-                    False,
-                    None,
-                    "error",
-                    "resource declaration is not an object",
-                )
-            )
-            continue
-        relative = value.get("path")
-        role = str(value.get("role") or "attachment")
-        executable = value.get("executable", False)
-        if not isinstance(relative, str) or not isinstance(executable, bool):
-            results.append(
-                _GateDebugResource(
-                    str(relative or f"resources[{index}]"),
-                    role,
-                    bool(executable),
-                    None,
-                    "error",
-                    "invalid path or executable declaration",
-                )
-            )
-            continue
-        try:
-            path = owned_resource_path(root, relative)
-        except Exception as exc:
-            results.append(
-                _GateDebugResource(relative, role, executable, None, "error", str(exc))
-            )
-            continue
-        expected = expected_resources.get(relative)
-        try:
-            size = path.stat().st_size
-            verify_mode(path, executable=executable)
-            actual = sha256_file(path)
-        except FileNotFoundError:
-            results.append(
-                _GateDebugResource(
-                    relative, role, executable, None, "missing", "resource is missing"
-                )
-            )
-            continue
-        except Exception as exc:
-            results.append(
-                _GateDebugResource(relative, role, executable, None, "error", str(exc))
-            )
-            continue
-        if not isinstance(expected, str):
-            results.append(
-                _GateDebugResource(
-                    relative,
-                    role,
-                    executable,
-                    size,
-                    "error",
-                    f"no expected hash; actual {actual}",
-                )
-            )
-        elif actual != expected:
-            results.append(
-                _GateDebugResource(
-                    relative,
-                    role,
-                    executable,
-                    size,
-                    "mismatch",
-                    f"expected {expected}; actual {actual}",
-                )
-            )
-        else:
-            results.append(
-                _GateDebugResource(
-                    relative, role, executable, size, "ok", f"sha256 {actual}"
-                )
-            )
-    return tuple(results)
-
-
-def _notification_row_artifact(notification: Notification) -> GateDebugArtifact:
-    fallback = dataclasses.asdict(notification)
-    path: Path | None = None
-    try:
-        from sase.notifications.store import notifications_file_path
-
-        path = notifications_file_path()
-        with path.open("rb") as stream:
-            while True:
-                raw_line = stream.readline(MAX_ARTIFACT_BYTES + 1)
-                if not raw_line:
-                    break
-                complete = (
-                    raw_line.endswith(b"\n") or len(raw_line) <= MAX_ARTIFACT_BYTES
-                )
-                if not complete:
-                    _discard_line_remainder(stream)
-                    continue
-                line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
-                try:
-                    value = json.loads(line)
-                except Exception:
-                    continue
-                if isinstance(value, dict) and value.get("id") == notification.id:
-                    pretty, truncated = _bound_text(
-                        json.dumps(value, indent=2, ensure_ascii=False)
-                    )
-                    return GateDebugArtifact(
-                        "ok",
-                        pretty,
-                        line,
-                        path=path,
-                        truncated=truncated,
-                    )
-    except Exception:
-        pass
-    raw = json.dumps(fallback, ensure_ascii=False)
-    text, truncated = _bound_text(json.dumps(fallback, indent=2, ensure_ascii=False))
-    raw, _raw_truncated = _bound_text(raw)
-    return GateDebugArtifact("ok", text, raw, path=path, truncated=truncated)
-
-
-def _discard_line_remainder(stream: Any) -> None:
-    """Advance past one oversized JSONL row without retaining its bytes."""
-    while True:
-        chunk = stream.readline(MAX_ARTIFACT_BYTES)
-        if not chunk or chunk.endswith(b"\n"):
-            return
 
 
 def _derive_status(
@@ -743,14 +360,6 @@ def _format_duration(seconds: float) -> str:
     return f"{seconds // 86_400}d {seconds % 86_400 // 3600}h"
 
 
-def _bound_text(value: str, *, limit: int = MAX_ARTIFACT_BYTES) -> tuple[str, bool]:
-    raw = value.encode("utf-8", errors="replace")
-    if len(raw) <= limit:
-        return value, False
-    bounded = raw[:limit].decode("utf-8", errors="replace")
-    return bounded + _TRUNCATION_BANNER.format(limit=limit), True
-
-
 def _number(value: object) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
@@ -759,10 +368,6 @@ def _number(value: object) -> float | None:
     except (OverflowError, ValueError):
         return None
     return result if math.isfinite(result) else None
-
-
-def _indent(value: str, prefix: str) -> str:
-    return "\n".join(prefix + line for line in value.splitlines())
 
 
 __all__ = [
