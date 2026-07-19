@@ -11,6 +11,7 @@ import signal
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections import deque
@@ -334,7 +335,26 @@ class Orchestrator:
 
     def _write_pid(self) -> None:
         AXE_STATE_DIR.mkdir(parents=True, exist_ok=True)
-        ORCHESTRATOR_PID_FILE.write_text(str(os.getpid()))
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                dir=ORCHESTRATOR_PID_FILE.parent,
+                prefix=f".{ORCHESTRATOR_PID_FILE.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temp_file:
+                temp_path = Path(temp_file.name)
+                temp_file.write(f"{os.getpid()}\n")
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+            os.replace(temp_path, ORCHESTRATOR_PID_FILE)
+        finally:
+            if temp_path is not None:
+                try:
+                    temp_path.unlink()
+                except OSError:
+                    pass
 
     def _remove_pid(self, *, force: bool = False) -> None:
         pid = self._read_orchestrator_pid()

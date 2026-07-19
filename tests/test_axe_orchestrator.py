@@ -255,6 +255,30 @@ def test_remove_pid_no_file(temp_state_dir: Path, axe_config: AxeConfig) -> None
     orch._remove_pid()  # Should not raise
 
 
+def test_write_pid_atomically_replaces_complete_file(
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """The published PID is always an intact old or new integer."""
+    pid_file = temp_state_dir / "orchestrator.pid"
+    pid_file.write_text("12345\n")
+    real_replace = os.replace
+
+    def assert_complete_then_replace(source: Path, destination: Path) -> None:
+        assert int(Path(source).read_text().strip()) == os.getpid()
+        assert int(pid_file.read_text().strip()) == 12345
+        real_replace(source, destination)
+
+    orch = Orchestrator(axe_config)
+    with patch(
+        "sase.axe.orchestrator.os.replace",
+        side_effect=assert_complete_then_replace,
+    ):
+        orch._write_pid()
+
+    assert int(pid_file.read_text().strip()) == os.getpid()
+
+
 # --- SIGTERM Forwarding Tests ---
 
 

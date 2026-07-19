@@ -77,7 +77,7 @@ def probe_orchestrator(*, cleanup: bool = True) -> AxeOrchestratorProbe:
 
     if cleanup:
         if orchestrator_pid is not None and not orchestrator_running:
-            _remove_orchestrator_pid_file()
+            _remove_orchestrator_pid_file(expected_pid=orchestrator_pid)
         if legacy_pid is not None and not legacy_running:
             remove_pid_file()
         if not lock_held and read_lock_holder_pid() is not None:
@@ -103,17 +103,28 @@ def _read_pid_path(path: Path) -> int | None:
     return pid if pid > 0 else None
 
 
-def _remove_orchestrator_pid_file() -> None:
-    """Remove the orchestrator PID file."""
+def _remove_orchestrator_pid_file(*, expected_pid: int) -> None:
+    """Remove the orchestrator PID file if it still names *expected_pid*."""
+    if _read_pid_path(ORCHESTRATOR_PID_FILE) != expected_pid:
+        return
     try:
         ORCHESTRATOR_PID_FILE.unlink()
     except OSError:
         pass
 
 
-def cleanup_pid_files() -> None:
-    """Remove all PID files (orchestrator + legacy)."""
+def cleanup_pid_files(*, stopped_pid: int | None = None) -> None:
+    """Remove stale or owned PID files after a stop attempt.
+
+    A concurrently-started orchestrator may replace its PID file after the
+    stopped process releases the lifecycle lock. Preserve that file whenever
+    it names a different live process.
+    """
     from .state import remove_pid_file
 
-    _remove_orchestrator_pid_file()
+    current_pid = _read_pid_path(ORCHESTRATOR_PID_FILE)
+    if current_pid is not None and (
+        current_pid == stopped_pid or not is_process_running(current_pid)
+    ):
+        _remove_orchestrator_pid_file(expected_pid=current_pid)
     remove_pid_file()

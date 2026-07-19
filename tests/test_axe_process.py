@@ -12,14 +12,14 @@ import pytest
 from sase.axe.config import AxeConfig
 from sase.axe.desired_state import read_desired_state
 from sase.axe.lock import AxeLifecycleLock
-from sase.axe._process_probe import probe_orchestrator
+from sase.axe._process_probe import cleanup_pid_files, probe_orchestrator
 from sase.axe._process_start import (
     _build_axe_start_command,
     _compose_axe_daemon_env,
     _wait_for_daemon_start,
 )
 from sase.axe._process_stop import _send_signal
-from sase.axe._process_types import AxeOrchestratorProbe
+from sase.axe._process_types import AxeOrchestratorProbe, TerminateResult
 from sase.axe.process import (
     AxeStartResult,
     get_axe_status,
@@ -380,6 +380,97 @@ def test_stop_axe_daemon_filters_current_pid_before_terminating(
     assert result.orchestrator_signaled is False
     assert result.failed_pids == ()
     mock_kill.assert_not_called()
+
+
+def test_cleanup_pid_files_preserves_different_live_orchestrator(
+    temp_state_dir: Path,
+) -> None:
+    pid_file = temp_state_dir / "orchestrator.pid"
+    pid_file.write_text("22222\n")
+
+    with patch(
+        "sase.axe._process_probe.is_process_running",
+        return_value=True,
+    ):
+        cleanup_pid_files(stopped_pid=11111)
+
+    assert pid_file.read_text() == "22222\n"
+
+
+def test_cleanup_pid_files_removes_dead_orchestrator(
+    temp_state_dir: Path,
+) -> None:
+    pid_file = temp_state_dir / "orchestrator.pid"
+    pid_file.write_text("22222\n")
+
+    with patch(
+        "sase.axe._process_probe.is_process_running",
+        return_value=False,
+    ):
+        cleanup_pid_files(stopped_pid=11111)
+
+    assert not pid_file.exists()
+
+
+def test_cleanup_pid_files_removes_stopped_orchestrator(
+    temp_state_dir: Path,
+) -> None:
+    pid_file = temp_state_dir / "orchestrator.pid"
+    pid_file.write_text("11111\n")
+
+    with patch("sase.axe._process_probe.is_process_running") as is_running:
+        cleanup_pid_files(stopped_pid=11111)
+
+    assert not pid_file.exists()
+    is_running.assert_not_called()
+
+
+@patch("sase.axe._process_stop.clear_lock_holder_pid")
+@patch("sase.axe._process_stop.is_lifecycle_lock_held", return_value=False)
+def test_stop_cleanup_preserves_pid_published_by_concurrent_restart(
+    _mock_lock_held: MagicMock,
+    _mock_clear_lock_holder: MagicMock,
+    temp_state_dir: Path,
+) -> None:
+    """A late stop cleanup cannot remove a newly-started orchestrator PID."""
+    old_pid = 11111
+    new_pid = 22222
+    pid_file = temp_state_dir / "orchestrator.pid"
+    pid_file.write_text(f"{old_pid}\n")
+    running_probe = AxeOrchestratorProbe(
+        lock_held=True,
+        lock_holder_pid=old_pid,
+        orchestrator_pid_file_pid=old_pid,
+        legacy_pid=None,
+        running_pid=old_pid,
+    )
+    restarted_probe = AxeOrchestratorProbe(
+        lock_held=True,
+        lock_holder_pid=new_pid,
+        orchestrator_pid_file_pid=new_pid,
+        legacy_pid=None,
+        running_pid=new_pid,
+    )
+
+    def stop_old_process(*_args: object, **_kwargs: object) -> TerminateResult:
+        pid_file.write_text(f"{new_pid}\n")
+        return TerminateResult(pid=old_pid, signaled=True, stopped=True)
+
+    with (
+        patch(
+            "sase.axe._process_stop.probe_orchestrator",
+            side_effect=[running_probe, restarted_probe],
+        ),
+        patch(
+            "sase.axe._process_stop._terminate_process",
+            side_effect=stop_old_process,
+        ),
+        patch("sase.axe._process_probe.is_process_running", return_value=True),
+    ):
+        result = stop_axe_daemon_result(record_desired_state=False)
+
+    assert result.orchestrator_stopped is True
+    assert pid_file.read_text() == f"{new_pid}\n"
 
 
 def test_probe_orchestrator_resolves_recorded_daemon_over_acquirer(

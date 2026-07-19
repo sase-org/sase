@@ -94,7 +94,8 @@ def stop_axe_daemon_result(
         or not final_probe.running
     )
     if should_clear_state:
-        cleanup_pid_files()
+        stopped_pid = pid if orchestrator_result.stopped else None
+        cleanup_pid_files(stopped_pid=stopped_pid)
         if not final_probe.lock_held or force:
             clear_lock_holder_pid()
 
