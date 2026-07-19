@@ -596,7 +596,9 @@ def test_git_commit_push_worker_backs_off_then_removes_stale_index_lock(
             "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt.subprocess.run",
             side_effect=run,
         ),
-        patch("sase.git_lock_retry.git_lock_retry_delays", return_value=(0.001, 0.001)),
+        patch(
+            "sase.git_lock_retry._git_lock_retry_delays", return_value=(0.001, 0.001)
+        ),
         patch("sase.config.get_use_chezmoi", return_value=False),
     ):
         result = _run_git_commit_push_sync(

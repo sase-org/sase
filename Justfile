@@ -202,9 +202,6 @@ _lint-symvision *args: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-77(GitLockRetryOutcome)" \
-        --epic-symbol "sase-77(git_lock_retry_delays)" \
-        --epic-symbol "sase-77(is_retryable_git_lock_error)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

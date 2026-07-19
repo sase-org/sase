@@ -330,6 +330,8 @@ ace:
         prefix: "comma"
         keys:
           repeat_last: "comma" # press the leader prefix, then this key; defaults render as `,,`
+          edit_query: "slash" # defaults render as `,/`
+          show_help: "question_mark" # defaults render as `,?`
           models_panel: "m"
           update_sase: "U"
           full_history_refresh: "y"
@@ -422,6 +424,11 @@ The built-in `fold_mode` direct actions are `set_level_1` through `set_level_3` 
 `agents.set_level_1` through `agents.set_level_4` for Agents metadata. Their defaults produce `z1`-`z3` on PRs; Agents
 accepts levels 1-2 for a family, 1-3 for a clan or regular-agent session scope, and 1-4 for a selected whole tribe
 panel. The configured prefix and subkeys are used by dispatch, the command palette, footers, and help.
+
+Query editing and help are leader-mode actions. Their default `edit_query: slash` and `show_help: question_mark` subkeys
+produce `,/` and `,?` on every tab. Legacy `ace.keymaps.app.edit_query` and `ace.keymaps.app.show_help` overrides are
+ignored; move custom bindings under `modes.leader_mode.keys`. Bare `/` and `?` are no longer the app-level query and
+help shortcuts.
 
 Custom mode key fields:
 

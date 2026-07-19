@@ -86,8 +86,9 @@ the bead issue tracker. For an epic, `sase bead work <plan-file>` writes `bead_i
 beads. Re-running the command sees that link and resumes the existing epic instead of creating duplicates.
 
 When `sase plan propose` submits a plan for approval, it touches `~/.sase/.ace_refresh_pulse` so any running ACE TUI
-flips the agent into the `PLAN` status immediately rather than waiting for the next auto-refresh tick. The pulse file is
-consumed by the inotify-based artifact watcher and is harmless when no TUI is open.
+flips the agent into the tier-aware `TALE` or `EPIC` pending-review status immediately rather than waiting for the next
+auto-refresh tick. Legacy or unreadable-tier plans use the `PLAN` fallback. The pulse file is consumed by the
+inotify-based artifact watcher and is harmless when no TUI is open.
 
 Humans can approve the pending proposal from ACE or from the CLI. `sase plan` lists pending PlanApproval notifications,
 recent approvals, and inferred rejected archived proposals. `sase plan approve <id-prefix>` defaults to the tier

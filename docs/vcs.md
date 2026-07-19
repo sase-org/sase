@@ -671,6 +671,19 @@ plugins to provide enhanced functionality (e.g., PR operations via `gh` CLI) wit
 
 ## Troubleshooting
 
+### Git `index.lock` Contention
+
+SASE routes Git mutations used by commits, workspace setup, SDD writes, linked repositories, agent reverts, updates, and
+finalization through one bounded lock-recovery policy. On an `index.lock` failure it retries with short exponential
+backoff. If the canonical lock remains the same throughout that window or is already at least 15 seconds old, SASE
+removes that unchanged stale lock and tries once more. A lock whose path or file identity changes is treated as active
+and is never removed by the recovery path. Read-only Git commands do not need this policy.
+
+If a mutation still reports `index.lock`, first check for another Git process operating on that repository and let it
+finish. Avoid deleting `.git/index.lock` blindly: worktrees can store the real Git directory elsewhere, and a changing
+lock belongs to active work. After confirming no Git process is live, rerun the SASE operation; its recovery logic will
+resolve the canonical lock path and remove only an unchanged stale file.
+
 ### "No VCS provider found" Error
 
 **Cause:** Auto-detection could not find `.hg/` or `.git/` in the current directory or any parent, no explicit provider

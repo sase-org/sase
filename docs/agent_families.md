@@ -82,8 +82,9 @@ Press `zz` to cycle levels 1 → 2 → 3 → 1. Press `zZ` below level 3 to open
 to close every fold to level 1. Use `z1`-`z3` to select an exact level. `za` cycles only the section at the top of the
 metadata viewport; `zA` toggles that section between collapsed and fully expanded. A valid panel-level cycle, extreme
 toggle, or direct selection clears these per-section overrides. The `Fold: N/3` field in the `CLAN` header always shows
-the current panel level, while the `▸`/`▾`/`▼` heading glyph shows each section's effective level. Disk-backed content
-may briefly show `loading…` when a section first opens.
+the current panel level, while the `▸`/`▾`/`▼` heading glyph shows each section's effective level. Unknown disk-backed
+sections stay hidden during enrichment behind one `scanning member data…` tail; represented sections appear when known,
+and known-empty sections remain omitted.
 
 The fold prefix is available only while the Agents tab is active. Press uppercase `Z` to zoom the largest panel; the
 lowercase `z` key starts fold mode. Fold state is panel-wide and applies when a clan or multi-member family container is
@@ -161,7 +162,8 @@ previews; level 2 adds full available content and member workspace, timestamp, a
 level 1 to open every fold to level 2, or at level 2 to close every fold to level 1. Press `z1` or `z2` to select either
 level directly. `z3` and `z4` are invalid in a family context and leave both the panel level and section overrides
 untouched. A member-specific override inherits from the `FAMILY MEMBERS` section, which in turn inherits the panel
-level.
+level. Missing xprompt and prompt sections are omitted, while reply rows for members that have not responded yet remain
+visible with their pending state.
 
 Two bundled xprompts help assemble common follow-up prompt bodies. They build text only; `%n` performs the attachment:
 
@@ -226,7 +228,8 @@ remembered for that panel. Uppercase `L` instead expands the panel and enters it
 expanded whole panel is selected, `j` / `k` cycle across panels without descending, and `l` or `Esc` returns to the
 remembered row. `J` / `K` always move to the first / last selectable row of the next / previous panel. Whole-panel focus
 is unavailable in the merged layout. Apostrophe jump can select any split-panel title, including a lone expanded panel,
-but a lone panel cannot be collapsed.
+but a lone panel cannot be collapsed. With whole-panel focus active, uppercase `H` isolates the selected panel by
+keeping it expanded and collapsing every sibling without changing its remembered row.
 
 Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four `zz` metadata detail levels
 progress from an operational pulse, to a numbered top-level roster, to nested member and disk-backed reply/slow-call

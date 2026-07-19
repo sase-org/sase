@@ -12,8 +12,8 @@ from sase.git_lock_retry import (
     DEFAULT_GIT_LOCK_RETRY_DELAYS,
     ENV_GIT_LOCK_RETRY_DELAYS,
     git_index_lock_path,
-    git_lock_retry_delays,
-    is_retryable_git_lock_error,
+    _git_lock_retry_delays,
+    _is_retryable_git_lock_error,
     run_with_git_lock_retry,
 )
 
@@ -60,17 +60,17 @@ def test_is_retryable_git_lock_error_truth_table(
     output: str | bytes | None,
     expected: bool,
 ) -> None:
-    assert is_retryable_git_lock_error(returncode, output) is expected
+    assert _is_retryable_git_lock_error(returncode, output) is expected
 
 
 def test_git_lock_retry_delays_defaults_and_env_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv(ENV_GIT_LOCK_RETRY_DELAYS, raising=False)
-    assert git_lock_retry_delays() == DEFAULT_GIT_LOCK_RETRY_DELAYS
+    assert _git_lock_retry_delays() == DEFAULT_GIT_LOCK_RETRY_DELAYS
 
     monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0, 0.025,1.5")
-    assert git_lock_retry_delays() == (0.0, 0.025, 1.5)
+    assert _git_lock_retry_delays() == (0.0, 0.025, 1.5)
 
 
 @pytest.mark.parametrize("raw", ["", "wat", "0.1,,0.2", "-0.1,0.2"])
@@ -79,7 +79,7 @@ def test_git_lock_retry_delays_invalid_env_uses_default(
     raw: str,
 ) -> None:
     monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, raw)
-    assert git_lock_retry_delays() == DEFAULT_GIT_LOCK_RETRY_DELAYS
+    assert _git_lock_retry_delays() == DEFAULT_GIT_LOCK_RETRY_DELAYS
 
 
 def test_run_with_git_lock_retry_succeeds_mid_schedule(

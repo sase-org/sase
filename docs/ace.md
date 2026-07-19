@@ -54,10 +54,10 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | **Artifacts** | Browse PRs, commits, bugs, and plans in four focused sub-tabs |
 | **Axe**       | Monitor the Axe daemon and background commands                |
 
-Agents is the first tab and the startup default. Each tab has a contextual guide: press `,?` (leader mode) to open the
-current tab's guide modal, which summarizes what the tab shows and its most useful keybindings. While the guide or the
-`?` help modal is open, the configured tab-switch keys still switch ACE tabs and refresh the modal content in place. By
-default those keys are `Tab` and `Shift+Tab`; if you remap them, the modals follow the configured keys.
+Agents is the first tab and the startup default. Each tab has contextual help: press `,?` (leader mode) to open the Help
+modal on its **Keymaps** view, then `]` to switch to the tab's **Guide** view. While Help is open, the configured
+tab-switch keys still switch ACE tabs and refresh both views in place. By default those keys are `Tab` and `Shift+Tab`;
+if you remap them, the modal follows the configured keys.
 
 On first use, empty tabs render onboarding states instead of blank panels: the PRs sub-tab shows a getting-started card
 when no ChangeSpecs or saved queries exist yet, and the Agents tab walks through launching a first agent — the
@@ -96,10 +96,10 @@ open; the second completes the jump. Hints remain case-sensitive.
 
 ### Filtering Commits and Plans
 
-Press `/` or `f` in Commits or Plans to open its live filter bar. Tokens from different facets combine with AND
-semantics; comma-separated and repeated values within one facet combine with OR semantics. Free-text terms must all
-match. Press `Tab` to accept the highlighted key or value completion, `Enter` to keep the query, or `Escape` to restore
-the last committed query.
+Press `,/` (leader mode) or the local `f` shortcut in Commits or Plans to open its live filter bar. Tokens from
+different facets combine with AND semantics; comma-separated and repeated values within one facet combine with OR
+semantics. Free-text terms must all match. Press `Tab` to accept the highlighted key or value completion, `Enter` to
+keep the query, or `Escape` to restore the last committed query.
 
 Commits accepts `repo:`, `author:`, `since:`, `until:`, and `limit:` plus free text matched against the commit subject.
 For example, `repo:sase author:Ada since:7d fix` shows recent SASE commits by Ada whose subjects contain `fix`, while
@@ -268,6 +268,7 @@ The modal supports live filtering as you type in the search box and displays las
 | Key        | Action                                                                               |
 | ---------- | ------------------------------------------------------------------------------------ |
 | `,,`       | Repeat the last leader command                                                       |
+| `,/`       | Edit the current tab's query or filter                                               |
 | `,!`       | Run command using current PR context                                                 |
 | `,A`       | Open the Agent Run Log modal for the current PR                                      |
 | `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                       |
@@ -280,7 +281,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,<space>` | Run agent from current PR (skips project selection)                                  |
 | `,.`       | Open prompt history modal                                                            |
 | `,>`       | Open prompt history modal with cancelled prompts visible                             |
-| `,?`       | Open the current tab's guide modal                                                   |
+| `,?`       | Open Help for the current tab (Keymaps / Guide)                                      |
 
 The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers use lifecycle-aware discovery:
 project entries, including `home` when it appears in picker lists, must have enabled and launchable ProjectSpecs; PR
@@ -423,6 +424,11 @@ scale: family level 1 is expanded and level 2 is fully expanded.
 | 1     | Core member rows plus headings and counts; expensive disk-backed bodies remain deferred                        |
 | 2     | Bounded triage detail such as activity, wait/retry state, context summaries, and prompt/reply previews         |
 | 3     | Full available sections and the richest member annotations, including workspace, timestamps, and attempt count |
+
+Clan summaries omit empty sections. Until disk-backed member data has been classified, unknown sections stay hidden and
+one `scanning member data…` tail reports the background enrichment; represented sections appear as soon as they are
+known. Family summaries likewise omit missing xprompt and prompt sections, while an unfinished reply remains visible as
+pending rather than disappearing as empty.
 
 The default fold chords are:
 
@@ -616,6 +622,9 @@ collapsed panel, the first `l` expands it while keeping whole-panel focus and th
 uppercase `L` expands it and enters its first selectable row. Apostrophe jump hints include every split-panel title,
 even a lone expanded panel, as well as collapsed titles, and support the normal `Ctrl+O` jump back.
 
+With a whole panel selected, uppercase `H` keeps that panel expanded and collapses every sibling panel. The action is
+idempotent, preserves the selected panel's remembered row, and is available only in the split layout.
+
 Per-panel actions (kill, dismiss, expand, etc.) operate on whichever panel currently holds focus. Press `X` to open the
 cleanup panel: `d` dismisses completed agents in the focused panel, `D` dismisses completed agents across loaded panels,
 `k` cleans the focused panel, `K` cleans all loaded panels, `m` cleans marked agents, `g` cleans the focused group, `t`
@@ -673,7 +682,7 @@ independent folding layers can therefore be visible at once:
 | `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel              |
 | `h` | Collapse one structural level; when none remains, select a panel that supports whole-panel focus; on panel focus, collapse it |
 | `L` | Expand a collapsed focused panel and enter its first selectable row                                                           |
-| `H` | Collapse the deepest enclosing grouping banner; repeated use on a collapsed nested banner climbs toward its parent            |
+| `H` | On whole-panel focus, isolate that panel; otherwise collapse the deepest enclosing grouping banner and climb on repeats       |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain visible headings but are skipped by
 row navigation. When a collapsed banner is focused, `l` expands only that banner and moves focus to the next visible
@@ -832,10 +841,10 @@ compatibility.
 
 ### Agent Search
 
-Press `/` on the Agents tab to open the query editor. The query language is a **structured Boolean expression** —
-parallel to the ChangeSpec query language but with a property-key allowlist tailored to agents. Bare words are
-substring-matched against an agent's `cl_name`, `display_name`, `agent_name`, and `status`, plus its **xprompt, live
-reply/response, chat transcript, and prior attempt replies**.
+Press `,/` (leader mode) on the Agents tab to open the query editor. The query language is a **structured Boolean
+expression** — parallel to the ChangeSpec query language but with a property-key allowlist tailored to agents. Bare
+words are substring-matched against an agent's `cl_name`, `display_name`, `agent_name`, and `status`, plus its
+**xprompt, live reply/response, chat transcript, and prior attempt replies**.
 
 Property keys (closed allowlist):
 
@@ -865,6 +874,7 @@ collapsed clan.
 | Key        | Action                                                                                            |
 | ---------- | ------------------------------------------------------------------------------------------------- |
 | `,,`       | Repeat the last leader command                                                                    |
+| `,/`       | Edit the Agents query                                                                             |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                           |
 | `,g`       | Toggle between tag-split panels and one merged agent panel                                        |
 | `,H`       | Number each currently toggleable visible fold owner; toggle the entered hints atomically          |
@@ -882,7 +892,7 @@ collapsed clan.
 | `,<space>` | Run agent from current agent's PR (skips selection)                                               |
 | `,.`       | Open prompt history modal                                                                         |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                          |
-| `,?`       | Open the current tab's guide modal                                                                |
+| `,?`       | Open Help for the current tab (Keymaps / Guide)                                                   |
 
 Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`, `TALE DONE`, `PLAN REJECTED`,
 `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from the Agents header's "stopped" attention bucket for rows paused
@@ -1031,11 +1041,12 @@ numerical identity.
 | Key  | Action                                                                               |
 | ---- | ------------------------------------------------------------------------------------ |
 | `,,` | Repeat the last leader command                                                       |
+| `,/` | Edit the current Axe query                                                           |
 | `,h` | Run agent from home prompt context; bare prompts default to `#git:home`              |
 | `,m` | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel)) |
 | `,U` | Update sase, core, and plugins (opens Updates confirmation prompt)                   |
 | `,R` | Show runners info                                                                    |
-| `,?` | Open the current tab's guide modal                                                   |
+| `,?` | Open Help for the current tab (Keymaps / Guide)                                      |
 
 ### Bang Mode (`!` prefix)
 
@@ -1062,7 +1073,8 @@ numerical identity.
 
 ### Editing Queries
 
-Press `/` to open the query editor. The current canonical query is pre-filled.
+Press `,/` (leader mode) to open the query editor. The current canonical query is pre-filled. Query editing and help use
+leader chords on every tab: the defaults are `,/` and `,?`, not bare `/` and `?`.
 
 To save a query, prefix with `#`:
 
@@ -1390,7 +1402,8 @@ Agent completion and failure toasts include the `%name`-set agent name with an `
 
 Press `#` on any tab to open **SASE Admin Center**, then press `7` or switch to the **XPrompts** tab with `Tab` /
 `Shift+Tab` or the tab strip. The XPrompts tab displays all discovered xprompts in a two-panel layout: a filterable list
-on the left and a syntax-highlighted preview on the right.
+on the left and a syntax-highlighted preview on the right. Markdown xprompts with leading YAML frontmatter render the
+frontmatter and body with their respective syntax styles.
 
 Xprompts are grouped by source (project `sase/xprompts/`, home `~/sase/xprompts/`, project-specific home, config
 `sase.yml`, plugins, built-in, plus labeled legacy compatibility sources). Workflow xprompts (multi-step YAML) are
@@ -1599,7 +1612,9 @@ active (the agent is still running or awaiting input) and completed (the agent h
 | **RUNNING**        | Gold         | Agent subprocess is executing                                       |
 | **WAITING**        | Light blue   | Agent is queued, waiting for another agent to succeed (`%wait`)     |
 | **WAITING INPUT**  | Amber/orange | Workflow is paused at a human-in-the-loop (HITL) step               |
-| **PLAN**           | Pink/magenta | Agent has produced a plan and is waiting for user approval          |
+| **TALE**           | Pink/magenta | An authored tale is waiting for user review                         |
+| **EPIC**           | Orchid       | An authored epic is waiting for user review                         |
+| **PLAN**           | Pink/magenta | A legacy or unreadable-tier plan is waiting for user review         |
 | **PLAN APPROVED**  | Cyan         | Plan was approved; follow-up agent has been spawned                 |
 | **EPIC APPROVED**  | Cyan         | Plan was approved as an epic; `--epic` follow-up is running         |
 | **PLAN COMMITTED** | Cyan         | Plan was approved with auto-commit; `--commit` follow-up is running |
@@ -1856,7 +1871,8 @@ nothing for `agy` runs. See [LLM Providers — Claude tool-call hooks](llms.md#c
 When an agent submits a plan via `/sase_plan` (or `sase plan propose`, including the `%auto:epic` path), it enters a
 planning phase before executing:
 
-- **PLAN** — The agent has produced a plan and is waiting for user approval. Shown in pink/magenta in the prompt panel.
+- **TALE** / **EPIC** — The agent has submitted an authored tale or epic and is waiting for user review. Tales are
+  pink/magenta; epics are orchid. **PLAN** is the compatibility fallback when the authored tier cannot be resolved.
 - **PLAN APPROVED** — The plan has been approved and the follow-up agent has been spawned. Shown in cyan/turquoise.
 - **PLAN REJECTED** — The plan was rejected. A no-feedback rejection from ACE or `sase plan reject` writes the rejection
   response first, then attempts to dismiss the notification, user-kill the matching planner, and persist dismissed-agent
@@ -1868,19 +1884,23 @@ notifications include the LLM provider and model name, so users can see which mo
 the TUI notification modal and Telegram delivery).
 
 When `sase plan propose` writes the plan, it also touches `~/.sase/.ace_refresh_pulse` to wake any running TUI
-immediately — PLAN status appears without waiting for the next auto-refresh tick. The pulse file is consumed by the
-inotify artifact watcher (see [Auto-Refresh](#auto-refresh)) and is harmless if no TUI is open.
+immediately — the tier-aware `TALE` or `EPIC` status (or fallback `PLAN`) appears without waiting for the next
+auto-refresh tick. The pulse file is consumed by the inotify artifact watcher (see [Auto-Refresh](#auto-refresh)) and is
+harmless if no TUI is open.
 
-Root plan workflows also surface PLAN when a re-proposed plan is still awaiting review. Plan and feedback timestamps
-from feedback-round children (`--2`, `--3`, ...; legacy `-2`, `.2`, etc.) propagate onto the root entry, and whenever
-the root's latest plan timestamp is newer than its latest feedback timestamp the override engine restores `PLAN` over a
-`RUNNING` or `DONE` label. This applies only to root plan workflows that have not yet spawned a terminal follow-up
-(`--code`, `--epic`, ...); once a terminal follow-up is launched, the parent moves on to `PLAN APPROVED` (or the
-matching follow-up status) instead.
+Root plan workflows also surface their tier-aware pending status when a re-proposed plan is still awaiting review. Plan
+and feedback timestamps from feedback-round children (`--2`, `--3`, ...; legacy `-2`, `.2`, etc.) propagate onto the
+root entry, and whenever the root's latest plan timestamp is newer than its latest feedback timestamp the override
+engine restores `TALE`, `EPIC`, or fallback `PLAN` over a `RUNNING` or `DONE` label. This applies only to root plan
+workflows that have not yet spawned a terminal follow-up (`--code`, `--epic`, ...); once a terminal follow-up is
+launched, the parent moves on to `PLAN APPROVED` (or the matching follow-up status) instead.
 
 The Plan Review modal title shows a provider-themed `PROVIDER(model)` badge between the "Plan Review" label and the plan
 filename — orange for Claude, lime for Codex, Antigravity indigo (`#6E5DE7`) for agy, neutral muted for other providers.
 The badge is omitted when provider/model metadata is absent, leaving the legacy title shape unchanged.
+
+Whole-document Markdown previews in plan, launch, and custom-gate review modals highlight leading YAML frontmatter as
+YAML and the remaining body as Markdown. Highlighting does not alter validation or the reviewed file contents.
 
 For tale plans, the modal's primary **Approve** decision includes two independently selectable add-ons: **Commit plan
 file to the plans sidecar** and **Run coder follow-up**. Both are selected by default. Press `enter` to approve with the

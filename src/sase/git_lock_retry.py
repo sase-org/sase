@@ -24,7 +24,7 @@ type GitLockResultAdapter[ResultT] = Callable[[ResultT], tuple[int, str | bytes 
 
 
 @dataclass(frozen=True, slots=True)
-class GitLockRetryOutcome:
+class _GitLockRetryOutcome:
     """Details about the attempts made by :func:`run_with_git_lock_retry`."""
 
     attempts: int
@@ -44,7 +44,7 @@ class _LockIdentity:
     size: int
 
 
-def is_retryable_git_lock_error(
+def _is_retryable_git_lock_error(
     returncode: int,
     output: str | bytes | None,
 ) -> bool:
@@ -57,7 +57,7 @@ def is_retryable_git_lock_error(
     )
 
 
-def git_lock_retry_delays() -> tuple[float, ...]:
+def _git_lock_retry_delays() -> tuple[float, ...]:
     """Return the configured bounded backoff schedule for git lock failures."""
     raw = os.environ.get(ENV_GIT_LOCK_RETRY_DELAYS)
     if raw is None:
@@ -108,7 +108,7 @@ def run_with_git_lock_retry[ResultT](
     result_adapter: GitLockResultAdapter[ResultT] | None = None,
     delays: Iterable[float] | None = None,
     allow_lock_removal: bool = True,
-) -> tuple[ResultT, GitLockRetryOutcome]:
+) -> tuple[ResultT, _GitLockRetryOutcome]:
     """Run *attempt* with bounded retry and safe stale-lock recovery.
 
     The native result object is returned unchanged. ``result_adapter`` converts
@@ -117,7 +117,7 @@ def run_with_git_lock_retry[ResultT](
     adapter automatically.
     """
     retry_delays = (
-        git_lock_retry_delays() if delays is None else _validated_retry_delays(delays)
+        _git_lock_retry_delays() if delays is None else _validated_retry_delays(delays)
     )
     adapter = result_adapter or _default_result_adapter
     repo_path = Path(cwd).expanduser().resolve(strict=False)
@@ -125,8 +125,8 @@ def run_with_git_lock_retry[ResultT](
     result = attempt()
     attempts = 1
     returncode, output = adapter(result)
-    if not is_retryable_git_lock_error(returncode, output):
-        return result, GitLockRetryOutcome(attempts=attempts)
+    if not _is_retryable_git_lock_error(returncode, output):
+        return result, _GitLockRetryOutcome(attempts=attempts)
 
     first_lock_path = _resolved_error_index_lock_path(repo_path, output)
     latest_lock_path = first_lock_path
@@ -148,8 +148,8 @@ def run_with_git_lock_retry[ResultT](
         result = attempt()
         attempts += 1
         returncode, output = adapter(result)
-        if not is_retryable_git_lock_error(returncode, output):
-            return result, GitLockRetryOutcome(
+        if not _is_retryable_git_lock_error(returncode, output):
+            return result, _GitLockRetryOutcome(
                 attempts=attempts,
                 lock_path=latest_lock_path,
             )
@@ -161,7 +161,7 @@ def run_with_git_lock_retry[ResultT](
         latest_lock_path = current_lock_path
 
     if not allow_lock_removal or latest_lock_path is None:
-        return result, GitLockRetryOutcome(
+        return result, _GitLockRetryOutcome(
             attempts=attempts,
             lock_path=latest_lock_path,
         )
@@ -175,7 +175,7 @@ def run_with_git_lock_retry[ResultT](
         lock_age is not None and lock_age >= STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS
     )
     if not (persisted_through_retries or old_enough):
-        return result, GitLockRetryOutcome(
+        return result, _GitLockRetryOutcome(
             attempts=attempts,
             lock_path=latest_lock_path,
         )
@@ -189,7 +189,7 @@ def run_with_git_lock_retry[ResultT](
             latest_lock_path,
             _format_lock_age(lock_age),
         )
-        return result, GitLockRetryOutcome(
+        return result, _GitLockRetryOutcome(
             attempts=attempts,
             lock_path=latest_lock_path,
         )
@@ -204,7 +204,7 @@ def run_with_git_lock_retry[ResultT](
     )
     result = attempt()
     attempts += 1
-    return result, GitLockRetryOutcome(
+    return result, _GitLockRetryOutcome(
         attempts=attempts,
         lock_removed=True,
         lock_path=latest_lock_path,
@@ -307,10 +307,7 @@ __all__ = [
     "DEFAULT_GIT_LOCK_RETRY_DELAYS",
     "ENV_GIT_LOCK_RETRY_DELAYS",
     "GitLockResultAdapter",
-    "GitLockRetryOutcome",
     "STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS",
     "git_index_lock_path",
-    "git_lock_retry_delays",
-    "is_retryable_git_lock_error",
     "run_with_git_lock_retry",
 ]
