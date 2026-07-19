@@ -367,15 +367,18 @@ def test_agent_panel_grouping_leader_command_is_agents_only() -> None:
     assert spec.executor.subkey == "g"
 
 
-def test_visible_agent_folds_leader_command_is_agents_only() -> None:
+def test_visible_agent_folds_use_contextual_app_command() -> None:
     catalog = build_command_catalog(_registry())
-    spec = next(c for c in catalog if c.id == "leader.toggle_selected_agent_panels")
+    assert not any(c.id == "leader.toggle_selected_agent_panels" for c in catalog)
+    spec = next(c for c in catalog if c.id == "app.expand_all_folds")
 
-    assert spec.label == "Toggle visible agent folds"
-    assert spec.key_display == ",H"
-    assert spec.tabs == ("agents",)
-    assert spec.executor.kind == "leader_mode_key"
-    assert spec.executor.subkey == "H"
+    assert spec.label == (
+        "Select visible Agents folds by number / expand all folds on other tabs"
+    )
+    assert spec.key_display == "L"
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.executor.kind == "app_action"
+    assert spec.executor.action == "expand_all_folds"
 
 
 def test_projects_command_is_keyless_and_global() -> None:

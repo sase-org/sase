@@ -178,7 +178,8 @@ ace:
       sync: "Y"
       refresh: "y"
       # Fold / collapse (Agents: h folds then selects the panel; H folds
-      # grouping banners; l expands or enters a selected panel; L expands it)
+      # grouping banners; l expands or enters a selected panel; L selects
+      # visible folds by numeric hint)
       hooks_or_collapse: "h"
       hooks_or_collapse_all: "H"
       expand_or_layout: "l"
@@ -306,7 +307,6 @@ ace:
           agent_home: "h"
           agent_from_cl: "space"
           toggle_agent_panel_grouping: "g"
-          toggle_selected_agent_panels: "H"
           jump_to_next_unread_done_agent: "j"
           jump_to_next_stopped_agent: "J"
           full_history_refresh: "y"

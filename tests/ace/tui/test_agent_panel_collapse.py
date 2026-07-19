@@ -201,9 +201,9 @@ def test_panel_collapse_guards_single_merged_and_repeated_actions() -> None:
     split.action_hooks_or_collapse()
     assert split.refresh_calls == [False, True]
     assert split.notifications == ["Panel is already collapsed"]
-    split.action_expand_all_folds()
-    split.action_expand_all_folds()
-    assert split.refresh_calls == [False, True, True]
+    split.action_expand_or_layout()
+    split.action_expand_or_layout()
+    assert split.refresh_calls == [False, True, True, False]
 
 
 def test_selected_panel_j_and_k_cycle_without_descending() -> None:
@@ -273,11 +273,12 @@ def test_panel_switch_lands_on_collapsed_panel_and_l_reanchors() -> None:
     BasicNavigationMixin._navigate_agents_panel(app, -1)
     assert (app.current_idx, app._current_group_key) == prior
 
-    app.action_expand_all_folds()
+    app.action_expand_or_layout()
+    app.action_expand_or_layout()
     assert app.current_idx == 2
     assert app._collapsed_panel_keys == set()
     assert app._panel_group.panel_keys == [None, "alpha", "beta"]
-    assert app.refresh_calls == [False, False, False, False, True]
+    assert app.refresh_calls == [False, False, False, False, True, False]
 
 
 def test_restored_collapsed_panels_sort_on_panel_sync() -> None:

@@ -51,7 +51,8 @@ log = logging.getLogger(__name__)
 # ``mark_inactive`` / ``mark_inactive_pinned`` / ``activity_info`` were removed
 # with the former user-presence dashboard; ``log_panel`` moved into the
 # Admin Center Logs tab and is opened via command palette or ``#``;
-# ``task_queue`` moved into the Admin Center Tasks tab.
+# ``task_queue`` moved into the Admin Center Tasks tab;
+# ``toggle_selected_agent_panels`` moved to the app-level ``L`` action.
 _RETIRED_LEADER_KEYS: frozenset[str] = frozenset(
     {
         "kill_marked_and_edit",
@@ -61,6 +62,7 @@ _RETIRED_LEADER_KEYS: frozenset[str] = frozenset(
         "activity_info",
         "log_panel",
         "task_queue",
+        "toggle_selected_agent_panels",
     }
 )
 

@@ -343,8 +343,7 @@ async def test_agents_collapsed_panel_png_snapshot(
         )
         assert collapsed_widget._requested_width == normal_width
 
-        await page.press("comma")
-        await page.press("H")
+        await page.press("L")
         await page.wait_for(lambda _screen: page.app._panel_fold_hint_mode_active)
         hint_bar = page.app.query_one("#hint-input-bar", HintInputBar)
         hint_input = hint_bar.query_one("#hint-input", Input)

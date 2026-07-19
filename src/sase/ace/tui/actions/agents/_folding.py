@@ -704,12 +704,13 @@ class AgentFoldingMixin:
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_expand_all_folds(self) -> None:
-        """Expand an agent panel or all folds/groups on the other tabs."""
+        """Select visible Agents folds or expand all folds on other tabs."""
+        if self.current_tab == "agents":
+            self.action_toggle_selected_agent_panels()  # type: ignore[attr-defined]
+            return
         if self._route_tools_detail_level("max"):
             return
-        if self.current_tab == "agents":
-            self._expand_focused_panel()
-        elif self.current_tab == "axe":
+        if self.current_tab == "axe":
             self._expand_all_axe_folds()
         elif self.current_tab == "changespecs":
             if self._expand_all_changespec_group_folds():  # type: ignore[attr-defined]

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
 from sase.ace.tui.actions.agents._navigation_order import AgentNavigationOrderMixin
 from sase.ace.tui.actions.agents._panel_hint_folding import (
     AgentPanelHintFoldingMixin,
@@ -94,6 +95,7 @@ class _StubApp(
         self._panel_fold_target_to_hint: dict[FoldHintTarget, int] = {}
         self._entry_jump_mode_active = False
         self.refresh_calls = 0
+        self.footer_refresh_calls = 0
         self.persistence_intents: list[tuple[PanelKey, bool]] = []
         self.group_persistence_intents: list[
             tuple[PanelKey, tuple[str, ...], bool]
@@ -169,6 +171,9 @@ class _StubApp(
 
     def notify(self, message: str, **_kwargs: Any) -> None:
         self.notifications.append(message)
+
+    def _refresh_agent_footer_bindings_only(self) -> None:
+        self.footer_refresh_calls += 1
 
 
 def test_hint_enumeration_is_visual_and_dedupes_workflow_fold_owner() -> None:
@@ -321,7 +326,7 @@ class _MountTarget:
         self.bar = bar
 
 
-class _EntryApp(_StubApp):
+class _EntryApp(AgentFoldingMixin, _StubApp):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.mount_target = _MountTarget()
@@ -340,7 +345,7 @@ class _EntryApp(_StubApp):
 def test_entry_snapshots_all_visible_targets_and_reentry_reuses_bar() -> None:
     app = _EntryApp()
 
-    app.action_toggle_selected_agent_panels()
+    app.action_expand_all_folds()
 
     assert app._panel_fold_hint_snapshot == app._enumerate_panel_fold_hint_targets()
     assert app._panel_fold_hint_snapshot[0] == ("panel", None)
@@ -349,11 +354,23 @@ def test_entry_snapshots_all_visible_targets_and_reentry_reuses_bar() -> None:
     assert app.mount_target.bar is not None
     assert app.mount_target.bar.mode == "panels"
     assert app.refresh_calls == 1
+    assert app.footer_refresh_calls == 1
 
     first_bar = app.mount_target.bar
-    app.action_toggle_selected_agent_panels()
+    app.action_expand_all_folds()
     assert app.mount_target.bar is first_bar
     assert app.refresh_calls == 1
+    assert app.footer_refresh_calls == 1
+
+
+def test_capital_l_does_not_expand_a_collapsed_focused_panel() -> None:
+    app = _EntryApp(focused_key="beta")
+    before = set(app._collapsed_panel_keys)
+
+    app.action_expand_all_folds()
+
+    assert app._panel_fold_hint_mode_active is True
+    assert app._collapsed_panel_keys == before
 
 
 def test_merged_and_single_panel_layouts_still_hint_in_panel_folds() -> None:

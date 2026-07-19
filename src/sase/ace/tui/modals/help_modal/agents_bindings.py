@@ -112,8 +112,12 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Expand/enter panel · collapse/select panel",
                 ),
                 (
-                    f"{d(a.expand_all_folds)} / {d(a.hooks_or_collapse_all)}",
-                    "Expand panel / collapse group; Tools",
+                    d(a.expand_all_folds),
+                    "Select visible folds by number",
+                ),
+                (
+                    d(a.hooks_or_collapse_all),
+                    "Collapse group / compact Tools",
                 ),
             ],
         ),
@@ -188,10 +192,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'toggle_agent_panel_grouping'))}",
                     "Toggle tag panels grouped/split",
-                ),
-                (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'toggle_selected_agent_panels'))}",
-                    "Toggle visible folds by numeric hints",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_next_unread_done_agent'))}",

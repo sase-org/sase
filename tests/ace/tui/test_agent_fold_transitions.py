@@ -11,6 +11,7 @@ Whole-panel behavior is covered separately in ``test_agent_panel_collapse.py``.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -40,6 +41,7 @@ class _StubApp(AgentFoldingMixin):
         self.focus_artifact_calls = 0
         self._detail = None
         self.footer_refresh_calls = 0
+        self.fold_selector_calls = 0
 
     # The mixin calls these via attribute lookups.
     def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
@@ -61,6 +63,9 @@ class _StubApp(AgentFoldingMixin):
 
     def _refresh_agent_footer_bindings_only(self) -> None:
         self.footer_refresh_calls += 1
+
+    def action_toggle_selected_agent_panels(self) -> None:
+        self.fold_selector_calls += 1
 
 
 class _ToolsDetail:
@@ -107,7 +112,7 @@ def _agent(
     )
 
 
-def test_tools_panel_routes_fold_keys_to_detail_level() -> None:
+def test_tools_panel_routes_fold_keys_except_capital_l_to_detail_level() -> None:
     agent = _agent(agent_name="coder.claude")
     detail = _ToolsDetail()
     app = _StubApp([agent], current_idx=0)
@@ -118,9 +123,10 @@ def test_tools_panel_routes_fold_keys_to_detail_level() -> None:
     app.action_expand_all_folds()
     app.action_hooks_or_collapse_all()
 
-    assert detail.actions == ["expand", "collapse", "set:2", "set:0"]
+    assert detail.actions == ["expand", "collapse", "set:0"]
+    assert app.fold_selector_calls == 1
     assert app.refilter_calls == 0
-    assert app.footer_refresh_calls == 4
+    assert app.footer_refresh_calls == 3
 
 
 def test_tools_panel_detail_clamp_does_not_fall_through_to_folds() -> None:
@@ -134,6 +140,37 @@ def test_tools_panel_detail_clamp_does_not_fall_through_to_folds() -> None:
     assert detail.actions == ["expand"]
     assert app.refilter_calls == 0
     assert app.footer_refresh_calls == 0
+
+
+class _OtherTabExpandApp(AgentFoldingMixin):
+    def __init__(self, current_tab: Literal["axe", "changespecs"]) -> None:
+        self.current_tab = current_tab
+        self.axe_expand_calls = 0
+        self.changespec_expand_calls = 0
+        self.refresh_calls = 0
+
+    def _expand_all_axe_folds(self) -> None:
+        self.axe_expand_calls += 1
+
+    def _expand_all_changespec_group_folds(self) -> bool:
+        self.changespec_expand_calls += 1
+        return True
+
+    def _refresh_display(self) -> None:
+        self.refresh_calls += 1
+
+
+def test_capital_l_still_expands_all_folds_on_other_tabs() -> None:
+    axe = _OtherTabExpandApp("axe")
+    changespecs = _OtherTabExpandApp("changespecs")
+
+    axe.action_expand_all_folds()
+    changespecs.action_expand_all_folds()
+
+    assert axe.axe_expand_calls == 1
+    assert axe.refresh_calls == 0
+    assert changespecs.changespec_expand_calls == 1
+    assert changespecs.refresh_calls == 1
 
 
 def test_capital_h_on_agent_collapses_only_its_group() -> None:

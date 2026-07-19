@@ -130,15 +130,6 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == leader_keys["toggle_selected_agent_panels"]:
-            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            if self.current_tab == "agents":
-                self.action_toggle_selected_agent_panels()  # type: ignore[attr-defined]
-                self._refresh_agent_footer_bindings_only()  # type: ignore[attr-defined]
-            else:
-                self._refresh_current_tab()  # type: ignore[attr-defined]
-            return True
-
         if key == leader_keys["jump_to_next_unread_done_agent"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":

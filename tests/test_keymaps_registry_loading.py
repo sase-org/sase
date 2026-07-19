@@ -16,7 +16,7 @@ from sase.ace.tui.keymaps import (
 )
 
 
-def test_selected_panel_toggle_leader_key_can_be_overridden() -> None:
+def test_retired_selected_panel_toggle_leader_override_is_filtered() -> None:
     reg = load_keymap_registry(
         {
             "keymaps": {
@@ -27,7 +27,7 @@ def test_selected_panel_toggle_leader_key_can_be_overridden() -> None:
         }
     )
 
-    assert reg.leader_mode.keys["toggle_selected_agent_panels"] == "P"
+    assert "toggle_selected_agent_panels" not in reg.leader_mode.keys
 
 
 def test_empty_config_uses_builtin_defaults() -> None:

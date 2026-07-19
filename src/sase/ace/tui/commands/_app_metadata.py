@@ -265,7 +265,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "expand_all_folds",
-        "Expand focused agent panel / all folds / full tools detail",
+        "Select visible Agents folds by number / expand all folds on other tabs",
         "Folding",
         ALL_TABS,
         (),

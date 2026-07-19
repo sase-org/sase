@@ -516,7 +516,7 @@ class StateInitMixin:
         self._panel_selection_memory: dict[
             PanelKey, tuple[str, int | tuple[str, ...]]
         ] = {}
-        # Numeric, set-oriented fold mode (leader ``,H``). Its maps cover
+        # Numeric, set-oriented fold mode (app-level ``L``). Its maps cover
         # panel titles, group banners, and structural/workflow row owners and
         # are deliberately separate from file hints and apostrophe jump hints.
         self._panel_fold_hint_mode_active = False

@@ -37,12 +37,12 @@ def test_footer_surfaces_panel_grouping_only_on_agents_tab() -> None:
     assert "group panels" not in _last_labels(captured)
 
 
-def test_footer_surfaces_fold_hint_toggle_only_on_agents_tab() -> None:
+def test_footer_does_not_surface_retired_fold_hint_toggle() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
     footer.update_leader_bindings(current_tab="agents")
-    assert ("H", "toggle folds") in captured[-1][0]
+    assert "toggle folds" not in _last_labels(captured)
 
     footer.update_leader_bindings(current_tab="changespecs")
     assert "toggle folds" not in _last_labels(captured)

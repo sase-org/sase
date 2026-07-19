@@ -81,6 +81,9 @@ class AgentPanelHintFoldingMixin:
             return
 
         self._refresh_panel_fold_hint_display()
+        refresh_footer = getattr(self, "_refresh_agent_footer_bindings_only", None)
+        if callable(refresh_footer):
+            refresh_footer()
 
     def _enumerate_panel_fold_hint_targets(self) -> tuple[FoldHintTarget, ...]:
         """Return every visible fold owner in panel-and-row render order."""
