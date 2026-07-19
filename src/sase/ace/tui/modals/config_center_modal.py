@@ -4,7 +4,7 @@ SASE Admin Center is a full-screen ``ModalScreen`` that hosts seven internal
 alphabetical tabs over a :class:`ContentSwitcher`:
 
 - **Config** (tab 1, default focus on first open) — the schema-driven config
-  editor skeleton (:class:`ConfigPane`); filled in by later phases.
+  editor (:class:`ConfigPane`).
 - **Logs** (tab 2) — the canonical SASE log browser (:class:`LogsPane`), replacing
   the standalone ``,L`` modal.
 - **Projects** (tab 3) — the migrated project lifecycle manager
@@ -18,9 +18,9 @@ alphabetical tabs over a :class:`ContentSwitcher`:
   ``sase plugin list``.
 - **XPrompts** (tab 7) — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
 
-``#`` opens the modal on the last Admin Center tab used in the current app
-session (Config on a fresh session). ``1``-``7`` jump directly to the matching
-tab, and ``Tab`` / ``Shift+Tab`` cycle the main tabs with modulo wrapping.
+``#`` opens the modal on the last persisted Admin Center tab (Config before a
+tab has been saved). ``1``-``7`` jump directly to the matching tab, and ``Tab``
+/ ``Shift+Tab`` cycle the main tabs with modulo wrapping.
 Pane-local sub-tabs use ``]`` / ``[`` (including Projects / Repos / Workspaces).
 The clickable tab strip mirrors the app's :class:`TabBar`. A centered caption
 below the tab strip describes the active tab using that tab's accent color.

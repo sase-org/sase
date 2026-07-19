@@ -53,12 +53,13 @@ the clan alone.
 ACE renders every grouping row with a trailing color-coded name and no kind icon. A clan is synthetic and ends with an
 orchid `<name>` after its rolled-up status counts; its `@tribe` labels follow the name. A real multi-member family root
 ends with an azure `<name>`, while plain agent annotations and a lone plan proposer with only its display-only planner
-child remain gold. Press `l` once to reveal direct members and a second time to reveal hidden workflow steps and members
-of nested families; `h` collapses one level. Selecting the clan row shows an aggregate `CLAN` header and a navigable
-summary of every section represented across its members. In the Agents list, direct members sort by status priority —
-Failed, Stopped, Running/Starting, Waiting, Done — and then by launch recency within a bucket. The metadata roster uses
-chronological launch order instead, keeping its number-to-member mapping stable while statuses change. The runtime is
-the union of member run intervals, with human-wait windows excluded, so concurrent members are not double-counted.
+child remain gold. Press `l` once on a collapsed clan to reveal its direct members. The clan's outer fold is binary, so
+move to a family or workflow row and press `l` there to reveal that row's descendants; `h` collapses the focused
+structural owner one level. Selecting the clan row shows an aggregate `CLAN` header and a navigable summary of every
+section represented across its members. In the Agents list, direct members sort by status priority — Failed, Stopped,
+Running/Starting, Waiting, Done — and then by launch recency within a bucket. The metadata roster uses chronological
+launch order instead, keeping its number-to-member mapping stable while statuses change. The runtime is the union of
+member run intervals, with human-wait windows excluded, so concurrent members are not double-counted.
 
 ### Clan summary folding
 
@@ -216,27 +217,31 @@ language, CLI, and display terminology are all tribe.
 
 ### Tribe panel focus and folding
 
-Each tribe panel is also a selectable container. After closing any structural clan, family, or workflow folds, press `h`
-to select the whole expanded panel; press `h` again to collapse it. Press `l` to expand a collapsed panel while keeping
-container focus, then `l` again to return to the row ACE remembered for that panel. While any whole panel is selected,
-`j` / `k` cycle across panels without descending. `J` / `K` always move to the first / last selectable row of the next /
-previous panel.
+In the split layout, a tribe panel is also a selectable container. When at least two panels are visible, close any
+structural clan, family, or workflow folds and press `h` to select the whole expanded panel; press `h` again to collapse
+it. Press `l` to expand a collapsed panel while keeping container focus, then `l` again to return to the row ACE
+remembered for that panel. Uppercase `L` instead expands the panel and enters its first selectable row. While an
+expanded whole panel is selected, `j` / `k` cycle across panels without descending, and `l` or `Esc` returns to the
+remembered row. `J` / `K` always move to the first / last selectable row of the next / previous panel. Whole-panel focus
+is unavailable in the merged layout. Apostrophe jump can select any split-panel title, including a lone expanded panel,
+but a lone panel cannot be collapsed.
 
-Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four `zz` fold levels progress from an
-operational pulse, to a numbered top-level roster, to nested member and disk-backed reply/slow-call detail, and finally
-to full forensics with runtime percentiles. `zZ` cycles backward; `za` and `zA` adjust the section or member at the top
-of the metadata viewport. Level 3 loads replies and slow calls off-thread, while level 4 also loads all-time runtime
-statistics. The roster's number keys jump to top-level clans, families, workflows, or agents and expand only the
-required ancestors.
+Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four `zz` metadata detail levels
+progress from an operational pulse, to a numbered top-level roster, to nested member and disk-backed reply/slow-call
+detail, and finally to full forensics with runtime percentiles. `zZ` cycles backward; `za` and `zA` adjust the section
+or member at the top of the metadata viewport. Replies and slow calls load off-thread when their effective section level
+reaches 3; all-time runtime statistics load when the runtime section reaches level 4. A section override can therefore
+request enrichment before the whole document reaches that level. The roster's number keys jump to top-level clans,
+families, workflows, or agents and expand only the required ancestors.
 
 Use `z1`-`z3` to select the collapsed, expanded, or fully expanded view directly; `z4` selects the exhaustive view,
-including unbounded roster annotations and runtime statistics. Direct numeric fold chords remain inside fold mode and
-do not trigger numbered member jumps.
+including unbounded roster annotations and runtime statistics. Direct numeric fold chords remain inside fold mode and do
+not trigger numbered member jumps.
 
-The `,H` leader chord numbers every visible fold owner—panels, grouping banners, and agent-owned clan/family/workflow
-folds. Enter one or more whitespace-separated numbers or ascending ranges such as `1 4-6` to toggle the selected mixed
-set in a single refresh. The ordinary apostrophe jump mode also includes expanded panels as destinations and preserves
-`Ctrl+O` jump-back history.
+The `,H` leader chord numbers every currently toggleable visible fold owner—eligible split-panel titles, grouping
+banners, and agent-owned clan/family/workflow folds. Enter one or more whitespace-separated numbers or ascending ranges
+such as `1 4-6` to toggle the selected mixed set in a single refresh. The ordinary apostrophe jump mode includes both
+expanded and collapsed split-panel titles as destinations and preserves `Ctrl+O` jump-back history.
 
 ### Tribe wait and fork targets
 

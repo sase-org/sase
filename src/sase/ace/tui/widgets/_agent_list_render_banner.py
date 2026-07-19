@@ -51,7 +51,7 @@ def format_banner_option(
 ) -> Option:
     """Render a group banner row Option.
 
-    Both levels share the shape ``<gutter><prefix> <label> <rule…>  <chip>``
+    All levels share the shape ``<gutter><prefix> <label> <rule…>  <chip>``
     with the chip right-aligned to ``width`` so banner chips line up with
     the runtime suffix column on agent rows.  ``tier_styles`` injects the
     leading tier-guide gutter (one ``│  `` segment per ancestor L0/L1
@@ -70,9 +70,9 @@ def format_banner_option(
     - L1/L2 (name-root) in any mode: dim-gray ``▸`` branch glyph, teal
       label, dim-gray light rule ``─`` and chip.
 
-    Banner Options are marked ``disabled`` so OptionList cursor
-    navigation skips them at full expansion.  When *selectable* is True
-    (fold level < max) the banner stays in the cursor flow.
+    Banner Options are marked ``disabled`` while expanded so OptionList
+    cursor navigation skips those headings. Collapsed banners remain in
+    the cursor flow as selectable rows.
     """
     label = banner_label(group)
     summary = compute_banner_summary(group, agents)

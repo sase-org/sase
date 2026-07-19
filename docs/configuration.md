@@ -63,8 +63,8 @@ See [Deep-Merge System](#deep-merge-system) below.
 
 ## SASE Admin Center (interactive editor)
 
-Press `#` in the `sase ace` TUI to open **SASE Admin Center**. It reopens on whichever tab you used last in the current
-session, landing on **Config** the first time you open it. It is a full-screen modal with seven tabs: **Config**,
+Press `#` in the `sase ace` TUI to open **SASE Admin Center**. It reopens on the last tab you used, including after ACE
+restarts; before any tab has been saved, it opens on **Config**. It is a full-screen modal with seven tabs: **Config**,
 **Logs**, **Projects**, **Statistics**, **Tasks**, **Updates**, and **XPrompts**. `Tab` / `Shift+Tab` cycle the main
 tabs, and number keys `1`–`7` jump straight to one. Pane-local `[` / `]` keys switch sub-tabs or views where the active
 pane provides them.
@@ -122,7 +122,8 @@ apply the same scope to the other views.
 
 The pane loads only while visible, refreshes every 30 seconds, and performs its queries off the UI thread. Use `[` / `]`
 to change views, `t` or `c` to choose a preset or custom range, `g` to change the Projects or Runtime grouping, `p` to
-cycle the project filter, and `r` to refresh immediately. See
+cycle the project filter, and `r` to refresh immediately. The filter cycles through projects ranked by the most recent
+unfiltered result; return to **All** after changing the range to rebuild that list for the new range. See
 [Telemetry: Admin Center Statistics tab](telemetry.md#admin-center-statistics-tab) for the view contents, range syntax,
 and project-filter caveats.
 
@@ -394,15 +395,15 @@ deprecated alias for `submit_primary`.
 
 **`statistics`** — Bindings active only while the Admin Center Statistics pane is focused. The available actions are:
 
-| Field                  | Default                | Description                                                      |
-| ---------------------- | ---------------------- | ---------------------------------------------------------------- |
-| `prev_view`            | `left_square_bracket`  | Select the previous Statistics view.                             |
-| `next_view`            | `right_square_bracket` | Select the next Statistics view.                                 |
-| `cycle_range`          | `t`                    | Cycle to the next statistics time range.                         |
-| `custom_range`         | `c`                    | Enter a custom statistics time range.                            |
-| `cycle_group`          | `g`                    | Cycle grouping in the Projects or Runtime view.                  |
-| `cycle_project_filter` | `p`                    | Cycle all projects and the ranked projects in the current range. |
-| `refresh`              | `r`                    | Refresh from durable run and activity records.                   |
+| Field                  | Default                | Description                                                          |
+| ---------------------- | ---------------------- | -------------------------------------------------------------------- |
+| `prev_view`            | `left_square_bracket`  | Select the previous Statistics view.                                 |
+| `next_view`            | `right_square_bracket` | Select the next Statistics view.                                     |
+| `cycle_range`          | `t`                    | Cycle to the next statistics time range.                             |
+| `custom_range`         | `c`                    | Enter a custom statistics time range.                                |
+| `cycle_group`          | `g`                    | Cycle grouping in the Projects or Runtime view.                      |
+| `cycle_project_filter` | `p`                    | Cycle all projects and those ranked by the latest unfiltered result. |
+| `refresh`              | `r`                    | Refresh from durable run and activity records.                       |
 
 Statistics keys may overlap app-level bindings because they are registered on the focused pane, not globally.
 

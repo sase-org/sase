@@ -1,12 +1,9 @@
 """Generic per-group fold registry, shared by Agents and ChangeSpecs.
 
-Each group key is an arbitrary-length ``tuple[str, ...]``.  Groups
-default to expanded; only the collapsed set is stored so first-paint and
-brand-new groups behave identically.
-
-``l``/``h`` step the focused group's state; ``L``/``H`` apply to every
-known group at once and remain the single-keystroke escape hatch out of
-any per-group state.
+Each group key is an arbitrary-length ``tuple[str, ...]``. Groups default
+to expanded; only the collapsed set is stored so first-paint and brand-new
+groups behave identically. Keyboard behavior belongs to each caller; this
+module only stores independent binary state for the group keys it is given.
 """
 
 from __future__ import annotations

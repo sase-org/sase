@@ -547,7 +547,7 @@ class BaseActionsMixin:
         self.push_screen(QueryEditModal(current_canonical), on_dismiss)  # type: ignore[attr-defined]
 
     def action_open_config_center(self) -> None:
-        """Open the SASE Admin Center modal on the last session tab."""
+        """Open the SASE Admin Center modal on the last saved tab."""
         initial_tab: Any = getattr(self, "_admin_center_tab", "config")
         self._open_config_center(initial_tab)
 

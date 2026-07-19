@@ -336,11 +336,11 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | ------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, cycle whole panels instead |
 | `J` / `K`                 | Cycle focus across tribe side panels (forward / reverse)                                             |
-| `'`                       | Jump to an entry or expanded panel by hint character; collapsed banners are targets too              |
+| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by hint character                     |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint         |
 | `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                  |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                |
-| `0`–`9`                   | Jump from a selected clan or family container to its numbered member                                 |
+| `0`–`9`                   | Jump from a selected clan, family, or whole-panel roster to its numbered member                      |
 | `o` / `O`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                         |
 | `~`                       | Jump among dotted-name ancestors, descendants, and shared-hood neighbors                             |
 | `g`                       | Scroll to top (file, tools, or metadata panel)                                                       |
@@ -602,19 +602,21 @@ first panel grows to absorb leftover vertical space while later panels stay pinn
 panels overflow, space is weighted by each panel's rendered row count.
 
 Use `J` / `K` to move across panels (forward / reverse) and enter the first or last selectable row in the destination;
-collapsed group banners count as rows. Press `h` after structural clan, family, or workflow folds are closed to select
-the entire expanded panel without losing its remembered row. A selected panel has a `❖` title and shows a fold-aware
-`TRIBE` summary in the metadata pane. While it is selected, `j` / `k` cycle whole panels without descending, and `l`
-returns to the remembered row. A second `h` collapses the selected panel; `l` expands a collapsed panel while retaining
-whole-panel selection, and another `l` enters it. Apostrophe jump hints can select expanded panels directly and support
-the normal `Ctrl+O` jump back.
+collapsed grouping banners count as rows. Whole-panel focus is available only in the split layout. When at least two
+tribe panels are visible, close structural clan, family, or workflow folds and press `h` to select the entire expanded
+panel without losing its remembered row. A selected panel has a `❖` title and shows a fold-aware `TRIBE` summary in the
+metadata pane. While it is selected, `j` / `k` cycle whole panels without descending; `l` or `Esc` returns to the
+remembered row. A second `h` collapses the selected panel; panel collapse also requires at least two panels. On a
+collapsed panel, the first `l` expands it while keeping whole-panel focus and the second returns to the remembered row;
+uppercase `L` expands it and enters its first selectable row. Apostrophe jump hints include every split-panel title,
+even a lone expanded panel, as well as collapsed titles, and support the normal `Ctrl+O` jump back.
 
 Per-panel actions (kill, dismiss, expand, etc.) operate on whichever panel currently holds focus. Press `X` to open the
 cleanup panel: `d` dismisses completed agents in the focused panel, `D` dismisses completed agents across loaded panels,
 `k` cleans the focused panel, `K` cleans all loaded panels, `m` cleans marked agents, `g` cleans the focused group, `t`
 chooses a tribe, and `c` opens the custom selector.
 
-The `TRIBE` summary has four metadata fold levels, controlled by the same `zz`, `zZ`, `za`, and `zA` chords used for
+The `TRIBE` summary has four metadata detail levels, controlled by the same `zz`, `zZ`, `za`, and `zA` chords used for
 clan and family detail:
 
 | Level | Tribe summary content                                                                                                   |
@@ -624,10 +626,11 @@ clan and family detail:
 | 3     | Members: nested member detail, activity/context previews, replies, and slow tool calls                                  |
 | 4     | Forensics: complete errors, tracebacks, variables and replies, workspace/timestamp annotations, and runtime percentiles |
 
-Replies and slow-call details load only when level 3 or 4 needs them; all-time tribe runtime statistics load only at
-level 4. A `loading…` row means that enrichment is running off-thread. Number keys jump from the roster to one of the
-top-level units, expanding the required panel and ancestor folds first. Section-level fold overrides inherit from the
-panel level and are cleared by a panel-level cycle.
+Replies and slow-call details load when their effective section level reaches 3 or 4; an individual section override can
+request them before the whole document reaches that level. All-time tribe runtime statistics load when the runtime
+section reaches level 4. A `loading…` row means that enrichment is running off-thread. Number keys jump from the roster
+to one of the top-level units, expanding the required panel and ancestor folds first. Section-level overrides inherit
+from the panel level and are cleared by a valid panel-level cycle or direct `z1`-`z4` selection.
 
 Tribes are set or cleared with `N` (see [Agent Actions](#agent-actions)). When opening the modal on an agent without a
 tribe the input is pre-seeded with `pinned` so a single Enter promotes the agent into the standard "pinned" panel; that
@@ -637,8 +640,8 @@ from the CLI.
 
 ### Group Banners and Folding
 
-Within each tribe side panel, agents are grouped into either a 2-level or 3-level banner hierarchy depending on whether
-any agent in the panel targets a ChangeSpec:
+In `STANDARD` mode, agents within each tribe side panel use either a two-tier or three-tier banner hierarchy depending
+on whether any agent in the panel targets a ChangeSpec:
 
 - **3-level layout** (panel contains at least one ChangeSpec-scoped agent): **project → ChangeSpec → name-root**.
   Project-scoped agents and agents with no `cl_name` fall into a synthetic `(no ChangeSpec)` bucket that sorts last.
@@ -646,26 +649,30 @@ any agent in the panel targets a ChangeSpec:
 
 Banners are rendered between agent rows and carry a summary chip (`N agents · K running · M failed`). Workflow children
 inherit grouping identity from their parent agent so banners never appear between a parent and its workflow steps.
+Optional name-root and dotted-prefix banners appear only when they group at least two rows.
 
-A single global fold level controls how much of the hierarchy is visible:
+Labels such as L0, L1, and L2 describe a banner's nesting depth, not a shared fold setting. Every emitted grouping
+banner has its own binary expanded/collapsed state, kept separately for each tribe panel and grouping mode. Three
+independent folding layers can therefore be visible at once:
 
-| Level | What's visible (3-level layout)                           | What's visible (2-level layout) |
-| ----- | --------------------------------------------------------- | ------------------------------- |
-| `L0`  | Project banners only                                      | Project banners only            |
-| `L1`  | Project + ChangeSpec banners                              | Project + name-root banners     |
-| `L2`  | Project + ChangeSpec + name-root banners                  | All banners and agent rows      |
-| `L3`  | All banners and agent rows (and per-workflow folds apply) | (same as `L2`)                  |
+| Layer             | What it controls                                         | Default keys                                          |
+| ----------------- | -------------------------------------------------------- | ----------------------------------------------------- |
+| Grouping banner   | Project, ChangeSpec, date, status, and name buckets      | `H` collapses; `l` expands                            |
+| Structural row    | Clan members, family members, and workflow descendants   | `h` collapses; `l` expands                            |
+| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` or `L` expands |
 
-| Key | Action                                                                                                                          |
-| --- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `l` | Expand the selected grouping, clan, family, or workflow fold; on whole-panel focus, expand or enter the panel                   |
-| `h` | Collapse a clan, family, or workflow fold; when no structural fold remains, select the whole panel; on panel focus, collapse it |
-| `L` | Expand a collapsed focused panel and enter its first selectable row                                                             |
-| `H` | Collapse the focused or enclosing grouping-strategy banner one level                                                            |
+| Key | Action                                                                                                                        |
+| --- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel              |
+| `h` | Collapse one structural level; when none remains, select a panel that supports whole-panel focus; on panel focus, collapse it |
+| `L` | Expand a collapsed focused panel and enter its first selectable row                                                           |
+| `H` | Collapse the deepest enclosing grouping banner; repeated use on a collapsed nested banner climbs toward its parent            |
 
-Banners at fold levels `< 3` are selectable rows. When a banner is focused, `m` toggles marks for all top-level agents
-in that group; workflow child rows are not marked independently by the banner shortcut. `x` performs a bulk kill/dismiss
-on every top-level agent in that group (single confirmation modal). Marked collapsed banners show `[✓]` when all covered
+Collapsed grouping banners at any depth are selectable rows; expanded banners remain visible headings but are skipped by
+row navigation. When a collapsed banner is focused, `l` expands only that banner and moves focus to the next visible
+child banner or first agent row. When a banner is focused, `m` toggles marks for all top-level agents in that group;
+workflow child rows are not marked independently by the banner shortcut. `x` performs a bulk kill/dismiss on every
+top-level agent in that group (single confirmation modal). Marked collapsed banners show `[✓]` when all covered
 top-level agents are marked and `[~]` when only some are marked. Marks take priority over the group for bulk actions, so
 a non-empty mark set always drives the bulk action regardless of banner focus. When a fold change hides the previously
 focused agent, focus snaps to the nearest visible ancestor banner so navigation context is never lost.
@@ -674,21 +681,22 @@ Clan and family rows add an agent-tree hierarchy inside those grouping banners. 
 kind without an additional icon. A clan is a selectable synthetic container, never an agent, and ends in an orchid
 `<name>` after its rolled-up status and member counts. A real multi-member family root remains a teal agent row and ends
 in an azure `<name>`; ordinary agent annotations and lone plan proposers with only their display-only planner child
-remain gold. Clan `@tribe` tags follow the orchid name. From a collapsed clan row, press `l` once to reveal direct
-members (agents, family rows, and visible workflow steps), then press `l` again to reveal hidden steps and family
-members at a third indentation level. `h` walks those levels in reverse. Sequential family members use `--<suffix>`
-names and run one after another. Killing or dismissing a clan row cascades to the clan's live members; acting on one
-member leaves its siblings alone. Direct clan members always sort by the clan-local status priority Failed, Stopped,
-Running, Waiting, Done in every grouping mode; Starting shares Running's rank. Launch recency orders only members in the
-same status bucket. A family row moves as one unit with its follow-ups and workflow steps, preserving their adjacency
-and internal order.
+remain gold. Clan `@tribe` tags follow the orchid name. A clan's outer fold is binary: from a collapsed clan row, press
+`l` once to reveal its direct agents, family rows, and visible workflow rows. To reveal descendants within a family or
+workflow, move to that row and press `l` there; pressing `l` again on the clan row itself has no effect. `h` collapses
+the focused structural row one level at a time and re-anchors to a visible owner when necessary. Sequential family
+members use `--<suffix>` names and run one after another. Killing or dismissing a clan row cascades to the clan's live
+members; acting on one member leaves its siblings alone. Direct clan members always sort by the clan-local status
+priority Failed, Stopped, Running, Waiting, Done in every grouping mode; Starting shares Running's rank. Launch recency
+orders only members in the same status bucket. A family row moves as one unit with its follow-ups and workflow steps,
+preserving their adjacency and internal order.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  ` segment per ancestor L0/L1
 banner (in the parent tier's dim accent — project blue or ChangeSpec cooler accent), so nesting reads as a tree at a
-glance. L0 project / bucket banners use a sky-blue `▌` left bar and a heavy `━` rule; level-2 visual headings
-(ChangeSpec banners and `BY_DATE` 4-hour windows) get a cooler accent with a `▎` bar and a lighter `─` rule. Level-3
-visual headings (name-root banners and conditional `BY_DATE` hourly windows) use a `▸` branch glyph with a teal label.
-Singleton name-root groups suppress their banner entirely to reduce visual noise.
+glance. L0 project / bucket banners use a sky-blue `▌` left bar and a heavy `━` rule. ChangeSpec banners, `BY_DATE`
+subgroups, and banners that own another dotted-prefix subgroup use a cooler `▎` bar and lighter `─` rule. Leaf name-root
+and dotted-prefix banners use a `▸` branch glyph with a teal label. Singleton name-root groups suppress their banner
+entirely to reduce visual noise.
 
 The currently-focused side-panel row is marked with a thick accent-colored left bar, **bold** text, and a translucent
 accent tint applied to the row background. The tint is intentionally light so per-token status colors (running cyan,
@@ -847,27 +855,27 @@ currently loaded agent list; global entries such as `,m` and `,U` behave the sam
 actions operate on terminal rows that are loaded in the Agents tab; `,j` can reveal a direct member hidden by a
 collapsed clan.
 
-| Key        | Action                                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------------------------ |
-| `,,`       | Repeat the last leader command                                                                         |
-| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                                |
-| `,g`       | Toggle between tag-split panels and one merged agent panel                                             |
-| `,H`       | Number every visible panel, grouping banner, and agent-owned fold; toggle the entered hints atomically |
-| `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read      |
-| `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state           |
-| `,y`       | Refresh the Agents tab from full artifact history                                                      |
-| `,u`       | Mark all loaded unread completed agents as read                                                        |
-| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                                  |
-| `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel))                   |
-| `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)                                     |
-| `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication               |
-| `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                      |
-| `,r`       | Revert focused or marked agent commits, including recorded linked repos                                |
-| `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                               |
-| `,<space>` | Run agent from current agent's PR (skips selection)                                                    |
-| `,.`       | Open prompt history modal                                                                              |
-| `,>`       | Open prompt history modal with cancelled prompts visible                                               |
-| `,?`       | Open the current tab's guide modal                                                                     |
+| Key        | Action                                                                                            |
+| ---------- | ------------------------------------------------------------------------------------------------- |
+| `,,`       | Repeat the last leader command                                                                    |
+| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                           |
+| `,g`       | Toggle between tag-split panels and one merged agent panel                                        |
+| `,H`       | Number each currently toggleable visible fold owner; toggle the entered hints atomically          |
+| `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read |
+| `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state      |
+| `,y`       | Refresh the Agents tab from full artifact history                                                 |
+| `,u`       | Mark all loaded unread completed agents as read                                                   |
+| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
+| `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel))              |
+| `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)                                |
+| `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
+| `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
+| `,r`       | Revert focused or marked agent commits, including recorded linked repos                           |
+| `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                          |
+| `,<space>` | Run agent from current agent's PR (skips selection)                                               |
+| `,.`       | Open prompt history modal                                                                         |
+| `,>`       | Open prompt history modal with cancelled prompts visible                                          |
+| `,?`       | Open the current tab's guide modal                                                                |
 
 Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`, `TALE DONE`, `PLAN REJECTED`,
 `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from the Agents header's "stopped" attention bucket for rows paused

@@ -1,4 +1,4 @@
-"""Digit-key navigation for numbered clan and family member rosters."""
+"""Digit-key navigation for numbered tribe, clan, and family rosters."""
 
 from __future__ import annotations
 
