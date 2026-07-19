@@ -55,6 +55,15 @@ class AgentHintRender:
 
 
 @dataclass(frozen=True)
+class FamilyPreviewContent:
+    """Disk-backed family preview data loaded by the detail worker."""
+
+    raw_xprompt: str | None = None
+    prompt: str | None = None
+    replies: tuple[tuple[tuple[object, ...], str], ...] = ()
+
+
+@dataclass(frozen=True)
 class DetailHeaderSummary:
     """Precomputed data that is too expensive for hot header rendering."""
 
@@ -69,3 +78,4 @@ class DetailHeaderSummary:
     skill_uses: tuple[SkillUseDisplayEvent, ...] = ()
     opened_workspaces: tuple[OpenedWorkspaceDisplayEvent, ...] = ()
     slow_tool_sources: tuple[SlowToolSource, ...] | None = None
+    family_preview: FamilyPreviewContent | None = None

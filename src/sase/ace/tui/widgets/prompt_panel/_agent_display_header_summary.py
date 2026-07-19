@@ -21,6 +21,7 @@ from ...models.agent_associated_plan import (
 )
 from ...models.agent_bead import BEAD_DISPLAY_CACHE_MISS, cached_bead_display
 from ._agent_display_state import DetailHeaderSummary
+from ._agent_display_family import load_family_preview_content
 from ._helpers import load_xprompts_used
 
 
@@ -137,6 +138,10 @@ def build_detail_header_summary(
     if include_slow_tools and supports_slow_tool_sources(agent):
         slow_tool_sources = build_slow_tool_sources(agent)
 
+    family_preview = (
+        load_family_preview_content(agent) if agent.is_family_container_row else None
+    )
+
     from sase.ace.tui.memory_reads import load_memory_reads_for_agent_context
     from sase.ace.tui.opened_workspaces import (
         load_opened_workspaces_for_agent_context,
@@ -172,6 +177,7 @@ def build_detail_header_summary(
         skill_uses=load_skill_uses_for_agent_context(agent),
         opened_workspaces=load_opened_workspaces_for_agent_context(agent),
         slow_tool_sources=slow_tool_sources,
+        family_preview=family_preview,
     )
 
 

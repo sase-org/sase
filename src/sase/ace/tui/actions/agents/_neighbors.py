@@ -349,10 +349,7 @@ class AgentNeighborMixin:
         if structural_changed:
             refresh_display = getattr(self, "_refresh_agents_display", None)
             if callable(refresh_display):
-                try:
-                    refresh_display(list_changed=True, defer_detail=True)
-                except TypeError:
-                    refresh_display(list_changed=True)
+                refresh_display(list_changed=True, defer_detail=True)
             return
 
         panel_group = getattr(self, "_panel_group", None)

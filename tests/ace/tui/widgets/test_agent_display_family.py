@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.ace.tui.widgets.prompt_panel import _agent_display_render
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._agent_display_family import (
@@ -14,6 +15,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_family import (
     FAMILY_REPLY_SECTION_ID,
     FAMILY_XPROMPT_SECTION_ID,
     _family_roster_entries,
+    load_family_preview_content,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
 from tests.ace.tui.widgets._agent_display_helpers import FakePromptPanel, plain_of
@@ -121,6 +123,7 @@ def test_shared_collapsed_level_maps_family_to_bounded_previews(
     tmp_path: Path,
 ) -> None:
     root, _child = _family(tmp_path)
+    preview = load_family_preview_content(root)
     panel = FakePromptPanel()
     header, error = build_header_text(
         root,
@@ -133,6 +136,7 @@ def test_shared_collapsed_level_maps_family_to_bounded_previews(
         error,
         panel_level=FoldLevel.COLLAPSED,
         section_fold_overrides={},
+        preview_content=preview,
     )
     plain = plain_of(panel.captured[-1])
 
@@ -149,6 +153,7 @@ def test_shared_collapsed_level_maps_family_to_bounded_previews(
 
 def test_expanded_family_sections_render_bounded_previews(tmp_path: Path) -> None:
     root, _child = _family(tmp_path)
+    preview = load_family_preview_content(root)
     panel = FakePromptPanel()
     header, error = build_header_text(
         root,
@@ -162,6 +167,7 @@ def test_expanded_family_sections_render_bounded_previews(tmp_path: Path) -> Non
         error,
         panel_level=FoldLevel.EXPANDED,
         section_fold_overrides={},
+        preview_content=preview,
     )
     plain = plain_of(panel.captured[-1])
 
@@ -237,6 +243,7 @@ def test_family_section_override_wins_over_collapsed_panel(
     tmp_path: Path,
 ) -> None:
     root, _child = _family(tmp_path)
+    preview = load_family_preview_content(root)
 
     overrides = {FAMILY_PROMPT_SECTION_ID: FoldLevel.FULLY_EXPANDED}
     panel = FakePromptPanel()
@@ -252,6 +259,7 @@ def test_family_section_override_wins_over_collapsed_panel(
         error,
         panel_level=FoldLevel.COLLAPSED,
         section_fold_overrides=overrides,
+        preview_content=preview,
     )
     plain = plain_of(panel.captured[-1])
 
@@ -261,6 +269,41 @@ def test_family_section_override_wins_over_collapsed_panel(
     assert "▼ AGENT PROMPT\n" in plain
     assert "plan prompt line 15" in plain
     assert "▾ AGENT REPLY · 2\n" in plain
+
+
+def test_cold_family_preview_render_does_not_read_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, child = _family(tmp_path)
+
+    def fail(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("family preview performed synchronous artifact I/O")
+
+    monkeypatch.setattr(root, "get_raw_xprompt_content", fail)
+    monkeypatch.setattr(_agent_display_render, "get_prompt_content", fail)
+    for phase in (root, child):
+        monkeypatch.setattr(phase, "get_timestamped_reply_chunks", fail)
+        monkeypatch.setattr(phase, "get_live_reply_content", fail)
+        monkeypatch.setattr(phase, "get_response_content", fail)
+        monkeypatch.setattr(phase, "get_chat_response_content", fail)
+
+    panel = FakePromptPanel()
+    header, error = build_header_text(
+        root,
+        cheap=True,
+        family_fold_level=FoldLevel.COLLAPSED,
+    )
+    panel._update_family_display(
+        root,
+        header,
+        error,
+        panel_level=FoldLevel.COLLAPSED,
+        section_fold_overrides={},
+    )
+
+    plain = plain_of(panel.captured[-1])
+    assert plain.count("content loading…") == 3
 
 
 def test_family_header_maps_shared_shallow_levels_to_preview(tmp_path: Path) -> None:

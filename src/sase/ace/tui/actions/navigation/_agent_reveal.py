@@ -198,14 +198,7 @@ def _refilter_after_tree_reveal(owner: Any) -> bool:
     refilter = getattr(owner, "_refilter_agents", None)
     if not callable(refilter):
         return False
-    try:
-        refilter(refresh_content_index=False, refresh_display=False)
-    except TypeError:
-        # Compatibility for focused embedding tests with the legacy signature.
-        try:
-            refilter(refresh_content_index=False)
-        except TypeError:
-            refilter()
+    refilter(refresh_content_index=False, refresh_display=False)
     sync_panels = getattr(owner, "_sync_panel_group", None)
     if callable(sync_panels):
         sync_panels()
@@ -275,15 +268,11 @@ def _expand_target_groups(
             changed = True
             persist = getattr(owner, "_persist_group_fold_change", None)
             if callable(persist):
-                try:
-                    persist(
-                        group_key,
-                        collapsed=False,
-                        panel_key=panel_key,
-                    )
-                except TypeError:
-                    # Compatibility for focused harnesses with the old hook.
-                    persist(group_key, collapsed=False)
+                persist(
+                    group_key,
+                    collapsed=False,
+                    panel_key=panel_key,
+                )
     return True, changed
 
 

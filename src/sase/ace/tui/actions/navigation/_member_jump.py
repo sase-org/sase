@@ -252,10 +252,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         ):
             refresh = getattr(self, "_refresh_agents_display", None)
             if callable(refresh):
-                try:
-                    refresh(list_changed=True, defer_detail=True)
-                except TypeError:
-                    refresh(list_changed=True)
+                refresh(list_changed=True, defer_detail=True)
         return True
 
     def _restore_member_jump_history(

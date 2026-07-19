@@ -19,7 +19,8 @@ from ...models.fold_scale import (
     effective_fold_level,
     fold_scale_position,
 )
-from ._agent_display_content import get_phase_label
+from ._agent_display_content import get_phase_label, get_prompt_content
+from ._agent_display_state import FamilyPreviewContent
 from ._helpers import append_section_heading
 from ._member_roster import (
     MemberJumpMap,
@@ -232,6 +233,33 @@ def reply_tail_preview(
     return preview
 
 
+def _load_family_reply_text(agent: Agent) -> str:
+    """Load one phase reply for a family preview outside the event loop."""
+    chunks = agent.get_timestamped_reply_chunks()
+    if chunks:
+        return "\n".join(chunk for _timestamp, chunk in chunks if chunk.strip())
+    live_reply = agent.get_live_reply_content()
+    if live_reply:
+        return live_reply
+    response = agent.get_response_content()
+    if response:
+        return response
+    chat_response = agent.get_chat_response_content()
+    return chat_response or ""
+
+
+def load_family_preview_content(agent: Agent) -> FamilyPreviewContent:
+    """Load the bounded family-preview sources in a worker thread."""
+    return FamilyPreviewContent(
+        raw_xprompt=agent.get_raw_xprompt_content(),
+        prompt=get_prompt_content(agent),
+        replies=tuple(
+            (member.identity, _load_family_reply_text(member))
+            for member in family_member_rows(agent)
+        ),
+    )
+
+
 def _family_member_label(member: Agent, family_name: str) -> str:
     name = member.agent_name or member.step_name or member.display_name
     if family_name and name.startswith(family_name) and len(name) > len(family_name):
@@ -299,5 +327,6 @@ __all__ = [
     "family_member_rows",
     "family_fold_indicator",
     "fold_number",
+    "load_family_preview_content",
     "reply_tail_preview",
 ]

@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
+
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
 from sase.ace.tui.actions.navigation._tree import TreeNavigationMixin
@@ -634,6 +636,27 @@ def test_agent_neighbor_navigation_reveals_collapsed_target_panel_once() -> None
     assert app._agents[app.current_idx].identity == origin.identity
     assert app._panel_group.focused_key is None
     assert "alpha" not in app._collapsed_panel_keys
+
+
+def test_neighbor_reveal_does_not_retry_internal_display_type_error() -> None:
+    origin = _agent("foo.plan")
+    target = _agent("foo.code", tag="alpha")
+    app = _NeighborApp(
+        [origin, target],
+        collapsed_panel_keys={"alpha"},
+    )
+    calls: list[dict[str, object]] = []
+
+    def fail_refresh(**kwargs: object) -> None:
+        calls.append(dict(kwargs))
+        raise TypeError("internal display failure")
+
+    app._refresh_agents_display = fail_refresh  # type: ignore[method-assign]
+
+    with pytest.raises(TypeError, match="internal display failure"):
+        app.action_start_sibling_mode()
+
+    assert calls == [{"list_changed": True, "defer_detail": True}]
 
 
 def test_agent_neighbor_modal_resolves_stale_numeric_index_by_identity() -> None:

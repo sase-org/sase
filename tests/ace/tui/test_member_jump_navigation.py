@@ -456,3 +456,101 @@ def test_visible_member_jump_skips_refilter_and_structural_refresh() -> None:
     assert app._agents[app.current_idx].identity == members[1].identity
     assert app.refilter_calls == 0
     assert app.display_refreshes == []
+
+
+def test_member_reveal_does_not_retry_internal_refilter_type_error() -> None:
+    complete, container = _clan(2)
+    members = list(container.runtime_children)
+    app = _JumpHarness(complete, container)
+    app._member_jump_maps[container.identity] = _jump_map(container, members)
+    calls: list[dict[str, object]] = []
+
+    def fail_refilter(**kwargs: object) -> None:
+        calls.append(dict(kwargs))
+        raise TypeError("internal refilter failure")
+
+    app._refilter_agents = fail_refilter  # type: ignore[method-assign]
+
+    with pytest.raises(TypeError, match="internal refilter failure"):
+        app._handle_member_jump_key("1")
+
+    assert calls == [{"refresh_content_index": False, "refresh_display": False}]
+
+
+def test_member_reveal_does_not_retry_internal_display_type_error() -> None:
+    complete, container = _clan(2)
+    members = list(container.runtime_children)
+    app = _JumpHarness(complete, container)
+    app._member_jump_maps[container.identity] = _jump_map(container, members)
+    calls: list[dict[str, object]] = []
+
+    def fail_refresh(**kwargs: object) -> None:
+        calls.append(dict(kwargs))
+        raise TypeError("internal display failure")
+
+    app._refresh_agents_display = fail_refresh  # type: ignore[method-assign]
+
+    with pytest.raises(TypeError, match="internal display failure"):
+        app._handle_member_jump_key("1")
+
+    assert calls == [{"list_changed": True, "defer_detail": True}]
+
+
+def test_member_reveal_does_not_retry_internal_fold_persistence_type_error() -> None:
+    complete, container = _clan(2)
+    members = list(container.runtime_children)
+    target = members[1]
+    app = _JumpHarness(complete, container)
+    app._member_jump_maps[container.identity] = _jump_map(container, members)
+    clan_key = agent_fold_key(container)
+    assert clan_key is not None
+    app._fold_manager.expand(clan_key)
+    app._refilter_agents()
+
+    target_idx = next(
+        idx
+        for idx, agent in enumerate(app._agents)
+        if agent.identity == target.identity
+    )
+    target_panel_key = app._panel_keys_per_agent()[target_idx]
+    panel_agents = [
+        agent
+        for idx, agent in enumerate(app._agents)
+        if app._panel_keys_per_agent()[idx] == target_panel_key
+    ]
+    local_target_idx = panel_agents.index(app._agents[target_idx])
+    target_groups = [
+        entry.group.group_key
+        for entry in build_agent_tree(
+            panel_agents,
+            fold_registry=GroupFoldRegistry(),
+            mode=GroupingMode.STANDARD,
+        )
+        if entry.kind == "group"
+        and entry.group is not None
+        and local_target_idx in entry.group.agent_indices
+    ]
+    assert target_groups
+    app._group_fold_registry.for_panel(target_panel_key).collapse_keys(target_groups)
+    app.current_idx = next(
+        idx
+        for idx, agent in enumerate(app._agents)
+        if agent.identity == container.identity
+    )
+    calls: list[tuple[tuple[str, ...], dict[str, object]]] = []
+
+    def fail_persist(group_key: tuple[str, ...], **kwargs: object) -> None:
+        calls.append((group_key, dict(kwargs)))
+        raise TypeError("internal persistence failure")
+
+    app._persist_group_fold_change = fail_persist  # type: ignore[method-assign]
+
+    with pytest.raises(TypeError, match="internal persistence failure"):
+        app._handle_member_jump_key("1")
+
+    assert calls == [
+        (
+            target_groups[0],
+            {"collapsed": False, "panel_key": target_panel_key},
+        )
+    ]

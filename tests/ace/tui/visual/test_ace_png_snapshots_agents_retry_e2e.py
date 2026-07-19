@@ -137,11 +137,6 @@ async def test_real_loader_plan_family_retry_countdown_png_snapshot(
     )
     _patch_sentinel_pid_liveness(monkeypatch)
     monkeypatch.setattr(time, "time", lambda: now_epoch)
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "should_refresh_detail_header_summary",
-        lambda *_args: False,
-    )
     patch_startup_loaders(monkeypatch, use_real_agent_loader=True)
 
     async with AcePage(query='"retry-family"', changespecs=changespecs()) as page:

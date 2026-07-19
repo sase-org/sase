@@ -244,6 +244,9 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
                 error_tb_syntax,
                 panel_level=family_fold_level,
                 section_fold_overrides=family_fold_overrides,
+                preview_content=(
+                    summary.family_preview if summary is not None else None
+                ),
             )
             return
 
@@ -438,11 +441,13 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         *,
         panel_level: object,
         section_fold_overrides: object,
+        preview_content: object = None,
     ) -> None:
         """Render every family section at its effective two-level fold."""
         from collections.abc import Mapping
 
         from ...models.fold_state import FoldLevel
+        from ._agent_display_state import FamilyPreviewContent
 
         shared_level = (
             panel_level if isinstance(panel_level, FoldLevel) else FoldLevel.COLLAPSED
@@ -454,6 +459,11 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             else {}
         )
         renderables: list[Any] = [header_text]
+        preview = (
+            preview_content
+            if isinstance(preview_content, FamilyPreviewContent)
+            else None
+        )
 
         error_level = effective_family_fold_level("error", level, overrides)
         if error_tb_syntax is not None and error_level != FoldLevel.COLLAPSED:
@@ -464,14 +474,24 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             level,
             overrides,
         )
-        raw_xprompt = agent.get_raw_xprompt_content()
         append_family_fold_heading(
             header_text,
             "AGENT XPROMPT",
             section_id=FAMILY_XPROMPT_SECTION_ID,
             level=xprompt_level,
         )
-        if raw_xprompt:
+        raw_xprompt = (
+            preview.raw_xprompt
+            if xprompt_level == FoldLevel.EXPANDED and preview is not None
+            else (
+                agent.get_raw_xprompt_content()
+                if xprompt_level != FoldLevel.EXPANDED
+                else None
+            )
+        )
+        if xprompt_level == FoldLevel.EXPANDED and preview is None:
+            header_text.append("content loading…\n", style="dim italic")
+        elif raw_xprompt:
             humanized_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
             if xprompt_level == FoldLevel.EXPANDED:
                 header_text.append_text(bounded_content_preview(humanized_xprompt))
@@ -501,8 +521,18 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             section_id=FAMILY_PROMPT_SECTION_ID,
             level=prompt_level,
         )
-        prompt_content = get_prompt_content(agent)
-        if prompt_content:
+        prompt_content = (
+            preview.prompt
+            if prompt_level == FoldLevel.EXPANDED and preview is not None
+            else (
+                get_prompt_content(agent)
+                if prompt_level != FoldLevel.EXPANDED
+                else None
+            )
+        )
+        if prompt_level == FoldLevel.EXPANDED and preview is None:
+            header_text.append("content loading…\n", style="dim italic")
+        elif prompt_content:
             if prompt_level == FoldLevel.EXPANDED:
                 header_text.append_text(
                     bounded_content_preview(self._humanize_display_text(prompt_content))
@@ -531,14 +561,20 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         )
         if reply_level == FoldLevel.EXPANDED:
             renderables.append(reply_header)
-            for phase in phases:
-                renderables.append(
-                    render_phase_divider(
-                        get_phase_label(phase),
-                        phase.run_start_time or phase.start_time,
+            if preview is None:
+                reply_header.append("content loading…\n", style="dim italic")
+            else:
+                reply_by_identity = dict(preview.replies)
+                for phase in phases:
+                    renderables.append(
+                        render_phase_divider(
+                            get_phase_label(phase),
+                            phase.run_start_time or phase.start_time,
+                        )
                     )
-                )
-                renderables.append(reply_tail_preview(self._family_reply_text(phase)))
+                    renderables.append(
+                        reply_tail_preview(reply_by_identity.get(phase.identity, ""))
+                    )
         else:
             renderables.append(reply_header)
             for phase in phases:
@@ -553,21 +589,6 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
                 )
 
         self.update(Group(*renderables))  # type: ignore[attr-defined]
-
-    @staticmethod
-    def _family_reply_text(agent: Agent) -> str:
-        """Load one phase reply for an expanded tail preview."""
-        chunks = agent.get_timestamped_reply_chunks()
-        if chunks:
-            return "\n".join(chunk for _timestamp, chunk in chunks if chunk.strip())
-        live_reply = agent.get_live_reply_content()
-        if live_reply:
-            return live_reply
-        response = agent.get_response_content()
-        if response:
-            return response
-        chat_response = agent.get_chat_response_content()
-        return chat_response or ""
 
     def _update_bash_python_display(
         self,
