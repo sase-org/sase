@@ -1,11 +1,14 @@
 """Workspace preparation helpers shared by axe runners."""
 
 import logging
-import subprocess
 import sys
 import time
 from pathlib import Path
 
+from sase.git_lock_retry import (
+    STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS,
+    git_index_lock_path,
+)
 from sase.vcs_provider import get_vcs_provider
 
 logger = logging.getLogger(__name__)
@@ -13,36 +16,7 @@ logger = logging.getLogger(__name__)
 # Minimum age before a leftover ``.git/index.lock`` is treated as abandoned.
 # Comfortably longer than any normal index operation, so we never race a lock
 # a live git process just created.
-_STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS = 15.0
-
-
-def git_index_lock_path(workspace_dir: str) -> Path | None:
-    """Resolve the ``index.lock`` path for *workspace_dir*'s git dir, if any."""
-    git_path = Path(workspace_dir) / ".git"
-    if git_path.is_dir():
-        return git_path / "index.lock"
-    # Worktrees/submodules store ``.git`` as a file pointing at the real git
-    # dir; ask git where the index lives instead of guessing.
-    if not git_path.exists():
-        return None
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
-            cwd=workspace_dir,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    git_dir = result.stdout.strip()
-    if result.returncode != 0 or not git_dir:
-        return None
-    git_dir_path = Path(git_dir)
-    if not git_dir_path.is_absolute():
-        git_dir_path = Path(workspace_dir) / git_dir_path
-    return git_dir_path / "index.lock"
+_STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS = STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS
 
 
 def clear_stale_git_index_lock(
