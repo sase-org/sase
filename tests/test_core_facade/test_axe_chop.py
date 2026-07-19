@@ -137,6 +137,26 @@ def test_target_duration_and_agent_name_facades() -> None:
         == "chop.refresh_docs.sase-core.1"
     )
 
+    long_chop = "very-long-chop_" * 12
+    long_target = "very-long-target_" * 12
+    first_bounded = derive_chop_agent_name(
+        long_chop,
+        target_key=long_target,
+        proposal_index=0,
+        run_token="20260719T072506_123456",
+    )
+    second_bounded = derive_chop_agent_name(
+        long_chop,
+        target_key=long_target,
+        proposal_index=1,
+        run_token="20260719T072507_654321",
+    )
+    assert len(first_bounded) <= 120
+    assert len(second_bounded) <= 120
+    assert first_bounded.endswith(".6_123456.1")
+    assert second_bounded.endswith(".7_654321.2")
+    assert first_bounded != second_bounded
+
 
 def test_strict_config_diagnostics_preserve_provenance() -> None:
     diagnostics = validate_axe_config(
