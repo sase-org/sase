@@ -55,7 +55,7 @@ def find_double_colon_text_end(prompt: str, start: int) -> int:
     return match.start()
 
 
-def _format_as_text_block(text: str) -> str:
+def format_as_text_block(text: str) -> str:
     """Format text for use inside a [[...]] text block.
 
     Adds 2-space indent on continuation lines, preserves empty lines.
@@ -97,7 +97,7 @@ def _preprocess_paren_shorthand(prompt: str, xprompt_names: set[str]) -> str:
             continue
         text = prompt[text_start:text_end].rstrip()
 
-        text_block_content = _format_as_text_block(text)
+        text_block_content = format_as_text_block(text)
         args_str = prompt[paren_open + 1 : paren_close].strip()
 
         if args_str:
@@ -128,7 +128,7 @@ def preprocess_shorthand_syntax(prompt: str, xprompt_names: set[str]) -> str:
         text_end = find_double_colon_text_end(prompt, text_start)
         text = prompt[text_start:text_end].rstrip()
 
-        text_block_content = _format_as_text_block(text)
+        text_block_content = format_as_text_block(text)
         replacement = f"#{name}([[{text_block_content}]])"
 
         prompt = prompt[: match.start()] + replacement + prompt[text_end:]
@@ -145,7 +145,7 @@ def preprocess_shorthand_syntax(prompt: str, xprompt_names: set[str]) -> str:
         text_end = find_shorthand_text_end(prompt, text_start)
         text = prompt[text_start:text_end].rstrip()
 
-        text_block_content = _format_as_text_block(text)
+        text_block_content = format_as_text_block(text)
         replacement = f"#{name}([[{text_block_content}]])"
 
         prompt = prompt[: match.start()] + replacement + prompt[text_end:]

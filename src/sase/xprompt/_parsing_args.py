@@ -34,7 +34,7 @@ def escape_for_xprompt(text: str) -> str:
     return text.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _process_text_block(value: str) -> str:
+def process_text_block(value: str) -> str:
     """Process a value that may be a text block [[...]].
 
     Strips leading whitespace from the first line and dedents continuation
@@ -223,7 +223,7 @@ def _parse_named_arg(token: str) -> tuple[str | None, str]:
             if len(value) >= 2 and value[0] in ('"', "'") and value[-1] == value[0]:
                 value = value[1:-1]
             # Process text blocks
-            value = _process_text_block(value)
+            value = process_text_block(value)
             return name, value
         i += 1
 
@@ -416,7 +416,7 @@ def parse_args(
             if len(value) >= 2 and value[0] in ('"', "'") and value[-1] == value[0]:
                 value = value[1:-1]
             # Process text blocks for positional args
-            value = _process_text_block(value)
+            value = process_text_block(value)
             positional.append(value)
 
     return decode_xprompt_args(positional, named)

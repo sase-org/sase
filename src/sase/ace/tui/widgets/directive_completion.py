@@ -52,7 +52,7 @@ class DirectiveArgCompletionMetadata:
 _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "alt": "(variants)",
     "auto": ":argument (e.g. plan|tale|epic)",
-    "clan": ":name or (name, tribe=tribe)",
+    "clan": ":name, (name, tribe=/summary=/summary_script=), or :name:: summary",
     "effort": ":level",
     "hide": "flag",
     "model": ":model or (model, alias=model)",
@@ -67,7 +67,7 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
 _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "alt": "split a prompt into variants; shorthand %{A | B}",
     "auto": "request automatic gate resolution; arguments are gate-specific",
-    "clan": "join a named parallel agent clan",
+    "clan": "declare a parallel agent clan with optional tribe or summary",
     "effort": "set the reasoning-effort level for this prompt",
     "hide": "hide the agent from the default Agents tab",
     "model": "choose a model and optional launch-family alias overrides",
@@ -108,6 +108,8 @@ _WAIT_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
 )
 
 _CLAN_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
+    ("summary=", "attach a literal Rich-markup clan summary"),
+    ("summary_script=", "run an executable to produce the clan summary"),
     ("tribe=", "assign one tribe to the entire clan"),
 )
 

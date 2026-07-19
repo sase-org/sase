@@ -34,6 +34,11 @@ class _CollectedDirectives:
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
     clan_tribe_arg: str | None = None
     clan_tribe_present: bool = False
+    clan_summary_arg: str | None = None
+    clan_summary_present: bool = False
+    clan_summary_text_block: bool = False
+    clan_summary_script_arg: str | None = None
+    clan_summary_script_present: bool = False
     name_clan_arg: str | None = None
     name_force_reuse: bool = False
     name_family_args: tuple[str, str] | None = None
@@ -77,6 +82,7 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         collected,
                         positional_args,
                         named_args,
+                        paren_content=paren_content,
                     )
                 if name == "id":
                     (
@@ -168,20 +174,48 @@ def _collect_clan_paren_args(
     collected: _CollectedDirectives,
     positional_args: list[str],
     named_args: dict[str, str],
+    *,
+    paren_content: str,
 ) -> list[str]:
     """Validate and retain the canonical ``%clan(...)`` argument shape."""
-    unknown_keys = sorted(key for key in named_args if key != "tribe")
+    supported_keys = {"summary", "summary_script", "tribe"}
+    unknown_keys = sorted(key for key in named_args if key not in supported_keys)
     if unknown_keys:
         keys = ", ".join(f"{key}=" for key in unknown_keys)
         raise DirectiveError(
-            f"Unsupported keyword on %clan: {keys}. Only tribe= is supported."
+            f"Unsupported keyword on %clan: {keys}. Only summary=, "
+            "summary_script=, and tribe= are supported."
         )
     if len(positional_args) > 1:
         raise DirectiveError("%clan accepts exactly one positional clan name argument.")
+    if "summary" in named_args and "summary_script" in named_args:
+        raise DirectiveError(
+            "'%clan' summary= and summary_script= are mutually exclusive."
+        )
     if "tribe" in named_args:
         collected.clan_tribe_present = True
         collected.clan_tribe_arg = named_args["tribe"]
+    if "summary" in named_args:
+        collected.clan_summary_present = True
+        collected.clan_summary_arg = named_args["summary"]
+        collected.clan_summary_text_block = _named_arg_is_text_block(
+            paren_content,
+            "summary",
+        )
+    if "summary_script" in named_args:
+        collected.clan_summary_script_present = True
+        collected.clan_summary_script_arg = named_args["summary_script"]
     return [positional_args[0] if positional_args else ""]
+
+
+def _named_arg_is_text_block(paren_content: str, name: str) -> bool:
+    return (
+        re.search(
+            rf"(?:^|,)\s*{re.escape(name)}\s*=\s*\[\[",
+            paren_content,
+        )
+        is not None
+    )
 
 
 def _validate_clan_directive_contract(collected: _CollectedDirectives) -> None:

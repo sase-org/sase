@@ -70,6 +70,17 @@ def test_wait_arg_extraction_uses_active_comma_fragment_and_alias() -> None:
     )
 
 
+def test_clan_arg_extraction_recognizes_summary_keyword_fragment() -> None:
+    line = "%clan(research, su"
+
+    assert extract_directive_arg_token_around_cursor(line, len(line)) == (
+        line.index("su"),
+        len(line),
+        "clan_keyword",
+        "su",
+    )
+
+
 def test_wait_arg_extraction_accepts_tribe_reference_prefix() -> None:
     line = "%w:planner, @ep"
     assert extract_directive_arg_token_around_cursor(line, len(line)) == (

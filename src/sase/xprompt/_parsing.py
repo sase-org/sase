@@ -51,12 +51,12 @@ def _parse_named_arg(token: str) -> tuple[str | None, str]:
 
 def _process_text_block(value: str) -> str:
     """Compatibility wrapper for tests that import the old private helper."""
-    return _args._process_text_block(value)
+    return _args.process_text_block(value)
 
 
 def _format_as_text_block(text: str) -> str:
     """Compatibility wrapper for tests that import the old private helper."""
-    return _shorthand._format_as_text_block(text)
+    return _shorthand.format_as_text_block(text)
 
 
 def _preprocess_paren_shorthand(prompt: str, xprompt_names: set[str]) -> str:

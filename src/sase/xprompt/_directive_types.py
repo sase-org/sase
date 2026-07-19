@@ -109,6 +109,10 @@ class PromptDirectives:
         clan_declared: Whether clan membership came from an explicit
             ``%clan`` declaration rather than the ``clan=`` join form.
         clan_tribe: Tribe declared through ``%clan(..., tribe=...)``, or None.
+        clan_summary: Rich-markup summary declared through
+            ``%clan(..., summary=...)`` or the ``::`` shorthand, or None.
+        clan_summary_script: Executable summary producer declared through
+            ``%clan(..., summary_script=...)``, or None.
         tribe: Standalone tribe declared through the ``tribe=`` keyword on
             ``%id``, or None.
         wait: List of agent names to wait for via positional %wait arguments.
@@ -138,6 +142,8 @@ class PromptDirectives:
     clan: str | None = None
     clan_declared: bool = False
     clan_tribe: str | None = None
+    clan_summary: str | None = None
+    clan_summary_script: str | None = None
     family_attach_parent: str | None = None
     family_attach_suffix: str | None = None
     name_template: str | None = None

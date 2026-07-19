@@ -353,6 +353,46 @@ def resolve_clan_tribe(
         raise DirectiveError(f"Invalid '%clan' tribe= value: {exc}") from exc
 
 
+def resolve_clan_summary(
+    raw_summary: str | None,
+    *,
+    present: bool,
+) -> str | None:
+    """Validate the optional literal ``summary=`` keyword on ``%clan``."""
+    return _resolve_nonempty_clan_value(
+        raw_summary,
+        present=present,
+        keyword="summary",
+    )
+
+
+def resolve_clan_summary_script(
+    raw_script: str | None,
+    *,
+    present: bool,
+) -> str | None:
+    """Validate the optional ``summary_script=`` keyword on ``%clan``."""
+    return _resolve_nonempty_clan_value(
+        raw_script,
+        present=present,
+        keyword="summary_script",
+    )
+
+
+def _resolve_nonempty_clan_value(
+    raw_value: str | None,
+    *,
+    present: bool,
+    keyword: str,
+) -> str | None:
+    if not present:
+        return None
+    value = (raw_value or "").strip()
+    if not value:
+        raise DirectiveError(f"'%clan(..., {keyword}=...)' requires a non-empty value.")
+    return value
+
+
 def resolve_reasoning_effort(
     *,
     effort_directive: str | None,

@@ -6,6 +6,7 @@ import re
 from collections.abc import Callable
 
 from ._directive_collect import collect_prompt_directive_matches
+from ._directive_shorthand import preprocess_directive_double_colon_shorthand
 from ._directive_types import PromptDirectives
 from ._directive_values import (
     expand_multi_directive_args,
@@ -14,6 +15,8 @@ from ._directive_values import (
     parse_repeat_count,
     parse_tribe_name,
     resolve_clan_tribe,
+    resolve_clan_summary,
+    resolve_clan_summary_script,
     resolve_clan_membership,
     resolve_auto_argument,
     resolve_auto_mode,
@@ -31,6 +34,7 @@ from ._disabled_regions import (
     unprotect_disabled_regions,
 )
 from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
+from ._parsing_args import process_text_block
 
 
 def extract_prompt_directives(
@@ -42,6 +46,8 @@ def extract_prompt_directives(
     """Extract ``%id`` directives from a prompt."""
     if "%" not in prompt:
         return prompt, PromptDirectives()
+
+    prompt = preprocess_directive_double_colon_shorthand(prompt)
 
     fenced_blocks: list[str] = []
     prompt = protect_fenced_blocks(prompt, fenced_blocks)
@@ -121,6 +127,30 @@ def extract_prompt_directives(
         present=collected.clan_tribe_present,
         process_references=process_references,
     )
+    clan_summary = resolve_clan_summary(
+        collected.clan_summary_arg,
+        present=collected.clan_summary_present,
+    )
+    clan_summary_script = resolve_clan_summary_script(
+        collected.clan_summary_script_arg,
+        present=collected.clan_summary_script_present,
+    )
+    if clan_summary is not None:
+        clan_summary = unprotect_disabled_regions(clan_summary, disabled_regions)
+        clan_summary = unprotect_fenced_blocks(clan_summary, fenced_blocks)
+        if collected.clan_summary_text_block:
+            clan_summary = process_text_block(f"[[{clan_summary}]]")
+        else:
+            clan_summary = clan_summary.strip()
+    if clan_summary_script is not None:
+        clan_summary_script = unprotect_disabled_regions(
+            clan_summary_script,
+            disabled_regions,
+        )
+        clan_summary_script = unprotect_fenced_blocks(
+            clan_summary_script,
+            fenced_blocks,
+        ).strip()
     reasoning_effort = resolve_reasoning_effort(
         effort_directive=expanded_args.get("effort"),
         effort_present="effort" in expanded_args,
@@ -147,6 +177,8 @@ def extract_prompt_directives(
         clan=clan,
         clan_declared=declared_clan is not None,
         clan_tribe=clan_tribe,
+        clan_summary=clan_summary,
+        clan_summary_script=clan_summary_script,
         family_attach_parent=(
             collected.name_family_args[0]
             if collected.name_family_args is not None
