@@ -20,6 +20,10 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     append_input_hints,
 )
+from sase.ace.tui.widgets._agent_list_styling import (
+    _CLAN_NAME_STYLE,
+    _FAMILY_NAME_STYLE,
+)
 from sase.project_display_names import project_display_name_for
 from sase.workspace_provider import VcsNamespaceEntry, VcsRepoEntry
 from sase.xprompt.vcs_project_completion import VcsProjectEntry
@@ -142,7 +146,7 @@ def append_agent_completion_row(
     candidate: CompletionCandidate,
     is_selected: bool,
 ) -> None:
-    """Append one visible-agent completion row."""
+    """Append one kind-aware wait/fork target row."""
     metadata = (
         candidate.metadata
         if isinstance(candidate.metadata, AgentCompletionCandidate)
@@ -150,6 +154,10 @@ def append_agent_completion_row(
     )
     if metadata is None:
         content.append(candidate.display, style="bold" if is_selected else "")
+        return
+
+    if metadata.kind != "agent":
+        _append_group_completion_row(content, metadata, is_selected)
         return
 
     workflow = metadata.vcs_workflow or neutral_vcs_workflow()
@@ -164,6 +172,56 @@ def append_agent_completion_row(
     if snippet:
         content.append("  ")
         content.append(snippet, style="dim")
+
+
+def _append_group_completion_row(
+    content: Text,
+    metadata: AgentCompletionCandidate,
+    is_selected: bool,
+) -> None:
+    """Append one family, clan, or tribe using the shared row anatomy."""
+    glyphs = {"family": "F", "clan": "C", "tribe": "@"}
+    styles = {
+        "family": _FAMILY_NAME_STYLE,
+        "clan": _CLAN_NAME_STYLE,
+        "tribe": "bold #FFD75F",
+    }
+    style = styles[metadata.kind]
+    name = _truncate_cell(metadata.name, 26)
+    count = metadata.member_count or 0
+    if metadata.kind == "tribe" and metadata.agent_count is not None:
+        carrier_counts = f"{metadata.agent_count}a"
+        if metadata.clan_count:
+            carrier_counts += f"/{metadata.clan_count}c"
+        badge = _truncate_cell(f"tribe · {carrier_counts}", 14)
+    else:
+        badge = _truncate_cell(f"{metadata.kind} · {count}", 14)
+    preview = _member_preview(metadata.member_names, count)
+
+    content.append(f"{glyphs[metadata.kind]} ", style=style)
+    content.append(
+        f"{name:<26}",
+        style=f"bold {style}"
+        if is_selected and not style.startswith("bold ")
+        else style,
+    )
+    content.append("  ")
+    content.append(f"{badge:<14}", style=style)
+    content.append("  ")
+    content.append(
+        "● ", style=status_style(metadata.aggregate_status or metadata.status)
+    )
+    if preview:
+        content.append(preview, style="dim")
+
+
+def _member_preview(member_names: tuple[str, ...], member_count: int) -> str:
+    visible = member_names[:3]
+    preview = ", ".join(visible)
+    hidden = max(0, member_count - len(visible))
+    if hidden:
+        preview = f"{preview} +{hidden}" if preview else f"+{hidden}"
+    return _truncate_cell(preview, 58)
 
 
 def append_vcs_project_completion_row(

@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from textual.widgets import Static
 
+from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
@@ -164,6 +165,36 @@ async def test_colon_after_model_auto_opens_model_value_panel() -> None:
         assert "Claude (fable)" in panel.render().plain
 
 
+async def test_colon_after_wait_auto_opens_wait_targets_panel() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        AgentCompletionCandidate("@builders", "builders", "RUNNING", kind="tribe"),
+        AgentCompletionCandidate("review", "review", "RUNNING", kind="clan"),
+        AgentCompletionCandidate("ship", "ship", "RUNNING", kind="family"),
+        AgentCompletionCandidate("coder", "coder", "RUNNING"),
+    ]
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+
+        for char in "%wait:":
+            await pilot.press(char)
+
+        assert ta._completion_kind == "directive_arg"
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == [
+            "runners=",
+            "time=",
+            "@builders",
+            "review",
+            "ship",
+            "coder",
+        ]
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "wait targets"
+
+
 async def test_directive_arg_refresh_narrows_widens_and_dismisses() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
@@ -250,6 +281,37 @@ async def test_wait_arg_completion_replaces_only_active_fragment() -> None:
 
     assert ta.text == "%wait:planner, coder"
     assert ta._file_completion_active is False
+
+
+async def test_wait_arg_completion_excludes_selected_agent_and_groups() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        AgentCompletionCandidate("@builders", "builders", "RUNNING", kind="tribe"),
+        AgentCompletionCandidate("review", "review", "RUNNING", kind="clan"),
+        AgentCompletionCandidate("ship", "ship", "RUNNING", kind="family"),
+        AgentCompletionCandidate("planner", "planner", "RUNNING"),
+        AgentCompletionCandidate("coder", "coder", "RUNNING"),
+    ]
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%wait(planner, , @builders, review)")
+        ta.cursor_location = (0, len("%wait(planner, "))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == [
+            "runners=",
+            "time=",
+            "ship",
+            "coder",
+        ]
 
 
 async def test_wait_arg_completion_inserts_tribe_target() -> None:

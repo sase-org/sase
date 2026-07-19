@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sase.ace.tui.widgets.directive_completion import (
     extract_directive_arg_token_around_cursor,
+    selected_wait_values_around_cursor,
 )
 
 
@@ -95,6 +96,15 @@ def test_wait_arg_extraction_supports_paren_form_and_time_fragment() -> None:
         time_col,
         "wait",
         "time=5m",
+    )
+
+
+def test_wait_arg_extraction_reports_selected_values_on_both_sides() -> None:
+    line = "%wait(planner, co, @builders, time=5m)"
+    active_start = line.index("co")
+
+    assert selected_wait_values_around_cursor(line, active_start) == frozenset(
+        {"planner", "@builders"}
     )
 
 

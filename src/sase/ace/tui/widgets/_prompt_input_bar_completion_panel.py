@@ -228,7 +228,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         elif is_directive:
             panel.border_title = "directives"
         elif is_directive_arg_agent:
-            panel.border_title = "wait agents"
+            panel.border_title = "wait targets"
         elif is_directive_arg:
             panel.border_title = "directive values"
         elif is_vcs_project:
@@ -238,7 +238,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         elif is_vcs_repo:
             panel.border_title = token
         elif is_xprompt_arg_agent:
-            panel.border_title = "fork agent"
+            panel.border_title = "fork targets"
         elif completion_kind == "xprompt_arg_name":
             panel.border_title = "xprompt arg names"
         elif completion_kind == "xprompt_arg_value":

@@ -15,6 +15,7 @@ from sase.ace.tui.widgets._directive_completion_tokens import (
     extract_directive_arg_token_around_cursor,
     extract_directive_token_around_cursor,
     is_directive_like_token,
+    selected_wait_values_around_cursor,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.xprompt._directive_types import (
@@ -110,6 +111,8 @@ _CLAN_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
     ("tribe=", "assign one tribe to the entire clan"),
 )
 
+_TARGET_KIND_ORDER = ("tribe", "clan", "family", "agent")
+
 
 def build_directive_completion_candidates(
     token: str,
@@ -153,6 +156,7 @@ def build_directive_arg_completion_candidates(
     partial: str,
     *,
     agent_candidates: Sequence[AgentCompletionCandidate] | None = None,
+    excluded_names: frozenset[str] = frozenset(),
 ) -> tuple[list[CompletionCandidate], str]:
     """Build fixed-value candidates for a directive argument token."""
     if directive_name == "model_alias_key":
@@ -174,7 +178,11 @@ def build_directive_arg_completion_candidates(
     if canonical == "model":
         return _build_model_arg_completion_candidates(partial)
     if canonical == "wait":
-        return _build_wait_arg_completion_candidates(partial, agent_candidates)
+        return _build_wait_arg_completion_candidates(
+            partial,
+            agent_candidates,
+            excluded_names=excluded_names,
+        )
 
     values = _DIRECTIVE_ARGUMENT_VALUES.get(canonical)
     if values is None:
@@ -214,50 +222,37 @@ def build_agent_arg_completion_candidates(
     *,
     excluded_names: frozenset[str] = frozenset(),
 ) -> tuple[list[CompletionCandidate], str]:
-    """Build visible-agent and tribe candidates for a wait/fork argument."""
+    """Build kind-aware target candidates for a wait/fork argument."""
     if "=" in partial:
         return [], ""
 
     partial_lower = partial.lower()
-    tribe_names = sorted(
-        {
-            entry.tag
-            for entry in agent_candidates or ()
-            if entry.tag
-            and entry.tag not in excluded_names
-            and entry.tag.lower().startswith(partial_lower)
-        },
-        key=str.lower,
-    )
-    tribe_candidates = [
-        CompletionCandidate(
-            display=tribe_name,
-            insertion=tribe_name,
-            is_dir=False,
-            name=tribe_name,
-            metadata=DirectiveArgCompletionMetadata(
-                directive_name="tribe",
-                description="target the next agent or clan joining this tribe",
-            ),
-        )
-        for tribe_name in tribe_names
-    ]
-    entries = [
+    source_entries = list(agent_candidates or ())
+    source_entries = [*_legacy_tribe_entries(source_entries), *source_entries]
+    excluded = {name.casefold() for name in excluded_names}
+    matching = [
         entry
-        for entry in filter_agent_completion_candidates(agent_candidates, partial)
-        if entry.name not in excluded_names
+        for entry in filter_agent_completion_candidates(source_entries, partial)
+        if not _target_is_excluded(entry, excluded)
     ]
-    candidates = [
-        CompletionCandidate(
-            display=entry.name,
-            insertion=entry.name,
-            is_dir=False,
-            name=entry.name,
-            metadata=entry,
+    ordered = [
+        entry for kind in _TARGET_KIND_ORDER for entry in matching if entry.kind == kind
+    ]
+    candidates: list[CompletionCandidate] = []
+    seen_insertions: set[str] = set()
+    for entry in ordered:
+        if entry.name in seen_insertions:
+            continue
+        seen_insertions.add(entry.name)
+        candidates.append(
+            CompletionCandidate(
+                display=entry.name,
+                insertion=entry.name,
+                is_dir=False,
+                name=entry.name,
+                metadata=entry,
+            )
         )
-        for entry in entries
-    ]
-    candidates = [*tribe_candidates, *candidates]
 
     shared_extension = ""
     if len(candidates) > 1 and all(
@@ -273,12 +268,65 @@ def build_agent_arg_completion_candidates(
     return candidates, shared_extension
 
 
+def _legacy_tribe_entries(
+    entries: Sequence[AgentCompletionCandidate],
+) -> list[AgentCompletionCandidate]:
+    """Adapt older flat providers that expose tribes only through ``tag``."""
+    explicit = {entry.name for entry in entries if entry.kind == "tribe"}
+    members_by_tag: dict[str, list[AgentCompletionCandidate]] = {}
+    for entry in entries:
+        if entry.kind != "agent" or not entry.tag:
+            continue
+        tag = entry.tag if entry.tag.startswith("@") else f"@{entry.tag}"
+        if tag in explicit:
+            continue
+        members_by_tag.setdefault(tag, []).append(entry)
+
+    legacy: list[AgentCompletionCandidate] = []
+    for tag, members in members_by_tag.items():
+        statuses = [member.status for member in members]
+        from sase.ace.tui.models._agent_clan import aggregate_clan_status
+
+        status = aggregate_clan_status(statuses) or "RUNNING"
+        legacy.append(
+            AgentCompletionCandidate(
+                name=tag,
+                label=tag.removeprefix("@"),
+                status=status,
+                kind="tribe",
+                member_count=len(members),
+                aggregate_status=status,
+                member_names=tuple(member.name for member in members),
+                agent_count=len(members),
+                clan_count=0,
+                search_aliases=(tag.removeprefix("@"),),
+            )
+        )
+    return legacy
+
+
+def _target_is_excluded(
+    entry: AgentCompletionCandidate,
+    excluded: set[str],
+) -> bool:
+    canonical = entry.name.casefold()
+    if canonical in excluded:
+        return True
+    return entry.kind == "tribe" and canonical.removeprefix("@") in excluded
+
+
 def _build_wait_arg_completion_candidates(
     partial: str,
     agent_candidates: Sequence[AgentCompletionCandidate] | None,
+    *,
+    excluded_names: frozenset[str] = frozenset(),
 ) -> tuple[list[CompletionCandidate], str]:
     """Build agent-name and keyword candidates for ``%wait`` arguments."""
-    agents, _ = build_agent_arg_completion_candidates(partial, agent_candidates)
+    agents, _ = build_agent_arg_completion_candidates(
+        partial,
+        agent_candidates,
+        excluded_names=excluded_names,
+    )
     partial_lower = partial.lower()
     keywords = [
         CompletionCandidate(

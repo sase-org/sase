@@ -236,7 +236,14 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             if directive_arg_ctx is None:
                 self._clear_file_completion()
                 return
-            _row, _start, _end, directive_name, token = directive_arg_ctx
+            (
+                _row,
+                _start,
+                _end,
+                directive_name,
+                token,
+                excluded_names,
+            ) = directive_arg_ctx
             candidates, _shared = build_directive_arg_completion_candidates(
                 directive_name,
                 token,
@@ -245,6 +252,7 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                     if directive_name == "wait"
                     else None
                 ),
+                excluded_names=excluded_names,
             )
         else:
             ctx = self._get_token_context()

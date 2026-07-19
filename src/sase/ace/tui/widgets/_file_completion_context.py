@@ -11,6 +11,7 @@ from sase.ace.tui.widgets._file_completion_xprompt_args import (
 from sase.ace.tui.widgets.directive_completion import (
     extract_directive_arg_token_around_cursor,
     extract_directive_token_around_cursor,
+    selected_wait_values_around_cursor,
 )
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
@@ -131,8 +132,8 @@ class FileCompletionContextMixin(_MixinBase):
 
     def _get_directive_arg_token_context(
         self,
-    ) -> tuple[int, int, int, str, str] | None:
-        """Return row-local context for fixed-value directive argument completion."""
+    ) -> tuple[int, int, int, str, str, frozenset[str]] | None:
+        """Return row-local directive context plus already-selected wait values."""
         row, col = self.cursor_location
         line = self.document.get_line(row)
         token_info = extract_directive_arg_token_around_cursor(line, col)
@@ -140,7 +141,12 @@ class FileCompletionContextMixin(_MixinBase):
             return None
 
         start, end, directive_name, partial = token_info
-        return row, start, end, directive_name, partial
+        selected_values = (
+            selected_wait_values_around_cursor(line, start)
+            if directive_name == "wait"
+            else frozenset()
+        )
+        return row, start, end, directive_name, partial, selected_values
 
     def _replace_token_text(self, row: int, start: int, end: int, token: str) -> None:
         """Replace token range and put cursor at token end."""
@@ -228,7 +234,7 @@ class FileCompletionContextMixin(_MixinBase):
             ctx = self._get_directive_arg_token_context()
             if ctx is None:
                 return None
-            row, start, end, _directive_name, partial = ctx
+            row, start, end, _directive_name, partial, _selected_values = ctx
             return row, start, end, partial
         if self._completion_kind == "directive":
             return self._get_directive_token_context()

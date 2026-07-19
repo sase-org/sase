@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 from unittest.mock import patch
 
 from _pytest.monkeypatch import MonkeyPatch
@@ -99,11 +100,18 @@ def _agent_candidate(
     vcs_tag: str = "#gh:sase",
     snippet: str = "Fix prompt completion",
     tag: str | None = None,
+    kind: Literal["agent", "family", "clan", "tribe"] = "agent",
+    member_count: int | None = None,
+    member_names: tuple[str, ...] = (),
 ) -> AgentCompletionCandidate:
     return AgentCompletionCandidate(
         name=name,
         label=name,
         status=status,
+        kind=kind,
+        member_count=member_count,
+        aggregate_status=status if kind != "agent" else None,
+        member_names=member_names,
         tag=tag,
         vcs_workflow=AgentVcsWorkflow(
             tag=vcs_tag,
@@ -285,10 +293,51 @@ async def test_fork_agent_arg_menu_renders_visible_agent_metadata() -> None:
 
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render().plain
-        assert panel.border_title == "fork agent"
+        assert panel.border_title == "fork targets"
         assert "coder" in rendered
         assert "#gh:sase" in rendered
         assert "Fix prompt completion" in rendered
+
+
+async def test_fork_target_menu_renders_all_four_aligned_kinds() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate(
+            "@builders",
+            kind="tribe",
+            member_count=4,
+            member_names=("review.alpha", "review.beta", "ship--code", "coder"),
+        ),
+        _agent_candidate(
+            "review",
+            kind="clan",
+            member_count=2,
+            member_names=("review.alpha", "review.beta"),
+        ),
+        _agent_candidate(
+            "ship",
+            kind="family",
+            member_count=2,
+            member_names=("ship--plan", "ship--code"),
+        ),
+        _agent_candidate("coder"),
+    ]
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta._xprompt_arg_assist_entries_by_project[None] = [_fork_entry()]
+        ta.load_text("#fork:")
+        ta.cursor_location = (0, len("#fork:"))
+
+        assert ta._try_file_completion_tab() is True
+        panel = bar.query_one("#prompt-completion", Static)
+        rendered = panel.render().plain
+
+    assert panel.border_title == "fork targets"
+    assert "@ @builders" in rendered and "tribe · 4" in rendered
+    assert "C review" in rendered and "clan · 2" in rendered
+    assert "F ship" in rendered and "family · 2" in rendered
+    assert "● coder" in rendered and "#gh:sase" in rendered
 
 
 async def test_fork_agent_arg_auto_menu_uses_xprompt_gate() -> None:
@@ -312,7 +361,7 @@ async def test_fork_agent_arg_auto_menu_uses_xprompt_gate() -> None:
             "planner",
         ]
         panel = bar.query_one("#prompt-completion", Static)
-        assert panel.border_title == "fork agent"
+        assert panel.border_title == "fork targets"
 
 
 async def test_fork_agent_arg_completion_after_earlier_xprompt_reference() -> None:
@@ -343,7 +392,7 @@ async def test_fork_agent_arg_completion_after_earlier_xprompt_reference() -> No
             "planner",
         ]
         panel = bar.query_one("#prompt-completion", Static)
-        assert panel.border_title == "fork agent"
+        assert panel.border_title == "fork targets"
 
 
 async def test_double_colon_free_text_does_not_open_fork_agent_menu() -> None:

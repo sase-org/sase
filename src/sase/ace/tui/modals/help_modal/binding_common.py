@@ -23,7 +23,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("Ctrl+T / Ctrl+L", "Manual completion / accept"),
         ("#name / #!name", "Auto-open xprompt menu"),
         ("%model: / %auto: / %effort:", "Auto-open directive values"),
-        ("%wait: / #fork:", "Complete visible agent names"),
+        ("%wait: / #fork:", "Complete agent/family/clan/tribe targets"),
         ("#@ Ctrl+I", "Inline-expand xprompt"),
         ("K", "Preview xprompt/skill/file"),
         ("Ctrl+]", "Jump to xprompt/skill/file"),

@@ -18,6 +18,7 @@ from sase.ace.tui.agent_completion import (
     visible_agent_completion_agents,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 
 
@@ -113,8 +114,12 @@ def test_build_agent_completion_candidates_enriches_visible_named_agents(
         exclude_identity=other.identity,
     )
 
-    assert [candidate.name for candidate in candidates] == ["completion"]
-    candidate = candidates[0]
+    assert [candidate.name for candidate in candidates] == ["@review", "completion"]
+    assert candidates[0].kind == "tribe"
+    assert candidates[0].member_count == 1
+    candidate = candidates[1]
+    assert candidate.kind == "family"
+    assert candidate.member_count == 1
     assert candidate.label == "completion.plan"
     assert candidate.model == "codex / gpt-5@high"
     assert candidate.tag == "@review"
@@ -179,6 +184,93 @@ def test_filter_agent_completion_candidates_uses_name_prefix(tmp_path: Path) -> 
         candidate.name
         for candidate in filter_agent_completion_candidates(candidates, "co")
     ] == ["coder"]
+
+
+def test_build_agent_completion_candidates_derives_ordered_groups(
+    tmp_path: Path,
+) -> None:
+    old = _agent(
+        tmp_path,
+        agent_name="review.old",
+        raw_suffix="20260718090000",
+        agent_clan="review",
+        agent_clan_generation="20260718090000",
+        tag="retired",
+    )
+    alpha = _agent(
+        tmp_path,
+        agent_name="review.alpha",
+        raw_suffix="20260718100001",
+        agent_clan="review",
+        agent_clan_generation="20260718100000",
+        tag="builders",
+    )
+    beta = _agent(
+        tmp_path,
+        agent_name="review.beta",
+        raw_suffix="20260718100002",
+        agent_clan="review",
+        agent_clan_generation="20260718100000",
+        status="DONE",
+    )
+    family = _agent(
+        tmp_path,
+        agent_name="ship--plan",
+        raw_suffix="20260718110000",
+        agent_family="ship",
+        agent_family_role="root",
+        plan_chain_root=True,
+        tag="makers",
+    )
+    code = _agent(
+        tmp_path,
+        agent_name="ship--code",
+        raw_suffix="20260718110001",
+        agent_family="ship",
+        agent_family_role="code",
+        parent_timestamp=family.raw_suffix,
+    )
+    family.followup_agents.append(code)
+    solo = _agent(
+        tmp_path,
+        agent_name="solo",
+        raw_suffix="20260718120000",
+        tag="builders",
+    )
+
+    candidates = build_agent_completion_candidates(
+        [*project_clan_tree([old, alpha, beta]), family, code, solo]
+    )
+
+    assert [(candidate.kind, candidate.name) for candidate in candidates[:4]] == [
+        ("tribe", "@builders"),
+        ("tribe", "@makers"),
+        ("clan", "review"),
+        ("family", "ship"),
+    ]
+    by_name = {candidate.name: candidate for candidate in candidates}
+    assert by_name["@builders"].member_count == 3
+    assert by_name["@builders"].agent_count == 1
+    assert by_name["@builders"].clan_count == 1
+    assert by_name["review"].member_count == 2
+    assert by_name["review"].member_names == ("review.alpha", "review.beta")
+    assert by_name["ship"].member_count == 2
+    assert by_name["ship"].aggregate_status == "RUNNING"
+    assert "@retired" not in by_name
+    assert by_name["review.old"].kind == "agent"
+
+
+def test_build_agent_completion_candidates_omits_empty_clan(tmp_path: Path) -> None:
+    empty = _agent(
+        tmp_path,
+        agent_name=None,
+        raw_suffix=None,
+        agent_clan="empty",
+        agent_clan_generation="20260718100000",
+        is_clan_container=True,
+    )
+
+    assert build_agent_completion_candidates([empty]) == []
 
 
 def test_visible_agent_completion_agents_aggregates_all_panel_widgets(

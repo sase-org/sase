@@ -217,7 +217,7 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         if ctx is None:
             return False
 
-        _row, _start, _end, directive_name, partial = ctx
+        _row, _start, _end, directive_name, partial, excluded_names = ctx
         candidates, _shared_extension = build_directive_arg_completion_candidates(
             directive_name,
             partial,
@@ -226,6 +226,7 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
                 if directive_name == "wait"
                 else None
             ),
+            excluded_names=excluded_names,
         )
         if not candidates:
             if directive_name == "wait":

@@ -119,6 +119,41 @@ def extract_directive_arg_token_around_cursor(
     return arg_start, arg_end, directive_name, line[arg_start:arg_end]
 
 
+def selected_wait_values_around_cursor(
+    line: str,
+    active_start: int,
+) -> frozenset[str]:
+    """Return completed ``%wait`` values outside the active comma clause."""
+    percent_index = line.rfind("%", 0, active_start)
+    if percent_index < 0:
+        return frozenset()
+    name_end = percent_index + 1
+    while name_end < len(line) and _is_directive_identifier(line[name_end]):
+        name_end += 1
+    if name_end >= len(line) or line[name_end] not in {":", "("}:
+        return frozenset()
+
+    value_start = name_end + 1
+    body_end = len(line)
+    if line[name_end] == "(":
+        close_index = line.find(")", value_start)
+        if close_index >= 0:
+            body_end = close_index
+    active_index = line.count(",", value_start, active_start)
+    selected: set[str] = set()
+    for index, raw_value in enumerate(line[value_start:body_end].split(",")):
+        if index == active_index:
+            continue
+        value = raw_value.strip()
+        if (
+            value
+            and "=" not in value
+            and all(_is_wait_directive_argument_identifier(char) for char in value)
+        ):
+            selected.add(value)
+    return frozenset(selected)
+
+
 def canonical_directive_name(raw_name: str) -> str | None:
     """Resolve a directive alias to a known canonical name."""
     canonical = _DIRECTIVE_ALIASES.get(raw_name, raw_name)

@@ -134,6 +134,7 @@ def _wait_modal_candidates(
             visible_agents,
             exclude_identity=selected_agent.identity,
         )
+        if candidate.kind in {"agent", "family"}
     ]
 
 

@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.widgets.directive_completion import (
+    build_agent_arg_completion_candidates,
     build_directive_arg_completion_candidates,
 )
 from sase.xprompt._directive_types import AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS
@@ -94,10 +95,83 @@ def test_wait_arg_completion_offers_deduplicated_tribe_targets() -> None:
     )
 
     assert [candidate.insertion for candidate in candidates] == ["@epic"]
-    assert directive_arg_metadata(candidates[0]).description == (
-        "target the next agent or clan joining this tribe"
-    )
+    assert isinstance(candidates[0].metadata, AgentCompletionCandidate)
+    assert candidates[0].metadata.kind == "tribe"
+    assert candidates[0].metadata.member_count == 2
     assert shared == ""
+
+
+def test_wait_arg_completion_orders_kinds_and_matches_bare_tribe() -> None:
+    tribe = AgentCompletionCandidate(
+        "@builders",
+        "builders",
+        "RUNNING",
+        kind="tribe",
+        member_count=3,
+    )
+    candidates, _ = build_directive_arg_completion_candidates(
+        "wait",
+        "",
+        agent_candidates=[
+            AgentCompletionCandidate("coder", "coder", "RUNNING"),
+            AgentCompletionCandidate(
+                "review", "review", "RUNNING", kind="clan", member_count=2
+            ),
+            AgentCompletionCandidate(
+                "ship", "ship", "RUNNING", kind="family", member_count=2
+            ),
+            tribe,
+        ],
+    )
+
+    assert [candidate.insertion for candidate in candidates] == [
+        "runners=",
+        "time=",
+        "@builders",
+        "review",
+        "ship",
+        "coder",
+    ]
+    bare, _ = build_directive_arg_completion_candidates(
+        "wait",
+        "bui",
+        agent_candidates=[tribe],
+    )
+    assert [candidate.insertion for candidate in bare] == ["@builders"]
+
+
+def test_wait_arg_completion_excludes_groups_and_deduplicates_insertions() -> None:
+    candidates, _ = build_directive_arg_completion_candidates(
+        "wait",
+        "",
+        agent_candidates=[
+            AgentCompletionCandidate("@builders", "builders", "RUNNING", kind="tribe"),
+            AgentCompletionCandidate("review", "review", "RUNNING", kind="clan"),
+            AgentCompletionCandidate("ship", "ship", "RUNNING", kind="family"),
+            AgentCompletionCandidate("ship", "ship", "RUNNING"),
+            AgentCompletionCandidate("coder", "coder", "RUNNING"),
+        ],
+    )
+    assert [candidate.insertion for candidate in candidates] == [
+        "runners=",
+        "time=",
+        "@builders",
+        "review",
+        "ship",
+        "coder",
+    ]
+
+    # Fork passes already-selected values through the shared target builder.
+    filtered, _ = build_agent_arg_completion_candidates(
+        "",
+        [
+            candidate.metadata
+            for candidate in candidates[2:]
+            if isinstance(candidate.metadata, AgentCompletionCandidate)
+        ],
+        excluded_names=frozenset({"@builders", "review", "ship"}),
+    )
+    assert [candidate.insertion for candidate in filtered] == ["coder"]
 
 
 def test_wait_arg_completion_ignores_time_keyword_fragment() -> None:

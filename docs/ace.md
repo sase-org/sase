@@ -2302,10 +2302,13 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
 - **XPrompt argument completion**: When the cursor is inside a known xprompt argument position, `Ctrl+T` completes the
   active argument instead of the xprompt name. For `path` inputs it delegates to file path completion, for `bool` inputs
   it offers `true` and `false`, and inside parenthesized syntax it completes missing `name=` arguments without repeating
-  names already present in the argument list. Numeric inputs keep the type hint visible but do not invent values.
+  names already present in the argument list. Agent inputs such as `#fork` offer agent, family, clan, and `@tribe`
+  targets with kind and member context. Numeric inputs keep the type hint visible but do not invent values.
 - **Directive completion**: When the cursor is on a `%`-prefixed directive token (e.g., `%m`), completion lists
   user-facing prompt directives and accepts aliases into their canonical forms. For example, `%m` completes to `%model`
-  and `%w` completes to `%wait`. The panel shows each directive's aliases and whether it takes an argument or is a flag.
+  and `%w` completes to `%wait`. Inside `%wait`, completion keeps `time=` and `runners=` first, followed by matching
+  tribes, clans, families, and agents. The panel shows each directive's aliases and whether it takes an argument or is a
+  flag.
 - **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
   `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
   preserved in the completed path (useful for file-reference arguments). Relative paths use the prompt-selected base
