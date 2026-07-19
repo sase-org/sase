@@ -122,7 +122,7 @@ async def test_tribe_panel_four_level_png_snapshots(
         ace_png_visual.assert_page_png(
             page,
             "agents_tribe_panel_level_1_120x40",
-            title="ACE tribe panel pulse",
+            title="ACE tribe panel glance",
         )
 
         await page.press("z", "1")
@@ -134,13 +134,13 @@ async def test_tribe_panel_four_level_png_snapshots(
                 "2",
                 "expanded",
                 "agents_tribe_panel_level_2_120x40",
-                "ACE tribe panel roster",
+                "ACE tribe panel triage",
             ),
             (
                 "3",
                 "fully_expanded",
                 "agents_tribe_panel_level_3_120x40",
-                "ACE tribe panel members",
+                "ACE tribe panel inspect",
             ),
             (
                 "4",
