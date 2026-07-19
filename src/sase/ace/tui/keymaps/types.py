@@ -47,7 +47,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("jump_to_entry_forward", "Forward Jump", False),
     ("jump_to_all_entries", "Jump All", False),
     ("hooks_or_collapse", "Collapse / Select Panel", False),
-    ("hooks_or_collapse_all", "Only Panel / Collapse Group / All", False),
+    ("hooks_or_collapse_all", "Only/Restore Panels / Collapse Group / All", False),
     ("edit_hooks", "Edit Hooks", False),
     ("start_fold_mode", "Fold", False),
     ("zoom_panel", "Zoom", False),

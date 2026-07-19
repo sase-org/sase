@@ -35,6 +35,14 @@ from ._agent_tree import (
 PanelKey = str | None
 
 
+@dataclass(frozen=True)
+class PanelIsolationRevert:
+    """Session-local panel layout remembered by the ``H`` solo toggle."""
+
+    target_key: PanelKey
+    collapsed_before: frozenset[PanelKey]
+
+
 def _build_parent_lookup(agents: list[Agent]) -> dict[str, Agent]:
     return tree_parent_lookup(agents)
 

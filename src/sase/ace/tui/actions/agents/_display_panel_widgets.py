@@ -96,6 +96,8 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
         resolve_panel = getattr(self, "_resolve_focused_panel", None)
         panel_focus = resolve_panel() if callable(resolve_panel) else None
+        marked_keys_fn = getattr(self, "_panel_isolation_marked_keys", None)
+        isolation_marked_keys = marked_keys_fn() if callable(marked_keys_fn) else set()
 
         ordered_widgets: list[AgentList] = []
         for idx, key in enumerate(panel_keys):
@@ -125,6 +127,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                     panel_agents,
                     merge_tag_panels=merge_tag_panels,
                     panel_jump_hints=panel_jump_hints,
+                    isolation_restore_marked=key in isolation_marked_keys,
                 ),
             )
             if idx == 0:
@@ -282,6 +285,8 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
         resolve_panel = getattr(self, "_resolve_focused_panel", None)
         panel_focus = resolve_panel() if callable(resolve_panel) else None
+        marked_keys_fn = getattr(self, "_panel_isolation_marked_keys", None)
+        isolation_marked_keys = marked_keys_fn() if callable(marked_keys_fn) else set()
 
         ordered_widgets: list[AgentList] = []
         for idx, key in enumerate(panel_keys):
@@ -335,6 +340,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                     panel_agents,
                     merge_tag_panels=merge_tag_panels,
                     panel_jump_hints=panel_jump_hints,
+                    isolation_restore_marked=key in isolation_marked_keys,
                 ),
             )
 

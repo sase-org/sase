@@ -112,6 +112,29 @@ async def test_tribe_panel_four_level_png_snapshots(
         await page.wait_for(
             lambda _screen: page.app._resolve_focused_panel() is not None
         )
+
+        await page.press("H")
+        await page.wait_for(
+            lambda _screen: (
+                None in page.app._collapsed_panel_keys
+                and page.app._panel_isolation_revert is not None
+            )
+        )
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "↺")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_tribe_panel_isolation_armed_120x40",
+            title="ACE tribe panel isolation restore markers",
+        )
+
+        await page.press("H")
+        await page.wait_for(
+            lambda _screen: (
+                None not in page.app._collapsed_panel_keys
+                and page.app._panel_isolation_revert is None
+            )
+        )
         await page.press("h")
         await page.wait_for(lambda _screen: "epic" in page.app._collapsed_panel_keys)
         await wait_for_visual_idle(page)

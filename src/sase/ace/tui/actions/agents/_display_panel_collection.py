@@ -93,6 +93,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         *,
         merge_tag_panels: bool,
         panel_jump_hints: dict[PanelJumpTarget, str] | None = None,
+        isolation_restore_marked: bool = False,
     ) -> Text:
         """Build one title with the active transient hint namespace."""
         unread: set[tuple[AgentType, str, str | None]] = getattr(
@@ -120,6 +121,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             counts=counts,
             collapsed=panel_collapsed,
             selected=selected_expanded,
+            isolation_restore_marked=isolation_restore_marked,
             jump_hint=(
                 panel_jump_hints.get(("panel", key)) if panel_jump_hints else None
             ),
@@ -147,6 +149,8 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             return
         panel_index = self._agent_panel_index()
         merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        marked_keys_fn = getattr(self, "_panel_isolation_marked_keys", None)
+        isolation_marked_keys = marked_keys_fn() if callable(marked_keys_fn) else set()
         for idx, key in enumerate(self._panel_group.panel_keys):
             try:
                 widget = self.query_one(  # type: ignore[attr-defined]
@@ -158,6 +162,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                 key,
                 panel_index.slice_for(key).agents,
                 merge_tag_panels=merge_tag_panels,
+                isolation_restore_marked=key in isolation_marked_keys,
             )
             self._set_agent_panel_title(widget, title)
         self._focus_focused_panel_widget()

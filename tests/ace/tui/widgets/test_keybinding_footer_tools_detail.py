@@ -86,3 +86,18 @@ def test_footer_selected_panel_advertises_only_panel_action() -> None:
 
     assert ("H", "only panel") in expanded
     assert ("H", "only panel") in collapsed
+
+
+def test_footer_armed_panel_isolation_advertises_restore_action() -> None:
+    footer = KeybindingFooter()
+
+    bindings = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            panel_restore_armed=True,
+        )
+    )
+
+    assert ("H", "restore panels") in bindings
+    assert ("H", "only panel") not in bindings

@@ -264,7 +264,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "hooks_or_collapse_all",
-        "Show only selected tribe panel / collapse group or all folds / "
+        "Show only or restore tribe panels / collapse group or all folds / "
         "compact tools detail",
         "Folding",
         ALL_TABS,

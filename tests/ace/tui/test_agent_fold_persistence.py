@@ -25,6 +25,7 @@ from sase.ace.tui.models.agent_group_fold import (
     AgentPanelFoldSnapshot,
 )
 from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.ace.tui.models.agent_panels import PanelIsolationRevert
 
 
 class _Harness(AgentFoldingMixin, AgentFoldPersistenceMixin):
@@ -33,6 +34,7 @@ class _Harness(AgentFoldingMixin, AgentFoldPersistenceMixin):
         self._group_fold_registries = {self._grouping_mode: AgentGroupFoldRegistry()}
         self._group_fold_registry = self._group_fold_registries[self._grouping_mode]
         self._collapsed_panel_keys: set[str | None] = set()
+        self._panel_isolation_revert: PanelIsolationRevert | None = None
         self._panel_group = SimpleNamespace(focused_key=None, panel_keys=[None])
         self._agent_panels_grouped = False
         self._current_group_key: tuple[str, ...] | None = None
@@ -166,6 +168,19 @@ def test_late_load_uses_in_memory_full_rebuild_refresh() -> None:
 
     assert app._agents_fold_state_merged is True
     assert app.refilter_calls == [{"previous_agents": []}]
+
+
+def test_fold_state_install_disarms_panel_isolation_restore() -> None:
+    app = _Harness()
+    app._panel_isolation_revert = PanelIsolationRevert(
+        target_key=None,
+        collapsed_before=frozenset(),
+    )
+
+    app._resolve_agents_fold_state_load(_baseline())
+    app._maybe_install_agents_fold_state_before_finalize()
+
+    assert app._panel_isolation_revert is None
 
 
 def test_done_and_chop_survive_a_fresh_session(tmp_path: Path) -> None:

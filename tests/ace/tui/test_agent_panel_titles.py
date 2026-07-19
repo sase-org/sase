@@ -16,6 +16,7 @@ from rich.text import Text
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.agents._display_panel_titles import (
+    _PANEL_ISOLATION_RESTORE_STYLE,
     AgentPanelCounts,
     agent_panel_border_title,
 )
@@ -198,6 +199,26 @@ def test_selected_expanded_panel_title_has_focus_marker() -> None:
         end=separator_start + 3,
         style=_PANEL_COUNT_STYLE,
         text=" · ",
+    )
+
+
+def test_panel_title_places_isolation_restore_marker_after_tribe_name() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1, waiting=2),
+        selected=True,
+        isolation_restore_marked=True,
+    )
+
+    assert title.plain == "❖ @chop ↺ · 3 [R1 W2]"
+    marker_start = title.plain.index("↺")
+    _assert_title_span(
+        title,
+        start=marker_start,
+        end=marker_start + 1,
+        style=_PANEL_ISOLATION_RESTORE_STYLE,
+        text="↺",
     )
 
 

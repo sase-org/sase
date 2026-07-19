@@ -139,7 +139,10 @@ def test_agents_help_describes_capital_h_panel_and_group_contexts() -> None:
         for key, label in bindings
     }
 
-    assert ("H", "Only panel / collapse group / compact Tools") in agent_pairs
+    assert (
+        "H",
+        "Only panel ⇄ restore panels / collapse group / compact Tools",
+    ) in agent_pairs
 
 
 def test_agents_help_lists_neighbor_navigation() -> None:

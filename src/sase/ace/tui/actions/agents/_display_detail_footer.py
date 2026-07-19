@@ -105,6 +105,12 @@ class AgentFooterDisplayMixin:
             panel_focus = resolve_panel() if callable(resolve_panel) else None
             panel_focused = panel_focus is not None
             panel_collapsed = bool(panel_focus is not None and panel_focus.collapsed)
+            isolation_revert = getattr(self, "_panel_isolation_revert_record", None)
+            panel_restore_armed = bool(
+                panel_focused
+                and callable(isolation_revert)
+                and isolation_revert() is not None
+            )
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
@@ -113,6 +119,7 @@ class AgentFooterDisplayMixin:
                 attempt_pinned=self.current_attempt_number is not None,
                 panel_focused=panel_focused,
                 panel_collapsed=panel_collapsed,
+                panel_restore_armed=panel_restore_armed,
                 focused_panel_key=(
                     panel_focus.panel_key if panel_focus is not None else None
                 ),

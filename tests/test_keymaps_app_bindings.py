@@ -198,6 +198,6 @@ def test_capital_h_binding_metadata_describes_panel_isolation() -> None:
     }
     fallback_by_action = {binding.action: binding for binding in DEFAULT_BINDINGS}
 
-    expected = "Only Panel / Collapse Group / All"
+    expected = "Only/Restore Panels / Collapse Group / All"
     assert runtime_by_action["hooks_or_collapse_all"].description == expected
     assert fallback_by_action["hooks_or_collapse_all"].description == expected

@@ -36,6 +36,7 @@ _PANEL_SELECTED_CHROME_STYLE = "#FFD75F"
 _PANEL_TAG_STYLE = f"bold {_PANEL_SELECTED_CHROME_STYLE}"
 _PANEL_UNTAGGED_STYLE = "dim #AFAFAF"
 _PANEL_COUNT_STYLE = AGENT_COUNT_CHIP_NEUTRAL_STYLE
+_PANEL_ISOLATION_RESTORE_STYLE = "bold #D7AF5F"
 _PANEL_METRIC_STYLES: dict[str, str] = {
     "asking" if name == "stopped" else "read" if name == "done" else name: style
     for name, style in AGENT_COUNT_CHIP_METRIC_STYLES.items()
@@ -125,6 +126,7 @@ def agent_panel_border_title(
     counts: AgentPanelCounts | None = None,
     collapsed: bool = False,
     selected: bool = False,
+    isolation_restore_marked: bool = False,
     jump_hint: str | None = None,
     selection_hint: int | None = None,
 ) -> Text:
@@ -143,6 +145,9 @@ def agent_panel_border_title(
         title.append("(untagged)", style=_PANEL_UNTAGGED_STYLE)
     else:
         title.append(f"@{key}", style=_PANEL_TAG_STYLE)
+    if isolation_restore_marked:
+        title.append(" ", style=_PANEL_COUNT_STYLE)
+        title.append("↺", style=_PANEL_ISOLATION_RESTORE_STYLE)
     title.append(" · ", style=_PANEL_COUNT_STYLE)
     title.append(
         str(agent_count),

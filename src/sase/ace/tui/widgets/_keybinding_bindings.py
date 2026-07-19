@@ -95,6 +95,7 @@ class KeybindingBindingsMixin:
         attempt_pinned: bool = False,
         panel_focused: bool = False,
         panel_collapsed: bool = False,
+        panel_restore_armed: bool = False,
         focused_panel_key: str | None = None,
         collapsed_panel_focused: bool = False,
         group_focused: bool = False,
@@ -162,7 +163,12 @@ class KeybindingBindingsMixin:
                 bindings.append((self._kd("hooks_or_collapse"), "less detail"))
 
         if panel_focused:
-            bindings.append((self._kd("hooks_or_collapse_all"), "only panel"))
+            bindings.append(
+                (
+                    self._kd("hooks_or_collapse_all"),
+                    "restore panels" if panel_restore_armed else "only panel",
+                )
+            )
             bindings.append(
                 (
                     f"{self._kd('next_changespec')}/{self._kd('prev_changespec')}",

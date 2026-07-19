@@ -50,6 +50,7 @@ class PanelRefreshStateMixin:
         *,
         merge_tag_panels: bool,
         panel_jump_hints: dict[PanelJumpTarget, str] | None = None,
+        isolation_restore_marked: bool = False,
     ) -> Text:
         """Build a panel title using the active transient hints."""
         raise NotImplementedError

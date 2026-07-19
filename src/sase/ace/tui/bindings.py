@@ -27,7 +27,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding(
         "H",
         "hooks_or_collapse_all",
-        "Only Panel / Collapse Group / All",
+        "Only/Restore Panels / Collapse Group / All",
         show=False,
     ),
     Binding("f", "edit_hooks", "Edit Hooks", show=False),

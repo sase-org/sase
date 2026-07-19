@@ -49,6 +49,7 @@ class _StubApp(
             merge_tag_panels=merged,
         )
         self._collapsed_panel_keys: set[str | None] = set()
+        self._panel_isolation_revert = None
         self._expanded_panel_focus = False
         self._panel_selection_memory: dict[
             str | None, tuple[str, int | tuple[str, ...]]
@@ -58,6 +59,8 @@ class _StubApp(
         self._panel_index_cache: tuple[Any, bool, Any] | None = None
         self.refresh_calls: list[bool] = []
         self.panel_fold_changes: list[tuple[str | None, bool]] = []
+        self.affected_refreshes: list[set[str | None]] = []
+        self.footer_refresh_calls = 0
         self.notifications: list[str] = []
 
     def _agent_panel_index(self) -> Any:
@@ -98,6 +101,13 @@ class _StubApp(
     def _refresh_focused_agent_panel(self, *, old_focused_idx: int | None) -> None:
         del old_focused_idx
         self._refresh_agents_display(list_changed=False)
+
+    def _refresh_affected_panel_widgets(self, affected_keys: set[str | None]) -> bool:
+        self.affected_refreshes.append(set(affected_keys))
+        return True
+
+    def _refresh_agent_footer_bindings_only(self) -> None:
+        self.footer_refresh_calls += 1
 
     def _guard_agent_navigation_for_artifact_file_viewer(self) -> bool:
         return False
@@ -241,7 +251,7 @@ def test_capital_h_expands_selected_panel_and_collapses_every_other_panel() -> N
     ]
 
 
-def test_capital_h_only_changes_expanded_siblings_and_is_idempotent() -> None:
+def test_capital_h_only_changes_expanded_siblings_then_restores() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key="alpha")
     app.current_idx = 2
     app._panel_selection_memory["alpha"] = ("agent", 2)
@@ -260,8 +270,10 @@ def test_capital_h_only_changes_expanded_siblings_and_is_idempotent() -> None:
     app.action_hooks_or_collapse_all()
 
     assert app._resolve_focused_panel() is not None
-    assert app.refresh_calls == [True]
-    assert app.panel_fold_changes == [(None, True)]
+    assert app._collapsed_panel_keys == {"beta"}
+    assert app.refresh_calls == [True, True]
+    assert app.panel_fold_changes == [(None, True), (None, False)]
+    assert app.notifications == ["Restored 1 panel"]
 
 
 def test_capital_h_can_leave_untagged_panel_as_selected_survivor() -> None:

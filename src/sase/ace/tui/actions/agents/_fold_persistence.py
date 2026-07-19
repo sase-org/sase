@@ -243,6 +243,11 @@ class AgentFoldPersistenceMixin:
         restored.setdefault(active_mode, AgentGroupFoldRegistry())
         self._group_fold_registries = restored  # type: ignore[attr-defined]
         self._group_fold_registry = restored[active_mode]  # type: ignore[attr-defined]
+        disarm_isolation = getattr(self, "_disarm_panel_isolation_revert", None)
+        if callable(disarm_isolation):
+            # Both startup installation and the late-load path are followed by
+            # an established full Agents repaint.
+            disarm_isolation(refresh=False)
         self._collapsed_panel_keys = set(snapshot.collapsed_panels)  # type: ignore[attr-defined]
 
         journal: list[AgentFoldIntent] = list(

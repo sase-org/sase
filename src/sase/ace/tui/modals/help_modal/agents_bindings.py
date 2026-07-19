@@ -133,7 +133,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.hooks_or_collapse_all),
-                    "Only panel / collapse group / compact Tools",
+                    "Only panel ⇄ restore panels / collapse group / compact Tools",
                 ),
             ],
         ),

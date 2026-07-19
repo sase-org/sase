@@ -244,6 +244,11 @@ class AgentPanelNavigationMixin:
             self._teardown_panel_fold_hint_mode(  # type: ignore[attr-defined]
                 refresh_titles=False
             )
+        disarm_isolation = getattr(self, "_disarm_panel_isolation_revert", None)
+        if callable(disarm_isolation):
+            # The following full list repaint removes markers and refreshes
+            # the footer, so no transient-only repaint is needed here.
+            disarm_isolation(refresh=False)
         self._agent_panels_grouped = not getattr(self, "_agent_panels_grouped", False)
         self._expanded_panel_focus = False
         collapsed_keys = getattr(self, "_collapsed_panel_keys", None)

@@ -214,7 +214,7 @@ def test_capital_h_command_describes_contextual_panel_isolation() -> None:
     spec = by_id["app.hooks_or_collapse_all"]
 
     assert spec.label == (
-        "Show only selected tribe panel / collapse group or all folds / "
+        "Show only or restore tribe panels / collapse group or all folds / "
         "compact tools detail"
     )
     assert spec.key_sequence == ("H",)
