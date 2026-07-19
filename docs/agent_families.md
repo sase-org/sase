@@ -55,23 +55,25 @@ orchid `<name>` after its rolled-up status counts; its `@tribe` labels follow th
 ends with an azure `<name>`, while plain agent annotations and a lone plan proposer with only its display-only planner
 child remain gold. Press `l` once to reveal direct members and a second time to reveal hidden workflow steps and members
 of nested families; `h` collapses one level. Selecting the clan row shows an aggregate `CLAN` header and a navigable
-summary of every section represented across its members. Direct members sort by status priority — Failed, Stopped,
-Running/Starting, Waiting, Done — and then by launch recency within a bucket. The runtime is the union of member run
-intervals, with human-wait windows excluded, so concurrent members are not double-counted.
+summary of every section represented across its members. In the Agents list, direct members sort by status priority —
+Failed, Stopped, Running/Starting, Waiting, Done — and then by launch recency within a bucket. The metadata roster uses
+chronological launch order instead, keeping its number-to-member mapping stable while statuses change. The runtime is
+the union of member run intervals, with human-wait windows excluded, so concurrent members are not double-counted.
 
 ### Clan summary folding
 
 Clan summaries collect member errors, output and workflow variables, replies, SASE context, slow tool calls, and prompts
-beneath the `MEMBERS` table. Empty section kinds are omitted. Each direct member receives a fixed jump number: `0`–`9`
-for rosters with at most ten entries, or `00`–`99` for larger rosters. Press that number while the clan is selected to
-expand only the member's ancestor chain and jump to its row; `Esc` cancels a pending first digit. Use `Ctrl+J` and
-`Ctrl+K` to move between the visible section headings.
+beneath the `MEMBERS` table. Empty section kinds are omitted. Up to 100 direct members receive fixed jump numbers:
+`0`–`9` for rosters with at most ten entries, or `00`–`99` for the first 100 entries in a larger roster. Additional
+members appear only in an unnumbered remainder count. Press a number while the clan is selected to expand only that
+member's ancestor chain and jump to its row; `Esc` cancels a pending first digit. Use `Ctrl+J` and `Ctrl+K` to move
+between the visible section headings.
 
 The summary has three session-only fold levels:
 
 | Level | Clan summary content                                                                                           |
 | ----- | -------------------------------------------------------------------------------------------------------------- |
-| 1     | The complete member table plus a heading and count for each other represented section                          |
+| 1     | Up to 100 numbered member rows plus a heading and count for each other represented section                     |
 | 2     | Bounded triage digests, such as one-line error and reply previews, variable values, and context-lane summaries |
 | 3     | Full section bodies grouped by member for detailed investigation                                               |
 
@@ -190,12 +192,16 @@ An agent tribe is a user-facing label for related agents across clans and famili
 ```
 
 ACE displays tribes with an `@` prefix and splits the Agents tab into panels such as `@review` and `@epic`. A modern
-clan declaration assigns one authoritative tribe to the whole generation. Older clan generations without an explicit
-`clan_tribe` declaration fall back to the distinct post-hoc member tags they carry.
+clan declaration assigns one effective tribe to the whole generation. Repeat the same `tribe=` value on every member
+segment. If stored declarations disagree, the latest-launched member with an explicit declaration wins; a member that
+omits `tribe=` does not clear an earlier declaration. Older clan generations without any `clan_tribe` declaration fall
+back to the distinct post-hoc member tags they carry.
 
 Press `N` in ACE to set or clear the focused agent's tribe (or every marked agent). For a clan member, ACE rewrites the
-member's `%clan(<clan>, tribe=<tribe>)` declaration and generation metadata; the synthetic clan row itself is not an
-editable agent. The CLI manages post-hoc tags for named standalone agents:
+selected member's stored `%clan(<clan>, tribe=<tribe>)` declaration and `clan_tribe` metadata; the synthetic clan row
+itself is not an editable agent. Because generation-wide resolution uses the latest explicit declaration, editing the
+latest member is the reliable way to retag an existing generation. Clearing that declaration can reveal an earlier
+member's value rather than leaving the generation unassigned. The CLI manages post-hoc tags for named standalone agents:
 
 ```bash
 sase agent tribe set -n <agent> -t <tribe>
@@ -203,9 +209,9 @@ sase agent tribe unset -n <agent>
 sase agent tribe list [-n <agent>]
 ```
 
-Standalone post-hoc assignments retain the internal `tag` field and `agent_tags.json` store for compatibility. Clan-wide
-assignments use the separate `clan_tribe` metadata field. The prompt language, CLI, and display terminology are all
-tribe.
+Standalone post-hoc assignments retain the internal `tag` field and `agent_tags.json` store for compatibility. Clan
+declarations are stored per member in the separate `clan_tribe` field, then resolved generation-wide. The prompt
+language, CLI, and display terminology are all tribe.
 
 ### Tribe wait and fork targets
 
@@ -222,11 +228,13 @@ one complete clan generation. Older entities, the waiting agent itself, failed a
 satisfy the dependency. A tagged member of a clan enrolls the whole generation, so that candidate becomes eligible only
 after every member required by the normal clan wait succeeds.
 
-`#fork:@review` implies the same wait, then resumes from the selected entity. A standalone match contributes one
-conversation; a clan match contributes every member conversation in launch order. Tribe targets can be mixed with
-explicit agent or clan parents in a multi-parent fork, and ACE prompt completion offers visible `@tribe` values for both
-`%wait` and `#fork`. Because the eventual parent is unknown at launch planning time, tribe waits and forks use neutral
-auto-names rather than derived `.w*` or `.f*` names.
+`#fork:@review` implies the same wait, then resumes from the selected entity. A standalone match contributes its full
+conversation. A clan match contributes one launch-ordered clan summary containing each member's sanitized prompts,
+outcome/model metadata, reply size, and transcript path; full member replies are deliberately omitted so the child can
+open only the transcripts it needs. Tribe targets can be mixed with explicit agent or clan parents in a multi-parent
+fork, and ACE prompt completion offers visible `@tribe` values for both `%wait` and `#fork`. When no `%name` is
+supplied, tribe waits and forks use neutral auto-names rather than derived `.w*` or `.f*` names because the eventual
+parent is unknown at launch planning time.
 
 ## Agent-Initiated Family Launches
 

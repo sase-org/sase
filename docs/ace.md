@@ -352,15 +352,17 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 On the Agents tab, `~` uses dotted agent-name relationships rather than ChangeSpec sibling families. It includes visible
 ancestors and descendants plus neighbors from every dotted hood that contains the selected name. For example,
 `foo.bar.worker` can offer peers under `foo.bar` and cousins elsewhere under `foo`, grouped deepest hood first. Dotless
-names can still have descendants such as `foo.child`. If there is only one related visible row ACE jumps directly;
-otherwise it opens a chooser that can also revive same-session dismissed descendants. A chosen target is resolved by
-stable identity and revealed through any clan, family, workflow, or grouping folds before focus moves.
+names can still have descendants such as `foo.child`. If there is exactly one related visible row and no dismissed
+descendant to offer, ACE jumps directly. Otherwise it opens a chooser that can also revive same-session dismissed
+descendants. A chosen target is resolved by stable identity and revealed through any clan, family, workflow, or grouping
+folds before focus moves.
 
 When a clan or multi-member family container is selected, its metadata panel assigns a fixed number to each direct
-member. Rosters with at most ten entries use `0`–`9`; larger rosters use two-key numbers `00`–`99`. After the first
-digit of a two-key jump, press `Esc` to cancel or any non-digit key to cancel and continue with that key's normal
-action. A successful jump expands only the target's ancestor chain, switches tribe panels when needed, and participates
-in the normal `Ctrl+O` jump-back history.
+member, up to 100 targets. Rosters with at most ten entries use `0`–`9`; larger rosters number the first 100 entries
+with two-key values `00`–`99` and show any remaining entries as an unnumbered count. After the first digit of a two-key
+jump, press `Esc` to cancel or any non-digit key to cancel and continue with that key's normal action. A successful jump
+expands only the target's ancestor chain, switches tribe panels when needed, and participates in the normal `Ctrl+O`
+jump-back history.
 
 ### Agent Actions
 
@@ -400,9 +402,10 @@ in the normal `Ctrl+O` jump-back history.
 
 Selecting a clan container shows a `CLAN` summary; selecting a real multi-member family root shows that family's normal
 agent metadata plus a `FAMILY MEMBERS` roster. Both rosters use the numbered member jumps described above. Clan direct
-members sort by status priority — Failed, Stopped, Running/Starting, Waiting, Done — with launch recency breaking ties;
-a nested family remains one direct entry with its chain indented beneath it. Family rosters retain sequential chain
-order.
+members in the Agents list sort by status priority — Failed, Stopped, Running/Starting, Waiting, Done — with launch
+recency breaking ties. The clan metadata roster instead keeps chronological launch order so its numbers do not change as
+statuses change; a nested family remains one direct entry with its chain indented beneath it. Family rosters retain
+sequential chain order.
 
 Container metadata has three session-only detail levels:
 
@@ -1696,10 +1699,11 @@ a pinned attempt view resets the cursor.
   - `DONE` — when execution completed
 - **CLAN / MEMBERS**: Shown when a synthetic clan row is selected. The orchid heading and orchid `Name:` value match the
   clan row's identity block; the header also shows `@tribes`, rolled-up status counts, wall-clock runtime, and
-  agent/family totals. Direct member rows use Failed, Stopped, Running/Starting, Waiting, Done status priority, then
-  launch recency within a bucket. Each numbered row shows the hood-relative suffix, kind, status, model, and duration;
+  agent/family totals. Direct member rows use chronological launch order (earliest first), which keeps their numbers
+  stable while statuses change. Each numbered row shows the hood-relative suffix, kind, status, model, and duration;
   members of a nested sequential family are indented under its aggregate row. `Ctrl+J` / `Ctrl+K` navigate the rendered
-  section headings, and pressing the row's number jumps to that member in the Agents list.
+  section headings, and pressing the row's number jumps to that member in the Agents list. At most 100 members receive
+  numbers.
 - **SASE CONTEXT / PLAN**: Shown as the leading context lane for the epic-authoring planner and epic lander when direct
   metadata or a confirmed legacy epic association resolves a plan. Phase workers deliberately omit the lane and show
   only their one phase's `Bead` value; no goal, path, or other roadmap phases are rendered. For plan-bearing roles, the

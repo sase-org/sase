@@ -816,7 +816,7 @@ config overlays can add more skill sources, so `sase skill list` may show entrie
 | Skill                | Purpose                                                                                       |
 | -------------------- | --------------------------------------------------------------------------------------------- |
 | `sase_agents_status` | Report on currently running SASE agents                                                       |
-| `sase_artifact_file` | Register an explicit file produced during an agent run                                        |
+| `sase_artifact_file` | Create a file, move it into SASE artifact storage, and register it for the Agents tab         |
 | `sase_beads`         | Reference `sase bead` create, update, list, search, ready, show, and dependency commands      |
 | `sase_changespecs`   | Inspect and reason about ChangeSpecs, commits, hooks, comments, and mentors                   |
 | `sase_chats`         | Inspect prior SASE agent prompts and responses                                                |
@@ -871,10 +871,12 @@ Fenced code blocks and real markdown headings are preserved, and assistant respo
 on disk are unchanged — the cleanup happens only when building resume history (so `sase chat show` still shows the
 original prompts).
 
-`#fork:<clan>` waits for a complete clan generation and injects every member conversation. `#fork:@<tribe>` waits for
-the earliest completed standalone agent or complete clan in that tribe launched after the new agent, then injects that
-entity's conversation set. Multiple `#fork(...)` parents can mix agent, clan, and tribe references; SASE preserves the
-declared parent order while removing duplicates.
+`#fork:<clan>` waits for a complete clan generation and injects a launch-ordered clan summary. The summary includes each
+member's sanitized prompts, outcome/model metadata, reply size, and transcript path, but deliberately omits full member
+replies so the child can open only the transcripts it needs. `#fork:@<tribe>` waits for the earliest completed
+standalone agent or complete clan in that tribe launched after the new agent, then injects the matching agent
+conversation or clan summary. Multiple `#fork(...)` parents can mix agent, clan, and tribe references; SASE preserves
+the declared parent order while removing duplicates.
 
 To see the exact body of any built-in inline xprompt, run `sase xprompt expand --trace '#<name>'` or browse the catalog
 with `sase xprompt catalog`. Use `sase xprompt explain <name>` for workflows; the explain command takes the workflow
@@ -1032,7 +1034,7 @@ Directives use the same argument syntax as xprompt references:
 %name:!reviewer              # Force reuse by wiping the previous owner
 %clan:research.@             # Join a rootless clan; member names must be research.@.<suffix>
 %c:research.@                # Same, using alias
-%clan(research, tribe=review) # Assign the whole clan generation to @review
+%clan(research, tribe=review) # Declare @review for this clan member's generation
 %wait:agent1                 # Wait for agent1
 %w:agent2                    # Wait for agent2 (alias)
 %wait                        # Bare — waits for the most recently named agent
@@ -1073,9 +1075,11 @@ the member's planned name, model, waits, fan-out, spawn order, VCS/project conte
 clan metadata and strips the directive before model execution. The clan name is a reserved container, never an agent,
 and each member name must start with `<clan>.`. Every segment carries its own `%clan` declaration. Use the colon form
 for membership alone, or `%clan(<name>, tribe=<tribe>)` to assign one authoritative tribe to the whole clan generation;
-do not combine a separate `%tribe` directive with `%clan`. Member roles are not part of the clan directive. A member
-segment may fan out, and identical raw clan templates in one batch resolve to the same generation. See
-[Agent Clans, Families, and Tribes](agent_families.md) for the full launch, wait, display, and cleanup contract.
+do not combine a separate `%tribe` directive with `%clan`, and repeat the same `tribe=` value in every member segment.
+If persisted values disagree, the latest-launched member with an explicit declaration wins. Member roles are not part of
+the clan directive. A member segment may fan out, and identical raw clan templates in one batch resolve to the same
+generation. See [Agent Clans, Families, and Tribes](agent_families.md) for the full launch, wait, display, and cleanup
+contract.
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
 `qwen3.6-plus`) are automatically mapped to their provider. See
@@ -1168,8 +1172,10 @@ stays parked until a later successful run of the same dependency name appears.
 An `@<tribe>` dependency has next-entity semantics. `%wait:@review` ignores older tribe members and selects the earliest
 successfully completed eligible entity launched after the waiting agent: one standalone agent or one whole clan
 generation. A tagged clan member enrolls its generation, which becomes eligible only when the normal aggregate clan wait
-succeeds. `#fork:@review` implies this same wait and then resumes from the selected agent conversation or every
-conversation in the selected clan. Tribe names use letters, digits, underscores, dots, and dashes after the leading `@`.
+succeeds. `#fork:@review` implies this same wait and then resumes from the selected agent conversation or every member's
+launch-ordered prompt and reply summary in the selected clan; full clan-member replies remain available through the
+included transcript paths rather than being injected automatically. Tribe names use letters, digits, underscores, dots,
+and dashes after the leading `@`.
 
 A submitted plan awaiting review is the one exception. A planner that ran `sase plan propose` blocks in the approval
 flow without writing a `done.json`, so its planner row shows the `PLAN` status. A `%wait` on that planner row — its
