@@ -9,7 +9,6 @@ from sase.ace.tui.commands._tabs import (
     AGENTS_ONLY,
     ALL_TABS,
     CL_AGENTS,
-    CL_AXE,
     CL_ONLY,
 )
 from sase.ace.tui.commands.types import CommandCategory, CommandTab
@@ -62,8 +61,8 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         "jump_to_entry_forward",
         "Jump forward through jump stack",
         "Navigation",
-        CL_AXE,
-        ("jump", "forward", "ctrl+k"),
+        ALL_TABS,
+        ("jump", "forward", "ctrl+shift+o"),
     ),
     ("jump_to_all_entries", "Jump to any entry", "Navigation", ALL_TABS, ("hint",)),
     # Tab switching

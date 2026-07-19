@@ -627,7 +627,7 @@ def test_fast_jump_restores_agent_banner_anchor_with_panel_focus() -> None:
 
 
 def test_agent_forward_jump_restores_panel_and_banner_anchors() -> None:
-    """Ctrl+K walks forward and keeps agent/banner panel focus intact."""
+    """Ctrl+Shift+O walks forward and keeps agent/banner panel focus intact."""
     agents = [
         _agent(project="alpha", cl="a1", name="a1"),
         _agent(project="alpha", cl="a1", name="a2", tag="ws"),

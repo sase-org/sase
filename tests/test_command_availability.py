@@ -93,7 +93,7 @@ def test_command_hidden_when_tab_not_in_spec_tabs() -> None:
     assert not is_command_available(show_diff, ctx)
 
 
-def test_metadata_section_and_forward_jump_commands_have_inverse_tab_scope() -> None:
+def test_metadata_sections_are_agents_only_and_forward_jump_is_all_tab() -> None:
     catalog = _catalog_by_id()
     next_section = catalog["app.next_agent_metadata_section"]
     prev_section = catalog["app.prev_agent_metadata_section"]
@@ -106,9 +106,8 @@ def test_metadata_section_and_forward_jump_commands_have_inverse_tab_scope() -> 
         )
         assert not is_command_available(section_command, CommandContext(tab="axe"))
 
-    assert not is_command_available(jump_forward, CommandContext(tab="agents"))
-    assert is_command_available(jump_forward, CommandContext(tab="changespecs"))
-    assert is_command_available(jump_forward, CommandContext(tab="axe"))
+    for tab in ("changespecs", "agents", "axe"):
+        assert is_command_available(jump_forward, CommandContext(tab=tab))
 
 
 def test_fold_palette_commands_are_scoped_by_fold_surface() -> None:

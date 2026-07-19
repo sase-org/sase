@@ -112,21 +112,27 @@ def test_lowercase_a_binds_agent_artifacts_and_capital_a_accepts() -> None:
     ]
 
 
-def test_ctrl_o_and_ctrl_k_bind_contextual_navigation() -> None:
-    """Ctrl+K intentionally serves Agents sections and other-tab jump stacks."""
+def test_default_jump_and_metadata_navigation_keys_are_unique() -> None:
+    """Jump-stack navigation is distinct from Agents metadata navigation."""
     bindings = build_app_bindings(default_app_keymaps())
     by_action = {b.action: b for b in bindings}
+    fallback_by_action = {b.action: b for b in DEFAULT_BINDINGS}
 
     assert by_action["jump_to_entry_fast"].key == "ctrl+o"
-    assert by_action["jump_to_entry_forward"].key == "ctrl+k"
+    assert by_action["jump_to_entry_forward"].key == "ctrl+shift+o"
     assert "prev_changespec_history" not in by_action
     assert "next_changespec_history" not in by_action
     assert [b.action for b in bindings if b.key == "ctrl+o"] == ["jump_to_entry_fast"]
+    assert [b.action for b in bindings if b.key == "ctrl+shift+o"] == [
+        "jump_to_entry_forward"
+    ]
     assert [b.action for b in bindings if b.key == "ctrl+k"] == [
-        "jump_to_entry_forward",
-        "prev_agent_metadata_section",
+        "prev_agent_metadata_section"
     ]
     assert by_action["next_agent_metadata_section"].key == "ctrl+j"
+    assert fallback_by_action["jump_to_entry_fast"].key == "ctrl+o"
+    assert fallback_by_action["jump_to_entry_forward"].key == "ctrl+shift+o"
+    assert fallback_by_action["prev_agent_metadata_section"].key == "ctrl+k"
 
 
 def test_build_app_bindings_preserves_compound_key() -> None:

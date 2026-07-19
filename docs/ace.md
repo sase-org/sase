@@ -76,12 +76,13 @@ The three non-PR panes share fast navigation over their selectable left-panel en
 skip section and empty-state rows, and Bugs always targets the issue list rather than its separately focusable Linked
 work list. Movement clamps at the first or last entry and silently does nothing when a list is empty.
 
-| Key                 | Action                                                                                |
-| ------------------- | ------------------------------------------------------------------------------------- |
-| `g` / `G`           | Select the first / last commit, issue, proposal, bead, phase, or archived plan        |
-| `Ctrl+F` / `Ctrl+B` | Move down / up 10 selectable entries                                                  |
-| `Ctrl+D` / `Ctrl+U` | Scroll the active right-hand detail pane down / up (half page)                        |
-| `'`                 | Show one-key entry hints; press `'` again for the first entry or the last jump origin |
+| Key                       | Action                                                                                  |
+| ------------------------- | --------------------------------------------------------------------------------------- |
+| `g` / `G`                 | Select the first / last commit, issue, proposal, bead, phase, or archived plan          |
+| `Ctrl+F` / `Ctrl+B`       | Move down / up 10 selectable entries                                                    |
+| `Ctrl+D` / `Ctrl+U`       | Scroll the active right-hand detail pane down / up (half page)                          |
+| `'`                       | Show one-key entry hints; press `'` again for the first entry or the last jump origin   |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the pane's jump stack; back falls through to first hint |
 
 Hint keys select an entry without activating it. Jump-back history is kept separately for Commits, Bugs, and Plans, and
 stale origins disappear automatically after filtering, changing project scope, refreshing data, or collapsing an
@@ -115,17 +116,16 @@ for both inclusion and exclusion.
 
 ### Navigation
 
-| Key                 | Action                                                                             |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| `j` / `k`           | Move to next / previous visible row (banner at fold `< L2`, PR at the leaf level)  |
-| `<` / `>` / `~`     | Navigate to ancestor / child / sibling PR                                          |
-| `'`                 | Jump to entry by hint character (current tab); hints land on collapsed banners too |
-| `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint     |
-| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))              |
-| `Ctrl+R` / `Ctrl+K` | Jump back / forward in PR history                                                  |
-| `o` / `O`           | Cycle PR grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)  |
-| `g` / `G`           | Scroll detail panel to top / bottom                                                |
-| `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                                          |
+| Key                       | Action                                                                                       |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| `j` / `k`                 | Move to next / previous visible row (banner at fold `< L2`, PR at the leaf level)            |
+| `<` / `>` / `~`           | Navigate to ancestor / child / sibling PR                                                    |
+| `'`                       | Jump to entry by hint character (current tab); hints land on collapsed banners too           |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint |
+| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                        |
+| `o` / `O`                 | Cycle PR grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)            |
+| `g` / `G`                 | Scroll detail panel to top / bottom                                                          |
+| `Ctrl+D` / `Ctrl+U`       | Scroll detail panel down / up (half page)                                                    |
 
 > **Note:** `o`/`O` ("organize") cycles the L0 grouping bucket forward / reverse on the Agents tab and the PRs sub-tab
 > (each surface keeps its own in-session mode). On the AXE tab it is a silent no-op. See
@@ -332,21 +332,21 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 
 ### Navigation
 
-| Key                 | Action                                                                                               |
-| ------------------- | ---------------------------------------------------------------------------------------------------- |
-| `j` / `k`           | Move to the next / previous visible row; while a whole panel is selected, cycle whole panels instead |
-| `J` / `K`           | Cycle focus across tribe side panels (forward / reverse)                                             |
-| `'`                 | Jump to an entry or expanded panel by hint character; collapsed banners are targets too              |
-| `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint                       |
-| `Ctrl+J` / `Ctrl+K` | Cycle metadata sections forward / backward through the document top                                  |
-| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                |
-| `0`–`9`             | Jump from a selected clan or family container to its numbered member                                 |
-| `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                         |
-| `~`                 | Jump among dotted-name ancestors, descendants, and shared-hood neighbors                             |
-| `g`                 | Scroll to top (file, tools, or metadata panel)                                                       |
-| `G`                 | Scroll to bottom (file, tools, or metadata panel)                                                    |
-| `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                          |
-| `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                                                        |
+| Key                       | Action                                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, cycle whole panels instead |
+| `J` / `K`                 | Cycle focus across tribe side panels (forward / reverse)                                             |
+| `'`                       | Jump to an entry or expanded panel by hint character; collapsed banners are targets too              |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint         |
+| `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                  |
+| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                |
+| `0`–`9`                   | Jump from a selected clan or family container to its numbered member                                 |
+| `o` / `O`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                         |
+| `~`                       | Jump among dotted-name ancestors, descendants, and shared-hood neighbors                             |
+| `g`                       | Scroll to top (file, tools, or metadata panel)                                                       |
+| `G`                       | Scroll to bottom (file, tools, or metadata panel)                                                    |
+| `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                          |
+| `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                        |
 
 > **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the Agents tab and the PRs sub-tab (each
 > surface keeps its own in-session selection independently); on the AXE tab it is a silent no-op. `g`/`G` keep their
@@ -992,12 +992,15 @@ numerical identity.
 
 ### Navigation
 
-| Key                 | Action                                                                        |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `j` / `k`           | Move to next / previous sidebar row (lumberjack, chop, or background command) |
-| `Ctrl+N` / `Ctrl+P` | Page through the focused chop's run history (newer / older)                   |
-| `g`                 | Scroll to top                                                                 |
-| `G`                 | Scroll to bottom (pins auto-scroll)                                           |
+| Key                       | Action                                                                        |
+| ------------------------- | ----------------------------------------------------------------------------- |
+| `j` / `k`                 | Move to next / previous sidebar row (lumberjack, chop, or background command) |
+| `Ctrl+N` / `Ctrl+P`       | Page through the focused chop's run history (newer / older)                   |
+| `'`                       | Jump to a current-tab entry by hint character                                 |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack                    |
+| `` ` ``                   | Jump to an entry across all tabs                                              |
+| `g`                       | Scroll to top                                                                 |
+| `G`                       | Scroll to bottom (pins auto-scroll)                                           |
 
 ### Commands
 
@@ -1447,6 +1450,8 @@ Both jump modals support a jump-back feature for toggling between two entries:
   jumped-from entry. The footer shows a "JUMP" mode indicator with `' back` when a target exists.
 - **Fast jump**: `Ctrl+O` runs the same current-tab jump-back path without painting hints first; when no jump-back
   target exists, it selects the first current-tab hint.
+- **Forward jump**: After walking backward, `Ctrl+Shift+O` walks forward through that current tab's jump stack. Agents,
+  Artifacts/PRs, and Axe keep independent back and forward positions.
 
 The single-tab variant (`'` apostrophe) shows entries only from the current tab with the same hint-character navigation.
 

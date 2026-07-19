@@ -165,7 +165,7 @@ ace:
       view_files: "v"
       jump_to_entry: "apostrophe"
       jump_to_entry_fast: "ctrl+o"
-      jump_to_entry_forward: "ctrl+k"
+      jump_to_entry_forward: "ctrl+shift+o"
       jump_to_all_entries: "grave_accent"
       edit_spec: "e"
       rename_cl: "n"

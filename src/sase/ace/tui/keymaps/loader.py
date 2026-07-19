@@ -651,8 +651,11 @@ def key_display_name(textual_key: str) -> str:
         return "Ctrl+Space"
     if textual_key in _KEY_DISPLAY:
         return _KEY_DISPLAY[textual_key]
-    if textual_key.startswith("ctrl+"):
-        return f"Ctrl+{textual_key[5:].upper()}"
+    key_parts = textual_key.split("+")
+    modifiers = {"ctrl": "Ctrl", "shift": "Shift"}
+    if len(key_parts) > 1 and all(part in modifiers for part in key_parts[:-1]):
+        key_name = _KEY_DISPLAY.get(key_parts[-1], key_parts[-1].upper())
+        return "+".join([*(modifiers[part] for part in key_parts[:-1]), key_name])
     return textual_key
 
 

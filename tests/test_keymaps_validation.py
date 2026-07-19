@@ -28,6 +28,7 @@ def test_valid_named_keys_accepted() -> None:
     assert is_valid_key("ctrl+@")
     assert is_valid_key("ctrl+space")
     assert is_valid_key("ctrl+at")
+    assert is_valid_key("ctrl+shift+o")
     assert is_valid_key("escape")
     assert is_valid_key("shift+tab")
     assert is_valid_key("enter")
@@ -126,7 +127,7 @@ def test_both_overrides_duplicate_revert_both() -> None:
     assert reg.app.prev_changespec == "k"  # default
 
 
-def test_contextual_ctrl_k_actions_remain_independently_configurable() -> None:
+def test_jump_forward_and_metadata_section_remain_independently_configurable() -> None:
     reg = load_keymap_registry(
         {
             "keymaps": {

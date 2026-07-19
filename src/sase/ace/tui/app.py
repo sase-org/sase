@@ -375,8 +375,6 @@ class AceApp(
         }:
             if self.current_tab != "agents":
                 return False
-        if action == "jump_to_entry_forward" and self.current_tab == "agents":
-            return False
         if action in {"change_status", "bulk_change_status"}:
             if self.current_tab != ARTIFACTS_TAB:
                 return False

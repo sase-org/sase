@@ -37,7 +37,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Jump into next / previous panel",
                 ),
                 (d(a.jump_to_entry), "Jump entry/head (' first/back stack)"),
-                (d(a.jump_to_entry_fast), "Jump stack back / first hint"),
+                (
+                    f"{d(a.jump_to_entry_fast)} / {d(a.jump_to_entry_forward)}",
+                    "Jump stack back / forward",
+                ),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 ("0-9", "Jump to numbered member"),
                 ("Esc", "Enter selected panel / cancel member jump"),

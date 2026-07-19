@@ -61,8 +61,8 @@ def test_open_command_palette_command_uses_default_alternatives() -> None:
     assert spec.key_display == ": / ;"
 
 
-def test_fast_jump_command_uses_ctrl_o_default() -> None:
-    """The palette exposes Ctrl+O as fast jump, not PR history."""
+def test_jump_commands_use_back_and_forward_defaults_on_every_tab() -> None:
+    """The palette exposes the jump-stack pair on every tab."""
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.jump_to_entry_fast"]
     forward = by_id["app.jump_to_entry_forward"]
@@ -71,9 +71,11 @@ def test_fast_jump_command_uses_ctrl_o_default() -> None:
     assert spec.key_sequence == ("ctrl+o",)
     assert spec.key_display == "Ctrl+O"
     assert forward.label == "Jump forward through jump stack"
-    assert forward.key_sequence == ("ctrl+k",)
-    assert forward.key_display == "Ctrl+K"
-    assert forward.tabs == ("changespecs", "axe")
+    assert forward.key_sequence == ("ctrl+shift+o",)
+    assert forward.key_display == "Ctrl+Shift+O"
+    assert forward.tabs == ("changespecs", "agents", "axe")
+    assert "ctrl+shift+o" in forward.aliases
+    assert "ctrl+k" not in forward.aliases
     assert by_id["app.next_agent_metadata_section"].tabs == ("agents",)
     assert by_id["app.prev_agent_metadata_section"].tabs == ("agents",)
     assert "app.prev_changespec_history" not in by_id
