@@ -46,7 +46,7 @@ def test_jump_dispatch_banner_switches_focused_panel() -> None:
         _agent(project="alpha", cl="a1", name="a1"),
         _agent(project="alpha", cl="a1", name="a2", tribe="ws"),
     ]
-    # Two panels: no tribe (idx 0) and @ws (idx 1).
+    # Two panels: @default (idx 0) and @ws (idx 1).
     app = _StubApp(agents, collapsed_by_panel={"ws": [("alpha",)]})
     assert app._panel_group.panel_keys == [None, "ws"]
     assert app._panel_group.focused_idx == 0

@@ -185,7 +185,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 tribe context without mutating :attr:`Agent.tribe`.
             panel_tribe: Optional tribe already communicated by the enclosing
                 split panel. Clan rows omit only this matching badge; merged
-                and no-tribe panels pass ``None``.
+                and the reserved ``@default`` panel passes ``None``.
             parents_with_visible_children: Optional global visible-parent keys
                 used when a parent and child render in different tribe panels.
             fully_expanded_parents: Optional global parent keys with visible

@@ -60,7 +60,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         panel_keys = self._panel_group.panel_keys
         panel_index = self._agent_panel_index()
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
-        effective_tribes: list[PanelKey] = []
+        effective_tribes: list[str] = []
         if merge_tribe_panels:
             from ...models.agent_panels import effective_tribe_per_agent
 
@@ -238,7 +238,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         panel_keys = self._panel_group.panel_keys
         panel_index = self._agent_panel_index()
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
-        effective_tribes: list[PanelKey] = []
+        effective_tribes: list[str] = []
         if merge_tribe_panels:
             from ...models.agent_panels import effective_tribe_per_agent
 

@@ -63,6 +63,35 @@ def test_mixed_agents_keep_no_tribe_panel_first() -> None:
     assert group.focused_key is None
 
 
+def test_implicit_and_explicit_default_share_reserved_panel() -> None:
+    implicit = _agent(suffix="implicit", name="implicit")
+    explicit = _agent(suffix="explicit", tribe="default", name="explicit")
+    child = _agent(
+        suffix="child",
+        tribe="other",
+        name="explicit.child",
+        parent_timestamp="explicit",
+        parent_workflow="explicit",
+    )
+    named = _agent(suffix="named", tribe="alpha", name="named")
+    agents = [implicit, explicit, child, named]
+
+    group = AgentPanelGroup.from_agents(agents)
+
+    assert group.panel_keys == [None, "alpha"]
+    assert panel_key_per_agent(agents) == [None, None, None, "alpha"]
+    assert effective_tribe_per_agent(agents) == [
+        "default",
+        "default",
+        "default",
+        "alpha",
+    ]
+    assert agents_for_panel(agents, None) == [implicit, explicit, child]
+    assert agents_for_panel(agents, "default") == [implicit, explicit, child]
+    assert implicit.tribe is None
+    assert explicit.tribe == "default"
+
+
 def test_collapsed_middle_panel_moves_after_expanded_panels() -> None:
     agents = [
         _agent(suffix="u"),
@@ -252,10 +281,11 @@ def test_clan_subtree_uses_outer_root_panel_in_split_and_merged_modes() -> None:
     unrelated = _agent(suffix="unrelated", tribe="review", name="unrelated")
     agents = [*clan, standalone, standalone_step, unrelated]
 
-    expected_tribes = [None] * len(clan) + ["fix", "fix", "review"]
+    expected_panel_keys = [None] * len(clan) + ["fix", "fix", "review"]
+    expected_tribes = ["default"] * len(clan) + ["fix", "fix", "review"]
     assert clan[0].clan_tribes == ("epic", "review")
     assert effective_tribe_per_agent(agents) == expected_tribes
-    assert panel_key_per_agent(agents) == expected_tribes
+    assert panel_key_per_agent(agents) == expected_panel_keys
     assert AgentPanelGroup.from_agents(agents).panel_keys == [None, "fix", "review"]
     assert agents_for_panel(agents, None) == clan
 

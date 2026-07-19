@@ -179,7 +179,7 @@ def test_no_tribe_pidless_panel_uses_dismiss_confirmation() -> None:
         app.action_kill_agent()
         assert isinstance(app.pushed_modals[0], ConfirmDismissAllModal)
         description = app.pushed_modals[0].agent_description
-        assert "Panel: (no tribe) (2 agents)" in description
+        assert "Panel: @default (2 agents)" in description
         assert "  tribe_assigned" not in description
         app.pushed_callbacks[0](True)
 

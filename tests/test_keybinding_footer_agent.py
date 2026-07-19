@@ -174,6 +174,19 @@ def test_keybinding_footer_named_panel_advertises_tribe_fork() -> None:
     assert ("f", "fork tribe") in bindings
 
 
+def test_keybinding_footer_default_panel_omits_tribe_targets() -> None:
+    footer = KeybindingFooter()
+
+    bindings = footer._compute_agent_bindings(
+        None,
+        panel_focused=True,
+        focused_panel_key=None,
+    )
+
+    assert ("f", "fork tribe") not in bindings
+    assert ("W", "wait for tribe") not in bindings
+
+
 def test_keybinding_footer_clan_advertises_clan_fork() -> None:
     footer = KeybindingFooter()
     clan = _make_agent()

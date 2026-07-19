@@ -31,6 +31,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_tribe_aggregation import (
     get_cached_tribe_section_snapshot,
     get_cached_tribe_sources,
     _load_tribe_runtime_statistics,
+    _runtime_group_matches_panel,
     _TribeDiskSnapshot,
     prepare_tribe_section_snapshot,
     tribe_sections_to_refresh,
@@ -272,6 +273,20 @@ def test_runtime_statistics_missing_archive_is_the_no_runs_state(
     )
 
     assert _load_tribe_runtime_statistics("epic", end_ts=1234) is None
+
+
+def test_default_runtime_statistics_accept_current_and_legacy_labels() -> None:
+    for label in (
+        None,
+        "@default",
+        "default",
+        "(no tribe)",
+        "no tribe",
+        "(untagged)",
+        "untagged",
+    ):
+        assert _runtime_group_matches_panel(label, None)
+    assert not _runtime_group_matches_panel("@other", None)
 
 
 class _FakeWorker:

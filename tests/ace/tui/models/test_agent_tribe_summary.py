@@ -125,7 +125,7 @@ def test_snapshot_preserves_mixed_unit_order_and_aggregates_loaded_rows() -> Non
     assert [entry.name for entry in snapshot.workflow_variables] == ["Release Notes"]
 
 
-def test_attention_digest_and_no_tribe_identity_use_unit_statuses() -> None:
+def test_attention_digest_and_default_identity_use_unit_statuses() -> None:
     roots, _rows = _mixed_roots()
     snapshot = build_agent_tribe_summary_snapshot(
         None,
@@ -134,7 +134,7 @@ def test_attention_digest_and_no_tribe_identity_use_unit_statuses() -> None:
         now=_NOW,
     )
 
-    assert snapshot.label == "(no tribe)"
+    assert snapshot.label == "@default"
     assert snapshot.container_identity == ("panel", None)
     assert snapshot.panel_collapsed is False
     assert [(entry.unit_label, entry.preview) for entry in snapshot.attention] == [

@@ -410,8 +410,8 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert page.app._get_selected_agent() is None
         snapshot = page.app._focused_tribe_summary()
         assert snapshot is not None
-        assert snapshot.label == "(no tribe)"
-        assert "Name: (no tribe)" in prompt.content.plain
+        assert snapshot.label == "@default"
+        assert "Name: @default" in prompt.content.plain
 
 
 async def test_agents_overflowing_panel_uses_full_height_png_snapshot(

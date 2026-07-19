@@ -145,7 +145,9 @@ def tribe_prompt_target_scope(
     panel_keys: Sequence[str | None],
 ) -> AgentPromptTargetScope | None:
     """Build a named-tribe scope from the already-loaded panel projection."""
-    if not panel_key or len(agents) != len(panel_keys):
+    from ...models.agent_panels import is_reserved_default_panel
+
+    if is_reserved_default_panel(panel_key) or len(agents) != len(panel_keys):
         return None
     members = _stable_real_agents(
         agent for agent, key in zip(agents, panel_keys, strict=True) if key == panel_key

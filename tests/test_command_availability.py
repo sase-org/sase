@@ -584,7 +584,7 @@ def test_wait_command_allows_agent_family_clan_tribe_and_marks() -> None:
     )
 
 
-def test_wait_command_rejects_no_tribe_panel_group_banner_and_unnamed_agent() -> None:
+def test_wait_command_rejects_default_panel_group_banner_and_unnamed_agent() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.add_tag"]
     unnamed = _make_agent(status="RUNNING")

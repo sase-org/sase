@@ -16,7 +16,7 @@ local keys in different panels must not share collapse state.  The
 :class:`AgentGroupFoldRegistry` owns one neutral
 :class:`~sase.ace.tui.models.group_fold.GroupFoldRegistry` per explicit
 panel scope.  The scope also includes the split/merged layout bit because
-the split no-tribe panel and the merged ``All agents`` panel both use a
+the split ``@default`` panel and the merged ``All agents`` panel both use a
 ``None`` panel key.
 
 This registry layers *above* the existing per-workflow
@@ -60,7 +60,7 @@ class AgentGroupFoldRegistry:
 
     Tree builders must receive the value returned by :meth:`for_panel`,
     never this owner itself.  The unscoped methods/properties delegate to
-    the split no-tribe scope for compatibility with focused model tests and
+    the split ``@default`` scope for compatibility with focused model tests and
     older callers; production Agents paths resolve a scope explicitly.
     """
 

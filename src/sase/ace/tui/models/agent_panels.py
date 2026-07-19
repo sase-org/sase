@@ -3,8 +3,9 @@
 Each Agents-tab panel renders a tribe bucket of agents. Panels have a canonical
 base order:
 
-* The no-tribe panel (key ``None``) appears first only when at least one
-  visible agent has no effective tribe, or when the agent list is empty.
+* The reserved ``@default`` panel (key ``None``) appears first only when at
+  least one visible agent has no effective tribe, or when the agent list is
+  empty. Explicit ``default`` assignments normalize into the same panel.
 * Tribe panels are keyed by tribe, sorted alphabetically (case-insensitive).
   Their order matches the order the user used to see as tribe-level banners
   in the old three-level tree.
@@ -31,8 +32,34 @@ from ._agent_tree import (
     tree_parent_lookup,
 )
 
-#: Panel key type — ``None`` for the no-tribe panel; a tribe string otherwise.
+#: Canonical display identity for the reserved fallback tribe.
+DEFAULT_AGENT_TRIBE = "default"
+
+#: Panel key type — ``None`` for ``@default``; a tribe string otherwise.
 PanelKey = str | None
+
+
+def normalize_panel_key(tribe: str | None) -> PanelKey:
+    """Return the stable internal panel key for a stored/effective tribe."""
+    if not tribe or tribe == DEFAULT_AGENT_TRIBE:
+        return None
+    return tribe
+
+
+def effective_panel_tribe(panel_key: PanelKey) -> str:
+    """Return the display-facing tribe identity for an internal panel key."""
+    normalized = normalize_panel_key(panel_key)
+    return DEFAULT_AGENT_TRIBE if normalized is None else normalized
+
+
+def agent_panel_label(panel_key: PanelKey) -> str:
+    """Return the canonical user-facing label for an Agents-tab panel."""
+    return f"@{effective_panel_tribe(panel_key)}"
+
+
+def is_reserved_default_panel(panel_key: PanelKey) -> bool:
+    """Return whether *panel_key* identifies the synthesized default bucket."""
+    return normalize_panel_key(panel_key) is None
 
 
 @dataclass(frozen=True)
@@ -53,7 +80,7 @@ def _panel_key_for_agent(
     anchors: dict[int, Agent],
 ) -> PanelKey:
     target = presentation_anchor(agent, parent_lookup, anchors)
-    return target.tribe if target.tribe else None
+    return normalize_panel_key(target.tribe)
 
 
 def _agent_is_starting(agent: Agent) -> bool:
@@ -70,9 +97,9 @@ def _panel_keys_for(agents: list[Agent]) -> list[PanelKey]:
     """Return the ordered panel keys for *agents*.
 
     The empty Agents tab still gets ``[None]`` as a deterministic
-    empty-state focus target. Otherwise the no-tribe panel appears only
-    when at least one visible agent maps to ``None`` after workflow-parent
-    inheritance; all tribe panels are sorted alphabetically by tribe
+    empty-state focus target. Otherwise the reserved ``@default`` panel appears
+    only when at least one visible agent maps to ``None`` after workflow-parent
+    inheritance; all other tribe panels are sorted alphabetically by tribe
     (case-insensitive).
     """
     if not agents:
@@ -96,11 +123,14 @@ def _panel_keys_for(agents: list[Agent]) -> list[PanelKey]:
     return cast(list[PanelKey], sorted_tribes)
 
 
-def effective_tribe_per_agent(agents: list[Agent]) -> list[PanelKey]:
-    """Return the root-anchored panel key for each agent in *agents*."""
+def effective_tribe_per_agent(agents: list[Agent]) -> list[str]:
+    """Return the root-anchored display tribe for each agent in *agents*."""
     parent_lookup = _build_parent_lookup(agents)
     anchors = presentation_anchor_lookup(agents, parent_lookup)
-    return [_panel_key_for_agent(a, parent_lookup, anchors) for a in agents]
+    return [
+        effective_panel_tribe(_panel_key_for_agent(a, parent_lookup, anchors))
+        for a in agents
+    ]
 
 
 def panel_key_per_agent(
@@ -114,7 +144,9 @@ def panel_key_per_agent(
     """
     if merge_tribe_panels:
         return [None for _ in agents]
-    return effective_tribe_per_agent(agents)
+    parent_lookup = _build_parent_lookup(agents)
+    anchors = presentation_anchor_lookup(agents, parent_lookup)
+    return [_panel_key_for_agent(a, parent_lookup, anchors) for a in agents]
 
 
 def agents_for_panel(
@@ -132,10 +164,13 @@ def agents_for_panel(
     )
     if merge_tribe_panels:
         return candidates
+    normalized_key = normalize_panel_key(key)
     parent_lookup = _build_parent_lookup(agents)
     anchors = presentation_anchor_lookup(agents, parent_lookup)
     return [
-        a for a in candidates if _panel_key_for_agent(a, parent_lookup, anchors) == key
+        a
+        for a in candidates
+        if _panel_key_for_agent(a, parent_lookup, anchors) == normalized_key
     ]
 
 
@@ -172,9 +207,10 @@ class AgentPanelGroup:
         if merge_tribe_panels:
             return cls(panel_keys=[None], focused_idx=0)
 
+        focused_key = normalize_panel_key(focused_key)
         keys = _panel_keys_for(agents)
         if collapsed_panel_keys:
-            collapsed = set(collapsed_panel_keys)
+            collapsed = {normalize_panel_key(key) for key in collapsed_panel_keys}
             keys = [key for key in keys if key not in collapsed] + [
                 key for key in keys if key in collapsed
             ]

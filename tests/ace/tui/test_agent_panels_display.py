@@ -514,7 +514,7 @@ def test_grouped_mode_renders_one_panel_with_effective_tribe_labels() -> None:
     assert main.border_title is not None
     assert getattr(main.border_title, "plain", "") == "All agents · 3 [R3]"
     assert main.last_agents == agents
-    assert main.last_tribe_labels == [None, "apple", "banana"]
+    assert main.last_tribe_labels == ["default", "apple", "banana"]
     assert main.last_panel_tribe is None
 
 

@@ -160,7 +160,9 @@ class AgentKillActionFlowMixin:
             )
             return
 
-        label = "(no tribe)" if focus.panel_key is None else f"@{focus.panel_key}"
+        from ...models.agent_panels import agent_panel_label
+
+        label = agent_panel_label(focus.panel_key)
         count = len(targets)
         plural = "s" if count != 1 else ""
         self._present_bulk_kill_modal(  # type: ignore[attr-defined]

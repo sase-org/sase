@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING
 from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
 from sase.ace.tui.agent_completion import agent_prompt_name
 from sase.ace.tui.commands.types import CommandContext, CommandSpec
+from sase.ace.tui.models.agent_panels import is_reserved_default_panel
 from sase.ace.tui.models.agent_status import (
     DISMISSABLE_STATUSES,
     is_resumable_done_status,
@@ -331,7 +332,7 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         if ctx.mark_count > 0:
             return True
         if panel_focused:
-            return bool(ctx.focused_panel_key)
+            return not is_reserved_default_panel(ctx.focused_panel_key)
         if ctx.group_focused or agent is None:
             return False
         if getattr(agent, "is_clan_container", False):
@@ -388,7 +389,7 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 
     if spec.id == "app.edit_hooks":
         if panel_focused:
-            return bool(ctx.focused_panel_key)
+            return not is_reserved_default_panel(ctx.focused_panel_key)
         if ctx.group_focused:
             return False
         if agent is None:

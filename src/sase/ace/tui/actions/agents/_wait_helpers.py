@@ -147,9 +147,9 @@ def fork_panel_keys(owner: Any) -> list[str | None]:
         except Exception:
             pass
 
-    from ...models.agent_panels import effective_tribe_per_agent
+    from ...models.agent_panels import panel_key_per_agent
 
-    return effective_tribe_per_agent(owner._agents)
+    return panel_key_per_agent(owner._agents)
 
 
 def resolve_agent_prompt_target_scope(
@@ -162,10 +162,12 @@ def resolve_agent_prompt_target_scope(
     focus = panel_resolver() if callable(panel_resolver) else None
     if focus is not None:
         panel_key = getattr(focus, "panel_key", None)
-        if not panel_key:
+        from ...models.agent_panels import is_reserved_default_panel
+
+        if is_reserved_default_panel(panel_key):
             if action == "fork":
-                return None, "The no-tribe panel cannot be forked"
-            return None, "The no-tribe panel cannot be used as a wait target"
+                return None, "The reserved @default panel cannot be forked"
+            return None, "The reserved @default panel cannot be used as a wait target"
         scope = tribe_prompt_target_scope(
             panel_key,
             owner._agents,

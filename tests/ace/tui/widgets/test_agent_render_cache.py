@@ -243,6 +243,23 @@ def test_multitribe_clan_in_no_tribe_panel_keeps_distinct_ordered_tribes() -> No
     assert rendered.plain.count("@epic") == 1
 
 
+def test_default_panel_suppresses_explicit_default_clan_annotation() -> None:
+    clan = _agent(cl_name="research", status="RUNNING")
+    clan.is_clan_container = True
+    clan.agent_clan = "research"
+    clan.clan_tribes = ("default", "review", "default")
+
+    rendered, _, _ = format_agent_option(
+        clan,
+        0,
+        is_selected=False,
+        panel_tribe=None,
+    )
+
+    assert "@default" not in rendered.plain
+    assert rendered.plain.endswith("@review")
+
+
 def test_cached_clan_row_distinguishes_split_and_unsuppressed_contexts() -> None:
     cache = AgentRenderCache()
     clan = _agent(status="RUNNING")

@@ -26,6 +26,7 @@ from ...models.agent_family_members import (
     is_sequential_family_container,
     is_workflow_aggregate_row,
 )
+from ...models.agent_panels import agent_panel_label
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -34,7 +35,6 @@ if TYPE_CHECKING:
 
 _PANEL_SELECTED_CHROME_STYLE = "#FFD75F"
 _PANEL_TRIBE_STYLE = f"bold {_PANEL_SELECTED_CHROME_STYLE}"
-_PANEL_NO_TRIBE_STYLE = "dim #AFAFAF"
 _PANEL_COUNT_STYLE = AGENT_COUNT_CHIP_NEUTRAL_STYLE
 _PANEL_ISOLATION_RESTORE_STYLE = "bold #D7AF5F"
 _PANEL_METRIC_STYLES: dict[str, str] = {
@@ -141,10 +141,8 @@ def agent_panel_border_title(
         title.append("▸ ", style=_PANEL_COUNT_STYLE)
     if merge_tribe_panels:
         title.append("All agents", style="bold #AFFFFF")
-    elif key is None:
-        title.append("(no tribe)", style=_PANEL_NO_TRIBE_STYLE)
     else:
-        title.append(f"@{key}", style=_PANEL_TRIBE_STYLE)
+        title.append(agent_panel_label(key), style=_PANEL_TRIBE_STYLE)
     if isolation_restore_marked:
         title.append(" ", style=_PANEL_COUNT_STYLE)
         title.append("↺", style=_PANEL_ISOLATION_RESTORE_STYLE)

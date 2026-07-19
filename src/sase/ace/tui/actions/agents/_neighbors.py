@@ -659,15 +659,17 @@ class AgentNeighborMixin:
             return "all"
         if target is None:
             return "panel"
-        key = target.panel_key
-        return "(no tribe)" if key is None else f"@{key}"
+        from ...models.agent_panels import agent_panel_label
+
+        return agent_panel_label(target.panel_key)
 
     def _agent_neighbor_dismissed_panel_label(self, agent: Agent) -> str:
         """Return a compact tribe label for a dismissed descendant row."""
         if getattr(self, "_agent_panels_grouped", False):
             return "all"
-        tribe = agent.tribe
-        return f"@{tribe}" if tribe else "(no tribe)"
+        from ...models.agent_panels import agent_panel_label
+
+        return agent_panel_label(agent.tribe)
 
     def _agent_neighbor_time_hint(self, agent: Agent) -> str:
         """Return a compact timestamp/runtime hint for a neighbor row."""

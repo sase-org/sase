@@ -1,7 +1,7 @@
 """Per-panel border-title labels for vertically stacked Agents-tab panels.
 
 Each ``AgentList`` panel must show a ``border_title`` identifying its tribe
-(``(no tribe)`` / ``#<tribe>``) plus a ``· N`` agent count, refreshed every
+(``@default`` / ``@<tribe>``) plus a ``· N`` agent count, refreshed every
 time :meth:`AgentDisplayMixin._refresh_panel_widgets` runs (panel widget
 ids correspond to index slots, not fixed tribes — alphabetic shifts can
 flip which tribe a slot points at).
@@ -270,7 +270,7 @@ def test_panel_title_renders_multi_digit_numeric_selection_hint() -> None:
         selection_hint=12,
     )
 
-    assert title.plain == "[12] (no tribe) · 2 [R2]"
+    assert title.plain == "[12] @default · 2 [R2]"
     _assert_title_span(
         title,
         start=0,
@@ -324,7 +324,7 @@ def _assert_title_metric_styles(
         )
 
 
-def test_panel_titles_label_no_tribe_and_tribes_with_counts() -> None:
+def test_panel_titles_label_default_and_named_tribes_with_counts() -> None:
     agents = [
         _agent(name="u1", suffix="t1"),
         _agent(name="u2", suffix="t2"),
@@ -338,9 +338,9 @@ def test_panel_titles_label_no_tribe_and_tribes_with_counts() -> None:
 
     main = app._panel_widgets["agent-list-panel"]
     main_title = _title_text(main)
-    assert main_title.plain == "(no tribe) · 2 [R2]"
+    assert main_title.plain == "@default · 2 [R2]"
     _assert_title_span(
-        main_title, start=0, end=10, style="dim #AFAFAF", text="(no tribe)"
+        main_title, start=0, end=8, style="bold #FFD75F", text="@default"
     )
 
     # Tribe panels follow in alphabetical order: apple (idx 1), banana (idx 2).
@@ -399,7 +399,7 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
     app._refresh_panel_widgets(jump_hints=None)
 
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "(no tribe) · 1 [W1]"
+        "@default · 1 [W1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
         "@apple · 2 [S1 R1]"
@@ -412,8 +412,8 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
     banana_title = _title_text(app._panel_widgets["agent-list-panel-2"])
     _assert_title_metric_styles(
         no_tribe_title,
-        neutral_ranges=[(10, 17), (18, 19)],
-        metric_digits=[(17, "waiting")],
+        neutral_ranges=[(8, 15), (16, 17)],
+        metric_digits=[(15, "waiting")],
     )
     _assert_title_metric_styles(
         apple_title,

@@ -17,6 +17,7 @@ from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
 from ...changespec import ChangeSpec
 from ...hooks import get_failed_hooks_file_path
 from ...operations import get_available_workflows
+from ..models.agent_panels import is_reserved_default_panel
 from ..models.agent_status import is_resumable_done_status
 from .tools_panel import ToolDetailLevel
 
@@ -141,7 +142,7 @@ class KeybindingBindingsMixin:
             # know the key changed meaning.
             bindings.append((x, "kill/dismiss group"))
 
-        if panel_focused and focused_panel_key:
+        if panel_focused and not is_reserved_default_panel(focused_panel_key):
             bindings.append((self._kd("edit_hooks"), "fork tribe"))
             if marked_count == 0:
                 bindings.append((self._kd("add_tag"), "wait for tribe"))

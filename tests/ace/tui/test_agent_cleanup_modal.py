@@ -279,7 +279,7 @@ def test_agent_cleanup_custom_modal_filters_and_selects_done_agents() -> None:
     modal = AgentCleanupCustomModal(
         candidates=[running, done, waiting],
         targets=[running, done, waiting],
-        focused_panel_label="(no tribe)",
+        focused_panel_label="@default",
     )
 
     modal.action_filter_done()

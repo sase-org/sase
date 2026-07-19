@@ -474,13 +474,21 @@ def _disk_snapshot_for_source(
 
 
 def _runtime_group_matches_panel(value: object, panel_key: str | None) -> bool:
+    from ...models.agent_panels import (
+        DEFAULT_AGENT_TRIBE,
+        effective_panel_tribe,
+        is_reserved_default_panel,
+    )
+
     if value is None:
-        return panel_key is None
+        return is_reserved_default_panel(panel_key)
     label = str(value).strip()
-    if panel_key is not None:
-        return label.removeprefix("@") == panel_key
+    if not is_reserved_default_panel(panel_key):
+        return label.removeprefix("@") == effective_panel_tribe(panel_key)
     return label.casefold() in {
         "",
+        DEFAULT_AGENT_TRIBE,
+        f"@{DEFAULT_AGENT_TRIBE}",
         "(no tribe)",
         "no tribe",
         # Legacy renderer labels remain readable by cached runtime snapshots.

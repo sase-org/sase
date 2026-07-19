@@ -26,7 +26,7 @@ def _choices(count: int = 3) -> list[AgentNeighborChoice]:
             agent_name=f"foo.agent{index}",
             display_name="demo",
             status="RUNNING" if index == 0 else "DONE",
-            panel_label="@review" if index == 1 else "(no tribe)",
+            panel_label="@review" if index == 1 else "@default",
             time_hint="4m",
             group="neighbor",
             hood="foo",

@@ -236,6 +236,10 @@ output, and editor projections use `tribe`. Clan-wide assignments use the separa
 are resolved across the generation. For ACE panel grouping, that explicit clan assignment takes precedence over
 per-agent assignments.
 
+ACE derives the reserved `@default` panel for agents whose outer presentation root has no effective tribe. This fallback
+is display-only: SASE does not write `default` into agent metadata or the assignment store. An explicit stored `default`
+assignment joins the same panel, and clearing any user-managed tribe returns the agent there.
+
 ### Tribe panel focus and folding
 
 In the split layout, a tribe panel is also a selectable container. When at least two panels are visible, close any
@@ -302,13 +306,14 @@ unknown at launch planning time.
 
 ACE can insert these group references directly. Select a clan's synthetic container row and press `f` for
 `#fork:<clan>`, or press `W` for `%wait:<clan>`. For a tribe, give its named panel whole-panel focus—expanded or
-collapsed—and use the same keys for `#fork:@<tribe>` or `%wait:@<tribe>`. The `(no tribe)` panel and grouping banners
-are not group targets, and marked rows take precedence over the focused clan or tribe for `W`. For a selected clan or
-tribe, ACE prefixes either prompt with a VCS tag only when every real agent currently in that scope resolves to the same
-workflow and ref. Otherwise it omits the VCS tag so you can add the intended `#git`, `#gh`, or other workflow reference
-yourself. Marked waits instead take VCS context from the selected marked row, or the first named mark when the selection
-is elsewhere. The current rows determine only that optional VCS prefix; they do not pin the eventual clan or tribe fork
-source. See [Forking Agents and Groups](ace.md#forking-agents-and-groups) for selection and revalidation behavior.
+collapsed—and use the same keys for `#fork:@<tribe>` or `%wait:@<tribe>`. The reserved `@default` panel and grouping
+banners are not group targets, and marked rows take precedence over the focused clan or tribe for `W`. For a selected
+clan or tribe, ACE prefixes either prompt with a VCS tag only when every real agent currently in that scope resolves to
+the same workflow and ref. Otherwise it omits the VCS tag so you can add the intended `#git`, `#gh`, or other workflow
+reference yourself. Marked waits instead take VCS context from the selected marked row, or the first named mark when the
+selection is elsewhere. The current rows determine only that optional VCS prefix; they do not pin the eventual clan or
+tribe fork source. See [Forking Agents and Groups](ace.md#forking-agents-and-groups) for selection and revalidation
+behavior.
 
 ## Agent-Initiated Family Launches
 

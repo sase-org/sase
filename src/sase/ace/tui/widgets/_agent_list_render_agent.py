@@ -35,6 +35,7 @@ from ..models.agent import (
 )
 from ..models.agent_status import STOPPED_COLOR, STOPPED_GLYPH, STOPPED_STATUS
 from ..models.agent_bead import agent_has_confirmed_bead
+from ..models.agent_panels import normalize_panel_key
 from ._agent_list_helpers import (
     ordered_row_providers,
     short_model_name,
@@ -393,7 +394,11 @@ def format_agent_option(
 
     if agent.is_clan_container:
         rendered_tribes = tuple(
-            dict.fromkeys(tribe for tribe in agent.clan_tribes if tribe != panel_tribe)
+            dict.fromkeys(
+                tribe
+                for tribe in agent.clan_tribes
+                if normalize_panel_key(tribe) != normalize_panel_key(panel_tribe)
+            )
         )
         for clan_tribe in rendered_tribes:
             text.append(f" @{clan_tribe}", style="bold #FFD75F")

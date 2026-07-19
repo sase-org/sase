@@ -30,7 +30,7 @@ from .agent_family_members import (
     concrete_family_member_rows,
     is_sequential_family_container,
 )
-from .agent_panels import PanelKey
+from .agent_panels import PanelKey, agent_panel_label
 from . import agent_time
 
 
@@ -140,10 +140,6 @@ class AgentTribeSummarySnapshot:
 def _tribe_panel_identity(panel_key: PanelKey) -> TribePanelIdentity:
     """Return a stable, hashable container identity for a tribe panel."""
     return ("panel", panel_key)
-
-
-def _panel_label(panel_key: PanelKey) -> str:
-    return "(no tribe)" if panel_key is None else f"@{panel_key}"
 
 
 def _row_name(agent: Agent) -> str:
@@ -400,7 +396,7 @@ def build_agent_tribe_summary_snapshot(
     return AgentTribeSummarySnapshot(
         panel_key=panel_key,
         container_identity=_tribe_panel_identity(panel_key),
-        label=_panel_label(panel_key),
+        label=agent_panel_label(panel_key),
         panel_collapsed=panel_collapsed,
         status=status,
         counts=_status_counts(roots, unread_ids),

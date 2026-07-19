@@ -13,7 +13,6 @@ from ._display_panel_titles import (
     _PANEL_METRIC_LABELS,
     _PANEL_METRIC_STYLES,
     _PANEL_TRIBE_STYLE,
-    _PANEL_NO_TRIBE_STYLE,
     AgentPanelCounts,
     agent_panel_border_title,
     agent_panel_counts,
@@ -35,7 +34,6 @@ __all__ = [
     "_PANEL_METRIC_LABELS",
     "_PANEL_METRIC_STYLES",
     "_PANEL_TRIBE_STYLE",
-    "_PANEL_NO_TRIBE_STYLE",
     "_agent_panel_border_title",
     "_agent_panel_counts",
 ]

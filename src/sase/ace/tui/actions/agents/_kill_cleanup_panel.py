@@ -141,11 +141,12 @@ class AgentCleanupPanelMixin:
         self.notify("Cleanup option is not available yet", severity="warning")  # type: ignore[attr-defined]
 
     def _focused_panel_label(self) -> str:
+        from ...models.agent_panels import agent_panel_label
+
         panel_group = getattr(self, "_panel_group", None)
         if panel_group is None:
             return "all panels"
-        focused_key = panel_group.focused_key
-        return "(no tribe)" if focused_key is None else f"@{focused_key}"
+        return agent_panel_label(panel_group.focused_key)
 
     def _agent_cleanup_current_scope_targets(self) -> list[Agent]:
         """Return cleanup targets scoped to the current Agents-tab list."""
@@ -196,9 +197,16 @@ class AgentCleanupPanelMixin:
 
     def _known_agent_cleanup_tribes(self) -> tuple[str, ...]:
         """Return tribe names present in the current Agents-tab list."""
-        from ...models.agent_panels import effective_tribe_per_agent
+        from ...models.agent_panels import (
+            DEFAULT_AGENT_TRIBE,
+            effective_tribe_per_agent,
+        )
 
-        tribes = {tribe for tribe in effective_tribe_per_agent(self._agents) if tribe}
+        tribes = {
+            tribe
+            for tribe in effective_tribe_per_agent(self._agents)
+            if tribe != DEFAULT_AGENT_TRIBE
+        }
         return tuple(sorted(tribes, key=str.lower))
 
     def _present_planned_cleanup(
