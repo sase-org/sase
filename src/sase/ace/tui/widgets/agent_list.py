@@ -182,7 +182,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 app-level setting.
             tag_labels: Optional display-only effective tag labels aligned
                 to ``agents``. Used by merged-panel mode so rows retain their
-                tag context without mutating :attr:`Agent.tag`.
+                tag context without mutating :attr:`Agent.tribe`.
             panel_tag: Optional tag already communicated by the enclosing
                 split panel. Clan rows omit only this matching badge; merged
                 and untagged panels pass ``None``.

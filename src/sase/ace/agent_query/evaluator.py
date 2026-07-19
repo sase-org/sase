@@ -114,10 +114,10 @@ def _match_substring_property(prop: PropertyMatch, agent: Agent) -> bool:
 def _match_tag(prop: PropertyMatch, agent: Agent) -> bool:
     """Exact (case-insensitive) tag match.
 
-    ``tag:foo`` ⇔ ``agent.tag == "foo"``. Bare ``tag:`` (empty value) means
+    ``tag:foo`` ⇔ ``agent.tribe == "foo"``. Bare ``tag:`` (empty value) means
     "any tagged agent" — match any non-empty tag.
     """
-    agent_tag = (agent.tag or "").lower()
+    agent_tag = (agent.tribe or "").lower()
     if not prop.value:
         return bool(agent_tag)
     return agent_tag == prop.value.lower()

@@ -64,9 +64,9 @@ class AgentTaggingMixin:
         if self.current_tab != "agents":
             return
 
-        from sase.ace.agent_tags import load_agent_tags
+        from sase.ace.agent_tribes import load_agent_tribes
 
-        store = load_agent_tags()
+        store = load_agent_tribes()
         known_tags = sorted(set(store.values()))
 
         # Bulk path: if marks exist, the modal targets every marked agent.
@@ -96,7 +96,7 @@ class AgentTaggingMixin:
             return
         self._open_agent_tag_modal(
             target_label=agent.display_name,
-            current_tag=agent.tag,
+            current_tag=agent.tribe,
             known_tags=tuple(known_tags),
             affected=[agent],
             default_tag=DEFAULT_PINNED_TAG,
@@ -140,12 +140,12 @@ class AgentTaggingMixin:
         )
         changed = 0
         affected_identities = {agent.identity for agent in affected}
-        prior_tags = {agent.identity: agent.tag for agent in affected}
+        prior_tags = {agent.identity: agent.tribe for agent in affected}
         prior_clan_tribes = {agent.identity: agent.clan_tribe for agent in affected}
         specs: list[AgentDirectivePersistenceSpec] = []
         for agent in affected:
             clan_bound = bool(agent.agent_clan)
-            visible_before = agent.clan_tribe if clan_bound else agent.tag
+            visible_before = agent.clan_tribe if clan_bound else agent.tribe
             if result.action == "set":
                 assert result.tag is not None
                 after: str | None = result.tag
@@ -188,14 +188,14 @@ class AgentTaggingMixin:
                             set_values=(
                                 {"clan_tribe": after}
                                 if clan_bound and after
-                                else {"tag": after}
+                                else {"tribe": after}
                                 if after
                                 else {}
                             ),
                             remove_keys=(
                                 ("clan_tribe",)
                                 if clan_bound and after is None
-                                else ("tag",)
+                                else ("tribe", "tag")
                                 if after is None
                                 else ()
                             ),
@@ -236,7 +236,7 @@ class AgentTaggingMixin:
             for candidates in (self._agents, self._agents_with_children):
                 for candidate in candidates:
                     if candidate.identity in prior_tags:
-                        candidate.tag = prior_tags[candidate.identity]
+                        candidate.tribe = prior_tags[candidate.identity]
                         candidate.clan_tribe = prior_clan_tribes[candidate.identity]
 
         def _on_complete(
@@ -276,7 +276,7 @@ class AgentTaggingMixin:
                         if candidate.agent_clan:
                             candidate.clan_tribe = after
                         else:
-                            candidate.tag = after
+                            candidate.tribe = after
 
         suffix = "agent" if changed == 1 else "agents"
         if result.action == "set":

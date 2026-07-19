@@ -36,7 +36,7 @@ def _clan_member(
         stop_time=(datetime(2026, 7, 19, 8, 30, 0) if status == "DONE" else None),
         raw_suffix=suffix,
         agent_name=name,
-        tag=tag,
+        tribe=tag,
         pid=pid,
         agent_clan=clan,
         agent_clan_generation=generation,

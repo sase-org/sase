@@ -61,7 +61,7 @@ def _agent_from_repro_row(row: ReproAgentRow) -> Agent:
         step_type=row.step_type,
         appears_as_agent=row.appears_as_agent,
         agent_name=row.agent_name,
-        tag=row.tag,
+        tribe=row.tribe,
     )
 
     metadata = row.metadata

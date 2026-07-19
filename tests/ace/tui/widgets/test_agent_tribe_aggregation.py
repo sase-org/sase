@@ -52,7 +52,7 @@ def _agent(name: str, suffix: str, **overrides: object) -> Agent:
         "stop_time": _NOW,
         "raw_suffix": suffix,
         "agent_name": name,
-        "tag": "epic",
+        "tribe": "epic",
     }
     values.update(overrides)
     return Agent(**values)  # type: ignore[arg-type]
@@ -307,7 +307,7 @@ def test_tribe_worker_coalesces_and_runs_latest_pending_panel(
     monkeypatch: Any,
 ) -> None:
     first_agent = _agent("first", "first")
-    second_agent = _agent("second", "second", tag="other")
+    second_agent = _agent("second", "second", tribe="other")
     first_summary = build_agent_tribe_summary_snapshot(
         "epic", [first_agent], panel_collapsed=True, now=_NOW
     )
@@ -381,7 +381,7 @@ def test_tribe_worker_coalesces_and_runs_latest_pending_panel(
 
 def test_tribe_worker_latest_request_can_return_to_current_panel() -> None:
     first_agent = _agent("first", "first")
-    second_agent = _agent("second", "second", tag="other")
+    second_agent = _agent("second", "second", tribe="other")
     first_summary = build_agent_tribe_summary_snapshot(
         "epic", [first_agent], panel_collapsed=True, now=_NOW
     )

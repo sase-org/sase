@@ -28,7 +28,7 @@ def make_agent(
         status=status,
         start_time=start_time,
         agent_name=agent_name,
-        tag=tag,
+        tribe=tag,
         wait_until=wait_until,
         retried_as_timestamp=retried_as_timestamp,
     )

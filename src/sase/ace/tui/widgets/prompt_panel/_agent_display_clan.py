@@ -137,9 +137,9 @@ def build_clan_detail_text(
         style=_CLAN_NAME_STYLE,
     )
 
-    if agent.clan_tags:
+    if agent.clan_tribes:
         text.append("Tribes: ", style=_FIELD_LABEL_STYLE)
-        for index, tag in enumerate(agent.clan_tags):
+        for index, tag in enumerate(agent.clan_tribes):
             if index:
                 text.append(" ")
             text.append(f"@{tag}", style="bold #FFD75F")

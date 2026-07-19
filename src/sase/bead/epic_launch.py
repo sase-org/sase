@@ -13,6 +13,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
+
 
 _EPIC_ID_RE = re.compile(r"(?m)^Epic:\s+(\S+)\s*$")
 _PLAN_LINK_RE = re.compile(r"(?m)^.*Plan linked\s+bead_id:\s+\S+\s+·\s+(.+?)\s*$")
@@ -170,6 +172,7 @@ def update_epic_launch_metadata(
             "sdd_plan_path": sdd_plan_path,
         }
     )
+    canonicalize_agent_tribe_metadata(data)
     try:
         meta_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         from sase.core.agent_artifact_index_lifecycle import (

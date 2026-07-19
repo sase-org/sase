@@ -52,7 +52,7 @@ def _agent(
         start_time=datetime(2026, 7, 18, 12, 0, 0),
         raw_suffix=f"ts-{name}",
         agent_name=name,
-        tag=tag,
+        tribe=tag,
         agent_clan=clan,
         agent_family=family,
         agent_family_role=role,

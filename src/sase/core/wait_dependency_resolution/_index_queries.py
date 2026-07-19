@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from sase.core.agent_tribe import InvalidTagError, parse_tribe_reference
+from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 from sase.plan_chain import planner_row_name
 
 from ._artifact_state import same_artifact_dir
@@ -338,7 +338,7 @@ class WaitDependencyIndexQueries:
         if name.startswith("@"):
             try:
                 tribe = parse_tribe_reference(name)
-            except InvalidTagError:
+            except InvalidTribeError:
                 return False
             assert tribe is not None
             return (

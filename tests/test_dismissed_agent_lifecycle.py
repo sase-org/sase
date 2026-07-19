@@ -100,6 +100,8 @@ def _make_agent(**overrides: object) -> Agent:
         "raw_suffix": "20260428120000",
     }
     defaults.update(overrides)
+    if "tag" in defaults:
+        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 

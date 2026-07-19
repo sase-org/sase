@@ -25,7 +25,7 @@ from sase.core.agent_scan_wire import AgentArtifactScanWire
 from sase.core.paths import sase_projects_dir
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces, release_workspace
 
-from ....agent_tags import REVIEW_AGENT_TAG
+from ....agent_tribes import REVIEW_AGENT_TRIBE
 from ....hooks.processes import is_process_running
 from ._json_cache import load_json_cached
 from ._meta_enrichment import (
@@ -176,7 +176,7 @@ def load_agents_from_running_field(
             )
             enrich_agent_from_meta(agent, agent.get_artifacts_dir())
             if _is_review_agent_workflow_claim(claim.workflow):
-                agent.tag = REVIEW_AGENT_TAG
+                agent.tribe = REVIEW_AGENT_TRIBE
             agents.append(agent)
 
     return agents

@@ -279,16 +279,16 @@ class AgentState:
     is_clan_container: bool = field(default=False, compare=False)
     tree_parent_key: str | None = field(default=None, compare=False)
     tree_depth: int = field(default=0, compare=False)
-    clan_tags: tuple[str, ...] = field(default_factory=tuple, compare=False)
+    clan_tribes: tuple[str, ...] = field(default_factory=tuple, compare=False)
     # Explicitly marks execution-neutral parallel family membership. Unlike
     # serial plan-chain linkage, these children own independent processes and
     # must be included when their family root is killed or dismissed.
     agent_family_parallel: bool = False
     plan_chain_root: bool = False
 
-    # User-managed tag (no '@' prefix; at most one per agent).
-    # Populated from ``~/.sase/agent_tags.json`` after agents are loaded.
-    tag: str | None = None
+    # User-managed tribe (no '@' prefix; at most one per agent).
+    # Populated from ``~/.sase/agent_tribes.json`` after agents are loaded.
+    tribe: str | None = None
 
     # Agent-scoped output variables written by ``sase var set``.
     output_variables: dict[str, str] = field(default_factory=dict)

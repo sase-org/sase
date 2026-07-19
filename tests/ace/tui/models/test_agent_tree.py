@@ -63,7 +63,7 @@ def _agent(
         is_hidden_step=hidden,
         agent_clan=clan,
         agent_clan_generation=generation,
-        tag=tag,
+        tribe=tag,
         clan_tribe=clan_tribe,
     )
 
@@ -86,7 +86,7 @@ def test_project_clan_tree_inserts_container_and_three_depths() -> None:
     assert container.is_clan_container is True
     assert container.display_name == "research"
     assert container.agent_clan_generation == _GENERATION
-    assert container.clan_tags == ("epic", "review")
+    assert container.clan_tribes == ("epic", "review")
     assert container.runtime_children == [family, solo]
     assert projected == [container, family, family_member, solo]
     assert [row.tree_depth for row in projected] == [0, 1, 2, 1]
@@ -242,9 +242,9 @@ def test_project_clan_tree_uses_latest_explicit_clan_tribe() -> None:
 
     container = project_clan_tree([later_without_declaration, first, latest])[0]
 
-    assert container.tag == "beta"
+    assert container.tribe == "beta"
     assert container.clan_tribe == "beta"
-    assert container.clan_tags == ("beta",)
+    assert container.clan_tribes == ("beta",)
 
 
 def test_project_clan_tree_retains_legacy_tag_fallback() -> None:
@@ -253,9 +253,9 @@ def test_project_clan_tree_retains_legacy_tag_fallback() -> None:
 
     container = project_clan_tree([first, second])[0]
 
-    assert container.tag is None
+    assert container.tribe is None
     assert container.clan_tribe is None
-    assert container.clan_tags == ("alpha", "beta")
+    assert container.clan_tribes == ("alpha", "beta")
 
 
 def test_clan_tree_does_not_invent_a_changespec_banner_from_one_member() -> None:

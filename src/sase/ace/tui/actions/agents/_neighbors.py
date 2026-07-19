@@ -556,8 +556,8 @@ class AgentNeighborMixin:
         """Return a compact tag label for a dismissed descendant row."""
         if getattr(self, "_agent_panels_grouped", False):
             return "all"
-        tag = getattr(agent, "tag", None)
-        return f"@{tag}" if tag else "(untagged)"
+        tribe = agent.tribe
+        return f"@{tribe}" if tribe else "(untagged)"
 
     def _agent_neighbor_time_hint(self, agent: Agent) -> str:
         """Return a compact timestamp/runtime hint for a neighbor row."""

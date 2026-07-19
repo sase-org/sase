@@ -22,6 +22,7 @@ from sase.core.agent_artifact_paths import (
     canonical_agent_artifact_path,
     resolve_agent_artifact_path,
 )
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.paths import sase_projects_dir
 from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
 
@@ -386,8 +387,8 @@ class ArtifactRestorationMixin:
             data["workspace_dir"] = agent.workspace_dir
         if agent.agent_name:
             data["name"] = agent.agent_name
-        if agent.tag:
-            data["tag"] = agent.tag
+        if agent.tribe:
+            data["tribe"] = agent.tribe
         if agent.output_variables:
             data["output_variables"] = dict(agent.output_variables)
         if agent.waiting_for:
@@ -491,5 +492,6 @@ class ArtifactRestorationMixin:
         if data:
             merged = dict(existing)
             merged.update(data)
+            canonicalize_agent_tribe_metadata(merged)
             if merged != existing:
                 meta_path.write_text(json.dumps(merged))

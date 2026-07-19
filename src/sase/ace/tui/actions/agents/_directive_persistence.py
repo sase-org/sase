@@ -15,6 +15,7 @@ from typing import Any
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.paths import sase_home
 from sase.history.prompt_store import PromptHistoryLoadError, rewrite_prompt_text_exact
 from sase.xprompt._directive_time import parse_absolute_time, parse_duration
@@ -212,14 +213,10 @@ def _persist_prompt_artifacts(
 
 
 def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
-    if not patch.set_values and patch.remove_keys == ("tag",):
-        from sase.axe.runner_artifacts import clear_agent_meta_tag
-
-        return clear_agent_meta_tag(str(artifacts_path))
-
     meta_path = artifacts_path / "agent_meta.json"
     meta = _read_json_object(meta_path)
     original = dict(meta)
+    canonicalize_agent_tribe_metadata(meta)
     for key in patch.remove_keys:
         meta.pop(key, None)
     meta.update(dict(patch.set_values))
@@ -231,9 +228,9 @@ def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
 
 
 def _patch_agent_tag_store(patch: AgentTagStorePatch) -> bool:
-    from sase.ace.agent_tags import update_agent_tag_assignment
+    from sase.ace.agent_tribes import update_agent_tribe_assignment
 
-    return update_agent_tag_assignment(patch.identity, patch.tag)
+    return update_agent_tribe_assignment(patch.identity, patch.tag)
 
 
 def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> None:

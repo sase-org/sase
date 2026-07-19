@@ -175,7 +175,7 @@ def _agent(
         start_time=datetime(2026, 6, 8, 12, 0, 0),
         agent_name=name,
         raw_suffix=suffix,
-        tag=tag,
+        tribe=tag,
     )
 
 
@@ -422,7 +422,7 @@ def test_tag_move_between_existing_panels_rebuilds_source_and_target(
     apple_one = _agent("apple-one", tag="apple", suffix="a1")
     apple_two = _agent("apple-two", tag="apple", suffix="a2")
     banana = _agent("banana-one", tag="banana", suffix="b1")
-    moved = replace(apple_one, tag="banana")
+    moved = replace(apple_one, tribe="banana")
     app = _DisplayDiffApp([apple_one, apple_two, banana], monkeypatch)
     apple_widget = app._widgets["#agent-list-panel"]
     banana_widget = app._widgets["#agent-list-panel-1"]
@@ -447,7 +447,7 @@ def test_tag_move_between_existing_panels_rebuilds_source_and_target(
 
 def test_merged_panel_tag_label_change_rebuilds_panel(monkeypatch: Any) -> None:
     old_agent = _agent("alpha", tag="apple", suffix="a1")
-    new_agent = replace(old_agent, tag="banana")
+    new_agent = replace(old_agent, tribe="banana")
     app = _DisplayDiffApp([old_agent], monkeypatch, merge_tag_panels=True)
     widget = app._widgets["#agent-list-panel"]
 
@@ -458,7 +458,7 @@ def test_merged_panel_tag_label_change_rebuilds_panel(monkeypatch: Any) -> None:
     )
 
     assert widget.update_list_calls == 2
-    assert widget._agents[0].tag == "banana"
+    assert widget._agents[0].tribe == "banana"
     assert app.full_rebuilds == 0
     assert "display_panel_rebuild" in _display_costs(app)
     assert "row_patch" not in _display_costs(app)

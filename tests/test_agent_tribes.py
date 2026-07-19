@@ -20,8 +20,8 @@ from sase.ace.tui.models.agent import AgentType
 
 def _paths(canonical: Path, legacy: Path):  # type: ignore[no-untyped-def]
     return (
-        patch("sase.ace.agent_tags._AGENT_TRIBES_FILE", canonical),
-        patch("sase.ace.agent_tags._LEGACY_AGENT_TAGS_FILE", legacy),
+        patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", canonical),
+        patch("sase.ace.agent_tribes._LEGACY_AGENT_TAGS_FILE", legacy),
     )
 
 
@@ -110,9 +110,9 @@ def test_concurrent_mutations_preserve_every_assignment(tmp_path: Path) -> None:
     legacy = tmp_path / "agent_tags.json"
     barrier = threading.Barrier(8)
 
-    from sase.ace import agent_tags
+    from sase.ace import agent_tribes
 
-    original_save = agent_tags.save_agent_tribes
+    original_save = agent_tribes.save_agent_tribes
 
     def slow_save(
         tribes: dict[tuple[AgentType, str, str | None], str],
@@ -131,7 +131,7 @@ def test_concurrent_mutations_preserve_every_assignment(tmp_path: Path) -> None:
     with (
         canonical_patch,
         legacy_patch,
-        patch("sase.ace.agent_tags.save_agent_tribes", side_effect=slow_save),
+        patch("sase.ace.agent_tribes.save_agent_tribes", side_effect=slow_save),
         ThreadPoolExecutor(max_workers=8) as executor,
     ):
         assert all(executor.map(update, range(8)))

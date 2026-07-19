@@ -61,7 +61,7 @@ def test_normal_disk_load_does_not_hydrate_attempt_history(tmp_path: Path) -> No
             "sase.ace.tui.models.agent_loader.load_tiered_agents",
             return_value=([agent], _load_state()),
         ),
-        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
         patch(
             "sase.ace.tui.actions.agents._snapshot_cache.AgentSnapshotCache"
             ".attempt_history_for"

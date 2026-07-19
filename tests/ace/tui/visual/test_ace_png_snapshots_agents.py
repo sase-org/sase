@@ -251,7 +251,7 @@ def _clan_tree_agents() -> list[Agent]:
         agent_clan_generation=generation,
         agent_family="research.family",
         agent_family_role="root",
-        tag="epic",
+        tribe="epic",
         llm_provider="codex",
         model="gpt-5",
     )
@@ -285,7 +285,7 @@ def _clan_tree_agents() -> list[Agent]:
         agent_name="research.audit",
         agent_clan="research",
         agent_clan_generation=generation,
-        tag="review",
+        tribe="review",
     )
     workflow_step = Agent(
         agent_type=AgentType.WORKFLOW,
@@ -334,7 +334,7 @@ def _clan_tree_agents() -> list[Agent]:
         agent_name="research.waiting",
         agent_clan="research",
         agent_clan_generation=generation,
-        tag="epic",
+        tribe="epic",
         waiting_for=["research.family"],
         llm_provider="gemini",
         model="gemini-pro",
@@ -374,7 +374,7 @@ def _epic_clan_agents() -> list[Agent]:
             agent_clan="sase-6n",
             agent_clan_generation=generation,
             agent_family_role="land" if name == "land" else "phase",
-            tag="epic",
+            tribe="epic",
             llm_provider=provider,
             model=model,
         )
@@ -777,7 +777,7 @@ async def test_clan_tree_fold_levels_png_snapshots(
         await wait_for_visual_idle(page)
 
         assert page.app._agents[0].is_clan_container is True
-        assert page.app._agents[0].clan_tags == ("epic", "review")
+        assert page.app._agents[0].clan_tribes == ("epic", "review")
         assert_page_svg_contains(page, "research")
         assert_page_svg_styled_text_contains(page, "[R1 W1 D1]")
         assert_page_svg_contains(page, "@epic")

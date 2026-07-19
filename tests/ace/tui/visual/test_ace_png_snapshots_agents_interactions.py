@@ -78,7 +78,7 @@ def _done_agents() -> list[Agent]:
             stop_time=datetime(2026, 5, 9, 10, 12, 0),
             raw_suffix="20260509-101000-review",
             agent_name="reviewer",
-            tag="visual",
+            tribe="visual",
         ),
     ]
 
@@ -105,7 +105,7 @@ def _panel_collapse_agents() -> list[Agent]:
             start_time=started,
             raw_suffix="20260715-100100-chop-primary",
             agent_name="visual.collapse.primary.with.a.deliberately.wide.row",
-            tag="chop",
+            tribe="chop",
         ),
         Agent(
             agent_type=AgentType.RUNNING,
@@ -115,7 +115,7 @@ def _panel_collapse_agents() -> list[Agent]:
             start_time=started,
             raw_suffix="20260715-100200-chop-secondary",
             agent_name="visual.collapse.secondary.with.another.wide.row",
-            tag="chop",
+            tribe="chop",
         ),
         Agent(
             agent_type=AgentType.RUNNING,
@@ -126,7 +126,7 @@ def _panel_collapse_agents() -> list[Agent]:
             stop_time=datetime(2026, 7, 15, 10, 4, 0),
             raw_suffix="20260715-100300-keep",
             agent_name="keep",
-            tag="keep",
+            tribe="keep",
         ),
     ]
 
@@ -163,7 +163,7 @@ def _neighbor_panel_reveal_agents() -> list[Agent]:
             stop_time=datetime(2026, 7, 18, 16, 36, 0),
             raw_suffix="20260718-163100-neighbor-target",
             agent_name="visual.jump.code",
-            tag="alpha",
+            tribe="alpha",
         ),
         Agent(
             agent_type=AgentType.RUNNING,
@@ -173,7 +173,7 @@ def _neighbor_panel_reveal_agents() -> list[Agent]:
             start_time=started,
             raw_suffix="20260718-163200-neighbor-unrelated",
             agent_name="unrelated.agent",
-            tag="zeta",
+            tribe="zeta",
         ),
     ]
 
@@ -204,7 +204,7 @@ def _overflowing_panel_agents() -> list[Agent]:
                 start_time=started,
                 raw_suffix="20260718-160000-compact-apple",
                 agent_name="compact-apple",
-                tag="apple",
+                tribe="apple",
             ),
             Agent(
                 agent_type=AgentType.RUNNING,
@@ -215,7 +215,7 @@ def _overflowing_panel_agents() -> list[Agent]:
                 stop_time=datetime(2026, 7, 18, 16, 5, 0),
                 raw_suffix="20260718-160100-compact-banana",
                 agent_name="compact-banana",
-                tag="banana",
+                tribe="banana",
             ),
         ]
     )
@@ -379,7 +379,7 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert page.app._collapsed_panel_keys == {None}
         assert page.app._panel_group.panel_keys == ["chop", "keep", None]
         assert page.app._panel_group.focused_key == "chop"
-        assert page.app._agents[page.app.current_idx].tag == "chop"
+        assert page.app._agents[page.app.current_idx].tribe == "chop"
 
         # A collapsed panel has no selectable rows, so mouse focus itself must
         # move whole-panel focus and route the detail pane to its summary.
@@ -647,7 +647,7 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
         start_time=datetime(2026, 5, 23, 13, 0, 0),
         raw_suffix="20260523-130000-parent",
         agent_name="visual.root",
-        tag="api",
+        tribe="api",
     )
     child = Agent(
         agent_type=AgentType.RUNNING,
@@ -658,7 +658,7 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
         stop_time=datetime(2026, 5, 23, 13, 12, 30),
         raw_suffix="20260523-130800-child",
         agent_name="visual.root.visible",
-        tag="api",
+        tribe="api",
     )
     dismissed = Agent(
         agent_type=AgentType.RUNNING,
@@ -669,7 +669,7 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
         stop_time=datetime(2026, 5, 23, 13, 17, 5),
         raw_suffix="20260523-131600-dismissed",
         agent_name="visual.root.dismissed",
-        tag="api",
+        tribe="api",
     )
     patch_startup_loaders(monkeypatch, agents=[parent, child])
 

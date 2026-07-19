@@ -22,6 +22,8 @@ def _make_agent(**overrides: object) -> Agent:
         "response_path": "/tmp/chat.md",
     }
     defaults.update(overrides)
+    if "tag" in defaults:
+        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 

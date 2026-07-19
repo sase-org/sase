@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from sase.ace.agent_tags import REVIEW_AGENT_TAG
+from sase.ace.agent_tribes import REVIEW_AGENT_TRIBE
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
 from tests._agent_loader_helpers import _empty_artifact_snapshot
@@ -72,7 +72,7 @@ def test_load_all_agents_with_summarize_agents() -> None:
         assert agents[0].agent_type == AgentType.RUNNING
         assert agents[0].workflow == "summarize-hook"
         assert agents[0].hidden is False
-        assert agents[0].tag == REVIEW_AGENT_TAG
+        assert agents[0].tribe == REVIEW_AGENT_TRIBE
 
 
 def test_load_all_agents_with_fix_hook_review_agent() -> None:
@@ -139,7 +139,7 @@ def test_load_all_agents_with_fix_hook_review_agent() -> None:
         assert agents[0].agent_type == AgentType.RUNNING
         assert agents[0].workflow == "fix-hook"
         assert agents[0].hidden is False
-        assert agents[0].tag == REVIEW_AGENT_TAG
+        assert agents[0].tribe == REVIEW_AGENT_TRIBE
 
 
 def test_load_all_agents_with_mentor_agents() -> None:
@@ -211,7 +211,7 @@ def test_load_all_agents_with_mentor_agents() -> None:
         assert agents[0].mentor_profile == "profile1"
         assert agents[0].mentor_name == "mentor1"
         assert agents[0].hidden is False
-        assert agents[0].tag == REVIEW_AGENT_TAG
+        assert agents[0].tribe == REVIEW_AGENT_TRIBE
 
 
 def test_load_all_agents_with_crs_agents() -> None:
@@ -272,4 +272,4 @@ def test_load_all_agents_with_crs_agents() -> None:
         assert agents[0].workflow == "crs"
         assert agents[0].reviewer == "critique"
         assert agents[0].hidden is False
-        assert agents[0].tag == REVIEW_AGENT_TAG
+        assert agents[0].tribe == REVIEW_AGENT_TRIBE

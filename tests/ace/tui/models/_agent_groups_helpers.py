@@ -39,7 +39,7 @@ def _agent(
         stop_time=stop_time,
         raw_suffix=raw_suffix,
         agent_name=agent_name,
-        tag=tag,
+        tribe=tag,
         parent_workflow=parent_workflow,
         parent_timestamp=parent_timestamp,
         wait_until=wait_until,

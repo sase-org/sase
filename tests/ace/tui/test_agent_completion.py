@@ -69,6 +69,8 @@ def _agent(tmp_path: Path, **overrides: Any) -> Agent:
         "artifacts_dir": artifacts_dir,
     }
     defaults.update(overrides)
+    if "tag" in defaults:
+        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)
 
 

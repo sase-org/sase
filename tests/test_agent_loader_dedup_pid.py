@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.ace.agent_tags import REVIEW_AGENT_TAG
+from sase.ace.agent_tribes import REVIEW_AGENT_TRIBE
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
 from tests._agent_loader_helpers import _empty_artifact_snapshot
@@ -111,7 +111,7 @@ def test_pid_dedup_safety_net_works_on_review_agents() -> None:
         workflow="fix-hook",
         raw_suffix="fix_hook-99999-260310_175213",
         pid=99999,
-        tag=REVIEW_AGENT_TAG,
+        tribe=REVIEW_AGENT_TRIBE,
     )
 
     # VCS workspace agent with same PID
@@ -173,7 +173,7 @@ def test_pid_dedup_safety_net_works_on_review_agents() -> None:
     assert len(pid_agents) == 1
     # The non-VCS agent should be kept (VCS is removed)
     assert pid_agents[0].workflow == "fix-hook"
-    assert pid_agents[0].tag == REVIEW_AGENT_TAG
+    assert pid_agents[0].tribe == REVIEW_AGENT_TRIBE
 
 
 def test_pid_dedup_preserves_followup_workflow_agents() -> None:

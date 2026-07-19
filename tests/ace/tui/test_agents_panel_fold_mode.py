@@ -593,7 +593,7 @@ async def test_mounted_clan_fold_chords_zoom_and_changespec_isolation(
 
         selected = page.app._agents[page.app.current_idx]
         assert selected.is_clan_container
-        assert selected.clan_tags == ("epic",)
+        assert selected.clan_tribes == ("epic",)
         panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
         cached = get_cached_clan_section_snapshot(panel, selected)
         assert cached is not None and cached.disk is not None

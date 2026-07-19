@@ -1,6 +1,6 @@
 """ChangeSpec field agent loaders (HOOKS, MENTORS, COMMENTS)."""
 
-from ....agent_tags import REVIEW_AGENT_TAG
+from ....agent_tribes import REVIEW_AGENT_TRIBE
 from ....changespec import ChangeSpec, extract_pid_from_agent_suffix
 from .._timestamps import parse_timestamp_from_suffix
 from ..agent import Agent, AgentType
@@ -71,7 +71,7 @@ def load_agents_from_hooks(
                     cl_num=cl_num,
                     error_message=error_message,
                     hidden=not is_review_agent,
-                    tag=REVIEW_AGENT_TAG if is_review_agent else None,
+                    tribe=REVIEW_AGENT_TRIBE if is_review_agent else None,
                     _from_changespec=True,
                 )
             )
@@ -120,7 +120,7 @@ def load_agents_from_mentors(
                     raw_suffix=msl.suffix,
                     bug=bug,
                     cl_num=cl_num,
-                    tag=REVIEW_AGENT_TAG,
+                    tribe=REVIEW_AGENT_TRIBE,
                     _from_changespec=True,
                 )
             )
@@ -163,7 +163,7 @@ def load_agents_from_comments(
                 raw_suffix=comment.suffix,
                 bug=bug,
                 cl_num=cl_num,
-                tag=REVIEW_AGENT_TAG,
+                tribe=REVIEW_AGENT_TRIBE,
                 _from_changespec=True,
             )
         )

@@ -1,4 +1,4 @@
-"""Tests for runner prompt-tag persistence."""
+"""Tests for runner prompt-tribe persistence."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.ace.agent_tags import load_agent_tags, save_agent_tags
+from sase.ace.agent_tribes import load_agent_tribes, save_agent_tribes
 from sase.agent.clan_membership import (
     CLAN_MEMBERSHIP_ENV,
     ClanMembershipPlan,
@@ -157,7 +157,7 @@ def test_extract_directives_preserves_epic_work_metadata_on_reexec(
     assert info.meta["clan_tribe"] == "epic"
 
 
-def test_extract_directives_persists_tag_with_atomic_helper(
+def test_extract_directives_persists_tribe_with_atomic_helper(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -175,7 +175,7 @@ def test_extract_directives_persists_tag_with_atomic_helper(
         ),
         patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
         patch("sase.agent.names.claim_agent_name"),
-        patch("sase.ace.agent_tags.update_agent_tag") as update_agent_tag,
+        patch("sase.ace.agent_tribes.update_agent_tribe") as update_agent_tribe,
     ):
         info = extract_directives_and_write_meta(
             "%id:taggy\n%tribe:sase-26\nDo work",
@@ -184,21 +184,21 @@ def test_extract_directives_persists_tag_with_atomic_helper(
             cl_name="sample-cl",
         )
 
-    assert info.tag == "sase-26"
-    assert json.loads((artifacts_dir / "agent_meta.json").read_text())["tag"] == (
+    assert info.tribe == "sase-26"
+    assert json.loads((artifacts_dir / "agent_meta.json").read_text())["tribe"] == (
         "sase-26"
     )
-    update_agent_tag.assert_called_once_with(
+    update_agent_tribe.assert_called_once_with(
         (AgentType.WORKFLOW, "sample-cl", "20260506120000"),
         "sase-26",
     )
 
 
-def _extract_with_agent_tags(
+def _extract_with_agent_tribes(
     tmp_path: Path,
     prompt: str,
     *,
-    seed_tags: dict[tuple[AgentType, str, str | None], str],
+    seed_tribes: dict[tuple[AgentType, str, str | None], str],
     cl_name: str | None = "sample-cl",
     planned_name: str | None = None,
     raw_resolved_prompt: str | None = None,
@@ -206,7 +206,7 @@ def _extract_with_agent_tags(
 ) -> tuple[AgentInfo, dict[str, object], dict[tuple[AgentType, str, str | None], str]]:
     workspace_dir = tmp_path / "workspace"
     artifacts_dir = tmp_path / "artifacts" / artifacts_suffix
-    tag_file = tmp_path / "agent_tags.json"
+    tribe_file = tmp_path / "agent_tribes.json"
     workspace_dir.mkdir()
     artifacts_dir.mkdir(parents=True)
 
@@ -217,8 +217,8 @@ def _extract_with_agent_tags(
         {"artifacts_dir": str(artifacts_dir)} if planned_name is not None else None
     )
 
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
-        assert save_agent_tags(seed_tags)
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribe_file):
+        assert save_agent_tribes(seed_tribes)
         with (
             patch.dict("os.environ", env_patch, clear=False),
             patch(
@@ -242,29 +242,29 @@ def _extract_with_agent_tags(
             )
 
         meta = json.loads((artifacts_dir / "agent_meta.json").read_text())
-        tags = load_agent_tags()
-    return info, meta, tags
+        tribes = load_agent_tribes()
+    return info, meta, tribes
 
 
 def test_explicit_tribe_wins_over_matching_existing_tribe(tmp_path: Path) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
     identity = (AgentType.WORKFLOW, "sample-cl", "20260506121000")
 
-    info, meta, tags = _extract_with_agent_tags(
+    info, meta, tribes = _extract_with_agent_tribes(
         tmp_path,
         "%id:foo.child\n%tribe:bar\nDo work",
-        seed_tags={existing: "foo"},
+        seed_tribes={existing: "foo"},
     )
 
-    assert info.tag == "bar"
-    assert meta["tag"] == "bar"
-    assert tags == {
+    assert info.tribe == "bar"
+    assert meta["tribe"] == "bar"
+    assert tribes == {
         existing: "foo",
         identity: "bar",
     }
 
 
-def test_clan_tribe_uses_metadata_without_agent_tag_store(
+def test_clan_tribe_uses_metadata_without_standalone_tribe_store(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -272,33 +272,33 @@ def test_clan_tribe_uses_metadata_without_agent_tag_store(
     plan = ClanMembershipPlan(clan_name="research", generation="g1")
     monkeypatch.setenv(CLAN_MEMBERSHIP_ENV, encode_clan_membership_plan(plan))
 
-    info, meta, tags = _extract_with_agent_tags(
+    info, meta, tribes = _extract_with_agent_tribes(
         tmp_path,
         "%id:research.worker\n%clan(research, tribe=research)\nDo work",
-        seed_tags={existing: "legacy"},
+        seed_tribes={existing: "legacy"},
     )
 
-    assert info.tag is None
+    assert info.tribe is None
     assert meta["agent_clan"] == "research"
     assert meta["agent_clan_generation"] == "g1"
     assert meta["clan_tribe"] == "research"
-    assert "tag" not in meta
-    assert tags == {existing: "legacy"}
+    assert "tribe" not in meta
+    assert tribes == {existing: "legacy"}
 
 
 def test_named_agent_does_not_inherit_existing_tribe(tmp_path: Path) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
 
-    info, meta, tags = _extract_with_agent_tags(
+    info, meta, tribes = _extract_with_agent_tribes(
         tmp_path,
         "%id:foo.child\nDo work",
-        seed_tags={existing: "foo"},
+        seed_tribes={existing: "foo"},
     )
 
     assert info.name == "foo.child"
-    assert info.tag is None
-    assert "tag" not in meta
-    assert tags == {existing: "foo"}
+    assert info.tribe is None
+    assert "tribe" not in meta
+    assert tribes == {existing: "foo"}
 
 
 def test_wait_derived_agent_name_does_not_inherit_existing_tribe(
@@ -306,16 +306,16 @@ def test_wait_derived_agent_name_does_not_inherit_existing_tribe(
 ) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
 
-    info, meta, tags = _extract_with_agent_tags(
+    info, meta, tribes = _extract_with_agent_tribes(
         tmp_path,
         "%wait:foo\nDo work",
-        seed_tags={existing: "foo"},
+        seed_tribes={existing: "foo"},
     )
 
     assert info.name == "foo.w0"
-    assert info.tag is None
-    assert "tag" not in meta
-    assert tags == {existing: "foo"}
+    assert info.tribe is None
+    assert "tribe" not in meta
+    assert tribes == {existing: "foo"}
 
 
 def test_fork_derived_agent_name_does_not_inherit_existing_tribe(
@@ -323,17 +323,17 @@ def test_fork_derived_agent_name_does_not_inherit_existing_tribe(
 ) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
 
-    info, meta, tags = _extract_with_agent_tags(
+    info, meta, tribes = _extract_with_agent_tribes(
         tmp_path,
         "expanded prompt",
-        seed_tags={existing: "foo"},
+        seed_tribes={existing: "foo"},
         raw_resolved_prompt="#fork:foo\nDo work",
     )
 
     assert info.name == "foo.f0"
-    assert info.tag is None
-    assert "tag" not in meta
-    assert tags == {existing: "foo"}
+    assert info.tribe is None
+    assert "tribe" not in meta
+    assert tribes == {existing: "foo"}
 
 
 def test_planned_template_name_does_not_inherit_nested_existing_tribe(
@@ -342,10 +342,10 @@ def test_planned_template_name_does_not_inherit_nested_existing_tribe(
     parent = (AgentType.RUNNING, "seed-parent", "ts1")
     child = (AgentType.RUNNING, "seed-child", "ts2")
 
-    info, meta, tags = _extract_with_agent_tags(
+    info, meta, tribes = _extract_with_agent_tribes(
         tmp_path,
         "%id:sase-42.3.@\nDo work",
-        seed_tags={
+        seed_tribes={
             parent: "sase-42",
             child: "sase-42.3",
         },
@@ -353,9 +353,9 @@ def test_planned_template_name_does_not_inherit_nested_existing_tribe(
     )
 
     assert info.name == "sase-42.3.1"
-    assert info.tag is None
-    assert "tag" not in meta
-    assert tags == {
+    assert info.tribe is None
+    assert "tribe" not in meta
+    assert tribes == {
         parent: "sase-42",
         child: "sase-42.3",
     }

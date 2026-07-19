@@ -22,7 +22,7 @@ def test_t_aliases_tribe_not_time() -> None:
     """%t assigns a tribe without restoring the removed %time alias."""
     cleaned, directives = extract_prompt_directives("%t:review\nDo work")
     assert cleaned == "Do work"
-    assert directives.tag == "review"
+    assert directives.tribe == "review"
     assert directives.wait_duration is None
     assert directives.auto_mode is None
 

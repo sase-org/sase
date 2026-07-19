@@ -49,11 +49,11 @@ def resolve_wait_agent_args(seen_multi: dict[str, list[str]]) -> None:
 
 def _parse_wait_tribe_reference(value: str) -> str | None:
     """Parse a wait tribe target and translate validation into directive errors."""
-    from sase.core.agent_tribe import InvalidTagError, parse_tribe_reference
+    from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 
     try:
         return parse_tribe_reference(value)
-    except InvalidTagError as exc:
+    except InvalidTribeError as exc:
         raise DirectiveError(
             f"Invalid '%wait' tribe reference {value!r}: {exc}"
         ) from exc
@@ -302,15 +302,15 @@ def parse_repeat_count(expanded_args: dict[str, str]) -> int | None:
     return repeat_count
 
 
-def parse_tribe_tag(expanded_args: dict[str, str]) -> str | None:
+def parse_tribe_name(expanded_args: dict[str, str]) -> str | None:
     """Parse and validate the ``%tribe`` directive."""
-    raw_tag = expanded_args.get("tribe")
-    if raw_tag:
-        from sase.core.agent_tribe import InvalidTagError, validate_tag_name
+    raw_tribe = expanded_args.get("tribe")
+    if raw_tribe:
+        from sase.core.agent_tribe import InvalidTribeError, validate_tribe_name
 
         try:
-            return validate_tag_name(raw_tag)
-        except InvalidTagError as exc:
+            return validate_tribe_name(raw_tribe)
+        except InvalidTribeError as exc:
             raise DirectiveError(f"Invalid '%tribe' value: {exc}") from exc
     if "tribe" in expanded_args:
         raise DirectiveError(
@@ -347,11 +347,11 @@ def resolve_clan_tribe(
     if not tribe:
         raise DirectiveError("'%clan(..., tribe=...)' requires a non-empty tribe name.")
 
-    from sase.core.agent_tribe import InvalidTagError, validate_tag_name
+    from sase.core.agent_tribe import InvalidTribeError, validate_tribe_name
 
     try:
-        return validate_tag_name(tribe)
-    except InvalidTagError as exc:
+        return validate_tribe_name(tribe)
+    except InvalidTribeError as exc:
         raise DirectiveError(f"Invalid '%clan' tribe= value: {exc}") from exc
 
 

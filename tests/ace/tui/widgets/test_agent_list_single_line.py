@@ -31,7 +31,7 @@ def _agent(
         stop_time=datetime(2026, 4, 25, 14, 3, 4),
         raw_suffix=raw_suffix,
         agent_name=agent_name,
-        tag="long-tag-name",
+        tribe="long-tag-name",
     )
 
 

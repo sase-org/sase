@@ -40,6 +40,8 @@ def _make_agent(**overrides: Any) -> Agent:
         "start_time": _NOW - timedelta(hours=1),
     }
     defaults.update(overrides)
+    if "tag" in defaults:
+        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)
 
 

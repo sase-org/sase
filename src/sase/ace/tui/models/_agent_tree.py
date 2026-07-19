@@ -156,7 +156,7 @@ def presentation_anchor(
 def _reset_tree_projection(agent: Agent) -> None:
     agent.tree_parent_key = None
     agent.tree_depth = 0
-    agent.clan_tags = ()
+    agent.clan_tribes = ()
 
 
 def _clan_for_row(
@@ -199,7 +199,7 @@ def _container_for_clan(
     generation = generations[0] if generations else None
     explicit_clan_tribe = any(row.clan_tribe for row in rows)
     resolved_clan_tribe: str | None = None
-    tags: tuple[str, ...]
+    tribes: tuple[str, ...]
     if explicit_clan_tribe:
         from sase.core.agent_clan_tribe import (
             ClanTribeMemberWire,
@@ -226,11 +226,11 @@ def _container_for_clan(
         resolved_clan_tribe = resolution.tribe
 
     # A new-style declaration is authoritative. Only generations with no
-    # declaration use legacy per-member tag aggregation.
+    # declaration use standalone per-member tribe aggregation.
     if explicit_clan_tribe:
-        tags = (resolved_clan_tribe,) if resolved_clan_tribe else ()
+        tribes = (resolved_clan_tribe,) if resolved_clan_tribe else ()
     else:
-        tags = tuple(sorted({row.tag for row in rows if row.tag}, key=str.lower))
+        tribes = tuple(sorted({row.tribe for row in rows if row.tribe}, key=str.lower))
     starts = [row.start_time for row in runtime_members if row.start_time is not None]
     run_starts = [
         row.run_start_time for row in runtime_members if row.run_start_time is not None
@@ -253,8 +253,8 @@ def _container_for_clan(
         agent_clan_generation=generation,
         clan_tribe=resolved_clan_tribe,
         is_clan_container=True,
-        clan_tags=tags,
-        tag=tags[0] if len(tags) == 1 else None,
+        clan_tribes=tribes,
+        tribe=tribes[0] if len(tribes) == 1 else None,
     )
     container.runtime_children.extend(runtime_members)
     return container

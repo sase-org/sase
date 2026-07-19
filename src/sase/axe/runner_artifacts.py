@@ -4,7 +4,8 @@ import json
 import logging
 import os
 
-from sase.ace.agent_tags import REVIEW_AGENT_TAG
+from sase.ace.agent_tribes import REVIEW_AGENT_TRIBE
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ def write_agent_meta(
     model: str | None = None,
     llm_provider: str | None = None,
     vcs_provider: str | None = None,
-    tag: str | None = None,
+    tribe: str | None = None,
 ) -> None:
     """Write agent_meta.json to an axe runner's artifacts directory.
 
@@ -60,7 +61,7 @@ def write_agent_meta(
         model: Model name (e.g., "Gemini 3.5 Flash (High)").
         llm_provider: LLM provider name (e.g., "agy").
         vcs_provider: VCS provider display name (e.g., "Mercurial").
-        tag: Optional Agents-tab grouping tag.
+        tribe: Optional Agents-tab tribe.
     """
     meta: dict[str, object] = {"pid": os.getpid()}
     if model:
@@ -69,9 +70,10 @@ def write_agent_meta(
         meta["llm_provider"] = llm_provider
     if vcs_provider:
         meta["vcs_provider"] = vcs_provider
-    if tag:
-        meta["tag"] = tag
+    if tribe:
+        meta["tribe"] = tribe
 
+    canonicalize_agent_tribe_metadata(meta)
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     try:
         with open(meta_path, "w", encoding="utf-8") as f:
@@ -85,12 +87,12 @@ def write_agent_meta(
         print(f"Warning: Failed to write agent_meta.json: {e}")
 
 
-def clear_agent_meta_tag(artifacts_dir: str) -> bool:
-    """Remove the Agents-tab tag from an agent_meta.json file.
+def clear_agent_meta_tribe(artifacts_dir: str) -> bool:
+    """Remove the Agents-tab tribe from an agent_meta.json file.
 
-    Returns True when a ``tag`` field was removed and persisted. Missing,
-    unreadable, malformed, or already-untagged metadata is treated as a safe
-    no-op.
+    Returns True when a canonical or legacy tribe field was removed and
+    persisted. Missing, unreadable, malformed, or already-unassigned metadata is
+    treated as a safe no-op.
     """
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     try:
@@ -98,14 +100,15 @@ def clear_agent_meta_tag(artifacts_dir: str) -> bool:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         logger.debug(
-            "clear_agent_meta_tag: metadata missing or unreadable: %s",
+            "clear_agent_meta_tribe: metadata missing or unreadable: %s",
             meta_path,
         )
         return False
 
-    if not isinstance(data, dict) or "tag" not in data:
+    if not isinstance(data, dict) or not ({"tribe", "tag"} & data.keys()):
         return False
 
+    data.pop("tribe", None)
     data.pop("tag", None)
     tmp_path = f"{meta_path}.tmp.{os.getpid()}"
     try:
@@ -119,7 +122,7 @@ def clear_agent_meta_tag(artifacts_dir: str) -> bool:
         except OSError:
             pass
         logger.debug(
-            "clear_agent_meta_tag: failed to write %s",
+            "clear_agent_meta_tribe: failed to write %s",
             meta_path,
             exc_info=True,
         )
@@ -133,7 +136,7 @@ def clear_agent_meta_tag(artifacts_dir: str) -> bool:
         update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     except Exception:
         logger.debug(
-            "clear_agent_meta_tag: failed to update artifact index for %s",
+            "clear_agent_meta_tribe: failed to update artifact index for %s",
             artifacts_dir,
             exc_info=True,
         )
@@ -144,7 +147,7 @@ def _detect_and_write_agent_meta(
     artifacts_dir: str,
     project_file: str,
     *,
-    tag: str | None = None,
+    tribe: str | None = None,
 ) -> None:
     """Detect model/VCS metadata and write agent_meta.json.
 
@@ -154,7 +157,7 @@ def _detect_and_write_agent_meta(
     Args:
         artifacts_dir: Path to the artifacts directory.
         project_file: Path to the project file (used for VCS detection).
-        tag: Optional Agents-tab grouping tag.
+        tribe: Optional Agents-tab tribe.
     """
     from sase.llm_provider.registry import get_default_provider_name, get_provider
     from sase.workspace_provider import detect_workflow_type, get_display_name
@@ -177,7 +180,7 @@ def _detect_and_write_agent_meta(
         model=model,
         llm_provider=llm_provider,
         vcs_provider=vcs_provider,
-        tag=tag,
+        tribe=tribe,
     )
 
 
@@ -188,21 +191,28 @@ def detect_write_and_persist_review_agent_meta(
     *,
     raw_suffix: str | None = None,
 ) -> None:
-    """Write review-tagged metadata and persist the tag for a runner identity.
+    """Write review-tribe metadata and persist it for a runner identity.
 
     Specialized review runners (CRS, mentor, fix-hook) bypass the generic
-    prompt directive parser, so they need to write the same observable tag
+    prompt directive parser, so they need to write the same observable tribe
     state that a ``%tribe:review`` launch would have produced.
     """
-    _detect_and_write_agent_meta(artifacts_dir, project_file, tag=REVIEW_AGENT_TAG)
+    _detect_and_write_agent_meta(
+        artifacts_dir,
+        project_file,
+        tribe=REVIEW_AGENT_TRIBE,
+    )
 
-    from sase.ace.agent_tags import update_agent_tag
+    from sase.ace.agent_tribes import update_agent_tribe
     from sase.ace.tui.models.agent import AgentType
 
     identity_suffix = raw_suffix
     if identity_suffix is None:
         identity_suffix = os.path.basename(artifacts_dir.rstrip(os.sep)) or None
-    update_agent_tag((AgentType.RUNNING, cl_name, identity_suffix), REVIEW_AGENT_TAG)
+    update_agent_tribe(
+        (AgentType.RUNNING, cl_name, identity_suffix),
+        REVIEW_AGENT_TRIBE,
+    )
 
 
 def publish_review_agent_env(

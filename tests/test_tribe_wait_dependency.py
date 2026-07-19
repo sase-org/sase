@@ -17,7 +17,7 @@ def _agent(
     name: str,
     *,
     outcome: str | None = "completed",
-    tag: str | None = None,
+    tribe: str | None = None,
     cl_name: str | None = None,
     clan: str | None = None,
     generation: str | None = None,
@@ -26,8 +26,8 @@ def _agent(
     artifact_dir = projects_root / "proj/artifacts/ace-run" / timestamp
     artifact_dir.mkdir(parents=True)
     meta: dict[str, object] = {"name": name}
-    if tag is not None:
-        meta["tag"] = tag
+    if tribe is not None:
+        meta["tribe"] = tribe
     if cl_name is not None:
         meta["cl_name"] = cl_name
     if clan is not None:
@@ -47,17 +47,23 @@ def _agent(
     return artifact_dir
 
 
-def _index(projects_root: Path, *, tags_path: Path | None = None):
+def _index(
+    projects_root: Path,
+    *,
+    tribes_path: Path | None = None,
+    legacy_tags_path: Path | None = None,
+):
     return build_wait_dependency_index(
         "proj",
         projects_root=projects_root,
-        agent_tags_path=tags_path or projects_root / "missing-agent-tags.json",
+        agent_tribes_path=tribes_path or projects_root / "missing-agent-tribes.json",
+        legacy_agent_tags_path=legacy_tags_path,
     )
 
 
 def test_tribe_wait_requires_waiter_launch_cutoff(tmp_path: Path) -> None:
-    _agent(tmp_path, "20260718010000", "old", tag="epic")
-    _agent(tmp_path, "20260718030000", "next", tag="epic")
+    _agent(tmp_path, "20260718010000", "old", tribe="epic")
+    _agent(tmp_path, "20260718030000", "next", tribe="epic")
     index = _index(tmp_path)
 
     assert not index.is_resolved("@epic")
@@ -70,9 +76,9 @@ def test_tribe_wait_requires_waiter_launch_cutoff(tmp_path: Path) -> None:
 
 
 def test_tribe_candidate_uses_earliest_complete_new_entity(tmp_path: Path) -> None:
-    _agent(tmp_path, "20260718021000", "failed", outcome="failed", tag="epic")
-    _agent(tmp_path, "20260718024000", "later", tag="epic")
-    _agent(tmp_path, "20260718022000", "earliest", tag="epic")
+    _agent(tmp_path, "20260718021000", "failed", outcome="failed", tribe="epic")
+    _agent(tmp_path, "20260718024000", "later", tribe="epic")
+    _agent(tmp_path, "20260718022000", "earliest", tribe="epic")
     index = _index(tmp_path)
 
     candidate = index.tribe_candidate("epic", newer_than="20260718020000")
@@ -84,8 +90,8 @@ def test_tribe_candidate_uses_earliest_complete_new_entity(tmp_path: Path) -> No
 
 
 def test_tribe_wait_ignores_older_and_self_entities(tmp_path: Path) -> None:
-    self_dir = _agent(tmp_path, "20260718020000", "self", tag="epic")
-    _agent(tmp_path, "20260718010000", "old", tag="epic")
+    self_dir = _agent(tmp_path, "20260718020000", "self", tribe="epic")
+    _agent(tmp_path, "20260718010000", "old", tribe="epic")
     index = _index(tmp_path)
 
     assert (
@@ -104,7 +110,7 @@ def test_tagged_clan_member_enrolls_complete_generation(tmp_path: Path) -> None:
         tmp_path,
         "20260718020100",
         "review.one",
-        tag="epic",
+        tribe="epic",
         clan="review",
         generation=generation,
     )
@@ -186,7 +192,7 @@ def test_posthoc_agent_tag_assignment_enrolls_entity(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
-    index = _index(tmp_path, tags_path=tags_path)
+    index = _index(tmp_path, legacy_tags_path=tags_path)
 
     candidate = index.tribe_candidate("epic", newer_than="20260718020000")
     assert candidate is not None

@@ -12,7 +12,7 @@ from ._directive_values import (
     expand_single_directive_args,
     normalize_model_directive,
     parse_repeat_count,
-    parse_tribe_tag,
+    parse_tribe_name,
     resolve_clan_tribe,
     resolve_clan_membership,
     resolve_auto_argument,
@@ -113,7 +113,7 @@ def extract_prompt_directives(
     resolve_wait_templates(expanded_multi)
 
     repeat_count = parse_repeat_count(expanded_args)
-    parsed_tag = parse_tribe_tag(expanded_args)
+    tribe = parse_tribe_name(expanded_args)
     declared_clan = resolve_clan_membership(expanded_args)
     clan = joined_clan or declared_clan
     clan_tribe = resolve_clan_tribe(
@@ -162,7 +162,7 @@ def extract_prompt_directives(
         name_indexed_template=name_info.name_indexed_template,
         name_indexed_base=name_info.name_indexed_base,
         repeat_count=repeat_count,
-        tag=parsed_tag,
+        tribe=tribe,
         wait=expanded_multi.get("wait", []),
         wait_duration=wait_duration,
         wait_until=wait_until,

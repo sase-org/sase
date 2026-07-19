@@ -86,7 +86,7 @@ def test_entry_maps_metadata_and_pending_question_to_stopped_bucket() -> None:
     assert entry.provider_badge == "🎭"
     assert entry.reasoning_effort == "high"
     assert entry.vcs_provider_display == "GitHub"
-    assert entry.tag == "sase-26"
+    assert entry.tribe == "sase-26"
     assert entry.bead_id == "sase-26.1"
     assert entry.output_variables == {"PLAN": "plans/foo.md"}
     assert entry.pending_question is True
@@ -304,6 +304,7 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
     assert payload["runner_slot_queue_size"] == 1
     assert payload["parent_agent_name"] is None
     assert payload["agent_family"] is None
+    assert payload["tribe"] is None
     assert payload["runner_slot_holders"] == ["phase"]
 
 

@@ -62,7 +62,7 @@ def _agent(
         agent_family_parallel=agent_family_parallel,
         agent_clan=agent_clan,
         agent_clan_generation=agent_clan_generation,
-        tag=tag,
+        tribe=tag,
         agent_name=agent_name,
         artifacts_dir=artifacts_dir,
     )

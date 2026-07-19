@@ -181,7 +181,7 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
         model=None,
     )
     container = project_clan_tree([second, first])[0]
-    container.clan_tags = ("epic", "review")
+    container.clan_tribes = ("epic", "review")
 
     detail = build_clan_detail_text(
         container,
@@ -224,7 +224,7 @@ def test_new_style_clan_tribe_projects_into_folded_summary_header() -> None:
         fold_level=FoldLevel.COLLAPSED,
     ).plain
 
-    assert container.clan_tags == ("epic",)
+    assert container.clan_tribes == ("epic",)
     assert "Tribes: @epic\n" in detail
     assert "Fold: 1/3\n" in detail
 

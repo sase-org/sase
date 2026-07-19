@@ -123,7 +123,7 @@ def _agent(*, name: str, project: str, tag: str | None) -> Agent:
         start_time=datetime(2026, 7, 15, 12, 0, 0),
         raw_suffix=name,
         agent_name=name,
-        tag=tag,
+        tribe=tag,
     )
 
 
@@ -407,7 +407,7 @@ def test_collapsed_panel_rows_are_opt_in_without_bypassing_group_folds() -> None
 def test_panel_collapse_state_prunes_and_clears_on_grouping_toggle() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key="alpha")
     app._collapsed_panel_keys.update({"alpha", "beta"})
-    app._agents = [agent for agent in app._agents if agent.tag != "beta"]
+    app._agents = [agent for agent in app._agents if agent.tribe != "beta"]
     app._invalidate_agent_panel_cache()
 
     app._sync_panel_group()
@@ -436,12 +436,12 @@ def test_expanded_panel_focus_reconciles_when_refresh_membership_churns() -> Non
     assert focus is not None
     assert focus.panel_key == "alpha"
     assert focus.collapsed is False
-    assert app._agents[app.current_idx].tag == "alpha"
+    assert app._agents[app.current_idx].tribe == "alpha"
 
     # If refresh/filter churn removes that tribe, explicit focus and stale
     # selection memory are discarded. Reappearance must not resurrect focus.
-    alpha_agents = [agent for agent in app._agents if agent.tag == "alpha"]
-    app._agents = [agent for agent in app._agents if agent.tag != "alpha"]
+    alpha_agents = [agent for agent in app._agents if agent.tribe == "alpha"]
+    app._agents = [agent for agent in app._agents if agent.tribe != "alpha"]
     app._invalidate_agent_panel_cache()
     app._sync_panel_group()
 

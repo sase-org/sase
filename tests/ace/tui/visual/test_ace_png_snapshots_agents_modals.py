@@ -44,7 +44,7 @@ def _cleanup_clan_member(
         stop_time=(datetime(2026, 7, 6, 11, 45, 0) if status != "RUNNING" else None),
         raw_suffix=suffix,
         agent_name=name,
-        tag="epic",
+        tribe="epic",
         pid=pid,
         agent_clan=clan,
         agent_clan_generation=f"{clan}-generation",

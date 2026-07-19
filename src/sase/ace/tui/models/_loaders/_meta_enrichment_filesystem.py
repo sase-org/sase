@@ -22,7 +22,7 @@ from ._meta_enrichment_common import (
     plan_enrichment_status,
     refresh_agent_plan_path,
     string_output_variables,
-    valid_meta_tag,
+    valid_meta_tribe,
 )
 from ..agent import Agent
 
@@ -98,9 +98,11 @@ def enrich_agent_from_meta(
         agent.diff_path = commit_diff_path
     if not workflow_child and data.get("name"):
         agent.agent_name = data["name"]
-    meta_tag = valid_meta_tag(data.get("tag"))
-    if meta_tag:
-        agent.tag = meta_tag
+    meta_tribe = valid_meta_tribe(
+        data.get("tribe") if "tribe" in data else data.get("tag")
+    )
+    if meta_tribe:
+        agent.tribe = meta_tribe
     if "output_variables" in data:
         agent.output_variables = string_output_variables(data.get("output_variables"))
     if data.get("wait_for"):

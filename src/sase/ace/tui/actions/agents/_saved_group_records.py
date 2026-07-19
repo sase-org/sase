@@ -127,7 +127,7 @@ def _agent_project_name(agent: Agent) -> str | None:
 
 def _saved_group_title(agents: list[Agent], *, top_level_count: int) -> str:
     count = top_level_count
-    tags = sorted({a.tag for a in agents if a.tag})
+    tribes = sorted({a.tribe for a in agents if a.tribe})
     cl_names = sorted(
         {a.cl_name for a in agents if a.cl_name and a.cl_name != "unknown"}
     )
@@ -135,8 +135,8 @@ def _saved_group_title(agents: list[Agent], *, top_level_count: int) -> str:
         {name for a in agents if (name := _agent_project_name(a)) is not None}
     )
 
-    if len(tags) == 1:
-        return f"{count} {plural_agent(count)} from @{tags[0]}"
+    if len(tribes) == 1:
+        return f"{count} {plural_agent(count)} from @{tribes[0]}"
     if len(cl_names) == 1:
         return f"{count} {plural_agent(count)} in {cl_names[0]}"
     if len(project_names) == 1:
@@ -205,6 +205,6 @@ def _saved_group_ref_for_agent(
         start_time=_agent_start_time_wire(agent),
         model=agent.model,
         llm_provider=agent.llm_provider,
-        tribe=agent.tag,
+        tribe=agent.tribe,
         prompt_preview=_prompt_preview_for_agent(agent),
     )

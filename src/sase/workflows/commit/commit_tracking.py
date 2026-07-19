@@ -12,6 +12,7 @@ from sase.ace.changespec.review_field import REVIEW_URL_PREFIXES
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.paths import sase_subdir
 from sase.output import print_status
 from sase.workflows.commit.plan_paths import format_sase_plan_reference
@@ -320,17 +321,16 @@ def _persist_primary_commit_metadata(
             and primary_root != commit_root
         ):
             return
-        changed = False
+        original_meta = dict(meta)
+        canonicalize_agent_tribe_metadata(meta)
         if diff_path and meta.get("commit_diff_path") != diff_path:
             meta["commit_diff_path"] = diff_path
-            changed = True
         if (
             normalized_changespec_name
             and meta.get("commit_changespec_name") != normalized_changespec_name
         ):
             meta["commit_changespec_name"] = normalized_changespec_name
-            changed = True
-        if not changed:
+        if meta == original_meta:
             return
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)

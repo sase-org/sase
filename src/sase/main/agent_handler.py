@@ -30,7 +30,7 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         sys.exit(0)
 
     if sub == "tribe":
-        from sase.agents.cli_tag import handle_agents_tribe
+        from sase.agents.cli_tribe import handle_agents_tribe
 
         handle_agents_tribe(args)
         sys.exit(0)

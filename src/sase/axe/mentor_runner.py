@@ -70,7 +70,7 @@ def main() -> None:
         timestamp=timestamp,
     )
 
-    # Write agent_meta.json early so Agents tab shows model/VCS/tag while running
+    # Write agent_meta.json early so Agents tab shows model/VCS/tribe while running
     detect_write_and_persist_review_agent_meta(artifacts_dir, project_file, cl_name)
 
     print(f"Starting mentor workflow: {mentor_name}")

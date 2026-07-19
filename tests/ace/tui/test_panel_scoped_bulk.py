@@ -50,7 +50,7 @@ def _agent(
         status=status,
         start_time=None,
         agent_name=name,
-        tag=tag,
+        tribe=tag,
         raw_suffix=suffix,
         pid=pid,
         parent_workflow=parent_workflow,
@@ -222,7 +222,7 @@ def test_tag_cleanup_known_tags_are_current_agents_tab_tags(
     stale_review = _agent(name="r1", suffix="t2", tag="review")
     app = _FakeApp([fix], agents_with_children=[fix, stale_review])
     monkeypatch.setattr(
-        "sase.ace.agent_tags.load_agent_tags",
+        "sase.ace.agent_tribes.load_agent_tribes",
         lambda: {(AgentType.RUNNING, "cl", "t3"): "persisted"},
     )
 

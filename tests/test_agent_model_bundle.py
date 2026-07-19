@@ -37,8 +37,8 @@ def test_bundle_round_trip_basic() -> None:
     assert restored.identity == agent.identity
 
 
-def test_bundle_round_trip_preserves_agent_tag() -> None:
-    """Dismissed bundles preserve the Agents-tab tag for revive restoration."""
+def test_bundle_round_trip_preserves_agent_tribe() -> None:
+    """Dismissed bundles preserve the agent tribe for revive restoration."""
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
@@ -46,14 +46,33 @@ def test_bundle_round_trip_preserves_agent_tag() -> None:
         status="DONE",
         start_time=datetime(2025, 6, 15, 10, 30, 0),
         raw_suffix="20250615103000",
-        tag="backend",
+        tribe="backend",
     )
 
     bundle = agent.to_bundle_dict()
     restored = Agent.from_bundle_dict(bundle)
 
-    assert bundle["tag"] == "backend"
-    assert restored.tag == "backend"
+    assert bundle["tribe"] == "backend"
+    assert "tag" not in bundle
+    assert restored.tribe == "backend"
+
+
+def test_bundle_loads_legacy_tag_as_tribe() -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 30, 0),
+        raw_suffix="20250615103000",
+    )
+    bundle = agent.to_bundle_dict()
+    bundle.pop("tribe")
+    bundle["tag"] = "legacy"
+
+    restored = Agent.from_bundle_dict(bundle)
+
+    assert restored.tribe == "legacy"
 
 
 def test_bundle_round_trip_preserves_plan_association() -> None:
@@ -210,7 +229,7 @@ def test_bundle_dict_is_json_serializable_for_populated_agent() -> None:
             ),
         ),
         waiting_for=["agent-a"],
-        tag="backend",
+        tribe="backend",
         output_variables={"report": "/tmp/report.md"},
         plan_times=[datetime(2025, 6, 15, 10, 5, 0)],
         code_time=datetime(2025, 6, 15, 10, 10, 0),

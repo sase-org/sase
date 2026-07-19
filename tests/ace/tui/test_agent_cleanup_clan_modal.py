@@ -42,7 +42,7 @@ def _member(
         parent_timestamp=parent_timestamp,
         agent_clan=clan,
         agent_clan_generation=generation,
-        tag="epic",
+        tribe="epic",
     )
 
 

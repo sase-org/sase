@@ -17,7 +17,7 @@ from sase.agent.names import (
     resolve_resume_agent_name,
     sole_resume_agent_name,
 )
-from sase.core.agent_tribe import InvalidTagError
+from sase.core.agent_tribe import InvalidTribeError
 
 from tests._agent_names_fixtures import make_agent as _make_agent
 
@@ -86,7 +86,7 @@ class TestResumeAgentNames:
 
     @pytest.mark.parametrize("reference", ["#fork:@", "#fork:@bad+name"])
     def test_malformed_tribe_fork_is_rejected(self, reference: str) -> None:
-        with pytest.raises(InvalidTagError):
+        with pytest.raises(InvalidTribeError):
             fork_agent_names(reference)
 
     def test_first_fork_finds_colon_paren_and_backtick(self) -> None:

@@ -87,7 +87,7 @@ def agents() -> list[Agent]:
             stop_time=datetime(2026, 5, 9, 10, 12, 0),
             raw_suffix="20260509-101000-review",
             agent_name="reviewer",
-            tag="visual",
+            tribe="visual",
         ),
     ]
 
@@ -183,7 +183,7 @@ def agents_with_stopped_status() -> list[Agent]:
             stop_time=datetime(2026, 5, 9, 10, 12, 0),
             raw_suffix="20260509-101000-review",
             agent_name="reviewer",
-            tag="visual",
+            tribe="visual",
         ),
     ]
 
@@ -291,7 +291,7 @@ def visual_agents() -> list[Agent]:
             stop_time=datetime(2026, 5, 23, 13, 12, 30),
             raw_suffix="20260523-130800-code",
             agent_name="visual.code.implementation.with.narrow.row",
-            tag="review",
+            tribe="review",
         ),
         Agent(
             agent_type=AgentType.RUNNING,
@@ -302,7 +302,7 @@ def visual_agents() -> list[Agent]:
             stop_time=datetime(2026, 5, 23, 13, 17, 5),
             raw_suffix="20260523-131600-verify",
             agent_name="visual.verify.performance.and.polish",
-            tag="verification",
+            tribe="verification",
             error_message="fixture failure for modal row styling",
         ),
     ]
@@ -335,7 +335,7 @@ def hood_neighbor_agents() -> list[Agent]:
             stop_time=datetime(2026, 5, 23, 13, 12, 30),
             raw_suffix="20260523-130800-code",
             agent_name="visual.code.implementationwithanextremelylongsuffix",
-            tag="review",
+            tribe="review",
         ),
         Agent(
             agent_type=AgentType.RUNNING,
@@ -346,7 +346,7 @@ def hood_neighbor_agents() -> list[Agent]:
             stop_time=datetime(2026, 5, 23, 13, 17, 5),
             raw_suffix="20260523-131600-verify",
             agent_name="visual.code.verify",
-            tag="verification",
+            tribe="verification",
             error_message="fixture failure for modal row styling",
         ),
         Agent(
@@ -358,7 +358,7 @@ def hood_neighbor_agents() -> list[Agent]:
             stop_time=datetime(2026, 5, 23, 13, 20, 15),
             raw_suffix="20260523-131800-cousin",
             agent_name="visual.review.cousin",
-            tag="review",
+            tribe="review",
         ),
     ]
 

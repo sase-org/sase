@@ -253,7 +253,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/runner_artifacts.py:clear_agent_meta_tag": Review(
+    "src/sase/axe/runner_artifacts.py:clear_agent_meta_tribe": Review(
         mutation_calls=("open", "dump", "os.replace", "unlink"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),

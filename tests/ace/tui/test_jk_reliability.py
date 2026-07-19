@@ -55,7 +55,7 @@ class _CachedStubApp(BasicNavigationMixin):
             self._group_fold_registry.collapse(key)
         self._current_group_key: tuple[str, ...] | None = None
         self._grouping_mode = GroupingMode.STANDARD
-        focused_key = agents[0].tag if agents else None
+        focused_key = agents[0].tribe if agents else None
         self._panel_group = AgentPanelGroup.from_agents(agents, focused_key)
         self._nav_stops_cache: tuple | None = None
         self._panel_keys_cache: tuple | None = None

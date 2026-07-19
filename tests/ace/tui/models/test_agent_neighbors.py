@@ -30,7 +30,7 @@ def _agent(
         start_time=datetime(2026, 5, 23, 12, 0, 0),
         raw_suffix=suffix or name,
         agent_name=name,
-        tag=tag,
+        tribe=tag,
     )
 
 

@@ -403,6 +403,9 @@ def capture_sdd_base_sha(workspace_dir: str, workspace_num: int) -> str | None:
 
 
 def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
+    from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
+
+    canonicalize_agent_tribe_metadata(agent_meta)
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(agent_meta, f, indent=2)

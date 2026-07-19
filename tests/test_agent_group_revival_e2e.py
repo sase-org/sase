@@ -41,7 +41,7 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
         cl_name="visual-polish",
         raw_suffix="20260527120000",
         agent_name="visual.worker",
-        tag="backend",
+        tribe="backend",
     )
     patch_startup_loaders(monkeypatch, agents=[agent])
     _patch_dismissed_archive_paths(monkeypatch, tmp_path)
@@ -113,10 +113,10 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
     assert revived_group.agent_refs[0].raw_suffix == "20260527120000"
 
 
-async def test_saved_group_revive_restores_deleted_artifacts_and_tag_real_loader(
+async def test_saved_group_revive_restores_deleted_artifacts_and_tribe_real_loader(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """S/R revive restores deleted markers from the bundle and keeps the tag."""
+    """S/R revive restores deleted markers from the bundle and keeps the tribe."""
 
     _patch_non_agent_startup(monkeypatch)
     project_file, artifacts_dir = _write_done_agent_artifacts(
@@ -136,7 +136,7 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tag_real_loader
     ) as page:
         await wait_for_startup(page)
         await page.expect_state("agent_count", 1)
-        assert page.app._agents[0].tag == "backend"
+        assert page.app._agents[0].tribe == "backend"
 
         await page.press("m")
         await page.press("s")
@@ -153,7 +153,7 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tag_real_loader
         assert loaded_group is not None
         assert loaded_group.agent_refs[0].tribe == "backend"
         bundled = dismissed_agents.load_dismissed_bundles({"20260527123000"})
-        assert [agent.tag for agent in bundled] == ["backend"]
+        assert [agent.tribe for agent in bundled] == ["backend"]
 
         shutil.rmtree(artifacts_dir)
         page.app._load_agents(full_history=True)
@@ -165,7 +165,7 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tag_real_loader
         await page.expect_no_modal()
         await _wait_until(
             lambda: any(
-                agent.raw_suffix == "20260527123000" and agent.tag == "backend"
+                agent.raw_suffix == "20260527123000" and agent.tribe == "backend"
                 for agent in page.app._agents
             )
         )
@@ -173,9 +173,9 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tag_real_loader
         revived = next(
             agent for agent in page.app._agents if agent.raw_suffix == "20260527123000"
         )
-        assert revived.tag == "backend"
+        assert revived.tribe == "backend"
         assert (
-            json.loads((artifacts_dir / "agent_meta.json").read_text())["tag"]
+            json.loads((artifacts_dir / "agent_meta.json").read_text())["tribe"]
             == "backend"
         )
 
@@ -264,6 +264,8 @@ def _agent(**overrides: object) -> Agent:
         "model": "gpt-5",
     }
     defaults.update(overrides)
+    if "tag" in defaults:
+        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
@@ -330,7 +332,7 @@ def _write_done_agent_artifacts(
         json.dumps(
             {
                 "name": agent_name,
-                "tag": tag,
+                "tribe": tag,
                 "model": "gpt-5",
                 "llm_provider": "codex",
             }

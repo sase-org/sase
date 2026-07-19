@@ -6,7 +6,7 @@ New code should import from ``runner_artifacts``, ``runner_reporting``,
 
 from sase.axe.runner_artifacts import (
     all_steps_hidden,
-    clear_agent_meta_tag,
+    clear_agent_meta_tribe,
     detect_write_and_persist_review_agent_meta,
     publish_review_agent_env,
     read_agent_meta,
@@ -36,7 +36,7 @@ from sase.axe.runner_workspace import (
 __all__ = [
     "all_steps_hidden",
     "build_no_proposal_error_summary",
-    "clear_agent_meta_tag",
+    "clear_agent_meta_tribe",
     "detect_write_and_persist_review_agent_meta",
     "finalize_axe_runner",
     "format_markdown_fenced_block",

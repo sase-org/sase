@@ -35,7 +35,7 @@ def test_clan_directive_parses_parenthesized_tribe(directive: str) -> None:
     assert directives.clan == "research.@"
     assert directives.clan_declared is True
     assert directives.clan_tribe == "research"
-    assert directives.tag is None
+    assert directives.tribe is None
 
 
 def test_clan_directive_allows_plain_name_directive() -> None:
@@ -249,7 +249,7 @@ def test_clan_tribe_conflict_inside_fenced_block_is_ignored() -> None:
 
     assert cleaned == prompt
     assert directives.clan is None
-    assert directives.tag is None
+    assert directives.tribe is None
 
 
 def test_clan_directive_inside_disabled_region_is_ignored() -> None:
@@ -272,4 +272,4 @@ def test_clan_tribe_conflict_inside_disabled_region_is_ignored() -> None:
 
     assert cleaned == "%clan:example\n%tribe:research\nDo work"
     assert directives.clan is None
-    assert directives.tag is None
+    assert directives.tribe is None

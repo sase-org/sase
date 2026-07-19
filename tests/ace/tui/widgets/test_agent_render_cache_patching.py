@@ -157,7 +157,7 @@ async def test_patch_clan_row_preserves_latest_panel_context() -> None:
         clan = _agent(cl_name="research", status="RUNNING")
         clan.is_clan_container = True
         clan.agent_clan = "research"
-        clan.clan_tags = ("epic",)
+        clan.clan_tribes = ("epic",)
 
         widget.update_list([clan], current_idx=0, panel_tag="epic")
         await pilot.pause()

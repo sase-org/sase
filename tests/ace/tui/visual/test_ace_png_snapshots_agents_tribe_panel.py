@@ -41,7 +41,7 @@ def _tribe_agents() -> list[Agent]:
         role_suffix="--plan",
         plan_chain_root=True,
         model="gpt-5",
-        tag="epic",
+        tribe="epic",
     )
     family_child = Agent(
         agent_type=AgentType.RUNNING,
@@ -59,7 +59,7 @@ def _tribe_agents() -> list[Agent]:
         model="gpt-5",
         workspace_num=15,
         activity="waiting for verification",
-        tag="epic",
+        tribe="epic",
     )
     family_root.followup_agents = [family_child]
     failed = Agent(
@@ -73,7 +73,7 @@ def _tribe_agents() -> list[Agent]:
         raw_suffix="visual-tribe-review",
         agent_name="visual-tribe-review",
         model="gpt-5",
-        tag="epic",
+        tribe="epic",
         error_message="Verification failed\nDetailed forensics line",
         error_traceback="Traceback (most recent call last):\nValueError: visual failure",
         output_variables={"report": "triage summary\ncomplete report body"},

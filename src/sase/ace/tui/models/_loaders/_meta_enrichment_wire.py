@@ -73,7 +73,7 @@ def enrich_agent_from_meta_wire(
     if meta.name:
         agent.agent_name = meta.name
     if meta.tribe:
-        agent.tag = meta.tribe
+        agent.tribe = meta.tribe
     agent.output_variables = dict(meta.output_variables)
     if meta.wait_for:
         agent.waiting_for = list(meta.wait_for)

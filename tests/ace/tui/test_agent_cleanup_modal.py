@@ -123,6 +123,8 @@ def _agent(**overrides: object) -> Agent:
         "pid": 100,
     }
     defaults.update(overrides)
+    if "tag" in defaults:
+        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 

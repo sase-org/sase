@@ -41,6 +41,8 @@ def _make_waiting_agent(**overrides: object) -> Agent:
         "wait_until": "2026-05-01T12:00:00",
     }
     defaults.update(overrides)
+    if "tag" in defaults:
+        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
@@ -168,7 +170,7 @@ class _FakeResumeActionApp(AgentWaitResumeMixin):
     def _panel_keys_per_agent(self) -> list[str | None]:
         if self.panel_keys is not None:
             return self.panel_keys
-        return [agent.tag for agent in self._agents]
+        return [agent.tribe for agent in self._agents]
 
     def _show_prompt_input_bar_for_home(
         self,

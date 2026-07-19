@@ -27,6 +27,8 @@ def _make_agent(suffix: str = "20240101120000", **overrides: object) -> Agent:
         "pid": 4242,
     }
     defaults.update(overrides)
+    if "tag" in defaults:
+        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
@@ -128,7 +130,10 @@ class _FakeApp(AgentTaggingMixin, AgentDisplayMixin):
 def test_action_no_op_when_not_on_agents_tab(tmp_path: Path) -> None:
     app = _FakeApp([_make_agent()])
     app.current_tab = "changespecs"
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tmp_path / "agent_tags.json"):
+    with patch(
+        "sase.ace.agent_tribes._AGENT_TRIBES_FILE",
+        tmp_path / "agent_tribes.json",
+    ):
         app.action_add_agent_tag()
     assert app.pushed_modals == []
 
@@ -136,26 +141,29 @@ def test_action_no_op_when_not_on_agents_tab(tmp_path: Path) -> None:
 def test_action_warns_when_no_agent_selected(tmp_path: Path) -> None:
     app = _FakeApp([])
     app.current_idx = -1
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tmp_path / "agent_tags.json"):
+    with patch(
+        "sase.ace.agent_tribes._AGENT_TRIBES_FILE",
+        tmp_path / "agent_tribes.json",
+    ):
         app.action_add_agent_tag()
     assert app.pushed_modals == []
     assert any("No agent selected" in m for m, _ in app.notifications)
 
 
 def test_action_pushes_modal_for_focused_agent(tmp_path: Path) -> None:
-    tag_file = tmp_path / "agent_tags.json"
+    tag_file = tmp_path / "agent_tribes.json"
     tag_file.write_text(
         json.dumps(
             [
-                {"id": ["run", "fix-bug", "ts-other"], "tag": "alpha"},
-                {"id": ["run", "fix-bug", "ts-other2"], "tag": "beta"},
+                {"id": ["run", "fix-bug", "ts-other"], "tribe": "alpha"},
+                {"id": ["run", "fix-bug", "ts-other2"], "tribe": "beta"},
             ]
         )
     )
     agent = _make_agent()
-    agent.tag = "primary"
+    agent.tribe = "primary"
     app = _FakeApp([agent])
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tag_file):
         app.action_add_agent_tag()
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
@@ -166,11 +174,11 @@ def test_action_pushes_modal_for_focused_agent(tmp_path: Path) -> None:
 
 
 def test_action_seeds_pinned_for_untagged_focused_agent(tmp_path: Path) -> None:
-    tag_file = tmp_path / "agent_tags.json"
+    tag_file = tmp_path / "agent_tribes.json"
     agent = _make_agent()
-    assert agent.tag is None
+    assert agent.tribe is None
     app = _FakeApp([agent])
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tag_file):
         app.action_add_agent_tag()
     modal = app.pushed_modals[0]
     assert isinstance(modal, AgentTagModal)
@@ -179,12 +187,12 @@ def test_action_seeds_pinned_for_untagged_focused_agent(tmp_path: Path) -> None:
 
 
 def test_action_does_not_seed_pinned_for_bulk_path(tmp_path: Path) -> None:
-    tag_file = tmp_path / "agent_tags.json"
+    tag_file = tmp_path / "agent_tribes.json"
     a1 = _make_agent(suffix="t1")
     a2 = _make_agent(suffix="t2")
     app = _FakeApp([a1, a2])
     app._marked_agents = {a1.identity, a2.identity}
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tag_file):
         app.action_add_agent_tag()
     modal = app.pushed_modals[0]
     assert isinstance(modal, AgentTagModal)
@@ -192,14 +200,14 @@ def test_action_does_not_seed_pinned_for_bulk_path(tmp_path: Path) -> None:
 
 
 def test_apply_set_persists_and_updates_agent(tmp_path: Path) -> None:
-    tag_file = tmp_path / "agent_tags.json"
+    tag_file = tmp_path / "agent_tribes.json"
     agent = _make_agent()
     app = _FakeApp([agent])
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tag_file):
         app.action_add_agent_tag()
         callback = app.pushed_callbacks[0]
         callback(AgentTagModalResult(action="set", tag="release-blockers"))
-    assert agent.tag == "release-blockers"
+    assert agent.tribe == "release-blockers"
     persisted = json.loads(tag_file.read_text())
     assert persisted == [
         {"id": ["run", "fix-bug", "20240101120000"], "tribe": "release-blockers"}
@@ -208,41 +216,41 @@ def test_apply_set_persists_and_updates_agent(tmp_path: Path) -> None:
 
 
 def test_apply_set_replaces_existing_tag(tmp_path: Path) -> None:
-    tag_file = tmp_path / "agent_tags.json"
+    tag_file = tmp_path / "agent_tribes.json"
     tag_file.write_text(
-        json.dumps([{"id": ["run", "fix-bug", "20240101120000"], "tag": "old"}])
+        json.dumps([{"id": ["run", "fix-bug", "20240101120000"], "tribe": "old"}])
     )
     agent = _make_agent()
-    agent.tag = "old"
+    agent.tribe = "old"
     app = _FakeApp([agent])
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tag_file):
         app.action_add_agent_tag()
         callback = app.pushed_callbacks[0]
         callback(AgentTagModalResult(action="set", tag="new"))
-    assert agent.tag == "new"
+    assert agent.tribe == "new"
     persisted = json.loads(tag_file.read_text())
     assert persisted == [{"id": ["run", "fix-bug", "20240101120000"], "tribe": "new"}]
 
 
 def test_apply_unset_drops_tag(tmp_path: Path) -> None:
-    tag_file = tmp_path / "agent_tags.json"
+    tag_file = tmp_path / "agent_tribes.json"
     tag_file.write_text(
-        json.dumps([{"id": ["run", "fix-bug", "20240101120000"], "tag": "foo"}])
+        json.dumps([{"id": ["run", "fix-bug", "20240101120000"], "tribe": "foo"}])
     )
     agent = _make_agent()
-    agent.tag = "foo"
+    agent.tribe = "foo"
     app = _FakeApp([agent])
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tag_file):
         app.action_add_agent_tag()
         callback = app.pushed_callbacks[0]
         callback(AgentTagModalResult(action="unset", tag=None))
-    assert agent.tag is None
+    assert agent.tribe is None
     persisted = json.loads(tag_file.read_text())
     assert persisted == []
 
 
 def test_apply_unset_strips_meta_only_tag(tmp_path: Path) -> None:
-    tag_file = tmp_path / "agent_tags.json"
+    tag_file = tmp_path / "agent_tribes.json"
     artifacts_dir = tmp_path / "artifacts" / "ace-run" / "20240101120000"
     artifacts_dir.mkdir(parents=True)
     meta_path = artifacts_dir / "agent_meta.json"
@@ -251,11 +259,11 @@ def test_apply_unset_strips_meta_only_tag(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     agent = _make_agent(artifacts_dir=str(artifacts_dir), agent_name="foo.bar")
-    agent.tag = "foo"
+    agent.tribe = "foo"
     app = _FakeApp([agent])
 
     with (
-        patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file),
+        patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tag_file),
         patch(
             "sase.core.agent_artifact_index_lifecycle."
             "update_agent_artifact_index_for_marker_mutation"
@@ -266,7 +274,7 @@ def test_apply_unset_strips_meta_only_tag(tmp_path: Path) -> None:
             [agent],
         )
 
-    assert agent.tag is None
+    assert agent.tribe is None
     assert not tag_file.exists()
     assert json.loads(meta_path.read_text(encoding="utf-8")) == {
         "name": "foo.bar",
@@ -352,13 +360,13 @@ def test_clan_retag_rewrites_only_declaring_prompt(tmp_path: Path) -> None:
 
 
 def test_marked_bulk_path_targets_marked_agents(tmp_path: Path) -> None:
-    tag_file = tmp_path / "agent_tags.json"
+    tag_file = tmp_path / "agent_tribes.json"
     a1 = _make_agent(suffix="t1")
     a2 = _make_agent(suffix="t2")
     a3 = _make_agent(suffix="t3")
     app = _FakeApp([a1, a2, a3])
     app._marked_agents = {a1.identity, a3.identity}
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tag_file):
         app.action_add_agent_tag()
         modal = app.pushed_modals[0]
         assert isinstance(modal, AgentTagModal)
@@ -366,9 +374,9 @@ def test_marked_bulk_path_targets_marked_agents(tmp_path: Path) -> None:
         assert modal._current_tag is None  # bulk doesn't show per-agent tag
         callback = app.pushed_callbacks[0]
         callback(AgentTagModalResult(action="set", tag="release-blockers"))
-    assert a1.tag == "release-blockers"
-    assert a2.tag is None  # not marked → not changed
-    assert a3.tag == "release-blockers"
+    assert a1.tribe == "release-blockers"
+    assert a2.tribe is None  # not marked → not changed
+    assert a3.tribe == "release-blockers"
     persisted = {
         tuple(row["id"]): row["tribe"] for row in json.loads(tag_file.read_text())
     }
@@ -379,7 +387,7 @@ def test_marked_bulk_path_targets_marked_agents(tmp_path: Path) -> None:
 
 
 def test_marked_bulk_success_clears_affected_marks(tmp_path: Path) -> None:
-    tag_file = tmp_path / "agent_tags.json"
+    tag_file = tmp_path / "agent_tribes.json"
     a1 = _make_agent(suffix="t1")
     a2 = _make_agent(suffix="t2")
     a3 = _make_agent(suffix="t3")
@@ -387,7 +395,7 @@ def test_marked_bulk_success_clears_affected_marks(tmp_path: Path) -> None:
     app = _FakeApp([a1, a2, a3])
     app._marked_agents = {a1.identity, a3.identity, unrelated_identity}
 
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tag_file):
         app._apply_agent_tag_change(
             AgentTagModalResult(action="set", tag="release-blockers"),
             [a1, a3],
@@ -399,11 +407,11 @@ def test_marked_bulk_success_clears_affected_marks(tmp_path: Path) -> None:
 def test_successful_tag_change_invalidates_panel_cache_before_refresh(
     tmp_path: Path,
 ) -> None:
-    tag_file = tmp_path / "agent_tags.json"
+    tag_file = tmp_path / "agent_tribes.json"
     agent = _make_agent()
     app = _FakeApp([agent])
 
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tag_file):
         app._apply_agent_tag_change(
             AgentTagModalResult(action="set", tag="release-blockers"),
             [agent],
@@ -416,28 +424,28 @@ def test_successful_tag_change_invalidates_panel_cache_before_refresh(
 
 
 def test_modal_dismiss_with_none_is_noop(tmp_path: Path) -> None:
-    tag_file = tmp_path / "agent_tags.json"
+    tag_file = tmp_path / "agent_tribes.json"
     agent = _make_agent()
     app = _FakeApp([agent])
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tag_file):
         app.action_add_agent_tag()
         callback = app.pushed_callbacks[0]
         callback(None)
-    assert agent.tag is None
+    assert agent.tribe is None
     assert not tag_file.exists()
     assert app.refresh_calls == 0
 
 
 def test_apply_set_no_change_does_not_rewrite_file(tmp_path: Path) -> None:
-    tag_file = tmp_path / "agent_tags.json"
+    tag_file = tmp_path / "agent_tribes.json"
     tag_file.write_text(
-        json.dumps([{"id": ["run", "fix-bug", "20240101120000"], "tag": "already"}])
+        json.dumps([{"id": ["run", "fix-bug", "20240101120000"], "tribe": "already"}])
     )
     mtime_before = tag_file.stat().st_mtime_ns
     agent = _make_agent()
-    agent.tag = "already"
+    agent.tribe = "already"
     app = _FakeApp([agent])
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tag_file):
         app.action_add_agent_tag()
         callback = app.pushed_callbacks[0]
         callback(AgentTagModalResult(action="set", tag="already"))
@@ -447,11 +455,11 @@ def test_apply_set_no_change_does_not_rewrite_file(tmp_path: Path) -> None:
 
 def test_modal_returns_normalized_result_via_validation() -> None:
     """Validation rejects '@'-prefixed input from the modal layer."""
-    from sase.ace.agent_tags import InvalidTagError, validate_tag_name
+    from sase.ace.agent_tribes import InvalidTribeError, validate_tribe_name
 
     try:
-        validate_tag_name("@bad")
-    except InvalidTagError as exc:
+        validate_tribe_name("@bad")
+    except InvalidTribeError as exc:
         assert "must not start with '@'" in str(exc)
     else:  # pragma: no cover - defensive
-        raise AssertionError("expected InvalidTagError")
+        raise AssertionError("expected InvalidTribeError")

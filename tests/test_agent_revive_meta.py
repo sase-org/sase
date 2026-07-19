@@ -62,7 +62,8 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
     assert data["llm_provider"] == "claude"
     assert data["vcs_provider"] == "GitHub"
     assert data["name"] == "@d.1"
-    assert data["tag"] == "backend"
+    assert data["tribe"] == "backend"
+    assert "tag" not in data
     assert data["wait_for"] == ["@f"]
     assert data["approve"] is True
     assert data["hidden"] is True

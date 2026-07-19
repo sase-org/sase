@@ -11,6 +11,7 @@ from sase.artifacts import create_artifacts_directory
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
     AGENT_FAMILY_ROLE_FIELD,
@@ -33,6 +34,7 @@ def append_meta_list_field(artifacts_dir: str, key: str, value: Any) -> None:
             existing.append(value)
         else:
             meta[key] = [value]
+        canonicalize_agent_tribe_metadata(meta)
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
         update_agent_artifact_index_for_marker_mutation(artifacts_dir)
@@ -47,6 +49,7 @@ def update_meta_field(artifacts_dir: str, key: str, value: Any) -> None:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
         meta[key] = value
+        canonicalize_agent_tribe_metadata(meta)
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
         update_agent_artifact_index_for_marker_mutation(artifacts_dir)
@@ -62,6 +65,7 @@ def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
         meta["role_suffix"] = canonical_suffix
+        canonicalize_agent_tribe_metadata(meta)
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
         update_agent_artifact_index_for_marker_mutation(artifacts_dir)
@@ -127,6 +131,7 @@ def create_followup_artifacts(
         "plan_committed",
         "epic_bead_id",
         "phase_bead_id",
+        "tribe",
     ):
         if base_meta.get(key):
             followup_meta[key] = base_meta[key]

@@ -17,7 +17,7 @@ from sase.plan_chain import (
     canonical_plan_chain_suffix,
 )
 
-from ....agent_tags import InvalidTagError, validate_tag_name
+from ....agent_tribes import InvalidTribeError, validate_tribe_name
 from ._json_cache import load_json_cached
 from ..agent import Agent, LinkedRepoMetadata
 
@@ -146,12 +146,12 @@ def pending_question_status_from_marker(marker_path: Path) -> str:
     return pending_question_status_for_request_path(request_path)
 
 
-def valid_meta_tag(raw_value: object) -> str | None:
+def valid_meta_tribe(raw_value: object) -> str | None:
     if not isinstance(raw_value, str):
         return None
     try:
-        return validate_tag_name(raw_value)
-    except InvalidTagError:
+        return validate_tribe_name(raw_value)
+    except InvalidTribeError:
         return None
 
 

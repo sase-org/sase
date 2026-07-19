@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from sase.ace.agent_tags import REVIEW_AGENT_TAG
+from sase.ace.agent_tribes import REVIEW_AGENT_TRIBE
 from sase.ace.tui.models._loaders._running_loaders import (
     load_agents_from_running_field,
     load_running_home_agents,
@@ -400,7 +400,7 @@ def test_load_all_agents_includes_axe_fix_hook() -> None:
         assert agents[0].agent_type == AgentType.RUNNING
         assert agents[0].workflow == "axe(fix-hook)-251230_151429"
         assert agents[0].hidden is False
-        assert agents[0].tag == REVIEW_AGENT_TAG
+        assert agents[0].tribe == REVIEW_AGENT_TRIBE
 
 
 def test_load_all_agents_tags_axe_summarize_hook_as_review() -> None:
@@ -453,4 +453,4 @@ def test_load_all_agents_tags_axe_summarize_hook_as_review() -> None:
         assert agents[0].agent_type == AgentType.RUNNING
         assert agents[0].workflow == "axe(summarize-hook)-251230_151429"
         assert agents[0].hidden is False
-        assert agents[0].tag == REVIEW_AGENT_TAG
+        assert agents[0].tribe == REVIEW_AGENT_TRIBE

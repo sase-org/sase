@@ -45,7 +45,7 @@ def _panel_key_for_agent(
     anchors: dict[int, Agent],
 ) -> PanelKey:
     target = presentation_anchor(agent, parent_lookup, anchors)
-    return target.tag if target.tag else None
+    return target.tribe if target.tribe else None
 
 
 def _agent_is_starting(agent: Agent) -> bool:

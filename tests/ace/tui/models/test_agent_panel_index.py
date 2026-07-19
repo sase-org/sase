@@ -38,7 +38,7 @@ def _agent(
         status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=agent_name,
-        tag=tag,
+        tribe=tag,
         raw_suffix=raw_suffix,
         parent_timestamp=parent_timestamp,
     )

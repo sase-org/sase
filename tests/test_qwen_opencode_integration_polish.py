@@ -115,7 +115,7 @@ def test_agent_metadata_records_qwen_model_directive(
     with (
         patch.object(Path, "home", return_value=tmp_path),
         patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
-        patch("sase.ace.agent_tags.update_agent_tag"),
+        patch("sase.ace.agent_tribes.update_agent_tribe"),
     ):
         info = extract_directives_and_write_meta(
             "%model:qwen/qwen3-coder-plus\nDo work",
@@ -143,7 +143,7 @@ def test_agent_metadata_records_nested_opencode_model_directive(
     with (
         patch.object(Path, "home", return_value=tmp_path),
         patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
-        patch("sase.ace.agent_tags.update_agent_tag"),
+        patch("sase.ace.agent_tribes.update_agent_tribe"),
     ):
         info = extract_directives_and_write_meta(
             "%model:opencode/anthropic/claude-sonnet-4-5\nDo work",

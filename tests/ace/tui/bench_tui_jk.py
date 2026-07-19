@@ -84,7 +84,7 @@ def _make_agent(i: int) -> Agent:
         start_time=None,
         agent_name=f"agent_{i:04d}",
         raw_suffix=f"20260513{i:06d}",
-        tag=tag,
+        tribe=tag,
     )
 
 

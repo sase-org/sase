@@ -1,4 +1,4 @@
-"""Tests for plan, tag, and epic metadata enrichment."""
+"""Tests for plan, tribe, and epic metadata enrichment."""
 
 import json
 from pathlib import Path
@@ -39,16 +39,38 @@ def test_auto_approve_plan_action_from_agent_meta_wire() -> None:
     assert agent.approve is True
 
 
-def test_tag_from_agent_meta(tmp_path: Path) -> None:
-    """A valid tag in agent_meta.json seeds the agent tag."""
+def test_tribe_from_agent_meta(tmp_path: Path) -> None:
+    """A valid tribe in agent_meta.json seeds the agent tribe."""
     (tmp_path / "agent_meta.json").write_text(
-        json.dumps({"pid": 1234, "tag": "sase-26"})
+        json.dumps({"pid": 1234, "tribe": "sase-26"})
     )
 
     agent = make_agent()
     enrich_agent_from_meta(agent, str(tmp_path))
 
-    assert agent.tag == "sase-26"
+    assert agent.tribe == "sase-26"
+
+
+def test_legacy_tag_from_agent_meta_falls_back_to_tribe(tmp_path: Path) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "tag": "legacy"})
+    )
+
+    agent = make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.tribe == "legacy"
+
+
+def test_agent_meta_tribe_takes_precedence_over_legacy_tag(tmp_path: Path) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "tribe": "canonical", "tag": "legacy"})
+    )
+
+    agent = make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.tribe == "canonical"
 
 
 def test_parallel_family_marker_from_filesystem_and_wire(tmp_path: Path) -> None:
@@ -96,25 +118,25 @@ def test_clan_membership_from_filesystem_and_wire(tmp_path: Path) -> None:
     assert wire_agent.agent_clan == "research"
 
 
-def test_invalid_tag_from_agent_meta_is_ignored(tmp_path: Path) -> None:
-    """Malformed stored directive metadata is not surfaced as a UI tag."""
+def test_invalid_tribe_from_agent_meta_is_ignored(tmp_path: Path) -> None:
+    """Malformed stored directive metadata is not surfaced as a UI tribe."""
     (tmp_path / "agent_meta.json").write_text(
-        json.dumps({"pid": 1234, "tag": "has space"})
+        json.dumps({"pid": 1234, "tribe": "has space"})
     )
 
     agent = make_agent()
     enrich_agent_from_meta(agent, str(tmp_path))
 
-    assert agent.tag is None
+    assert agent.tribe is None
 
 
-def test_tag_from_agent_meta_wire() -> None:
-    """Snapshot metadata mirrors filesystem tag enrichment."""
+def test_tribe_from_agent_meta_wire() -> None:
+    """Snapshot metadata mirrors filesystem tribe enrichment."""
     agent = make_agent()
 
     enrich_agent_from_meta_wire(agent, AgentMetaWire(tribe="sase-26"), None)
 
-    assert agent.tag == "sase-26"
+    assert agent.tribe == "sase-26"
 
 
 def test_parallel_family_marker_from_agent_meta(tmp_path: Path) -> None:

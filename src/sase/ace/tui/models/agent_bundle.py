@@ -29,7 +29,7 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
             "is_clan_container",
             "tree_parent_key",
             "tree_depth",
-            "clan_tags",
+            "clan_tribes",
             "project_display_name",
             "_loaded_from_dismissed_bundle",
             "_dismissed_bundle_path",
@@ -64,6 +64,11 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
 
     Uses .get() with defaults for forward-compatibility with new fields.
     """
+    data = dict(data)
+    if "tribe" not in data and "tag" in data:
+        data["tribe"] = data["tag"]
+    data.pop("tag", None)
+
     # Map removed AgentType values to RUNNING for backward compatibility
     _LEGACY_AGENT_TYPES = {"fix-hook", "summarize", "mentor", "crs"}
     raw_type = data["agent_type"]

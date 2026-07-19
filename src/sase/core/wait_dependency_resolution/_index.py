@@ -10,10 +10,10 @@ from typing import Any
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.agent_clan_tribe import ClanTribeMemberWire, resolve_clan_tribe
 from sase.core.agent_tribe import (
-    InvalidTagError,
-    RawAgentTagIdentity,
-    load_raw_agent_tags,
-    validate_tag_name,
+    InvalidTribeError,
+    RawAgentTribeIdentity,
+    load_raw_agent_tribes,
+    validate_tribe_name,
 )
 
 from ._artifact_state import (
@@ -41,7 +41,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
     clans: dict[str, dict[str, list[ArtifactCandidate]]]
     tribes: dict[str, list[ArtifactCandidate]]
     effective_clan_tribes: dict[tuple[str, str], str]
-    agent_tags: dict[RawAgentTagIdentity, str]
+    agent_tribes: dict[RawAgentTribeIdentity, str]
     artifacts: dict[tuple[str, str], ArtifactCandidate]
     artifacts_by_dir: dict[str, ArtifactCandidate]
 
@@ -49,7 +49,8 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
     def empty(
         cls,
         *,
-        agent_tags_path: Path | str | None = None,
+        agent_tribes_path: Path | str | None = None,
+        legacy_agent_tags_path: Path | str | None = None,
     ) -> WaitDependencyIndex:
         return cls(
             named={},
@@ -58,7 +59,10 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             clans={},
             tribes={},
             effective_clan_tribes={},
-            agent_tags=load_raw_agent_tags(agent_tags_path),
+            agent_tribes=load_raw_agent_tribes(
+                agent_tribes_path,
+                legacy_path=legacy_agent_tags_path,
+            ),
             artifacts={},
             artifacts_by_dir={},
         )
@@ -69,9 +73,13 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         project_name: str,
         *,
         projects_root: Path | str | None = None,
-        agent_tags_path: Path | str | None = None,
+        agent_tribes_path: Path | str | None = None,
+        legacy_agent_tags_path: Path | str | None = None,
     ) -> WaitDependencyIndex:
-        index = cls.empty(agent_tags_path=agent_tags_path)
+        index = cls.empty(
+            agent_tribes_path=agent_tribes_path,
+            legacy_agent_tags_path=legacy_agent_tags_path,
+        )
         for artifact_dir in iter_agent_artifact_dirs(
             project_name,
             "ace-run",
@@ -192,7 +200,9 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         direct_tribes = {
             tribe
             for tribe in (
-                self._valid_tribe(meta.get("tag")),
+                self._valid_tribe(
+                    meta.get("tribe") if "tribe" in meta else meta.get("tag")
+                ),
                 self._posthoc_tribe(meta, timestamp),
             )
             if tribe is not None
@@ -205,8 +215,8 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         if not isinstance(value, str):
             return None
         try:
-            return validate_tag_name(value)
-        except InvalidTagError:
+            return validate_tribe_name(value)
+        except InvalidTribeError:
             return None
 
     def _posthoc_tribe(self, meta: Mapping[str, Any], timestamp: str) -> str | None:
@@ -214,7 +224,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         if not isinstance(cl_name, str) or not cl_name:
             return None
         for agent_type in ("workflow", "run"):
-            tribe = self.agent_tags.get((agent_type, cl_name, timestamp))
+            tribe = self.agent_tribes.get((agent_type, cl_name, timestamp))
             if tribe is not None:
                 return tribe
         return None
@@ -270,10 +280,12 @@ def build_wait_dependency_index(
     project_name: str,
     *,
     projects_root: Path | str | None = None,
-    agent_tags_path: Path | str | None = None,
+    agent_tribes_path: Path | str | None = None,
+    legacy_agent_tags_path: Path | str | None = None,
 ) -> WaitDependencyIndex:
     return WaitDependencyIndex.build(
         project_name,
         projects_root=projects_root,
-        agent_tags_path=agent_tags_path,
+        agent_tribes_path=agent_tribes_path,
+        legacy_agent_tags_path=legacy_agent_tags_path,
     )

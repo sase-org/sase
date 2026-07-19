@@ -23,6 +23,8 @@ def _make_agent(**overrides: object) -> Agent:
         "start_time": datetime(2026, 4, 22, 14, 0, 0),
     }
     defaults.update(overrides)
+    if "tag" in defaults:
+        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 

@@ -99,7 +99,7 @@ class AgentListEntry:
     reasoning_effort: str | None = None
     vcs_provider: str | None = None
     vcs_provider_display: str | None = None
-    tag: str | None = None
+    tribe: str | None = None
     bead_id: str | None = None
     changespec_name: str | None = None
     cl_name: str | None = None

@@ -63,7 +63,7 @@ def _make_agent(tag: str | None) -> Agent:
         project_file="/tmp/myproj/myproj.sase",
         status="RUNNING",
         start_time=datetime(2026, 5, 6, 12, 0, 0),
-        tag=tag,
+        tribe=tag,
     )
 
 
@@ -117,7 +117,7 @@ def test_load_agents_from_disk_passes_snapshot_through() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.agent_tags.load_agent_tags",
+            "sase.ace.agent_tribes.load_agent_tribes",
             return_value={},
         ),
         patch(
@@ -170,7 +170,7 @@ def test_load_agents_from_disk_falls_back_to_find_all() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.agent_tags.load_agent_tags",
+            "sase.ace.agent_tribes.load_agent_tribes",
             return_value={},
         ),
         patch(
@@ -192,13 +192,13 @@ def test_load_agents_from_disk_preserves_meta_tag_without_persisted_tag() -> Non
             "sase.ace.tui.models.agent_loader.load_tiered_agents",
             return_value=([agent], _make_load_state()),
         ),
-        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
     ):
         load_result = load_agents_from_disk_with_state(set())
 
     assert load_result.dismissed_from_loader == []
     assert load_result.all_agents == [agent]
-    assert load_result.all_agents[0].tag == "sase-26"
+    assert load_result.all_agents[0].tribe == "sase-26"
 
 
 def test_load_agents_from_disk_persisted_tag_overrides_meta_tag() -> None:
@@ -210,7 +210,7 @@ def test_load_agents_from_disk_persisted_tag_overrides_meta_tag() -> None:
             return_value=([agent], _make_load_state()),
         ),
         patch(
-            "sase.ace.agent_tags.load_agent_tags",
+            "sase.ace.agent_tribes.load_agent_tribes",
             return_value={agent.identity: "manual"},
         ),
     ):
@@ -218,7 +218,7 @@ def test_load_agents_from_disk_persisted_tag_overrides_meta_tag() -> None:
 
     assert load_result.dismissed_from_loader == []
     assert load_result.all_agents == [agent]
-    assert load_result.all_agents[0].tag == "manual"
+    assert load_result.all_agents[0].tribe == "manual"
 
 
 def test_load_agents_from_disk_uses_artifact_index_for_initial_tier(
@@ -271,7 +271,7 @@ def test_load_agents_from_disk_uses_artifact_index_for_initial_tier(
             "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
-        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
     ):
         result = load_agents_from_disk_with_state(set())
 
@@ -371,7 +371,7 @@ def test_load_agents_from_disk_full_history_reconciles_from_source() -> None:
             "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
-        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
     ):
         result = load_agents_from_disk_with_state(set(), full_history=True)
 
@@ -428,7 +428,7 @@ def test_load_agents_from_disk_missing_index_uses_bounded_tier1_source_scan(
             "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
-        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
     ):
         result = load_agents_from_disk_with_state(set())
 
@@ -493,7 +493,7 @@ def test_load_agents_from_disk_bad_index_uses_bounded_tier1_source_scan(
             "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
             return_value=[],
         ),
-        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
     ):
         result = load_agents_from_disk_with_state(set())
 
@@ -565,7 +565,7 @@ def test_load_from_disk_span_carries_load_state_fields(
             "sase.ace.tui.models.agent_loader.load_tiered_agents",
             return_value=([agent], load_state),
         ),
-        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
     ):
         load_agents_from_disk_with_state(set(), source="manual")
 

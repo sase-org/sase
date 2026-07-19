@@ -39,7 +39,7 @@ AGENT_INFO = AgentInfo(
     hidden=False,
     approve=False,
     plan=False,
-    tag=None,
+    tribe=None,
     meta={"pid": 1},
     local_xprompts={},
 )

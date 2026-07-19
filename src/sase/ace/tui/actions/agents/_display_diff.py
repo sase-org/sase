@@ -227,7 +227,7 @@ def changed_same_position_panel_membership_keys(
             continue
         if (
             merge_tag_panels
-            and previous.tag != next_agent.tag
+            and previous.tribe != next_agent.tribe
             and next_key is not missing
         ):
             keys.add(cast(PanelKey, next_key))

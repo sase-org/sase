@@ -108,7 +108,7 @@ def test_delta_loader_normalizes_exact_artifact_dirs_without_broad_load(
             "sase.ace.tui.models.agent_loader.load_agents_from_comments",
             side_effect=AssertionError("delta load must not read comments"),
         ),
-        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
         patch(
             "sase.ace.tui.models._loaders._running_loaders.is_process_running",
             return_value=True,
@@ -154,7 +154,7 @@ def test_delta_loader_marks_missing_exact_dir_for_broad_fallback(
     projects_root = build_fixture_tree(sase_home / "projects")
     missing_dir = _artifact_dir(projects_root, "home", "ace-run", "20990101000000")
 
-    with patch("sase.ace.agent_tags.load_agent_tags", return_value={}):
+    with patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}):
         result = load_agent_artifact_delta_from_disk_with_state(
             set(),
             [missing_dir],
@@ -176,7 +176,7 @@ def test_delta_loader_accepts_expected_deleted_exact_dir(
     projects_root = build_fixture_tree(sase_home / "projects")
     deleted_dir = _artifact_dir(projects_root, "home", "ace-run", "20990101000000")
 
-    with patch("sase.ace.agent_tags.load_agent_tags", return_value={}):
+    with patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}):
         result = load_agent_artifact_delta_from_disk_with_state(
             set(),
             [deleted_dir],

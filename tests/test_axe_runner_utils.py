@@ -8,10 +8,10 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
-from sase.ace.agent_tags import REVIEW_AGENT_TAG
+from sase.ace.agent_tribes import REVIEW_AGENT_TRIBE
 from sase.axe.runner_artifacts import (
     all_steps_hidden,
-    clear_agent_meta_tag,
+    clear_agent_meta_tribe,
     detect_write_and_persist_review_agent_meta,
     write_done_marker,
 )
@@ -141,17 +141,17 @@ def test_write_done_marker_can_write_visible_review_agent() -> None:
 
 
 def test_detect_write_and_persist_review_agent_meta(tmp_path: Path) -> None:
-    """Specialized review runners persist the same tag as %tribe:review."""
+    """Specialized review runners persist the same tribe as %tribe:review."""
     artifacts_dir = tmp_path / "crs" / "20260506120000"
     artifacts_dir.mkdir(parents=True)
-    tag_file = tmp_path / "agent_tags.json"
+    tribe_file = tmp_path / "agent_tribes.json"
 
     mock_provider = MagicMock()
     mock_provider.resolve_model_name.return_value = "test-model"
     calls: list[str] = []
 
     with (
-        patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file),
+        patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribe_file),
         patch(
             "sase.llm_provider.registry.get_default_provider_name",
             return_value="test-provider",
@@ -176,25 +176,34 @@ def test_detect_write_and_persist_review_agent_meta(tmp_path: Path) -> None:
 
     with open(artifacts_dir / "agent_meta.json", encoding="utf-8") as f:
         meta = json.load(f)
-    with open(tag_file, encoding="utf-8") as f:
-        tags = json.load(f)
+    with open(tribe_file, encoding="utf-8") as f:
+        tribes = json.load(f)
 
-    assert meta["tag"] == REVIEW_AGENT_TAG
-    assert tags == [
+    assert meta["tribe"] == REVIEW_AGENT_TRIBE
+    assert tribes == [
         {
             "id": ["run", "my_cl", "20260506120000"],
-            "tribe": REVIEW_AGENT_TAG,
+            "tribe": REVIEW_AGENT_TRIBE,
         }
     ]
     assert calls == [str(artifacts_dir)]
 
 
-def test_clear_agent_meta_tag_removes_only_tag(tmp_path: Path) -> None:
+def test_clear_agent_meta_tribe_removes_canonical_and_legacy_keys(
+    tmp_path: Path,
+) -> None:
     artifacts_dir = tmp_path / "agent" / "20260623120000"
     artifacts_dir.mkdir(parents=True)
     meta_path = artifacts_dir / "agent_meta.json"
     meta_path.write_text(
-        json.dumps({"name": "foo.bar", "tag": "foo", "model": "test-model"}),
+        json.dumps(
+            {
+                "name": "foo.bar",
+                "tribe": "current",
+                "tag": "legacy",
+                "model": "test-model",
+            }
+        ),
         encoding="utf-8",
     )
     calls: list[str] = []
@@ -204,7 +213,7 @@ def test_clear_agent_meta_tag_removes_only_tag(tmp_path: Path) -> None:
         "update_agent_artifact_index_for_marker_mutation",
         side_effect=lambda path: calls.append(path),
     ):
-        assert clear_agent_meta_tag(str(artifacts_dir)) is True
+        assert clear_agent_meta_tribe(str(artifacts_dir)) is True
 
     with open(meta_path, encoding="utf-8") as f:
         meta = json.load(f)
@@ -212,19 +221,19 @@ def test_clear_agent_meta_tag_removes_only_tag(tmp_path: Path) -> None:
     assert calls == [str(artifacts_dir)]
 
 
-def test_clear_agent_meta_tag_safe_noops(tmp_path: Path) -> None:
+def test_clear_agent_meta_tribe_safe_noops(tmp_path: Path) -> None:
     missing_dir = tmp_path / "missing"
-    assert clear_agent_meta_tag(str(missing_dir)) is False
+    assert clear_agent_meta_tribe(str(missing_dir)) is False
 
     artifacts_dir = tmp_path / "agent"
     artifacts_dir.mkdir()
     meta_path = artifacts_dir / "agent_meta.json"
     meta_path.write_text(json.dumps({"name": "foo.bar"}), encoding="utf-8")
-    assert clear_agent_meta_tag(str(artifacts_dir)) is False
+    assert clear_agent_meta_tribe(str(artifacts_dir)) is False
     assert json.loads(meta_path.read_text(encoding="utf-8")) == {"name": "foo.bar"}
 
     meta_path.write_text("{not-json", encoding="utf-8")
-    assert clear_agent_meta_tag(str(artifacts_dir)) is False
+    assert clear_agent_meta_tribe(str(artifacts_dir)) is False
 
 
 # Tests for finalize_axe_runner

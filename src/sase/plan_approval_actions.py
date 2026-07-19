@@ -26,6 +26,7 @@ from sase._plan_approval_epic import prepare_epic_launch as prepare_epic_launch
 from sase._plan_approval_protocol import (
     PLAN_APPROVAL_ACTIONS as PLAN_APPROVAL_ACTIONS,
 )
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase._plan_approval_protocol import PLAN_APPROVAL_KINDS as PLAN_APPROVAL_KINDS
 from sase._plan_approval_protocol import EpicLaunchMode as EpicLaunchMode
 from sase._plan_approval_protocol import (
@@ -409,6 +410,7 @@ def _persist_plan_approved_metadata(
 
     meta["plan_approved"] = True
     meta["plan_action"] = action
+    canonicalize_agent_tribe_metadata(meta)
     try:
         meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
         update_agent_artifact_index_for_marker_mutation(meta_path.parent)

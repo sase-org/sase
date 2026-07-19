@@ -45,7 +45,7 @@ def _agent(
         status=status,
         start_time=datetime(2026, 7, 18, 9, 0, 0),
         raw_suffix=suffix,
-        tag=tag,
+        tribe=tag,
         pid=pid,
         workflow=workflow,
         parent_timestamp=parent_timestamp,

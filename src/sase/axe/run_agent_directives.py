@@ -94,7 +94,7 @@ class AgentInfo(NamedTuple):
     hidden: bool
     approve: bool
     plan: bool
-    tag: str | None
+    tribe: str | None
     meta: dict[str, Any]
     local_xprompts: dict[str, Any]
 
@@ -179,7 +179,7 @@ def extract_directives_and_write_meta(
             "%id(..., clan=...) keyword"
         )
     if (
-        directives.tag is not None
+        directives.tribe is not None
         and directives.clan is not None
         and not directives.clan_declared
     ):
@@ -189,7 +189,7 @@ def extract_directives_and_write_meta(
             "declaration instead."
         )
     if (
-        directives.tag is not None
+        directives.tribe is not None
         and family_attach_plan is not None
         and family_attach_plan.parent_agent_clan
     ):
@@ -309,7 +309,7 @@ def extract_directives_and_write_meta(
     else:
         agent_vcs_provider = None
 
-    agent_tag: str | None = None
+    agent_tribe: str | None = None
     with name_lock_context:
         if planned_name and not _planned_name_is_reserved_for_artifacts(
             planned_name, artifacts_dir
@@ -385,7 +385,7 @@ def extract_directives_and_write_meta(
                 member_name_template=directives.name,
             )
 
-        agent_tag = directives.tag
+        agent_tribe = directives.tribe
 
         # Build agent_meta dict.
         agent_meta: dict[str, Any] = {
@@ -429,8 +429,8 @@ def extract_directives_and_write_meta(
             agent_meta["hidden"] = True
         if auto_mode in {"epic", "tale"}:
             agent_meta["plan"] = True
-        if agent_tag:
-            agent_meta["tag"] = agent_tag
+        if agent_tribe:
+            agent_meta["tribe"] = agent_tribe
         if directives.name_template and directives.name:
             agent_meta["agent_name_template"] = directives.name
         linked_repos = _linked_repos_from_env()
@@ -535,17 +535,17 @@ def extract_directives_and_write_meta(
         if agent_meta:
             write_agent_meta(artifacts_dir, agent_meta)
 
-    # Persist the %tribe directive into ~/.sase/agent_tags.json so the Agents
+    # Persist the %tribe directive into ~/.sase/agent_tribes.json so the Agents
     # tab picks it up at load time.  The agent's identity is
     # (agent_type=WORKFLOW, cl_name, raw_suffix) — matching how run-agents
     # are loaded via the workflow loader.
-    if directives.tag and cl_name:
+    if directives.tribe and cl_name:
         from sase.ace.tui.models.agent import AgentType
-        from sase.ace.agent_tags import update_agent_tag
+        from sase.ace.agent_tribes import update_agent_tribe
 
         raw_suffix = os.path.basename(artifacts_dir.rstrip(os.sep)) or None
         identity = (AgentType.WORKFLOW, cl_name, raw_suffix)
-        update_agent_tag(identity, directives.tag)
+        update_agent_tribe(identity, directives.tribe)
 
     return AgentInfo(
         name=agent_name,
@@ -560,7 +560,7 @@ def extract_directives_and_write_meta(
         hidden=bool(directives.hide or auto_dismiss),
         approve=auto_mode == "plan",
         plan=auto_mode in {"epic", "tale"},
-        tag=agent_tag,
+        tribe=agent_tribe,
         meta=agent_meta,
         local_xprompts=multi.local_xprompts,
     )

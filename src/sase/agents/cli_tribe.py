@@ -1,4 +1,4 @@
-"""``sase agent tribe`` — manage user-facing tribes backed by agent tags."""
+"""``sase agent tribe`` — manage user-facing agent tribes."""
 
 from __future__ import annotations
 
@@ -8,13 +8,13 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sase.ace.agent_tags import (
-    InvalidTagError,
-    load_agent_tags,
-    save_agent_tags,
-    set_tag,
-    unset_tag,
-    validate_tag_name,
+from sase.ace.agent_tribes import (
+    InvalidTribeError,
+    load_agent_tribes,
+    save_agent_tribes,
+    set_tribe,
+    unset_tribe,
+    validate_tribe_name,
 )
 from sase.agent.names import find_named_agent
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
@@ -94,10 +94,10 @@ def handle_agents_tribe(args: argparse.Namespace) -> None:
     sys.exit(1)
 
 
-def _validate_or_exit(raw_tag: str) -> str:
+def _validate_or_exit(raw_tribe: str) -> str:
     try:
-        return validate_tag_name(raw_tag)
-    except InvalidTagError as exc:
+        return validate_tribe_name(raw_tribe)
+    except InvalidTribeError as exc:
         print(f"Invalid tribe: {exc}", file=sys.stderr)
         sys.exit(2)
 
@@ -119,10 +119,10 @@ def _handle_tribe_set(args: argparse.Namespace) -> None:
     cleaned = _validate_or_exit(raw_tribe)
     identity = _resolve_or_exit(name)
 
-    store = load_agent_tags()
-    set_tag(store, identity, cleaned)
-    if not save_agent_tags(store):
-        print("Failed to write agent_tags.json", file=sys.stderr)
+    store = load_agent_tribes()
+    set_tribe(store, identity, cleaned)
+    if not save_agent_tribes(store):
+        print("Failed to write agent_tribes.json", file=sys.stderr)
         sys.exit(1)
     print(f"Tribe for {name}: @{cleaned}")
 
@@ -131,21 +131,21 @@ def _handle_tribe_unset(args: argparse.Namespace) -> None:
     name: str = args.name
     identity = _resolve_or_exit(name)
 
-    store = load_agent_tags()
-    unset_tag(store, identity)
-    if not save_agent_tags(store):
-        print("Failed to write agent_tags.json", file=sys.stderr)
+    store = load_agent_tribes()
+    unset_tribe(store, identity)
+    if not save_agent_tribes(store):
+        print("Failed to write agent_tribes.json", file=sys.stderr)
         sys.exit(1)
     print(f"Tribe for {name}: (none)")
 
 
 def _handle_tribe_list(args: argparse.Namespace) -> None:
     name: str | None = getattr(args, "name", None)
-    store = load_agent_tags()
+    store = load_agent_tribes()
 
     if name is not None:
         identity = _resolve_or_exit(name)
-        tag = store.get(identity)
+        tribe = store.get(identity)
         agent_type, cl_name, raw_suffix = identity
         json.dump(
             {
@@ -153,7 +153,7 @@ def _handle_tribe_list(args: argparse.Namespace) -> None:
                 "agent_type": agent_type.value,
                 "cl_name": cl_name,
                 "raw_suffix": raw_suffix,
-                "tag": tag,
+                "tribe": tribe,
             },
             sys.stdout,
         )
@@ -161,13 +161,13 @@ def _handle_tribe_list(args: argparse.Namespace) -> None:
         return
 
     out: list[dict[str, object]] = []
-    for (atype, cl, suffix), tag in store.items():
+    for (atype, cl, suffix), tribe in store.items():
         out.append(
             {
                 "agent_type": atype.value,
                 "cl_name": cl,
                 "raw_suffix": suffix,
-                "tag": tag,
+                "tribe": tribe,
             }
         )
     json.dump(out, sys.stdout)

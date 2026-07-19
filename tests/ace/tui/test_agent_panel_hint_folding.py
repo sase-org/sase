@@ -34,7 +34,7 @@ def _agent(name: str, tag: str | None, **overrides: Any) -> Agent:
         "start_time": datetime(2026, 7, 16, 12, 0, 0),
         "raw_suffix": name,
         "agent_name": name,
-        "tag": tag,
+        "tribe": tag,
     }
     fields.update(overrides)
     return Agent(**fields)
@@ -290,7 +290,7 @@ def test_stale_visible_target_snapshot_aborts_whole_submission() -> None:
     app.arm_hints()
     before = set(app._collapsed_panel_keys)
     first_hint = min(app._panel_fold_hint_to_target)
-    app._agents = [agent for agent in app._agents if agent.tag != "beta"]
+    app._agents = [agent for agent in app._agents if agent.tribe != "beta"]
     app._invalidate_agent_panel_cache()
 
     app._process_panel_fold_hint_input(str(first_hint))

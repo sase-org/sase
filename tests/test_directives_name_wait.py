@@ -308,7 +308,7 @@ def test_wait_tribe_reference_does_not_collide_with_tribe_directive() -> None:
     cleaned, directives = extract_prompt_directives("%t:epic\n%w:@epic\nDo work")
 
     assert cleaned == "Do work"
-    assert directives.tag == "epic"
+    assert directives.tribe == "epic"
     assert directives.wait == ["@epic"]
 
 

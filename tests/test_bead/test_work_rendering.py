@@ -116,8 +116,8 @@ class TestRenderEdgeCases:
         _, land_directives = extract_prompt_directives(land_segment)
         assert phase_directives.clan == "sase-42.3"
         assert land_directives.clan == "sase-42.3"
-        assert phase_directives.tag is None
-        assert land_directives.tag is None
+        assert phase_directives.tribe is None
+        assert land_directives.tribe is None
         assert phase_directives.clan_tribe == "epic"
         assert land_directives.clan_tribe is None
 

@@ -491,18 +491,18 @@ def test_disabled_region_markers_preserved_when_flag_false() -> None:
 
 
 def test_tribe_directive_colon_arg() -> None:
-    """``%tribe:<name>`` sets directives.tag and is stripped from the prompt."""
+    """``%tribe:<name>`` sets directives.tribe and is stripped from the prompt."""
     prompt = "%tribe:review\nFix the bug"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Fix the bug"
-    assert directives.tag == "review"
+    assert directives.tribe == "review"
 
 
 def test_tribe_directive_accepts_dotted_bead_id() -> None:
     prompt = "%tribe:sase-42.3\nFix the bug"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Fix the bug"
-    assert directives.tag == "sase-42.3"
+    assert directives.tribe == "sase-42.3"
 
 
 def test_tribe_short_alias_t() -> None:
@@ -510,7 +510,7 @@ def test_tribe_short_alias_t() -> None:
     prompt = "%t:exp\nFix the bug"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Fix the bug"
-    assert directives.tag == "exp"
+    assert directives.tribe == "exp"
 
 
 def test_tribe_directive_paren_arg() -> None:
@@ -518,7 +518,7 @@ def test_tribe_directive_paren_arg() -> None:
     prompt = "%tribe(release)\nFix"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Fix"
-    assert directives.tag == "release"
+    assert directives.tribe == "release"
 
 
 def test_tribe_directive_rejects_at_prefix() -> None:
@@ -538,9 +538,9 @@ def test_tribe_directive_bare_is_error() -> None:
 
 
 def test_tribe_directive_default_none() -> None:
-    """When ``%tribe`` is not present, directives.tag is None."""
+    """When ``%tribe`` is not present, directives.tribe is None."""
     _, directives = extract_prompt_directives("Just a prompt")
-    assert directives.tag is None
+    assert directives.tribe is None
 
 
 def test_legacy_tag_directive_left_in_prompt() -> None:
@@ -548,7 +548,7 @@ def test_legacy_tag_directive_left_in_prompt() -> None:
     prompt = "%tag:foo\nRest of prompt"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "%tag:foo\nRest of prompt"
-    assert directives.tag is None
+    assert directives.tribe is None
 
 
 def test_group_directive_and_g_alias_are_removed() -> None:
@@ -556,4 +556,4 @@ def test_group_directive_and_g_alias_are_removed() -> None:
     prompt = "%group:review\n%g:exp\nRest of prompt"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == prompt
-    assert directives.tag is None
+    assert directives.tribe is None

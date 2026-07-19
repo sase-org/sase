@@ -147,10 +147,10 @@ def test_cached_clan_row_invalidates_on_projection_and_tag_changes() -> None:
     clan.is_clan_container = True
     clan.agent_clan = "research"
     clan.agent_clan_generation = "generation"
-    clan.clan_tags = ("epic",)
+    clan.clan_tribes = ("epic",)
 
     before = cached_format_agent_option(cache, clan, 0, is_selected=False, now=None)
-    clan.clan_tags = ("epic", "review")
+    clan.clan_tribes = ("epic", "review")
     after_tag = cached_format_agent_option(cache, clan, 0, is_selected=False, now=None)
     clan.tree_depth = 1
     after_depth = cached_format_agent_option(
@@ -205,7 +205,7 @@ def test_clan_row_omits_only_the_matching_split_panel_tag() -> None:
     clan = _agent(cl_name="research", status="RUNNING")
     clan.is_clan_container = True
     clan.agent_clan = "research"
-    clan.clan_tags = ("epic",)
+    clan.clan_tribes = ("epic",)
 
     split, _, _ = format_agent_option(
         clan,
@@ -228,7 +228,7 @@ def test_multitribe_clan_in_untagged_panel_keeps_distinct_ordered_tags() -> None
     clan = _agent(cl_name="research", status="RUNNING")
     clan.is_clan_container = True
     clan.agent_clan = "research"
-    clan.clan_tags = ("epic", "review", "epic")
+    clan.clan_tribes = ("epic", "review", "epic")
 
     rendered, _, _ = format_agent_option(
         clan,
@@ -246,7 +246,7 @@ def test_cached_clan_row_distinguishes_split_and_unsuppressed_contexts() -> None
     clan = _agent(status="RUNNING")
     clan.is_clan_container = True
     clan.agent_clan = "research"
-    clan.clan_tags = ("epic",)
+    clan.clan_tribes = ("epic",)
 
     split = cached_format_agent_option(
         cache,

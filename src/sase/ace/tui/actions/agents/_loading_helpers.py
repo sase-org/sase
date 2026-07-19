@@ -303,16 +303,16 @@ def _apply_loaded_agent_disk_projections(
     # aggregation mirrors a failed child onto their display status. Prior
     # attempt history is hydrated lazily by selected detail/search paths; doing
     # it here would list/stat artifacts/attempts/<N>/ for every row.
-    from sase.ace.agent_tags import load_agent_tags
+    from sase.ace.agent_tribes import load_agent_tribes
 
     from ._snapshot_cache import get_global_snapshot_cache
 
     snapshot_cache = get_global_snapshot_cache()
-    tags_by_identity = load_agent_tags()
+    tribes_by_identity = load_agent_tribes()
 
     for agent in all_agents:
-        if agent.identity in tags_by_identity:
-            agent.tag = tags_by_identity[agent.identity]
+        if agent.identity in tribes_by_identity:
+            agent.tribe = tribes_by_identity[agent.identity]
         artifacts_dir = agent.get_artifacts_dir()
 
         if agent.status != "RUNNING" and not agent.runner_is_live:

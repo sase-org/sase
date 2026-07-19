@@ -64,7 +64,7 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
         self._targets = list(targets)
         self._focused_panel_label = focused_panel_label
         self._parent_tags = {
-            agent.raw_suffix: agent.tag
+            agent.raw_suffix: agent.tribe
             for agent in self._targets
             if agent.raw_suffix and not agent.is_workflow_child
         }
@@ -257,8 +257,8 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
 
     def _effective_tag(self, agent: Agent) -> str | None:
         if agent.is_workflow_child and agent.parent_timestamp:
-            return self._parent_tags.get(agent.parent_timestamp, agent.tag)
-        return agent.tag
+            return self._parent_tags.get(agent.parent_timestamp, agent.tribe)
+        return agent.tribe
 
     def _summary_text(self) -> Text:
         counts = self._plan.counts

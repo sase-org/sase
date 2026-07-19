@@ -26,7 +26,7 @@ class _ClanCompletionGroup:
     source_index: int
     container: Agent | None
     members: tuple[Agent, ...]
-    tags: tuple[str, ...]
+    tribes: tuple[str, ...]
 
 
 def agent_prompt_name(agent: Agent) -> str | None:
@@ -146,7 +146,7 @@ def visible_clan_completion_groups(
                 source_index=min(index for index, _row in indexed_rows),
                 container=container,
                 members=members,
-                tags=_clan_group_tags(container, rows),
+                tribes=_clan_group_tribes(container, rows),
             )
         )
 
@@ -183,20 +183,20 @@ def _clan_group_members(
     return _dedupe_real_member_rows(row for row in rows if not row.is_clan_container)
 
 
-def _clan_group_tags(
+def _clan_group_tribes(
     container: Agent | None,
     rows: Sequence[Agent],
 ) -> tuple[str, ...]:
-    tags: list[str] = []
+    tribes: list[str] = []
     if container is not None:
-        tags.extend(container.clan_tags)
+        tribes.extend(container.clan_tribes)
         if container.clan_tribe:
-            tags.append(container.clan_tribe)
-        if container.tag:
-            tags.append(container.tag)
-    if not tags:
-        tags.extend(row.clan_tribe or row.tag or "" for row in rows)
-    return tuple(dict.fromkeys(tag for tag in tags if tag))
+            tribes.append(container.clan_tribe)
+        if container.tribe:
+            tribes.append(container.tribe)
+    if not tribes:
+        tribes.extend(row.clan_tribe or row.tribe or "" for row in rows)
+    return tuple(dict.fromkeys(tribe for tribe in tribes if tribe))
 
 
 def _build_clan_completion_candidates(
@@ -277,25 +277,25 @@ def _build_tribe_completion_candidates(
     tribe_order: list[str] = []
 
     def add(
-        tag: str,
+        tribe: str,
         members: Iterable[Agent],
         *,
         agent_carrier: object | None = None,
         clan_carrier: tuple[str, str | None] | None = None,
     ) -> None:
-        bare_tag = tag.removeprefix("@")
-        if not bare_tag:
+        bare_tribe = tribe.removeprefix("@")
+        if not bare_tribe:
             return
-        if bare_tag not in members_by_tribe:
-            members_by_tribe[bare_tag] = []
-            agent_carriers_by_tribe[bare_tag] = set()
-            clan_carriers_by_tribe[bare_tag] = set()
-            tribe_order.append(bare_tag)
-        members_by_tribe[bare_tag].extend(members)
+        if bare_tribe not in members_by_tribe:
+            members_by_tribe[bare_tribe] = []
+            agent_carriers_by_tribe[bare_tribe] = set()
+            clan_carriers_by_tribe[bare_tribe] = set()
+            tribe_order.append(bare_tribe)
+        members_by_tribe[bare_tribe].extend(members)
         if agent_carrier is not None:
-            agent_carriers_by_tribe[bare_tag].add(agent_carrier)
+            agent_carriers_by_tribe[bare_tribe].add(agent_carrier)
         if clan_carrier is not None:
-            clan_carriers_by_tribe[bare_tag].add(clan_carrier)
+            clan_carriers_by_tribe[bare_tribe].add(clan_carrier)
 
     for agent in all_agents:
         if agent.agent_clan:
@@ -304,17 +304,17 @@ def _build_tribe_completion_candidates(
             if group is None or key in encountered_clans:
                 continue
             encountered_clans.add(key)
-            for tag in group.tags:
-                add(tag, group.members, clan_carrier=key)
+            for tribe in group.tribes:
+                add(tribe, group.members, clan_carrier=key)
             continue
-        if agent.is_clan_container or agent.is_synthetic_planner or not agent.tag:
+        if agent.is_clan_container or agent.is_synthetic_planner or not agent.tribe:
             continue
         members: Iterable[Agent]
         if agent.is_family_root_entry:
             members = concrete_family_member_rows(agent)
         else:
             members = (agent,)
-        add(agent.tag, members, agent_carrier=agent.identity)
+        add(agent.tribe, members, agent_carrier=agent.identity)
 
     candidates: list[AgentCompletionCandidate] = []
     for tag in tribe_order:
@@ -391,7 +391,7 @@ def _candidate_from_agent(
         start_time=agent.start_time_short,
         duration=agent.duration_display,
         role=role,
-        tag=f"@{agent.tag}" if agent.tag else None,
+        tag=f"@{agent.tribe}" if agent.tribe else None,
         vcs_workflow=vcs_workflow_from_prompt(raw_prompt),
         prompt_snippet=prompt_snippet(raw_prompt),
         search_aliases=tuple(

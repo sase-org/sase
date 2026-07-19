@@ -393,7 +393,7 @@ def format_agent_option(
 
     if agent.is_clan_container:
         rendered_tags = tuple(
-            dict.fromkeys(tag for tag in agent.clan_tags if tag != panel_tag)
+            dict.fromkeys(tribe for tribe in agent.clan_tribes if tribe != panel_tag)
         )
         for clan_tag in rendered_tags:
             text.append(f" @{clan_tag}", style="bold #FFD75F")

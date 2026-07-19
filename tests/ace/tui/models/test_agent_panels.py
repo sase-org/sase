@@ -30,7 +30,7 @@ def _agent(
         status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
-        tag=tag,
+        tribe=tag,
         raw_suffix=suffix,
         parent_timestamp=parent_timestamp,
         parent_workflow=parent_workflow,
@@ -251,7 +251,7 @@ def test_clan_subtree_uses_outer_root_panel_in_split_and_merged_modes() -> None:
     agents = [*clan, standalone, standalone_step, unrelated]
 
     expected_tags = [None] * len(clan) + ["fix", "fix", "review"]
-    assert clan[0].clan_tags == ("epic", "review")
+    assert clan[0].clan_tribes == ("epic", "review")
     assert effective_tag_per_agent(agents) == expected_tags
     assert panel_key_per_agent(agents) == expected_tags
     assert AgentPanelGroup.from_agents(agents).panel_keys == [None, "fix", "review"]
@@ -284,7 +284,7 @@ def test_new_clan_tribe_keeps_entire_subtree_in_one_panel() -> None:
 
     clan = project_clan_tree([phase, step, peer])
 
-    assert clan[0].tag == "quality"
+    assert clan[0].tribe == "quality"
     assert effective_tag_per_agent(clan) == ["quality"] * len(clan)
     assert AgentPanelGroup.from_agents(clan).panel_keys == ["quality"]
     assert agents_for_panel(clan, "quality") == clan

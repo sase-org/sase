@@ -8,6 +8,7 @@ from typing import Any
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 
 
 def record_run_started_at(artifacts_dir: str, agent_meta: dict[str, Any]) -> str:
@@ -161,6 +162,7 @@ def record_stop_time(
 
 
 def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
+    canonicalize_agent_tribe_metadata(agent_meta)
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(agent_meta, f, indent=2)

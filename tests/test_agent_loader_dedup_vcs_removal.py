@@ -343,7 +343,7 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_review_tagged() -> None:
     (with tag=review, _from_changespec=True). The embedded #spy workspace shares
     the same PID. The VCS workspace should be removed entirely.
     """
-    from sase.ace.agent_tags import REVIEW_AGENT_TAG
+    from sase.ace.agent_tribes import REVIEW_AGENT_TRIBE
     from sase.ace.changespec import ChangeSpec, HookEntry, HookStatusLine
 
     # ChangeSpec HOOKS entry for the fix-hook agent.
@@ -427,7 +427,7 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_review_tagged() -> None:
     assert len(result) == 1
     assert result[0].workflow == "fix-hook"
     assert result[0].hidden is False
-    assert result[0].tag == REVIEW_AGENT_TAG
+    assert result[0].tribe == REVIEW_AGENT_TRIBE
     # No agents with VCS workflow should remain
     spy_result = [a for a in result if a.workflow == "spy-yserve_15_yp_fields"]
     assert len(spy_result) == 0

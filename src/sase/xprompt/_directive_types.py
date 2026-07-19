@@ -104,6 +104,7 @@ class PromptDirectives:
         clan_declared: Whether clan membership came from an explicit
             ``%clan`` declaration rather than the ``clan=`` join form.
         clan_tribe: Tribe declared through ``%clan(..., tribe=...)``, or None.
+        tribe: Standalone tribe declared through ``%tribe``/``%t``, or None.
         wait: List of agent names to wait for via positional %wait arguments.
         wait_duration: Duration in seconds from the %wait(time=...) keyword.
         wait_until: Absolute target datetime from the %wait(time=...) keyword.
@@ -138,10 +139,7 @@ class PromptDirectives:
     name_indexed_template: bool = False
     name_indexed_base: str | None = None
     repeat_count: int | None = None
-    # Populated by the user-facing %tribe directive (alias %t). The internal
-    # field name remains `tag` because the persisted concept (agent_tags.json,
-    # agent metadata, and wire models) still uses "tag".
-    tag: str | None = None
+    tribe: str | None = None
     wait: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None

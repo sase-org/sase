@@ -32,6 +32,8 @@ def _make_agent(artifacts_dir: str, **overrides: object) -> Agent:
         "artifacts_dir": artifacts_dir,
     }
     defaults.update(overrides)
+    if "tag" in defaults:
+        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 

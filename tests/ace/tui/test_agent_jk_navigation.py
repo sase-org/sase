@@ -35,7 +35,7 @@ class _StubApp(BasicNavigationMixin):
         for key in collapsed or []:
             self._group_fold_registry.collapse(key)
         self._current_group_key: tuple[str, ...] | None = None
-        focused_key = agents[0].tag if agents else None
+        focused_key = agents[0].tribe if agents else None
         self._panel_group = AgentPanelGroup.from_agents(agents, focused_key)
         self.refresh_calls = 0
         self.artifact_file_viewer_guard_active = False
@@ -114,7 +114,7 @@ def _agent(
         status="RUNNING",
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
-        tag=tag or None,
+        tribe=tag or None,
     )
 
 

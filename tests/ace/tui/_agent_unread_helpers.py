@@ -25,5 +25,5 @@ def make_agent(
         start_time=start_time,
         stop_time=stop_time,
         raw_suffix=raw_suffix,
-        tag=tag,
+        tribe=tag,
     )

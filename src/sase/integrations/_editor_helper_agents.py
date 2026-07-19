@@ -17,7 +17,7 @@ class _CatalogMember:
     clan: str | None
     clan_generation: str | None
     clan_tribe: str | None
-    tag: str | None
+    tribe: str | None
     status: str
 
 
@@ -58,7 +58,7 @@ def agent_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
         try:
             entries.extend(_derive_group_entries(snapshot, agents))
         except Exception:
-            # Group metadata is additive. A malformed legacy record, tag file,
+            # Group metadata is additive. A malformed legacy record, tribe file,
             # or unavailable group resolver must never hide real agents.
             pass
 
@@ -79,7 +79,7 @@ def _derive_group_entries(snapshot: Any, agents: Iterable[Any]) -> list[dict[str
 
 
 def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMember]:
-    from sase.core.agent_tribe import load_raw_agent_tags
+    from sase.core.agent_tribe import load_raw_agent_tribes
     from sase.plan_chain import agent_family_base
 
     statuses = {
@@ -87,7 +87,7 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
         for agent in agents
         if getattr(agent, "artifacts_dir", None)
     }
-    persisted_tags = load_raw_agent_tags()
+    persisted_tribes = load_raw_agent_tribes()
     members: list[_CatalogMember] = []
     for record in snapshot.records:
         meta = record.agent_meta
@@ -114,8 +114,8 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
             or meta.changespec_name
             or (record.done.cl_name if record.done is not None else None)
         )
-        persisted_tag = _persisted_tag_for_record(
-            persisted_tags,
+        persisted_tribe = _persisted_tribe_for_record(
+            persisted_tribes,
             cl_name=cl_name,
             timestamp=record.timestamp,
         )
@@ -129,15 +129,15 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
                 clan=clan,
                 clan_generation=generation,
                 clan_tribe=(meta.clan_tribe or "").strip() or None,
-                tag=persisted_tag or ((meta.tribe or "").strip() or None),
+                tribe=persisted_tribe or ((meta.tribe or "").strip() or None),
                 status=statuses.get(record.artifact_dir) or _record_status(record),
             )
         )
     return members
 
 
-def _persisted_tag_for_record(
-    tags: dict[tuple[str, str, str | None], str],
+def _persisted_tribe_for_record(
+    tribes: dict[tuple[str, str, str | None], str],
     *,
     cl_name: str | None,
     timestamp: str,
@@ -146,8 +146,8 @@ def _persisted_tag_for_record(
         return None
     return next(
         (
-            tag
-            for (_agent_type, stored_cl, suffix), tag in tags.items()
+            tribe
+            for (_agent_type, stored_cl, suffix), tribe in tribes.items()
             if stored_cl == cl_name and suffix == timestamp
         ),
         None,
@@ -282,8 +282,8 @@ def _tribe_entries(
         if previous is None or member.timestamp > previous.timestamp:
             newest_by_name[member.name] = member
     for member in newest_by_name.values():
-        if member.tag:
-            tribe_agents.setdefault(member.tag, set()).add(member.name)
+        if member.tribe:
+            tribe_agents.setdefault(member.tribe, set()).add(member.name)
 
     tribe_clans: dict[str, set[str]] = {}
     for clan, clan_members in clans.items():
@@ -349,7 +349,7 @@ def _effective_clan_tribes(
         except Exception:
             newest = max(explicit, key=lambda member: member.timestamp)
             return (newest.clan_tribe,) if newest.clan_tribe else ()
-    return tuple(dict.fromkeys(member.tag for member in members if member.tag))
+    return tuple(dict.fromkeys(member.tribe for member in members if member.tribe))
 
 
 def _members_label(count: int) -> str:

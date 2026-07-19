@@ -18,7 +18,7 @@ def _agent(name: str, tag: str | None) -> Agent:
         status="RUNNING",
         start_time=datetime(2026, 7, 17, 12, 0, 0),
         raw_suffix=name,
-        tag=tag,
+        tribe=tag,
     )
 
 
@@ -42,7 +42,7 @@ class _SelectionApp(AgentSelectionMixin):
         )
         key = self._panel_group.focused_key
         self.current_idx = next(
-            index for index, agent in enumerate(agents) if agent.tag == key
+            index for index, agent in enumerate(agents) if agent.tribe == key
         )
         self._index = build_agent_panel_index(agents, dismissable_statuses={"DONE"})
 

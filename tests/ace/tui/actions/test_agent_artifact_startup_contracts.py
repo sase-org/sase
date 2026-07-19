@@ -109,7 +109,7 @@ def test_load_agents_from_disk_hides_dismissed_identity_without_hiding_running_a
             "sase.ace.tui.models.agent_loader.load_tiered_agents",
             return_value=([dismissed_done, running_alias, visible], _SOURCE_SCAN_STATE),
         ),
-        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
         patch(
             "sase.ace.tui.actions.agents._snapshot_cache.AgentSnapshotCache"
             ".dismissed_bundles",
@@ -131,7 +131,7 @@ def test_startup_loader_does_not_hydrate_dismissed_archive() -> None:
             "sase.ace.tui.models.agent_loader.load_tiered_agents",
             return_value=([], _SOURCE_SCAN_STATE),
         ),
-        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
         patch(
             "sase.ace.tui.actions.agents._snapshot_cache.AgentSnapshotCache"
             ".dismissed_bundles",

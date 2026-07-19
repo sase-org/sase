@@ -35,7 +35,7 @@ def serialize_agent_row(agent: Agent) -> ReproAgentRow:
         pid=agent.pid,
         workspace_num=agent.workspace_num,
         agent_name=agent.agent_name,
-        tag=agent.tag,
+        tribe=agent.tribe,
         metadata={key: value for key, value in metadata.items() if value is not None},
     )
 

@@ -122,7 +122,7 @@ def _agent(
         status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
-        tag=tag or None,
+        tribe=tag or None,
         pid=pid,
         raw_suffix=raw_suffix,
     )

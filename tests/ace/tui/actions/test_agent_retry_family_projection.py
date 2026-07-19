@@ -50,7 +50,7 @@ def _load_family(
             "sase.ace.tui.models.agent_loader.is_process_running",
             side_effect=is_live,
         ),
-        patch("sase.ace.agent_tags.load_agent_tags", return_value={}),
+        patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}),
     ):
         result = load_agents_from_disk_with_state(
             set(),

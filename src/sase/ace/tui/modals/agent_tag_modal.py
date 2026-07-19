@@ -12,7 +12,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label
 
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from sase.ace.agent_tags import InvalidTagError, validate_tag_name
+from sase.ace.agent_tribes import InvalidTribeError, validate_tribe_name
 
 
 @dataclass(frozen=True)
@@ -143,8 +143,8 @@ class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
             self.dismiss(AgentTagModalResult(action="unset", tag=None))
             return
         try:
-            tag = validate_tag_name(raw)
-        except InvalidTagError as exc:
+            tag = validate_tribe_name(raw)
+        except InvalidTribeError as exc:
             self.notify(str(exc), severity="error")
             return
         self.dismiss(AgentTagModalResult(action="set", tag=tag))

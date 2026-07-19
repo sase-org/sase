@@ -13,7 +13,7 @@ import pytest
 from sase.ace.tui.models.agent import AgentType
 from sase.agent.names import NamedAgent
 from sase.agents.cli_show import handle_agents_show
-from sase.agents.cli_tag import (
+from sase.agents.cli_tribe import (
     _resolve_identity_by_name,
     handle_agents_tribe,
 )
@@ -62,7 +62,7 @@ def test_resolve_identity_returns_running_for_tmp_workflow(tmp_path: Path) -> No
         raw_suffix="20260425120000",
     )
     with patch(
-        "sase.agents.cli_tag.find_named_agent",
+        "sase.agents.cli_tribe.find_named_agent",
         return_value=_named(art_dir),
     ):
         identity = _resolve_identity_by_name("brisk-otter")
@@ -77,7 +77,7 @@ def test_resolve_identity_returns_workflow_for_named_workflow(tmp_path: Path) ->
         raw_suffix="20260425130000",
     )
     with patch(
-        "sase.agents.cli_tag.find_named_agent",
+        "sase.agents.cli_tribe.find_named_agent",
         return_value=_named(art_dir),
     ):
         identity = _resolve_identity_by_name("brisk-otter")
@@ -92,7 +92,7 @@ def test_resolve_identity_falls_back_to_project_name(tmp_path: Path) -> None:
         raw_suffix="20260425140000",
     )
     with patch(
-        "sase.agents.cli_tag.find_named_agent",
+        "sase.agents.cli_tribe.find_named_agent",
         return_value=_named(art_dir),
     ):
         identity = _resolve_identity_by_name("brisk-otter")
@@ -112,7 +112,7 @@ def test_resolve_identity_falls_back_to_project_name_for_sharded_agent(
         sharded=True,
     )
     with patch(
-        "sase.agents.cli_tag.find_named_agent",
+        "sase.agents.cli_tribe.find_named_agent",
         return_value=_named(art_dir),
     ):
         identity = _resolve_identity_by_name("brisk-otter")
@@ -142,7 +142,7 @@ def test_agents_show_reports_project_for_sharded_agent(
 
 
 def test_resolve_identity_returns_none_when_agent_missing() -> None:
-    with patch("sase.agents.cli_tag.find_named_agent", return_value=None):
+    with patch("sase.agents.cli_tribe.find_named_agent", return_value=None):
         assert _resolve_identity_by_name("ghost") is None
 
 
@@ -157,22 +157,33 @@ def _tribe_args(**overrides: Any) -> argparse.Namespace:
     return argparse.Namespace(**defaults)
 
 
+def _store_paths(canonical: Path, legacy: Path):  # type: ignore[no-untyped-def]
+    return (
+        patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", canonical),
+        patch("sase.ace.agent_tribes._LEGACY_AGENT_TAGS_FILE", legacy),
+    )
+
+
 def test_tribe_set_persists_canonical_tribe(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    test_file = tmp_path / "agent_tags.json"
+    canonical = tmp_path / "agent_tribes.json"
+    canonical_patch, legacy_patch = _store_paths(
+        canonical, tmp_path / "missing-agent-tags.json"
+    )
     identity = (AgentType.RUNNING, "fix-bug", "20260425120000")
     with (
         patch(
-            "sase.agents.cli_tag._resolve_identity_by_name",
+            "sase.agents.cli_tribe._resolve_identity_by_name",
             return_value=identity,
         ),
-        patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file),
+        canonical_patch,
+        legacy_patch,
     ):
         handle_agents_tribe(_tribe_args(tribe="release-blockers"))
     out = capsys.readouterr().out
     assert "release-blockers" in out
-    persisted = json.loads(test_file.read_text())
+    persisted = json.loads(canonical.read_text())
     assert persisted == [
         {
             "id": ["run", "fix-bug", "20260425120000"],
@@ -182,18 +193,21 @@ def test_tribe_set_persists_canonical_tribe(
 
 
 def test_tribe_set_replaces_existing_legacy_tag(tmp_path: Path) -> None:
-    test_file = tmp_path / "agent_tags.json"
-    test_file.write_text(json.dumps([{"id": ["run", "fix-bug", "ts"], "tag": "alpha"}]))
+    canonical = tmp_path / "agent_tribes.json"
+    legacy = tmp_path / "agent_tags.json"
+    legacy.write_text(json.dumps([{"id": ["run", "fix-bug", "ts"], "tag": "alpha"}]))
+    canonical_patch, legacy_patch = _store_paths(canonical, legacy)
     identity = (AgentType.RUNNING, "fix-bug", "ts")
     with (
         patch(
-            "sase.agents.cli_tag._resolve_identity_by_name",
+            "sase.agents.cli_tribe._resolve_identity_by_name",
             return_value=identity,
         ),
-        patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file),
+        canonical_patch,
+        legacy_patch,
     ):
         handle_agents_tribe(_tribe_args(tribe="beta"))
-    persisted = json.loads(test_file.read_text())
+    persisted = json.loads(canonical.read_text())
     assert persisted == [{"id": ["run", "fix-bug", "ts"], "tribe": "beta"}]
 
 
@@ -217,10 +231,10 @@ def test_tribe_set_unknown_agent_exits_2(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     with (
-        patch("sase.agents.cli_tag._resolve_identity_by_name", return_value=None),
+        patch("sase.agents.cli_tribe._resolve_identity_by_name", return_value=None),
         patch(
-            "sase.ace.agent_tags._AGENT_TAGS_FILE",
-            tmp_path / "agent_tags.json",
+            "sase.ace.agent_tribes._AGENT_TRIBES_FILE",
+            tmp_path / "agent_tribes.json",
         ),
         pytest.raises(SystemExit) as excinfo,
     ):
@@ -232,27 +246,31 @@ def test_tribe_set_unknown_agent_exits_2(
 def test_tribe_unset_drops_identity(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    test_file = tmp_path / "agent_tags.json"
-    test_file.write_text(json.dumps([{"id": ["run", "fix-bug", "ts"], "tag": "alpha"}]))
+    canonical = tmp_path / "agent_tribes.json"
+    legacy = tmp_path / "agent_tags.json"
+    legacy.write_text(json.dumps([{"id": ["run", "fix-bug", "ts"], "tag": "alpha"}]))
+    canonical_patch, legacy_patch = _store_paths(canonical, legacy)
     identity = (AgentType.RUNNING, "fix-bug", "ts")
     with (
         patch(
-            "sase.agents.cli_tag._resolve_identity_by_name",
+            "sase.agents.cli_tribe._resolve_identity_by_name",
             return_value=identity,
         ),
-        patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file),
+        canonical_patch,
+        legacy_patch,
     ):
         handle_agents_tribe(_tribe_args(tribe_subcommand="unset"))
     out = capsys.readouterr().out
     assert "(none)" in out
-    assert json.loads(test_file.read_text()) == []
+    assert json.loads(canonical.read_text()) == []
 
 
 def test_tribe_list_all_emits_json(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    test_file = tmp_path / "agent_tags.json"
-    test_file.write_text(
+    canonical = tmp_path / "agent_tribes.json"
+    legacy = tmp_path / "agent_tags.json"
+    legacy.write_text(
         json.dumps(
             [
                 {
@@ -266,7 +284,8 @@ def test_tribe_list_all_emits_json(
             ]
         )
     )
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file):
+    canonical_patch, legacy_patch = _store_paths(canonical, legacy)
+    with canonical_patch, legacy_patch:
         handle_agents_tribe(
             argparse.Namespace(
                 agent_subcommand="tribe",
@@ -277,24 +296,26 @@ def test_tribe_list_all_emits_json(
     rows = json.loads(capsys.readouterr().out)
     assert len(rows) == 2
     by_cl = {row["cl_name"]: row for row in rows}
-    assert by_cl["fix-bug"]["tag"] == "release-blockers"
+    assert by_cl["fix-bug"]["tribe"] == "release-blockers"
     assert by_cl["ship"]["agent_type"] == "workflow"
 
 
 def test_tribe_list_one_agent_emits_object(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    test_file = tmp_path / "agent_tags.json"
+    canonical = tmp_path / "agent_tribes.json"
+    legacy = tmp_path / "agent_tags.json"
     identity = (AgentType.RUNNING, "fix-bug", "ts1")
-    test_file.write_text(
+    legacy.write_text(
         json.dumps([{"id": ["run", "fix-bug", "ts1"], "tag": "release-blockers"}])
     )
     with (
         patch(
-            "sase.agents.cli_tag._resolve_identity_by_name",
+            "sase.agents.cli_tribe._resolve_identity_by_name",
             return_value=identity,
         ),
-        patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file),
+        patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", canonical),
+        patch("sase.ace.agent_tribes._LEGACY_AGENT_TAGS_FILE", legacy),
     ):
         handle_agents_tribe(
             argparse.Namespace(
@@ -309,7 +330,7 @@ def test_tribe_list_one_agent_emits_object(
         "agent_type": "run",
         "cl_name": "fix-bug",
         "raw_suffix": "ts1",
-        "tag": "release-blockers",
+        "tribe": "release-blockers",
     }
 
 

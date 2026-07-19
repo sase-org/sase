@@ -238,7 +238,7 @@ class _SummaryApp(AgentSelectionMixin, _FakeApp):
 
         self._collapsed_panel_keys = {"collapsed"}
         for agent in self._agents:
-            agent.tag = "collapsed"
+            agent.tribe = "collapsed"
         self._panel_group = AgentPanelGroup.from_agents(
             self._agents,
             focused_key="collapsed",

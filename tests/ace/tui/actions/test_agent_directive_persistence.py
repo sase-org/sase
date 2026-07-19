@@ -112,6 +112,28 @@ def test_persist_agent_directive_update_finishes_when_history_is_corrupt(
     assert json.loads((artifacts / "agent_meta.json").read_text())["name"] == "new"
 
 
+def test_agent_meta_edit_migrates_legacy_tag_to_tribe(tmp_path: Path) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"tag": "legacy", "name": "old"}),
+        encoding="utf-8",
+    )
+
+    result = persist_agent_directive_update(
+        AgentDirectivePersistenceSpec(
+            artifacts_dir=artifacts,
+            meta_patch=AgentMetaPatch(set_values={"name": "new"}),
+        )
+    )
+
+    assert result.meta_updated is True
+    assert json.loads((artifacts / "agent_meta.json").read_text()) == {
+        "tribe": "legacy",
+        "name": "new",
+    }
+
+
 def test_persist_agent_directive_update_writes_waiting_marker_and_meta(
     tmp_path: Path,
 ) -> None:
@@ -152,12 +174,12 @@ def test_persist_agent_directive_update_writes_waiting_marker_and_meta(
     ]
 
 
-def test_persist_agent_directive_update_sets_and_unsets_tag_store(
+def test_persist_agent_directive_update_sets_and_unsets_tribe_store(
     tmp_path: Path,
 ) -> None:
-    tags_file = tmp_path / "agent_tags.json"
+    tribes_file = tmp_path / "agent_tribes.json"
     identity = (AgentType.WORKFLOW, "cl", "260601000000")
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tags_file):
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribes_file):
         set_result = persist_agent_directive_update(
             AgentDirectivePersistenceSpec(
                 artifacts_dir=tmp_path / "artifacts",
@@ -173,4 +195,4 @@ def test_persist_agent_directive_update_sets_and_unsets_tag_store(
 
     assert set_result.tag_updated is True
     assert unset_result.tag_updated is True
-    assert json.loads(tags_file.read_text()) == []
+    assert json.loads(tribes_file.read_text()) == []

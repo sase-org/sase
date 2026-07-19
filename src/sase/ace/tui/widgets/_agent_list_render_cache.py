@@ -152,7 +152,7 @@ def agent_render_key(
     """Build the cache key for a single agent row.
 
     Captures every input that affects ``format_agent_option``'s output,
-    plus conservative grouping inputs such as ``agent.tag``. The key is
+    plus conservative grouping inputs such as ``agent.tribe``. The key is
     intentionally explicit (no ``vars(agent)``) so adding a new visible
     field is a deliberate edit here rather than a silent cache desync.
     """
@@ -179,14 +179,14 @@ def agent_render_key(
         panel_tag,
         agent.approve,
         agent.auto_approve_plan_action,
-        agent.tag,
+        agent.tribe,
         agent.agent_clan,
         agent.agent_clan_generation,
         agent.is_clan_container,
         agent.is_family_container_row,
         agent.tree_parent_key,
         agent.tree_depth,
-        agent.clan_tags,
+        agent.clan_tribes,
         agent.agent_name,
         agent.presented_agent_name,
         tuple(wait_agent.waiting_for),

@@ -27,14 +27,14 @@ def test_bundle_save_load_round_trip(tmp_path: Path) -> None:
         patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
     ):
         agent = make_agent()
-        agent.tag = "backend"
+        agent.tribe = "backend"
         assert save_dismissed_bundle(agent)
 
         loaded = load_dismissed_bundles()
         assert len(loaded) == 1
         assert loaded[0].identity == agent.identity
         assert loaded[0].cl_name == "test_cl"
-        assert loaded[0].tag == "backend"
+        assert loaded[0].tribe == "backend"
         assert loaded[0].start_time == datetime(2025, 6, 15, 10, 30, 0)
 
 

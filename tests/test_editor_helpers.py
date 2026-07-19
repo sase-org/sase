@@ -593,7 +593,7 @@ def test_editor_helper_bridge_agent_catalog_derives_groups_from_one_snapshot(
     )
     monkeypatch.setattr("sase.agent.running_listing.list_all_agents", lambda: listing)
     monkeypatch.setattr(
-        "sase.core.agent_tribe.load_raw_agent_tags",
+        "sase.core.agent_tribe.load_raw_agent_tribes",
         lambda: {("workflow", "change", "20260719020102"): "ops"},
     )
 

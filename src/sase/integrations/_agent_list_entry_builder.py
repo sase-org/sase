@@ -120,7 +120,7 @@ def build_agent_list_entry(
         reasoning_effort=_text(meta, "reasoning_effort"),
         vcs_provider=vcs_provider,
         vcs_provider_display=_vcs_provider_display_name(vcs_provider),
-        tag=_text(meta, "tribe"),
+        tribe=_text(meta, "tribe"),
         bead_id=_text(meta, "bead_id"),
         changespec_name=_first_text(
             _text(meta, "changespec_name"), _text(meta, "cl_name")
@@ -366,6 +366,11 @@ def _record_pending_question(
 
 def _read_meta(artifacts_dir: str | None) -> AgentMetaWire | None:
     data = _read_json_dict(artifacts_dir, "agent_meta.json")
+    if data is not None:
+        data = dict(data)
+        if "tribe" not in data and "tag" in data:
+            data["tribe"] = data["tag"]
+        data.pop("tag", None)
     return _wire_from_dict(AgentMetaWire, data)
 
 

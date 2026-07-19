@@ -147,32 +147,26 @@ def load_raw_agent_tribes(
     return _load_legacy_agent_tags(legacy)
 
 
-# Temporary compatibility names for the runtime-cutover phase.  They route
-# default reads through the canonical store; an explicit path remains a
-# narrowly scoped legacy-reader entry point used by old callers and fixtures.
-InvalidTagError = InvalidTribeError
-RawAgentTagIdentity = RawAgentTribeIdentity
-TAG_NAME_RE = TRIBE_NAME_RE
+def canonicalize_agent_tribe_metadata(data: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite one mutable metadata record to the canonical tribe shape.
 
-
-def validate_tag_name(tag: str) -> str:
-    """Compatibility wrapper for :func:`validate_tribe_name`."""
-    return validate_tribe_name(tag)
-
-
-def load_raw_agent_tags(
-    path: str | Path | None = None,
-) -> dict[RawAgentTribeIdentity, str]:
-    """Compatibility reader for callers not yet moved to tribe names."""
-    if path is not None:
-        return _load_legacy_agent_tags(Path(path))
-    return load_raw_agent_tribes()
+    A valid legacy ``tag`` value is retained as ``tribe`` only when the new
+    key is absent.  The legacy key is always removed, including when the
+    canonical value is explicitly empty or invalid.
+    """
+    if "tribe" not in data:
+        legacy_tribe = _valid_stored_tribe(data.get("tag"))
+        if legacy_tribe is not None:
+            data["tribe"] = legacy_tribe
+    data.pop("tag", None)
+    return data
 
 
 __all__ = [
     "InvalidTribeError",
     "RawAgentTribeIdentity",
     "TRIBE_NAME_RE",
+    "canonicalize_agent_tribe_metadata",
     "canonical_agent_tribes_path",
     "legacy_agent_tags_path",
     "load_raw_agent_tribes",

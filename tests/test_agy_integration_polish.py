@@ -147,7 +147,7 @@ def test_agent_metadata_records_agy_provider_directive(
     with (
         patch.object(Path, "home", return_value=tmp_path),
         patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
-        patch("sase.ace.agent_tags.update_agent_tag"),
+        patch("sase.ace.agent_tribes.update_agent_tribe"),
     ):
         info = extract_directives_and_write_meta(
             "%model:agy/flash35h\nDo work",
@@ -210,7 +210,7 @@ def test_agent_metadata_routes_model_xprompt_alias_to_agy(
     with (
         patch.object(Path, "home", return_value=tmp_path),
         patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
-        patch("sase.ace.agent_tags.update_agent_tag"),
+        patch("sase.ace.agent_tribes.update_agent_tribe"),
     ):
         info = extract_directives_and_write_meta(
             "%model:@#agy_flash\nDo work",

@@ -11,7 +11,8 @@ type AgentTypeValue = Literal["run", "workflow"]
 type AgentIdentity = tuple[AgentTypeValue, str, str | None]
 type JsonScalar = str | int | float | bool | None
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+SUPPORTED_SCHEMA_VERSIONS = frozenset({1, SCHEMA_VERSION})
 
 
 def _expect_mapping(value: Any, *, field_name: str) -> dict[str, Any]:
@@ -213,7 +214,7 @@ class ReproAgentRow:
     pid: int | None = None
     workspace_num: int | None = None
     agent_name: str | None = None
-    tag: str | None = None
+    tribe: str | None = None
     metadata: dict[str, JsonScalar] = field(default_factory=dict)
 
     @property
@@ -250,7 +251,10 @@ class ReproAgentRow:
                 data.get("workspace_num"), field_name="workspace_num"
             ),
             agent_name=_optional_str(data.get("agent_name"), field_name="agent_name"),
-            tag=_optional_str(data.get("tag"), field_name="tag"),
+            tribe=_optional_str(
+                data.get("tribe") if "tribe" in data else data.get("tag"),
+                field_name="tribe",
+            ),
             metadata={
                 str(key): value
                 for key, value in metadata.items()
@@ -272,7 +276,7 @@ class ReproAgentRow:
             "pid": self.pid,
             "workspace_num": self.workspace_num,
             "agent_name": self.agent_name,
-            "tag": self.tag,
+            "tribe": self.tribe,
             "metadata": dict(self.metadata),
         }
 
@@ -504,7 +508,7 @@ class ReproBundle:
         manifest = ReproManifest.from_dict(
             _expect_mapping(data.get("manifest", {}), field_name="manifest")
         )
-        if manifest.schema_version != SCHEMA_VERSION:
+        if manifest.schema_version not in SUPPORTED_SCHEMA_VERSIONS:
             raise ValueError(
                 f"unsupported repro schema_version {manifest.schema_version}"
             )
