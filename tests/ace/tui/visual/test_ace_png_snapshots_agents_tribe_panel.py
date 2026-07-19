@@ -168,6 +168,7 @@ async def test_tribe_panel_four_level_png_snapshots(
         assert focus.panel_key == "epic"
         assert focus.collapsed is False
         await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "❖ @epic")
         ace_png_visual.assert_page_png(
             page,
             "agents_tribe_panel_selected_expanded_120x40",

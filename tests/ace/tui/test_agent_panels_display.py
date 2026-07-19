@@ -14,7 +14,10 @@ from typing import Any
 
 from textual.css.scalar import Unit
 
+from sase.ace.tui.actions.agents._panel_navigation import AgentPanelNavigationMixin
+from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
+from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
@@ -152,6 +155,15 @@ class _FakeApp(AgentDisplayMixin):
             panel_key=self._panel_group.focused_key,
             collapsed=False,
         )
+
+
+class _InteractiveFakeApp(
+    AgentSelectionMixin,
+    AgentPanelNavigationMixin,
+    _FakeApp,
+):
+    def _refresh_agent_focus_detail(self, **_kwargs: Any) -> None:
+        return
 
 
 def _agent(*, name: str, tag: str | None, suffix: str) -> Agent:
@@ -343,6 +355,36 @@ def test_full_rebuild_selected_expanded_panel_uses_whole_panel_visuals() -> None
     assert "-whole-panel-focus" in banana._classes
     assert banana.last_local_idx == -1
     assert getattr(banana.border_title, "plain", "").startswith("❖ @banana")
+
+
+def test_whole_panel_navigation_refreshes_selected_and_collapsed_titles() -> None:
+    agents = _three_panel_agents()
+    app = _InteractiveFakeApp(
+        agents,
+        option_counts=[2, 4, 6],
+        container_height=30,
+        focused_key="banana",
+    )
+    app.current_idx = 2
+    app._collapsed_panel_keys.add("apple")
+    app._sync_panel_group()
+    app._refresh_panel_widgets(jump_hints=None)
+
+    banana = app._panel_widgets["agent-list-panel-1"]
+    apple = app._panel_widgets["agent-list-panel-2"]
+    assert getattr(banana.border_title, "plain", "") == "@banana · 1 [R1]"
+    assert getattr(apple.border_title, "plain", "") == "▸ @apple · 1 [R1]"
+
+    assert app._activate_focused_panel() is True
+    assert getattr(banana.border_title, "plain", "") == "❖ @banana · 1 [R1]"
+
+    BasicNavigationMixin._navigate_agents_panel(app, 1)
+    assert getattr(banana.border_title, "plain", "") == "@banana · 1 [R1]"
+    assert getattr(apple.border_title, "plain", "") == "▸ @apple · 1 [R1]"
+
+    BasicNavigationMixin._navigate_agents_panel(app, -1)
+    assert getattr(banana.border_title, "plain", "") == "❖ @banana · 1 [R1]"
+    assert getattr(apple.border_title, "plain", "") == "▸ @apple · 1 [R1]"
 
 
 def test_separator_rows_are_included_in_fit_boundary() -> None:
