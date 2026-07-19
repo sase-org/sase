@@ -23,7 +23,7 @@ from sase.plan_search.filter_query import parse_plan_filter_query
 from sase.vcs_log.filter_query import DEFAULT_COMMIT_LOG_LIMIT
 from tests.ace.tui.test_artifacts_bugs import _issue as _bug_issue
 from tests.ace.tui.test_artifacts_bugs import _snapshot as _bug_snapshot
-from tests.ace.tui.test_artifacts_plans import _choices as _plan_choices
+from tests.ace.tui._artifacts_plans_helpers import _choices as _plan_choices
 from tests.ace.tui.test_artifacts_list_navigation import (
     _commits_result,
     _expanded_plans_snapshot,

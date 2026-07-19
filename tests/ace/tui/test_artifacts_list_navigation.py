@@ -18,7 +18,10 @@ import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.core.vcs_log_wire import AggregatedCommitWire, VcsCommitWire
 from sase.vcs_log.models import LogRepo, VcsLogResult
 from tests.ace.tui.test_artifacts_bugs import _issue, _snapshot as _bugs_snapshot
-from tests.ace.tui.test_artifacts_plans import _choices, _snapshot as _plans_snapshot
+from tests.ace.tui._artifacts_plans_helpers import (
+    _choices,
+    _snapshot as _plans_snapshot,
+)
 
 
 def _commits_result(count: int = 15) -> VcsLogResult:

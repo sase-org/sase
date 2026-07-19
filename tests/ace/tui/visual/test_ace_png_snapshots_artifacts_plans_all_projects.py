@@ -9,7 +9,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
-from tests.ace.tui.test_artifacts_plans import (
+from tests.ace.tui._artifacts_plans_helpers import (
     _all_choices,
     _all_projects_snapshot,
 )

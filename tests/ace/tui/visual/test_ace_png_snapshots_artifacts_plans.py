@@ -15,7 +15,7 @@ from sase.ace.tui.widgets.artifacts.plans_data import LinkedPlanDocument, PlansS
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.plan_search.filter_query import parse_plan_filter_query
-from tests.ace.tui.test_artifacts_plans import _choices, _snapshot
+from tests.ace.tui._artifacts_plans_helpers import _choices, _snapshot
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,

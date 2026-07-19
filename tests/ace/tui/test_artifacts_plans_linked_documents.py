@@ -19,7 +19,7 @@ from sase.ace.tui.widgets.artifacts.plans_data import (
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.bead.model import BeadTier, IssueType
 from sase.bead.project import BeadProject
-from tests.ace.tui.test_artifacts_plans import _choices, _snapshot
+from tests.ace.tui._artifacts_plans_helpers import _choices, _snapshot
 
 
 def _patch_project_loaders(

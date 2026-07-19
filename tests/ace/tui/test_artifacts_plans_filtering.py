@@ -26,7 +26,7 @@ from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.plan_search.filter_query import parse_plan_filter_query
 
-from .test_artifacts_plans import _choices, _snapshot
+from ._artifacts_plans_helpers import _choices, _snapshot
 
 
 def _deep_archive(
