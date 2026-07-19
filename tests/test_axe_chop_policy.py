@@ -13,6 +13,7 @@ from sase.axe.chop_policy import (
     evaluate_chop_preflight,
     finalize_pending_chop_checkpoints,
     record_chop_checkpoint_event,
+    release_chop_once_per_keys,
 )
 from sase.axe.chop_inventory import collect_chop_inventory
 from sase.axe.chop_proposals import prepare_chop_proposals
@@ -484,6 +485,52 @@ def test_once_per_relinks_across_consecutive_duplicates_by_index(
     assert outcome.decisions[3]["reason"] == (
         "wait dependency 2 was deduped; relinked to 0"
     )
+
+
+def test_release_once_per_keys_persists_exact_removal(
+    temp_state_dir: Path,
+) -> None:
+    chop = ChopConfig(name="events", description="")
+    proposals = prepare_chop_proposals(
+        "events",
+        {
+            "proposed_launches": [
+                {
+                    "prompt": "First.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "event:first",
+                },
+                {
+                    "prompt": "Second.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "event:second",
+                },
+            ]
+        },
+    )
+    initial = apply_chop_once_per(
+        lumberjack_name="events",
+        chop=chop,
+        proposals=proposals,
+        persist=True,
+    )
+    assert initial.accepted_indices == (0, 1)
+
+    assert (
+        release_chop_once_per_keys("events", "events", ["event:first", "event:missing"])
+        == 1
+    )
+    assert release_chop_once_per_keys("events", "events", ["event:first"]) == 0
+
+    follow_up = apply_chop_once_per(
+        lumberjack_name="events",
+        chop=chop,
+        proposals=proposals,
+        persist=False,
+    )
+    assert follow_up.accepted_indices == (0,)
+    assert follow_up.decisions[0]["outcome"] == "accept"
+    assert follow_up.decisions[1]["outcome"] == "duplicate"
 
 
 def test_all_duplicate_proposals_record_skipped_run(

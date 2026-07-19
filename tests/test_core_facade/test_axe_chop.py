@@ -17,6 +17,7 @@ from sase.core.axe_chop_facade import (
     expand_chop_targets,
     parse_chop_duration,
     parse_chop_result,
+    release_chop_once_per,
     validate_axe_config,
     validate_chop_proposal,
 )
@@ -105,6 +106,25 @@ def test_decision_and_bookkeeping_facades() -> None:
         }
     )
     assert accepted["outcome"] == "accept"
+
+    released = release_chop_once_per(
+        {
+            "schema_version": 1,
+            "document": accepted["document"],
+            "keys": ["event:abc", "event:missing"],
+        }
+    )
+    assert released["released"] == 1
+    assert released["document"]["entries"] == []
+
+    repeated = release_chop_once_per(
+        {
+            "schema_version": 1,
+            "document": released["document"],
+            "keys": ["event:abc"],
+        }
+    )
+    assert repeated["released"] == 0
 
 
 def test_target_duration_and_agent_name_facades() -> None:

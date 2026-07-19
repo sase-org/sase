@@ -25,6 +25,7 @@ from sase.core.axe_chop_facade import (
     apply_chop_checkpoint_update,
     check_and_record_chop_once_per,
     evaluate_chop_decision,
+    release_chop_once_per,
 )
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
@@ -349,6 +350,33 @@ def _once_per_relink_reason(
     return f"wait dependency {dependency!r} was deduped; relinked to {target}"
 
 
+def release_chop_once_per_keys(
+    lumberjack_name: str,
+    chop_name: str,
+    keys: Sequence[str],
+) -> int:
+    """Release exact once-per keys and persist the transformed seen store."""
+    if not keys:
+        return 0
+
+    with _chop_policy_lock(lumberjack_name, chop_name):
+        document = _read_seen_document(lumberjack_name, chop_name)
+        result = release_chop_once_per(
+            {
+                "schema_version": CHOP_ENGINE_SCHEMA_VERSION,
+                "document": document,
+                "keys": list(keys),
+            }
+        )
+        released = int(result["released"])
+        if released:
+            atomic_write_json(
+                _seen_path(lumberjack_name, chop_name),
+                dict(result["document"]),
+            )
+        return released
+
+
 def check_chop_trigger_runtime(chop: ChopConfig) -> str | None:
     """Return a doctor error for an unusable git trigger, otherwise ``None``."""
     if chop.trigger.get("provider") != "git.commits_since":
@@ -588,4 +616,5 @@ __all__ = [
     "evaluate_chop_preflight",
     "finalize_pending_chop_checkpoints",
     "record_chop_checkpoint_event",
+    "release_chop_once_per_keys",
 ]

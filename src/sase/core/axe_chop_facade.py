@@ -81,6 +81,13 @@ def check_and_record_chop_once_per(
     return dict(binding(dict(request)))
 
 
+def release_chop_once_per(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Release exact keys from a bounded once-per store."""
+
+    binding = require_rust_binding("release_chop_once_per")
+    return dict(binding(dict(request)))
+
+
 def expand_chop_targets(request: Mapping[str, Any]) -> dict[str, Any]:
     """Expand literal or host-provided source targets into stable instances."""
 
