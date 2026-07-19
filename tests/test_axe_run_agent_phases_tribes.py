@@ -127,6 +127,7 @@ def test_extract_directives_preserves_epic_work_metadata_on_reexec(
                 "agent_clan": "sase-7",
                 "agent_clan_generation": "20260718090000",
                 "clan_tribe": "epic",
+                "clan_summary": "[bold]EPIC sase-7[/bold]",
             }
         ),
         encoding="utf-8",
@@ -155,6 +156,7 @@ def test_extract_directives_preserves_epic_work_metadata_on_reexec(
     assert info.meta["agent_clan"] == "sase-7"
     assert info.meta["agent_clan_generation"] == "20260718090000"
     assert info.meta["clan_tribe"] == "epic"
+    assert info.meta["clan_summary"] == "[bold]EPIC sase-7[/bold]"
 
 
 def test_extract_directives_persists_tribe_with_atomic_helper(

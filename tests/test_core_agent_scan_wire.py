@@ -28,7 +28,7 @@ from .agent_scan_golden import (
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
     assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 4
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 13
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 14
 
 
 def test_scan_wire_rejects_stale_binding_schema() -> None:
@@ -146,6 +146,7 @@ def test_agent_meta_output_variables_round_trip() -> None:
                         "agent_family": "legacy_clan",
                         "agent_family_role": "phase",
                         "agent_family_parallel": True,
+                        "clan_summary": "[bold]Research[/bold]",
                         "output_path": "/tmp/producer.log",
                         "linked_repos": [
                             {
@@ -177,6 +178,7 @@ def test_agent_meta_output_variables_round_trip() -> None:
     assert record.agent_meta is not None
     assert record.agent_meta.agent_family_parallel is True
     assert record.agent_meta.agent_clan == "legacy_clan"
+    assert record.agent_meta.clan_summary == "[bold]Research[/bold]"
     assert record.agent_meta.agent_family is None
     assert record.agent_meta.agent_family_role is None
     assert record.agent_meta.output_variables == {
@@ -194,6 +196,9 @@ def test_agent_meta_output_variables_round_trip() -> None:
     payload = agent_scan_wire_to_json_dict(snapshot)
     assert payload["records"][0]["agent_meta"]["agent_family_parallel"] is True
     assert payload["records"][0]["agent_meta"]["agent_clan"] == "legacy_clan"
+    assert payload["records"][0]["agent_meta"]["clan_summary"] == (
+        "[bold]Research[/bold]"
+    )
     assert payload["records"][0]["agent_meta"]["agent_family"] is None
     assert payload["records"][0]["agent_meta"]["linked_repos"] == [
         {
@@ -215,11 +220,12 @@ def test_agent_meta_clan_field_order_matches_rust_wire() -> None:
 
     names = [field.name for field in fields(AgentMetaWire)]
     workflow_index = names.index("workflow_name")
-    assert names[workflow_index : workflow_index + 7] == [
+    assert names[workflow_index : workflow_index + 8] == [
         "workflow_name",
         "agent_clan",
         "agent_clan_generation",
         "clan_tribe",
+        "clan_summary",
         "agent_family",
         "agent_family_role",
         "agent_family_parallel",

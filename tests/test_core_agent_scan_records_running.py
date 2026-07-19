@@ -86,7 +86,7 @@ def test_running_record_carries_commit_diff_path_through_scan_and_index(
     assert indexed_rec.agent_meta.commit_diff_path == "/tmp/running_commit.diff"
 
 
-def test_running_record_carries_clan_tribe_through_scan_and_index(
+def test_running_record_carries_clan_attributes_through_scan_and_index(
     fixture_root: Path,
     tmp_path: Path,
 ) -> None:
@@ -102,6 +102,7 @@ def test_running_record_carries_clan_tribe_through_scan_and_index(
     data["agent_clan"] = "research"
     data["agent_clan_generation"] = "20260718090000"
     data["clan_tribe"] = "research"
+    data["clan_summary"] = "[bold]Research[/bold]\nMap the field."
     meta_path.write_text(json.dumps(data), encoding="utf-8")
 
     snapshot = scan_agent_artifacts(fixture_root)
@@ -109,6 +110,7 @@ def test_running_record_carries_clan_tribe_through_scan_and_index(
     assert rec.agent_meta is not None
     assert rec.agent_meta.agent_clan_generation == "20260718090000"
     assert rec.agent_meta.clan_tribe == "research"
+    assert rec.agent_meta.clan_summary == "[bold]Research[/bold]\nMap the field."
 
     index_path = tmp_path / "agent_artifact_index.sqlite"
     rebuild_agent_artifact_index(index_path, fixture_root)
@@ -128,6 +130,9 @@ def test_running_record_carries_clan_tribe_through_scan_and_index(
     assert indexed_rec.agent_meta is not None
     assert indexed_rec.agent_meta.agent_clan_generation == "20260718090000"
     assert indexed_rec.agent_meta.clan_tribe == "research"
+    assert indexed_rec.agent_meta.clan_summary == (
+        "[bold]Research[/bold]\nMap the field."
+    )
 
 
 def test_running_record_carries_output_variables_through_scan_and_index(

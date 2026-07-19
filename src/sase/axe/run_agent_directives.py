@@ -34,7 +34,12 @@ def _preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
             preserved[key] = value
     if existing_meta.get("plan_committed") is True:
         preserved["plan_committed"] = True
-    for key in ("agent_clan", "agent_clan_generation", "clan_tribe"):
+    for key in (
+        "agent_clan",
+        "agent_clan_generation",
+        "clan_tribe",
+        "clan_summary",
+    ):
         value = existing_meta.get(key)
         if isinstance(value, str) and value:
             preserved[key] = value
@@ -548,10 +553,31 @@ def extract_directives_and_write_meta(
                 )
             os.environ["SASE_AGENT_NAME"] = agent_name
 
-        # Write agent_meta.json after the name reservation succeeds so
-        # concurrent explicit claims cannot both publish the same name.
-        if agent_meta:
-            write_agent_meta(artifacts_dir, agent_meta)
+    if clan_membership_plan and directives.clan_declared:
+        from sase.axe.clan_summary_script import (
+            normalize_clan_summary,
+            resolve_clan_summary_script,
+        )
+
+        clan_summary = normalize_clan_summary(directives.clan_summary or "")
+        if directives.clan_summary_script:
+            clan_summary = resolve_clan_summary_script(
+                directives.clan_summary_script,
+                workspace_dir=workspace_dir,
+                clan_name=clan_membership_plan.clan_name,
+                clan_generation=clan_membership_plan.generation,
+                clan_tribe=directives.clan_tribe,
+                agent_log_path=output_path,
+            )
+        if clan_summary:
+            agent_meta["clan_summary"] = clan_summary
+
+    # Write agent_meta.json after the name reservation succeeds so concurrent
+    # explicit claims cannot both publish the same name. Summary scripts run
+    # outside the allocation lock because their bounded timeout is still much
+    # longer than a registry mutation.
+    if agent_meta:
+        write_agent_meta(artifacts_dir, agent_meta)
 
     # Persist the %id tribe= value into ~/.sase/agent_tribes.json so the Agents
     # tab picks it up at load time.  The agent's identity is
