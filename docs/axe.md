@@ -306,10 +306,10 @@ Result `status` is `ok`, `no_op`, or `check_error`. Results can also carry a `re
 `model`, `effort`, `env`, `dedupe_key`, and `wait_on` (an earlier proposal index or ID).
 
 The runner validates the full document before launching anything. It injects the workspace reference, a deterministic
-agent name, `%tribe:chop`, model/effort directives, and a `%wait` dependency for `wait_on`, then launches proposals in
-document order. Standalone `#!workflow` references are forbidden in proposal prompts; reusable inline `#xprompt`
-references remain valid. The runner records every launched agent in `agent_chops.json` and finalizes the chop only when
-the linked agents reach terminal state.
+agent name and `tribe=chop` in one `%id(...)` directive, model/effort directives, and a `%wait` dependency for
+`wait_on`, then launches proposals in document order. Standalone `#!workflow` references are forbidden in proposal
+prompts; reusable inline `#xprompt` references remain valid. The runner records every launched agent in
+`agent_chops.json` and finalizes the chop only when the linked agents reach terminal state.
 
 A launcher can still fail partway through an otherwise valid batch. When at least one proposal already started, the chop
 remains active as `launched` until those agents finish, then finalizes as `action_failed` with both the launch error and

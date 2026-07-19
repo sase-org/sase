@@ -373,6 +373,16 @@ def testload_xprompts_from_internal_includes_split_file() -> None:
     assert xprompt.inputs[0].type == InputType.PATH
 
 
+def testload_xprompts_from_internal_includes_tribe() -> None:
+    result = load_xprompts_from_internal()
+
+    assert "tribe" in result
+    xprompt = result["tribe"]
+    assert xprompt.name == "tribe"
+    assert [arg.name for arg in xprompt.inputs] == ["tribe"]
+    assert xprompt.content.strip() == "%id(tribe={{ tribe }})"
+
+
 def test_internal_fork_workflow_name_uses_agent_type() -> None:
     """The built-in fork xprompt advertises agent-name completion."""
     workflow = get_all_workflows()["fork"]

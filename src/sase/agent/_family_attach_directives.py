@@ -92,8 +92,22 @@ def parse_name_directive_args(
             family_suffix=suffix,
         )
 
-    if "tribe" in named_args:
-        raise ValueError(f"The tribe= keyword on {source} is not supported yet.")
+    tribe = named_args.get("tribe")
+    if tribe is not None:
+        plain_name = positional_args[0].strip() if positional_args else ""
+        force_reuse = plain_name.startswith("!")
+        if force_reuse:
+            plain_name = plain_name[1:]
+        if positional_args and not plain_name:
+            raise ValueError(
+                f"The tribe= keyword on {source} requires a non-empty id when "
+                "a positional id is supplied."
+            )
+        return _types.ParsedNameDirective(
+            plain_name=plain_name,
+            tribe=tribe,
+            force_reuse=force_reuse,
+        )
 
     return _types.ParsedNameDirective(
         plain_name=positional_args[0] if positional_args else "",

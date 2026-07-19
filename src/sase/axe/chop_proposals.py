@@ -37,8 +37,7 @@ def _workspace_directive(workspace: str) -> str:
 def _scaffolded_prompt(proposal: _PreparedChopProposal, wait_name: str | None) -> str:
     lines = [
         _workspace_directive(proposal.workspace),
-        f"%id:{proposal.agent_name}",
-        f"%tribe:{proposal.tribe}",
+        f"%id({proposal.agent_name}, tribe={proposal.tribe})",
     ]
     if proposal.model:
         lines.append(f"%model:{proposal.model}")

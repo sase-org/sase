@@ -1,4 +1,6 @@
-"""Tests for time prompt directives."""
+"""Tests for time and neighboring built-in prompt directives."""
+
+from unittest.mock import patch
 
 import pytest
 
@@ -16,14 +18,9 @@ def test_wait_time_duration_sets_field() -> None:
     assert directives.wait_duration == 300.0
 
 
-def test_t_aliases_tribe_not_time() -> None:
-    """%t assigns a tribe without restoring the removed %time alias."""
-    cleaned, directives = extract_prompt_directives("%t:review\nDo work")
-    assert cleaned == "Do work"
-    assert directives.tribe == "review"
-    assert directives.wait_duration is None
-    assert directives.wait_until is None
-    assert directives.auto_mode is None
+def test_t_directive_alias_is_removed_not_time() -> None:
+    with pytest.raises(DirectiveError, match=r"%tribe.*%t.*removed"):
+        extract_prompt_directives("%t:review\nDo work")
 
 
 def test_wait_time_compound_duration() -> None:
@@ -139,3 +136,22 @@ def test_wait_time_xprompt_named_absolute_time() -> None:
     assert result.prompt.strip() == "Do work"
     assert result.directives.wait_until is not None
     assert result.directives.wait_until.startswith("2030-04-15T09:00")
+
+
+@pytest.mark.parametrize("reference", ["#tribe:research", "#tribe(research)"])
+def test_tribe_xprompt_assigns_auto_named_agent(reference: str) -> None:
+    with patch("sase.agent.names.get_next_auto_name", return_value="auto7"):
+        result = preprocess_prompt_early(f"{reference}\nDo work")
+
+    assert result.prompt.strip() == "Do work"
+    assert result.directives.name == "auto7"
+    assert result.directives.name_explicit is False
+    assert result.directives.tribe == "research"
+
+
+def test_tribe_xprompt_with_explicit_id_has_actionable_duplicate_error() -> None:
+    with pytest.raises(
+        DirectiveError,
+        match=r"Duplicate directive '%id'.*%id\(<id>, tribe=<tribe>\)",
+    ):
+        preprocess_prompt_early("%id:reviewer #tribe:research\nDo work")

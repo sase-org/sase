@@ -204,8 +204,7 @@ def test_dry_run_previews_scaffolds_and_never_launches(
     first_prompt = str(outcome.proposals[0]["prompt"])
     second_prompt = str(outcome.proposals[1]["prompt"])
     assert "#gh:sase-org/sase" in first_prompt
-    assert f"%id:{first_name}" in first_prompt
-    assert "%tribe:chop" in first_prompt
+    assert f"%id({first_name}, tribe=chop)" in first_prompt
     assert "%model:codex/gpt-5.6-sol" in first_prompt
     assert f"%wait:{first_name}" in second_prompt
 

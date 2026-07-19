@@ -18,6 +18,10 @@ from sase.integrations.mobile_agents import (
 from tests._mobile_agents_fixtures import _known_project
 
 
+def test_mobile_name_guard_recognizes_id_with_only_tribe_keyword() -> None:
+    assert mobile_agents._prompt_has_name_directive("%id(tribe=review)\nDo work")
+
+
 def test_launch_mobile_text_agents_normalizes_prompt_and_returns_slots(
     monkeypatch,
     tmp_path: Path,

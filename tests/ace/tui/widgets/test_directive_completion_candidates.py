@@ -33,6 +33,7 @@ def test_directive_completion_lists_canonical_directives() -> None:
     assert "%model" in insertions
     assert "%id" in insertions
     assert "%wait" in insertions
+    assert "%tribe" not in insertions
     assert "%name" not in insertions
     assert "%plan" not in insertions
     assert "%tale" not in insertions
@@ -84,10 +85,10 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     )
     assert directive_metadata(model).argument_hint == (":model or (model, alias=model)")
     assert directive_metadata(agent_id).description == (
-        "assign an agent id, join a clan, or attach to a family"
+        "assign an agent id, clan, family, or user-managed tribe"
     )
     assert directive_metadata(agent_id).argument_hint == (
-        ":agent-id, (id, clan=clan), or (suffix, family=family)"
+        ":agent-id, (id, clan=clan), (suffix, family=family), or ([id], tribe=tribe)"
     )
     assert directive_metadata(wait).description == (
         "defer launch for agents, a time floor, or a runner threshold"
@@ -101,28 +102,12 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     assert directive_metadata(auto).argument_hint == (":argument (e.g. plan|tale|epic)")
 
 
-def test_directive_completion_t_prefix_lists_tribe() -> None:
-    """%tribe owns the %t prefix; removed %time remains absent."""
+def test_removed_tribe_spellings_are_absent_from_completion() -> None:
     candidates, _ = build_directive_completion_candidates("%t")
-    assert [candidate.insertion for candidate in candidates] == ["%tribe"]
+    assert candidates == []
 
-    tale_candidates, _ = build_directive_completion_candidates("%ta")
-    assert tale_candidates == []
-    ti_candidates, _ = build_directive_completion_candidates("%ti")
-    assert ti_candidates == []
-
-
-def test_directive_completion_includes_tribe_and_alias() -> None:
-    tribe, _ = single_directive_candidate("%tr")
-    alias, _ = single_directive_candidate("%t")
-
-    assert tribe.insertion == "%tribe"
-    assert alias.insertion == "%tribe"
-    assert directive_metadata(tribe).aliases == ("t",)
-    assert directive_metadata(tribe).argument_hint == ":name"
-    assert directive_metadata(tribe).description == (
-        "assign a user-managed agent tribe"
-    )
+    tribe_candidates, _ = build_directive_completion_candidates("%tribe")
+    assert tribe_candidates == []
 
 
 def test_directive_completion_includes_clan_and_alias() -> None:
@@ -158,6 +143,7 @@ def test_id_parenthesized_completion_advertises_identity_keywords() -> None:
         ("%id(worker, cl", "clan="),
         ("%id(worker, fa", "family="),
         ("%id(fa", "family="),
+        ("%id(tr", "tribe="),
     ):
         context = extract_directive_arg_token_around_cursor(line, len(line))
         assert context is not None

@@ -305,7 +305,9 @@ def test_wait_tribe_reference_rejects_malformed_name(prompt: str) -> None:
 
 
 def test_wait_tribe_reference_does_not_collide_with_tribe_directive() -> None:
-    cleaned, directives = extract_prompt_directives("%t:epic\n%w:@epic\nDo work")
+    cleaned, directives = extract_prompt_directives(
+        "%id(worker, tribe=epic)\n%w:@epic\nDo work"
+    )
 
     assert cleaned == "Do work"
     assert directives.tribe == "epic"

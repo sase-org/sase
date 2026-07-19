@@ -213,6 +213,45 @@ def test_apply_set_persists_and_updates_agent(tmp_path: Path) -> None:
     assert app.refresh_calls == 1
 
 
+def test_tribe_modal_round_trip_rewrites_id_tribe_keyword(tmp_path: Path) -> None:
+    tribe_file = tmp_path / "agent_tribes.json"
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    prompt_path = artifacts_dir / "raw_xprompt.md"
+    prompt_path.write_text("%id:worker\nDo work", encoding="utf-8")
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "worker"}),
+        encoding="utf-8",
+    )
+    agent = _make_agent(
+        artifacts_dir=str(artifacts_dir),
+        agent_name="worker",
+    )
+    app = _FakeApp([agent])
+
+    with (
+        patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribe_file),
+        patch(
+            "sase.core.agent_artifact_index_lifecycle."
+            "update_agent_artifact_index_for_marker_mutation"
+        ),
+    ):
+        app._apply_agent_tribe_change(
+            AgentTribeModalResult(action="set", tribe="review"),
+            [agent],
+        )
+        assert prompt_path.read_text(encoding="utf-8") == (
+            "%id(worker, tribe=review)\nDo work"
+        )
+
+        app._apply_agent_tribe_change(
+            AgentTribeModalResult(action="unset", tribe=None),
+            [agent],
+        )
+
+    assert prompt_path.read_text(encoding="utf-8") == "%id:worker\nDo work"
+
+
 def test_apply_set_replaces_existing_tribe(tmp_path: Path) -> None:
     tribe_file = tmp_path / "agent_tribes.json"
     tribe_file.write_text(

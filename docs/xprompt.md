@@ -852,6 +852,7 @@ defaults. Common entries include:
 | `#mentor`             | Run a structured mentor review against a PR                                                       |
 | `#split_file`         | Ask an agent to split one large Python file into import-safe smaller files                        |
 | `#summarize`          | Summarize a file in a short phrase for a specified use                                            |
+| `#tribe`              | Assign an auto-named agent to a user-managed tribe                                                |
 | `#json`               | Require the agent response to satisfy a JSON schema                                               |
 | `#!sync`              | Sync the current workspace and launch conflict-resolution help if needed                          |
 | `#plan`               | Asks the agent to think the work through and use its `/sase_plan` skill before any file changes   |
@@ -867,7 +868,7 @@ defaults. Common entries include:
 | `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                             |
 
 When `#fork` / `#fork_by_chat` injects a `# Previous Conversation` block, the prior **user prompts** in that block are
-sanitized first: sase directives (`%id`, `%wait`, `%tribe`, ...), `#`/`#!` xprompt and workspace references, and any
+sanitized first: sase directives (`%id`, `%wait`, `%model`, ...), `#`/`#!` xprompt and workspace references, and any
 unrendered Jinja2 markers (`{{ }}`, `{% %}`, `{# #}`) are stripped so the forked agent sees clean natural-language text.
 Fenced code blocks and real markdown headings are preserved, and assistant responses are left untouched. Raw transcripts
 on disk are unchanged — the cleanup happens only when building resume history (so `sase chat show` still shows the
@@ -1002,18 +1003,20 @@ the prompt before further processing.
 | --------- | ----- | --------------------------------------------------------------------- |
 | `%model`  | `%m`  | Override the LLM model for this prompt                                |
 | `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                 |
-| `%id`     | `%i`  | Assign an id, join a clan, or attach a member to an existing family   |
+| `%id`     | `%i`  | Assign an id, clan, family, or user-managed tribe                     |
 | `%clan`   | `%c`  | Declare a new named, rootless parallel agent clan                     |
 | `%wait`   | `%w`  | Wait for dependencies, a time floor, and/or a runner threshold        |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display                    |
 | `%auto`   | `%a`  | Request automatic gate resolution; an optional argument is gate-owned |
 | `%repeat` | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                     |
-| `%tribe`  | `%t`  | Assign the agent's user-managed tribe (e.g., `%tribe:review`)         |
 | `%alt`    | `%{}` | Split prompt into variants with different text (brace shorthand)      |
 
 Agent identity uses `%id` or its `%i` alias. The retired `%name` and `%n` prompt directives are not launch aliases.
 Using either as a top-level directive now raises a migration error that points to `%id` / `%i` and, for clan membership,
 the `%id(<id>, clan=<clan>)` form.
+
+The retired `%tribe` and `%t` directives also raise a migration error. Use `%id(<id>, tribe=<tribe>)`,
+`%id(tribe=<tribe>)` / `#tribe:<tribe>`, or `%clan(<clan>, tribe=<tribe>)` according to the identity being tagged.
 
 ### Syntax
 
@@ -1039,6 +1042,9 @@ Directives use the same argument syntax as xprompt references:
 %i(@, family=parent)         # Attach the next free feedback/Q&A suffix
 %id(worker, clan=research)   # Derive research.worker and join clan research
 %id(!worker, clan=research)  # Same derived name, with forced reuse
+%id(reviewer, tribe=review)  # Name reviewer and assign it to tribe @review
+%id(tribe=review)            # Auto-name the agent and assign tribe @review
+#tribe:review                # Built-in shorthand for %id(tribe=review)
 %id                        # Bare — auto-generates a unique name
 %id:!reviewer              # Force reuse by wiping the previous owner
 %clan:research.@             # Declare a new clan; this member uses a full hood-qualified id
@@ -1072,8 +1078,6 @@ Directives use the same argument syntax as xprompt references:
 %auto:plan                   # Compatibility alias for normal-plan auto-approval
 %auto:tale                   # Plan first, then auto-approve & commit as a tale
 %auto:epic                   # Plan first, then auto-approve & commit as an epic
-%tribe:review                # Assign the tribe "review" to this agent
-%t:review                    # Same, using alias
 ```
 
 Model names containing spaces or parentheses must use the quoted parenthesis form (for example,
@@ -1086,10 +1090,9 @@ container, never an agent. `%clan` is a create-only declaration, requires an exp
 may appear for a resolved clan in only one prompt per launch. It errors if that clan already exists. Use
 `%clan(<name>, tribe=<tribe>)` to assign one authoritative tribe to the generation. Every other member uses
 `%id(<id>, clan=<clan>)`, which derives `<clan>.<id>` and joins the newest generation or creates the clan implicitly
-without a tribe. The join form cannot be combined with `%clan` or a separate `%tribe` in the same prompt; joining a clan
-also joins its tribe. A member segment may fan out, and identical raw clan templates in one batch resolve to the same
-generation. See [Agent Clans, Families, and Tribes](agent_families.md) for the full launch, wait, display, and cleanup
-contract.
+without a tribe. The join form cannot be combined with `%clan`; joining a clan also joins its tribe. A member segment
+may fan out, and identical raw clan templates in one batch resolve to the same generation. See
+[Agent Clans, Families, and Tribes](agent_families.md) for the full launch, wait, display, and cleanup contract.
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
 `qwen3.6-plus`) are automatically mapped to their provider. See
@@ -1133,8 +1136,10 @@ split off the clean model and behaves exactly like a standalone `%effort` direct
 
 The `%id` and `%wait` directives can be used without arguments. Bare `%id` auto-generates a permanent unique name for
 the agent. `%id(<id>, clan=<clan>)` derives the full `<clan>.<id>` name and requests membership in that clan. Dotted ids
-are allowed, and a leading `!` forces reuse of the derived name. The `clan=` and `family=` keywords are mutually
-exclusive. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
+are allowed, and a leading `!` forces reuse of the derived name. `%id(<id>, tribe=<tribe>)` tags an explicit id, while
+`%id(tribe=<tribe>)` and `#tribe:<tribe>` tag an auto-named agent. The `clan=`, `family=`, and `tribe=` keywords are
+mutually exclusive, and none can be combined with a `%clan` declaration in the same prompt. Bare `%wait` resolves to the
+most recently named agent (raises an error if no previous agent exists).
 
 Agent-name templates contain exactly one `@` marker. The marker is not a wildcard; SASE replaces it with the next token
 from the shared auto-name sequence (`0`, `1`, ..., `9`, `a`, ..., `z`, `00`, ...). For example, with no reserved names,

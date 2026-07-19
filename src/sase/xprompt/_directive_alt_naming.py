@@ -78,16 +78,18 @@ def _extract_first_model_value(prompt: str) -> str | None:
 
 def _extract_and_strip_name_directive(
     prompt: str,
-) -> tuple[str, str | None, bool]:
+) -> tuple[str, str | None, bool, dict[str, str]]:
     """Strip the first ``%id`` / ``%i`` directive from *prompt*.
 
-    Returns ``(prompt_without_name, raw_value, was_bare)``.  ``raw_value``
-    is ``None`` if no directive existed, an empty string if the directive
-    was bare; ``was_bare`` is ``True`` only in the latter case.
+    Returns ``(prompt_without_name, raw_value, was_bare, named_args)``.
+    ``raw_value`` is ``None`` if no directive existed, an empty string if the
+    directive was bare; ``was_bare`` is ``True`` only in the latter case.
+    Keyword arguments are retained so child-name injection cannot discard
+    identity metadata such as ``tribe=``.
     Trailing newline is absorbed when the directive owns its line.
     """
     if "%" not in prompt:
-        return prompt, None, False
+        return prompt, None, False, {}
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)
@@ -95,6 +97,7 @@ def _extract_and_strip_name_directive(
     protected = protect_disabled_regions(protected, disabled)
 
     raw_value: str | None = None
+    named_args: dict[str, str] = {}
     span: tuple[int, int] | None = None
 
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
@@ -109,7 +112,7 @@ def _extract_and_strip_name_directive(
             paren_end = find_matching_paren_for_args(protected, paren_start)
             if paren_end is not None:
                 inner = protected[paren_start + 1 : paren_end]
-                args, _ = parse_args(inner)
+                args, named_args = parse_args(inner)
                 raw_value = args[0] if args else ""
                 match_end = paren_end + 1
             else:
@@ -135,13 +138,13 @@ def _extract_and_strip_name_directive(
 
     if span is None:
         result = unprotect_disabled_regions(protected, disabled)
-        return unprotect_fenced_blocks(result, fenced), None, False
+        return unprotect_fenced_blocks(result, fenced), None, False, {}
 
     s, e = span
     stripped = protected[:s] + protected[e:]
     stripped = unprotect_disabled_regions(stripped, disabled)
     stripped = unprotect_fenced_blocks(stripped, fenced)
-    return stripped, raw_value, not raw_value
+    return stripped, raw_value, not raw_value, named_args
 
 
 def runtime_label_for_model(model: str) -> str:
@@ -191,9 +194,28 @@ def _model_suffix_value(model: str) -> str:
     return resolved_model
 
 
-def _inject_name_directive(prompt: str, name: str) -> str:
-    """Prepend a ``%id:<name>`` line to *prompt*."""
-    return f"%id:{name}\n{prompt}"
+def _inject_name_directive(
+    prompt: str,
+    name: str,
+    named_args: dict[str, str],
+) -> str:
+    """Prepend a concrete ``%id`` line while preserving keyword arguments."""
+    if not named_args:
+        directive = f"%id:{name}"
+    else:
+        parts = [_format_id_arg(name)]
+        parts.extend(
+            f"{key}={_format_id_arg(value)}" for key, value in named_args.items()
+        )
+        directive = f"%id({', '.join(parts)})"
+    return f"{directive}\n{prompt}"
+
+
+def _format_id_arg(value: str) -> str:
+    if value and not any(char.isspace() or char in ",()=" for char in value):
+        return value
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
 
 
 def apply_fanout_naming(
@@ -246,7 +268,7 @@ def apply_fanout_naming_with_metadata(
 
     base: str | None = None
     for sub in sub_prompts:
-        _, value, was_bare = _extract_and_strip_name_directive(sub)
+        _, value, was_bare, _ = _extract_and_strip_name_directive(sub)
         if value and not was_bare:
             base = value
             break
@@ -287,10 +309,14 @@ def apply_fanout_naming_with_metadata(
         if suffix is None:
             out.append(_NamedFanoutPrompt(prompt=sub, name_generated=False))
             continue
-        stripped, _, _ = _extract_and_strip_name_directive(sub)
+        stripped, _, _, named_args = _extract_and_strip_name_directive(sub)
         out.append(
             _NamedFanoutPrompt(
-                prompt=_inject_name_directive(stripped, f"{base}.{suffix}"),
+                prompt=_inject_name_directive(
+                    stripped,
+                    f"{base}.{suffix}",
+                    named_args,
+                ),
                 name_generated=name_generated,
             )
         )

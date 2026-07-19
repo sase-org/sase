@@ -92,6 +92,16 @@ def test_rewrite_retry_prompt_replaces_template_name() -> None:
     )
 
 
+def test_rewrite_retry_prompt_preserves_tribe_keyword() -> None:
+    assert (
+        _rewrite_retry_prompt_name(
+            "%id(foo, tribe=review)\nDo work",
+            "foo.r0",
+        )
+        == "%id(foo.r0, tribe=review)\nDo work"
+    )
+
+
 def test_rewrite_retry_prompt_preserves_clan_joiner_membership() -> None:
     assert (
         _rewrite_retry_prompt_name(

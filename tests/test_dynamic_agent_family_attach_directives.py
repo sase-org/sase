@@ -82,9 +82,14 @@ def test_name_directive_identity_keywords_are_mutually_exclusive(source: str) ->
         extract_prompt_directives(f"{source}\nDo work")
 
 
-def test_name_directive_tribe_keyword_is_reserved_for_followup_phase() -> None:
-    with pytest.raises(DirectiveError, match=r"tribe=.*not supported yet"):
-        extract_prompt_directives("%id(worker, tribe=research)\nDo work")
+def test_name_directive_tribe_keyword_parses() -> None:
+    cleaned, directives = extract_prompt_directives(
+        "%id(worker, tribe=research)\nDo work"
+    )
+
+    assert cleaned == "Do work"
+    assert directives.name == "worker"
+    assert directives.tribe == "research"
 
 
 def test_name_directive_rejects_legacy_family_suffix_spellings() -> None:

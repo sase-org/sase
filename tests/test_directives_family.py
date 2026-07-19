@@ -103,7 +103,7 @@ def test_id_clan_keyword_derives_template_metadata() -> None:
             "%id(worker, clan=research, clan=other)",
             "Duplicate keyword argument 'clan'",
         ),
-        ("%id(worker, tribe=research)", "tribe= keyword.*not supported yet"),
+        ("%id(!, tribe=research)", "requires a non-empty id"),
     ],
 )
 def test_id_clan_keyword_rejects_invalid_argument_shapes(
@@ -119,19 +119,12 @@ def test_id_clan_keyword_rejects_multiple_template_markers() -> None:
         extract_prompt_directives("%id(@, clan=research.@)\nDo work")
 
 
-@pytest.mark.parametrize(
-    "prompt",
-    [
-        "%id(worker, clan=research)\n%tribe:review\nDo work",
-        "%tribe:review\n%i(worker, clan=research)\nDo work",
-    ],
-)
-def test_id_clan_keyword_conflicts_with_tribe(prompt: str) -> None:
+def test_id_tribe_keyword_conflicts_with_clan_declaration() -> None:
     with pytest.raises(
         DirectiveError,
-        match=r"joining a clan joins its tribe.*Put tribe= on the clan's %clan",
+        match=r"Cannot combine %clan with %id\(\.\.\., tribe=\.\.\.\)",
     ):
-        extract_prompt_directives(prompt)
+        extract_prompt_directives("%clan:research\n%id(worker, tribe=review)\nDo work")
 
 
 @pytest.mark.parametrize(
@@ -185,31 +178,6 @@ def test_clan_directive_rejects_invalid_argument_shapes(
 ) -> None:
     with pytest.raises(DirectiveError, match=message):
         extract_prompt_directives(f"{source}\nDo work")
-
-
-@pytest.mark.parametrize(
-    "prompt",
-    [
-        f"{first}\n{second}\nDo work"
-        for clan_alias in ("clan", "c")
-        for tribe_alias in ("tribe", "t")
-        for clan_form in (f"%{clan_alias}:foo", f"%{clan_alias}(foo)")
-        for tribe_form in (
-            f"%{tribe_alias}:research",
-            f"%{tribe_alias}(research)",
-        )
-        for first, second in (
-            (clan_form, tribe_form),
-            (tribe_form, clan_form),
-        )
-    ],
-)
-def test_clan_directive_conflicts_with_standalone_tribe(prompt: str) -> None:
-    with pytest.raises(
-        DirectiveError,
-        match=r"Cannot combine %tribe with %clan; use %clan\(<clan>, tribe=<tribe>\)",
-    ):
-        extract_prompt_directives(prompt)
 
 
 def test_clan_directive_rejects_duplicate_alias_occurrence() -> None:

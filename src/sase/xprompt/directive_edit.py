@@ -36,15 +36,38 @@ class PromptWaitDirective:
         return bool(self.agents or self.time_token or self.runners is not None)
 
 
+@dataclass(frozen=True)
+class _PromptIdDirective:
+    start: int
+    end: int
+    positional: tuple[str, ...]
+    named: dict[str, str]
+
+
 _TIME_XPROMPT_RE = re.compile(
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
     r"#t(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,+/-]*[a-zA-Z0-9_~+/-]))"
 )
 
 
-def set_prompt_name(prompt: str, name: str) -> str:
-    """Return *prompt* with a canonical ``%id:<name>`` directive."""
-    return _set_prompt_directive(prompt, {"id"}, f"%id:{name}")
+def set_prompt_name(
+    prompt: str,
+    name: str,
+    *,
+    directive_alias: Literal["id", "i"] = "id",
+) -> str:
+    """Return *prompt* with a canonical ``%id`` while preserving its kwargs."""
+    protected, restore = _protect_ignored_regions(prompt)
+    directive = _find_prompt_id_directive(protected)
+    if directive is None:
+        return restore(_insert_directive(protected, f"%{directive_alias}:{name}"))
+    replacement = _format_id_directive(
+        name,
+        directive.named,
+        directive_alias=directive_alias,
+    )
+    rewritten = protected[: directive.start] + replacement + protected[directive.end :]
+    return restore(rewritten)
 
 
 def demote_prompt_clan_declaration(prompt: str) -> str:
@@ -128,15 +151,55 @@ def rewrite_prompt_clan_member_name(
 
 
 def set_prompt_tribe(prompt: str, tribe: str | None) -> str:
-    """Return *prompt* with ``%tribe`` set or removed."""
+    """Add, replace, or remove the ``tribe=`` keyword on ``%id``."""
     if _prompt_has_effective_clan(prompt):
         rewritten = set_prompt_clan_tribe(prompt, tribe)
         return _set_prompt_directive(rewritten, {"g", "group", "tribe"}, None)
-    replacement = f"%tribe:{tribe}" if tribe else None
+
     # Editing an existing agent also migrates launch prompts written before
     # tribes replaced groups. These spellings remain unsupported by the
     # runtime parser; recognizing them here is cleanup, not a legacy alias.
-    return _set_prompt_directive(prompt, {"g", "group", "tribe"}, replacement)
+    protected, restore = _protect_ignored_regions(prompt)
+    protected = _rewrite_protected_prompt(
+        protected,
+        {"g", "group", "tribe"},
+        None,
+        remove_deprecated=False,
+        remove_time_xprompts=False,
+    )
+    directive = _find_prompt_id_directive(protected)
+    if directive is None:
+        if tribe is None:
+            return restore(protected)
+        return restore(_insert_directive(protected, f"%id(tribe={tribe})"))
+
+    named = dict(directive.named)
+    if tribe is not None:
+        conflicting = sorted(key for key in named if key in {"clan", "family"})
+        if conflicting:
+            keyword = conflicting[0]
+            raise ValueError(
+                f"Cannot set tribe= on an %id directive that already uses "
+                f"{keyword}=; clan=, family=, and tribe= are mutually exclusive."
+            )
+        named["tribe"] = tribe
+    else:
+        if "tribe" not in named:
+            return restore(protected)
+        named.pop("tribe")
+
+    name = directive.positional[0] if directive.positional else None
+    if name is None and not named:
+        rewritten = _remove_spans(
+            protected,
+            [(directive.start, directive.end)],
+        )
+    else:
+        replacement = _format_id_directive(name, named)
+        rewritten = (
+            protected[: directive.start] + replacement + protected[directive.end :]
+        )
+    return restore(rewritten)
 
 
 def set_prompt_clan_tribe(prompt: str, tribe: str | None) -> str:
@@ -262,6 +325,56 @@ def _format_wait_arg(value: str) -> str:
         return value
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'
+
+
+def _format_id_directive(
+    name: str | None,
+    named: dict[str, str],
+    *,
+    directive_alias: Literal["id", "i"] = "id",
+) -> str:
+    if not named:
+        return f"%{directive_alias}" if name is None else f"%{directive_alias}:{name}"
+    parts = [] if name is None else [_format_wait_arg(name)]
+    parts.extend(f"{key}={_format_wait_arg(value)}" for key, value in named.items())
+    return f"%{directive_alias}({', '.join(parts)})"
+
+
+def _find_prompt_id_directive(prompt: str) -> _PromptIdDirective | None:
+    alt_inner_regions = _alt_inner_regions(prompt)
+    for match in re.finditer(_DIRECTIVE_PATTERN, prompt, re.MULTILINE):
+        if _inside_regions(match.start(), alt_inner_regions):
+            continue
+        name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
+        if name != "id":
+            continue
+
+        end = match.end()
+        positional: list[str] = []
+        named: dict[str, str] = {}
+        if match.group(2) is not None:
+            paren_end = find_matching_paren_for_args(prompt, match.end() - 1)
+            if paren_end is None:
+                raise ValueError("Cannot update malformed %id(...) directive.")
+            positional, named = parse_args(
+                prompt[match.end() : paren_end],
+                reject_duplicate_named_args=True,
+            )
+            end = paren_end + 1
+        elif match.group(3) is not None:
+            raw_value = match.group(3)
+            positional = [
+                raw_value[1:-1]
+                if raw_value.startswith("`") and raw_value.endswith("`")
+                else raw_value
+            ]
+        return _PromptIdDirective(
+            start=match.start(),
+            end=end,
+            positional=tuple(positional),
+            named=named,
+        )
+    return None
 
 
 def _set_prompt_directive(

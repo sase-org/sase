@@ -288,8 +288,8 @@ def test_joiners_only_create_then_reuse_clan_generation(
     ("prompt", "message"),
     [
         (
-            "%id(worker, clan=root)\n%tribe:review\nWork",
-            r"joining a clan joins its tribe.*Put tribe= on the clan's %clan",
+            "%id(worker, tribe=review)\n%clan:root\nWork",
+            r"Cannot combine %clan with %id\(\.\.\., tribe=\.\.\.\)",
         ),
         (
             "%id(worker, clan=root)\n%clan:root\nWork",
@@ -363,11 +363,11 @@ def test_xprompt_introduced_clan_tribe_conflict_spawns_nothing(
         spawn as mock_spawn,
         pytest.raises(
             DirectiveError,
-            match="Cannot combine %tribe with %clan",
+            match=r"Cannot combine %clan with %id\(\.\.\., tribe=\.\.\.\)",
         ),
     ):
         launch_multi_prompt_agents(
-            segments=["%id:root.one\n%tribe:research\n#_join"],
+            segments=["%id(root.one, tribe=research)\n#_join"],
             local_xprompts={
                 "_join": XPrompt(
                     name="_join",

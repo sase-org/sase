@@ -487,54 +487,66 @@ def test_disabled_region_markers_preserved_when_flag_false() -> None:
     assert "Rest of prompt" in cleaned
 
 
-# --- %tribe directive ---
+# --- tribe= keyword on %id ---
 
 
-def test_tribe_directive_colon_arg() -> None:
-    """``%tribe:<name>`` sets directives.tribe and is stripped from the prompt."""
-    prompt = "%tribe:review\nFix the bug"
+def test_id_tribe_keyword_with_explicit_id() -> None:
+    prompt = "%id(reviewer, tribe=review)\nFix the bug"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Fix the bug"
+    assert directives.name == "reviewer"
+    assert directives.name_explicit is True
     assert directives.tribe == "review"
 
 
-def test_tribe_directive_accepts_dotted_bead_id() -> None:
-    prompt = "%tribe:sase-42.3\nFix the bug"
+def test_id_tribe_keyword_accepts_dotted_bead_id() -> None:
+    prompt = "%id(reviewer, tribe=sase-42.3)\nFix the bug"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Fix the bug"
     assert directives.tribe == "sase-42.3"
 
 
-def test_tribe_short_alias_t() -> None:
-    """``%t:<name>`` is a short alias for ``%tribe:<name>``."""
-    prompt = "%t:exp\nFix the bug"
-    cleaned, directives = extract_prompt_directives(prompt)
+def test_id_tribe_keyword_without_id_auto_names() -> None:
+    with patch("sase.agent.names.get_next_auto_name", return_value="auto7"):
+        cleaned, directives = extract_prompt_directives("%id(tribe=exp)\nFix the bug")
+
     assert cleaned == "Fix the bug"
+    assert directives.name == "auto7"
+    assert directives.name_explicit is False
     assert directives.tribe == "exp"
 
 
-def test_tribe_directive_paren_arg() -> None:
-    """``%tribe(<name>)`` works the same as the colon form."""
-    prompt = "%tribe(release)\nFix"
+def test_id_tribe_keyword_supports_force_reuse() -> None:
+    prompt = "%id(!reviewer, tribe=release)\nFix"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Fix"
+    assert directives.name == "reviewer"
+    assert directives.name_force_reuse is True
     assert directives.tribe == "release"
 
 
-def test_tribe_directive_rejects_at_prefix() -> None:
+def test_id_tribe_keyword_rejects_at_prefix() -> None:
     with pytest.raises(DirectiveError, match="must not start with '@'"):
-        extract_prompt_directives("%tribe:`@review`\nDo it")
+        extract_prompt_directives('%id(reviewer, tribe="@review")\nDo it')
 
 
-def test_tribe_directive_rejects_invalid_chars() -> None:
+def test_id_tribe_keyword_rejects_invalid_chars() -> None:
     with pytest.raises(DirectiveError, match="must match"):
-        extract_prompt_directives("%tribe:`has space`\nDo it")
+        extract_prompt_directives('%id(reviewer, tribe="has space")\nDo it')
 
 
-def test_tribe_directive_bare_is_error() -> None:
-    """``%tribe`` with no argument is invalid."""
-    with pytest.raises(DirectiveError, match="requires a tribe name"):
-        extract_prompt_directives("%tribe\nDo it")
+def test_id_tribe_keyword_empty_is_error() -> None:
+    with pytest.raises(DirectiveError, match="requires a non-empty tribe name"):
+        extract_prompt_directives("%id(tribe=)\nDo it")
+
+
+@pytest.mark.parametrize("source", ["%tribe:review", "%t:review", "%tribe(review)"])
+def test_removed_tribe_directives_raise_migration_error(source: str) -> None:
+    with pytest.raises(
+        DirectiveError,
+        match=r"%tribe.*%t.*removed.*%id\(tribe=<tribe>\).*#tribe",
+    ):
+        extract_prompt_directives(f"{source}\nDo it")
 
 
 def test_tribe_directive_default_none() -> None:

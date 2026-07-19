@@ -571,7 +571,8 @@ Workflows launched via `sase run` are visible in the Agents tab alongside ACE-la
 Anonymous `tmp_*` workflows are included in the normal visible-inbox index when their workflow state has
 `appears_as_agent: true` and does not set `hidden: true`; explicitly hidden workflow rows are omitted from the default
 view. Specialized review runners launched by axe (mentor, CRS, fix-hook, and summarize-hook review agents) are also
-visible and are automatically grouped into tribe `@review`, matching the behavior of a `%tribe:review` prompt launch.
+visible and are automatically grouped into tribe `@review`, matching the behavior of a `%id(..., tribe=review)` prompt
+launch.
 
 ### Agent Artifacts
 
@@ -686,8 +687,8 @@ cleared by a valid panel-level cycle, `zZ` extreme toggle, or direct `z1`-`z4` s
 Tribes are set or cleared with `N` (see [Agent Actions](#agent-actions)). When opening the modal on an agent without a
 tribe the input is pre-seeded with `pinned` so a single Enter promotes the agent into the standard "pinned" panel; that
 default makes tribe removal discoverable too — opening the modal on an assigned agent and submitting an empty string
-clears the tribe. The `%tribe:<name>` directive (alias `%t`) assigns the tribe at launch; `sase agent tribe` manages it
-from the CLI.
+clears the tribe. The `tribe=<name>` keyword on `%id` assigns the tribe at launch, and `#tribe:<name>` combines it with
+an automatic id; `sase agent tribe` manages it from the CLI.
 
 ### Group Banners and Folding
 

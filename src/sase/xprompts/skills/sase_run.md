@@ -125,9 +125,10 @@ second prompt declares it. `%id(<id>, clan=<clan>)` joins an existing clan or cr
 Clan membership does not add ordering; use `%wait` explicitly. Set `max_slots` to at least the number of segments in the
 request.
 
-Use `%clan(review, tribe=quality)` (or `%c(review, tribe=quality)`) when the clan should appear in a tribe. Keep
-`%tribe:quality` / `%t:quality` for standalone agents and sequential families that are not clan members. Never combine
-`%tribe` with `%clan`; move the tribe into the clan declaration instead.
+Use `%clan(review, tribe=quality)` (or `%c(review, tribe=quality)`) when the clan should appear in a tribe. Use
+`%id(worker, tribe=quality)` for an explicitly named standalone agent or `#tribe:quality` for an auto-named one. The
+`clan=`, `family=`, and `tribe=` identity keywords are mutually exclusive; move a clan's tribe into its `%clan`
+declaration instead.
 
 ## Handle The Outcome
 

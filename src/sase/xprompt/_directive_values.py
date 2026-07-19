@@ -303,7 +303,7 @@ def parse_repeat_count(expanded_args: dict[str, str]) -> int | None:
 
 
 def parse_tribe_name(expanded_args: dict[str, str]) -> str | None:
-    """Parse and validate the ``%tribe`` directive."""
+    """Parse and validate the ``tribe=`` keyword on ``%id``."""
     raw_tribe = expanded_args.get("tribe")
     if raw_tribe:
         from sase.core.agent_tribe import InvalidTribeError, validate_tribe_name
@@ -311,11 +311,9 @@ def parse_tribe_name(expanded_args: dict[str, str]) -> str | None:
         try:
             return validate_tribe_name(raw_tribe)
         except InvalidTribeError as exc:
-            raise DirectiveError(f"Invalid '%tribe' value: {exc}") from exc
+            raise DirectiveError(f"Invalid '%id' tribe= value: {exc}") from exc
     if "tribe" in expanded_args:
-        raise DirectiveError(
-            "'%tribe' directive requires a tribe name argument (e.g., %tribe:review)"
-        )
+        raise DirectiveError("'%id(..., tribe=...)' requires a non-empty tribe name.")
     return None
 
 

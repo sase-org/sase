@@ -270,7 +270,7 @@ def test_family_attach_child_inherits_parent_clan_metadata(
 
     conflict_dir = tmp_path / "conflict-child"
     conflict_dir.mkdir()
-    conflict_prompt = "%i(reviewer, family=research.worker)\n%tribe:solo\nReview"
+    conflict_prompt = "%id(research.worker--reviewer, tribe=solo)\nReview"
     with (
         patch("sase.agent.names.ensure_historical_auto_name_migration"),
         patch(

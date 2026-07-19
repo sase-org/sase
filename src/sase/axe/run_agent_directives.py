@@ -184,9 +184,9 @@ def extract_directives_and_write_meta(
         and not directives.clan_declared
     ):
         raise ClanMembershipError(
-            "Cannot use %tribe when joining a clan with %id(..., clan=...); "
-            "joining a clan joins its tribe. Put tribe= on the clan's %clan "
-            "declaration instead."
+            "Cannot use %id(..., tribe=...) when joining a clan with "
+            "%id(..., clan=...); joining a clan joins its tribe. Put tribe= "
+            "on the clan's %clan declaration instead."
         )
     if (
         directives.tribe is not None
@@ -194,9 +194,9 @@ def extract_directives_and_write_meta(
         and family_attach_plan.parent_agent_clan
     ):
         raise ClanMembershipError(
-            "Cannot use %tribe on a family attachment that inherits clan "
-            "membership; tribe membership belongs to the inherited clan and "
-            "must be supplied by a clan member's "
+            "Cannot use %id(..., tribe=...) on a family attachment that "
+            "inherits clan membership; tribe membership belongs to the "
+            "inherited clan and must be supplied by a clan member's "
             "%clan(<clan>, tribe=<tribe>) declaration."
         )
     from sase.llm_provider.launch_alias_overrides import (
@@ -553,7 +553,7 @@ def extract_directives_and_write_meta(
         if agent_meta:
             write_agent_meta(artifacts_dir, agent_meta)
 
-    # Persist the %tribe directive into ~/.sase/agent_tribes.json so the Agents
+    # Persist the %id tribe= value into ~/.sase/agent_tribes.json so the Agents
     # tab picks it up at load time.  The agent's identity is
     # (agent_type=WORKFLOW, cl_name, raw_suffix) — matching how run-agents
     # are loaded via the workflow loader.

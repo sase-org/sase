@@ -27,8 +27,8 @@ def test_set_prompt_name_replaces_long_form() -> None:
 
 
 def test_set_prompt_name_replaces_alias_without_touching_tribe() -> None:
-    prompt = "%t:batch\n%i:old\nDo work"
-    assert set_prompt_name(prompt, "new") == "%id:new\n%t:batch\nDo work"
+    prompt = "%i(old, tribe=batch)\nDo work"
+    assert set_prompt_name(prompt, "new") == "%id(new, tribe=batch)\nDo work"
 
 
 def test_demote_prompt_clan_declaration_rewrites_id_and_drops_tribe() -> None:
@@ -72,13 +72,27 @@ def test_prompt_declares_clan_ignores_joiner_and_protected_examples() -> None:
 
 
 def test_set_prompt_tribe_set_and_unset_alias() -> None:
-    assert set_prompt_tribe("%t:old\nDo work", "triage") == ("%tribe:triage\nDo work")
-    assert set_prompt_tribe("%tribe:triage\nDo work", None) == "Do work"
+    assert set_prompt_tribe("%t:old\nDo work", "triage") == (
+        "%id(tribe=triage)\nDo work"
+    )
+    assert set_prompt_tribe("%id(tribe=triage)\nDo work", None) == "Do work"
+
+
+def test_set_prompt_tribe_updates_existing_id_keyword() -> None:
+    assert set_prompt_tribe("%id:worker\nDo work", "triage") == (
+        "%id(worker, tribe=triage)\nDo work"
+    )
+    assert set_prompt_tribe("%i(worker, tribe=old)\nDo work", "triage") == (
+        "%id(worker, tribe=triage)\nDo work"
+    )
+    assert set_prompt_tribe("%id(worker, tribe=triage)\nDo work", None) == (
+        "%id:worker\nDo work"
+    )
 
 
 def test_set_prompt_tribe_migrates_removed_group_spellings() -> None:
     prompt = "%group:old\n%g:older\nDo work"
-    assert set_prompt_tribe(prompt, "triage") == "%tribe:triage\nDo work"
+    assert set_prompt_tribe(prompt, "triage") == "%id(tribe=triage)\nDo work"
 
 
 def test_set_prompt_clan_tribe_adds_replaces_and_removes_keyword() -> None:
@@ -191,7 +205,7 @@ def test_fenced_directives_are_not_rewritten() -> None:
 def test_disabled_region_directives_are_not_rewritten() -> None:
     prompt = "%xprompts_enabled:false\n%tribe:old\n%xprompts_enabled:true\nDo work"
     assert set_prompt_tribe(prompt, "new") == (
-        "%tribe:new\n"
+        "%id(tribe=new)\n"
         "%xprompts_enabled:false\n"
         "%tribe:old\n"
         "%xprompts_enabled:true\n"

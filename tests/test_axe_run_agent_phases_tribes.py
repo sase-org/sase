@@ -178,7 +178,7 @@ def test_extract_directives_persists_tribe_with_atomic_helper(
         patch("sase.ace.agent_tribes.update_agent_tribe") as update_agent_tribe,
     ):
         info = extract_directives_and_write_meta(
-            "%id:taggy\n%tribe:sase-26\nDo work",
+            "%id(taggy, tribe=sase-26)\nDo work",
             str(workspace_dir),
             str(artifacts_dir),
             cl_name="sample-cl",
@@ -252,7 +252,7 @@ def test_explicit_tribe_wins_over_matching_existing_tribe(tmp_path: Path) -> Non
 
     info, meta, tribes = _extract_with_agent_tribes(
         tmp_path,
-        "%id:foo.child\n%tribe:bar\nDo work",
+        "%id(foo.child, tribe=bar)\nDo work",
         seed_tribes={existing: "foo"},
     )
 

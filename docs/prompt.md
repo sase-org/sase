@@ -108,7 +108,7 @@ highlighted.
   `1y`; an unparseable date is a usage error. SDD snapshots are dated by their frontmatter timestamp, falling back to
   the `YYYYMM` path segment, then the file mtime; local prompts use their last-used time.
 - `-t|--tag` keeps prompts carrying a matching tag — SDD `prompt_tags` frontmatter plus the embedded `#xprompt` chips
-  parsed from the prompt body. Low-signal runner-control `%` directives (`%model`, `%id`, `%tribe`, …) are execution
+  parsed from the prompt body. Low-signal runner-control `%` directives (`%model`, `%id`, `%wait`, …) are execution
   mechanics, not content tags, so they are deliberately excluded. Repeats OR together (`-t review -t auth` matches
   either).
 - `-s|--source` scopes to `sdd`, `local`, or `all` (default).

@@ -28,7 +28,6 @@ _KNOWN_DIRECTIVES = frozenset(
         "model",
         "id",
         "repeat",
-        "tribe",
         "wait",
     }
 )
@@ -60,6 +59,12 @@ _DEPRECATED_DIRECTIVE_MESSAGES: dict[str, str] = {
     "edit": (
         "The '%edit' directive has been removed; from an editor, put ' @' at "
         "the end of any line to reload the prompt for review."
+    ),
+    "tribe": (
+        "The '%tribe'/'%t' directive has been removed; use "
+        "%id(tribe=<tribe>) or the #tribe xprompt for an auto-named agent, "
+        "%id(<id>, tribe=<tribe>) for an explicitly named agent, or "
+        "%clan(<clan>, tribe=<tribe>) for a clan."
     ),
 }
 _DEPRECATED_DIRECTIVES = frozenset(_DEPRECATED_DIRECTIVE_MESSAGES)
@@ -104,7 +109,8 @@ class PromptDirectives:
         clan_declared: Whether clan membership came from an explicit
             ``%clan`` declaration rather than the ``clan=`` join form.
         clan_tribe: Tribe declared through ``%clan(..., tribe=...)``, or None.
-        tribe: Standalone tribe declared through ``%tribe``/``%t``, or None.
+        tribe: Standalone tribe declared through the ``tribe=`` keyword on
+            ``%id``, or None.
         wait: List of agent names to wait for via positional %wait arguments.
         wait_duration: Duration in seconds from the %wait(time=...) keyword.
         wait_until: Absolute target datetime from the %wait(time=...) keyword.

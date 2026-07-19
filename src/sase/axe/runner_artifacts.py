@@ -195,7 +195,7 @@ def detect_write_and_persist_review_agent_meta(
 
     Specialized review runners (CRS, mentor, fix-hook) bypass the generic
     prompt directive parser, so they need to write the same observable tribe
-    state that a ``%tribe:review`` launch would have produced.
+    state that a ``%id(..., tribe=review)`` launch would have produced.
     """
     _detect_and_write_agent_meta(
         artifacts_dir,

@@ -13,47 +13,13 @@ def rewrite_retry_prompt_name(
     directive_alias: Literal["id", "i"] = "id",
 ) -> str:
     """Replace or prepend the top-level prompt ``%id`` directive for retry."""
-    from sase.xprompt._directive_types import (
-        _DIRECTIVE_ALIASES,
-        _DIRECTIVE_PATTERN,
+    from sase.xprompt.directive_edit import set_prompt_name
+
+    return set_prompt_name(
+        raw_prompt,
+        retry_name,
+        directive_alias=directive_alias,
     )
-    from sase.xprompt._disabled_regions import (
-        protect_disabled_regions,
-        unprotect_disabled_regions,
-    )
-    from sase.xprompt._fenced_blocks import (
-        protect_fenced_blocks,
-        unprotect_fenced_blocks,
-    )
-    from sase.xprompt._parsing import find_matching_paren_for_args
-
-    name_directive = f"%{directive_alias}:{retry_name}"
-    fenced: list[str] = []
-    protected = protect_fenced_blocks(raw_prompt, fenced)
-    disabled: list[str] = []
-    protected = protect_disabled_regions(protected, disabled)
-
-    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
-        raw_name = match.group(1)
-        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "id":
-            continue
-
-        match_end = match.end()
-        if match.group(2) is not None:
-            paren_start = match.end() - 1
-            paren_end = find_matching_paren_for_args(protected, paren_start)
-            if paren_end is not None:
-                match_end = paren_end + 1
-
-        rewritten = (
-            f"{protected[: match.start()]}{name_directive}{protected[match_end:]}"
-        )
-        rewritten = unprotect_disabled_regions(rewritten, disabled)
-        return unprotect_fenced_blocks(rewritten, fenced)
-
-    protected = f"{name_directive}\n{protected}"
-    protected = unprotect_disabled_regions(protected, disabled)
-    return unprotect_fenced_blocks(protected, fenced)
 
 
 def force_name_reuse_in_prompt(

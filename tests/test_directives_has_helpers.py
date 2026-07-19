@@ -70,7 +70,8 @@ def test_has_wait_directive_does_not_match_time() -> None:
     with pytest.raises(DirectiveError, match=r"%time"):
         extract_prompt_directives("%time:5m\nDo something")
     assert _extracts_wait_directive("%wait(time=5m)\nDo something") is False
-    assert _extracts_wait_directive("%t:5m\nDo something") is False
+    with pytest.raises(DirectiveError, match=r"%tribe.*%t.*removed"):
+        _extracts_wait_directive("%t:5m\nDo something")
 
 
 @pytest.mark.parametrize("directive", ["%wait:old_agent", "%w:old_agent"])

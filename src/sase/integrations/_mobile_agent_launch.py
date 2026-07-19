@@ -222,7 +222,11 @@ def prompt_has_name_directive(prompt: str) -> bool:
     from sase.agent.multi_prompt_references import extract_static_name_directive
 
     return extract_static_name_directive(prompt) is not None or bool(
-        re.search(r"(?:^|\s)%(?:name|n)(?:[:+(]|\s|$)", prompt, re.MULTILINE)
+        re.search(
+            r"(?:^|\s)%(?:id|i|name|n)(?:[:+(]|\s|$)",
+            prompt,
+            re.MULTILINE,
+        )
     )
 
 

@@ -6,7 +6,7 @@ SASE uses three different kinds of agent grouping:
 | ---------------- | ----------------------------------------- | -------------------------------------------------------------------- |
 | **Agent clan**   | `%clan:<name>` / `%id(<id>, clan=<name>)` | Declare or join a named, rootless container for parallel agents      |
 | **Agent family** | `%i(<suffix>, family=<parent>)`           | A strictly sequential chain named `<family>--<suffix>`               |
-| **Agent tribe**  | `%tribe:<name>` / `%t:<name>`             | A user-managed label displayed with an `@` prefix, such as `@review` |
+| **Agent tribe**  | `%id([<id>], tribe=<name>)` / `#tribe`    | A user-managed label displayed with an `@` prefix, such as `@review` |
 
 Dot-separated names also define an agent _hood_: `foo.bar` and `foo.baz` are neighbors in hood `foo`. A deeper name
 belongs to every hood along its dotted path, so ACE can group `foo.bar.worker` with peers under `foo.bar` and cousins
@@ -33,15 +33,14 @@ Publish the release after both members finish.
 
 The short form is `%c:release`. `%clan` is create-only: exactly one prompt may declare a clan, and declaring a clan that
 already exists is an error. Use `%clan(<name>, tribe=<tribe>)` (or the `%c(...)` alias) to assign the declaration's
-tribe to the entire clan generation; a separate `%tribe` directive cannot be combined with clan membership. Every other
-member uses `clan=`. That form joins an existing clan or creates it implicitly without a tribe, takes exactly one member
-id, allows dotted ids, and accepts a leading `!` for forced reuse. Static names and templates such as
-`%id(cld, clan=research.@)` work; the derived `research.@.cld` name flows through normal template allocation.
+tribe to the entire clan generation; `tribe=` on `%id` cannot be combined with clan membership. Every other member uses
+`clan=`. That form joins an existing clan or creates it implicitly without a tribe, takes exactly one member id, allows
+dotted ids, and accepts a leading `!` for forced reuse. Static names and templates such as `%id(cld, clan=research.@)`
+work; the derived `research.@.cld` name flows through normal template allocation.
 
 Clan membership is execution-neutral. It does not add waits, change launch order, choose a workspace or model, or
-otherwise rewrite launch behavior. Use `%wait` explicitly wherever ordering is required. The `family=` keyword and
-`clan=` keyword on `%id` are mutually exclusive, and a joining `%id(..., clan=...)` cannot be combined with `%clan` or
-`%tribe` in the same segment.
+otherwise rewrite launch behavior. Use `%wait` explicitly wherever ordering is required. The `clan=`, `family=`, and
+`tribe=` keywords on `%id` are mutually exclusive, and none can be combined with `%clan` in the same segment.
 
 The clan name is permanently reserved as a container name and cannot also belong to an agent. Each member must be named
 `<clan>.<suffix>`; launch planning rejects an out-of-hood name before spawning it. A clan may contain ordinary agents,
@@ -202,11 +201,13 @@ used as attachment targets.
 
 ## Agent Tribes
 
-An agent tribe is a user-facing label for related agents across clans and families. Assign one at launch with
-`%tribe:<name>` or `%t:<name>`:
+An agent tribe is a user-facing label for related agents across clans and families. Assign one at launch with the
+`tribe=` keyword on `%id`, or use `#tribe` when the agent should be auto-named:
 
 ```text
-%i:api-review %t:review Review the API boundary.
+%id(api-review, tribe=review) Review the API boundary.
+---
+#tribe:review Review another boundary with an automatic id.
 ```
 
 ACE displays tribes with an `@` prefix and splits the Agents tab into panels such as `@review` and `@epic`. The clan's

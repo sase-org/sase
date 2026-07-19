@@ -192,16 +192,10 @@ def _validate_clan_directive_contract(collected: _CollectedDirectives) -> None:
             "uses %clan(<clan>, tribe=<tribe>) with a full %id:<clan>.<id>, "
             "while a joining prompt uses only %id(<id>, clan=<clan>)."
         )
-    if collected.name_clan_arg is not None and "tribe" in collected.seen:
-        raise DirectiveError(
-            "Cannot combine %tribe with %id(..., clan=...); joining a clan "
-            "joins its tribe. Put tribe= on the clan's %clan declaration "
-            "instead."
-        )
     if "clan" in collected.seen and "tribe" in collected.seen:
         raise DirectiveError(
-            "Cannot combine %tribe with %clan; use "
-            "%clan(<clan>, tribe=<tribe>) to assign the clan to a tribe."
+            "Cannot combine %clan with %id(..., tribe=...); use "
+            "%clan(<clan>, tribe=<tribe>) to set the clan's tribe."
         )
     if "clan" in collected.seen and collected.name_family_args is not None:
         raise DirectiveError(
@@ -256,6 +250,8 @@ def _collect_name_paren_args(
         raise DirectiveError(str(exc)) from exc
     if parsed_name.clan is not None:
         collected.name_clan_arg = parsed_name.clan
+    if parsed_name.tribe is not None:
+        collected.seen["tribe"] = parsed_name.tribe
     if parsed_name.force_reuse:
         collected.name_force_reuse = True
     if parsed_name.family_parent is not None and parsed_name.family_suffix is not None:
@@ -265,7 +261,7 @@ def _collect_name_paren_args(
         )
         match_end = paren_end + 1
         if "id" in collected.seen:
-            raise DirectiveError("Duplicate directive '%id' in prompt")
+            raise DirectiveError(_duplicate_id_message())
         collected.seen["id"] = ""
         collected.seen_source["id"] = prompt[match.start() : match_end]
         collected.regions_to_remove.append((match.start(), match_end))
@@ -293,6 +289,16 @@ def _store_single_directive(
                     f"{prompt[match.start() : match_end]}"
                 )
                 raise DirectiveError(multi_model_unsupported_message(source, models))
+        if name == "id":
+            raise DirectiveError(_duplicate_id_message())
         raise DirectiveError(f"Duplicate directive '%{name}' in prompt")
     collected.seen[name] = raw_args[0]
     collected.seen_source[name] = prompt[match.start() : match_end]
+
+
+def _duplicate_id_message() -> str:
+    return (
+        "Duplicate directive '%id' in prompt; use "
+        "%id(<id>, tribe=<tribe>) to assign a tribe to an explicitly named "
+        "agent."
+    )

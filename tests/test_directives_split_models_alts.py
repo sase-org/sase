@@ -65,6 +65,15 @@ def test_split_prompt_for_models_pure_alt_gets_planned_names() -> None:
     assert result[1] == "%id:foo.2\ny\nDo work"
 
 
+def test_split_prompt_for_models_preserves_tribe_keyword() -> None:
+    result = split_prompt_for_models("%id(foo, tribe=review)\n%alt(x,y)\nDo work")
+
+    assert result == [
+        "%id(foo.1, tribe=review)\nx\nDo work",
+        "%id(foo.2, tribe=review)\ny\nDo work",
+    ]
+
+
 def test_split_prompt_for_models_allows_template_name_base() -> None:
     """Template bases are preserved and extended for fan-out child names."""
     result = split_prompt_for_models("%i:foo-@\n%alt(x,y)\nDo work")
