@@ -155,6 +155,7 @@ class KeybindingBindingsMixin:
                 bindings.append((self._kd("hooks_or_collapse"), "less detail"))
 
         if panel_focused:
+            bindings.append((self._kd("hooks_or_collapse_all"), "only panel"))
             bindings.append(
                 (
                     f"{self._kd('next_changespec')}/{self._kd('prev_changespec')}",

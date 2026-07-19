@@ -24,7 +24,12 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("ctrl+shift+o", "jump_to_entry_forward", "Forward Jump", show=False),
     Binding("grave_accent", "jump_to_all_entries", "Jump All", show=False),
     Binding("h", "hooks_or_collapse", "Collapse / Select Panel", show=False),
-    Binding("H", "hooks_or_collapse_all", "Collapse Group / All", show=False),
+    Binding(
+        "H",
+        "hooks_or_collapse_all",
+        "Only Panel / Collapse Group / All",
+        show=False,
+    ),
     Binding("f", "edit_hooks", "Edit Hooks", show=False),
     Binding("z", "start_fold_mode", "Fold", show=False),
     Binding("Z", "zoom_panel", "Zoom", show=False),

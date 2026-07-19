@@ -64,3 +64,25 @@ def test_footer_without_selected_agent_omits_agent_only_actions() -> None:
     assert labels.isdisjoint(
         {"retry", "dismiss", "kill", "edit chat", "tag/untag", "tmux"}
     )
+
+
+def test_footer_selected_panel_advertises_only_panel_action() -> None:
+    footer = KeybindingFooter()
+
+    expanded = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            panel_collapsed=False,
+        )
+    )
+    collapsed = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            panel_collapsed=True,
+        )
+    )
+
+    assert ("H", "only panel") in expanded
+    assert ("H", "only panel") in collapsed

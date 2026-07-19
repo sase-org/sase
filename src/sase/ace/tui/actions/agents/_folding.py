@@ -463,6 +463,61 @@ class AgentFoldingMixin:
             self._refilter_agents()  # type: ignore[attr-defined]
             self._persist_group_fold_change(target, collapsed=True)
 
+    def _isolate_focused_panel(self) -> bool:
+        """Leave only the selected Agents tribe panel expanded.
+
+        Returns ``True`` when whole-panel focus owns the action, including an
+        idempotent transition that does not change any panel folds.  The
+        collapse set is updated before persistence is recorded so every
+        coalesced snapshot observes the complete final state.
+        """
+        if self.current_tab != "agents":
+            return False
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        panel_focus = resolve_panel() if callable(resolve_panel) else None
+        if panel_focus is None:
+            return False
+
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None or getattr(self, "_agent_panels_grouped", False):
+            return False
+
+        live_keys = list(panel_group.panel_keys)
+        selected_key = panel_focus.panel_key
+        desired_collapsed = set(live_keys)
+        desired_collapsed.discard(selected_key)
+
+        collapsed_keys: set[PanelKey] | None = getattr(
+            self, "_collapsed_panel_keys", None
+        )
+        if collapsed_keys is None:
+            collapsed_keys = set()
+            self._collapsed_panel_keys = collapsed_keys
+        changed_keys = [
+            panel_key
+            for panel_key in live_keys
+            if (panel_key in collapsed_keys) != (panel_key in desired_collapsed)
+        ]
+
+        # Whole-panel focus stays on the chosen key.  Do not descend into its
+        # remembered banner/row or replace that saved in-panel selection.
+        self._expanded_panel_focus = True
+        self._current_group_key = None
+        self.current_attempt_number = None
+        if not changed_keys:
+            return True
+
+        collapsed_keys.difference_update(live_keys)
+        collapsed_keys.update(desired_collapsed)
+        for panel_key in changed_keys:
+            self._persist_panel_fold_change(
+                panel_key,
+                collapsed=panel_key in desired_collapsed,
+            )
+        self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
+        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        return True
+
     def _collapse_focused_panel(self) -> None:
         """Collapse the focused tag panel while retaining its detail context."""
         if self.current_tab != "agents":
@@ -692,11 +747,12 @@ class AgentFoldingMixin:
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_hooks_or_collapse_all(self) -> None:
-        """Collapse an Agents group or all folds/groups on the other tabs."""
+        """Isolate an Agents panel, or collapse the focused group/all folds."""
         if self._route_tools_detail_level("min"):
             return
         if self.current_tab == "agents":
-            self._collapse_group_fold()
+            if not self._isolate_focused_panel():
+                self._collapse_group_fold()
         elif self.current_tab == "axe":
             self._collapse_all_axe_folds()
         elif self.current_tab == "changespecs":

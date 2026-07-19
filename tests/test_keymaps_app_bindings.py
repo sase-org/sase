@@ -180,3 +180,14 @@ def test_fallback_bindings_match_numbered_artifacts_and_saved_query_picker() -> 
     assert not any(
         binding.action.startswith("load_saved_query") for binding in DEFAULT_BINDINGS
     )
+
+
+def test_capital_h_binding_metadata_describes_panel_isolation() -> None:
+    runtime_by_action = {
+        binding.action: binding for binding in build_app_bindings(default_app_keymaps())
+    }
+    fallback_by_action = {binding.action: binding for binding in DEFAULT_BINDINGS}
+
+    expected = "Only Panel / Collapse Group / All"
+    assert runtime_by_action["hooks_or_collapse_all"].description == expected
+    assert fallback_by_action["hooks_or_collapse_all"].description == expected

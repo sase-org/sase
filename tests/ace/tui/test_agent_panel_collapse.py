@@ -206,6 +206,86 @@ def test_panel_collapse_guards_single_merged_and_repeated_actions() -> None:
     assert split.refresh_calls == [False, True, True, False]
 
 
+def test_capital_h_expands_selected_panel_and_collapses_every_other_panel() -> None:
+    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app.current_idx = 2
+    remembered = ("agent", 2)
+    app._panel_selection_memory["alpha"] = remembered
+    registry = app._group_fold_registry.for_panel("alpha")
+    registry.collapse(("zeta",))
+    registry_before = app._group_fold_registry.snapshot()
+    app._collapsed_panel_keys.add("alpha")
+    app._sync_panel_group()
+    app._current_group_key = ("stale",)
+
+    app.action_hooks_or_collapse_all()
+
+    focus = app._resolve_focused_panel()
+    assert focus is not None
+    assert focus.panel_key == "alpha"
+    assert focus.collapsed is False
+    assert app._collapsed_panel_keys == {None, "beta"}
+    assert app._panel_group.panel_keys == ["alpha", None, "beta"]
+    assert app._panel_group.focused_key == "alpha"
+    assert app._panel_group.focused_idx == 0
+    assert app.current_idx == 2
+    assert app.current_attempt_number is None
+    assert app._current_group_key is None
+    assert app._panel_selection_memory["alpha"] == remembered
+    assert app._group_fold_registry.snapshot() == registry_before
+    assert app.refresh_calls == [True]
+    assert app.panel_fold_changes == [
+        (None, True),
+        ("beta", True),
+        ("alpha", False),
+    ]
+
+
+def test_capital_h_only_changes_expanded_siblings_and_is_idempotent() -> None:
+    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app.current_idx = 2
+    app._panel_selection_memory["alpha"] = ("agent", 2)
+    app._collapsed_panel_keys.add("beta")
+    app._sync_panel_group()
+    app._expanded_panel_focus = True
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._collapsed_panel_keys == {None, "beta"}
+    assert app._panel_group.panel_keys == ["alpha", None, "beta"]
+    assert app._panel_group.focused_key == "alpha"
+    assert app.refresh_calls == [True]
+    assert app.panel_fold_changes == [(None, True)]
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._resolve_focused_panel() is not None
+    assert app.refresh_calls == [True]
+    assert app.panel_fold_changes == [(None, True)]
+
+
+def test_capital_h_can_leave_untagged_panel_as_selected_survivor() -> None:
+    app = _StubApp(_multi_panel_agents(), focused_key=None)
+    app._collapsed_panel_keys.add(None)
+    app._sync_panel_group()
+
+    app.action_hooks_or_collapse_all()
+
+    focus = app._resolve_focused_panel()
+    assert focus is not None
+    assert focus.panel_key is None
+    assert focus.collapsed is False
+    assert app._collapsed_panel_keys == {"alpha", "beta"}
+    assert app._panel_group.panel_keys == [None, "alpha", "beta"]
+    assert app._panel_group.focused_key is None
+    assert app.refresh_calls == [True]
+    assert app.panel_fold_changes == [
+        ("alpha", True),
+        ("beta", True),
+        (None, False),
+    ]
+
+
 def test_selected_panel_j_and_k_cycle_without_descending() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key="alpha")
     app.current_idx = 2

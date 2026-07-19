@@ -99,6 +99,17 @@ def test_agents_help_uses_f_for_fork_not_r_for_resume() -> None:
     assert ("e", "Edit chat in editor") not in agent_pairs
 
 
+def test_agents_help_describes_capital_h_panel_and_group_contexts() -> None:
+    reg = load_keymap_registry({})
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+
+    assert ("H", "Only panel / collapse group / compact Tools") in agent_pairs
+
+
 def test_agents_help_lists_neighbor_navigation() -> None:
     reg = load_keymap_registry({})
     agent_pairs = {

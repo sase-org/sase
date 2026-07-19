@@ -197,6 +197,18 @@ def test_zoom_panel_command_is_agents_only_display_command() -> None:
     assert "zoom" in spec.aliases
 
 
+def test_capital_h_command_describes_contextual_panel_isolation() -> None:
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.hooks_or_collapse_all"]
+
+    assert spec.label == (
+        "Show only selected tribe panel / collapse group or all folds / "
+        "compact tools detail"
+    )
+    assert spec.key_sequence == ("H",)
+    assert spec.key_display == "H"
+
+
 # --- Saved-query commands ---
 
 
