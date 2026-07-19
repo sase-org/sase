@@ -403,7 +403,7 @@ jump-back history.
 | `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it) |
 | `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                  |
 | `p`                 | Toggle file / prompt layout                                                                                |
-| `z`                 | Start metadata fold mode for clan and family container detail panels                                       |
+| `z`                 | Start metadata fold mode for clan, family, or selected whole-tribe detail panels                           |
 | `Z`                 | Open the zoom modal for the active detail panel                                                            |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                              |
 
@@ -425,10 +425,11 @@ scale: family level 1 is expanded and level 2 is fully expanded.
 | 2     | Bounded triage detail such as activity, wait/retry state, context summaries, and prompt/reply previews         |
 | 3     | Full available sections and the richest member annotations, including workspace, timestamps, and attempt count |
 
-Clan summaries omit empty sections. Until disk-backed member data has been classified, unknown sections stay hidden and
-one `scanning member data…` tail reports the background enrichment; represented sections appear as soon as they are
-known. Family summaries likewise omit missing xprompt and prompt sections, while an unfinished reply remains visible as
-pending rather than disappearing as empty.
+The compact clan roster and its fixed numeric member jumps remain available at all three levels. Clan sections appear
+only when their content is known to exist: known-empty sections are omitted, while unknown required disk-backed content
+produces one dim `⋯ scanning member data…` tail for the document instead of a placeholder for each section. Family
+rosters and their numeric jumps likewise remain available at both effective levels. Family xprompt and prompt sections
+are omitted when absent, while an unfinished reply remains visible as pending rather than disappearing as empty.
 
 The default fold chords are:
 
@@ -635,18 +636,22 @@ explicit agent identities. Both paths continue through the shared bulk-cleanup c
 The `TRIBE` summary has four metadata detail levels, controlled by the same `zz`, `zZ`, `za`, and `zA` chords used for
 clan and family detail. From levels 1-3, `zZ` opens every fold to level 4; at level 4, it closes every fold to level 1:
 
-| Level | Tribe summary content                                                                                                   |
-| ----- | ----------------------------------------------------------------------------------------------------------------------- |
-| 1     | Pulse: status, composition, runtime, attention preview, and section counts                                              |
-| 2     | Roster: numbered top-level clans, families, workflows, and agents plus bounded error and variable previews              |
-| 3     | Members: nested member detail, activity/context previews, replies, and slow tool calls                                  |
-| 4     | Forensics: complete errors, tracebacks, variables and replies, workspace/timestamp annotations, and runtime percentiles |
+| Level | Name      | Tribe summary content                                                                                         |
+| ----- | --------- | ------------------------------------------------------------------------------------------------------------- |
+| 1     | Glance    | Header, compact numbered top-level roster, attention previews, and headings/counts for non-empty sections     |
+| 2     | Triage    | Bounded previews for every represented section                                                                |
+| 3     | Inspect   | Nested roster detail and grouped full section bodies, still with protective bounds                            |
+| 4     | Forensics | Unbounded bodies, tracebacks, the richest member annotations, and all-time runtime statistics and percentiles |
 
-Replies and slow-call details load when their effective section level reaches 3 or 4; an individual section override can
-request them before the whole document reaches that level. All-time tribe runtime statistics load when the runtime
-section reaches level 4. A `loading…` row means that enrichment is running off-thread. Number keys jump from the roster
-to one of the top-level units, expanding the required panel and ancestor folds first. Section-level overrides inherit
-from the panel level and are cleared by a valid panel-level cycle, `zZ` extreme toggle, or direct `z1`-`z4` selection.
+The compact roster and its fixed numeric jump targets exist at all four levels. Number keys jump to a top-level clan,
+family, workflow, or agent, expanding the required panel and ancestor folds first. These metadata-member numbers are
+separate from ordinary apostrophe entry hints, whose adaptive target keys may use two characters in a large list.
+
+Reply and slow-call presence enrichment is requested off-thread at every tribe level so known-empty sections can remain
+absent. Full bodies still follow the level-specific bounds above, and all-time runtime statistics remain level-4-only.
+When required disk-backed content is not known yet, the document ends with one dim `⋯ scanning member data…` tail;
+known-empty content produces no section or placeholder. Section-level overrides inherit from the panel level and are
+cleared by a valid panel-level cycle, `zZ` extreme toggle, or direct `z1`-`z4` selection.
 
 Tribes are set or cleared with `N` (see [Agent Actions](#agent-actions)). When opening the modal on an agent without a
 tribe the input is pre-seeded with `pinned` so a single Enter promotes the agent into the standard "pinned" panel; that

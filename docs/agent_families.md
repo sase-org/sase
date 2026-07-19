@@ -64,11 +64,12 @@ member run intervals, with human-wait windows excluded, so concurrent members ar
 ### Clan summary folding
 
 Clan summaries collect member errors, output and workflow variables, replies, SASE context, slow tool calls, and prompts
-beneath the `MEMBERS` table. Empty section kinds are omitted. Up to 100 direct members receive fixed jump numbers:
-`0`–`9` for rosters with at most ten entries, or `00`–`99` for the first 100 entries in a larger roster. Additional
-members appear only in an unnumbered remainder count. Press a number while the clan is selected to expand only that
-member's ancestor chain and jump to its row; `Esc` cancels a pending first digit. Use `Ctrl+J` and `Ctrl+K` to move
-between the visible section headings.
+beneath the `MEMBERS` table. Known-empty section kinds are omitted. If required disk-backed content is not known yet,
+the document ends with one dim `⋯ scanning member data…` tail instead of showing a placeholder for each section. Up to
+100 direct members receive fixed jump numbers: `0`–`9` for rosters with at most ten entries, or `00`–`99` for the first
+100 entries in a larger roster. Additional members appear only in an unnumbered remainder count. Press a number while
+the clan is selected to expand only that member's ancestor chain and jump to its row; `Esc` cancels a pending first
+digit. Use `Ctrl+J` and `Ctrl+K` to move between the visible section headings.
 
 The summary has three session-only fold levels:
 
@@ -84,7 +85,7 @@ metadata viewport; `zA` toggles that section between collapsed and fully expande
 toggle, or direct selection clears these per-section overrides. The `Fold: N/3` field in the `CLAN` header always shows
 the current panel level, while the `▸`/`▾`/`▼` heading glyph shows each section's effective level. Unknown disk-backed
 sections stay hidden during enrichment behind one `scanning member data…` tail; represented sections appear when known,
-and known-empty sections remain omitted.
+and known-empty sections remain omitted. The compact roster and its numeric jumps remain available at every level.
 
 The fold prefix is available only while the Agents tab is active. Press uppercase `Z` to zoom the largest panel; the
 lowercase `z` key starts fold mode. Fold state is panel-wide and applies when a clan or multi-member family container is
@@ -162,8 +163,8 @@ previews; level 2 adds full available content and member workspace, timestamp, a
 level 1 to open every fold to level 2, or at level 2 to close every fold to level 1. Press `z1` or `z2` to select either
 level directly. `z3` and `z4` are invalid in a family context and leave both the panel level and section overrides
 untouched. A member-specific override inherits from the `FAMILY MEMBERS` section, which in turn inherits the panel
-level. Missing xprompt and prompt sections are omitted, while reply rows for members that have not responded yet remain
-visible with their pending state.
+level. The numbered roster and its digit jumps remain present at both effective levels. Absent xprompt and prompt
+sections are omitted, while reply rows for members that have not responded yet remain visible with their pending state.
 
 Two bundled xprompts help assemble common follow-up prompt bodies. They build text only; `%n` performs the attachment:
 
@@ -231,18 +232,26 @@ is unavailable in the merged layout. Apostrophe jump can select any split-panel 
 but a lone panel cannot be collapsed. With whole-panel focus active, uppercase `H` isolates the selected panel by
 keeping it expanded and collapsing every sibling without changing its remembered row.
 
-Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four `zz` metadata detail levels
-progress from an operational pulse, to a numbered top-level roster, to nested member and disk-backed reply/slow-call
-detail, and finally to full forensics with runtime percentiles. From levels 1-3, `zZ` opens every fold to level 4; at
-level 4, it closes every fold to level 1. `za` and `zA` adjust the section or member at the top of the metadata
-viewport. Replies and slow calls load off-thread when their effective section level reaches 3; all-time runtime
-statistics load when the runtime section reaches level 4. A section override can therefore request enrichment before the
-whole document reaches that level. The roster's number keys jump to top-level clans, families, workflows, or agents and
-expand only the required ancestors.
+Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four `zz` metadata detail levels are:
+
+| Level | Name      | Tribe summary content                                                                                         |
+| ----- | --------- | ------------------------------------------------------------------------------------------------------------- |
+| 1     | Glance    | Header, compact numbered top-level roster, attention previews, and headings/counts for non-empty sections     |
+| 2     | Triage    | Bounded previews for every represented section                                                                |
+| 3     | Inspect   | Nested roster detail and grouped full section bodies, still with protective bounds                            |
+| 4     | Forensics | Unbounded bodies, tracebacks, the richest member annotations, and all-time runtime statistics and percentiles |
+
+From levels 1-3, `zZ` opens every fold to level 4; at level 4, it closes every fold to level 1. `za` and `zA` adjust the
+section or member at the top of the metadata viewport. Reply and slow-call presence enrichment is requested off-thread
+at every tribe level so known-empty sections can remain absent; all-time runtime statistics remain level-4-only. Unknown
+required disk-backed content produces one dim `⋯ scanning member data…` document tail rather than per-section
+placeholders. The compact roster and its fixed numeric jump targets remain present at all four levels; the number keys
+jump to top-level clans, families, workflows, or agents and expand only the required ancestors.
 
 Use `z1`-`z3` to select the collapsed, expanded, or fully expanded view directly; `z4` selects the exhaustive view,
 including unbounded roster annotations and runtime statistics. Direct numeric fold chords remain inside fold mode and do
-not trigger numbered member jumps.
+not trigger numbered member jumps. Outside fold mode, these fixed metadata-member numbers are separate from ordinary
+apostrophe entry hints, whose adaptive keys may use two characters in a large list.
 
 The `,H` leader chord numbers every currently toggleable visible fold owner—eligible split-panel titles, grouping
 banners, and agent-owned clan/family/workflow folds. Enter one or more whitespace-separated numbers or ascending ranges

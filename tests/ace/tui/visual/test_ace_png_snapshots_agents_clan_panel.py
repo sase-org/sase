@@ -7,6 +7,7 @@ from datetime import datetime
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.models.agent_associated_plan import _AgentPlanEnrichment
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
@@ -25,6 +26,21 @@ from tests.ace.tui.visual.test_ace_png_snapshots_agents import (
 )
 
 pytestmark = pytest.mark.visual
+
+
+@pytest.fixture(autouse=True)
+def _isolate_clan_plan_enrichment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep clan fold goldens independent of the ambient bead/plan store."""
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_header_summary."
+        "resolve_agent_plan_enrichment",
+        lambda *_args, **_kwargs: _AgentPlanEnrichment(
+            "ordinary",
+            None,
+            None,
+            None,
+        ),
+    )
 
 
 async def test_epic_clan_panel_png_snapshots(
