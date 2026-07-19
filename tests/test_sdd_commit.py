@@ -5,11 +5,13 @@ import subprocess
 import tempfile
 import threading
 import time
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from unittest.mock import MagicMock
+from typing import Any
 
 import pytest
 
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.sdd._git_contention import (
     ENV_GIT_LOCK_RETRY_DELAYS,
     ENV_STORE_WRITE_LOCK_TIMEOUT,
@@ -420,14 +422,33 @@ def test_commit_sdd_files_does_not_retry_non_lock_128(
 ) -> None:
     repo = tmp_path / "repo"
     init_test_git_repo(repo)
-    sleep = MagicMock()
-    monkeypatch.setattr("sase.sdd._git_contention.time.sleep", sleep)
+    retry_attempt_counts: list[int] = []
+
+    def observe_retry(
+        attempt: Callable[[], subprocess.CompletedProcess[Any]],
+        *,
+        cwd: str | Path,
+        delays: Iterable[float],
+    ) -> tuple[subprocess.CompletedProcess[Any], object]:
+        result, outcome = run_with_git_lock_retry(
+            attempt,
+            cwd=cwd,
+            delays=delays,
+        )
+        retry_attempt_counts.append(outcome.attempts_made)
+        return result, outcome
+
+    monkeypatch.setattr(
+        "sase.sdd._git_contention.run_with_git_lock_retry",
+        observe_retry,
+    )
 
     with pytest.raises(subprocess.CalledProcessError) as exc_info:
         commit_sdd_files(repo, "Invalid pathspec", paths=[":(invalid)"])
 
     assert "pathspec" in str(exc_info.value).lower()
-    sleep.assert_not_called()
+    assert retry_attempt_counts
+    assert set(retry_attempt_counts) == {1}
 
 
 def test_commit_sdd_files_waits_for_store_write_lock(
