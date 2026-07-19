@@ -311,7 +311,7 @@ def test_runner_terminal_success_finalizes_pending_checkpoint(
     assert checkpoint["entries"]["git.commits_since:demo"]["cursor"] == "def456"
 
 
-def test_once_per_filters_duplicate_and_dependent_proposals(
+def test_once_per_relinks_duplicate_head_dependent_to_no_wait(
     temp_state_dir: Path,
 ) -> None:
     chop = ChopConfig(name="events", description="")
@@ -348,9 +348,142 @@ def test_once_per_filters_duplicate_and_dependent_proposals(
         proposals=proposals,
         persist=True,
     )
-    assert repeated.accepted_indices == ()
+    assert repeated.accepted_indices == (1,)
+    assert repeated.effective_waits == {1: None}
     assert repeated.decisions[0]["outcome"] == "duplicate"
-    assert "dependency" in repeated.decisions[1]["reason"]
+    assert repeated.decisions[1]["outcome"] == "accept"
+    assert repeated.decisions[1]["reason"] == (
+        "wait dependency 'root' was deduped; relinked to none"
+    )
+
+
+def test_once_per_relinks_across_mid_chain_duplicate_by_id(
+    temp_state_dir: Path,
+) -> None:
+    chop = ChopConfig(name="events", description="")
+    seed = prepare_chop_proposals(
+        "events",
+        {
+            "proposed_launches": [
+                {
+                    "prompt": "Seed.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "event:middle",
+                }
+            ]
+        },
+    )
+    apply_chop_once_per(
+        lumberjack_name="events",
+        chop=chop,
+        proposals=seed,
+        persist=True,
+    )
+    proposals = prepare_chop_proposals(
+        "events",
+        {
+            "proposed_launches": [
+                {"id": "root", "prompt": "Root.", "workspace": "git:sase"},
+                {
+                    "id": "middle",
+                    "prompt": "Middle.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "event:middle",
+                    "wait_on": "root",
+                },
+                {
+                    "prompt": "Leaf.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "event:leaf",
+                    "wait_on": "middle",
+                },
+            ]
+        },
+    )
+
+    outcome = apply_chop_once_per(
+        lumberjack_name="events",
+        chop=chop,
+        proposals=proposals,
+        persist=True,
+    )
+
+    assert outcome.accepted_indices == (0, 2)
+    assert outcome.effective_waits == {0: None, 2: "root"}
+    assert outcome.decisions[1]["outcome"] == "duplicate"
+    assert outcome.decisions[2]["reason"] == (
+        "wait dependency 'middle' was deduped; relinked to 'root'"
+    )
+
+
+def test_once_per_relinks_across_consecutive_duplicates_by_index(
+    temp_state_dir: Path,
+) -> None:
+    chop = ChopConfig(name="events", description="")
+    seed = prepare_chop_proposals(
+        "events",
+        {
+            "proposed_launches": [
+                {
+                    "prompt": "Seed one.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "event:one",
+                },
+                {
+                    "prompt": "Seed two.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "event:two",
+                },
+            ]
+        },
+    )
+    apply_chop_once_per(
+        lumberjack_name="events",
+        chop=chop,
+        proposals=seed,
+        persist=True,
+    )
+    proposals = prepare_chop_proposals(
+        "events",
+        {
+            "proposed_launches": [
+                {"prompt": "Root.", "workspace": "git:sase"},
+                {
+                    "prompt": "Duplicate one.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "event:one",
+                    "wait_on": 0,
+                },
+                {
+                    "prompt": "Duplicate two.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "event:two",
+                    "wait_on": 1,
+                },
+                {
+                    "prompt": "Leaf.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "event:leaf",
+                    "wait_on": 2,
+                },
+            ]
+        },
+    )
+
+    outcome = apply_chop_once_per(
+        lumberjack_name="events",
+        chop=chop,
+        proposals=proposals,
+        persist=True,
+    )
+
+    assert outcome.accepted_indices == (0, 3)
+    assert outcome.effective_waits == {0: None, 3: 0}
+    assert outcome.decisions[1]["outcome"] == "duplicate"
+    assert outcome.decisions[2]["outcome"] == "duplicate"
+    assert outcome.decisions[3]["reason"] == (
+        "wait dependency 2 was deduped; relinked to 0"
+    )
 
 
 def test_all_duplicate_proposals_record_skipped_run(

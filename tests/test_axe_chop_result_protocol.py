@@ -11,6 +11,8 @@ import pytest
 
 from sase.axe.chop_agents import _record_chop_agent_launch
 from sase.axe.chop_lifecycle import _agent_completion, finalize_launched_chop_runs
+from sase.axe.chop_policy import apply_chop_once_per
+from sase.axe.chop_proposals import prepare_chop_proposals
 from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.config import AxeConfig, ChopConfig
 from sase.axe.state import (
@@ -271,6 +273,88 @@ def test_runner_launches_proposals_in_order_with_wait_directive(
     assert entry.status == "launched"
     assert entry.finished_at is None
     assert [launch["pid"] for launch in entry.launches] == [100, 101]
+
+
+def test_runner_launches_with_wait_relinked_across_duplicate(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    chop = ChopConfig(name="docs", description="")
+    seed = prepare_chop_proposals(
+        "docs",
+        {
+            "proposed_launches": [
+                {
+                    "prompt": "Seed.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "docs:middle",
+                }
+            ]
+        },
+    )
+    apply_chop_once_per(
+        lumberjack_name="docs",
+        chop=chop,
+        proposals=seed,
+        persist=True,
+    )
+    _result_script(
+        tmp_path,
+        "docs",
+        {
+            "schema_version": 1,
+            "status": "ok",
+            "proposed_launches": [
+                {"id": "root", "prompt": "Root.", "workspace": "git:sase"},
+                {
+                    "id": "middle",
+                    "prompt": "Middle.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "docs:middle",
+                    "wait_on": "root",
+                },
+                {
+                    "prompt": "Tail.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "docs:tail",
+                    "wait_on": "middle",
+                },
+            ],
+        },
+    )
+    calls: list[str] = []
+
+    def _launch(prompt: str, *, extra_env: dict[str, str]) -> SimpleNamespace:
+        del extra_env
+        index = len(calls)
+        calls.append(prompt)
+        return SimpleNamespace(
+            pid=200 + index,
+            agent_name=f"actual.{index + 1}",
+        )
+
+    with (
+        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.launch_agent_from_cwd", side_effect=_launch),
+    ):
+        outcome = run_configured_chop_once(
+            lumberjack_name="docs",
+            chop=chop,
+            axe_config=_config(tmp_path),
+        )
+
+    assert outcome.status == "launched"
+    assert len(calls) == 2
+    assert "%wait:" not in calls[0]
+    assert "%wait:actual.1" in calls[1]
+    assert outcome.proposals[1]["validation"] == "duplicate"
+    assert outcome.proposals[2]["wait_on"] == "root"
+    assert outcome.run_id is not None
+    entry = read_chop_run("docs", "docs", outcome.run_id)
+    assert entry is not None
+    assert [launch["index"] for launch in entry.launches] == [0, 2]
+    assert entry.launches[1]["wait_on"] == "root"
+    assert entry.launches[1]["wait_name"] == "actual.1"
 
 
 def test_verbose_flag_reaches_script_environment(

@@ -69,6 +69,7 @@ class _ChopOncePerOutcome:
 
     accepted_indices: tuple[int, ...]
     decisions: dict[int, dict[str, str]]
+    effective_waits: dict[int, int | str | None]
 
 
 class _Proposal(Protocol):
@@ -255,12 +256,18 @@ def apply_chop_once_per(
         return _ChopOncePerOutcome(
             accepted_indices=tuple(proposal.index for proposal in proposals),
             decisions={},
+            effective_waits={
+                proposal.index: proposal.wait_on for proposal in proposals
+            },
         )
 
     timestamp = (now or datetime.now(get_timezone())).isoformat()
     capacity = int((chop.once_per or {}).get("capacity", 1024))
     accepted: list[int] = []
-    accepted_ids: set[str] = set()
+    duplicate_indices: set[int] = set()
+    proposal_indices_by_id: dict[str, int] = {}
+    resolved_waits: dict[int, int | str | None] = {}
+    effective_waits: dict[int, int | str | None] = {}
     decisions: dict[int, dict[str, str]] = {}
 
     with _chop_policy_lock(lumberjack_name, chop.name):
@@ -268,26 +275,34 @@ def apply_chop_once_per(
         changed = False
         for proposal in proposals:
             dependency = proposal.wait_on
-            dependency_accepted = True
+            dependency_index: int | None = None
             if isinstance(dependency, int):
-                dependency_accepted = dependency in accepted
+                dependency_index = dependency
             elif isinstance(dependency, str):
-                dependency_accepted = dependency in accepted_ids
-            if not dependency_accepted:
-                decisions[proposal.index] = {
-                    "outcome": "duplicate",
-                    "reason": (
-                        f"proposal dependency {dependency!r} was skipped by once-per"
-                    ),
-                    "key": "",
-                }
-                continue
+                dependency_index = proposal_indices_by_id.get(dependency)
+
+            effective_wait = dependency
+            relinked_dependency: int | str | None = None
+            if dependency_index in duplicate_indices:
+                relinked_dependency = dependency
+                effective_wait = resolved_waits[dependency_index]
+            resolved_waits[proposal.index] = effective_wait
+            if proposal.proposal_id is not None:
+                proposal_indices_by_id[proposal.proposal_id] = proposal.index
 
             key = _proposal_once_per_key(chop, proposal)
             if key is None:
                 accepted.append(proposal.index)
-                if proposal.proposal_id is not None:
-                    accepted_ids.add(proposal.proposal_id)
+                effective_waits[proposal.index] = effective_wait
+                if relinked_dependency is not None:
+                    decisions[proposal.index] = {
+                        "outcome": "accept",
+                        "reason": _once_per_relink_reason(
+                            relinked_dependency,
+                            effective_wait,
+                        ),
+                        "key": "",
+                    }
                 continue
 
             result = check_and_record_chop_once_per(
@@ -306,19 +321,32 @@ def apply_chop_once_per(
                 "key": key,
             }
             if outcome == "duplicate":
+                duplicate_indices.add(proposal.index)
                 continue
             if outcome != "accept":
                 raise ValueError(f"unexpected once-per outcome: {outcome}")
+            if relinked_dependency is not None:
+                decisions[proposal.index]["reason"] = _once_per_relink_reason(
+                    relinked_dependency,
+                    effective_wait,
+                )
             document = dict(result["document"])
             changed = True
             accepted.append(proposal.index)
-            if proposal.proposal_id is not None:
-                accepted_ids.add(proposal.proposal_id)
+            effective_waits[proposal.index] = effective_wait
 
         if persist and changed:
             atomic_write_json(_seen_path(lumberjack_name, chop.name), document)
 
-    return _ChopOncePerOutcome(tuple(accepted), decisions)
+    return _ChopOncePerOutcome(tuple(accepted), decisions, effective_waits)
+
+
+def _once_per_relink_reason(
+    dependency: int | str,
+    effective_wait: int | str | None,
+) -> str:
+    target = repr(effective_wait) if effective_wait is not None else "none"
+    return f"wait dependency {dependency!r} was deduped; relinked to {target}"
 
 
 def check_chop_trigger_runtime(chop: ChopConfig) -> str | None:

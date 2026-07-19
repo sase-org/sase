@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -256,6 +257,7 @@ def process_script_chop_result(
         proposals = proposal_previews(
             prepared_proposals,
             once_per_decisions=once_per.decisions,
+            effective_waits=once_per.effective_waits,
         )
         append_once_per_summary(
             lumberjack_name,
@@ -265,7 +267,10 @@ def process_script_chop_result(
         )
     accepted_indices = set(once_per.accepted_indices)
     accepted_proposals = [
-        proposal
+        replace(
+            proposal,
+            wait_on=once_per.effective_waits[proposal.index],
+        )
         for proposal in prepared_proposals
         if proposal.index in accepted_indices
     ]

@@ -111,13 +111,17 @@ def proposal_previews(
     proposals: list[_PreparedChopProposal],
     *,
     once_per_decisions: Mapping[int, Mapping[str, str]] | None = None,
+    effective_waits: Mapping[int, int | str | None] | None = None,
 ) -> list[dict[str, Any]]:
     """Return JSON-safe launch previews with planned wait dependencies."""
     names_by_index: dict[int, str] = {}
     names_by_id: dict[str, str] = {}
     previews: list[dict[str, Any]] = []
     for proposal in proposals:
-        wait_name = _resolve_wait_name(proposal.wait_on, names_by_index, names_by_id)
+        wait_on = proposal.wait_on
+        if effective_waits is not None and proposal.index in effective_waits:
+            wait_on = effective_waits[proposal.index]
+        wait_name = _resolve_wait_name(wait_on, names_by_index, names_by_id)
         once_per = (once_per_decisions or {}).get(proposal.index, {})
         validation = "duplicate" if once_per.get("outcome") == "duplicate" else "valid"
         previews.append(
@@ -129,7 +133,7 @@ def proposal_previews(
                 "workspace": proposal.workspace,
                 "model": proposal.model,
                 "effort": proposal.effort,
-                "wait_on": proposal.wait_on,
+                "wait_on": wait_on,
                 "wait_name": wait_name,
                 "env_names": sorted(proposal.env),
                 "dedupe_key": once_per.get("key") or proposal.dedupe_key,
