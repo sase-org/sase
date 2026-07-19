@@ -13,12 +13,19 @@ def rewrite_retry_prompt_name(
     directive_alias: Literal["id", "i"] = "id",
 ) -> str:
     """Replace or prepend the top-level prompt ``%id`` directive for retry."""
+    from sase.agent.family_attach import extract_family_attach_directive
     from sase.xprompt.directive_edit import set_prompt_name
 
+    # A retry name is already the concrete derived name (for example,
+    # ``foo--reviewer.r0``). Keeping family= would reinterpret that full name
+    # as a bare family suffix, producing an invalid directive and changing the
+    # pre-kwarg retry behavior. Other identity kwargs remain part of the retry.
+    preserve_kwargs = extract_family_attach_directive(raw_prompt) is None
     return set_prompt_name(
         raw_prompt,
         retry_name,
         directive_alias=directive_alias,
+        preserve_kwargs=preserve_kwargs,
     )
 
 

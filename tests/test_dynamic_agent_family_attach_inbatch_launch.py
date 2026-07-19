@@ -36,7 +36,7 @@ def test_execute_launch_plan_attaches_to_prior_in_batch_named_slot(
         [
             "%auto %i:foo\nPlan the change.",
             "%i(reviewer, family=foo)\nReview foo's plan.",
-            "%i(land, family=foo)\nLand after review.",
+            "%i(@, family=foo)\nFollow up on the review.",
         ],
     )
     plan = replace(
@@ -97,10 +97,12 @@ def test_execute_launch_plan_attaches_to_prior_in_batch_named_slot(
     assert payload["parent_family_role_suffix"] == "--plan"
     assert requests[2].extra_env is not None
     chained_payload = json.loads(requests[2].extra_env[FAMILY_ATTACH_ENV])
-    assert chained_payload["agent_name"] == "foo--land"
+    assert chained_payload["agent_name"] == "foo--1"
     assert chained_payload["parent_name"] == "foo--reviewer"
     assert chained_payload["parent_timestamp"] == "20260701010102"
     assert chained_payload["parent_is_running"] is True
+    assert chained_payload["role_suffix"] == "--1"
+    assert chained_payload["agent_family_role"] == "q"
 
 
 def test_multi_prompt_family_attach_can_reference_earlier_named_segment(

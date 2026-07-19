@@ -107,7 +107,7 @@ def test_template_clan_is_resolved_once_without_a_root(
     assert set(payloads[0]) == {"clan_name", "generation"}
 
 
-def test_research_swarm_style_launch_resolves_names_waits_and_tribe(
+def test_research_swarm_style_launch_mixes_clan_and_standalone_tribe(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -117,28 +117,33 @@ def test_research_swarm_style_launch_resolves_names_waits_and_tribe(
             "%clan(research.@, tribe=research)\n%id:research.@.lead\nLead",
             "%id(worker, clan=research.@)\n%wait:research.@.lead\nInvestigate",
             "%id(final, clan=research.@)\n%wait:research.@.worker\nSynthesize",
+            "%id(tribe=research)\nAudit independently",
         ],
         template_groups=[
             "xprompt:research:0",
             "xprompt:research:0",
             "xprompt:research:0",
+            None,
         ],
     )
 
     envs = [call["extra_env"] for call in calls]
     assert all(isinstance(env, dict) for env in envs)
-    assert [str(env["SASE_AGENT_PLANNED_NAME"]) for env in envs] == [  # type: ignore[index]
+    names = [str(env["SASE_AGENT_PLANNED_NAME"]) for env in envs]  # type: ignore[index]
+    assert names[:3] == [
         "research.0.lead",
         "research.0.worker",
         "research.0.final",
     ]
+    assert names[3] not in names[:3]
     payloads = [
         json.loads(str(env[CLAN_MEMBERSHIP_ENV]))  # type: ignore[index]
-        for env in envs
+        for env in envs[:3]
     ]
     assert payloads[0] == payloads[1] == payloads[2]
     assert payloads[0]["clan_name"] == "research.0"
     assert payloads[0]["generation"]
+    assert CLAN_MEMBERSHIP_ENV not in envs[3]
 
     prompts = [str(call["prompt"]) for call in calls]
     assert "%wait:research.0.lead" in prompts[1]
@@ -148,8 +153,15 @@ def test_research_swarm_style_launch_resolves_names_waits_and_tribe(
         "research",
         None,
         None,
+        None,
     ]
-    assert [directive.clan_declared for directive in parsed] == [True, False, False]
+    assert [directive.clan_declared for directive in parsed] == [
+        True,
+        False,
+        False,
+        False,
+    ]
+    assert [directive.tribe for directive in parsed] == [None, None, None, "research"]
 
 
 def test_clan_membership_is_execution_neutral(

@@ -102,6 +102,16 @@ def test_rewrite_retry_prompt_preserves_tribe_keyword() -> None:
     )
 
 
+def test_rewrite_retry_prompt_uses_concrete_name_for_family_member() -> None:
+    assert (
+        _rewrite_retry_prompt_name(
+            "%id(reviewer, family=foo)\nDo work",
+            "foo--reviewer.r0",
+        )
+        == "%id:foo--reviewer.r0\nDo work"
+    )
+
+
 def test_rewrite_retry_prompt_preserves_clan_joiner_membership() -> None:
     assert (
         _rewrite_retry_prompt_name(

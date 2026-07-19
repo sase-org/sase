@@ -55,15 +55,16 @@ def set_prompt_name(
     name: str,
     *,
     directive_alias: Literal["id", "i"] = "id",
+    preserve_kwargs: bool = True,
 ) -> str:
-    """Return *prompt* with a canonical ``%id`` while preserving its kwargs."""
+    """Return *prompt* with a canonical ``%id`` and optional existing kwargs."""
     protected, restore = _protect_ignored_regions(prompt)
     directive = _find_prompt_id_directive(protected)
     if directive is None:
         return restore(_insert_directive(protected, f"%{directive_alias}:{name}"))
     replacement = _format_id_directive(
         name,
-        directive.named,
+        directive.named if preserve_kwargs else {},
         directive_alias=directive_alias,
     )
     rewritten = protected[: directive.start] + replacement + protected[directive.end :]
