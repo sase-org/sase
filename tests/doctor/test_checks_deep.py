@@ -93,6 +93,7 @@ def test_provider_cli_versions_reports_success(monkeypatch, tmp_path: Path) -> N
 
 
 def test_axe_state_ok_when_no_lumberjack_status_files(monkeypatch) -> None:
+    state_dir = Path("/nonexistent/sase-test-axe-state")
     monkeypatch.setattr(
         "sase.doctor.checks_deep_axe.load_axe_config",
         lambda: SimpleNamespace(
@@ -110,11 +111,112 @@ def test_axe_state_ok_when_no_lumberjack_status_files(monkeypatch) -> None:
         "sase.doctor.checks_deep_axe.read_maintenance",
         lambda: None,
     )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.read_desired_state",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.probe_orchestrator",
+        lambda **_kwargs: SimpleNamespace(running_pid=None),
+    )
+    monkeypatch.setattr("sase.axe.state.AXE_STATE_DIR", state_dir)
 
     check = check_axe_state()
 
     assert check.status == "OK"
     assert "1 configured" in check.summary
+
+
+def test_axe_state_warns_on_stale_heartbeat(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.load_axe_config",
+        lambda: SimpleNamespace(
+            lumberjacks={"hooks": object()},
+            max_hook_runners=3,
+            max_agent_runners=3,
+            zombie_timeout_seconds=7200,
+            lumberjack_log_max_bytes=1024,
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.read_lumberjack_status",
+        lambda _name: SimpleNamespace(
+            pid=123,
+            started_at="2000-01-01T00:00:00+00:00",
+            status="running",
+            interval=5,
+            chops=["hook_checks"],
+            last_cycle="2000-01-01T00:00:00+00:00",
+            cycles_run=1,
+            errors_encountered=0,
+            uptime_seconds=1,
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.is_process_running",
+        lambda _pid: True,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.read_maintenance",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.read_desired_state",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.probe_orchestrator",
+        lambda **_kwargs: SimpleNamespace(running_pid=456),
+    )
+    monkeypatch.setattr("sase.axe.state.AXE_STATE_DIR", tmp_path)
+
+    check = check_axe_state()
+
+    assert check.status == "WARN"
+    assert any("heartbeat is stale" in detail for detail in check.details)
+    assert check.data["lumberjacks"][0]["heartbeat_stale"] is True
+
+
+def test_axe_state_warns_on_pinned_logs_and_orphan_temps(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    logs_dir = tmp_path / "logs"
+    logs_dir.mkdir()
+    (logs_dir / "axe.log").write_bytes(b"0123456789")
+    (logs_dir / ".axe.log.abcd.tmp").write_bytes(b"orphan")
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.load_axe_config",
+        lambda: SimpleNamespace(
+            lumberjacks={},
+            max_hook_runners=3,
+            max_agent_runners=3,
+            zombie_timeout_seconds=7200,
+            lumberjack_log_max_bytes=10,
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.read_maintenance",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.read_desired_state",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.probe_orchestrator",
+        lambda **_kwargs: SimpleNamespace(running_pid=456),
+    )
+    monkeypatch.setattr("sase.axe.state.AXE_STATE_DIR", tmp_path)
+    monkeypatch.setattr("sase.doctor.checks_deep_axe._ORPHAN_TEMP_WARN_COUNT", 1)
+
+    check = check_axe_state()
+
+    assert check.status == "WARN"
+    assert any("pinned at" in detail for detail in check.details)
+    assert any("orphan log-rotation temp litter" in detail for detail in check.details)
+    assert check.data["pinned_logs"] == (str(logs_dir / "axe.log"),)
+    assert check.data["orphan_log_temp_count"] == 1
 
 
 def test_xprompt_lsp_ok_when_env_override_resolves(monkeypatch, tmp_path: Path) -> None:

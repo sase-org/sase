@@ -46,6 +46,28 @@ def test_agents_help_renders_sorted_subcommands() -> None:
     )
 
 
+def test_axe_ensure_help_documents_healing_and_watchdog() -> None:
+    axe_parser = parser_for(("sase", "axe"))
+    ensure_help = flat_help(parser_for(("sase", "axe", "ensure")).format_help())
+    expected_commands = {
+        "chop",
+        "ensure",
+        "lumberjack",
+        "maintenance",
+        "start",
+        "stop",
+    }
+
+    help_commands = help_subcommand_rows(axe_parser.format_help(), expected_commands)
+
+    assert help_commands == sorted(expected_commands)
+    assert "{chop,ensure,lumberjack,maintenance,start,stop}" in axe_parser.format_help()
+    assert "Bare `sase axe ensure` starts a missing orchestrator" in ensure_help
+    assert "{install,uninstall}" in ensure_help
+    assert "sase axe ensure install" in ensure_help
+    assert "sase axe ensure uninstall" in ensure_help
+
+
 def test_agent_tribe_help_uses_public_tribe_vocabulary() -> None:
     tribe_parser = parser_for(("sase", "agent", "tribe"))
     set_help = flat_help(parser_for(("sase", "agent", "tribe", "set")).format_help())

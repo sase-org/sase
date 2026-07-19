@@ -138,6 +138,19 @@ _RUNNER_SLOT_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
 )
 
 
+def _opportunistic_ensure_axe() -> None:
+    """Best-effort, host-rate-limited healing while waiters are alive."""
+    try:
+        from sase.axe.ensure import DEFAULT_ENSURE_CADENCE_SECONDS, ensure_axe
+
+        ensure_axe(
+            rate_limit_seconds=DEFAULT_ENSURE_CADENCE_SECONDS,
+            source="waiting agent runner",
+        )
+    except Exception:  # noqa: BLE001 - waiting must survive watchdog failures.
+        pass
+
+
 def _runner_slot_lock_path() -> Path:
     return sase_home() / "runner_slots.lock"
 
@@ -405,6 +418,7 @@ def wait_for_dependencies(
             if was_killed():
                 break
             blocked = True
+            _opportunistic_ensure_axe()
             time.sleep(_WAIT_POLL_INTERVAL)
 
         post_dependency_wait_until = wait_until

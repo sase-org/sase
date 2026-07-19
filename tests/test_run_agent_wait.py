@@ -4,14 +4,22 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from sase.axe.run_agent_wait import wait_for_dependencies
 
 from tests._agent_names_fixtures import make_agent
+
+
+@pytest.fixture(autouse=True)
+def _disable_real_axe_ensure() -> Iterator[MagicMock]:
+    """Keep wait-loop tests isolated from the host axe daemon."""
+    with patch("sase.axe.run_agent_wait._opportunistic_ensure_axe") as ensure:
+        yield ensure
 
 
 def _make_waiter(base: Path, project: str = "proj") -> Path:
@@ -203,6 +211,37 @@ def test_unresolved_named_wait_uses_slow_waiting_marker_path(
     assert index_updates == [str(waiter_dir), str(waiter_dir)]
     assert not (waiter_dir / "waiting.json").exists()
     assert not (waiter_dir / "ready.json").exists()
+
+
+def test_unresolved_named_wait_opportunistically_ensures_axe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    _disable_real_axe_ensure: MagicMock,
+) -> None:
+    waiter_dir = _make_waiter(tmp_path)
+    ready_path = waiter_dir / "ready.json"
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    def resolve_after_poll(_seconds: float) -> None:
+        ready_path.write_text("{}", encoding="utf-8")
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", return_value=False),
+        patch(
+            "sase.axe.run_agent_wait.time.sleep",
+            side_effect=resolve_after_poll,
+        ),
+    ):
+        wait_for_dependencies(
+            ["missing"],
+            str(waiter_dir),
+            "cl",
+            "20260513120000",
+            {"pid": 123},
+            project_name="proj",
+        )
+
+    _disable_real_axe_ensure.assert_called_once_with()
 
 
 def test_stale_cancelled_ready_marker_is_removed_and_wait_continues(

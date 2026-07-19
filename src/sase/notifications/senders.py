@@ -185,6 +185,43 @@ def notify_axe_restart_failed(message: str, attempts: list[str]) -> str:
     return notification_id
 
 
+def notify_axe_healed(downtime_seconds: float | None, pid: int) -> str:
+    """Send a durable notification after ``sase axe ensure`` heals axe."""
+    notification_id = str(uuid4())
+    if downtime_seconds is None:
+        downtime = "The apparent outage duration is unknown."
+    else:
+        downtime = f"Axe appeared down for {_format_duration(downtime_seconds)}."
+    n = Notification(
+        id=notification_id,
+        timestamp=datetime.now(get_timezone()).isoformat(),
+        sender="axe",
+        icon="🪓",
+        notes=[
+            "Axe self-healed",
+            f"Started orchestrator pid {pid}.",
+            downtime,
+        ],
+        tags=normalize_notification_tags(["axe", "healed"]),
+    )
+    append_notification(n)
+    return notification_id
+
+
+def _format_duration(seconds: float) -> str:
+    rounded = max(0, int(seconds))
+    if rounded < 60:
+        return f"{rounded}s"
+    minutes = rounded // 60
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h {minutes % 60}m"
+    days = hours // 24
+    return f"{days}d {hours % 24}h"
+
+
 def notify_hitl_request(
     step_name: str,
     workflow_name: str,

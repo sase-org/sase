@@ -163,6 +163,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "resources.disk_free",
         "plugins.github",
         "axe.chops",
+        "axe.health",
         "project.current",
         "workspace.registry",
         "state.agent_index",

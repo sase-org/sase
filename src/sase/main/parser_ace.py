@@ -169,6 +169,36 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
         "chop name appears in multiple lumberjacks)",
     )
 
+    # --- axe ensure ---
+    axe_ensure_parser = axe_subparsers.add_parser(
+        "ensure",
+        help="Heal a downed axe or manage its optional watchdog timer",
+        description=(
+            "Ensure axe matches its persistent desired state. Bare `sase axe ensure` "
+            "starts a missing orchestrator unless axe was explicitly stopped. The "
+            "optional user systemd timer provides the same check on idle hosts."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase axe ensure\n"
+            "  sase axe ensure install\n"
+            "  sase axe ensure uninstall"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    axe_ensure_subparsers = axe_ensure_parser.add_subparsers(
+        dest="axe_ensure_subcommand",
+        help="Ensure watchdog commands (omit one to heal now)",
+    )
+    axe_ensure_subparsers.add_parser(
+        "install",
+        help="Install and start the user systemd watchdog timer",
+    )
+    axe_ensure_subparsers.add_parser(
+        "uninstall",
+        help="Stop and remove the user systemd watchdog timer",
+    )
+
     # --- axe lumberjack ---
     axe_lumberjack_parser = axe_subparsers.add_parser(
         "lumberjack", help="Lumberjack management commands"
