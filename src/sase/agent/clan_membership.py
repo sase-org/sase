@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 import json
 import os
+from pathlib import Path
 
 CLAN_MEMBERSHIP_ENV = "SASE_AGENT_CLAN_MEMBERSHIP"
 AGENT_CLAN_FIELD = "agent_clan"
@@ -36,12 +37,60 @@ def consume_clan_membership_plan_from_env() -> ClanMembershipPlan | None:
     return decode_clan_membership_plan(raw)
 
 
-def resolve_existing_clan_membership(target: str) -> ClanMembershipPlan:
-    """Resolve a directive-only member against an existing clan."""
+def resolve_or_create_clan_membership(
+    target: str,
+    *,
+    generation: str,
+    claiming_dir: str | Path,
+    member_name: str | None = None,
+    member_name_template: str | None = None,
+) -> ClanMembershipPlan:
+    """Join the newest *target* clan, creating it when it is missing."""
+    return _reserve_clan_membership(
+        target,
+        generation=generation,
+        claiming_dir=claiming_dir,
+        create_only=False,
+        member_name=member_name,
+        member_name_template=member_name_template,
+    )
+
+
+def declare_clan_membership(
+    target: str,
+    *,
+    generation: str,
+    claiming_dir: str | Path,
+    member_name: str | None = None,
+    member_name_template: str | None = None,
+) -> ClanMembershipPlan:
+    """Create a newly declared clan, rejecting an existing clan."""
+    return _reserve_clan_membership(
+        target,
+        generation=generation,
+        claiming_dir=claiming_dir,
+        create_only=True,
+        member_name=member_name,
+        member_name_template=member_name_template,
+    )
+
+
+def _reserve_clan_membership(
+    target: str,
+    *,
+    generation: str,
+    claiming_dir: str | Path,
+    create_only: bool,
+    member_name: str | None,
+    member_name_template: str | None,
+) -> ClanMembershipPlan:
     from sase.agent.names import (
         AgentNameTemplateError,
-        find_agent_clan,
+        NameCollisionError,
         get_reserved_clan_names,
+        match_agent_name_template,
+        render_agent_name_template,
+        reserve_registered_clan_name,
         resolve_agent_name_template_reference,
     )
 
@@ -51,16 +100,32 @@ def resolve_existing_clan_membership(target: str) -> ClanMembershipPlan:
             names=get_reserved_clan_names(),
         )
     except AgentNameTemplateError as exc:
-        raise ClanMembershipError(
-            f"Cannot resolve %clan target '{target}': no matching clan exists"
-        ) from exc
+        token = None
+        if member_name and member_name_template:
+            try:
+                token = match_agent_name_template(member_name_template, member_name)
+            except AgentNameTemplateError:
+                token = None
+        if token is None:
+            raise ClanMembershipError(
+                f"Cannot resolve clan target '{target}' from member name "
+                f"'{member_name or ''}'"
+            ) from exc
+        clan_name = render_agent_name_template(target, token)
 
-    clan = find_agent_clan(clan_name)
-    if clan is None:
-        raise ClanMembershipError(
-            f"Cannot resolve %clan target '{target}': no matching clan exists"
+    try:
+        reserved_generation = reserve_registered_clan_name(
+            clan_name,
+            generation,
+            claiming_dir,
+            create_only=create_only,
         )
-    return ClanMembershipPlan(clan_name=clan.name, generation=clan.generation)
+    except NameCollisionError as exc:
+        raise ClanMembershipError(str(exc)) from exc
+    return ClanMembershipPlan(
+        clan_name=clan_name,
+        generation=reserved_generation,
+    )
 
 
 def decode_clan_membership_plan(raw: str) -> ClanMembershipPlan:
@@ -90,7 +155,8 @@ __all__ = [
     "ClanMembershipError",
     "ClanMembershipPlan",
     "consume_clan_membership_plan_from_env",
+    "declare_clan_membership",
     "decode_clan_membership_plan",
     "encode_clan_membership_plan",
-    "resolve_existing_clan_membership",
+    "resolve_or_create_clan_membership",
 ]

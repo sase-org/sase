@@ -243,6 +243,45 @@ def test_retry_edit_agent_replaces_name_without_force_reuse(
     assert app.notifications == []
 
 
+@patch("sase.agent.names.allocate_retry_name", return_value="root.worker.r0")
+def test_retry_edit_agent_demotes_clan_declaration(
+    _mock_allocate: Mock,
+) -> None:
+    app = _App(
+        _Agent(
+            "%id:root.worker\n%clan(root, tribe=review)\nDo work",
+            agent_name="root.worker",
+        )
+    )
+
+    app._retry_edit_agent()
+
+    assert app.launched == (
+        "%id(worker.r0, clan=root)\nDo work",
+        "/tmp/proj/proj.sase",
+        "branch",
+        False,
+    )
+
+
+def test_kill_and_edit_agent_demotes_clan_declaration() -> None:
+    app = _App(
+        _Agent(
+            "%id:root.worker\n%clan(root, tribe=review)\nDo work",
+            agent_name="root.worker",
+        )
+    )
+
+    app._kill_and_edit_agent()
+
+    assert app.launched == (
+        "%id(!worker, clan=root)\nDo work",
+        "/tmp/proj/proj.sase",
+        "branch",
+        False,
+    )
+
+
 def test_kill_and_edit_agent_forces_name_reuse_for_done_agent() -> None:
     app = _App(_Agent("%i:foo\nDo work", agent_name="foo"))
 

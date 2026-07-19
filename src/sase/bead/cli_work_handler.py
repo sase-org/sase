@@ -285,12 +285,15 @@ def launch_epic_bead_work(
             vcs_context = resolve_vcs_launch_context()
 
     with timer.stage("prompt_render"):
+        from sase.agent.names import get_reserved_clan_names
+
         query = render_multi_prompt(
             plan,
             work_phase_xprompt=work_phase_xprompt,
             land_epic_xprompt=land_epic_xprompt,
             vcs_context=vcs_context,
             changespec_context=changespec_context,
+            declare_clan=plan.epic_id not in get_reserved_clan_names(),
         )
 
     if issue.is_ready_to_work:

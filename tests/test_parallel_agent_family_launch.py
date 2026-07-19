@@ -51,6 +51,33 @@ def _launch_with_captured_spawns(
     return calls
 
 
+def _persist_first_clan_member(
+    sase_home: Path,
+    call: dict[str, object],
+) -> None:
+    from sase.agent.names import rebuild_name_registry
+
+    env = call["extra_env"]
+    assert isinstance(env, dict)
+    payload = json.loads(str(env[CLAN_MEMBERSHIP_ENV]))
+    agent_name = str(env["SASE_AGENT_PLANNED_NAME"])
+    artifacts_dir = (
+        sase_home / "projects/sase/artifacts/ace-run" / str(payload["generation"])
+    )
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": agent_name,
+                "agent_clan": payload["clan_name"],
+                "agent_clan_generation": payload["generation"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    rebuild_name_registry()
+
+
 def test_template_clan_is_resolved_once_without_a_root(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -59,7 +86,7 @@ def test_template_clan_is_resolved_once_without_a_root(
     calls = _launch_with_captured_spawns(
         [
             "%id:research.@.worker\n%clan:research.@\nWork",
-            "%id:research.@.final\n%clan:research.@\nLead",
+            "%id(final, clan=research.@)\nLead",
         ],
         template_groups=["xprompt:research:0", "xprompt:research:0"],
     )
@@ -92,7 +119,8 @@ def test_clan_membership_is_execution_neutral(
             "%model:opus\n", "%model:opus\n%clan:research.@\n"
         ),
         baseline_segments[1].replace(
-            "%model:sonnet\n", "%model:sonnet\n%clan:research.@\n"
+            "%id:research.@.worker\n%model:sonnet\n",
+            "%id(worker, clan=research.@)\n%model:sonnet\n",
         ),
         baseline_segments[2],
     ]
@@ -150,7 +178,7 @@ def test_clan_member_fanout_variants_share_generation(
     assert payloads[0]["clan_name"] == "root"
 
 
-def test_same_clan_segments_with_different_tribes_share_generation(
+def test_declaration_and_joiner_share_generation_and_only_declaration_has_tribe(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -158,7 +186,7 @@ def test_same_clan_segments_with_different_tribes_share_generation(
     calls = _launch_with_captured_spawns(
         [
             "%id:root.one\n%clan(root, tribe=alpha)\nOne",
-            "%id:root.two\n%clan(root, tribe=beta)\nTwo",
+            "%id(two, clan=root)\nTwo",
         ]
     )
 
@@ -168,6 +196,59 @@ def test_same_clan_segments_with_different_tribes_share_generation(
     ]
     assert payloads[0] == payloads[1]
     assert payloads[0]["clan_name"] == "root"
+
+
+def test_duplicate_clan_declarations_spawn_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    with pytest.raises(DirectiveError, match="declared in more than one prompt"):
+        _launch_with_captured_spawns(
+            [
+                "%id:root.one\n%clan:root\nOne",
+                "%id:root.two\n%clan:root\nTwo",
+            ]
+        )
+
+
+def test_joiners_only_create_then_reuse_clan_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    first = _launch_with_captured_spawns(
+        ["%id(one, clan=root)\nOne", "%id(two, clan=root)\nTwo"]
+    )
+    _persist_first_clan_member(tmp_path / ".sase", first[0])
+    second = _launch_with_captured_spawns(["%id(three, clan=root)\nThree"])
+
+    first_payloads = [
+        json.loads(str(call["extra_env"][CLAN_MEMBERSHIP_ENV]))  # type: ignore[index]
+        for call in first
+    ]
+    second_payload = json.loads(
+        str(second[0]["extra_env"][CLAN_MEMBERSHIP_ENV])  # type: ignore[index]
+    )
+    assert first_payloads[0] == first_payloads[1] == second_payload
+
+
+def test_declaration_rejects_existing_clan_but_joiner_succeeds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    first = _launch_with_captured_spawns(["%id(one, clan=root)\nOne"])
+    _persist_first_clan_member(tmp_path / ".sase", first[0])
+
+    with pytest.raises(
+        DirectiveError,
+        match=r"clan 'root' already exists.*%id\(<id>, clan=root\)",
+    ):
+        _launch_with_captured_spawns(["%id:root.two\n%clan:root\nTwo"])
+
+    calls = _launch_with_captured_spawns(["%id(three, clan=root)\nThree"])
+    assert len(calls) == 1
 
 
 def test_xprompt_introduced_clan_tribe_conflict_spawns_nothing(
@@ -205,10 +286,6 @@ def test_xprompt_introduced_clan_tribe_conflict_spawns_nothing(
     [
         ["%id:outsider\n%clan:root\nWork"],
         ["%id:root\n%clan:root\nWork"],
-        [
-            "%id:root.one\n%clan:root\nWork",
-            "%id:other.two\n%clan:root\nReview",
-        ],
     ],
 )
 def test_clan_rejects_members_outside_its_hood_before_spawn(

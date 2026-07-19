@@ -4,7 +4,7 @@ SASE uses three different kinds of agent grouping:
 
 | Concept          | Directive or naming form                  | Purpose                                                              |
 | ---------------- | ----------------------------------------- | -------------------------------------------------------------------- |
-| **Agent clan**   | `%clan:<name>` / `%id(<id>, clan=<name>)` | A named, rootless container for agents that run in parallel          |
+| **Agent clan**   | `%clan:<name>` / `%id(<id>, clan=<name>)` | Declare or join a named, rootless container for parallel agents      |
 | **Agent family** | `%i(parent, suffix)`                      | A strictly sequential chain named `<family>--<suffix>`               |
 | **Agent tribe**  | `%tribe:<name>` / `%t:<name>`             | A user-managed label displayed with an `@` prefix, such as `@review` |
 
@@ -31,11 +31,12 @@ Test the release.
 Publish the release after both members finish.
 ```
 
-The short form is `%c:release`. Use `%clan(<name>, tribe=<tribe>)` (or the `%c(...)` alias) to assign one tribe to the
-entire clan generation; a separate `%tribe` directive cannot be combined with clan membership. The `clan=` form takes
-exactly one member id, allows dotted ids, and also accepts a leading `!` for forced reuse. Static names and templates
-such as `%id(cld, clan=research.@)` work; the derived `research.@.cld` name flows through normal template allocation. A
-later launch can join the newest existing clan generation by using its resolved name.
+The short form is `%c:release`. `%clan` is create-only: exactly one prompt may declare a clan, and declaring a clan that
+already exists is an error. Use `%clan(<name>, tribe=<tribe>)` (or the `%c(...)` alias) to assign the declaration's
+tribe to the entire clan generation; a separate `%tribe` directive cannot be combined with clan membership. Every other
+member uses `clan=`. That form joins an existing clan or creates it implicitly without a tribe, takes exactly one member
+id, allows dotted ids, and accepts a leading `!` for forced reuse. Static names and templates such as
+`%id(cld, clan=research.@)` work; the derived `research.@.cld` name flows through normal template allocation.
 
 Clan membership is execution-neutral. It does not add waits, change launch order, choose a workspace or model, or
 otherwise rewrite launch behavior. Use `%wait` explicitly wherever ordering is required. The two-positional
@@ -102,13 +103,13 @@ an epic named `sase-6g`, the generated prompt has this shape:
 %clan(sase-6g, tribe=epic)
 #bd/work_phase_bead:sase-6g.1
 ---
-%id:!sase-6g.land
-%clan(sase-6g, tribe=epic)
+%id(!land, clan=sase-6g)
 %wait:sase-6g.1
 #bd/land_epic:sase-6g
 ```
 
-Phase dependency waits remain explicit; the clan container itself is not a land agent or other executable process.
+Phase dependency waits remain explicit; the clan container itself is not a land agent or other executable process. If
+the epic clan already exists during a re-work, every phase and land segment uses the `clan=` join form.
 
 ## Sequential Agent Families
 
@@ -198,17 +199,14 @@ An agent tribe is a user-facing label for related agents across clans and famili
 %i:api-review %t:review Review the API boundary.
 ```
 
-ACE displays tribes with an `@` prefix and splits the Agents tab into panels such as `@review` and `@epic`. A modern
-clan declaration assigns one effective tribe to the whole generation. Repeat the same `tribe=` value on every member
-segment. If stored declarations disagree, the latest-launched member with an explicit declaration wins; a member that
-omits `tribe=` does not clear an earlier declaration. Older clan generations without any `clan_tribe` declaration fall
-back to the distinct post-hoc member tags they carry.
+ACE displays tribes with an `@` prefix and splits the Agents tab into panels such as `@review` and `@epic`. The clan's
+single declaration assigns one effective tribe to the whole generation; joiner prompts omit `tribe=`. Older clan
+generations without any `clan_tribe` value fall back to the distinct post-hoc member tags they carry.
 
-Press `N` in ACE to set or clear the focused agent's tribe (or every marked agent). For a clan member, ACE rewrites the
-selected member's stored `%clan(<clan>, tribe=<tribe>)` declaration and `clan_tribe` metadata; the synthetic clan row
-itself is not an editable agent. Because generation-wide resolution uses the latest explicit declaration, editing the
-latest member is the reliable way to retag an existing generation. Clearing that declaration can reveal an earlier
-member's value rather than leaving the generation unassigned. The CLI manages post-hoc tags for named standalone agents:
+Press `N` in ACE to set or clear the focused agent's tribe (or every marked agent). For the declaring clan member, ACE
+rewrites the stored `%clan(<clan>, tribe=<tribe>)` and its `clan_tribe` metadata. For a joiner, ACE updates only the
+metadata and never invents a second `%clan` declaration. The synthetic clan row itself is not an editable agent. The CLI
+manages post-hoc tags for named standalone agents:
 
 ```bash
 sase agent tribe set -n <agent> -t <tribe>
@@ -217,8 +215,8 @@ sase agent tribe list [-n <agent>]
 ```
 
 Standalone post-hoc assignments retain the internal `tag` field and `agent_tags.json` store for compatibility. Clan
-declarations are stored per member in the separate `clan_tribe` field, then resolved generation-wide. The prompt
-language, CLI, and display terminology are all tribe.
+tribe assignments use the separate per-member `clan_tribe` field and are resolved generation-wide. The prompt language,
+CLI, and display terminology are all tribe.
 
 ### Tribe panel focus and folding
 

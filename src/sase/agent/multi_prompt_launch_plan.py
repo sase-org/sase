@@ -174,7 +174,7 @@ def prepare_clan_launches(
     membership_env_by_segment: dict[int, str] = {}
     membership_by_segment: dict[int, ClanMembershipPlan] = {}
     reservations: list[tuple[str, str, Path]] = []
-    pending_reservations: list[tuple[str, str, str, Path]] = []
+    pending_reservations: list[tuple[str, str, Path, bool]] = []
 
     for index, directive in enumerate(directives):
         if directive is None:
@@ -247,7 +247,6 @@ def prepare_clan_launches(
 
     from sase.agent.names import (
         AgentNameTemplateError,
-        find_agent_clan,
         get_reserved_clan_names,
         is_agent_name_template,
         match_agent_name_template,
@@ -257,7 +256,7 @@ def prepare_clan_launches(
     )
     from sase.artifacts import convert_timestamp_to_artifacts_format
 
-    resolved_raw_names: dict[str, str] = {}
+    resolved_clans_by_raw: dict[str, str] = {}
     for raw_clan, member_indexes in members_by_raw_clan.items():
         resolved_clan = raw_clan
         if is_agent_name_template(raw_clan):
@@ -288,17 +287,25 @@ def prepare_clan_launches(
                         f"Cannot resolve %clan template '{raw_clan}' from any "
                         "member name in this launch"
                     ) from None
-        if resolved_clan in resolved_raw_names.values():
-            other = next(
-                raw
-                for raw, resolved in resolved_raw_names.items()
-                if resolved == resolved_clan
-            )
+        resolved_clans_by_raw[raw_clan] = resolved_clan
+
+    members_by_resolved_clan: dict[str, list[int]] = {}
+    for raw_clan, member_indexes in members_by_raw_clan.items():
+        resolved_clan = resolved_clans_by_raw[raw_clan]
+        members_by_resolved_clan.setdefault(resolved_clan, []).extend(member_indexes)
+
+    for resolved_clan, member_indexes in members_by_resolved_clan.items():
+        declaration_indexes = [
+            index
+            for index in member_indexes
+            if directives[index].declared  # type: ignore[union-attr]
+        ]
+        if len(declaration_indexes) > 1:
             raise DirectiveError(
-                f"Distinct clan declarations '{other}' and '{raw_clan}' resolve "
-                f"to the same clan '{resolved_clan}'"
+                f"Clan '{resolved_clan}' is declared in more than one prompt; "
+                "only one prompt may declare a clan. Other members join with "
+                f"%id(<id>, clan={resolved_clan})"
             )
-        resolved_raw_names[raw_clan] = resolved_clan
 
         member_slots = [
             (index, slot)
@@ -321,33 +328,37 @@ def prepare_clan_launches(
             key=lambda item: str(item[1].timestamp),
         )
         assert first_slot.timestamp is not None
-        existing_clan = find_agent_clan(resolved_clan)
-        if existing_clan is not None:
-            generation = existing_clan.generation
-        else:
-            generation = convert_timestamp_to_artifacts_format(first_slot.timestamp)
+        generation = convert_timestamp_to_artifacts_format(first_slot.timestamp)
         first_dir = artifacts_dirs_by_slot[(first_index, first_slot.slot_index)]
-        pending_reservations.append((raw_clan, resolved_clan, generation, first_dir))
+        pending_reservations.append(
+            (resolved_clan, generation, first_dir, bool(declaration_indexes))
+        )
 
     try:
         for (
-            raw_clan,
             clan_name,
             proposed_generation,
             artifacts_dir,
+            create_only,
         ) in pending_reservations:
-            generation = reserve_registered_clan_name(
-                clan_name,
-                proposed_generation,
-                artifacts_dir,
-            )
+            try:
+                generation = reserve_registered_clan_name(
+                    clan_name,
+                    proposed_generation,
+                    artifacts_dir,
+                    create_only=create_only,
+                )
+            except Exception as exc:
+                if create_only and "already exists" in str(exc):
+                    raise DirectiveError(str(exc)) from None
+                raise
             reservations.append((clan_name, generation, artifacts_dir))
             membership = ClanMembershipPlan(
                 clan_name=clan_name,
                 generation=generation,
             )
             payload = encode_clan_membership_plan(membership)
-            for index in members_by_raw_clan[raw_clan]:
+            for index in members_by_resolved_clan[clan_name]:
                 membership_env_by_segment[index] = payload
                 membership_by_segment[index] = membership
     except Exception:

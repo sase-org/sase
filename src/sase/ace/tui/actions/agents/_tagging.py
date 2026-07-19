@@ -10,7 +10,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal
 
-from sase.xprompt.directive_edit import set_prompt_clan_tribe, set_prompt_tribe
+from sase.xprompt.directive_edit import (
+    prompt_declares_clan,
+    set_prompt_clan_tribe,
+    set_prompt_tribe,
+)
 
 from ...models.agent_pin import DEFAULT_PINNED_TAG
 from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
@@ -159,14 +163,22 @@ class AgentTaggingMixin:
                     severity="warning",
                 )
                 return
+            clan_prompt_declares = False
+            if clan_bound and artifacts_dir:
+                raw_prompt = agent.get_raw_xprompt_content()
+                clan_prompt_declares = bool(
+                    raw_prompt is not None and prompt_declares_clan(raw_prompt)
+                )
             specs.append(
                 AgentDirectivePersistenceSpec(
                     artifacts_dir=artifacts_dir,
                     prompt_mutator=(
                         (
                             _prompt_clan_tribe_mutator(after)
-                            if clan_bound
+                            if clan_prompt_declares
                             else _prompt_tribe_mutator(after)
+                            if not clan_bound
+                            else None
                         )
                         if artifacts_dir
                         else None

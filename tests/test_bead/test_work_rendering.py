@@ -86,7 +86,7 @@ class TestRenderEdgeCases:
         assert plan.waves[0][0].agent_name == "sase-r.1"
         assert plan.land_agent_name == "sase-r.land"
 
-    def test_nested_epic_uses_clan_and_tribe_on_every_segment(self) -> None:
+    def test_nested_epic_declares_once_and_joins_land_segment(self) -> None:
         plan = EpicWorkPlan(
             epic_id="sase-42.3",
             launch_tag_id="sase-42.3",
@@ -119,16 +119,47 @@ class TestRenderEdgeCases:
         assert phase_directives.tag is None
         assert land_directives.tag is None
         assert phase_directives.clan_tribe == "epic"
-        assert land_directives.clan_tribe == "epic"
+        assert land_directives.clan_tribe is None
 
         assert "%family" not in rendered
         assert "%clan(sase-42.3, tribe=epic)" in phase_segment
         assert "%id:!sase-42.3.1" in phase_segment
         assert "#bd/work_phase_bead:sase-42.3.1" in phase_segment
-        assert "%id:!sase-42.3.land" in land_segment
-        assert "%clan(sase-42.3, tribe=epic)" in land_segment
+        assert "%id(!land, clan=sase-42.3)" in land_segment
+        assert "%clan" not in land_segment
         assert "%w:sase-42.3.1" in land_segment
         assert "#bd/land_epic:sase-42.3" in land_segment
+
+    def test_existing_epic_clan_uses_join_form_for_every_segment(self) -> None:
+        plan = EpicWorkPlan(
+            epic_id="sase-42",
+            launch_tag_id="sase-42",
+            total_phase_count=1,
+            waves=(
+                (
+                    PhaseAssignment(
+                        bead_id="sase-42.1",
+                        agent_name="sase-42.1",
+                        waits_on=(),
+                        wave=0,
+                    ),
+                ),
+            ),
+            land_agent_name="sase-42.land",
+            land_waits_on=("sase-42.1",),
+        )
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            declare_clan=False,
+        )
+
+        phase_segment, land_segment = rendered.split("\n---\n")
+        assert "%clan" not in rendered
+        assert "%id(!1, clan=sase-42)" in phase_segment
+        assert "%id(!land, clan=sase-42)" in land_segment
 
     def test_epic_work_segment_env_tracks_phase_then_land_bead_ids(
         self,
@@ -180,18 +211,17 @@ class TestChangeSpecRendering:
 
         expected = (
             "#git:sase #pr:feature_epic\n"
-            "%id:!p1\n"
+            "%id:!e1.p1\n"
             "%clan(e1, tribe=epic)\n"
             "%model:@phase_worker\n"
             "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "#git:feature_epic\n"
-            "%id:!e1.land\n"
-            "%clan(e1, tribe=epic)\n"
+            "%id(!land, clan=e1)\n"
             "%model:@epic_lander\n"
             "%auto\n"
-            "%w:p1\n"
+            "%w:e1.p1\n"
             "#bd/land_epic:e1"
         )
         assert rendered == expected
@@ -218,34 +248,31 @@ class TestChangeSpecRendering:
 
         expected = (
             "#gh:sase #pr:feature_epic\n"
-            "%id:!p1\n"
+            "%id:!e1.p1\n"
             "%clan(e1, tribe=epic)\n"
             "%model:@phase_worker\n"
             "%auto\n"
             "#custom/work:p1\n"
             "---\n"
             "#gh:feature_epic\n"
-            "%id:!p2\n"
-            "%clan(e1, tribe=epic)\n"
+            "%id(!p2, clan=e1)\n"
             "%model:@phase_worker\n"
             "%auto\n"
-            "%w:p1\n"
+            "%w:e1.p1\n"
             "#custom/work:p2\n"
             "---\n"
             "#gh:feature_epic\n"
-            "%id:!p3\n"
-            "%clan(e1, tribe=epic)\n"
+            "%id(!p3, clan=e1)\n"
             "%model:@phase_worker\n"
             "%auto\n"
-            "%w:p2\n"
+            "%w:e1.p2\n"
             "#custom/work:p3\n"
             "---\n"
             "#gh:feature_epic\n"
-            "%id:!e1.land\n"
-            "%clan(e1, tribe=epic)\n"
+            "%id(!land, clan=e1)\n"
             "%model:@epic_lander\n"
             "%auto\n"
-            "%w:p1,p2,p3\n"
+            "%w:e1.p1,e1.p2,e1.p3\n"
             "#custom/land:e1"
         )
         assert rendered == expected
@@ -270,10 +297,10 @@ class TestChangeSpecRendering:
 
         assert rendered.count("#pr:feature_epic") == 1
         membership = "%clan(e1, tribe=epic)"
-        assert f"#git:sase #pr:feature_epic\n%id:!p1\n{membership}" in rendered
-        assert f"#git:feature_epic\n%id:!p2\n{membership}" in rendered
-        assert f"#git:feature_epic\n%id:!e1.land\n{membership}" in rendered
-        assert rendered.count("%clan(e1, tribe=epic)") == 3
+        assert f"#git:sase #pr:feature_epic\n%id:!e1.p1\n{membership}" in rendered
+        assert "#git:feature_epic\n%id(!p2, clan=e1)" in rendered
+        assert "#git:feature_epic\n%id(!land, clan=e1)" in rendered
+        assert rendered.count("%clan(e1, tribe=epic)") == 1
         assert "%family" not in rendered
         assert "%group:" not in rendered
 
@@ -443,7 +470,7 @@ class TestModelDirective:
         phase_segment, land_segment = rendered.split("\n---\n")
         _assert_bare_auto_directives(rendered)
         assert phase_segment == (
-            "%id:!p1\n"
+            "%id:!e1.p1\n"
             "%clan(e1, tribe=epic)\n"
             "%model:claude/opus\n"
             "%auto\n"
@@ -490,9 +517,9 @@ class TestModelDirective:
         )
 
         segments = rendered.split("\n---\n")
-        p1_seg = next(s for s in segments if "%id:!p1\n" in s)
-        p2_seg = next(s for s in segments if "%id:!p2\n" in s)
-        p3_seg = next(s for s in segments if "%id:!p3\n" in s)
+        p1_seg = next(s for s in segments if "#bd/work_phase_bead:p1" in s)
+        p2_seg = next(s for s in segments if "#bd/work_phase_bead:p2" in s)
+        p3_seg = next(s for s in segments if "#bd/work_phase_bead:p3" in s)
         land_seg = segments[-1]
         assert "%model:codex/gpt-5.6-sol" in p1_seg
         assert "%model:@phase_worker" in p2_seg
@@ -517,12 +544,7 @@ class TestModelDirective:
         assert "%model:@phase_worker" in phase_segment
         # An explicit per-epic land model still wins over the epic-lander alias.
         assert land_segment == (
-            "%id:!e1.land\n"
-            "%clan(e1, tribe=epic)\n"
-            "%model:claude/opus\n"
-            "%auto\n"
-            "%w:p1\n"
-            "#bd/land_epic:e1"
+            "%id(!land, clan=e1)\n%model:claude/opus\n%auto\n%w:e1.p1\n#bd/land_epic:e1"
         )
 
     def test_no_model_only_adds_role_alias_directives_over_baseline(
@@ -546,20 +568,18 @@ class TestModelDirective:
         )
 
         pre_model_baseline = (
-            "%id:!p1\n"
+            "%id:!e1.p1\n"
             "%clan(e1, tribe=epic)\n"
             "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
-            "%id:!p2\n"
-            "%clan(e1, tribe=epic)\n"
+            "%id(!p2, clan=e1)\n"
             "%auto\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
-            "%id:!e1.land\n"
-            "%clan(e1, tribe=epic)\n"
+            "%id(!land, clan=e1)\n"
             "%auto\n"
-            "%w:p1,p2\n"
+            "%w:e1.p1,e1.p2\n"
             "#bd/land_epic:e1"
         )
         # The only additions over the baseline are the role-alias model

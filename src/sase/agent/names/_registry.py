@@ -159,14 +159,28 @@ def reserve_registered_clan_name(
     name: str,
     generation: str,
     claiming_dir: str | Path,
+    *,
+    create_only: bool = False,
 ) -> str:
-    """Reserve a clan and return its allocation-locked generation."""
+    """Reserve a clan and return its allocation-locked generation.
+
+    ``create_only`` makes an existing clan a collision. The check and new
+    reservation happen under the same allocation lock so concurrent clan
+    declarations cannot both succeed.
+    """
     with _registry_mutation_lock():
         artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
         entries = dict(load_name_registry()["entries"])
         existing = entries.get(name)
         if isinstance(existing, dict):
             if existing.get("container_kind") == "clan":
+                if create_only:
+                    from sase.agent.names._common import NameCollisionError
+
+                    raise NameCollisionError(
+                        f"clan '{name}' already exists; join it with "
+                        f"%id(<id>, clan={name})"
+                    )
                 existing_generation = existing.get("clan_generation")
                 return (
                     existing_generation

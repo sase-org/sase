@@ -6,6 +6,8 @@ from unittest.mock import patch
 
 from sase.xprompt.directive_edit import (
     PromptWaitDirective,
+    demote_prompt_clan_declaration,
+    prompt_declares_clan,
     set_prompt_auto_mode,
     set_prompt_clan_tribe,
     set_prompt_name,
@@ -26,6 +28,25 @@ def test_set_prompt_name_replaces_long_form() -> None:
 def test_set_prompt_name_replaces_alias_without_touching_tribe() -> None:
     prompt = "%t:batch\n%i:old\nDo work"
     assert set_prompt_name(prompt, "new") == "%id:new\n%t:batch\nDo work"
+
+
+def test_demote_prompt_clan_declaration_rewrites_id_and_drops_tribe() -> None:
+    prompt = "%id:!research.worker.r0\n%clan(research, tribe=review)\nDo work"
+
+    assert demote_prompt_clan_declaration(prompt) == (
+        "%id(!worker.r0, clan=research)\nDo work"
+    )
+
+
+def test_demote_prompt_clan_declaration_leaves_joiner_unchanged() -> None:
+    prompt = "%id(worker, clan=research)\nDo work"
+    assert demote_prompt_clan_declaration(prompt) == prompt
+
+
+def test_prompt_declares_clan_ignores_joiner_and_protected_examples() -> None:
+    assert prompt_declares_clan("%clan:research\nDo work") is True
+    assert prompt_declares_clan("%id(worker, clan=research)\nDo work") is False
+    assert prompt_declares_clan("```text\n%clan:example\n```\nDo work") is False
 
 
 def test_set_prompt_tribe_set_and_unset_alias() -> None:

@@ -275,6 +275,82 @@ def test_apply_unset_strips_meta_only_tag(tmp_path: Path) -> None:
     assert app.refresh_calls == 1
 
 
+def test_clan_retag_rewrites_only_declaring_prompt(tmp_path: Path) -> None:
+    declarer_dir = tmp_path / "declarer"
+    joiner_dir = tmp_path / "joiner"
+    for artifacts_dir, prompt, name in (
+        (
+            declarer_dir,
+            "%id:research.lead\n%clan(research, tribe=old)\nLead",
+            "research.lead",
+        ),
+        (
+            joiner_dir,
+            "%id(worker, clan=research)\nWork",
+            "research.worker",
+        ),
+    ):
+        artifacts_dir.mkdir()
+        (artifacts_dir / "raw_xprompt.md").write_text(prompt, encoding="utf-8")
+        (artifacts_dir / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "name": name,
+                    "agent_clan": "research",
+                    "agent_clan_generation": "g1",
+                    "clan_tribe": "old",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    declarer = _make_agent(
+        suffix="declarer",
+        artifacts_dir=str(declarer_dir),
+        agent_name="research.lead",
+        agent_clan="research",
+        agent_clan_generation="g1",
+        clan_tribe="old",
+    )
+    joiner = _make_agent(
+        suffix="joiner",
+        artifacts_dir=str(joiner_dir),
+        agent_name="research.worker",
+        agent_clan="research",
+        agent_clan_generation="g1",
+        clan_tribe="old",
+    )
+    app = _FakeApp([declarer, joiner])
+
+    with patch(
+        "sase.core.agent_artifact_index_lifecycle."
+        "update_agent_artifact_index_for_marker_mutation"
+    ):
+        app._apply_agent_tag_change(
+            AgentTagModalResult(action="set", tag="new"),
+            [declarer, joiner],
+        )
+
+    assert (declarer_dir / "raw_xprompt.md").read_text(encoding="utf-8") == (
+        "%id:research.lead\n%clan(research, tribe=new)\nLead"
+    )
+    assert (joiner_dir / "raw_xprompt.md").read_text(encoding="utf-8") == (
+        "%id(worker, clan=research)\nWork"
+    )
+    assert (
+        json.loads((declarer_dir / "agent_meta.json").read_text(encoding="utf-8"))[
+            "clan_tribe"
+        ]
+        == "new"
+    )
+    assert (
+        json.loads((joiner_dir / "agent_meta.json").read_text(encoding="utf-8"))[
+            "clan_tribe"
+        ]
+        == "new"
+    )
+
+
 def test_marked_bulk_path_targets_marked_agents(tmp_path: Path) -> None:
     tag_file = tmp_path / "agent_tags.json"
     a1 = _make_agent(suffix="t1")

@@ -170,13 +170,10 @@ def extract_directives_and_write_meta(
     from sase.agent.clan_membership import (
         ClanMembershipError,
         consume_clan_membership_plan_from_env,
-        resolve_existing_clan_membership,
     )
 
     clan_membership_plan = consume_clan_membership_plan_from_env()
-    if clan_membership_plan is None and directives.clan is not None:
-        clan_membership_plan = resolve_existing_clan_membership(directives.clan)
-    elif clan_membership_plan is not None and directives.clan is None:
+    if clan_membership_plan is not None and directives.clan is None:
         raise ClanMembershipError(
             "Clan membership payload requires a %clan directive or "
             "%id(..., clan=...) keyword"
@@ -366,6 +363,27 @@ def extract_directives_and_write_meta(
             from sase.agent.names import get_next_auto_name
 
             agent_name = get_next_auto_name()
+
+        if clan_membership_plan is None and directives.clan is not None:
+            from pathlib import Path
+
+            from sase.agent.clan_membership import (
+                declare_clan_membership,
+                resolve_or_create_clan_membership,
+            )
+
+            membership_resolver = (
+                declare_clan_membership
+                if directives.clan_declared
+                else resolve_or_create_clan_membership
+            )
+            clan_membership_plan = membership_resolver(
+                directives.clan,
+                generation=Path(artifacts_dir).name,
+                claiming_dir=artifacts_dir,
+                member_name=agent_name,
+                member_name_template=directives.name,
+            )
 
         agent_tag = directives.tag
 

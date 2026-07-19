@@ -109,19 +109,21 @@ Use `%i(parent, @)` only when the next free feedback suffix is acceptable. Use a
 
 ## Parallel Clan Members
 
-To launch parallel agents as one rootless clan, give every segment the same clan directive and name every member inside
-that clan's hood:
+To launch parallel agents as one rootless clan, declare it in one segment and use the `clan=` join form for every other
+member:
 
 ```text
 %i:review.security %clan:review
 Audit the security boundary.
 ---
-%i:review.performance %clan:review
+%i(performance, clan=review)
 Audit the performance boundary.
 ```
 
-The clan name is reserved and is never an agent. `%clan` does not add ordering; use `%wait` explicitly. Set `max_slots`
-to at least the number of segments in the request.
+The clan name is reserved and is never an agent. `%clan` is create-only and errors if the clan already exists or a
+second prompt declares it. `%id(<id>, clan=<clan>)` joins an existing clan or creates it implicitly without a tribe.
+Clan membership does not add ordering; use `%wait` explicitly. Set `max_slots` to at least the number of segments in the
+request.
 
 Use `%clan(review, tribe=quality)` (or `%c(review, tribe=quality)`) when the clan should appear in a tribe. Keep
 `%tribe:quality` / `%t:quality` for standalone agents and sequential families that are not clan members. Never combine

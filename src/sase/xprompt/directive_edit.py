@@ -47,6 +47,36 @@ def set_prompt_name(prompt: str, name: str) -> str:
     return _set_prompt_directive(prompt, {"id"}, f"%id:{name}")
 
 
+def demote_prompt_clan_declaration(prompt: str) -> str:
+    """Rewrite a declaring clan member into the join form for relaunch."""
+    from sase.xprompt.directives import extract_prompt_directives
+
+    _, directives = extract_prompt_directives(prompt)
+    if not directives.clan_declared:
+        return prompt
+    if directives.clan is None or directives.name is None:
+        raise ValueError(
+            "Cannot relaunch a clan declaration without an explicit member name."
+        )
+
+    prefix = f"{directives.clan}."
+    if not directives.name.startswith(prefix) or not directives.name.removeprefix(
+        prefix
+    ):
+        raise ValueError(
+            f"Cannot relaunch agent '{directives.name}' as a member of clan "
+            f"'{directives.clan}': expected the '{prefix}<suffix>' hood."
+        )
+    member_id = directives.name.removeprefix(prefix)
+    if directives.name_force_reuse:
+        member_id = f"!{member_id}"
+    replacement = (
+        f"%id({_format_wait_arg(member_id)}, clan={_format_wait_arg(directives.clan)})"
+    )
+    rewritten = _set_prompt_directive(prompt, {"clan"}, None)
+    return _set_prompt_directive(rewritten, {"id"}, replacement)
+
+
 def set_prompt_tribe(prompt: str, tribe: str | None) -> str:
     """Return *prompt* with ``%tribe`` set or removed."""
     if _prompt_has_effective_clan(prompt):
@@ -134,6 +164,11 @@ def _prompt_has_effective_clan(prompt: str) -> bool:
         if name == "clan":
             return True
     return False
+
+
+def prompt_declares_clan(prompt: str) -> bool:
+    """Return whether *prompt* contains an effective top-level ``%clan``."""
+    return _prompt_has_effective_clan(prompt)
 
 
 def set_prompt_auto_mode(prompt: str, mode: AutoMode | None) -> str:

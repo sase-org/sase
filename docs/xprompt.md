@@ -1002,7 +1002,7 @@ the prompt before further processing.
 | `%model`  | `%m`  | Override the LLM model for this prompt                                |
 | `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                 |
 | `%id`     | `%i`  | Assign an id, join a clan, or attach a member to an existing family   |
-| `%clan`   | `%c`  | Join a named, rootless parallel agent clan                            |
+| `%clan`   | `%c`  | Declare a new named, rootless parallel agent clan                     |
 | `%wait`   | `%w`  | Wait for dependencies, a time floor, and/or a runner threshold        |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display                    |
 | `%auto`   | `%a`  | Request automatic gate resolution; an optional argument is gate-owned |
@@ -1040,9 +1040,9 @@ Directives use the same argument syntax as xprompt references:
 %id(!worker, clan=research)  # Same derived name, with forced reuse
 %id                        # Bare — auto-generates a unique name
 %id:!reviewer              # Force reuse by wiping the previous owner
-%clan:research.@             # Join a rootless clan; member names must be research.@.<suffix>
+%clan:research.@             # Declare a new clan; this member uses a full hood-qualified id
 %c:research.@                # Same, using alias
-%clan(research, tribe=review) # Declare @review for this clan member's generation
+%clan(research, tribe=review) # Declare a new clan in tribe @review
 %wait:agent1                 # Wait for agent1
 %w:agent2                    # Wait for agent2 (alias)
 %wait                        # Bare — waits for the most recently named agent
@@ -1078,15 +1078,17 @@ Directives use the same argument syntax as xprompt references:
 Model names containing spaces or parentheses must use the quoted parenthesis form (for example,
 `%m("provider/Model Name (Variant)")`); colon syntax cannot express those values.
 
-The `%clan` directive and the `clan=` keyword on `%id` declare execution-neutral membership in a rootless parallel agent
+The `%clan` directive and the `clan=` keyword on `%id` request execution-neutral membership in a rootless parallel agent
 clan. Adding membership does not change the model, waits, fan-out, spawn order, VCS/project context, or workspace
 behavior; it only adds clan metadata and strips the directive before model execution. The clan name is a reserved
-container, never an agent. `%clan` requires an explicitly hood-qualified member name, while `%id(<id>, clan=<clan>)`
-derives `<clan>.<id>` automatically. Use `%clan(<name>, tribe=<tribe>)` to assign one authoritative tribe to the whole
-clan generation. A joining `%id(..., clan=...)` cannot be combined with `%clan` or a separate `%tribe` in the same
-prompt; joining a clan also joins its tribe. A member segment may fan out, and identical raw clan templates in one batch
-resolve to the same generation. See [Agent Clans, Families, and Tribes](agent_families.md) for the full launch, wait,
-display, and cleanup contract.
+container, never an agent. `%clan` is a create-only declaration, requires an explicitly hood-qualified member name, and
+may appear for a resolved clan in only one prompt per launch. It errors if that clan already exists. Use
+`%clan(<name>, tribe=<tribe>)` to assign one authoritative tribe to the generation. Every other member uses
+`%id(<id>, clan=<clan>)`, which derives `<clan>.<id>` and joins the newest generation or creates the clan implicitly
+without a tribe. The join form cannot be combined with `%clan` or a separate `%tribe` in the same prompt; joining a clan
+also joins its tribe. A member segment may fan out, and identical raw clan templates in one batch resolve to the same
+generation. See [Agent Clans, Families, and Tribes](agent_families.md) for the full launch, wait, display, and cleanup
+contract.
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
 `qwen3.6-plus`) are automatically mapped to their provider. See

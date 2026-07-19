@@ -139,6 +139,20 @@ def _build_epic_work_plan_from_issues(
 
 def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
     epic_id = str(payload["epic_id"])
+    raw_waves = [list(wave) for wave in payload["waves"]]
+    agent_names = {
+        str(assignment["agent_name"]): _epic_clan_agent_name(
+            epic_id,
+            str(assignment["agent_name"]),
+        )
+        for wave in raw_waves
+        for assignment in wave
+    }
+
+    def _membership_name(value: object) -> str:
+        raw_name = str(value)
+        return agent_names.get(raw_name, _epic_clan_agent_name(epic_id, raw_name))
+
     return EpicWorkPlan(
         epic_id=epic_id,
         launch_tag_id=str(payload.get("launch_tag_id", epic_id)),
@@ -152,19 +166,31 @@ def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
             tuple(
                 _PhaseAssignment(
                     bead_id=str(assignment["bead_id"]),
-                    agent_name=str(assignment["agent_name"]),
-                    waits_on=tuple(str(v) for v in assignment.get("waits_on", [])),
+                    agent_name=_membership_name(assignment["agent_name"]),
+                    waits_on=tuple(
+                        _membership_name(v) for v in assignment.get("waits_on", [])
+                    ),
                     wave=int(assignment["wave"]),
                     model=str(assignment.get("model", "")),
                 )
                 for assignment in wave
             )
-            for wave in payload["waves"]
+            for wave in raw_waves
         ),
-        land_agent_name=str(payload["land_agent_name"]),
-        land_waits_on=tuple(str(v) for v in payload.get("land_waits_on", [])),
+        land_agent_name=_epic_clan_agent_name(
+            epic_id,
+            str(payload["land_agent_name"]),
+        ),
+        land_waits_on=tuple(
+            _membership_name(v) for v in payload.get("land_waits_on", [])
+        ),
         land_model=str(payload.get("land_model", "")),
     )
+
+
+def _epic_clan_agent_name(epic_id: str, agent_name: str) -> str:
+    prefix = f"{epic_id}."
+    return agent_name if agent_name.startswith(prefix) else f"{prefix}{agent_name}"
 
 
 def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
@@ -245,13 +271,17 @@ def render_multi_prompt(
     land_epic_xprompt: Workflow,
     vcs_context: VCSLaunchContext | None = None,
     changespec_context: ChangeSpecLaunchContext | None = None,
+    *,
+    declare_clan: bool = True,
 ) -> str:
     """Render *plan* as a ``---``-separated multi-prompt string.
 
-    Each phase becomes a segment with ``%id``,
-    ``%clan(<epic_id>, tribe=epic)``, optional ``%w``, and a
-    ``#<work_phase_xprompt.name>:<bead_id>`` reference. The final land segment
-    joins the same clan and tribe, invokes
+    The first phase declares ``%clan(<epic_id>, tribe=epic)`` when
+    ``declare_clan`` is true. Every later phase and the final land segment use
+    ``%id(<suffix>, clan=<epic_id>)`` to join the same clan. When re-working an
+    existing epic clan, callers pass ``declare_clan=False`` so every segment
+    uses the join form. Segments invoke the corresponding work xprompt, and
+    the final land segment invokes
     ``#<land_epic_xprompt.name>:<epic_id>``, and waits on every launched phase
     agent. Tag-resolved xprompt names are substituted into the ``#...``
     references so user overrides flow through unchanged.
@@ -281,9 +311,15 @@ def render_multi_prompt(
     for wave in plan.waves:
         for assignment in wave:
             lines = _segment_prefix(launch_context, is_first_phase)
+            declares_clan = declare_clan and is_first_phase
             is_first_phase = False
-            lines.append(f"%id:!{assignment.agent_name}")
-            lines.append(f"%clan({plan.epic_id}, tribe=epic)")
+            lines.extend(
+                _clan_identity_directives(
+                    plan.epic_id,
+                    assignment.agent_name,
+                    declare=declares_clan,
+                )
+            )
             if assignment.model:
                 model_value = format_model_directive_value(assignment.model)
                 lines.append(f"%model:{model_value}")
@@ -297,8 +333,13 @@ def render_multi_prompt(
             segments.append("\n".join(lines))
 
     land_lines = _segment_prefix(launch_context, is_first_phase=False)
-    land_lines.append(f"%id:!{plan.land_agent_name}")
-    land_lines.append(f"%clan({plan.epic_id}, tribe=epic)")
+    land_lines.extend(
+        _clan_identity_directives(
+            plan.epic_id,
+            plan.land_agent_name,
+            declare=declare_clan and is_first_phase,
+        )
+    )
     land_model = epic_land_model_directive_value(
         plan.land_model,
         total_phase_count=plan.total_phase_count,
@@ -311,6 +352,27 @@ def render_multi_prompt(
     segments.append("\n".join(land_lines))
 
     return "\n---\n".join(segments)
+
+
+def _clan_identity_directives(
+    clan_name: str,
+    agent_name: str,
+    *,
+    declare: bool,
+) -> list[str]:
+    prefix = f"{clan_name}."
+    member_id = agent_name.removeprefix(prefix)
+    if member_id == agent_name or not member_id:
+        raise ValueError(
+            f"Epic agent name '{agent_name}' must be inside clan hood "
+            f"'{prefix}<suffix>'"
+        )
+    if declare:
+        return [
+            f"%id:!{agent_name}",
+            f"%clan({clan_name}, tribe=epic)",
+        ]
+    return [f"%id(!{member_id}, clan={clan_name})"]
 
 
 def epic_work_segment_env(

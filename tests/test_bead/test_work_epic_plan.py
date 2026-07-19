@@ -43,9 +43,9 @@ class TestLinearChain:
         assert wave_bead_ids(plan, 2) == ["p3"]
         # P1 has no waits; P2 waits on P1; P3 waits on P2.
         assert plan.waves[0][0].waits_on == ()
-        assert plan.waves[1][0].waits_on == ("p1",)
-        assert plan.waves[2][0].waits_on == ("p2",)
-        assert plan.land_waits_on == ("p1", "p2", "p3")
+        assert plan.waves[1][0].waits_on == ("e1.p1",)
+        assert plan.waves[2][0].waits_on == ("e1.p2",)
+        assert plan.land_waits_on == ("e1.p1", "e1.p2", "e1.p3")
         assert plan.land_agent_name == "e1.land"
         assert plan.launch_tag_id == "e1"
 
@@ -92,10 +92,10 @@ class TestDiamond:
         assert wave_bead_ids(plan, 0) == ["p1"]
         assert wave_bead_ids(plan, 1) == ["p2", "p3"]
         assert wave_bead_ids(plan, 2) == ["p4"]
-        assert plan.waves[1][0].waits_on == ("p1",)
-        assert plan.waves[1][1].waits_on == ("p1",)
-        assert plan.waves[2][0].waits_on == ("p2", "p3")
-        assert plan.land_waits_on == ("p1", "p2", "p3", "p4")
+        assert plan.waves[1][0].waits_on == ("e1.p1",)
+        assert plan.waves[1][1].waits_on == ("e1.p1",)
+        assert plan.waves[2][0].waits_on == ("e1.p2", "e1.p3")
+        assert plan.land_waits_on == ("e1.p1", "e1.p2", "e1.p3", "e1.p4")
 
     def test_diamond_render_snapshot(self, conn: sqlite3.Connection) -> None:
         self._seed_diamond(conn)
@@ -108,43 +108,40 @@ class TestDiamond:
         )
 
         expected = (
-            "%id:!p1\n"
+            "%id:!e1.p1\n"
             "%clan(e1, tribe=epic)\n"
             "%model:@phase_worker\n"
             "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
-            "%id:!p2\n"
-            "%clan(e1, tribe=epic)\n"
+            "%id(!p2, clan=e1)\n"
             "%model:@phase_worker\n"
             "%auto\n"
-            "%w:p1\n"
+            "%w:e1.p1\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
-            "%id:!p3\n"
-            "%clan(e1, tribe=epic)\n"
+            "%id(!p3, clan=e1)\n"
             "%model:@phase_worker\n"
             "%auto\n"
-            "%w:p1\n"
+            "%w:e1.p1\n"
             "#bd/work_phase_bead:p3\n"
             "---\n"
-            "%id:!p4\n"
-            "%clan(e1, tribe=epic)\n"
+            "%id(!p4, clan=e1)\n"
             "%model:@phase_worker\n"
             "%auto\n"
-            "%w:p2,p3\n"
+            "%w:e1.p2,e1.p3\n"
             "#bd/work_phase_bead:p4\n"
             "---\n"
-            "%id:!e1.land\n"
-            "%clan(e1, tribe=epic)\n"
+            "%id(!land, clan=e1)\n"
             "%model:@epic_lander\n"
             "%auto\n"
-            "%w:p1,p2,p3,p4\n"
+            "%w:e1.p1,e1.p2,e1.p3,e1.p4\n"
             "#bd/land_epic:e1"
         )
         assert rendered == expected
         segments = rendered.split("\n---\n")
-        assert all("%clan(e1, tribe=epic)" in segment for segment in segments)
+        assert "%clan(e1, tribe=epic)" in segments[0]
+        assert all("%clan" not in segment for segment in segments[1:])
         assert all("%family" not in segment for segment in segments)
         assert all("%group:" not in segment for segment in segments)
         assert all("%auto" in segment.splitlines() for segment in segments)
@@ -179,9 +176,9 @@ class TestMixedDAG:
             ["p2"],
             ["p3"],
         ]
-        assert plan.waves[1][0].waits_on == ("p1",)
-        assert plan.waves[2][0].waits_on == ("p2",)
-        assert plan.land_waits_on == ("p1", "p4", "p2", "p3")
+        assert plan.waves[1][0].waits_on == ("e1.p1",)
+        assert plan.waves[2][0].waits_on == ("e1.p2",)
+        assert plan.land_waits_on == ("e1.p1", "e1.p4", "e1.p2", "e1.p3")
 
 
 class TestIndependentFanOut:
@@ -200,7 +197,7 @@ class TestIndependentFanOut:
         assert len(plan.waves) == 1
         assert wave_bead_ids(plan, 0) == ["p1", "p2", "p3"]
         assert all(a.waits_on == () for a in plan.waves[0])
-        assert plan.land_waits_on == ("p1", "p2", "p3")
+        assert plan.land_waits_on == ("e1.p1", "e1.p2", "e1.p3")
 
 
 class TestClosedBlockers:
@@ -217,7 +214,7 @@ class TestClosedBlockers:
 
         assert len(plan.waves) == 1
         assert wave_bead_ids(plan, 0) == ["p1"]
-        assert plan.land_waits_on == ("p1",)
+        assert plan.land_waits_on == ("e1.p1",)
 
     def test_in_epic_closed_blocker_does_not_gate(
         self, conn: sqlite3.Connection
@@ -238,7 +235,7 @@ class TestClosedBlockers:
         assert wave_bead_ids(plan, 0) == ["p2"]
         assert plan.total_phase_count == 2
         assert plan.waves[0][0].waits_on == ()
-        assert plan.land_waits_on == ("p2",)
+        assert plan.land_waits_on == ("e1.p2",)
 
     def test_closed_blocker_is_omitted_from_rendered_waits(
         self, conn: sqlite3.Connection
@@ -261,7 +258,7 @@ class TestClosedBlockers:
         )
 
         assert "#bd/work_phase_bead:p1" not in rendered
-        assert "%w:p1" not in rendered
+        assert "%w:e1.p1" not in rendered
         assert "#bd/work_phase_bead:p2" in rendered
 
     def test_mixed_closed_and_non_closed_phases_render_only_remaining(
@@ -289,7 +286,7 @@ class TestClosedBlockers:
         assert "#bd/work_phase_bead:p1" not in rendered
         assert "#bd/work_phase_bead:p2" in rendered
         assert "#bd/work_phase_bead:p3" in rendered
-        assert "%w:p2" in rendered
+        assert "%w:e1.p2" in rendered
         assert "#bd/land_epic:e1" in rendered
 
     def test_out_of_epic_closed_blocker_is_accepted(

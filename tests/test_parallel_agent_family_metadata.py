@@ -143,12 +143,55 @@ def test_runner_fallback_joins_existing_clan(
     )
 
     info = _extract_runner_metadata(
-        "%id:existing.late\n%clan:existing\nWork",
+        "%id(late, clan=existing)\nWork",
         artifacts_dir=(sase_home / "projects/sase/artifacts/ace-run/20260716020202"),
     )
 
     assert info.meta[AGENT_CLAN_FIELD] == "existing"
     assert info.meta[AGENT_CLAN_GENERATION_FIELD] == "20260716020000"
+
+
+def test_runner_fallback_joiner_creates_missing_clan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    artifacts_dir = sase_home / "projects/sase/artifacts/ace-run/20260716020303"
+
+    info = _extract_runner_metadata(
+        "%id(first, clan=implicit)\nWork",
+        artifacts_dir=artifacts_dir,
+    )
+
+    assert info.meta[AGENT_CLAN_FIELD] == "implicit"
+    assert info.meta[AGENT_CLAN_GENERATION_FIELD] == "20260716020303"
+
+
+def test_runner_fallback_declaration_rejects_existing_clan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    _write_artifact(
+        sase_home,
+        timestamp="20260716020404",
+        meta={
+            "name": "existing.one",
+            AGENT_CLAN_FIELD: "existing",
+            AGENT_CLAN_GENERATION_FIELD: "20260716020400",
+        },
+        outcome="completed",
+    )
+
+    with pytest.raises(ClanMembershipError, match="clan 'existing' already exists"):
+        _extract_runner_metadata(
+            "%id:existing.two\n%clan:existing\nWork",
+            artifacts_dir=(
+                sase_home / "projects/sase/artifacts/ace-run/20260716020505"
+            ),
+        )
 
 
 def test_clan_wait_and_fork_resolve_only_after_every_member_completes(

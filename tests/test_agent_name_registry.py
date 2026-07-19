@@ -413,6 +413,32 @@ def test_clan_reservation_rejects_existing_agent_and_claims_first_member(
     assert entry["container_kind"] == "clan"
 
 
+def test_concurrent_create_only_clan_reservations_allow_one_declaration(
+    tmp_path: Path,
+) -> None:
+    artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
+    barrier = Barrier(2)
+
+    def declare(index: int) -> str:
+        barrier.wait()
+        try:
+            reserve_registered_clan_name(
+                "research",
+                f"run{index}",
+                artifacts_root / f"run{index}",
+                create_only=True,
+            )
+        except NameCollisionError:
+            return "collision"
+        return "created"
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(declare, (1, 2)))
+
+    assert sorted(results) == ["collision", "created"]
+
+
 def test_family_conversion_reserves_base_and_original_member(tmp_path: Path) -> None:
     artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
     root_dir = artifacts_root / "run1"
