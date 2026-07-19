@@ -70,7 +70,7 @@ For multi-agent workflows, every child agent for that root must also be `complet
 ## Comments, Housekeeping, and Everything Else
 
 The `comments` lumberjack (1-minute interval) polls for new review comments and kicks off critique agents — the
-back-half of the mentor follow-up loop. The `checks` lumberjack (5-minute interval) runs `cl_submitted_checks` to notice
+back-half of the mentor follow-up loop. The `checks` lumberjack (5-minute interval) runs `pr_submitted_checks` to notice
 when a PR has been submitted upstream, plus a slower backstop pass of `stale_running_cleanup`.
 
 The `housekeeping` lumberjack (1-hour interval) runs the `error_digest` chop. It summarizes recent errors into
