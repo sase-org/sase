@@ -85,17 +85,19 @@ file.
 - Valid trigger words only; user snippets override xprompt snippets on collision.
 - `#[trigger]` snippet references resolved after the xprompt/user merge.
 
-`agent-catalog` returns a fresh, de-duplicated list of prompt-reference targets. Individual agents include their status
-and project. When the artifact snapshot contains group metadata, the response adds the newest generation of each family
-and clan plus effective `@tribe` targets. Every row has `name`, `kind`, `member_count`, and display-ready `detail`;
-clans also include their aggregate status. Group entries are additive, so malformed legacy group metadata does not hide
-the ordinary agent rows.
+`agent-catalog` requires only `{"schema_version":1}` and reads across projects. It returns active and recent ordinary
+agent rows, de-duplicated by name, with `status` and `project`. When the same artifact snapshot contains usable group
+metadata, the response adds the latest identifiable generation of each family and clan plus `@tribe` references derived
+from stored tags and clan declarations. Every row has `name`, `kind`, `member_count`, and display-ready `detail`; clan
+rows also have aggregate `status`. Group entries are additive, so malformed legacy group metadata does not hide the
+ordinary agent rows.
 
-`vcs-repo-catalog` asks the registered workspace provider for repositories in one `workflow` and `namespace`. Its
-response includes provider display metadata, cache freshness, structured error information, and repository refs suitable
-for insertion after a namespace such as `#gh:sase-org/`.
+`vcs-repo-catalog` requires a `workflow` and `namespace`, then asks that workflow's registered workspace provider for
+repositories. The response reports `status`, `error_kind`, `message`, `provider_display`, and whether returned cache
+data is `stale`. Each entry has a short `name` and a full `ref` such as `sase-org/sase`; replace the current VCS ref
+with `ref` rather than appending it after the namespace.
 
-All helper operations read one JSON object from stdin and write one compact JSON object to stdout. They are fixed
+All four helper operations read one JSON object from stdin and write one compact JSON object to stdout. They are fixed
 catalog operations, not a general shell or filesystem bridge.
 
 ## Authoring Snippets

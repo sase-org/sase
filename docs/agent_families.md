@@ -279,10 +279,12 @@ fork, and ACE prompt completion offers visible `@tribe` values for both `%wait` 
 tribe waits and forks use neutral auto-names rather than derived `.w*` or `.f*` names because the eventual parent is
 unknown at launch planning time.
 
-ACE can prepare these group references directly. Select a clan row and press `f` for `#fork:<clan>`, or select a named
-whole-tribe panel (expanded or collapsed) and press `f` for `#fork:@<tribe>`. For a group fork, ACE inherits a VCS ref
-only when every real agent in the selected clan generation or loaded tribe panel resolves to the same workflow and ref;
-otherwise it leaves the prompt in home context for the user to choose. See
+ACE can insert these group references directly. Select a clan's synthetic container row and press `f` for
+`#fork:<clan>`. For a tribe, give its named panel whole-panel focus—expanded or collapsed—and press `f` for
+`#fork:@<tribe>`. ACE prefixes the prompt with a VCS tag only when every real agent currently in the selected clan
+generation or loaded tribe panel resolves to the same workflow and ref. Otherwise it omits the VCS tag so you can add
+the intended `#git`, `#gh`, or other workflow reference yourself. The selected rows determine only that optional VCS
+prefix; they do not pin the eventual clan or tribe fork source. See
 [Forking Agents and Groups](ace.md#forking-agents-and-groups) for selection and revalidation behavior.
 
 ## Agent-Initiated Family Launches

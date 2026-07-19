@@ -1010,9 +1010,9 @@ the prompt before further processing.
 | `%tribe`  | `%t`  | Assign the agent's user-managed tribe (e.g., `%tribe:review`)         |
 | `%alt`    | `%{}` | Split prompt into variants with different text (brace shorthand)      |
 
-Agent identity uses `%id` or its `%i` alias. The former `%name` and `%n` spellings are no longer launch aliases; a new
-prompt that contains either one fails with a migration error that points to `%id` / `%i` and the clan-scoped
-`%id(<id>, clan=<clan>)` form.
+Agent identity uses `%id` or its `%i` alias. The retired `%name` and `%n` prompt directives are not launch aliases.
+Using either as a top-level directive now raises a migration error that points to `%id` / `%i` and, for clan membership,
+the `%id(<id>, clan=<clan>)` form.
 
 ### Syntax
 

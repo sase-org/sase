@@ -1007,9 +1007,10 @@ fields such as `run_every` and trigger thresholds.
 the git provider requires `project` and `threshold`, and its checkpoint policy is `on_observation`,
 `on_action_accepted`, or `on_action_success`. Skips are recorded with reasons. Manual runs bypass the trigger but honor
 guards unless `sase axe chop run -f/--force` is used. `once_per` can be a key template string or an object with `key`
-and bounded `capacity`; proposal-supplied `dedupe_key` values take precedence. When dedupe removes an intermediate
-proposal in a `wait_on` chain, AXE relinks each surviving dependent to the nearest surviving ancestor (or removes the
-wait if the skipped proposal was the chain head) and exposes that effective dependency in the proposal preview.
+and bounded `capacity`; proposal-supplied `dedupe_key` values take precedence. When dedupe removes a proposal from a
+`wait_on` chain, AXE walks through the skipped dependencies to the nearest earlier proposal that survives filtering. If
+none survives, AXE removes the wait. Proposal previews expose the resulting `wait_on` value and explain a relink in
+`dedupe_reason`.
 
 The builtin `sase_chop_refresh_docs` emits an update proposal plus a polish proposal that waits for the update. It uses
 the target source's `workspace`, while cadence and commit thresholds stay declarative in configuration. Its default
@@ -2364,15 +2365,17 @@ bridge rather than a generic shell or filesystem API.
 
 | Form                                         | Input                | Description                                                                                                      |
 | -------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `sase editor helper-bridge agent-catalog`    | JSON object on stdin | Return fresh agent, family, clan, and tribe completion targets with kind-aware metadata.                         |
+| `sase editor helper-bridge agent-catalog`    | JSON object on stdin | Return active/recent agents and derived family, clan, and tribe prompt targets.                                  |
 | `sase editor helper-bridge xprompt-catalog`  | JSON object on stdin | Return the structured xprompt catalog; accepts the same schema as the mobile `xprompt-catalog` helper operation. |
 | `sase editor helper-bridge snippet-catalog`  | JSON object on stdin | Return the composed ACE snippet registry used by `sase lsp` and editor completion clients.                       |
 | `sase editor helper-bridge vcs-repo-catalog` | JSON object on stdin | Return repository completion candidates for a VCS workflow and namespace.                                        |
 
-The agent catalog uses schema version 1 and needs no project argument. Individual agent rows include status and project;
-group rows carry `kind`, `member_count`, display-ready `detail`, and aggregate clan status when available. The
-structured xprompt catalog includes insertion metadata (`insertion`, `reference_prefix`, `kind`), typed argument
-metadata, display/source fields, and `definition_path` when SASE can resolve a real file to jump to.
+The `agent-catalog` request is just `{"schema_version":1}`; it has no project filter and reads the cross-project agent
+snapshot. Ordinary agent rows are de-duplicated by name and include `status` and `project`. When group metadata is
+available, additive family, clan, and `@tribe` rows include `kind`, `member_count`, and display-ready `detail`; clan
+rows also include aggregate `status`. The structured xprompt catalog includes insertion metadata (`insertion`,
+`reference_prefix`, `kind`), typed argument metadata, display/source fields, and `definition_path` when SASE can resolve
+a real file to jump to.
 
 The snippet catalog uses the same source ordering as ACE: xprompts marked with `snippet` front matter plus user-defined
 `ace.snippets`, with `ace.snippets` winning on trigger collisions.

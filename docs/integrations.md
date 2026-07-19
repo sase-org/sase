@@ -239,10 +239,11 @@ printf '{"schema_version":1,"workflow":"gh","namespace":"sase-org"}\n' \
 The `xprompt-catalog` operation returns the structured xprompt catalog, including insertion metadata, typed inputs,
 source display fields, and `definition_path` for entries backed by a resolvable file. The `snippet-catalog` operation
 returns the composed ACE snippet registry from xprompt snippets plus user snippets configured under `ace.snippets`. The
-`agent-catalog` operation returns fresh, de-duplicated agent targets and additive `family`, `clan`, and `tribe` entries
-derived from the same artifact snapshot; grouped rows include member counts and clans include aggregate status. The
-`vcs-repo-catalog` operation returns provider-backed repository candidates for one VCS workflow and namespace, including
-structured failure and stale-cache metadata. Editor integrations should use this bridge or `sase lsp` instead of
+`agent-catalog` operation returns cross-project active/recent agent rows, de-duplicated by name, and additive `family`,
+`clan`, and `tribe` rows derived from the same artifact snapshot. Group rows include member counts, while clan rows also
+include aggregate status. The `vcs-repo-catalog` operation returns provider-backed repository candidates for one VCS
+workflow and namespace, including structured failure fields and a stale-cache flag. Its entry `ref` is the full value to
+insert, not just the repository-name suffix. Editor integrations should use this bridge or `sase lsp` instead of
 importing private catalog modules directly.
 
 Source: `src/sase/integrations/editor_helpers.py`, `src/sase/integrations/_editor_helper_agents.py`,
