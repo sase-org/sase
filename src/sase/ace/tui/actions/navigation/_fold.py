@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from ...models.fold_state import (
     FoldLevel,
     cycle_deltas_fold_level,
@@ -9,11 +11,12 @@ from ...models.fold_state import (
 )
 from ...models.fold_scale import (
     CLAN_FOLD_SCALE,
-    FAMILY_FOLD_SCALE,
     TRIBE_FOLD_SCALE,
     FoldScale,
     cycle_fold_level_backward,
     cycle_fold_level_forward,
+    fold_level_at_position,
+    resolve_summary_fold_scale,
 )
 from ._types import NavigationMixinBase
 
@@ -25,8 +28,18 @@ class FoldNavigationMixin(NavigationMixinBase):
 
     def action_start_fold_mode(self) -> None:
         """Enter fold mode and wait for a tab-specific sub-key."""
+        if not self._fold_mode_supported():
+            return
         self._fold_mode_active = True
         self._update_fold_footer()
+
+    def _fold_mode_supported(self) -> bool:
+        """Return whether the current surface owns fold-mode content."""
+        if self.current_tab == "agents":
+            return self._selected_summary_fold_scale() is not None
+        return self.current_tab == "changespecs" and (
+            getattr(self, "current_artifacts_subtab", "prs") == "prs"
+        )
 
     def _handle_fold_key(self, key: str) -> bool:
         """Handle fold sub-key. Returns True if handled."""
@@ -44,7 +57,19 @@ class FoldNavigationMixin(NavigationMixinBase):
         if self.current_tab == "agents":
             return self._handle_panel_fold_key(key, fold_keys)
 
-        if key == fold_keys["cycle_commits"]:
+        if not self._fold_mode_supported():
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
+        direct_level = self._direct_fold_level(key, fold_keys, CLAN_FOLD_SCALE)
+
+        if direct_level is not None:
+            self.commits_collapsed = direct_level
+            self.hooks_collapsed = direct_level
+            self.mentors_collapsed = direct_level
+            self.timestamps_collapsed = direct_level
+            self.deltas_collapsed = direct_level
+        elif key == fold_keys["cycle_commits"]:
             self.commits_collapsed = cycle_forward(self.commits_collapsed)
         elif key == fold_keys["cycle_hooks"]:
             self.hooks_collapsed = cycle_forward(self.hooks_collapsed)
@@ -134,8 +159,16 @@ class FoldNavigationMixin(NavigationMixinBase):
             return True
 
         scale = self._selected_summary_fold_scale()
+        if scale is None:
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
         changed = False
-        if key == agent_keys["cycle_level"]:
+        direct_level = self._direct_fold_level(key, agent_keys, scale)
+        if direct_level is not None:
+            self.panel_fold_level = direct_level
+            self._panel_fold_overrides.clear()
+            changed = True
+        elif key == agent_keys["cycle_level"]:
             self.panel_fold_level = cycle_fold_level_forward(
                 self.panel_fold_level,
                 scale,
@@ -177,24 +210,38 @@ class FoldNavigationMixin(NavigationMixinBase):
             self._notify_regular_agent_fold_scope()
         return True
 
-    def _selected_summary_fold_scale(self) -> FoldScale:
+    @staticmethod
+    def _direct_fold_level(
+        key: str,
+        keys: Mapping[str, str | dict[str, str]],
+        scale: FoldScale,
+    ) -> FoldLevel | None:
+        """Resolve a configured direct-level subkey for ``scale``."""
+        for position in range(1, len(TRIBE_FOLD_SCALE) + 1):
+            configured = keys.get(f"set_level_{position}")
+            if isinstance(configured, str) and key == configured:
+                return fold_level_at_position(position, scale)
+        return None
+
+    def _selected_summary_fold_scale(self) -> FoldScale | None:
         """Return the fold scale owned by the selected Agents-tab summary."""
+        whole_panel_focused = False
         for resolver_name in (
             "_resolve_focused_panel",
             "_resolve_focused_collapsed_panel",
         ):
             resolver = getattr(self, resolver_name, None)
             if callable(resolver) and resolver() is not None:
-                return TRIBE_FOLD_SCALE
+                whole_panel_focused = True
+                break
 
         get_selected = getattr(self, "_get_selected_agent", None)
         agent = get_selected() if callable(get_selected) else None
-        if agent is not None and getattr(agent, "is_family_container_row", False):
-            return FAMILY_FOLD_SCALE
-        if agent is not None and getattr(agent, "is_clan_container", False):
-            return CLAN_FOLD_SCALE
-        # Plain-agent selections retain the legacy three-level behavior.
-        return CLAN_FOLD_SCALE
+        return resolve_summary_fold_scale(
+            whole_panel_focused=whole_panel_focused,
+            group_focused=getattr(self, "_current_group_key", None) is not None,
+            agent=agent,
+        )
 
     def _current_agent_metadata_section_id(self) -> str | None:
         """Return the section occupying the metadata viewport's top row."""
@@ -244,7 +291,14 @@ class FoldNavigationMixin(NavigationMixinBase):
 
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
-            footer.update_fold_bindings(current_tab=self.current_tab)
+            footer.update_fold_bindings(
+                current_tab=self.current_tab,
+                fold_scale=(
+                    self._selected_summary_fold_scale()
+                    if self.current_tab == "agents"
+                    else CLAN_FOLD_SCALE
+                ),
+            )
         except Exception:
             pass
 

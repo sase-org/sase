@@ -385,6 +385,14 @@ class AceApp(
                 return False
         if action == "zoom_panel" and self.current_tab != "agents":
             return False
+        if action == "start_fold_mode" and (
+            self.current_tab == "axe"
+            or (
+                self.current_tab == ARTIFACTS_TAB
+                and self.current_artifacts_subtab != "prs"
+            )
+        ):
+            return False
         return super().check_action(action, parameters)
 
     def compose(self) -> ComposeResult:
@@ -457,6 +465,11 @@ class AceApp(
         from .util.trace import set_trace_context
 
         set_trace_context(current_tab=new_tab)
+
+        if new_tab == "axe" or (
+            new_tab == ARTIFACTS_TAB and self.current_artifacts_subtab != "prs"
+        ):
+            self._fold_mode_active = False
 
         # Cancel any pending detail-panel debouncer for the tab we're leaving;
         # the new tab will redraw fresh and the deferred work would land in a
@@ -566,6 +579,8 @@ class AceApp(
         """Switch Artifacts panes and preserve PR detail/refresh isolation."""
         if old_subtab == new_subtab:
             return
+        if new_subtab != "prs":
+            self._fold_mode_active = False
         if self._entry_jump_mode_active:
             self._exit_entry_jump_mode()
         else:

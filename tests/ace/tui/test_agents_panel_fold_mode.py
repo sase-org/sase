@@ -17,6 +17,11 @@ from sase.ace.tui.models.fold_state import (
     SectionFoldStateManager,
     cycle_forward,
 )
+from sase.ace.tui.models.fold_scale import (
+    CLAN_FOLD_SCALE,
+    FAMILY_FOLD_SCALE,
+    TRIBE_FOLD_SCALE,
+)
 from sase.ace.tui.widgets import KeybindingFooter
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation import (
@@ -38,8 +43,10 @@ class _FoldApp(FoldNavigationMixin):
         clan: bool = True,
         family: bool = False,
         panel_focused: bool = False,
+        has_agent: bool = True,
     ) -> None:
         self.current_tab = tab
+        self.current_artifacts_subtab = "prs"
         self._fold_mode_active = False
         self._keymap_registry = load_keymap_registry({})
         self.panel_fold_level = FoldLevel.COLLAPSED
@@ -50,9 +57,13 @@ class _FoldApp(FoldNavigationMixin):
         self.timestamps_collapsed = FoldLevel.COLLAPSED
         self.deltas_collapsed = FoldLevel.COLLAPSED
         self.section_id: str | None = "errors"
-        self.selected_agent = SimpleNamespace(
-            is_clan_container=clan,
-            is_family_container_row=family,
+        self.selected_agent = (
+            SimpleNamespace(
+                is_clan_container=clan,
+                is_family_container_row=family,
+            )
+            if has_agent
+            else None
         )
         self.refresh_count = 0
         self.notifications: list[str] = []
@@ -64,7 +75,7 @@ class _FoldApp(FoldNavigationMixin):
     def _current_agent_metadata_section_id(self) -> str | None:
         return self.section_id
 
-    def _get_selected_agent(self) -> object:
+    def _get_selected_agent(self) -> object | None:
         return self.selected_agent
 
     def _resolve_focused_collapsed_panel(self) -> object | None:
@@ -135,6 +146,93 @@ def test_whole_panel_focus_cycles_within_four_level_tribe_scale() -> None:
     assert app.panel_fold_level is FoldLevel.COLLAPSED
 
 
+@pytest.mark.parametrize(
+    ("app", "key", "expected"),
+    [
+        (_FoldApp(clan=False, family=True), "1", FoldLevel.EXPANDED),
+        (_FoldApp(clan=False, family=True), "2", FoldLevel.FULLY_EXPANDED),
+        (_FoldApp(), "1", FoldLevel.COLLAPSED),
+        (_FoldApp(), "2", FoldLevel.EXPANDED),
+        (_FoldApp(), "3", FoldLevel.FULLY_EXPANDED),
+        (_FoldApp(clan=False), "3", FoldLevel.FULLY_EXPANDED),
+        (_FoldApp(panel_focused=True), "4", FoldLevel.EXHAUSTIVE),
+    ],
+)
+def test_agents_direct_levels_select_exact_active_scale_position(
+    app: _FoldApp,
+    key: str,
+    expected: FoldLevel,
+) -> None:
+    app.panel_fold_level = FoldLevel.EXHAUSTIVE
+
+    _press(app, key)
+
+    assert app.panel_fold_level is expected
+
+
+def test_valid_direct_panel_level_clears_overrides_and_notifies_regular_scope() -> None:
+    app = _FoldApp(clan=False)
+    app._panel_fold_overrides.set("errors", FoldLevel.FULLY_EXPANDED)
+
+    _press(app, "2")
+
+    assert app.panel_fold_level is FoldLevel.EXPANDED
+    assert app._panel_fold_overrides.snapshot() == {}
+    assert app.notifications == [
+        "Fold levels currently shape clan and family summaries"
+    ]
+
+
+def test_direct_dispatch_uses_configured_agent_and_changespec_subkeys() -> None:
+    registry = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "fold_mode": {
+                        "keys": {
+                            "set_level_2": "w",
+                            "agents": {"set_level_4": "x"},
+                        }
+                    }
+                }
+            }
+        }
+    )
+    tribe = _FoldApp(panel_focused=True)
+    tribe._keymap_registry = registry
+    changespec = _FoldApp(tab="changespecs")
+    changespec._keymap_registry = registry
+
+    _press(tribe, "x")
+    _press(changespec, "w")
+
+    assert tribe.panel_fold_level is FoldLevel.EXHAUSTIVE
+    assert changespec.commits_collapsed is FoldLevel.EXPANDED
+    assert changespec.deltas_collapsed is FoldLevel.EXPANDED
+
+
+def test_invalid_family_direct_level_preserves_state_and_overrides() -> None:
+    app = _FoldApp(clan=False, family=True)
+    app.panel_fold_level = FoldLevel.EXPANDED
+    app._panel_fold_overrides.set("errors", FoldLevel.FULLY_EXPANDED)
+
+    _press(app, "3")
+
+    assert app.panel_fold_level is FoldLevel.EXPANDED
+    assert app._panel_fold_overrides.snapshot() == {"errors": FoldLevel.FULLY_EXPANDED}
+    assert app.notifications == []
+
+
+def test_agents_fold_context_without_selection_is_a_noop() -> None:
+    app = _FoldApp(has_agent=False)
+    app._panel_fold_overrides.set("errors", FoldLevel.FULLY_EXPANDED)
+
+    _press(app, "1")
+
+    assert app.panel_fold_level is FoldLevel.COLLAPSED
+    assert app._panel_fold_overrides.snapshot() == {"errors": FoldLevel.FULLY_EXPANDED}
+
+
 def test_agents_section_cycle_and_toggle_use_effective_panel_level() -> None:
     app = _FoldApp()
 
@@ -188,6 +286,67 @@ def test_changespec_fold_dispatch_remains_unchanged() -> None:
     assert app.panel_fold_level is FoldLevel.COLLAPSED
 
 
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        ("1", FoldLevel.COLLAPSED),
+        ("2", FoldLevel.EXPANDED),
+        ("3", FoldLevel.FULLY_EXPANDED),
+    ],
+)
+def test_changespec_direct_level_sets_every_section_exactly(
+    key: str,
+    expected: FoldLevel,
+) -> None:
+    app = _FoldApp(tab="changespecs")
+    app.commits_collapsed = FoldLevel.EXPANDED
+    app.hooks_collapsed = FoldLevel.FULLY_EXPANDED
+    app.mentors_collapsed = FoldLevel.COLLAPSED
+    app.timestamps_collapsed = FoldLevel.EXPANDED
+    app.deltas_collapsed = FoldLevel.FULLY_EXPANDED
+
+    _press(app, key)
+
+    assert (
+        app.commits_collapsed,
+        app.hooks_collapsed,
+        app.mentors_collapsed,
+        app.timestamps_collapsed,
+        app.deltas_collapsed,
+    ) == (expected,) * 5
+    assert app.panel_fold_level is FoldLevel.COLLAPSED
+
+
+def test_changespec_invalid_level_and_non_pr_context_preserve_all_state() -> None:
+    app = _FoldApp(tab="changespecs")
+    before = (
+        app.commits_collapsed,
+        app.hooks_collapsed,
+        app.mentors_collapsed,
+        app.timestamps_collapsed,
+        app.deltas_collapsed,
+    )
+
+    _press(app, "4")
+    assert (
+        app.commits_collapsed,
+        app.hooks_collapsed,
+        app.mentors_collapsed,
+        app.timestamps_collapsed,
+        app.deltas_collapsed,
+    ) == before
+
+    app.current_artifacts_subtab = "commits"
+    _press(app, "2")
+    assert (
+        app.commits_collapsed,
+        app.hooks_collapsed,
+        app.mentors_collapsed,
+        app.timestamps_collapsed,
+        app.deltas_collapsed,
+    ) == before
+
+
 def test_exhaustive_panel_state_does_not_enter_changespec_cyclers() -> None:
     app = _FoldApp(panel_focused=True)
     _press(app, "z")
@@ -223,10 +382,16 @@ def test_agents_fold_footer_uses_nested_agent_submap() -> None:
     footer.set_keymap_registry(load_keymap_registry({}))
 
     with patch.object(footer, "_update_display") as update:
-        footer.update_fold_bindings(current_tab="agents")
+        footer.update_fold_bindings(
+            current_tab="agents",
+            fold_scale=CLAN_FOLD_SCALE,
+        )
 
     assert update.call_args.args == (
         [
+            ("1", "level 1"),
+            ("2", "level 2"),
+            ("3", "level 3"),
             ("z", "level forward"),
             ("Z", "level back"),
             ("a", "section forward"),
@@ -234,6 +399,66 @@ def test_agents_fold_footer_uses_nested_agent_submap() -> None:
         ],
     )
     assert update.call_args.kwargs == {"mode_label": "FOLD"}
+
+
+@pytest.mark.parametrize(
+    ("scale", "direct_keys"),
+    [
+        (FAMILY_FOLD_SCALE, ["1", "2"]),
+        (CLAN_FOLD_SCALE, ["1", "2", "3"]),
+        (TRIBE_FOLD_SCALE, ["1", "2", "3", "4"]),
+    ],
+)
+def test_agents_fold_footer_direct_hints_match_active_scale(
+    scale: tuple[FoldLevel, ...],
+    direct_keys: list[str],
+) -> None:
+    footer = KeybindingFooter()
+    footer.set_keymap_registry(load_keymap_registry({}))
+
+    with patch.object(footer, "_update_display") as update:
+        footer.update_fold_bindings(current_tab="agents", fold_scale=scale)
+
+    bindings = update.call_args.args[0]
+    assert [key for key, _label in bindings[: len(scale)]] == direct_keys
+
+
+def test_fold_footer_uses_configured_direct_subkeys_in_each_context() -> None:
+    registry = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "fold_mode": {
+                        "keys": {
+                            "set_level_2": "w",
+                            "agents": {"set_level_3": "e"},
+                        }
+                    }
+                }
+            }
+        }
+    )
+    footer = KeybindingFooter()
+    footer.set_keymap_registry(registry)
+
+    with patch.object(footer, "_update_display") as update:
+        footer.update_fold_bindings(
+            current_tab="agents",
+            fold_scale=CLAN_FOLD_SCALE,
+        )
+    assert update.call_args.args[0][:3] == [
+        ("1", "level 1"),
+        ("2", "level 2"),
+        ("e", "level 3"),
+    ]
+
+    with patch.object(footer, "_update_display") as update:
+        footer.update_fold_bindings(current_tab="changespecs")
+    assert update.call_args.args[0][:3] == [
+        ("1", "level 1"),
+        ("w", "level 2"),
+        ("3", "level 3"),
+    ]
 
 
 def _mounted_clan_agents(tmp_path: Path) -> list[Agent]:

@@ -253,6 +253,8 @@ def test_fold_mode_commands_cover_every_subkey() -> None:
     by_id = {spec.id: spec for spec in fold_specs}
     assert by_id["fold.cycle_commits"].tabs == ("changespecs",)
     assert by_id["fold.agents.cycle_level"].tabs == ("agents",)
+    assert by_id["fold.set_level_3"].label == "Set all folds to level 3"
+    assert by_id["fold.agents.set_level_4"].label == ("Set metadata panel fold level 4")
 
 
 def test_copy_mode_commands_per_tab_scope() -> None:

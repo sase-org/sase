@@ -118,6 +118,36 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             f"Metadata Fold Mode ({d(fm.prefix)})",
             [
                 (
+                    " / ".join(
+                        key_sequence_display(
+                            fm.prefix,
+                            ag_fold[f"set_level_{position}"],
+                        )
+                        for position in range(1, 3)
+                    ),
+                    "Set family level 1-2",
+                ),
+                (
+                    " / ".join(
+                        key_sequence_display(
+                            fm.prefix,
+                            ag_fold[f"set_level_{position}"],
+                        )
+                        for position in range(1, 4)
+                    ),
+                    "Set clan/session level 1-3",
+                ),
+                (
+                    " / ".join(
+                        key_sequence_display(
+                            fm.prefix,
+                            ag_fold[f"set_level_{position}"],
+                        )
+                        for position in range(1, 5)
+                    ),
+                    "Set selected tribe level 1-4",
+                ),
+                (
                     key_sequence_display(fm.prefix, ag_fold["cycle_level"]),
                     "Cycle panel fold level forward",
                 ),

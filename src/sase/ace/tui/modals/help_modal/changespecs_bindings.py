@@ -193,6 +193,16 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             f"Fold Mode ({d(fm.prefix)})",
             [
                 (
+                    " / ".join(
+                        key_sequence_display(
+                            fm.prefix,
+                            sk(fm.keys, f"set_level_{position}"),
+                        )
+                        for position in range(1, 4)
+                    ),
+                    "Set all folds to level 1-3",
+                ),
+                (
                     f"{d(fm.prefix)} {d(sk(fm.keys, 'cycle_commits'))}",
                     "Cycle commits folding",
                 ),

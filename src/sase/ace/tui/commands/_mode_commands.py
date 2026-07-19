@@ -30,6 +30,9 @@ _FOLD_LABELS: dict[str, str] = {
     "toggle_deltas": "Toggle deltas fold",
     "cycle_all": "Cycle all folds",
     "toggle_all": "Toggle all folds",
+    "set_level_1": "Set all folds to level 1",
+    "set_level_2": "Set all folds to level 2",
+    "set_level_3": "Set all folds to level 3",
 }
 
 _AGENT_FOLD_LABELS: dict[str, str] = {
@@ -37,6 +40,10 @@ _AGENT_FOLD_LABELS: dict[str, str] = {
     "cycle_level_back": "Cycle metadata panel fold level backward",
     "cycle_section": "Cycle current metadata section fold",
     "toggle_section": "Toggle current metadata section fold",
+    "set_level_1": "Set metadata panel fold level 1",
+    "set_level_2": "Set metadata panel fold level 2",
+    "set_level_3": "Set metadata panel fold level 3",
+    "set_level_4": "Set metadata panel fold level 4",
 }
 
 _COPY_LABELS: dict[str, dict[str, str]] = {

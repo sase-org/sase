@@ -200,6 +200,9 @@ ancestor banner so the cursor always sits on a row the user can see.
 | `z` `T` | Toggle timestamps section (collapsed ↔ fully expanded) |
 | `z` `z` | Cycle all sections                                     |
 | `z` `Z` | Toggle all sections (expand ↔ collapse)                |
+| `z` `1` | Set every section to collapsed (level 1)               |
+| `z` `2` | Set every section to expanded (level 2)                |
+| `z` `3` | Set every section to fully expanded (level 3)          |
 
 COMMITS, HOOKS, MENTORS, and TIMESTAMPS sections each cycle through three fold levels:
 
@@ -407,7 +410,8 @@ recency breaking ties. The clan metadata roster instead keeps chronological laun
 statuses change; a nested family remains one direct entry with its chain indented beneath it. Family rosters retain
 sequential chain order.
 
-Container metadata has three session-only detail levels:
+Clan metadata has three session-only detail levels. Family metadata uses the last two effective states as its two-level
+scale: family level 1 is expanded and level 2 is fully expanded.
 
 | Level | Content                                                                                                        |
 | ----- | -------------------------------------------------------------------------------------------------------------- |
@@ -417,17 +421,22 @@ Container metadata has three session-only detail levels:
 
 The default fold chords are:
 
-| Key  | Action                                                                   |
-| ---- | ------------------------------------------------------------------------ |
-| `zz` | Cycle the whole metadata panel forward: 1 → 2 → 3 → 1                    |
-| `zZ` | Cycle the whole metadata panel backward                                  |
-| `za` | Cycle the section or numbered member at the top of the metadata viewport |
-| `zA` | Toggle that section or member between collapsed and fully expanded       |
+| Key       | Action                                                                   |
+| --------- | ------------------------------------------------------------------------ |
+| `zz`      | Cycle the whole metadata panel forward: 1 → 2 → 3 → 1                    |
+| `zZ`      | Cycle the whole metadata panel backward                                  |
+| `za`      | Cycle the section or numbered member at the top of the metadata viewport |
+| `zA`      | Toggle that section or member between collapsed and fully expanded       |
+| `z1`-`z2` | Set a family directly to level 1 or 2                                    |
+| `z1`-`z3` | Set a clan or regular-agent session scope directly to level 1-3          |
+| `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4                   |
 
-The `Fold: N/3` header field reports the panel level, while `▸`, `▾`, and `▼` show effective per-section levels. A
-panel-level cycle clears per-section overrides. Fold state is shared by the Agents metadata panel: ordinary agents do
-not fold their sections, but using a chord on one records the level that the next selected clan or family container will
-use. These keys are configurable; see [Agent Clans, Families, and Tribes](agent_families.md) for the grouping model.
+The `Fold: N/M` header field reports the position within the active scale, while the heading glyphs show effective
+per-section levels. A valid panel-level cycle or direct selection clears per-section overrides. Fold state is shared by
+the Agents metadata panel: ordinary agents do not fold their sections, but using a chord on one records the three-level
+session scope that the next selected clan or family container will use. A selected whole tribe panel adds level 4 for
+exhaustive detail. These keys are configurable; see [Agent Clans, Families, and Tribes](agent_families.md) for the
+grouping model.
 
 When ACE knows a planner/author or epic lander's associated plan, the metadata panel adds `PLAN` as the leading lane in
 `SASE CONTEXT`. The section ranks intent and inputs before outputs: `PLAN`, the audited `MEMORY`, `SKILLS`, and

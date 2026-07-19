@@ -4,8 +4,11 @@ from dataclasses import fields
 from pathlib import Path
 from unittest.mock import patch
 
+import yaml
+
 from sase.ace.tui.keymaps import (
     AppKeymaps,
+    FoldModeKeymaps,
     GateModalKeymaps,
     KeymapRegistry,
     LeaderModeKeymaps,
@@ -33,6 +36,16 @@ def test_registry_default_modes_always_present() -> None:
     assert "bang_mode" in reg.modes
 
 
+def test_fold_mode_dataclass_defaults_match_default_config() -> None:
+    config = yaml.safe_load(
+        Path("src/sase/default_config.yml").read_text(encoding="utf-8")
+    )
+    configured = config["ace"]["keymaps"]["modes"]["fold_mode"]
+    defaults = FoldModeKeymaps()
+
+    assert configured == {"prefix": defaults.prefix, "keys": defaults.keys}
+
+
 def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
     reg = load_keymap_registry({})
     agent_fold = reg.fold_mode.keys["agents"]
@@ -45,6 +58,10 @@ def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
         "cycle_level_back": "Z",
         "cycle_section": "a",
         "toggle_section": "A",
+        "set_level_1": "1",
+        "set_level_2": "2",
+        "set_level_3": "3",
+        "set_level_4": "4",
     }
 
     agent_pairs = {
@@ -57,8 +74,53 @@ def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
     assert ("zZ", "Cycle panel fold level backward") in agent_pairs
     assert ("za", "Cycle section/member forward") in agent_pairs
     assert ("zA", "Toggle section/member full") in agent_pairs
+    assert ("z1 / z2", "Set family level 1-2") in agent_pairs
+    assert ("z1 / z2 / z3", "Set clan/session level 1-3") in agent_pairs
+    assert (
+        "z1 / z2 / z3 / z4",
+        "Set selected tribe level 1-4",
+    ) in agent_pairs
     assert ("0-9", "Jump to numbered member") in agent_pairs
     assert ("Esc", "Enter selected panel / cancel member jump") in agent_pairs
+
+
+def test_fold_mode_direct_level_overrides_and_prefix_reach_help() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "fold_mode": {
+                        "prefix": "f",
+                        "keys": {
+                            "set_level_2": "w",
+                            "agents": {"set_level_4": "x"},
+                        },
+                    }
+                }
+            }
+        }
+    )
+
+    agent_keys = reg.fold_mode.keys["agents"]
+    assert isinstance(agent_keys, dict)
+    assert reg.app.start_fold_mode == "f"
+    assert reg.fold_mode.keys["set_level_1"] == "1"
+    assert reg.fold_mode.keys["set_level_2"] == "w"
+    assert agent_keys["set_level_1"] == "1"
+    assert agent_keys["set_level_4"] == "x"
+
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+    changespec_pairs = {
+        (key, label)
+        for _section, bindings in cls_bindings(reg)
+        for key, label in bindings
+    }
+    assert ("f1 / f2 / f3 / fx", "Set selected tribe level 1-4") in agent_pairs
+    assert ("f1 / fw / f3", "Set all folds to level 1-3") in changespec_pairs
 
 
 def test_idle_keymap_defaults_are_removed() -> None:

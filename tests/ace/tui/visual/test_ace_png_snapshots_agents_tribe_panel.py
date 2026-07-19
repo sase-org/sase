@@ -124,25 +124,36 @@ async def test_tribe_panel_four_level_png_snapshots(
             title="ACE tribe panel pulse",
         )
 
-        for fold_value, snapshot_name, title in (
+        await page.press("z", "1")
+        assert page.app.panel_fold_level.value == "collapsed"
+        assert page.app._member_jump_pending_digit is None
+
+        for position, fold_value, snapshot_name, title in (
             (
+                "2",
                 "expanded",
                 "agents_tribe_panel_level_2_120x40",
                 "ACE tribe panel roster",
             ),
             (
+                "3",
                 "fully_expanded",
                 "agents_tribe_panel_level_3_120x40",
                 "ACE tribe panel members",
             ),
             (
+                "4",
                 "exhaustive",
                 "agents_tribe_panel_level_4_120x40",
                 "ACE tribe panel forensics",
             ),
         ):
-            await page.press("z", "z")
+            selected_idx = page.app.current_idx
+            await page.press("z", position)
             assert page.app.panel_fold_level.value == fold_value
+            assert page.app._member_jump_pending_digit is None
+            assert page.app.current_idx == selected_idx
+            assert page.app._resolve_focused_panel() is not None
             await wait_for_visual_idle(page)
             ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 

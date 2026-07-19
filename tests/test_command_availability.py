@@ -13,6 +13,7 @@ mirrors the acceptance list in ``sdd/plans/202604/tui_command_palette.md``:
 from __future__ import annotations
 
 from typing import Any
+from types import SimpleNamespace
 
 from sase.ace.changespec import ChangeSpec, CommitEntry
 from sase.ace.tui.commands import (
@@ -114,11 +115,61 @@ def test_fold_palette_commands_are_scoped_by_fold_surface() -> None:
     catalog = _catalog_by_id()
     changespec_fold = catalog["fold.cycle_commits"]
     agent_fold = catalog["fold.agents.cycle_level"]
+    regular_agent = SimpleNamespace(is_family_container_row=False)
 
     assert is_command_available(changespec_fold, CommandContext(tab="changespecs"))
     assert not is_command_available(changespec_fold, CommandContext(tab="agents"))
-    assert is_command_available(agent_fold, CommandContext(tab="agents"))
+    assert is_command_available(
+        agent_fold,
+        CommandContext(tab="agents", agent=regular_agent),  # type: ignore[arg-type]
+    )
     assert not is_command_available(agent_fold, CommandContext(tab="changespecs"))
+
+
+def test_direct_fold_palette_commands_follow_active_context_scale() -> None:
+    catalog = _catalog_by_id()
+    family = SimpleNamespace(is_family_container_row=True)
+    clan = SimpleNamespace(is_family_container_row=False)
+
+    family_ctx = CommandContext(tab="agents", agent=family)  # type: ignore[arg-type]
+    clan_ctx = CommandContext(tab="agents", agent=clan)  # type: ignore[arg-type]
+    tribe_ctx = CommandContext(
+        tab="agents",
+        agent=clan,  # type: ignore[arg-type]
+        panel_focused=True,
+    )
+
+    for position in range(1, 5):
+        spec = catalog[f"fold.agents.set_level_{position}"]
+        assert is_command_available(spec, family_ctx) is (position <= 2)
+        assert is_command_available(spec, clan_ctx) is (position <= 3)
+        assert is_command_available(spec, tribe_ctx)
+
+    for position in range(1, 4):
+        spec = catalog[f"fold.set_level_{position}"]
+        assert is_command_available(
+            spec,
+            CommandContext(tab="changespecs", artifacts_subtab="prs"),
+        )
+        assert not is_command_available(
+            spec,
+            CommandContext(tab="changespecs", artifacts_subtab="commits"),
+        )
+        assert not is_command_available(spec, CommandContext(tab="axe"))
+
+
+def test_agent_fold_palette_is_hidden_without_summary_selection() -> None:
+    catalog = _catalog_by_id()
+    ctx = CommandContext(tab="agents", agent=None)
+    group_ctx = CommandContext(
+        tab="agents",
+        agent=SimpleNamespace(is_family_container_row=False),  # type: ignore[arg-type]
+        group_focused=True,
+    )
+
+    assert not is_command_available(catalog["app.start_fold_mode"], ctx)
+    assert not is_command_available(catalog["fold.agents.set_level_1"], ctx)
+    assert not is_command_available(catalog["app.start_fold_mode"], group_ctx)
 
 
 # ---------------------------------------------------------------------------

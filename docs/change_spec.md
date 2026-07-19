@@ -323,7 +323,9 @@ current VCS state. Optional `-p/--project-file` and `-w/--workspace-dir` flags o
 In ACE, DELTAS renders with colored glyphs (green `+`, gold `~`, red `-`). The section has two semantic fold states:
 folded and unfolded. The folded state shows the `DELTAS:` header plus a one-line file and line-count summary; the
 unfolded state shows the full alphabetical entry list with inline line tokens. The shared fold model still has an
-internal intermediate value for other sections, but DELTAS normalizes any non-folded value to the unfolded full list.
+internal intermediate value for other sections, but DELTAS normalizes any non-folded value to the unfolded full list. In
+ACE fold mode, `z1`, `z2`, and `z3` set COMMITS, HOOKS, MENTORS, TIMESTAMPS, and DELTAS together to collapsed, expanded,
+or fully expanded. DELTAS preserves its two-state rendering: both levels 2 and 3 display the unfolded list.
 
 ### HOOKS
 

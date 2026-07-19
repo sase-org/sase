@@ -184,9 +184,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             running_count, done_count = self._get_bgcmd_counts()
             footer.set_bgcmd_count(running_count, done_count)
             footer.set_runner_count(get_runner_count())
-            if getattr(self, "_fold_mode_active", False):
-                footer.update_fold_bindings()
-            elif getattr(self, "_leader_mode_active", False):
+            if getattr(self, "_leader_mode_active", False):
                 footer.update_leader_bindings(current_tab="axe")
             elif getattr(self, "_bang_mode_active", False):
                 footer.update_bang_bindings()

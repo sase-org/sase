@@ -320,8 +320,16 @@ ace:
       fold_mode:
         prefix: "z"
         keys:
+          set_level_1: "1" # PR detail: set every section to level 1
+          set_level_2: "2"
+          set_level_3: "3"
           cycle_commits: "c"
           cycle_hooks: "h"
+          agents:
+            set_level_1: "1" # family 1-2; clan/session 1-3; tribe 1-4
+            set_level_2: "2"
+            set_level_3: "3"
+            set_level_4: "4"
       # Custom modes can be added here
       my_mode:
         prefix: ";"
@@ -392,6 +400,11 @@ reconfigured, and custom modes can be added. Each mode has:
 | -------- | ---- | ----------------------------------------------------------------------------------------------------- |
 | `prefix` | str  | The activation key for the mode.                                                                      |
 | `keys`   | dict | Sub-key definitions. For custom modes, each entry needs a `key` field and either `shell` or `action`. |
+
+The built-in `fold_mode` direct actions are `set_level_1` through `set_level_3` for PR details and the nested
+`agents.set_level_1` through `agents.set_level_4` for Agents metadata. Their defaults produce `z1`-`z3` on PRs; Agents
+accepts levels 1-2 for a family, 1-3 for a clan or regular-agent session scope, and 1-4 for a selected whole tribe
+panel. The configured prefix and subkeys are used by dispatch, the command palette, footers, and help.
 
 Custom mode key fields:
 

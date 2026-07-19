@@ -9,6 +9,7 @@ from ..keymaps import KeymapRegistry, footer_key_display
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
+    from ..models.fold_scale import FoldScale
 
 
 class KeybindingModesMixin:
@@ -143,7 +144,12 @@ class KeybindingModesMixin:
         )
         self._update_display(bindings)
 
-    def update_fold_bindings(self, *, current_tab: str = "changespecs") -> None:
+    def update_fold_bindings(
+        self,
+        *,
+        current_tab: str = "changespecs",
+        fold_scale: FoldScale | None = None,
+    ) -> None:
         """Update bindings to show the active tab's fold mode options."""
         d = footer_key_display
         keys = self._kr().fold_mode.keys
@@ -151,12 +157,19 @@ class KeybindingModesMixin:
         if current_tab == "agents":
             agent_keys = keys["agents"]
             assert isinstance(agent_keys, dict)
-            bindings = [
-                (d(agent_keys["cycle_level"]), "level forward"),
-                (d(agent_keys["cycle_level_back"]), "level back"),
-                (d(agent_keys["cycle_section"]), "section forward"),
-                (d(agent_keys["toggle_section"]), "toggle section"),
-            ]
+            bindings: list[tuple[str, str]] = []
+            if fold_scale is not None:
+                for position in range(1, len(fold_scale) + 1):
+                    subkey = agent_keys[f"set_level_{position}"]
+                    bindings.append((d(subkey), f"level {position}"))
+            bindings.extend(
+                [
+                    (d(agent_keys["cycle_level"]), "level forward"),
+                    (d(agent_keys["cycle_level_back"]), "level back"),
+                    (d(agent_keys["cycle_section"]), "section forward"),
+                    (d(agent_keys["toggle_section"]), "toggle section"),
+                ]
+            )
             self._update_display(bindings, mode_label="FOLD")
             return
 
@@ -166,6 +179,9 @@ class KeybindingModesMixin:
             return d(v)
 
         bindings = [
+            (k("set_level_1"), "level 1"),
+            (k("set_level_2"), "level 2"),
+            (k("set_level_3"), "level 3"),
             (k("cycle_commits"), "commits"),
             (k("cycle_hooks"), "hooks"),
             (k("cycle_mentors"), "mentors"),

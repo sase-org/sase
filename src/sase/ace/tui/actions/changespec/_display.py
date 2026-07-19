@@ -256,7 +256,12 @@ class ChangeSpecDisplayMixin(ChangeSpecOnboardingMixin):
         ):
             return
         if getattr(self, "_fold_mode_active", False):
-            footer_widget.update_fold_bindings()  # type: ignore[attr-defined]
+            from ...models.fold_scale import CLAN_FOLD_SCALE
+
+            footer_widget.update_fold_bindings(  # type: ignore[attr-defined]
+                current_tab="changespecs",
+                fold_scale=CLAN_FOLD_SCALE,
+            )
         elif getattr(self, "_leader_mode_active", False):
             footer_widget.update_leader_bindings()  # type: ignore[attr-defined]
         elif getattr(self, "_bang_mode_active", False):

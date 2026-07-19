@@ -466,7 +466,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("start_child_mode", "Child navigation", "Tree Navigation", CL_ONLY, ()),
     ("start_sibling_mode", "Sibling navigation", "Tree Navigation", CL_AGENTS, ()),
     # Mode activation prefixes
-    ("start_fold_mode", "Enter fold mode", "Modes", ALL_TABS, ()),
+    ("start_fold_mode", "Enter fold mode", "Modes", CL_AGENTS, ()),
     ("start_leader_mode", "Enter leader mode", "Modes", ALL_TABS, ()),
     ("start_bang_mode", "Enter bang mode", "Modes", ALL_TABS, ()),
     ("copy_tab_content", "Enter copy mode", "Modes", ALL_TABS, ()),

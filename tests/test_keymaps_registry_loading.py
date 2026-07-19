@@ -252,6 +252,10 @@ def test_fold_mode_agent_defaults_and_nested_override() -> None:
         "cycle_level_back": "Z",
         "cycle_section": "s",
         "toggle_section": "A",
+        "set_level_1": "1",
+        "set_level_2": "2",
+        "set_level_3": "3",
+        "set_level_4": "4",
     }
     assert reg.fold_mode.keys["cycle_commits"] == "c"
 

@@ -111,11 +111,16 @@ def test_default_zoom_migrates_to_uppercase_z_and_fold_keeps_lowercase() -> None
 def test_zoom_and_fold_actions_are_tab_gated() -> None:
     agents_app = AceApp(auto_start_axe=False, initial_tab="agents")
     changespecs_app = AceApp(auto_start_axe=False, initial_tab="changespecs")
+    axe_app = AceApp(auto_start_axe=False, initial_tab="axe")
 
     assert agents_app.check_action("start_fold_mode", ()) is not False
     assert agents_app.check_action("zoom_panel", ()) is not False
     assert changespecs_app.check_action("zoom_panel", ()) is False
     assert changespecs_app.check_action("start_fold_mode", ()) is not False
+    assert axe_app.check_action("start_fold_mode", ()) is False
+
+    changespecs_app.current_artifacts_subtab = "commits"
+    assert changespecs_app.check_action("start_fold_mode", ()) is False
 
 
 def test_metadata_sections_and_forward_jump_are_inverse_tab_gated() -> None:

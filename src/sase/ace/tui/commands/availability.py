@@ -37,6 +37,10 @@ from sase.ace.tui.models.agent_status import (
     is_resumable_done_status,
     is_revertable_agent_status,
 )
+from sase.ace.tui.models.fold_scale import (
+    fold_level_at_position,
+    resolve_summary_fold_scale,
+)
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.bgcmd_list import AxeItem
@@ -292,6 +296,22 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     agent = ctx.agent
     panel_focused = ctx.panel_focused or ctx.collapsed_panel_focused
+    summary_scale = resolve_summary_fold_scale(
+        whole_panel_focused=panel_focused,
+        group_focused=ctx.group_focused,
+        agent=agent,
+    )
+
+    if spec.id == "app.start_fold_mode" or spec.id.startswith("fold.agents."):
+        if summary_scale is None:
+            return False
+        direct_prefix = "fold.agents.set_level_"
+        if spec.id.startswith(direct_prefix):
+            try:
+                position = int(spec.id.removeprefix(direct_prefix))
+            except ValueError:
+                return False
+            return fold_level_at_position(position, summary_scale) is not None
 
     # The cleanup panel is discoverable even when every row action inside it is
     # currently disabled.

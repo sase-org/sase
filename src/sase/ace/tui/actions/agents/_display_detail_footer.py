@@ -40,10 +40,17 @@ class AgentFooterDisplayMixin:
         current_agent: Agent | None,
     ) -> None:
         """Refresh Agents-tab footer bindings for the current selection."""
+        if self.current_tab != "agents":
+            return
         if pending_digit := getattr(self, "_member_jump_pending_digit", None):
             footer_widget.update_member_jump_bindings(pending_digit)
         elif getattr(self, "_fold_mode_active", False):
-            footer_widget.update_fold_bindings()
+            scale_resolver = getattr(self, "_selected_summary_fold_scale", None)
+            fold_scale = scale_resolver() if callable(scale_resolver) else None
+            footer_widget.update_fold_bindings(
+                current_tab="agents",
+                fold_scale=fold_scale,
+            )
         elif getattr(self, "_leader_mode_active", False):
             footer_widget.update_leader_bindings(
                 current_tab="agents",

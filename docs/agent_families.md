@@ -77,11 +77,11 @@ The summary has three session-only fold levels:
 | 2     | Bounded triage digests, such as one-line error and reply previews, variable values, and context-lane summaries |
 | 3     | Full section bodies grouped by member for detailed investigation                                               |
 
-Press `zz` to cycle levels 1 → 2 → 3 → 1, or `zZ` to cycle backward. `za` cycles only the section at the top of the
-metadata viewport; `zA` toggles that section between collapsed and fully expanded. A panel-level cycle clears these
-per-section overrides. The `Fold: N/3` field in the `CLAN` header always shows the current panel level, while the
-`▸`/`▾`/`▼` heading glyph shows each section's effective level. Disk-backed content may briefly show `loading…` when a
-section first opens.
+Press `zz` to cycle levels 1 → 2 → 3 → 1, `zZ` to cycle backward, or `z1`-`z3` to select an exact level. `za` cycles
+only the section at the top of the metadata viewport; `zA` toggles that section between collapsed and fully expanded. A
+valid panel-level cycle or direct selection clears these per-section overrides. The `Fold: N/3` field in the `CLAN`
+header always shows the current panel level, while the `▸`/`▾`/`▼` heading glyph shows each section's effective level.
+Disk-backed content may briefly show `loading…` when a section first opens.
 
 The fold prefix is available only while the Agents tab is active. Press uppercase `Z` to zoom the largest panel; the
 lowercase `z` key starts fold mode. Fold state is panel-wide and applies when a clan or multi-member family container is
@@ -154,10 +154,11 @@ original member and each follow-up are direct jump targets; synthetic planner pr
 scaffolding are not. The same `zz`, `zZ`, `za`, and `zA` chords used by clan summaries control the family roster and the
 root's output variables, workflow variables, SASE context, slow calls, errors, xprompt, prompt, and consolidated reply.
 
-At level 1, member rows show their core label, kind, status, model, and duration while disk-backed content stays
-deferred. Level 2 adds bounded activity, wait/retry, context, and prompt/reply previews. Level 3 adds full available
-content and member workspace, timestamp, and attempt annotations. A member-specific override inherits from the
-`FAMILY MEMBERS` section, which in turn inherits the panel level.
+Family summaries have two effective levels. Level 1 shows bounded activity, wait/retry, context, and prompt/reply
+previews; level 2 adds full available content and member workspace, timestamp, and attempt annotations. Press `z1` or
+`z2` to select either level directly. `z3` and `z4` are invalid in a family context and leave both the panel level and
+section overrides untouched. A member-specific override inherits from the `FAMILY MEMBERS` section, which in turn
+inherits the panel level.
 
 Two bundled xprompts help assemble common follow-up prompt bodies. They build text only; `%n` performs the attachment:
 
@@ -212,6 +213,10 @@ sase agent tribe list [-n <agent>]
 Standalone post-hoc assignments retain the internal `tag` field and `agent_tags.json` store for compatibility. Clan
 declarations are stored per member in the separate `clan_tribe` field, then resolved generation-wide. The prompt
 language, CLI, and display terminology are all tribe.
+
+When a whole tribe panel is selected, its aggregate metadata document uses four fold levels. `z1`-`z3` select the
+collapsed, expanded, and fully expanded views; `z4` selects the exhaustive view, including unbounded roster annotations
+and runtime statistics. Direct numeric fold chords remain inside fold mode and do not trigger numbered member jumps.
 
 ### Tribe wait and fork targets
 

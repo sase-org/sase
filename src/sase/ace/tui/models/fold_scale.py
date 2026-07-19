@@ -25,6 +25,37 @@ TRIBE_FOLD_SCALE: FoldScale = (
 _FOLD_LEVEL_ORDER = TRIBE_FOLD_SCALE
 
 
+def fold_level_at_position(position: int, scale: FoldScale) -> FoldLevel | None:
+    """Resolve a one-based ``position`` within ``scale`` exactly.
+
+    Direct fold commands name the displayed position in a kind-specific
+    scale, not the ordinal of :class:`FoldLevel`.  Invalid positions are
+    rejected rather than clamped so callers can consume an unsupported chord
+    without changing fold state.
+    """
+    if position < 1 or position > len(scale):
+        return None
+    return scale[position - 1]
+
+
+def resolve_summary_fold_scale(
+    *,
+    whole_panel_focused: bool,
+    group_focused: bool = False,
+    agent: object | None,
+) -> FoldScale | None:
+    """Return the Agents summary scale selected by the current UI context."""
+    if whole_panel_focused:
+        return TRIBE_FOLD_SCALE
+    if group_focused or agent is None:
+        return None
+    if getattr(agent, "is_family_container_row", False):
+        return FAMILY_FOLD_SCALE
+    # Clan containers and regular-agent session scope share the legacy
+    # three-level scale.
+    return CLAN_FOLD_SCALE
+
+
 def effective_fold_level(level: FoldLevel, scale: FoldScale) -> FoldLevel:
     """Clamp ``level`` to the nearest usable level in ``scale``.
 
@@ -87,6 +118,8 @@ __all__ = [
     "cycle_fold_level_backward",
     "cycle_fold_level_forward",
     "effective_fold_level",
+    "fold_level_at_position",
     "fold_scale_position",
+    "resolve_summary_fold_scale",
     "toggle_fold_level",
 ]
