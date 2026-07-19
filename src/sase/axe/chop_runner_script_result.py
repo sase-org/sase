@@ -57,6 +57,7 @@ def process_script_chop_result(
                 chop.base_name or chop.name,
                 structured_result,
                 target_key=chop.target_key or None,
+                run_id=run_id,
             )
             proposals = proposal_previews(prepared_proposals)
         except Exception as exc:

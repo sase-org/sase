@@ -48,11 +48,12 @@ def derive_chop_agent_name(
     *,
     target_key: str | None = None,
     proposal_index: int = 0,
+    run_token: str | None = None,
 ) -> str:
-    """Derive a stable default agent name for one proposal."""
+    """Derive a default agent name stable within one chop run."""
 
     binding = require_rust_binding("derive_chop_agent_name")
-    return str(binding(chop_name, target_key, proposal_index))
+    return str(binding(chop_name, target_key, proposal_index, run_token))
 
 
 def evaluate_chop_decision(request: Mapping[str, Any]) -> dict[str, Any]:

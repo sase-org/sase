@@ -41,6 +41,19 @@ def launch_agents_from_cwd_impl(
     Raises:
         RuntimeError: If workspace allocation or claiming fails.
     """
+
+    def record_failed_launch_prompt(text: str) -> None:
+        from sase.axe.chop_agents import is_chop_launch_env
+
+        launch_envs = (extra_env, *(segment_extra_env or ()))
+        if any(is_chop_launch_env(env) for env in launch_envs):
+            return
+        from sase.history.prompt import (
+            record_failed_launch_prompt as record_interactive_failed_launch,
+        )
+
+        record_interactive_failed_launch(text)
+
     from sase.agent.names import ensure_historical_auto_name_migration
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
@@ -51,8 +64,6 @@ def launch_agents_from_cwd_impl(
         # An alias-map conflict here escapes before the validation/spawn
         # branches below can record the failure; preserve the original
         # submitted query so it stays recoverable from the stash.
-        from sase.history.prompt import record_failed_launch_prompt
-
         record_failed_launch_prompt(query)
         raise
     submitted_query = query
@@ -60,7 +71,7 @@ def launch_agents_from_cwd_impl(
     from sase.ace.tui.actions.agent_workflow._ref_resolution import (
         resolve_ref_from_prompt,
     )
-    from sase.history.prompt import add_or_update_prompt, record_failed_launch_prompt
+    from sase.history.prompt import add_or_update_prompt
     from sase.main.utils import ensure_project_file_and_get_workspace_num
     from sase.running_field import get_workspace_directory
     from sase.workspace_provider import get_workflow_names

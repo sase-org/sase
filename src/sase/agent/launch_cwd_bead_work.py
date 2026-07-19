@@ -56,6 +56,17 @@ def launch_planned_bead_work_agents(
     if not segments:
         return []
 
+    def record_failed_launch_prompt(text: str) -> None:
+        from sase.axe.chop_agents import is_chop_launch_env
+
+        if any(is_chop_launch_env(env) for env in segment_extra_env):
+            return
+        from sase.history.prompt import (
+            record_failed_launch_prompt as record_interactive_failed_launch,
+        )
+
+        record_interactive_failed_launch(text)
+
     from sase.agent.launch_projects import (
         enable_known_project_vcs_refs_for_launch_prompt,
     )
@@ -63,7 +74,7 @@ def launch_planned_bead_work_agents(
     from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
     from sase.agent.multi_prompt_references import extract_static_name_directive
     from sase.core.agent_launch_facade import plan_fake_fanout
-    from sase.history.prompt import add_or_update_prompt, record_failed_launch_prompt
+    from sase.history.prompt import add_or_update_prompt
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.workspace_provider import get_ref_patterns
     from sase.xprompt._parsing import normalize_default_vcs_workflow_segment

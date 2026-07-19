@@ -124,7 +124,16 @@ def test_target_duration_and_agent_name_facades() -> None:
     assert expansion["instances"][0]["overrides"] == {"run_every": "1h30m"}
     assert parse_chop_duration("1d2h") == 93_600
     assert (
-        derive_chop_agent_name("refresh_docs", target_key="sase-core", proposal_index=0)
+        derive_chop_agent_name(
+            "refresh_docs",
+            target_key="sase-core",
+            proposal_index=0,
+            run_token="20260719T072506_123456",
+        )
+        == "chop.refresh_docs.sase-core.6_123456.1"
+    )
+    assert (
+        derive_chop_agent_name("refresh_docs", target_key="sase-core")
         == "chop.refresh_docs.sase-core.1"
     )
 

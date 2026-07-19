@@ -9,7 +9,7 @@ import os
 import tempfile
 import threading
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -28,6 +28,11 @@ ENV_CHOP_PROMPT_HASH = "SASE_CHOP_PROMPT_HASH"
 
 _PROCESS_REGISTRY_LOCKS: dict[Path, threading.RLock] = {}
 _PROCESS_REGISTRY_LOCKS_GUARD = threading.Lock()
+
+
+def is_chop_launch_env(env: Mapping[str, str] | None) -> bool:
+    """Return whether an environment marks a machine-generated chop launch."""
+    return bool(env and env.get(ENV_CHOP_NAME))
 
 
 @dataclass(frozen=True)

@@ -54,6 +54,7 @@ def prepare_chop_proposals(
     result: Mapping[str, Any],
     *,
     target_key: str | None = None,
+    run_id: str | None = None,
 ) -> list[_PreparedChopProposal]:
     """Normalize, validate, and scaffold all proposals in result order."""
     prepared: list[_PreparedChopProposal] = []
@@ -81,6 +82,7 @@ def prepare_chop_proposals(
                 chop_name,
                 target_key=target_key,
                 proposal_index=index,
+                run_token=run_id,
             )
         )
         prepared.append(

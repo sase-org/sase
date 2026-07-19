@@ -5,10 +5,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.axe.chop_agents import ENV_CHOP_NAME
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.lumberjack import Lumberjack
 from sase.axe.maintenance import clear_maintenance, read_maintenance, start_maintenance
+from sase.axe.chop_runner_types import ChopRunOutcome, ChopRunOutcomeStatus
 from tests._axe_lumberjack_fixtures import (
     streamed_fail,
     streamed_ok,
@@ -203,6 +206,40 @@ def test_run_every_skips_when_not_enough_time_elapsed(
     )
     lumberjack._run_tick()
     assert mock_run.call_count == 2
+
+
+@pytest.mark.parametrize("status", ["action_failed", "timeout"])
+def test_failed_run_every_chop_waits_until_next_cadence(
+    status: ChopRunOutcomeStatus,
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    config = LumberjackConfig(
+        name="throttled_failure",
+        interval=10,
+        chops=[ChopConfig(name="slow_chop", description="", run_every=3600)],
+    )
+    outcome = ChopRunOutcome(
+        lumberjack_name="throttled_failure",
+        chop_name="slow_chop",
+        status=status,
+        run_id=f"run-{status}",
+        error=RuntimeError(status),
+        traceback="test traceback",
+    )
+
+    with (
+        patch("sase.axe.check_cycles.find_all_changespecs", return_value=[]),
+        patch(
+            "sase.axe.lumberjack.run_configured_chop_once", return_value=outcome
+        ) as run_chop,
+    ):
+        lumberjack = Lumberjack("throttled_failure", config, axe_config)
+        lumberjack._run_tick()
+        lumberjack._run_tick()
+
+    assert run_chop.call_count == 1
+    assert "slow_chop" in lumberjack._chop_timestamps
 
 
 @patch("sase.axe.chop_runner.stream_chop_script")

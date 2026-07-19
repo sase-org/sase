@@ -54,6 +54,34 @@ def test_launch_from_cwd_stashes_query_on_alias_canonicalization_failure(
     assert entries[0].source == "failed_launch"
 
 
+def test_chop_launch_does_not_stash_alias_canonicalization_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _skip_without_prompt_stash_bindings()
+    stash_path = tmp_path / "prompt_stash.jsonl"
+    monkeypatch.setattr(
+        "sase.core.paths.prompt_stash_path", lambda: stash_path, raising=True
+    )
+
+    def _boom(_query: str) -> str:
+        raise RuntimeError("ambiguous project alias")
+
+    monkeypatch.setattr(
+        "sase.project_aliases.canonicalize_project_aliases_in_prompt", _boom
+    )
+
+    from sase.agent.launcher import launch_agents_from_cwd
+    from sase.axe.chop_agents import ENV_CHOP_NAME
+
+    with pytest.raises(RuntimeError, match="ambiguous project alias"):
+        launch_agents_from_cwd(
+            "#al:thing run generated chop work",
+            extra_env={ENV_CHOP_NAME: "refresh_docs"},
+        )
+
+    assert _stash_entries(stash_path) == []
+
+
 def test_planned_bead_work_stashes_on_validation_failure(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

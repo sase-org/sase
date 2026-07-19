@@ -77,13 +77,46 @@ def test_refresh_docs_emits_chained_update_and_polish_proposals(
         "refresh_docs",
         result,
         target_key="sase-core",
+        run_id="20260719T072506_123456",
     )
     previews = proposal_previews(prepared)
-    assert previews[0]["agent_name"] == "chop.refresh_docs.sase-core.1"
-    assert previews[1]["wait_name"] == "chop.refresh_docs.sase-core.1"
-    assert "%wait:chop.refresh_docs.sase-core.1" in previews[1]["prompt"]
+    first_name = "chop.refresh_docs.sase-core.6_123456.1"
+    assert previews[0]["agent_name"] == first_name
+    assert previews[1]["agent_name"] == "chop.refresh_docs.sase-core.6_123456.2"
+    assert previews[1]["wait_name"] == first_name
+    assert f"%wait:{first_name}" in previews[1]["prompt"]
     assert "#!" not in previews[0]["prompt"]
     assert "#!" not in previews[1]["prompt"]
+
+
+def test_prepared_chop_runs_use_non_colliding_agent_names() -> None:
+    result = {
+        "proposed_launches": [
+            {"prompt": "Update.", "workspace": "git:sase"},
+            {"prompt": "Polish.", "workspace": "git:sase", "wait_on": 0},
+        ]
+    }
+
+    first = prepare_chop_proposals(
+        "refresh_docs",
+        result,
+        target_key="sase",
+        run_id="20260719T072506_123456",
+    )
+    second = prepare_chop_proposals(
+        "refresh_docs",
+        result,
+        target_key="sase",
+        run_id="20260719T072507_654321",
+    )
+
+    assert {proposal.agent_name for proposal in first}.isdisjoint(
+        proposal.agent_name for proposal in second
+    )
+    assert [proposal.agent_name for proposal in first] == [
+        "chop.refresh_docs.sase.6_123456.1",
+        "chop.refresh_docs.sase.6_123456.2",
+    ]
 
 
 def test_refresh_docs_accepts_prompt_overrides(tmp_path: Path) -> None:
