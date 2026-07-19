@@ -13,7 +13,7 @@ from sase.project_display_names import (
     project_display_name_map_signature,
 )
 
-from ...agent_completion import agent_status_buckets_for_app
+from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, AgentType
 from ...tools.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.lazy_syntax import LazySyntaxRenderCache, lazy_renderable
@@ -213,10 +213,14 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         summary = get_cached_detail_header_summary(self, agent)
         if summary is not None:
             publish_opened_workspaces_cache(self, agent, summary.opened_workspaces)
-        agent_status_buckets = (
-            agent_status_buckets_for_app(getattr(self, "app", None))
+        wait_status_maps = (
+            agent_wait_status_maps_for_app(getattr(self, "app", None))
             if agent.waiting_for
             else None
+        )
+        agent_status_buckets, clan_wait_member_statuses = wait_status_maps or (
+            None,
+            None,
         )
         family_fold_level, family_fold_overrides = panel_fold_state_from_widget(self)
         try:
@@ -227,6 +231,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             agent,
             summary=summary,
             agent_status_buckets=agent_status_buckets,
+            clan_wait_member_statuses=clan_wait_member_statuses,
             slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(self),
             family_fold_level=family_fold_level,
             family_section_fold_overrides=family_fold_overrides,

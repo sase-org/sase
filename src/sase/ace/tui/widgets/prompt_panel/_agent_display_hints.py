@@ -7,7 +7,7 @@ from rich.text import Text
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
 
-from ...agent_completion import agent_status_buckets_for_app
+from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, AgentType
 from ...util.trace import tui_trace
 from ...util.xprompt_syntax import apply_xprompt_overlays
@@ -154,16 +154,21 @@ class AgentHintsDisplayMixin:
         summary = get_cached_detail_header_summary(self, agent)
         if summary is not None:
             publish_opened_workspaces_cache(self, agent, summary.opened_workspaces)
-        agent_status_buckets = (
-            agent_status_buckets_for_app(getattr(self, "app", None))
+        wait_status_maps = (
+            agent_wait_status_maps_for_app(getattr(self, "app", None))
             if agent.waiting_for
             else None
+        )
+        agent_status_buckets, clan_wait_member_statuses = wait_status_maps or (
+            None,
+            None,
         )
         header_text, _ = build_header_text(
             agent,
             hint_state=header_hint_state,
             summary=summary,
             agent_status_buckets=agent_status_buckets,
+            clan_wait_member_statuses=clan_wait_member_statuses,
             slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(self),
         )
         hint_counter = header_hint_state.hint_counter

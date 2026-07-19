@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from rich.console import Group
 
-from ...agent_completion import agent_status_buckets_for_app
+from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent
 from ...models.agent_tribe_summary import AgentTribeSummarySnapshot
 from ...tools.slow import slow_tool_call_threshold_ms_from_widget
@@ -201,10 +201,14 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             self._cancel_agent_bead_display_worker_for_selection_change(agent)
             self._cancel_agent_linked_delta_worker_for_selection_change(agent)
             self._cancel_agent_detail_header_worker_for_selection_change(agent)
-            agent_status_buckets = (
-                agent_status_buckets_for_app(getattr(self, "app", None))
+            wait_status_maps = (
+                agent_wait_status_maps_for_app(getattr(self, "app", None))
                 if agent.waiting_for
                 else None
+            )
+            agent_status_buckets, clan_wait_member_statuses = wait_status_maps or (
+                None,
+                None,
             )
             try:
                 app = self.app  # type: ignore[attr-defined]
@@ -222,6 +226,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 agent,
                 cheap=True,
                 agent_status_buckets=agent_status_buckets,
+                clan_wait_member_statuses=clan_wait_member_statuses,
                 unread_agent_ids=getattr(app, "_unread_completed_agent_ids", set()),
                 slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(
                     self

@@ -10,9 +10,12 @@ from rich.text import Text
 
 from sase.ace.tui.agent_completion import (
     _collect_agent_status_buckets,
+    _collect_agent_wait_status_maps,
     agent_status_buckets_for_app,
+    agent_wait_status_maps_for_app,
     wait_dependencies_satisfied,
 )
+from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
@@ -27,6 +30,35 @@ def _styles_covering(text: Text, substring: str) -> set[str]:
     return {
         str(span.style) for span in text.spans if span.start < end and span.end > start
     }
+
+
+def _clan_rows(
+    clan_name: str,
+    generation: str,
+    member_statuses: list[tuple[str, str]],
+) -> list[Agent]:
+    members = [
+        make_agent(
+            cl_name=f"{clan_name}-{generation}-{suffix}",
+            agent_name=f"{clan_name}.{suffix}",
+            raw_suffix=f"{generation}-{index}",
+            start_time=datetime(2024, 1, 1, 14, 23, 45) + timedelta(seconds=index),
+            status=status,
+            agent_clan=clan_name,
+            agent_clan_generation=generation,
+        )
+        for index, (suffix, status) in enumerate(member_statuses)
+    ]
+    container = make_agent(
+        cl_name=clan_name,
+        agent_name=None,
+        raw_suffix=generation,
+        agent_clan=clan_name,
+        agent_clan_generation=generation,
+        is_clan_container=True,
+    )
+    container.runtime_children.extend(members)
+    return [container, *members]
 
 
 @pytest.mark.parametrize(
@@ -131,6 +163,66 @@ def test_waited_for_status_badges_keep_until_countdown_format() -> None:
     assert line.endswith(" left)")
 
 
+def test_clan_wait_expands_ordered_member_statuses() -> None:
+    agent = make_agent(status="WAITING", waiting_for=["sase-7g"])
+
+    header, _ = build_header_text(
+        agent,
+        cheap=True,
+        agent_status_buckets={"sase-7g": "Running"},
+        clan_wait_member_statuses={
+            "sase-7g": (
+                (".f0", "Done"),
+                (".f1", "Done"),
+                (".w0", "Running"),
+                (".w1", "Waiting"),
+            )
+        },
+    )
+
+    assert _waiting_line(header) == (
+        "Wait: sase-7g (all clan members · 2/4 done: .f0 ✓ · .f1 ✓ · .w0 ▶ · .w1 ⏳)"
+    )
+    assert header.plain.index(".f0 ✓") < header.plain.index(".f1 ✓")
+    assert header.plain.index(".f1 ✓") < header.plain.index(".w0 ▶")
+    assert header.plain.index(".w0 ▶") < header.plain.index(".w1 ⏳")
+
+
+def test_clan_wait_expansion_keeps_plain_dependency_and_duration() -> None:
+    agent = make_agent(
+        status="WAITING",
+        waiting_for=["sase-7g", "reviewer"],
+        wait_duration=300,
+    )
+
+    header, _ = build_header_text(
+        agent,
+        cheap=True,
+        agent_status_buckets={"sase-7g": "Running", "reviewer": "Done"},
+        clan_wait_member_statuses={
+            "sase-7g": ((".code", "Running"), (".test", "Done"))
+        },
+    )
+
+    assert _waiting_line(header) == (
+        "Wait: sase-7g (all clan members · 1/2 done: "
+        ".code ▶ · .test ✓), reviewer ✓ + 5m"
+    )
+
+
+def test_unknown_clan_wait_keeps_unknown_badge() -> None:
+    agent = make_agent(status="WAITING", waiting_for=["archived-clan"])
+
+    header, _ = build_header_text(
+        agent,
+        cheap=True,
+        agent_status_buckets={"visible-clan": "Done"},
+        clan_wait_member_statuses={"visible-clan": ((".member", "Done"),)},
+    )
+
+    assert _waiting_line(header) == "Wait: archived-clan ?"
+
+
 def test_collect_agent_status_buckets_includes_family_and_raw_names() -> None:
     root = make_agent(
         agent_name="research.plan",
@@ -193,6 +285,85 @@ def test_collect_agent_status_buckets_applies_family_precedence() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("statuses", "expected_bucket"),
+    [
+        (["DONE", "DONE"], "Done"),
+        (["RUNNING", "DONE"], "Running"),
+        (["RUNNING", "FAILED"], "Failed"),
+        (["WAITING", "DONE"], "Waiting"),
+    ],
+)
+def test_collect_agent_status_buckets_aggregates_clan_members(
+    statuses: list[str],
+    expected_bucket: str,
+) -> None:
+    rows = _clan_rows(
+        "sase-7g",
+        "20260719120000",
+        [(f"member-{index}", status) for index, status in enumerate(statuses)],
+    )
+
+    buckets, clan_members = _collect_agent_wait_status_maps(rows)
+
+    assert buckets["sase-7g"] == expected_bucket
+    expected_member_buckets = {
+        "DONE": "Done",
+        "RUNNING": "Running",
+        "FAILED": "Failed",
+        "WAITING": "Waiting",
+    }
+    assert clan_members["sase-7g"] == tuple(
+        (f".member-{index}", expected_member_buckets[status])
+        for index, status in enumerate(statuses)
+    )
+
+
+def test_collect_agent_status_buckets_uses_newest_clan_generation() -> None:
+    older = _clan_rows(
+        "sase-7g",
+        "20260719110000",
+        [("old", "FAILED")],
+    )
+    newest = _clan_rows(
+        "sase-7g",
+        "20260719120000",
+        [("new-0", "DONE"), ("new-1", "DONE")],
+    )
+
+    buckets, clan_members = _collect_agent_wait_status_maps([*older, *newest])
+
+    assert buckets["sase-7g"] == "Done"
+    assert clan_members["sase-7g"] == ((".new-0", "Done"), (".new-1", "Done"))
+
+
+def test_real_agent_and_family_names_win_clan_name_collisions() -> None:
+    agent_collision = make_agent(
+        agent_name="legacy-agent",
+        status="WAITING",
+    )
+    family_collision = make_agent(
+        agent_name="legacy-family.plan",
+        agent_family="legacy-family",
+        agent_family_role="root",
+        plan_chain_root=True,
+        status="FAILED",
+    )
+    clans = [
+        *_clan_rows("legacy-agent", "20260719120000", [("done", "DONE")]),
+        *_clan_rows("legacy-family", "20260719120000", [("done", "DONE")]),
+    ]
+
+    buckets, clan_members = _collect_agent_wait_status_maps(
+        [agent_collision, family_collision, *clans]
+    )
+
+    assert buckets["legacy-agent"] == "Waiting"
+    assert buckets["legacy-family"] == "Failed"
+    assert "legacy-agent" not in clan_members
+    assert "legacy-family" not in clan_members
+
+
 def test_agent_status_buckets_for_app_uses_full_agent_set_and_falls_back() -> None:
     folded_child = make_agent(agent_name="root.child", parent_timestamp="root")
     fallback_agent = make_agent(agent_name="fallback", status="DONE")
@@ -204,6 +375,23 @@ def test_agent_status_buckets_for_app_uses_full_agent_set_and_falls_back() -> No
     assert agent_status_buckets_for_app(
         SimpleNamespace(_agents_with_children=[], _agents=[fallback_agent])
     ) == {"fallback": "Done"}
+
+
+def test_agent_wait_status_maps_for_app_uses_one_clan_snapshot() -> None:
+    rows = _clan_rows(
+        "sase-7g",
+        "20260719120000",
+        [("plan", "DONE"), ("code", "RUNNING")],
+    )
+
+    status_maps = agent_wait_status_maps_for_app(
+        SimpleNamespace(_agents_with_children=rows)
+    )
+
+    assert status_maps is not None
+    buckets, clan_members = status_maps
+    assert buckets["sase-7g"] == "Running"
+    assert clan_members["sase-7g"] == ((".plan", "Done"), (".code", "Running"))
 
 
 def test_wait_dependencies_satisfied_accepts_empty_wait_list() -> None:
@@ -240,3 +428,24 @@ def test_wait_dependencies_satisfied_uses_wait_display_source() -> None:
 
     assert wait_dependencies_satisfied(root, {"coder": "Done"}) is True
     assert wait_dependencies_satisfied(root, {"coder": "Running"}) is False
+
+
+def test_wait_dependencies_satisfied_uses_clan_aggregate() -> None:
+    agent = make_agent(status="WAITING", waiting_for=["sase-7g"])
+    done_buckets = _collect_agent_status_buckets(
+        _clan_rows(
+            "sase-7g",
+            "20260719120000",
+            [("plan", "DONE"), ("code", "DONE")],
+        )
+    )
+    active_buckets = _collect_agent_status_buckets(
+        _clan_rows(
+            "sase-7g",
+            "20260719120000",
+            [("plan", "DONE"), ("code", "RUNNING")],
+        )
+    )
+
+    assert wait_dependencies_satisfied(agent, done_buckets) is True
+    assert wait_dependencies_satisfied(agent, active_buckets) is False

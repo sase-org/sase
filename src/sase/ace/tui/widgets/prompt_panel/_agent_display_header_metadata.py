@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from rich.text import Text
@@ -57,6 +57,20 @@ _LEGACY_MEMBER_STATUS_STYLES: dict[str, str] = {
     "Failed": "bold #FF5F5F",
     "Done": "bold #5FD75F",
 }
+
+
+def _append_wait_status_badge(text: Text, bucket: str | None) -> None:
+    """Append the standard badge for a known or unknown wait target."""
+    badge = _WAIT_STATUS_BADGES.get(bucket) if bucket is not None else None
+    if badge is None:
+        glyph, style = (
+            _UNKNOWN_WAIT_AGENT_GLYPH,
+            _UNKNOWN_WAIT_AGENT_GLYPH_STYLE,
+        )
+    else:
+        glyph, style = badge
+    text.append(" ")
+    text.append(glyph, style=style)
 
 
 def _append_auto_approve_field(text: Text, agent: Agent) -> None:
@@ -166,6 +180,7 @@ def _append_wait_field(
     text: Text,
     agent: Agent,
     agent_status_buckets: Mapping[str, str] | None,
+    clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None,
 ) -> None:
     """Append dependency, time-floor, and runner-slot wait details."""
     from sase.ace.tui.models.agent import (
@@ -194,18 +209,27 @@ def _append_wait_field(
             if index:
                 text.append(", ", style=_WAITING_VALUE_STYLE)
             text.append(name, style=_WAITING_VALUE_STYLE)
-            if agent_status_buckets is not None:
-                bucket = agent_status_buckets.get(name)
-                badge = _WAIT_STATUS_BADGES.get(bucket) if bucket is not None else None
-                if badge is None:
-                    glyph, style = (
-                        _UNKNOWN_WAIT_AGENT_GLYPH,
-                        _UNKNOWN_WAIT_AGENT_GLYPH_STYLE,
-                    )
-                else:
-                    glyph, style = badge
-                text.append(" ")
-                text.append(glyph, style=style)
+            clan_members = (
+                clan_wait_member_statuses.get(name)
+                if clan_wait_member_statuses is not None
+                else None
+            )
+            if clan_members is not None:
+                done_count = sum(bucket == "Done" for _label, bucket in clan_members)
+                text.append(" (", style="dim #AF87FF")
+                text.append("all clan members", style="bold #AF87FF")
+                text.append(
+                    f" · {done_count}/{len(clan_members)} done: ",
+                    style="dim #AF87FF",
+                )
+                for member_index, (label, bucket) in enumerate(clan_members):
+                    if member_index:
+                        text.append(" · ", style="dim #AF87FF")
+                    text.append(label, style=_WAITING_VALUE_STYLE)
+                    _append_wait_status_badge(text, bucket)
+                text.append(")", style="dim #AF87FF")
+            elif agent_status_buckets is not None:
+                _append_wait_status_badge(text, agent_status_buckets.get(name))
         appended_dependency_names = True
 
     time_part: str | None = None
@@ -320,6 +344,7 @@ def append_agent_metadata_fields(
     summary: DetailHeaderSummary | None,
     agent_status_buckets: Mapping[str, str] | None,
     cached_bead_display: Callable[[Agent], object],
+    clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None = None,
 ) -> list[tuple[str, str]]:
     """Append the core agent metadata rows and return workflow meta fields."""
     _append_identity_fields(text, agent, summary, cached_bead_display)
@@ -366,7 +391,12 @@ def append_agent_metadata_fields(
         text.append("BUG: ", style="bold #87D7FF")
         text.append(f"{agent.bug}\n", style="bold underline #569CD6")
 
-    _append_wait_field(text, agent, agent_status_buckets)
+    _append_wait_field(
+        text,
+        agent,
+        agent_status_buckets,
+        clan_wait_member_statuses,
+    )
     _append_retry_fields(text, agent)
     _append_timestamp_fields(text, agent, hint_state)
     return meta_fields

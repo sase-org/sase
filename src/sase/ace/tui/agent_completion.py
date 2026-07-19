@@ -129,8 +129,19 @@ def _preferred_wait_dependency_bucket(current: str | None, candidate: str) -> st
 
 def _collect_agent_status_buckets(agents: Iterable[Agent]) -> dict[str, str]:
     """Return prompt-referenceable agent names mapped to status buckets."""
+    buckets, _clan_member_statuses = _collect_agent_wait_status_maps(agents)
+    return buckets
+
+
+def _collect_agent_wait_status_maps(
+    agents: Iterable[Agent],
+) -> tuple[dict[str, str], dict[str, tuple[tuple[str, str], ...]]]:
+    """Return aggregate wait buckets and ordered clan-member detail."""
+    from sase.ace.tui.models._agent_clan import aggregate_clan_status
+
+    all_agents = list(agents)
     buckets: dict[str, str] = {}
-    for agent in agents:
+    for agent in all_agents:
         bucket = status_bucket_for_values(agent.status)
         for name in (agent_prompt_name(agent), agent.agent_name):
             if not name or not name.strip():
@@ -139,7 +150,36 @@ def _collect_agent_status_buckets(agents: Iterable[Agent]) -> dict[str, str]:
                 buckets.get(name),
                 bucket,
             )
-    return buckets
+
+    clan_member_statuses: dict[str, tuple[tuple[str, str], ...]] = {}
+    for group in _visible_clan_completion_groups(all_agents):
+        # Clan names are reserved in current data.  If legacy rows collide,
+        # retain the real agent/family wait-target behavior.
+        if group.name in buckets:
+            continue
+        aggregate_status = aggregate_clan_status(
+            member.status for member in group.members
+        )
+        if aggregate_status is None:
+            continue
+        buckets[group.name] = status_bucket_for_values(aggregate_status)
+        clan_member_statuses[group.name] = tuple(
+            (
+                _clan_wait_member_label(group.name, member),
+                status_bucket_for_values(member.status),
+            )
+            for member in group.members
+        )
+    return buckets, clan_member_statuses
+
+
+def _clan_wait_member_label(clan_name: str, member: Agent) -> str:
+    """Return one clan member's short in-hood wait-display label."""
+    name = member.agent_name or member.presented_agent_name or member.display_name
+    prefix = f"{clan_name}."
+    if name.startswith(prefix):
+        return name[len(clan_name) :]
+    return name
 
 
 def collect_agent_status_buckets(agents: Iterable[Agent]) -> dict[str, str]:
@@ -149,6 +189,14 @@ def collect_agent_status_buckets(agents: Iterable[Agent]) -> dict[str, str]:
 
 def agent_status_buckets_for_app(app: object | None) -> dict[str, str] | None:
     """Return known prompt-referenceable agent status buckets for a TUI app."""
+    status_maps = agent_wait_status_maps_for_app(app)
+    return status_maps[0] if status_maps is not None else None
+
+
+def agent_wait_status_maps_for_app(
+    app: object | None,
+) -> tuple[dict[str, str], dict[str, tuple[tuple[str, str], ...]]] | None:
+    """Return aggregate and clan-member wait statuses from one app snapshot."""
     if app is None:
         return None
 
@@ -158,7 +206,7 @@ def agent_status_buckets_for_app(app: object | None) -> dict[str, str] | None:
         except Exception:
             continue
         if agents:
-            return _collect_agent_status_buckets(agents)
+            return _collect_agent_wait_status_maps(agents)
     return None
 
 

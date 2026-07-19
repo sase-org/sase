@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection, Mapping, Sequence
 from datetime import datetime as DateTime
 from typing import TYPE_CHECKING
 
@@ -49,6 +49,7 @@ def build_header_text(
     hint_state: HeaderHintState | None = None,
     summary: DetailHeaderSummary | None = None,
     agent_status_buckets: Mapping[str, str] | None = None,
+    clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None = None,
     slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     clan_snapshot: ClanSectionSnapshot | None = None,
@@ -104,6 +105,7 @@ def build_header_text(
         # Keep this dependency supplied by the public module so existing
         # callers can patch the cache boundary without touching internals.
         cached_bead_display=cached_bead_display,
+        clan_wait_member_statuses=clan_wait_member_statuses,
     )
 
     if family_fold_enabled:
