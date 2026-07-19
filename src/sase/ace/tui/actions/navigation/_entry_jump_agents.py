@@ -129,6 +129,7 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
         target_idx: int | None,
         target_panel_key: PanelKey,
         target_group_key: tuple[str, ...] | None,
+        target_is_panel: bool = False,
     ) -> None:
         """Save the current cursor when an agents jump will change focus."""
         panel_context = self._current_agents_panel_context()
@@ -136,7 +137,11 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
         panel_changed = target_panel_key != current_panel_key
         row_changed = target_idx is not None and target_idx != self.current_idx
         group_changed = target_group_key != getattr(self, "_current_group_key", None)
-        if row_changed or panel_changed or group_changed:
+        current_anchor = self._current_agents_jump_anchor()
+        panel_focus_changed = target_is_panel and (
+            current_anchor is None or current_anchor[0] != "panel"
+        )
+        if row_changed or panel_changed or group_changed or panel_focus_changed:
             self._save_agents_jump_anchor()
 
     def _agents_jump_panel_idx_for_key(self, panel_key: str | None) -> int | None:

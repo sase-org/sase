@@ -363,11 +363,11 @@ def test_agent_panel_grouping_leader_command_is_agents_only() -> None:
     assert spec.executor.subkey == "g"
 
 
-def test_selected_agent_panels_leader_command_is_agents_only() -> None:
+def test_visible_agent_folds_leader_command_is_agents_only() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.toggle_selected_agent_panels")
 
-    assert spec.label == "Toggle selected agent panels"
+    assert spec.label == "Toggle visible agent folds"
     assert spec.key_display == ",H"
     assert spec.tabs == ("agents",)
     assert spec.executor.kind == "leader_mode_key"

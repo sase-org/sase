@@ -1,9 +1,9 @@
-"""Jump hints cover collapsed group banners and whole panels on the Agents tab.
+"""Jump hints cover collapsed group banners and panel titles on the Agents tab.
 
 Pressing ``'`` should paint a ``[x]`` chip next to every collapsed banner
-row alongside the visible-agent chips, so a single keystroke can either
-land on an agent, focus a folded group banner, or focus a collapsed panel
-header. Expanded banners and panel titles stay hint-less.
+row alongside the visible-agent chips and every split-panel title, so a single
+keystroke can land on an agent, focus a folded group banner, or focus a panel
+in either its collapsed or expanded state. Expanded banners stay hint-less.
 """
 
 from __future__ import annotations
@@ -163,8 +163,8 @@ def test_jump_targets_includes_collapsed_banners() -> None:
     assert ("agent", 2) in agent_targets
 
 
-def test_jump_targets_skips_expanded_banners() -> None:
-    """Expanded banners contribute no target — only their agents do."""
+def test_jump_targets_include_expanded_panel_but_skip_expanded_banners() -> None:
+    """Expanded panel titles precede rows; expanded banners stay untargeted."""
     agents = [
         _agent(project="alpha", cl="a1", name="a1"),
         _agent(project="beta", cl="b1", name="b1"),
@@ -175,7 +175,7 @@ def test_jump_targets_skips_expanded_banners() -> None:
 
     banner_targets = [t for t in targets if t[0] == "banner"]
     assert banner_targets == []
-    assert all(t[0] == "agent" for t in targets)
+    assert targets == [("panel", None), ("agent", 0), ("agent", 1)]
 
 
 def test_jump_targets_include_collapsed_panels_in_render_order() -> None:
@@ -194,6 +194,7 @@ def test_jump_targets_include_collapsed_panels_in_render_order() -> None:
 
     assert app._panel_group.panel_keys == [None, "chop", "zoom"]
     assert app._jump_candidate_targets() == [
+        ("panel", None),
         ("banner", 0, ("alpha",)),
         ("agent", 1),
         ("panel", "chop"),
@@ -201,7 +202,7 @@ def test_jump_targets_include_collapsed_panels_in_render_order() -> None:
     ]
 
 
-def test_collapsed_panel_maps_use_stable_keys_including_untagged() -> None:
+def test_all_panel_maps_use_stable_keys_including_untagged() -> None:
     agents = [
         _agent(project="home", cl="u1", name="untagged"),
         _agent(project="apple", cl="a1", name="visible", tag="apple"),
@@ -212,12 +213,14 @@ def test_collapsed_panel_maps_use_stable_keys_including_untagged() -> None:
     app._begin_agents_jump_mode()
 
     assert app._entry_jump_hint_to_panel == {
-        "2": ("panel", None),
-        "3": ("panel", "chop"),
+        "1": ("panel", "apple"),
+        "3": ("panel", None),
+        "4": ("panel", "chop"),
     }
     assert app._entry_jump_panel_to_hint == {
-        ("panel", None): "2",
-        ("panel", "chop"): "3",
+        ("panel", "apple"): "1",
+        ("panel", None): "3",
+        ("panel", "chop"): "4",
     }
 
 
@@ -560,8 +563,8 @@ def test_back_jump_restores_agent_anchor() -> None:
     assert app.current_idx == 1
 
 
-def test_apostrophe_without_anchor_dispatches_first_agent_jump_hint() -> None:
-    """No-history ``'`` follows hint ``1`` through normal banner dispatch."""
+def test_apostrophe_without_anchor_dispatches_first_expanded_panel_hint() -> None:
+    """No-history ``'`` follows hint ``1`` through expanded-panel dispatch."""
     agents = [
         _agent(project="alpha", cl="a1", name="a1"),
         _agent(project="beta", cl="b1", name="b1"),
@@ -573,13 +576,19 @@ def test_apostrophe_without_anchor_dispatches_first_agent_jump_hint() -> None:
     handled = app._handle_entry_jump_key("apostrophe")
 
     assert handled is True
-    assert app._current_group_key == ("alpha",)
-    assert app.current_idx == 1
+    assert app._current_group_key is None
+    assert app._expanded_panel_focus is True
+    assert app.current_idx == 0
     assert app._entry_jump_agents_anchor_stack == [("agent", 1, None)]
     assert app._entry_jump_mode_active is False
 
+    app._begin_agents_jump_mode()
+    assert app._handle_entry_jump_key("apostrophe") is True
+    assert app._expanded_panel_focus is False
+    assert app.current_idx == 1
 
-def test_fast_jump_without_anchor_dispatches_first_agent_jump_hint() -> None:
+
+def test_fast_jump_without_anchor_dispatches_first_expanded_panel_hint() -> None:
     """Fast jump follows no-history ``''`` without painting hint UI."""
     agents = [
         _agent(project="alpha", cl="a1", name="a1"),
@@ -590,8 +599,9 @@ def test_fast_jump_without_anchor_dispatches_first_agent_jump_hint() -> None:
 
     app.action_jump_to_entry_fast()
 
-    assert app._current_group_key == ("alpha",)
-    assert app.current_idx == 1
+    assert app._current_group_key is None
+    assert app._expanded_panel_focus is True
+    assert app.current_idx == 0
     assert app._entry_jump_agents_anchor_stack == [("agent", 1, None)]
     assert app._entry_jump_mode_active is False
     assert app.jump_footer_updates == 0
@@ -790,8 +800,9 @@ def test_stale_agent_back_anchor_falls_through_to_first_hint() -> None:
     handled = app._handle_entry_jump_key("apostrophe")
 
     assert handled is True
-    assert app._current_group_key == ("alpha",)
-    assert app.current_idx == 1
+    assert app._current_group_key is None
+    assert app._expanded_panel_focus is True
+    assert app.current_idx == 0
     assert app._entry_jump_agents_anchor_stack == [("agent", 1, None)]
 
 
@@ -807,8 +818,9 @@ def test_stale_agent_banner_anchor_falls_through_to_first_hint() -> None:
 
     app.action_jump_to_entry_fast()
 
-    assert app._current_group_key == ("alpha",)
-    assert app.current_idx == 1
+    assert app._current_group_key is None
+    assert app._expanded_panel_focus is True
+    assert app.current_idx == 0
     assert app._entry_jump_agents_anchor_stack == [("agent", 1, None)]
 
 

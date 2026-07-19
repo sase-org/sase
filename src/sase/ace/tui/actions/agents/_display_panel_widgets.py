@@ -255,6 +255,14 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
             if getattr(self, "_entry_jump_mode_active", False)
             else None
         )
+        if not getattr(self, "_entry_jump_mode_active", False) and getattr(
+            self, "_panel_fold_hint_mode_active", False
+        ):
+            (
+                jump_hints,
+                banner_jump_hints,
+                panel_jump_hints,
+            ) = self._panel_fold_hint_display_maps()  # type: ignore[attr-defined]
 
         focused_idx = self._panel_group.focused_idx
         marked = self._marked_agents

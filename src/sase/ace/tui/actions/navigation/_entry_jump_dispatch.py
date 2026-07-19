@@ -119,8 +119,8 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
             target_panel_idx = None
             if panel_target is not None:
                 target_panel_idx = self._agents_jump_panel_idx_for_key(panel_target[1])
-                if target_panel_idx is None or panel_target[1] not in getattr(
-                    self, "_collapsed_panel_keys", set()
+                if target_panel_idx is None or getattr(
+                    self, "_agent_panels_grouped", False
                 ):
                     self._exit_entry_jump_mode()
                     return True
@@ -153,10 +153,20 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
             if panel_target is not None:
                 assert target_panel_idx is not None
                 panel_key = panel_target[1]
+                remember_selection = getattr(
+                    self, "_remember_focused_panel_selection", None
+                )
+                if (
+                    callable(remember_selection)
+                    and old_panel_focus is None
+                    and not old_panel_collapsed
+                ):
+                    remember_selection()
                 self._remember_agents_jump_origin_if_changed(
                     target_idx=None,
                     target_panel_key=panel_key,
                     target_group_key=None,
+                    target_is_panel=True,
                 )
                 if old_agent is not None:
                     arm_manual = getattr(
@@ -166,7 +176,9 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                         arm_manual(old_agent)
                 if target_panel_idx != self._panel_group.focused_idx:
                     self._panel_group.focused_idx = target_panel_idx
-                self._expanded_panel_focus = False
+                self._expanded_panel_focus = panel_key not in getattr(
+                    self, "_collapsed_panel_keys", set()
+                )
                 self._current_group_key = None
                 self.current_attempt_number = None
                 keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]

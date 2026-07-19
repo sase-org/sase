@@ -508,6 +508,14 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
                 if self._entry_jump_mode_active
                 else None
             )
+            if not self._entry_jump_mode_active and getattr(
+                self, "_panel_fold_hint_mode_active", False
+            ):
+                (
+                    jump_hints,
+                    banner_jump_hints,
+                    panel_jump_hints,
+                ) = self._panel_fold_hint_display_maps()  # type: ignore[attr-defined]
 
             self._refresh_panel_widgets(
                 jump_hints=jump_hints,

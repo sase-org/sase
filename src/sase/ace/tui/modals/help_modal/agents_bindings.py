@@ -158,7 +158,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'toggle_selected_agent_panels'))}",
-                    "Toggle selected panels by numeric hints",
+                    "Toggle visible folds by numeric hints",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_next_unread_done_agent'))}",

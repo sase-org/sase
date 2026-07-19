@@ -272,6 +272,27 @@ def test_collapsed_panel_hint_routes_by_key_in_full_and_selective_refreshes() ->
     assert getattr(banana.border_title, "plain", "") == "▸ @banana · 1 [R1]"
 
 
+def test_expanded_panel_jump_hint_routes_by_key_in_full_and_selective_refreshes() -> (
+    None
+):
+    agents = _three_panel_agents()
+    app = _FakeApp(agents, option_counts=[2, 4, 6], container_height=30)
+    target = ("panel", "banana")
+
+    app._refresh_panel_widgets(
+        jump_hints=None,
+        panel_jump_hints={target: "7"},
+    )
+
+    banana = app._panel_widgets["agent-list-panel-2"]
+    assert getattr(banana.border_title, "plain", "") == "[7] @banana · 1 [R1]"
+
+    app._entry_jump_mode_active = True
+    app._entry_jump_panel_to_hint = {target: "x"}
+    assert app._refresh_affected_panel_widgets({"banana"}) is True
+    assert getattr(banana.border_title, "plain", "") == "[x] @banana · 1 [R1]"
+
+
 def test_full_rebuild_focus_class_tracks_focused_panel_key() -> None:
     agents = _three_panel_agents()
     app = _FakeApp(

@@ -40,6 +40,7 @@ if TYPE_CHECKING:
         MemberJumpMap,
     )
     from .agents._fold_persistence import AgentFoldIntent
+    from .agents._panel_hint_folding import FoldHintTarget
     from .navigation._types import JumpAllResult
     from sase.core.agent_group_archive_wire import SavedAgentGroupWire
     from sase.core.query_corpus_facade import QueryCorpus
@@ -515,12 +516,13 @@ class StateInitMixin:
         self._panel_selection_memory: dict[
             PanelKey, tuple[str, int | tuple[str, ...]]
         ] = {}
-        # Numeric, set-oriented panel folding mode (leader ``,H``).  Its maps
+        # Numeric, set-oriented fold mode (leader ``,H``). Its maps cover
+        # panel titles, group banners, and structural/workflow row owners and
         # are deliberately separate from file hints and apostrophe jump hints.
         self._panel_fold_hint_mode_active = False
-        self._panel_fold_hint_snapshot: tuple[PanelKey, ...] = ()
-        self._panel_fold_hint_to_key: dict[int, PanelKey] = {}
-        self._panel_fold_key_to_hint: dict[PanelKey, int] = {}
+        self._panel_fold_hint_snapshot: tuple[FoldHintTarget, ...] = ()
+        self._panel_fold_hint_to_target: dict[int, FoldHintTarget] = {}
+        self._panel_fold_target_to_hint: dict[FoldHintTarget, int] = {}
         self._agents_fold_state_load_started = False
         self._agents_fold_state_load_resolved = False
         self._agents_fold_state_loaded_snapshot: AgentsFoldStateSnapshot | None = None

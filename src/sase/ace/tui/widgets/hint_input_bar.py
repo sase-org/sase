@@ -151,9 +151,9 @@ class HintInputBar(Static):
                     id="hint-input",
                 )
             elif self.mode == "panels":
-                yield Label("Panels: ", id="hint-label")
+                yield Label("Folds: ", id="hint-label")
                 yield _HintInput(
-                    placeholder="1-3 or 1 3 (toggle panels)",
+                    placeholder="1-3 or 1 3 (toggle folds)",
                     id="hint-input",
                 )
             elif self.mode == "rewind":
@@ -189,7 +189,7 @@ class HintInputBar(Static):
         elif self.mode == "failed_hooks":
             text.append("Failed Hooks: ", style="bold #87D7FF")
         elif self.mode == "panels":
-            text.append("Panels: ", style="bold #87D7FF")
+            text.append("Folds: ", style="bold #87D7FF")
         else:
             text.append("Hooks: ", style="bold #87D7FF")
         return text

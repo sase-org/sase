@@ -354,11 +354,7 @@ def build_list(
                 if banner_seq < len(banner_tier_styles)
                 else ()
             )
-            banner_hint = (
-                (banner_jump_hints or {}).get(entry.group.group_key)
-                if banner_selectable
-                else None
-            )
+            banner_hint = (banner_jump_hints or {}).get(entry.group.group_key)
             mark_state = (
                 _banner_mark_state(entry.group, agents, marked)
                 if banner_selectable

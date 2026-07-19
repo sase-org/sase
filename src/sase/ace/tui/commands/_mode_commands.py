@@ -74,7 +74,7 @@ _LEADER_LABELS: dict[str, str] = {
     "agent_home": "Agent (home mode)",
     "agent_from_cl": "Agent from PR (quick)",
     "toggle_agent_panel_grouping": "Toggle agent panel grouping",
-    "toggle_selected_agent_panels": "Toggle selected agent panels",
+    "toggle_selected_agent_panels": "Toggle visible agent folds",
     "jump_to_next_unread_done_agent": "Jump to next unread completed agent",
     "jump_to_next_stopped_agent": "Jump to next stopped agent",
     "full_history_refresh": "Refresh Agents from full history",

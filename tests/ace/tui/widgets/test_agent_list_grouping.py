@@ -109,6 +109,21 @@ def test_banner_options_are_disabled() -> None:
     assert options[2].disabled is False
 
 
+def test_expanded_banner_renders_fold_hint_while_remaining_disabled() -> None:
+    widget = AgentList()
+    widget.update_list(
+        [make_agent()],
+        current_idx=0,
+        banner_jump_hints={("repo",): "1", ("repo", "demo"): "2"},
+    )
+
+    options = list(widget._options)
+    assert options[0].disabled is True
+    assert options[0].prompt.plain.startswith("[1] ")  # type: ignore[union-attr]
+    assert options[1].disabled is True
+    assert "[2] " in options[1].prompt.plain  # type: ignore[union-attr]
+
+
 def test_banner_label_renders_separately_for_project_and_changespec() -> None:
     widget = AgentList()
     widget.update_list(

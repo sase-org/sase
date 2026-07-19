@@ -109,7 +109,9 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         )
         selection_hint = None
         if getattr(self, "_panel_fold_hint_mode_active", False):
-            selection_hint = getattr(self, "_panel_fold_key_to_hint", {}).get(key)
+            selection_hint = getattr(self, "_panel_fold_target_to_hint", {}).get(
+                ("panel", key)
+            )
         counts = agent_panel_counts(panel_agents, unread)
         return agent_panel_border_title(
             key,
@@ -119,9 +121,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             collapsed=panel_collapsed,
             selected=selected_expanded,
             jump_hint=(
-                panel_jump_hints.get(("panel", key))
-                if panel_collapsed and panel_jump_hints
-                else None
+                panel_jump_hints.get(("panel", key)) if panel_jump_hints else None
             ),
             selection_hint=selection_hint,
         )

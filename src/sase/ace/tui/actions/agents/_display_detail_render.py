@@ -218,7 +218,7 @@ class AgentDetailRenderMixin:
         return (
             self.current_tab == "agents"
             and bool(getattr(self, "_hint_mode_active", False))
-            and getattr(self, "_hint_mode_hints_for", None) != "panels"
+            and getattr(self, "_hint_mode_hints_for", None) not in {"panels", "folds"}
         )
 
     def _render_agent_detail_with_hints(

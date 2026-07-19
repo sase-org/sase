@@ -193,9 +193,12 @@ def test_agent_detail_refresh_uses_plain_render_when_hint_mode_inactive() -> Non
     assert app.footer_updates == [app.agent]
 
 
-def test_panel_hint_mode_keeps_agent_detail_free_of_file_hints() -> None:
+@pytest.mark.parametrize("hint_namespace", ["panels", "folds"])
+def test_fold_hint_mode_keeps_agent_detail_free_of_file_hints(
+    hint_namespace: str,
+) -> None:
     app = _FakeApp(hint_mode_active=True)
-    app._hint_mode_hints_for = "panels"
+    app._hint_mode_hints_for = hint_namespace
 
     app._apply_agent_detail_update(app.detail, app.footer)  # type: ignore[arg-type]
 

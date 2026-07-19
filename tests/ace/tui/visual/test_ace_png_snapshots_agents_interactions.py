@@ -314,17 +314,18 @@ async def test_agents_collapsed_panel_png_snapshot(
 
         normal_width = collapsed_widget._requested_width
         await page.press("apostrophe")
+        collapsed_jump_hint = page.app._entry_jump_panel_to_hint[("panel", "chop")]
         await page.wait_for(
             lambda _screen: Text.from_markup(
                 collapsed_widget.border_title
-            ).plain.startswith("[3] ▸ ")
+            ).plain.startswith(f"[{collapsed_jump_hint}] ▸ ")
         )
         await wait_for_visual_idle(page)
         assert page.app._entry_jump_mode_active is True
         assert collapsed_widget._requested_width == normal_width + 4
         assert (
             Text.from_markup(collapsed_widget.border_title).plain
-            == "[3] ▸ @chop · 2 [R1 W1]"
+            == f"[{collapsed_jump_hint}] ▸ @chop · 2 [R1 W1]"
         )
         _assert_collapsed_panel_summary(page)
 
@@ -351,20 +352,26 @@ async def test_agents_collapsed_panel_png_snapshot(
             Text.from_markup(widget.border_title).plain
             for widget in container.query("AgentList")
         ]
-        assert panel_titles[0].startswith("[1] ")
-        assert panel_titles[1].startswith("[2] ")
-        assert panel_titles[2].startswith("[3] ▸ ")
-        await wait_for_svg_contains(page, "Panels:")
+        fold_hints = page.app._panel_fold_target_to_hint
+        for panel_idx, panel_key in enumerate(page.app._panel_group.panel_keys):
+            hint = fold_hints[("panel", panel_key)]
+            collapsed_marker = (
+                "▸ " if panel_key in page.app._collapsed_panel_keys else ""
+            )
+            assert panel_titles[panel_idx].startswith(f"[{hint}] {collapsed_marker}")
+        await wait_for_svg_contains(page, "Folds:")
         await wait_for_visual_idle(page)
         _assert_collapsed_panel_summary(page)
 
         ace_png_visual.assert_page_png(
             page,
             "agents_panel_fold_selection_120x40",
-            title="ACE agents panel fold selection",
+            title="ACE agents unified fold hints",
         )
 
-        hint_input.value = "1 3"
+        hint_input.value = " ".join(
+            str(fold_hints[target]) for target in (("panel", None), ("panel", "chop"))
+        )
         await page.press("enter")
         await page.wait_for(lambda _screen: not page.app._panel_fold_hint_mode_active)
         await wait_for_visual_idle(page)

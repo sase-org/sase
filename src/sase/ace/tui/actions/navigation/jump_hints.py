@@ -10,7 +10,7 @@ from ...models.agent_panels import PanelKey
 JUMP_HINT_CHARS = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 # Agents-tab jump targets distinguish a global agent index, a panel-scoped
-# banner identity, and a stable-key collapsed panel header. ChangeSpecs and AXE
+# banner identity, and a stable-key panel header. ChangeSpecs and AXE
 # tabs continue to pass plain ints — the generic map builder accepts hashables.
 AgentJumpTarget = tuple[Literal["agent"], int]
 BannerJumpTarget = tuple[Literal["banner"], int, tuple[str, ...]]

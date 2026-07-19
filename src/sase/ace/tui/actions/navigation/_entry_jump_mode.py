@@ -84,7 +84,7 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._refresh_current_tab()  # type: ignore[attr-defined]
 
     def _prepare_agents_jump_maps(self) -> bool:
-        """Allocate agent-row, banner, and collapsed-panel hints without rendering."""
+        """Allocate agent-row, banner, and panel-title hints without rendering."""
         guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
         if callable(guard) and guard():
             return False
@@ -160,8 +160,9 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
 
         Walks each tag panel's grouping tree (mirroring
         :func:`_refresh_panel_widgets`) so hint characters march down the
-        screen in the same order they're rendered.  Collapsed whole panels
-        contribute ``("panel", panel_key)`` targets and skip their hidden tree;
+        screen in the same order they're rendered. Every split-panel title
+        contributes a ``("panel", panel_key)`` target; collapsed panels skip
+        their hidden tree, while expanded panels continue with their rows.
         collapsed in-panel banners contribute panel-scoped banner targets.
         """
         from ...models.agent_groups import GroupingMode, build_agent_tree
@@ -172,10 +173,12 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         panel_group = getattr(self, "_panel_group", None)
         panel_keys = panel_group.panel_keys if panel_group is not None else [None]
         collapsed_keys: set[str | None] = getattr(self, "_collapsed_panel_keys", set())
+        split_panels = not getattr(self, "_agent_panels_grouped", False)
         targets: list[JumpTarget] = []
         for panel_idx, key in enumerate(panel_keys):
-            if key in collapsed_keys:
+            if split_panels:
                 targets.append(("panel", key))
+            if key in collapsed_keys:
                 continue
             registry = panel_fold_registry(self, key)
             global_indices, panel_agents = rendered_panel_slice(self, key)
