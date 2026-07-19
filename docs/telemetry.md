@@ -1,8 +1,9 @@
 # Telemetry
 
-SASE records metric history locally and renders it directly in terminal interfaces. No network service is required:
-instrumented processes accumulate metric deltas in memory, periodically flush them to a SQLite store through the Rust
-core, and query the same store for the CLI and the Admin Center Telemetry tab.
+SASE records debugging and health metric history locally. No network service is required: instrumented processes
+accumulate metric deltas in memory, periodically flush them to a SQLite store through the Rust core, and query the same
+store through the telemetry diagnostics CLI. Historical product-usage questions are answered by the Admin Center's
+Statistics tab from durable run and activity records instead of this short-lived metric store.
 
 Telemetry is enabled by default. Set `telemetry.enabled: false` to opt out; instrumentation then remains connected to
 lightweight no-op stubs and no samples are written.
@@ -21,9 +22,7 @@ sase_core_rs telemetry bindings
         v
 ~/.sase/telemetry/metrics.sqlite
         |
-        +---- sase telemetry CLI
-        |
-        +---- Admin Center > Telemetry
+        +---- sase telemetry health/list/snapshot/status
 ```
 
 Counters and histograms flush only the delta accumulated since the previous write. Gauges flush their latest value with
@@ -74,13 +73,13 @@ and database are created when the first batch is recorded.
 
 ### Retention and rollups
 
-Raw samples support the highest-resolution recent graphs. As raw data ages, the store folds it into five-minute and
-hourly rollups; range queries choose the appropriate resolution transparently. Retention pruning is opportunistic on
-writes, so a read-only command never performs cleanup.
+Raw samples support recent health queries. As raw data ages, the store folds it into five-minute and hourly rollups;
+range queries choose the appropriate resolution transparently. Retention pruning is opportunistic on writes, so a
+read-only command never performs cleanup.
 
 ## CLI commands
 
-With no subcommand, `sase telemetry` delegates to `sase telemetry list`.
+With no subcommand, `sase telemetry` prints a delegation notice and runs `sase telemetry list`.
 
 ### `sase telemetry status`
 
@@ -122,41 +121,6 @@ sase telemetry snapshot -s "LLM Provider"
 | `-f, --format`    | `rich`, `json` | `rich`  | Output format.             |
 | `-s, --subsystem` | subsystem name | all     | Restrict returned metrics. |
 
-### `sase telemetry dashboard`
-
-Open a live Rich dashboard backed by range and instant queries. It shows a stat-tile strip and a subsystem-specific
-chart grid; charts are always available when samples exist.
-
-```bash
-sase telemetry dashboard
-sase telemetry dashboard -r 24h
-sase telemetry dashboard -s llm -i 10
-```
-
-| Flag              | Values                                                                           | Default  | Meaning          |
-| ----------------- | -------------------------------------------------------------------------------- | -------- | ---------------- |
-| `-i, --interval`  | seconds                                                                          | `5`      | Refresh cadence. |
-| `-r, --range`     | `15m`, `1h`, `6h`, `24h`, `7d`                                                   | `1h`     | Query window.    |
-| `-s, --subsystem` | `agents`, `axe`, `beads`, `hooks`, `llm`, `memory`, `notifications`, `workspace` | `agents` | Chart set.       |
-
-### `sase telemetry graph`
-
-Render one metric as a one-shot, pipeable terminal chart. A metric may be named by its wire name or catalog attribute.
-
-```bash
-sase telemetry graph sase_agent_runs_total
-sase telemetry graph AGENT_RUNS -r 24h -g status -a rate
-sase telemetry graph sase_llm_input_tokens_total -g provider -w 100 -n
-```
-
-| Flag                | Meaning                                                            |
-| ------------------- | ------------------------------------------------------------------ |
-| `-a, --aggregation` | `sum`, `rate`, `avg`, `min`, `max`, `count`, `quantile`, or `pNN`. |
-| `-g, --group-by`    | Comma-separated metric labels rendered as separate series.         |
-| `-n, --no-color`    | Disable ANSI colors.                                               |
-| `-r, --range`       | `15m`, `1h`, `6h`, `24h`, or `7d`; default `1h`.                   |
-| `-w, --width`       | Chart width in terminal cells; minimum 20, default 80.             |
-
 ### `sase telemetry health`
 
 Assess the last hour of data using the configured error-rate, retry-rate, and p95 thresholds. Rich output is the
@@ -169,48 +133,52 @@ sase telemetry health -j
 
 Exit codes are `0` for healthy, `1` for degraded/WARN, and `2` for CRITICAL.
 
-## Admin Center Telemetry tab
+## Admin Center Statistics tab
 
-Open the SASE Admin Center with `#` or the command palette, then select **Telemetry**. The tab shares the CLI chart
-renderers and local query adapter. It loads only when opened, runs store queries off the UI thread, and refreshes every
-10 seconds while visible.
+Open the SASE Admin Center with `#` or the command palette, then select **Statistics**. Its Overview, Runs, Providers,
+Runtime, Activity, and Plans & Questions views aggregate durable agent records over preset or custom time ranges. It
+loads only while visible, performs aggregation off the UI thread, and refreshes every 30 seconds.
 
-| Key | Action                                    |
-| --- | ----------------------------------------- |
-| `s` | Cycle subsystem chart sets.               |
-| `t` | Cycle `15m`, `1h`, `6h`, `24h`, and `7d`. |
-| `r` | Refresh immediately.                      |
+| Key     | Action                                            |
+| ------- | ------------------------------------------------- |
+| `[`/`]` | Cycle statistic views.                            |
+| `t`     | Cycle Today, 24h, 7d, 30d, 90d, and All.          |
+| `c`     | Enter a custom absolute or relative time range.   |
+| `g`     | Cycle the grouping dimension in the Runtime view. |
+| `r`     | Refresh immediately.                              |
 
-Override these focused-pane bindings under `ace.keymaps.telemetry`; the effective keys are reflected in the pane's hint
+Override these focused-pane bindings under `ace.keymaps.statistics`; the effective keys are reflected in the pane's hint
 bar:
 
 ```yaml
 ace:
   keymaps:
-    telemetry:
-      cycle_subsystem: "f12"
-      cycle_range: "f11"
-      refresh: "f10"
+    statistics:
+      prev_view: "["
+      next_view: "]"
+      cycle_range: "t"
+      custom_range: "c"
+      cycle_group: "g"
+      refresh: "r"
 ```
 
 The bindings are inactive on every other Admin Center tab and may safely overlap global app keys.
 
-The pane shows loading, empty-store, disabled, and query-error states directly instead of leaving blank charts.
+The pane shows loading, empty-range, and query-error states directly instead of leaving a blank view.
 
 ## Metric catalog and integration
 
-The catalog currently contains 37 counters, gauges, and histograms across eight groups: Agent Lifecycle, LLM Provider,
-Axe Orchestrator, Hooks/Mentors/Workflows, Beads, VCS/Workspace, Notifications, and Memory. Run `sase telemetry list`
-for the authoritative metric names, kinds, and labels.
+The catalog contains 27 counters, gauges, and histograms across five groups: Agent Lifecycle, LLM Provider, Axe
+Orchestrator, Hooks/Mentors/Workflows, and VCS/Workspace. Run `sase telemetry list` for the authoritative metric names,
+kinds, and labels.
 
-Instrumentation lives at the normal subsystem boundaries: agent runner setup/finalization, LLM invocation, axe and
-lumberjack loops, hook and mentor runners, bead and workspace operations, notification delivery, and memory proposal
-review. Call sites keep the stable `.labels().inc()`, `.observe()`, and `.set()` API regardless of whether recording is
-enabled.
+Instrumentation remains at debugging and health boundaries: agent runner setup/finalization, LLM invocation, axe and
+lumberjack loops, hook and mentor runners, VCS operations, active-workspace tracking, and zombie detection. Call sites
+keep the stable `.labels().inc()`, `.observe()`, and `.set()` API regardless of whether recording is enabled.
 
 ## Migration from the external stack
 
 The bundled Docker Compose, Grafana, Prometheus, and Pushgateway stack has been removed. Existing exported stacks are no
 longer used by SASE and may be stopped and deleted independently. Legacy `telemetry.prometheus` configuration is
-accepted but ignored; remove it when convenient. Historical data from the old stack is not imported, so local charts
-begin with samples recorded after upgrading.
+accepted but ignored; remove it when convenient. Historical data from the old stack is not imported, so local telemetry
+begins with samples recorded after upgrading.

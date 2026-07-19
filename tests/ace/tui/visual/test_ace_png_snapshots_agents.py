@@ -938,6 +938,7 @@ async def test_agent_output_variables_multi_agent_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "OUTPUT VARIABLES")
+        assert_page_svg_contains(page, "· 4")
         assert_page_svg_contains(page, "build_report")
         assert_page_svg_contains(page, "answer_path")
         ace_png_visual.assert_page_png(

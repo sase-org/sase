@@ -6,7 +6,7 @@ shared across all git-based VCS plugins.
 
 import os
 
-from sase.telemetry.metrics import VCS_COMMITS, VCS_OPERATIONS
+from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
 
@@ -105,8 +105,6 @@ class GitCoreOpsMixin(CommandRunner):
         VCS_OPERATIONS.labels(
             provider=self._provider_name, operation="commit", status=status
         ).inc()
-        if result[0]:
-            VCS_COMMITS.labels(provider=self._provider_name, type="create").inc()
         return result
 
     @hookimpl
@@ -119,8 +117,6 @@ class GitCoreOpsMixin(CommandRunner):
         VCS_OPERATIONS.labels(
             provider=self._provider_name, operation="amend", status=status
         ).inc()
-        if result[0]:
-            VCS_COMMITS.labels(provider=self._provider_name, type="amend").inc()
         return result
 
     # --- Branch / rebase / archive ---

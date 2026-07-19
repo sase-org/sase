@@ -23,11 +23,7 @@ from sase.running_field._model import (
     WorkspaceClaim,
     WorkspaceClaimError,
 )
-from sase.telemetry.metrics import (
-    WORKSPACE_ACQUISITIONS,
-    WORKSPACE_ACTIVE,
-    WORKSPACE_RELEASES,
-)
+from sase.telemetry.metrics import WORKSPACE_ACTIVE
 
 
 def _project_name_from_file(project_file: str) -> str:
@@ -147,7 +143,6 @@ def claim_workspace(
                     f"Claim workspace #{workspace_num} ({workflow}){cl_part}",
                 )
                 project = os.path.splitext(os.path.basename(project_file))[0]
-                WORKSPACE_ACQUISITIONS.labels(project=project).inc()
                 WORKSPACE_ACTIVE.labels(project=project).inc()
                 return ClaimResult(success=True)
         except (OSError, BlockingIOError) as exc:
@@ -258,7 +253,6 @@ def release_workspace(
                 f"Release workspace #{workspace_num}",
             )
             project = os.path.splitext(os.path.basename(project_file))[0]
-            WORKSPACE_RELEASES.labels(project=project).inc()
             WORKSPACE_ACTIVE.labels(project=project).dec()
             return ClaimResult(success=True)
     except (OSError, BlockingIOError) as exc:
@@ -591,7 +585,6 @@ def claim_next_axe_workspace(
                     f"Claim workspace #{workspace_num} ({workflow}){cl_part}",
                 )
                 project = os.path.splitext(os.path.basename(project_file))[0]
-                WORKSPACE_ACQUISITIONS.labels(project=project).inc()
                 WORKSPACE_ACTIVE.labels(project=project).inc()
                 return workspace_num
         except WorkspaceClaimError:

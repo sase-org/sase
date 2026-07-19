@@ -9,7 +9,7 @@ import os
 from typing import TYPE_CHECKING
 
 from sase.bead.project import BEADS_DIRNAME
-from sase.telemetry.metrics import VCS_COMMITS, VCS_OPERATIONS
+from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
 
@@ -371,7 +371,6 @@ class GitCommitDispatchMixin(CommandRunner):
 
         rev = self._run(["git", "rev-parse", "--short", "HEAD"], cwd)
         commit_hash = rev.stdout.strip() if rev.success else None
-        VCS_COMMITS.labels(provider=self._provider_name, type="create").inc()
         VCS_OPERATIONS.labels(
             provider=self._provider_name, operation="create_commit", status="ok"
         ).inc()

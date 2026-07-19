@@ -135,32 +135,6 @@ def _apply_mutation_side_effects(
     except Exception:
         pass
 
-    try:
-        from sase.telemetry.metrics import BEAD_OPERATIONS, BEAD_STATUS_TRANSITIONS
-
-        metric_operation = {
-            "create": "create",
-            "update": "update",
-            "open": "update",
-            "close": "close",
-        }.get(operation)
-        transitions = mutation_summary.get("status_transitions") or []
-        count = len(transitions) if operation == "close" else 1
-        if metric_operation:
-            BEAD_OPERATIONS.labels(operation=metric_operation).inc(count)
-        for transition in transitions:
-            if not isinstance(transition, dict):
-                continue
-            from_status = str(transition.get("from_status") or "")
-            to_status = str(transition.get("to_status") or "")
-            if from_status and to_status:
-                BEAD_STATUS_TRANSITIONS.labels(
-                    from_status=from_status,
-                    to_status=to_status,
-                ).inc()
-    except Exception:
-        pass
-
 
 def _mutation_commit_message(operation: str, issue_ids: list[str]) -> str | None:
     if operation == "create" and issue_ids:

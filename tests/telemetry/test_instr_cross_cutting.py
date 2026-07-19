@@ -68,11 +68,9 @@ class TestCrossCutting:
 
     def test_gauge_set_overwrites_previous(self) -> None:
         reg = init_enabled()
-        m.BEAD_ACTIVE.labels(project="p", status="open").set(10)
-        m.BEAD_ACTIVE.labels(project="p", status="open").set(7)
-        assert (
-            sample(reg, "sase_bead_active", {"project": "p", "status": "open"}) == 7.0
-        )
+        m.WORKSPACE_ACTIVE.labels(project="p").set(10)
+        m.WORKSPACE_ACTIVE.labels(project="p").set(7)
+        assert sample(reg, "sase_workspace_active", {"project": "p"}) == 7.0
 
     def test_histogram_time_context_manager(self) -> None:
         reg = init_enabled()

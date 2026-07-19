@@ -1283,9 +1283,9 @@ When usage is available, input tokens, output tokens, cache-creation tokens, and
 }
 ```
 
-When telemetry is enabled, token counts are recorded as local counters (`sase_llm_input_tokens_total`,
-`sase_llm_output_tokens_total`, `sase_llm_cache_read_tokens_total`) for terminal charts and dashboards. See
-[docs/telemetry.md](telemetry.md) for the full telemetry reference.
+When telemetry is enabled, token counts are recorded as local debugging counters (`sase_llm_input_tokens_total`,
+`sase_llm_output_tokens_total`, `sase_llm_cache_read_tokens_total`). See [docs/telemetry.md](telemetry.md) for the full
+telemetry reference.
 
 Source: `src/sase/llm_provider/_subprocess.py`, `src/sase/llm_provider/types.py`
 

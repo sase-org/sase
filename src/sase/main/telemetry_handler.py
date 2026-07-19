@@ -10,18 +10,6 @@ def handle_telemetry_command(args: argparse.Namespace) -> None:
     """Dispatch to the appropriate telemetry sub-handler."""
     sub = getattr(args, "telemetry_subcommand", None)
 
-    if sub == "dashboard":
-        from sase.telemetry.cli_dashboard import handle_telemetry_dashboard
-
-        handle_telemetry_dashboard(args)
-        sys.exit(0)
-
-    if sub == "graph":
-        from sase.telemetry.cli_graph import handle_telemetry_graph
-
-        handle_telemetry_graph(args)
-        sys.exit(0)
-
     if sub == "health":
         from sase.telemetry.cli_health import handle_telemetry_health
 
@@ -46,5 +34,5 @@ def handle_telemetry_command(args: argparse.Namespace) -> None:
         handle_telemetry_status()
         sys.exit(0)
 
-    print("Usage: sase telemetry {dashboard,graph,health,list,snapshot,status}")
+    print("Usage: sase telemetry {health,list,snapshot,status}")
     sys.exit(1)

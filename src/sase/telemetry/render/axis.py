@@ -7,7 +7,7 @@ import textwrap
 from datetime import UTC, datetime, tzinfo
 from typing import Literal
 
-from rich.cells import cell_len, set_cell_size
+from rich.cells import set_cell_size
 from rich.text import Text
 
 from sase.telemetry.render.palette import DARK_THEME, ChartTheme
@@ -74,7 +74,7 @@ def format_bytes(value: float) -> str:
     return _format_scaled(value, ("B", "KiB", "MiB", "GiB", "TiB"), base=1024)
 
 
-def timestamp_seconds(value: Timestamp) -> float:
+def _timestamp_seconds(value: Timestamp) -> float:
     """Convert supported timestamps to Unix seconds deterministically."""
 
     if isinstance(value, datetime):
@@ -84,19 +84,12 @@ def timestamp_seconds(value: Timestamp) -> float:
     return float(value)
 
 
-def format_timestamp(value: Timestamp, *, timezone: tzinfo = UTC) -> str:
-    """Format an axis endpoint, including the date for non-today inputs."""
-
-    instant = datetime.fromtimestamp(timestamp_seconds(value), tz=timezone)
-    return instant.strftime("%m-%d %H:%M")
-
-
 def format_recording_started(value: Timestamp | None, *, timezone: tzinfo = UTC) -> str:
     """Build the shared labeled empty-state sentence."""
 
     if value is None:
         return "no samples in range"
-    instant = datetime.fromtimestamp(timestamp_seconds(value), tz=timezone)
+    instant = datetime.fromtimestamp(_timestamp_seconds(value), tz=timezone)
     return (
         "no samples in range — telemetry began recording "
         f"{instant.strftime('%Y-%m-%d %H:%M %Z')}"
@@ -126,56 +119,6 @@ def empty_state(
     else:
         bounded = set_cell_size(message, max(1, width))
     return Text(bounded, style=f"italic {theme.empty}", justify="center")
-
-
-def normalize_bounds(
-    values: list[float],
-    *,
-    lower: float | None = None,
-    upper: float | None = None,
-) -> tuple[float, float]:
-    """Return safe chart bounds, expanding constant ranges."""
-
-    finite = [value for value in values if math.isfinite(value)]
-    low = lower if lower is not None else min(finite, default=0.0)
-    high = upper if upper is not None else max(finite, default=1.0)
-    if not math.isfinite(low) or not math.isfinite(high):
-        return (0.0, 1.0)
-    if low > high:
-        low, high = high, low
-    if low == high:
-        padding = max(abs(low) * 0.05, 1.0)
-        low -= padding
-        high += padding
-    return low, high
-
-
-def scale(value: float, low: float, high: float, extent: int) -> int:
-    """Scale and clip a value into an integer coordinate range."""
-
-    if extent <= 1 or high <= low:
-        return 0
-    ratio = min(1.0, max(0.0, (value - low) / (high - low)))
-    return round(ratio * (extent - 1))
-
-
-def endpoint_axis(
-    start: Timestamp,
-    end: Timestamp,
-    *,
-    width: int,
-    timezone: tzinfo = UTC,
-) -> str:
-    """Return a one-line time axis with fixed start and end labels."""
-
-    left = format_timestamp(start, timezone=timezone)
-    right = format_timestamp(end, timezone=timezone)
-    if width <= cell_len(left):
-        return set_cell_size(left, max(1, width))
-    if width < cell_len(left) + cell_len(right) + 1:
-        return set_cell_size(f"{left} {right}", width)
-    gap = " " * (width - cell_len(left) - cell_len(right))
-    return f"{left}{gap}{right}"
 
 
 def _format_compact(value: float) -> str:

@@ -57,11 +57,8 @@ def test_catalog_subsystem_derivation() -> None:
     assert by_attr["AXE_CYCLES"].subsystem == "Axe Orchestrator"
     assert by_attr["HOOK_EXECUTIONS"].subsystem == "Hooks / Mentors / Workflows"
     assert by_attr["MENTOR_EXECUTIONS"].subsystem == "Hooks / Mentors / Workflows"
-    assert by_attr["BEAD_OPERATIONS"].subsystem == "Beads"
-    assert by_attr["VCS_COMMITS"].subsystem == "VCS / Workspace"
+    assert by_attr["VCS_OPERATIONS"].subsystem == "VCS / Workspace"
     assert by_attr["WORKSPACE_ACTIVE"].subsystem == "VCS / Workspace"
-    assert by_attr["NOTIFICATIONS_SENT"].subsystem == "Notifications"
-    assert by_attr["MEMORY_PROPOSALS_PROPOSED"].subsystem == "Memory"
 
 
 def test_get_subsystems_returns_all_metrics() -> None:

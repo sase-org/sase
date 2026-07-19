@@ -47,20 +47,12 @@ def test_health_informational_subsystems() -> None:
         sample_count=5,
         input_tokens=5000,
         output_tokens=2000,
-        bead_active=2,
-        bead_operations=10,
         vcs_operations=3,
-        notifications_sent=4,
     )
 
     results = _assess_health(window, HealthThresholds())
 
-    assert {result.name for result in results} == {
-        "LLM Tokens",
-        "Beads",
-        "VCS",
-        "Notifications",
-    }
+    assert {result.name for result in results} == {"LLM Tokens", "VCS"}
     assert all(result.status == OK for result in results)
 
 

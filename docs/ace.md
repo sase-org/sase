@@ -1925,7 +1925,7 @@ the keybinding footer when the selected agent has one or more prior attempts.
 ## Custom Keymaps
 
 All TUI keybindings are configurable via the `ace.keymaps` section in `sase.yml`. You can remap app-level, gate-modal,
-and focused Telemetry-pane keys and define entirely new prefix-key modes.
+and focused Statistics-pane keys and define entirely new prefix-key modes.
 
 ### Remapping Built-in Keys
 
@@ -1940,20 +1940,23 @@ ace:
       show_notifications: "N" # Remap i → N
 ```
 
-### Remapping Telemetry Pane Keys
+### Remapping Statistics Pane Keys
 
-Override focused Telemetry bindings under `ace.keymaps.telemetry`:
+Override focused Statistics bindings under `ace.keymaps.statistics`:
 
 ```yaml
 ace:
   keymaps:
-    telemetry:
-      cycle_subsystem: "f12"
+    statistics:
+      prev_view: "left_square_bracket"
+      next_view: "right_square_bracket"
       cycle_range: "f11"
+      custom_range: "c"
+      cycle_group: "g"
       refresh: "f10"
 ```
 
-These keys dispatch only while the Admin Center Telemetry pane is focused. They may overlap app-level bindings without
+These keys dispatch only while the Admin Center Statistics pane is focused. They may overlap app-level bindings without
 creating a global conflict, and the pane's hint bar always shows the effective keys.
 
 ### Remapping Gate Modal Keys

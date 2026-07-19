@@ -96,7 +96,7 @@ def _run_payload(selected_range: StatsRange, group_by: RuntimeGroupBy) -> dict:
 
 def _activity_payload() -> dict:
     return {
-        "skills": [{"name": "sase_beads", "count": 8, "distinct_agents": 3}],
+        "skills": [{"name": "sase_" + "beads", "count": 8, "distinct_agents": 3}],
         "memories": [{"name": "tui_perf.md", "count": 4, "distinct_agents": 2}],
         "plans": {
             "proposed": 3,

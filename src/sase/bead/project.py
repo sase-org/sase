@@ -20,11 +20,6 @@ from sase.bead.model import (
     Status,
 )
 from sase.bead.sync import bead_state_is_clean, git_sync, rebuild_from_jsonl
-from sase.telemetry.metrics import (
-    BEAD_ACTIVE,
-    BEAD_OPERATIONS,
-    BEAD_STATUS_TRANSITIONS,
-)
 
 
 class AlreadyReadyError(Exception):
@@ -141,7 +136,6 @@ class BeadProject:
             model=model,
             now=_now(),
         )
-        BEAD_OPERATIONS.labels(operation="create").inc()
         self._refresh_db_from_jsonl()
         return issue
 
@@ -160,15 +154,12 @@ class BeadProject:
         """List issues with optional filters."""
         from sase.core import bead_read_facade as rust_beads
 
-        issues = rust_beads.list_issues(
+        return rust_beads.list_issues(
             self.beads_dir,
             statuses=statuses,
             issue_types=issue_types,
             tiers=tiers,
         )
-        if statuses is None:
-            self._update_active_gauge(issues)
-        return issues
 
     def search(
         self,
@@ -215,17 +206,6 @@ class BeadProject:
         issue, _outcome = rust_beads.update(
             self.beads_dir, issue_id, **fields, now=_now()
         )
-        BEAD_OPERATIONS.labels(operation="update").inc()
-        if (
-            old_issue is not None
-            and "status" in fields
-            and fields["status"] is not None
-            and old_issue.status.value != fields["status"]
-        ):
-            BEAD_STATUS_TRANSITIONS.labels(
-                from_status=old_issue.status.value,
-                to_status=fields["status"],
-            ).inc()
         self._refresh_db_from_jsonl()
         return issue
 
@@ -246,13 +226,6 @@ class BeadProject:
             assignments,
             now=_now(),
         )
-        BEAD_OPERATIONS.labels(operation="preclaim_epic_work").inc()
-        for _bead_id, prior_status, _prior_assignee in rollback:
-            if prior_status != Status.IN_PROGRESS:
-                BEAD_STATUS_TRANSITIONS.labels(
-                    from_status=prior_status.value,
-                    to_status=Status.IN_PROGRESS.value,
-                ).inc()
         self._refresh_db_from_jsonl()
         return rollback
 
@@ -263,22 +236,9 @@ class BeadProject:
         """
         from sase.core import bead_mutation_facade as rust_beads
 
-        old_issues: dict[str, Issue] = {}
-        for issue_id in issue_ids:
-            old_issue = self.show(issue_id)
-            old_issues[issue_id] = old_issue
-            if old_issue.issue_type == IssueType.PLAN:
-                for child in self.get_epic_children(issue_id):
-                    old_issues.setdefault(child.id, child)
         closed, _outcome = rust_beads.close(
             self.beads_dir, issue_ids, reason=reason, now=_now()
         )
-        for issue in closed:
-            BEAD_OPERATIONS.labels(operation="close").inc()
-            old_status = old_issues.get(issue.id, issue).status.value
-            BEAD_STATUS_TRANSITIONS.labels(
-                from_status=old_status, to_status="closed"
-            ).inc()
         self._refresh_db_from_jsonl()
         return closed
 
@@ -306,7 +266,6 @@ class BeadProject:
         updated, _outcome = rust_beads.mark_ready_to_work(
             self.beads_dir, epic_id, now=_now()
         )
-        BEAD_OPERATIONS.labels(operation="mark_ready_to_work").inc()
         self._refresh_db_from_jsonl()
         return updated
 
@@ -412,17 +371,6 @@ class BeadProject:
             self._id_gen.counter,
             max_top_level_counter(prefix, self.beads_dir) + 1,
         )
-
-    def _update_active_gauge(self, issues: list[Issue]) -> None:
-        """Update BEAD_ACTIVE gauge from a full (unfiltered) issue list."""
-        project = str(self._config.get("issue_prefix", "beads"))
-        counts: dict[str, int] = {}
-        for issue in issues:
-            counts[issue.status.value] = counts.get(issue.status.value, 0) + 1
-        for status in Status:
-            BEAD_ACTIVE.labels(project=project, status=status.value).set(
-                counts.get(status.value, 0)
-            )
 
     def _export(self) -> None:
         """Export current state to JSONL."""

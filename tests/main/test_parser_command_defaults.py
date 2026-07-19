@@ -32,6 +32,18 @@ def test_all_visible_subparser_help_entries_are_sorted() -> None:
         assert visible_commands == sorted(visible_commands), " ".join(path)
 
 
+def test_telemetry_only_exposes_debugging_and_health_commands() -> None:
+    """Product charts are absent while the debugging surface remains."""
+    parser = create_parser()
+    telemetry_action = next(
+        action
+        for path, action in walk_subparser_actions(parser)
+        if path == ("sase", "telemetry")
+    )
+
+    assert set(telemetry_action.choices) == {"health", "list", "snapshot", "status"}
+
+
 def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
     """Every command group with an exact ``list`` child parses bare as list."""
     parser = create_parser()

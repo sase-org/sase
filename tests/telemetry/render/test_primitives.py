@@ -1,4 +1,4 @@
-"""Low-level palette, axis, and braille-canvas tests."""
+"""Low-level palette and axis-formatter tests."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import pytest
 from sase.telemetry.render import (
     CATEGORICAL_COLORS,
     STATUS_COLORS,
-    BrailleCanvas,
     categorical_color,
     format_bytes,
     format_duration,
@@ -54,18 +53,3 @@ def test_recording_started_empty_state_is_clock_independent() -> None:
     assert format_recording_started(started) == (
         "no samples in range — telemetry began recording 2026-07-17 12:30 UTC"
     )
-
-
-def test_braille_canvas_dot_mapping_golden() -> None:
-    canvas = BrailleCanvas(2, 1)
-    for point in ((0, 0), (1, 1), (2, 2), (3, 3)):
-        canvas.set(*point)
-
-    assert canvas.render().plain == "⠑⢄"
-
-
-def test_braille_polyline_is_clipped_and_deterministic() -> None:
-    canvas = BrailleCanvas(4, 2)
-    canvas.draw_polyline([(-100, -100), (2, 5), (100, 100)])
-
-    assert canvas.render().plain == "⢣   \n ⠓⠤⣀"

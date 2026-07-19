@@ -32,9 +32,13 @@ def _seed_snapshot(store_path: Path) -> None:
             },
             {
                 "ts": 100,
-                "metric": "sase_bead_operations_total",
+                "metric": "sase_vcs_operations_total",
                 "kind": "counter",
-                "labels": {"operation": "create"},
+                "labels": {
+                    "provider": "git",
+                    "operation": "commit",
+                    "status": "ok",
+                },
                 "source": "cli-1",
                 "value": 5,
             },
@@ -65,7 +69,7 @@ def test_snapshot_rich_groups_local_values(
     output = _run_snapshot(store_path, capsys)
 
     assert "Agent Lifecycle" in output
-    assert "Beads" in output
+    assert "VCS / Workspace" in output
     assert "sase_agent_runs_total" in output
     assert "codex" in output
     assert "42" in output
@@ -77,10 +81,10 @@ def test_snapshot_subsystem_filter_is_case_insensitive(
     store_path = tmp_path / "metrics.sqlite"
     _seed_snapshot(store_path)
 
-    output = _run_snapshot(store_path, capsys, subsystem="beads")
+    output = _run_snapshot(store_path, capsys, subsystem="vcs / workspace")
 
-    assert "Beads" in output
-    assert "sase_bead_operations_total" in output
+    assert "VCS / Workspace" in output
+    assert "sase_vcs_operations_total" in output
     assert "Agent Lifecycle" not in output
 
 

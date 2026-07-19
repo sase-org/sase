@@ -13,24 +13,8 @@ from typing import Any
 from sase.telemetry._config import get_telemetry_config
 from sase.telemetry.catalog import get_catalog
 
-RANGE_SECONDS: dict[str, int] = {
-    "15m": 15 * 60,
-    "1h": 60 * 60,
-    "6h": 6 * 60 * 60,
-    "24h": 24 * 60 * 60,
-    "7d": 7 * 24 * 60 * 60,
-}
 
-STEP_SECONDS: dict[str, int] = {
-    "15m": 15,
-    "1h": 60,
-    "6h": 5 * 60,
-    "24h": 15 * 60,
-    "7d": 60 * 60,
-}
-
-
-def query_instant(
+def _query_instant(
     metric: str,
     *,
     kind: str | None = None,
@@ -114,7 +98,7 @@ def query_snapshot(*, now_ts: int | None = None) -> list[dict[str, Any]]:
     """Return every current catalog value in a stable, presentation-ready shape."""
     samples: list[dict[str, Any]] = []
     for info in get_catalog():
-        result = query_instant(
+        result = _query_instant(
             info.metric_name,
             kind=info.kind,
             now_ts=now_ts,
@@ -139,34 +123,8 @@ def query_snapshot(*, now_ts: int | None = None) -> list[dict[str, Any]]:
     )
 
 
-def resolve_metric(name: str) -> tuple[str, str] | None:
-    """Resolve a catalog metric by wire name or Python attribute name."""
-    normalized = name.lower()
-    for info in get_catalog():
-        if normalized in {info.metric_name.lower(), info.attr.lower()}:
-            return info.metric_name, info.kind
-    return None
-
-
-def parse_group_by(value: str | None) -> list[str]:
-    """Parse a comma-separated group-by value into stable unique labels."""
-    if not value:
-        return []
-    labels: list[str] = []
-    for raw in value.split(","):
-        label = raw.strip()
-        if label and label not in labels:
-            labels.append(label)
-    return labels
-
-
 __all__ = [
-    "RANGE_SECONDS",
-    "STEP_SECONDS",
-    "parse_group_by",
-    "query_instant",
     "query_range",
     "query_snapshot",
-    "resolve_metric",
     "store_stats",
 ]

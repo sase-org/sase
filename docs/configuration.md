@@ -297,9 +297,12 @@ ace:
     check_ttl_minutes: 10 # refresh latest-version checks at most this often
     recompute_interval_minutes: 60 # periodic full network recompute cadence
   keymaps:
-    telemetry:
-      cycle_subsystem: "s" # active only while Telemetry is focused
+    statistics:
+      prev_view: "left_square_bracket" # active only while Statistics is focused
+      next_view: "right_square_bracket"
       cycle_range: "t"
+      custom_range: "c"
+      cycle_group: "g"
       refresh: "r"
     app:
       next_changespec: "j"
@@ -366,15 +369,18 @@ All TUI keybindings are configurable. The `keymaps` section has four scopes:
 Gate keys are scoped to the active modal and may overlap app-level bindings. `activate_control` remains accepted as a
 deprecated alias for `submit_primary`.
 
-**`telemetry`** — Bindings active only while the Admin Center Telemetry pane is focused. The available actions are:
+**`statistics`** — Bindings active only while the Admin Center Statistics pane is focused. The available actions are:
 
-| Field             | Default | Description                             |
-| ----------------- | ------- | --------------------------------------- |
-| `cycle_subsystem` | `s`     | Cycle to the next subsystem chart set.  |
-| `cycle_range`     | `t`     | Cycle to the next telemetry time range. |
-| `refresh`         | `r`     | Refresh from the local telemetry store. |
+| Field          | Default                | Description                                    |
+| -------------- | ---------------------- | ---------------------------------------------- |
+| `prev_view`    | `left_square_bracket`  | Select the previous Statistics view.           |
+| `next_view`    | `right_square_bracket` | Select the next Statistics view.               |
+| `cycle_range`  | `t`                    | Cycle to the next statistics time range.       |
+| `custom_range` | `c`                    | Enter a custom statistics time range.          |
+| `cycle_group`  | `g`                    | Cycle the Runtime view's grouping dimension.   |
+| `refresh`      | `r`                    | Refresh from durable run and activity records. |
 
-Telemetry keys may overlap app-level bindings because they are registered on the focused pane, not globally.
+Statistics keys may overlap app-level bindings because they are registered on the focused pane, not globally.
 
 **`app`** — App-level keybindings. Each key is an action name mapped to a key string. See `src/sase/default_config.yml`
 for the full list of configurable actions and their defaults.
@@ -2288,11 +2294,11 @@ continuation; ordinary `%wait` consumers read it as a normal variable. See
 
 ### `sase telemetry`
 
-With no subcommand, `sase telemetry` defaults to `sase telemetry list`.
+With no subcommand, `sase telemetry` prints a delegation notice and runs `sase telemetry list`.
 
-| Flag         | Values                                                       | Default | Description          |
-| ------------ | ------------------------------------------------------------ | ------- | -------------------- |
-| _subcommand_ | `status`, `list`, `snapshot`, `dashboard`, `graph`, `health` | `list`  | Telemetry subcommand |
+| Flag         | Values                                 | Default | Description          |
+| ------------ | -------------------------------------- | ------- | -------------------- |
+| _subcommand_ | `health`, `list`, `snapshot`, `status` | `list`  | Telemetry subcommand |
 
 See [docs/telemetry.md](telemetry.md) for the full CLI reference including per-subcommand flags.
 

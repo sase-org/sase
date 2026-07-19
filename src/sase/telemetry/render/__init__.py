@@ -8,19 +8,10 @@ from sase.telemetry.render.axis import (
     format_duration,
     format_percentage,
     format_recording_started,
-    format_timestamp,
     format_tokens,
     format_value,
 )
 from sase.telemetry.render.bars import Bar, Orientation, render_bar_chart
-from sase.telemetry.render.braille import BrailleCanvas
-from sase.telemetry.render.line import (
-    LineSeries,
-    Point,
-    Series,
-    TimePoint,
-    render_line_chart,
-)
 from sase.telemetry.render.palette import (
     ADMIN_CENTER_ACCENTS,
     CATEGORICAL_COLORS,
@@ -48,14 +39,9 @@ __all__ = [
     "SPARK_BLOCKS",
     "STATUS_COLORS",
     "Bar",
-    "BrailleCanvas",
     "ChartTheme",
-    "LineSeries",
     "Orientation",
-    "Point",
-    "Series",
     "Status",
-    "TimePoint",
     "Timestamp",
     "ValueFormat",
     "categorical_color",
@@ -64,11 +50,9 @@ __all__ = [
     "format_duration",
     "format_percentage",
     "format_recording_started",
-    "format_timestamp",
     "format_tokens",
     "format_value",
     "render_bar_chart",
-    "render_line_chart",
     "render_sparkline",
     "render_stat_tile",
     "sparkline_glyphs",

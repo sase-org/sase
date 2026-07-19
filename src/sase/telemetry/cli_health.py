@@ -14,7 +14,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from sase.telemetry._config import HealthThresholds, get_telemetry_config
-from sase.telemetry.query import query_instant, query_range
+from sase.telemetry.query import query_range
 
 OK = "OK"
 WARN = "WARN"
@@ -50,10 +50,7 @@ class _HealthWindow:
     axe_restarts: float = 0.0
     hook_total: float = 0.0
     hook_retries: float = 0.0
-    bead_active: float = 0.0
-    bead_operations: float = 0.0
     vcs_operations: float = 0.0
-    notifications_sent: float = 0.0
     zombie_detections: float = 0.0
 
 
@@ -174,15 +171,9 @@ def _assess_health(
                 f"{window.zombie_detections:g} detected",
             )
         )
-    if window.bead_operations > 0 or window.bead_active > 0:
-        results.append(_SubsystemHealth("Beads", OK, f"{window.bead_active:g} active"))
     if window.vcs_operations > 0:
         results.append(
             _SubsystemHealth("VCS", OK, f"{window.vcs_operations:g} operations")
-        )
-    if window.notifications_sent > 0:
-        results.append(
-            _SubsystemHealth("Notifications", OK, f"{window.notifications_sent:g} sent")
         )
     return results
 
@@ -224,12 +215,6 @@ def _range_value(
     return sum(values), True
 
 
-def _instant_value(metric: str, *, now_ts: int) -> tuple[float, bool]:
-    result = query_instant(metric, kind="gauge", group_by=(), now_ts=now_ts)
-    values = [float(value.get("value", 0.0)) for value in result.get("values", [])]
-    return (sum(values), bool(values))
-
-
 def _collect_health_window(now_ts: int) -> _HealthWindow:
     start_ts = now_ts - _HEALTH_WINDOW_SECONDS
     sample_count = 0
@@ -250,9 +235,6 @@ def _collect_health_window(now_ts: int) -> _HealthWindow:
         quantile=0.95,
     )
     sample_count += int(present)
-    bead_active, present = _instant_value("sase_bead_active", now_ts=now_ts)
-    sample_count += int(present)
-
     agent_total = counter("sase_agent_runs_total")
     agent_errors = counter("sase_agent_runs_total", {"status": "error"})
     llm_total = counter("sase_llm_invocations_total")
@@ -265,9 +247,7 @@ def _collect_health_window(now_ts: int) -> _HealthWindow:
     axe_restarts = counter("sase_axe_lumberjack_restarts_total")
     hook_total = counter("sase_hook_executions_total")
     hook_retries = counter("sase_hook_retries_total")
-    bead_operations = counter("sase_bead_operations_total")
     vcs_operations = counter("sase_vcs_operations_total")
-    notifications_sent = counter("sase_notifications_sent_total")
     zombie_detections = counter("sase_zombie_detections_total")
 
     return _HealthWindow(
@@ -285,10 +265,7 @@ def _collect_health_window(now_ts: int) -> _HealthWindow:
         axe_restarts=axe_restarts,
         hook_total=hook_total,
         hook_retries=hook_retries,
-        bead_active=bead_active,
-        bead_operations=bead_operations,
         vcs_operations=vcs_operations,
-        notifications_sent=notifications_sent,
         zombie_detections=zombie_detections,
     )
 

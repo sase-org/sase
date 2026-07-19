@@ -69,9 +69,13 @@ def test_status_renders_local_details(
         [
             {
                 "ts": 100,
-                "metric": "sase_bead_operations_total",
+                "metric": "sase_vcs_operations_total",
                 "kind": "counter",
-                "labels": {"operation": "show"},
+                "labels": {
+                    "provider": "git",
+                    "operation": "commit",
+                    "status": "ok",
+                },
                 "source": "cli-1",
                 "value": 1,
             }

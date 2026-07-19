@@ -39,10 +39,7 @@ def test_list_shows_all_subsystems() -> None:
     assert "Agent Lifecycle" in output
     assert "LLM Provider" in output
     assert "Axe Orchestrator" in output
-    assert "Beads" in output
     assert "VCS / Workspace" in output
-    assert "Notifications" in output
-    assert "Memory" in output
 
 
 def test_list_shows_metric_names() -> None:
@@ -59,10 +56,10 @@ def test_list_shows_kind_labels() -> None:
 
 
 def test_list_filter_by_subsystem() -> None:
-    output = _capture_list(subsystem="Beads")
-    assert "Beads" in output
+    output = _capture_list(subsystem="VCS / Workspace")
+    assert "VCS / Workspace" in output
     assert "Agent Lifecycle" not in output
-    assert "BEAD_OPERATIONS" in output
+    assert "VCS_OPERATIONS" in output
 
 
 def test_list_filter_by_type() -> None:
@@ -79,6 +76,6 @@ def test_list_filter_no_match() -> None:
 
 
 def test_list_filter_subsystem_case_insensitive() -> None:
-    output = _capture_list(subsystem="beads")
-    assert "Beads" in output
-    assert "BEAD_OPERATIONS" in output
+    output = _capture_list(subsystem="vcs / workspace")
+    assert "VCS / Workspace" in output
+    assert "VCS_OPERATIONS" in output

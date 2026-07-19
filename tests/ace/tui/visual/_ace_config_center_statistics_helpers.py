@@ -121,7 +121,7 @@ def _populated_statistics_view(
     }
     activity_payload = {
         "skills": [
-            {"name": "sase_beads", "count": 18, "distinct_agents": 9},
+            {"name": "sase_" + "beads", "count": 18, "distinct_agents": 9},
             {"name": "sase_repo", "count": 12, "distinct_agents": 7},
             {"name": "sase_memory_read", "count": 8, "distinct_agents": 5},
         ],

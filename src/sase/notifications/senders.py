@@ -9,7 +9,6 @@ from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
 from sase.notifications.models import Notification, normalize_notification_tags
 from sase.notifications.store import append_notification
-from sase.telemetry.metrics import NOTIFICATIONS_SENT
 
 
 def notify_memory_proposed(proposal: Any) -> str:
@@ -31,7 +30,6 @@ def notify_memory_proposed(proposal: Any) -> str:
         tags=normalize_notification_tags(["memory"]),
     )
     append_notification(n)
-    NOTIFICATIONS_SENT.labels(type="memory_proposed", status="ok").inc()
     return notification_id
 
 
@@ -69,7 +67,6 @@ def notify_workflow_complete(
         tags=normalize_notification_tags(tags),
     )
     append_notification(n)
-    NOTIFICATIONS_SENT.labels(type="workflow_complete", status="ok").inc()
 
 
 def notify_sync_result(
@@ -89,7 +86,6 @@ def notify_sync_result(
         action_data={"changespec_name": cl_name, "project_file": project_file},
     )
     append_notification(n)
-    NOTIFICATIONS_SENT.labels(type="sync_result", status="ok").inc()
 
 
 def notify_mentors_complete(
@@ -132,7 +128,6 @@ def notify_mentors_complete(
         },
     )
     append_notification(n)
-    NOTIFICATIONS_SENT.labels(type="mentors_complete", status="ok").inc()
 
 
 def notify_axe_error_digest(
@@ -171,7 +166,6 @@ def notify_axe_error_digest(
         action_data={"error_report_path": str(digest_file)},
     )
     append_notification(n)
-    NOTIFICATIONS_SENT.labels(type="error_digest", status="ok").inc()
 
 
 def notify_hitl_request(
@@ -189,4 +183,3 @@ def notify_hitl_request(
         action_data={"artifacts_dir": artifacts_dir},
     )
     append_notification(n)
-    NOTIFICATIONS_SENT.labels(type="hitl_request", status="ok").inc()

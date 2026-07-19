@@ -55,32 +55,10 @@ WORKFLOW_DURATION: StubHistogram = StubHistogram()
 ZOMBIE_DETECTIONS: StubCounter = StubCounter()
 
 # ---------------------------------------------------------------------------
-# Beads
-# ---------------------------------------------------------------------------
-BEAD_OPERATIONS: StubCounter = StubCounter()
-BEAD_STATUS_TRANSITIONS: StubCounter = StubCounter()
-BEAD_ACTIVE: StubGauge = StubGauge()
-
-# ---------------------------------------------------------------------------
 # VCS / Workspace
 # ---------------------------------------------------------------------------
-VCS_COMMITS: StubCounter = StubCounter()
 VCS_OPERATIONS: StubCounter = StubCounter()
-WORKSPACE_ACQUISITIONS: StubCounter = StubCounter()
-WORKSPACE_RELEASES: StubCounter = StubCounter()
 WORKSPACE_ACTIVE: StubGauge = StubGauge()
-
-# ---------------------------------------------------------------------------
-# Notifications
-# ---------------------------------------------------------------------------
-NOTIFICATIONS_SENT: StubCounter = StubCounter()
-
-# ---------------------------------------------------------------------------
-# Memory Proposals
-# ---------------------------------------------------------------------------
-MEMORY_PROPOSALS_PROPOSED: StubCounter = StubCounter()
-MEMORY_PROPOSALS_APPROVED: StubCounter = StubCounter()
-MEMORY_PROPOSALS_REJECTED: StubCounter = StubCounter()
 
 
 # ---------------------------------------------------------------------------
@@ -293,40 +271,7 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         [],
         {},
     ),
-    # -- Beads --
-    (
-        "BEAD_OPERATIONS",
-        "counter",
-        "sase_bead_operations_total",
-        "Total bead operations",
-        ["operation"],
-        {},
-    ),
-    (
-        "BEAD_STATUS_TRANSITIONS",
-        "counter",
-        "sase_bead_status_transitions_total",
-        "Total bead status transitions",
-        ["from_status", "to_status"],
-        {},
-    ),
-    (
-        "BEAD_ACTIVE",
-        "gauge",
-        "sase_bead_active",
-        "Currently active beads",
-        ["project", "status"],
-        {},
-    ),
     # -- VCS / Workspace --
-    (
-        "VCS_COMMITS",
-        "counter",
-        "sase_vcs_commits_total",
-        "Total VCS commits",
-        ["provider", "type"],
-        {},
-    ),
     (
         "VCS_OPERATIONS",
         "counter",
@@ -336,61 +281,11 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         {},
     ),
     (
-        "WORKSPACE_ACQUISITIONS",
-        "counter",
-        "sase_workspace_acquisitions_total",
-        "Total workspace acquisitions",
-        ["project"],
-        {},
-    ),
-    (
-        "WORKSPACE_RELEASES",
-        "counter",
-        "sase_workspace_releases_total",
-        "Total workspace releases",
-        ["project"],
-        {},
-    ),
-    (
         "WORKSPACE_ACTIVE",
         "gauge",
         "sase_workspace_active",
         "Currently active workspaces",
         ["project"],
-        {},
-    ),
-    # -- Notifications --
-    (
-        "NOTIFICATIONS_SENT",
-        "counter",
-        "sase_notifications_sent_total",
-        "Total notifications sent",
-        ["type", "status"],
-        {},
-    ),
-    # -- Memory Proposals --
-    (
-        "MEMORY_PROPOSALS_PROPOSED",
-        "counter",
-        "sase_memory_proposals_proposed_total",
-        "Total long-term memory proposals created",
-        [],
-        {},
-    ),
-    (
-        "MEMORY_PROPOSALS_APPROVED",
-        "counter",
-        "sase_memory_proposals_approved_total",
-        "Total long-term memory proposals approved",
-        ["edited"],
-        {},
-    ),
-    (
-        "MEMORY_PROPOSALS_REJECTED",
-        "counter",
-        "sase_memory_proposals_rejected_total",
-        "Total long-term memory proposals rejected",
-        [],
         {},
     ),
 ]
