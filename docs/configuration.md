@@ -64,9 +64,10 @@ See [Deep-Merge System](#deep-merge-system) below.
 ## SASE Admin Center (interactive editor)
 
 Press `#` in the `sase ace` TUI to open **SASE Admin Center**. It reopens on whichever tab you used last in the current
-session, landing on **Config** the first time you open it. It is a full-screen modal with six tabs (`[` / `]` cycle
-between them, or press number keys `1`–`6` to jump straight to one): a schema-driven **Config** editor, **Logs**,
-**Projects**, **Tasks**, **Updates**, and the **XPrompts** browser.
+session, landing on **Config** the first time you open it. It is a full-screen modal with seven tabs: **Config**,
+**Logs**, **Projects**, **Statistics**, **Tasks**, **Updates**, and **XPrompts**. `Tab` / `Shift+Tab` cycle the main
+tabs, and number keys `1`–`7` jump straight to one. Pane-local `[` / `]` keys switch sub-tabs or views where the active
+pane provides them.
 
 ### Config tab
 
@@ -112,6 +113,19 @@ The Projects tab is an inventory and lifecycle surface with three clickable sub-
 On Repos and Workspaces, `p` opens a shared project picker. Choosing a disabled project explicitly reveals its rows;
 `Esc` clears the project scope, `/` text-filters within it, and `R` refreshes the off-thread cached inventory.
 
+### Statistics tab
+
+The Statistics tab aggregates durable agent run and activity records over a selectable time range. Its seven views are
+**Overview**, **Runs**, **Projects**, **Providers**, **Runtime**, **Activity**, and **Plans & Questions**. The Projects
+view can group by project, by ChangeSpec, or as a project-to-ChangeSpec drilldown. A pane-wide project filter lets you
+apply the same scope to the other views.
+
+The pane loads only while visible, refreshes every 30 seconds, and performs its queries off the UI thread. Use `[` / `]`
+to change views, `t` or `c` to choose a preset or custom range, `g` to change the Projects or Runtime grouping, `p` to
+cycle the project filter, and `r` to refresh immediately. See
+[Telemetry: Admin Center Statistics tab](telemetry.md#admin-center-statistics-tab) for the view contents, range syntax,
+and project-filter caveats.
+
 ### Updates tab
 
 The Updates tab keeps SASE itself and its plugins current without leaving the TUI. It leads with a **SASE Core** panel
@@ -146,25 +160,25 @@ plugin detail panes can show the newest upstream commit subjects for repositorie
 skips those remote checks. A single-plugin install preview can offer both index and git sources; press `g` inside the
 confirmation modal to switch variants before confirming. The context-sensitive keymaps are:
 
-| Key           | Action                                                                                                      |
-| ------------- | ----------------------------------------------------------------------------------------------------------- |
-| `j` / `k`     | Move the highlight down / up                                                                                |
-| `I` / `Space` | Mark / unmark the highlighted installable plugin and advance to the next installable row                    |
-| `i`           | Open the install preview for the marked set, or for the highlighted plugin when no install marks are active |
-| `x`           | Uninstall the highlighted plugin (only when installed)                                                      |
-| `u`           | Run `sase update` for SASE core plus all installed plugins                                                  |
-| `U`           | Update the highlighted installed plugin when that row has an update available                               |
-| `m`           | Switch install mode (PyPI managed ↔ dev editable; the `sase update --to` analog)                            |
-| `r`           | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)                               |
-| `Ctrl+D`      | Scroll the detail panel down                                                                                |
-| `Ctrl+U`      | Scroll the detail panel up                                                                                  |
-| `g`           | Scroll the detail panel to the top                                                                          |
-| `G`           | Scroll the detail panel to the bottom                                                                       |
-| `o`           | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)                           |
-| `v`           | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                              |
-| `/`           | Focus the filter input (matches name / description / topics)                                                |
-| `[` / `]`     | Switch SASE Admin Center tabs (number keys `1`–`6` jump directly)                                           |
-| `Esc` / `q`   | Clear install marks first; close SASE Admin Center when no install marks are active                         |
+| Key                 | Action                                                                                                      |
+| ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `j` / `k`           | Move the highlight down / up                                                                                |
+| `I` / `Space`       | Mark / unmark the highlighted installable plugin and advance to the next installable row                    |
+| `i`                 | Open the install preview for the marked set, or for the highlighted plugin when no install marks are active |
+| `x`                 | Uninstall the highlighted plugin (only when installed)                                                      |
+| `u`                 | Run `sase update` for SASE core plus all installed plugins                                                  |
+| `U`                 | Update the highlighted installed plugin when that row has an update available                               |
+| `m`                 | Switch install mode (PyPI managed ↔ dev editable; the `sase update --to` analog)                            |
+| `r`                 | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)                               |
+| `Ctrl+D`            | Scroll the detail panel down                                                                                |
+| `Ctrl+U`            | Scroll the detail panel up                                                                                  |
+| `g`                 | Scroll the detail panel to the top                                                                          |
+| `G`                 | Scroll the detail panel to the bottom                                                                       |
+| `o`                 | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)                           |
+| `v`                 | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                              |
+| `/`                 | Focus the filter input (matches name / description / topics)                                                |
+| `Tab` / `Shift+Tab` | Switch SASE Admin Center tabs (number keys `1`–`7` jump directly)                                           |
+| `Esc` / `q`         | Clear install marks first; close SASE Admin Center when no install marks are active                         |
 
 These keymaps are widget-local and are not configurable through `default_config.yml`.
 
@@ -303,6 +317,7 @@ ace:
       cycle_range: "t"
       custom_range: "c"
       cycle_group: "g"
+      cycle_project_filter: "p"
       refresh: "r"
     app:
       next_changespec: "j"
@@ -379,14 +394,15 @@ deprecated alias for `submit_primary`.
 
 **`statistics`** — Bindings active only while the Admin Center Statistics pane is focused. The available actions are:
 
-| Field          | Default                | Description                                    |
-| -------------- | ---------------------- | ---------------------------------------------- |
-| `prev_view`    | `left_square_bracket`  | Select the previous Statistics view.           |
-| `next_view`    | `right_square_bracket` | Select the next Statistics view.               |
-| `cycle_range`  | `t`                    | Cycle to the next statistics time range.       |
-| `custom_range` | `c`                    | Enter a custom statistics time range.          |
-| `cycle_group`  | `g`                    | Cycle the Runtime view's grouping dimension.   |
-| `refresh`      | `r`                    | Refresh from durable run and activity records. |
+| Field                  | Default                | Description                                                      |
+| ---------------------- | ---------------------- | ---------------------------------------------------------------- |
+| `prev_view`            | `left_square_bracket`  | Select the previous Statistics view.                             |
+| `next_view`            | `right_square_bracket` | Select the next Statistics view.                                 |
+| `cycle_range`          | `t`                    | Cycle to the next statistics time range.                         |
+| `custom_range`         | `c`                    | Enter a custom statistics time range.                            |
+| `cycle_group`          | `g`                    | Cycle grouping in the Projects or Runtime view.                  |
+| `cycle_project_filter` | `p`                    | Cycle all projects and the ranked projects in the current range. |
+| `refresh`              | `r`                    | Refresh from durable run and activity records.                   |
 
 Statistics keys may overlap app-level bindings because they are registered on the focused pane, not globally.
 

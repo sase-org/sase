@@ -214,9 +214,29 @@ Standalone post-hoc assignments retain the internal `tag` field and `agent_tags.
 declarations are stored per member in the separate `clan_tribe` field, then resolved generation-wide. The prompt
 language, CLI, and display terminology are all tribe.
 
-When a whole tribe panel is selected, its aggregate metadata document uses four fold levels. `z1`-`z3` select the
-collapsed, expanded, and fully expanded views; `z4` selects the exhaustive view, including unbounded roster annotations
-and runtime statistics. Direct numeric fold chords remain inside fold mode and do not trigger numbered member jumps.
+### Tribe panel focus and folding
+
+Each tribe panel is also a selectable container. After closing any structural clan, family, or workflow folds, press `h`
+to select the whole expanded panel; press `h` again to collapse it. Press `l` to expand a collapsed panel while keeping
+container focus, then `l` again to return to the row ACE remembered for that panel. While any whole panel is selected,
+`j` / `k` cycle across panels without descending. `J` / `K` always move to the first / last selectable row of the next /
+previous panel.
+
+Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four `zz` fold levels progress from an
+operational pulse, to a numbered top-level roster, to nested member and disk-backed reply/slow-call detail, and finally
+to full forensics with runtime percentiles. `zZ` cycles backward; `za` and `zA` adjust the section or member at the top
+of the metadata viewport. Level 3 loads replies and slow calls off-thread, while level 4 also loads all-time runtime
+statistics. The roster's number keys jump to top-level clans, families, workflows, or agents and expand only the
+required ancestors.
+
+Use `z1`-`z3` to select the collapsed, expanded, or fully expanded view directly; `z4` selects the exhaustive view,
+including unbounded roster annotations and runtime statistics. Direct numeric fold chords remain inside fold mode and
+do not trigger numbered member jumps.
+
+The `,H` leader chord numbers every visible fold owner—panels, grouping banners, and agent-owned clan/family/workflow
+folds. Enter one or more whitespace-separated numbers or ascending ranges such as `1 4-6` to toggle the selected mixed
+set in a single refresh. The ordinary apostrophe jump mode also includes expanded panels as destinations and preserves
+`Ctrl+O` jump-back history.
 
 ### Tribe wait and fork targets
 

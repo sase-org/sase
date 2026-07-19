@@ -332,21 +332,21 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 
 ### Navigation
 
-| Key                 | Action                                                                                                |
-| ------------------- | ----------------------------------------------------------------------------------------------------- |
-| `j` / `k`           | Move to next / previous visible row (banner at fold `< L3`, agent at `L3`)                            |
-| `J` / `K`           | Cycle focus across tribe side panels (forward / reverse)                                              |
-| `'`                 | Jump to entry by hint character (current tab); on the Agents tab, hints land on collapsed banners too |
-| `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint                        |
-| `Ctrl+J` / `Ctrl+K` | Cycle metadata sections forward / backward through the document top                                   |
-| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                 |
-| `0`–`9`             | Jump from a selected clan or family container to its numbered member                                  |
-| `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                          |
-| `~`                 | Jump among dotted-name ancestors, descendants, and shared-hood neighbors                              |
-| `g`                 | Scroll to top (file, tools, or metadata panel)                                                        |
-| `G`                 | Scroll to bottom (file, tools, or metadata panel)                                                     |
-| `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                           |
-| `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                                                         |
+| Key                 | Action                                                                                               |
+| ------------------- | ---------------------------------------------------------------------------------------------------- |
+| `j` / `k`           | Move to the next / previous visible row; while a whole panel is selected, cycle whole panels instead |
+| `J` / `K`           | Cycle focus across tribe side panels (forward / reverse)                                             |
+| `'`                 | Jump to an entry or expanded panel by hint character; collapsed banners are targets too              |
+| `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint                       |
+| `Ctrl+J` / `Ctrl+K` | Cycle metadata sections forward / backward through the document top                                  |
+| `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                |
+| `0`–`9`             | Jump from a selected clan or family container to its numbered member                                 |
+| `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                         |
+| `~`                 | Jump among dotted-name ancestors, descendants, and shared-hood neighbors                             |
+| `g`                 | Scroll to top (file, tools, or metadata panel)                                                       |
+| `G`                 | Scroll to bottom (file, tools, or metadata panel)                                                    |
+| `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                          |
+| `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                                                        |
 
 > **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the Agents tab and the PRs sub-tab (each
 > surface keeps its own in-session selection independently); on the AXE tab it is a silent no-op. `g`/`G` keep their
@@ -601,12 +601,33 @@ metrics are omitted. Panel heights are sized to their content and separated by a
 first panel grows to absorb leftover vertical space while later panels stay pinned to their natural height; when the
 panels overflow, space is weighted by each panel's rendered row count.
 
-Use `J` / `K` to move focus across panels (forward / reverse). `J` lands on the first selectable row in the new panel;
-`K` lands on the last selectable row, including collapsed group banners when those are visible. Per-panel actions (kill,
-dismiss, expand, etc.) operate on whichever panel currently holds focus. Press `X` to open the cleanup panel: `d`
-dismisses completed agents in the focused panel, `D` dismisses completed agents across loaded panels, `k` cleans the
-focused panel, `K` cleans all loaded panels, `m` cleans marked agents, `g` cleans the focused group, `t` chooses a
-tribe, and `c` opens the custom selector.
+Use `J` / `K` to move across panels (forward / reverse) and enter the first or last selectable row in the destination;
+collapsed group banners count as rows. Press `h` after structural clan, family, or workflow folds are closed to select
+the entire expanded panel without losing its remembered row. A selected panel has a `❖` title and shows a fold-aware
+`TRIBE` summary in the metadata pane. While it is selected, `j` / `k` cycle whole panels without descending, and `l`
+returns to the remembered row. A second `h` collapses the selected panel; `l` expands a collapsed panel while retaining
+whole-panel selection, and another `l` enters it. Apostrophe jump hints can select expanded panels directly and support
+the normal `Ctrl+O` jump back.
+
+Per-panel actions (kill, dismiss, expand, etc.) operate on whichever panel currently holds focus. Press `X` to open the
+cleanup panel: `d` dismisses completed agents in the focused panel, `D` dismisses completed agents across loaded panels,
+`k` cleans the focused panel, `K` cleans all loaded panels, `m` cleans marked agents, `g` cleans the focused group, `t`
+chooses a tribe, and `c` opens the custom selector.
+
+The `TRIBE` summary has four metadata fold levels, controlled by the same `zz`, `zZ`, `za`, and `zA` chords used for
+clan and family detail:
+
+| Level | Tribe summary content                                                                                                   |
+| ----- | ----------------------------------------------------------------------------------------------------------------------- |
+| 1     | Pulse: status, composition, runtime, attention preview, and section counts                                              |
+| 2     | Roster: numbered top-level clans, families, workflows, and agents plus bounded error and variable previews              |
+| 3     | Members: nested member detail, activity/context previews, replies, and slow tool calls                                  |
+| 4     | Forensics: complete errors, tracebacks, variables and replies, workspace/timestamp annotations, and runtime percentiles |
+
+Replies and slow-call details load only when level 3 or 4 needs them; all-time tribe runtime statistics load only at
+level 4. A `loading…` row means that enrichment is running off-thread. Number keys jump from the roster to one of the
+top-level units, expanding the required panel and ancestor folds first. Section-level fold overrides inherit from the
+panel level and are cleared by a panel-level cycle.
 
 Tribes are set or cleared with `N` (see [Agent Actions](#agent-actions)). When opening the modal on an agent without a
 tribe the input is pre-seeded with `pinned` so a single Enter promotes the agent into the standard "pinned" panel; that
@@ -635,12 +656,12 @@ A single global fold level controls how much of the hierarchy is visible:
 | `L2`  | Project + ChangeSpec + name-root banners                  | All banners and agent rows      |
 | `L3`  | All banners and agent rows (and per-workflow folds apply) | (same as `L2`)                  |
 
-| Key | Action                                                                                                             |
-| --- | ------------------------------------------------------------------------------------------------------------------ |
-| `l` | Step the focused group's fold one level up (`L0` → `L1` → `L2` → `L3`); at `L3`, expand the focused workflow       |
-| `h` | Collapse the focused workflow; once it's collapsed (or no workflow is focused), step the group fold one level down |
-| `L` | Snap to fully expanded — every banner, every agent row, every workflow step visible                                |
-| `H` | Snap to fully collapsed — every per-workflow fold collapsed, then group fold to `L0` (only top-level banners)      |
+| Key | Action                                                                                                                          |
+| --- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `l` | Expand the selected grouping, clan, family, or workflow fold; on whole-panel focus, expand or enter the panel                   |
+| `h` | Collapse a clan, family, or workflow fold; when no structural fold remains, select the whole panel; on panel focus, collapse it |
+| `L` | Expand a collapsed focused panel and enter its first selectable row                                                             |
+| `H` | Collapse the focused or enclosing grouping-strategy banner one level                                                            |
 
 Banners at fold levels `< 3` are selectable rows. When a banner is focused, `m` toggles marks for all top-level agents
 in that group; workflow child rows are not marked independently by the banner shortcut. `x` performs a bulk kill/dismiss
@@ -826,26 +847,27 @@ currently loaded agent list; global entries such as `,m` and `,U` behave the sam
 actions operate on terminal rows that are loaded in the Agents tab; `,j` can reveal a direct member hidden by a
 collapsed clan.
 
-| Key        | Action                                                                                            |
-| ---------- | ------------------------------------------------------------------------------------------------- |
-| `,,`       | Repeat the last leader command                                                                    |
-| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                           |
-| `,g`       | Toggle between tag-split panels and one merged agent panel                                        |
-| `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read |
-| `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state      |
-| `,y`       | Refresh the Agents tab from full artifact history                                                 |
-| `,u`       | Mark all loaded unread completed agents as read                                                   |
-| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
-| `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel))              |
-| `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)                                |
-| `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
-| `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
-| `,r`       | Revert focused or marked agent commits, including recorded linked repos                           |
-| `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                          |
-| `,<space>` | Run agent from current agent's PR (skips selection)                                               |
-| `,.`       | Open prompt history modal                                                                         |
-| `,>`       | Open prompt history modal with cancelled prompts visible                                          |
-| `,?`       | Open the current tab's guide modal                                                                |
+| Key        | Action                                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------------ |
+| `,,`       | Repeat the last leader command                                                                         |
+| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                                |
+| `,g`       | Toggle between tag-split panels and one merged agent panel                                             |
+| `,H`       | Number every visible panel, grouping banner, and agent-owned fold; toggle the entered hints atomically |
+| `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read      |
+| `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state           |
+| `,y`       | Refresh the Agents tab from full artifact history                                                      |
+| `,u`       | Mark all loaded unread completed agents as read                                                        |
+| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                                  |
+| `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel))                   |
+| `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)                                     |
+| `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication               |
+| `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                      |
+| `,r`       | Revert focused or marked agent commits, including recorded linked repos                                |
+| `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                               |
+| `,<space>` | Run agent from current agent's PR (skips selection)                                                    |
+| `,.`       | Open prompt history modal                                                                              |
+| `,>`       | Open prompt history modal with cancelled prompts visible                                               |
+| `,?`       | Open the current tab's guide modal                                                                     |
 
 Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`, `TALE DONE`, `PLAN REJECTED`,
 `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from the Agents header's "stopped" attention bucket for rows paused
@@ -1053,20 +1075,20 @@ status shorthands, property filters, and searchable fields.
 
 These work on all tabs:
 
-| Key                 | Action                                                                                           |
-| ------------------- | ------------------------------------------------------------------------------------------------ |
-| `Tab` / `Shift+Tab` | Switch between Agents, Artifacts, and Axe tabs                                                   |
-| `#`                 | Open SASE Admin Center (Config, Logs, Projects, Tasks, Updates, XPrompts; `1`–`6` jump to a tab) |
-| `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands)                |
-| `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                       |
-| `i`                 | Show notifications inbox                                                                         |
-| `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix                         |
-| `Ctrl+L`            | Dismiss all currently-visible toast notifications                                                |
-| `@`                 | Open the stashed-prompt restore picker                                                           |
-| `Q`                 | Open the quit / restart menu                                                                     |
-| `y`                 | Refresh current tab                                                                              |
-| `q`                 | Quit                                                                                             |
-| `?`                 | Show help modal                                                                                  |
+| Key                 | Action                                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `Tab` / `Shift+Tab` | Switch between Agents, Artifacts, and Axe tabs                                                               |
+| `#`                 | Open SASE Admin Center (Config, Logs, Projects, Statistics, Tasks, Updates, XPrompts; `1`–`7` jump to a tab) |
+| `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands)                            |
+| `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                                   |
+| `i`                 | Show notifications inbox                                                                                     |
+| `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                     |
+| `Ctrl+L`            | Dismiss all currently-visible toast notifications                                                            |
+| `@`                 | Open the stashed-prompt restore picker                                                                       |
+| `Q`                 | Open the quit / restart menu                                                                                 |
+| `y`                 | Refresh current tab                                                                                          |
+| `q`                 | Quit                                                                                                         |
+| `?`                 | Show help modal                                                                                              |
 
 ### Quit / Restart Menu
 
@@ -1116,9 +1138,9 @@ The `:` / `;` binding follows your configured keymap. To rebind it, set `ace.key
 
 ## Projects Tab
 
-Open the SASE Admin Center with `#` and switch to the **Projects** tab with `3`, `[` / `]`, or the main tab strip. The
-tab contains a second clickable strip: **Projects · Repos · Workspaces**. `[` / `]` cycle these sub-tabs while `Tab` /
-`Shift+Tab` continue switching the main Admin Center tabs.
+Open the SASE Admin Center with `#` and switch to the **Projects** tab with `3`, `Tab` / `Shift+Tab`, or the main tab
+strip. The tab contains a second clickable strip: **Projects · Repos · Workspaces**. `[` / `]` cycle these sub-tabs
+while `Tab` / `Shift+Tab` continue switching the main Admin Center tabs.
 
 The **Projects** sub-tab lists true, non-system projects only, with enabled projects first and disabled projects still
 visible. Here, "true project" means a project backed by its own main ProjectSpec, rather than an internal linked-repo
@@ -1348,9 +1370,9 @@ Agent completion and failure toasts include the `%name`-set agent name with an `
 
 ## XPrompt Browser
 
-Press `#` on any tab to open **SASE Admin Center**, then switch to the **XPrompts** tab with `[` / `]` or the tab strip.
-The XPrompts tab displays all discovered xprompts in a two-panel layout: a filterable list on the left and a
-syntax-highlighted preview on the right.
+Press `#` on any tab to open **SASE Admin Center**, then press `7` or switch to the **XPrompts** tab with `Tab` /
+`Shift+Tab` or the tab strip. The XPrompts tab displays all discovered xprompts in a two-panel layout: a filterable list
+on the left and a syntax-highlighted preview on the right.
 
 Xprompts are grouped by source (project `sase/xprompts/`, home `~/sase/xprompts/`, project-specific home, config
 `sase.yml`, plugins, built-in, plus labeled legacy compatibility sources). Workflow xprompts (multi-step YAML) are
@@ -2006,6 +2028,7 @@ ace:
       cycle_range: "f11"
       custom_range: "c"
       cycle_group: "g"
+      cycle_project_filter: "p"
       refresh: "f10"
 ```
 
@@ -2526,9 +2549,10 @@ not already been created.
 
 ## Tasks Tab
 
-Open the SASE Admin Center with `#`, then press `4` (or `]` until you reach **Tasks**). You can also run the keyless
-**Open tasks panel** command from the command palette. The tab shows background tasks (hook runs, mentor executions,
-agent launches, plugin operations, etc.) with live output for running tasks and completed output for finished ones.
+Open the SASE Admin Center with `#`, then press `5` (or switch tabs until you reach **Tasks**). You can also run the
+keyless **Open tasks panel** command from the command palette. The tab shows background tasks (hook runs, mentor
+executions, agent launches, plugin operations, etc.) with live output for running tasks and completed output for
+finished ones.
 
 ### Layout
 
@@ -2556,16 +2580,16 @@ output every second while the Tasks tab is visible.
 | `y`                 | Copy task output to clipboard   |
 | `Ctrl+D` / `Ctrl+U` | Scroll output pane down / up    |
 | `g` / `G`           | Jump output pane to top/bottom  |
-| `[` / `]`           | Switch Admin Center tabs        |
+| `Tab` / `Shift+Tab` | Switch Admin Center tabs        |
 | `q` / `Esc`         | Close SASE Admin Center         |
 
 ## Updates Tab
 
-Open the SASE Admin Center with `#`, then press `5` (or `]` until you reach **Updates**). The Updates tab keeps SASE
-itself and its installed plugins current without leaving the TUI: a **SASE Core** panel shows the installed and latest
-versions of the `sase` and `sase-core` packages, and below it the full plugin catalog lets you browse, inspect, install,
-update, or uninstall plugins. Press `I` or `Space` to mark installable rows, `i` to install the marked set in one
-combined operation (or the highlighted plugin when nothing is marked), `u` to run the full SASE update for core plus
+Open the SASE Admin Center with `#`, then press `6` (or switch tabs until you reach **Updates**). The Updates tab keeps
+SASE itself and its installed plugins current without leaving the TUI: a **SASE Core** panel shows the installed and
+latest versions of the `sase` and `sase-core` packages, and below it the full plugin catalog lets you browse, inspect,
+install, update, or uninstall plugins. Press `I` or `Space` to mark installable rows, `i` to install the marked set in
+one combined operation (or the highlighted plugin when nothing is marked), `u` to run the full SASE update for core plus
 installed plugins, `U` to update the highlighted installed plugin when that row has an update available, `x` to
 uninstall, and `r` to refresh the catalog and latest versions. Editable / dev installs are labeled with a lowercase
 `dev` source marker and compared against their git upstream rather than PyPI, so a local checkout can surface an

@@ -135,17 +135,41 @@ Exit codes are `0` for healthy, `1` for degraded/WARN, and `2` for CRITICAL.
 
 ## Admin Center Statistics tab
 
-Open the SASE Admin Center with `#` or the command palette, then select **Statistics**. Its Overview, Runs, Providers,
-Runtime, Activity, and Plans & Questions views aggregate durable agent records over preset or custom time ranges. It
-loads only while visible, performs aggregation off the UI thread, and refreshes every 30 seconds.
+Open the SASE Admin Center with `#` or the command palette, then press `4` or select **Statistics**. The pane aggregates
+durable agent records rather than the short-lived telemetry metric store described above. It loads only while visible,
+performs aggregation off the UI thread, refreshes every 30 seconds, and shows loading, empty-range, and query-error
+states in place.
 
-| Key     | Action                                            |
-| ------- | ------------------------------------------------- |
-| `[`/`]` | Cycle statistic views.                            |
-| `t`     | Cycle Today, 24h, 7d, 30d, 90d, and All.          |
-| `c`     | Enter a custom absolute or relative time range.   |
-| `g`     | Cycle the grouping dimension in the Runtime view. |
-| `r`     | Refresh immediately.                              |
+The seven views answer different questions:
+
+| View                  | Contents                                                                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Overview**          | Run volume over time plus top providers, skills, and projects.                                                                                          |
+| **Runs**              | Outcomes, active and waiting work, retry chains, commit attribution, and top target repositories.                                                       |
+| **Projects**          | Project and ChangeSpec run counts, success, commits, wall time, and last activity; `g` cycles project, ChangeSpec, and project-to-ChangeSpec groupings. |
+| **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                               |
+| **Runtime**           | Total, mean, p50, p95, and maximum runtime; `g` cycles tribe, clan, family, agent, provider, model, workflow, project, and ChangeSpec dimensions.       |
+| **Activity**          | Skill, memory, and workspace use.                                                                                                                       |
+| **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                     |
+
+| Key     | Action                                                      |
+| ------- | ----------------------------------------------------------- |
+| `[`/`]` | Cycle statistic views.                                      |
+| `t`     | Cycle Today, 24h, 7d, 30d, 90d, and All.                    |
+| `c`     | Enter a custom absolute or relative time range.             |
+| `g`     | Cycle grouping in the Projects or Runtime view.             |
+| `p`     | Cycle All → each ranked project in the current range → All. |
+| `r`     | Refresh immediately.                                        |
+
+Custom ranges accept elapsed windows such as `12h`, `14d`, or `8w`; a calendar month such as `2026-07`; a closed date
+range such as `2026-07-01..2026-07-18`; or an open-ended range such as `2026-07-01..`. Calendar inputs use the
+configured SASE timezone, closed ranges include the final date, and future time is excluded.
+
+The project filter applies to run-backed totals, project-attributed activity, plan lifecycle counts, and question
+session counts. Some distributions are derived from global plan and question documents rather than project-attributed
+runs: while a project filter is active, the pane labels plan tiers, phases per epic, total questions, and questions per
+session as **all projects** so their scope is explicit. The Projects view also retains an `(no ChangeSpec)` row for runs
+that have a project but no ChangeSpec attribution.
 
 Override these focused-pane bindings under `ace.keymaps.statistics`; the effective keys are reflected in the pane's hint
 bar:
@@ -159,6 +183,7 @@ ace:
       cycle_range: "t"
       custom_range: "c"
       cycle_group: "g"
+      cycle_project_filter: "p"
       refresh: "r"
 ```
 
