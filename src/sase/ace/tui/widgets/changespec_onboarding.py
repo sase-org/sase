@@ -191,7 +191,7 @@ class ChangeSpecOnboarding(VerticalScroll):
         append_keycap(text, key_display_name(app.edit_spec))
         text.append("open the spec in $EDITOR.")
         text.append("\n")
-        append_keycap(text, leader_key_display(registry, "edit_query"))
+        append_keycap(text, key_display_name(app.edit_query))
         text.append("filter with a query.")
         return text
 

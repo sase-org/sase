@@ -111,6 +111,23 @@ def test_duplicate_app_keys_logs_warning(caplog: pytest.LogCaptureFixture) -> No
     assert any("Duplicate key" in r.message for r in caplog.records)
 
 
+def test_contextual_query_actions_may_share_a_custom_key() -> None:
+    """Agents search and non-Agents query editing have disjoint scopes."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {
+                    "search_forward": "f12",
+                    "edit_query": "f12",
+                }
+            }
+        }
+    )
+
+    assert reg.app.search_forward == "f12"
+    assert reg.app.edit_query == "f12"
+
+
 def test_both_overrides_duplicate_revert_both() -> None:
     """Two user overrides mapping to the same key both revert."""
     reg = load_keymap_registry(

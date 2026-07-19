@@ -314,6 +314,14 @@ class AceApp(
                 )
             ):
                 return False
+        if action == "edit_query" and (
+            self.current_tab == "agents"
+            or (
+                self.current_tab == ARTIFACTS_TAB
+                and self.current_artifacts_subtab == "bugs"
+            )
+        ):
+            return False
         from .actions.artifact_bugs import BUG_ARTIFACT_ACTIONS
         from .actions.artifacts import (
             COMMITS_ARTIFACT_ACTIONS,

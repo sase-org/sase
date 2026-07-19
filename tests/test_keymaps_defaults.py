@@ -140,16 +140,16 @@ def test_leader_mode_includes_agent_run_log() -> None:
     assert reg.leader_mode.keys["agent_run_log"] == "A"
 
 
-def test_leader_mode_uses_slash_and_question_mark_for_query_and_help() -> None:
-    """The former app actions live on configurable leader chords."""
+def test_contextual_query_and_help_defaults_are_split_by_scope() -> None:
+    """Query editing is contextual while help remains a leader chord."""
     reg = load_keymap_registry({})
     assert "tab_guide" not in LeaderModeKeymaps().keys
     assert "tab_guide" not in reg.leader_mode.keys
     assert reg.leader_mode.keys["edit_query"] == "slash"
     assert reg.leader_mode.keys["show_help"] == "question_mark"
     assert reg.app.search_forward == "slash"
+    assert reg.app.edit_query == "slash"
     assert reg.app.search_reverse == "question_mark"
-    assert not hasattr(reg.app, "edit_query")
     assert not hasattr(reg.app, "show_help")
 
 

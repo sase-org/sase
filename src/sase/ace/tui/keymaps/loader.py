@@ -45,7 +45,15 @@ log = logging.getLogger(__name__)
 
 # Retired app-level action ids. Drop stale user overrides quietly so configs
 # from before the leader-chord remap continue to load without warnings.
-_RETIRED_APP_KEYS: frozenset[str] = frozenset({"edit_query", "show_help"})
+_RETIRED_APP_KEYS: frozenset[str] = frozenset({"show_help"})
+
+
+# These app actions intentionally share a key because their tab applicability
+# is disjoint: metadata search is Agents-only, while query editing excludes
+# Agents. Preserve duplicate validation for every other app-action pairing.
+_CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
+    {frozenset({"edit_query", "search_forward"})}
+)
 
 
 # Retired built-in leader-mode action ids. These are dropped while loading so a
@@ -464,13 +472,21 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         if not overridden:
             continue
         for fname in overridden:
+            conflicts = [
+                action
+                for action in actions
+                if action != fname
+                and frozenset({fname, action}) not in _CONTEXTUAL_APP_DUPLICATES
+            ]
+            if not conflicts:
+                continue
             default_val = builtin_defaults[fname]
             log.warning(
                 "Duplicate key %r: action %r conflicts with %s; "
                 "reverting to default %r",
                 key_val,
                 fname,
-                [a for a in actions if a != fname],
+                conflicts,
                 default_val,
             )
             app_kwargs[fname] = default_val

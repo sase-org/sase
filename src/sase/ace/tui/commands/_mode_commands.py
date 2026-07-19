@@ -110,6 +110,7 @@ _BANG_LABELS: dict[str, str] = {
 
 # Per-mode fallback tab scoping (refined per-command for copy_mode).
 _LEADER_TABS: dict[str, tuple[CommandTab, ...]] = {
+    "edit_query": AGENTS_ONLY,
     "run_cmd": CL_ONLY,
     "kill_mentors": CL_ONLY,
     "review_mentors": CL_ONLY,

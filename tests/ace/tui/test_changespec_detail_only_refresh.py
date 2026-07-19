@@ -254,7 +254,7 @@ def test_refresh_display_off_tab_does_not_touch_shared_footer() -> None:
 
     Regression for the Agents-tab flicker where the inotify-driven CL
     reload kept stomping the agents bindings with ``show_empty()``'s
-    ``,/ edit query`` hint.
+    ``/ edit query`` hint.
     """
     app = _FakeApp(count=3)
     app.current_tab = "agents"

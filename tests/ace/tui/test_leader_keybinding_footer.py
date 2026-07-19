@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from sase.ace.testing import make_changespec
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.widgets import KeybindingFooter
 
@@ -76,14 +77,31 @@ def test_footer_surfaces_configured_prompt_stash_key_on_all_tabs() -> None:
         assert ("P", "prompt stash") in captured[-1][0]
 
 
-def test_footer_surfaces_query_and_help_on_all_tabs() -> None:
+def test_footer_surfaces_leader_query_only_on_agents_and_help_on_all_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
     for tab in ("changespecs", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
-        assert ("/", "edit query") in captured[-1][0]
+        if tab == "agents":
+            assert ("/", "edit query") in captured[-1][0]
+        else:
+            assert ("/", "edit query") not in captured[-1][0]
         assert ("?", "help") in captured[-1][0]
+
+
+def test_pr_footer_surfaces_configured_app_query_key() -> None:
+    footer = KeybindingFooter()
+    footer.set_keymap_registry(
+        load_keymap_registry({"keymaps": {"app": {"edit_query": "f12"}}})
+    )
+    captured = _capture_bindings(footer)
+
+    footer.show_empty()
+    assert ("<f12>", "edit query") in captured[-1][0]
+
+    footer.update_bindings(make_changespec())
+    assert ("<f12>", "edit query") in captured[-1][0]
 
 
 def test_footer_surfaces_update_sase_on_all_tabs() -> None:

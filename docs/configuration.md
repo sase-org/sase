@@ -323,6 +323,7 @@ ace:
     app:
       next_changespec: "j"
       prev_changespec: "k"
+      edit_query: "slash" # defaults render as `/` outside Agents
       # ... all app-level keybindings are configurable
     modes:
       # Built-in modes (fold, copy, leader, bang) are configurable
@@ -330,7 +331,7 @@ ace:
         prefix: "comma"
         keys:
           repeat_last: "comma" # press the leader prefix, then this key; defaults render as `,,`
-          edit_query: "slash" # defaults render as `,/`
+          edit_query: "slash" # Agents structured query; defaults render as `,/`
           show_help: "question_mark" # defaults render as `,?`
           models_panel: "m"
           update_sase: "U"
@@ -425,10 +426,13 @@ The built-in `fold_mode` direct actions are `set_level_1` through `set_level_3` 
 accepts levels 1-2 for a family, 1-3 for a clan or regular-agent session scope, and 1-4 for a selected whole tribe
 panel. The configured prefix and subkeys are used by dispatch, the command palette, footers, and help.
 
-Query editing and help are leader-mode actions. Their default `edit_query: slash` and `show_help: question_mark` subkeys
-produce `,/` and `,?` on every tab. Legacy `ace.keymaps.app.edit_query` and `ace.keymaps.app.show_help` overrides are
-ignored; move custom bindings under `modes.leader_mode.keys`. Bare `/` and `?` are no longer the app-level query and
-help shortcuts.
+Query editing has two contextual scopes. `ace.keymaps.app.edit_query` controls PRs, Commits, Plans, and Axe and defaults
+to bare `/`. `ace.keymaps.modes.leader_mode.keys.edit_query` independently controls the Agents structured-query chord
+and defaults to `,/`; bare `/` on Agents starts inline metadata search. Help remains a leader action controlled by
+`leader_mode.keys.show_help` and defaults to `,?`; the retired `ace.keymaps.app.show_help` override is ignored.
+
+The app-level `edit_query` and Agents-only `search_forward` actions may intentionally share a key because their tab
+scopes do not overlap. Other duplicate app bindings continue to be rejected by validation.
 
 Custom mode key fields:
 

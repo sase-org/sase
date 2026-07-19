@@ -45,6 +45,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("y", "refresh", "Refresh", show=False),
     Binding("Y", "sync", "Sync", show=False),
     Binding("slash", "search_forward", "Search Forward", show=False),
+    Binding("slash", "edit_query", "Edit Query", show=False),
     Binding("question_mark", "search_reverse", "Search Reverse", show=False),
     Binding("e", "edit_spec", "Edit Spec", show=False),
     Binding("ctrl+d", "scroll_detail_down", "Scroll Down", show=False),

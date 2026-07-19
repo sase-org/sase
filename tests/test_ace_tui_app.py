@@ -67,7 +67,7 @@ async def test_query_edit_modal_cancel() -> None:
         original_query = page.state["query"]
 
         # Open modal
-        await page.press("comma", "slash")
+        await page.press("slash")
         await page.expect_modal("QueryEditModal")
 
         # Press Escape twice: INSERT -> NORMAL, then modal cancel.
@@ -88,7 +88,7 @@ async def test_query_edit_modal_apply() -> None:
         assert page.state["query"] == '"feature"'
 
         # Open modal
-        await page.press("comma", "slash")
+        await page.press("slash")
         await page.expect_modal("QueryEditModal")
 
         # Get the input widget and set new query value
@@ -110,7 +110,7 @@ async def test_query_edit_modal_invalid_query() -> None:
         original_query = page.state["query"]
 
         # Open modal
-        await page.press("comma", "slash")
+        await page.press("slash")
         await page.expect_modal("QueryEditModal")
 
         # Set invalid query (unclosed quote)

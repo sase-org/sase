@@ -221,6 +221,7 @@ ace:
       cycle_grouping_mode_reverse: "O"
       # Queries
       search_forward: "slash"
+      edit_query: "slash"
       search_reverse: "question_mark"
       open_saved_query_picker: "asterisk"
       prev_query: "circumflex_accent"

@@ -9,6 +9,7 @@ from sase.ace.tui.commands._tabs import (
     AGENTS_ONLY,
     ALL_TABS,
     CL_AGENTS,
+    CL_AXE,
     CL_ONLY,
 )
 from sase.ace.tui.commands.types import CommandCategory, CommandTab
@@ -405,6 +406,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         (),
     ),
     # Queries
+    (
+        "edit_query",
+        "Edit query or filter",
+        "Queries",
+        CL_AXE,
+        ("filter", "query", "/"),
+    ),
     (
         "search_forward",
         "Search metadata forward",

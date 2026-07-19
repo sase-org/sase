@@ -62,6 +62,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("refresh", "Refresh", False),
     ("sync", "Sync", False),
     ("search_forward", "Search Forward", False),
+    ("edit_query", "Edit Query", False),
     ("search_reverse", "Search Reverse", False),
     ("open_saved_query_picker", "Saved Queries", False),
     ("edit_spec", "Edit Spec", False),
@@ -428,6 +429,7 @@ class AppKeymaps:
     toggle_thinking_reverse: str
     # Queries
     search_forward: str
+    edit_query: str
     search_reverse: str
     open_saved_query_picker: str
     prev_query: str

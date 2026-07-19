@@ -97,7 +97,7 @@ async def test_plans_filter_bar_live_filters_tree_commits_and_survives_refresh(
         bar = pane.query_one(PlanFilterBar)
         editor = bar.query_one("#plan-filter-input", SingleLineVimTextArea)
 
-        await page.press("comma", "slash")
+        await page.press("slash")
         await page.wait_for(lambda _state: bar.display)
         assert editor.text == ""
         assert page.app.focused is not None
@@ -159,7 +159,7 @@ async def test_plans_filter_bar_live_filters_tree_commits_and_survives_refresh(
 
         # A new snapshot gets a fresh index and the in-progress filter is
         # immediately re-applied when the worker result lands.
-        await page.press("comma", "slash")
+        await page.press("slash")
         current_snapshot[0] = refreshed
         pane._request_load(force=True)
         await page.wait_for(lambda _state: pane.snapshot is refreshed)
@@ -200,7 +200,7 @@ async def test_plans_filter_escape_restores_expansion_and_selection(
         assert pane.selected_row().row_id == "phase:alpha-1.1"  # type: ignore[union-attr]
         expanded = set(pane._expanded_epics)
 
-        await page.press("comma", "slash", "a", "r", "c", "h", "i", "v", "e")
+        await page.press("slash", "a", "r", "c", "h", "i", "v", "e")
         await page.wait_for(
             lambda _state: (
                 pane.selected_row() is not None
@@ -243,7 +243,6 @@ async def test_plans_filter_rejects_invalid_submit(
         bar = pane.query_one(PlanFilterBar)
 
         await page.press(
-            "comma",
             "slash",
             "s",
             "t",
@@ -279,7 +278,7 @@ async def test_plans_negative_filters_preserve_tree_counts_and_submit(
         await page.press("[")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
-        await page.press("comma", "slash")
+        await page.press("slash")
         bar = pane.query_one(PlanFilterBar)
         editor = bar.query_one("#plan-filter-input", SingleLineVimTextArea)
         query = "-kind:archive -status:blocked -project:beta -rollout"
@@ -435,7 +434,7 @@ async def test_deep_archive_typing_burst_fetches_once_and_becomes_exact(
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         bar = pane.query_one(PlanFilterBar)
 
-        await page.press("comma", "slash", "n", "e", "e", "d", "l", "e")
+        await page.press("slash", "n", "e", "e", "d", "l", "e")
         await page.wait_for(lambda _state: len(calls) == 1)
 
         def option_ids() -> set[str]:
@@ -500,7 +499,7 @@ async def test_escape_discards_in_flight_deep_archive_result(
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         bar = pane.query_one(PlanFilterBar)
 
-        await page.press("comma", "slash", "n", "e", "e", "d", "l", "e")
+        await page.press("slash", "n", "e", "e", "d", "l", "e")
         await page.wait_for(lambda _state: started.is_set())
         await page.press("escape")
         await page.wait_for(lambda _state: not bar.display)

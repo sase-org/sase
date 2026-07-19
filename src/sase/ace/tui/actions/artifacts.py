@@ -61,6 +61,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "open_command_palette",
         "dismiss_toasts",
         "refresh",
+        "edit_query",
         "start_leader_mode",
     }
 )

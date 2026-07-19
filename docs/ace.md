@@ -96,10 +96,10 @@ open; the second completes the jump. Hints remain case-sensitive.
 
 ### Filtering Commits and Plans
 
-Press `,/` (leader mode) or the local `f` shortcut in Commits or Plans to open its live filter bar. Tokens from
-different facets combine with AND semantics; comma-separated and repeated values within one facet combine with OR
-semantics. Free-text terms must all match. Press `Tab` to accept the highlighted key or value completion, `Enter` to
-keep the query, or `Escape` to restore the last committed query.
+Press `/` or the local `f` shortcut in Commits or Plans to open its live filter bar. Tokens from different facets
+combine with AND semantics; comma-separated and repeated values within one facet combine with OR semantics. Free-text
+terms must all match. Press `Tab` to accept the highlighted key or value completion, `Enter` to keep the query, or
+`Escape` to restore the last committed query.
 
 Commits accepts `repo:`, `author:`, `since:`, `until:`, and `limit:` plus free text matched against the commit subject.
 For example, `repo:sase author:Ada since:7d fix` shows recent SASE commits by Ada whose subjects contain `fix`, while
@@ -268,7 +268,6 @@ The modal supports live filtering as you type in the search box and displays las
 | Key        | Action                                                                               |
 | ---------- | ------------------------------------------------------------------------------------ |
 | `,,`       | Repeat the last leader command                                                       |
-| `,/`       | Edit the current tab's query or filter                                               |
 | `,!`       | Run command using current PR context                                                 |
 | `,A`       | Open the Agent Run Log modal for the current PR                                      |
 | `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                       |
@@ -1040,13 +1039,13 @@ numerical identity.
 | `r` | Run selected chop manually, or re-run the focused completed background command (`!!`) row |
 | `x` | Start / stop axe (or kill the focused background command)                                 |
 | `X` | Clear output                                                                              |
+| `/` | Edit the current Axe query                                                                |
 
 ### Leader Mode (`,` prefix)
 
 | Key  | Action                                                                               |
 | ---- | ------------------------------------------------------------------------------------ |
 | `,,` | Repeat the last leader command                                                       |
-| `,/` | Edit the current Axe query                                                           |
 | `,h` | Run agent from home prompt context; bare prompts default to `#git:home`              |
 | `,m` | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel)) |
 | `,U` | Update sase, core, and plugins (opens Updates confirmation prompt)                   |
@@ -1078,8 +1077,18 @@ numerical identity.
 
 ### Editing Queries
 
-Press `,/` (leader mode) to open the query editor. The current canonical query is pre-filled. Query editing and help use
-leader chords on every tab: the defaults are `,/` and `,?`, not bare `/` and `?`.
+Press `/` on PRs or Axe to open the current query editor; the canonical query is pre-filled. The same app-level key
+opens the inline filter bar on Commits and Plans and remains inert on Bugs. Agents reserves bare `/` for forward inline
+metadata search, so its structured query editor uses the independent `,/` leader chord. Help remains `,?` on every tab.
+
+| Context                 | Default query key  |
+| ----------------------- | ------------------ |
+| PRs                     | `/`                |
+| Commits                 | `/` (or local `f`) |
+| Plans                   | `/` (or local `f`) |
+| Bugs                    | none               |
+| Agents structured query | `,/`               |
+| Axe                     | `/`                |
 
 To save a query, prefix with `#`:
 
@@ -2057,8 +2066,12 @@ ace:
     app:
       next_changespec: "n" # Remap j → n
       prev_changespec: "p" # Remap k → p
+      edit_query: "f5" # PRs, Commits, Plans, and Axe
       show_notifications: "N" # Remap i → N
 ```
+
+The Agents structured-query shortcut is independent: remap `ace.keymaps.modes.leader_mode.keys.edit_query` to change the
+subkey after the configured leader prefix. Bare Agents metadata search remains under `ace.keymaps.app.search_forward`.
 
 ### Remapping Statistics Pane Keys
 
@@ -2129,6 +2142,7 @@ The keymap loader validates all configuration:
 
 - **Invalid keys** are reverted to their defaults with a warning
 - **Duplicate keys within one binding scope** are detected and the conflicting override is reverted
+- The contextual Agents `search_forward` and non-Agents `edit_query` actions may intentionally share a key
 - **Prefix conflicts** between custom mode prefixes and existing app bindings are warned
 
 See [`docs/configuration.md`](configuration.md) for the full `ace.keymaps` configuration reference.

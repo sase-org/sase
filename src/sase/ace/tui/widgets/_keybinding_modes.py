@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...changespec import ChangeSpec
-from ..keymaps import KeymapRegistry, footer_key_display, leader_key_display
+from ..keymaps import KeymapRegistry, footer_key_display
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
@@ -69,6 +69,7 @@ class KeybindingModesMixin:
     def update_bindings(self, changespec: ChangeSpec, *, mark_count: int = 0) -> None:
         """Update bindings based on current ChangeSpec and app state."""
         bindings = self._compute_available_bindings(changespec, mark_count=mark_count)
+        bindings.append((self._kd("edit_query"), "edit query"))
         self._update_display(bindings)
 
     def show_empty(self, *, project_name: str | None = None) -> None:
@@ -80,7 +81,7 @@ class KeybindingModesMixin:
         bindings: list[tuple[str, str]] = []
         if project_name:
             bindings.append((self._kd("open_tmux"), "tmux"))
-        bindings.append((leader_key_display(self._kr(), "edit_query"), "edit query"))
+        bindings.append((self._kd("edit_query"), "edit query"))
         self._update_display(bindings)
 
     def show_artifacts_pane(self) -> None:
@@ -251,7 +252,8 @@ class KeybindingModesMixin:
 
         bindings: list[tuple[str, str]] = []
         bindings.append((k("repeat_last"), "repeat"))
-        bindings.append((k("edit_query"), "edit query"))
+        if current_tab == "agents":
+            bindings.append((k("edit_query"), "edit query"))
         bindings.append((k("show_help"), "help"))
         if current_tab == "changespecs":
             if has_comments:

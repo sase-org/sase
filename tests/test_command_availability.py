@@ -201,8 +201,8 @@ def test_bug_commands_only_available_on_bugs_subtab() -> None:
     )
 
 
-def test_edit_query_is_available_on_prs_commits_and_plans() -> None:
-    spec = _catalog_by_id()["leader.edit_query"]
+def test_app_edit_query_is_available_on_prs_commits_plans_and_axe() -> None:
+    spec = _catalog_by_id()["app.edit_query"]
     assert is_command_available(
         spec,
         CommandContext(tab="changespecs", artifacts_subtab="prs"),
@@ -219,6 +219,19 @@ def test_edit_query_is_available_on_prs_commits_and_plans() -> None:
         spec,
         CommandContext(tab="changespecs", artifacts_subtab="bugs"),
     )
+    assert is_command_available(spec, CommandContext(tab="axe"))
+    assert not is_command_available(spec, CommandContext(tab="agents"))
+
+
+def test_leader_edit_query_is_agents_only() -> None:
+    spec = _catalog_by_id()["leader.edit_query"]
+
+    assert is_command_available(spec, CommandContext(tab="agents"))
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="changespecs", artifacts_subtab="prs"),
+    )
+    assert not is_command_available(spec, CommandContext(tab="axe"))
 
 
 def test_plans_filter_command_is_available_only_on_plans() -> None:

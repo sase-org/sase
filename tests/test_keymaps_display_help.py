@@ -24,29 +24,36 @@ def test_leader_repeat_last_override_updates_help_display() -> None:
         assert (",R", "Repeat last leader command") in pairs
 
 
-def test_query_and_help_leader_overrides_update_every_help_display() -> None:
+def test_contextual_query_and_help_overrides_update_help_displays() -> None:
     reg = load_keymap_registry(
         {
             "keymaps": {
+                "app": {"edit_query": "f5"},
                 "modes": {
                     "leader_mode": {
                         "prefix": "g",
                         "keys": {"edit_query": "f", "show_help": "h"},
                     }
-                }
+                },
             }
         }
     )
 
-    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+    for sections in (cls_bindings(reg), axe_bindings(reg)):
         pairs = {
             (key, label) for _section, bindings in sections for key, label in bindings
         }
-        assert ("gf", "Edit search query") in pairs or (
-            "gf",
-            "Filter agents by query",
-        ) in pairs
+        assert ("f5", "Edit search query") in pairs
+        assert not any(key == "gf" and "query" in label.lower() for key, label in pairs)
         assert ("gh", "Show this help") in pairs
+
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+    assert ("gf", "Filter agents by query") in agent_pairs
+    assert ("gh", "Show this help") in agent_pairs
 
 
 def test_agents_help_uses_configured_direct_visible_fold_selector_key() -> None:

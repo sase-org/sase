@@ -74,7 +74,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (d(a.commits_copy_sha), "Copy full commit SHA"),
                 (
-                    f"{leader_key_display(km, 'edit_query')} / {d(a.commits_filters)}",
+                    f"{d(a.edit_query)} / {d(a.commits_filters)}",
                     "Open inline commit filter bar",
                 ),
                 ("repo: / author:", "Filter repository / author substring"),
@@ -114,7 +114,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (f"{d(a.plans_next)} / {d(a.plans_prev)}", "Next / previous row"),
                 (d(a.plans_view_selected), "Open selected plan or bead"),
                 (
-                    f"{leader_key_display(km, 'edit_query')} / {d(a.plans_filters)}",
+                    f"{d(a.edit_query)} / {d(a.plans_filters)}",
                     "Open inline plans filter bar",
                 ),
                 ("kind: / status: / tier:", "Filter kind, status, or tier"),
@@ -286,7 +286,6 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'repeat_last'))}",
                     "Repeat last leader command",
                 ),
-                (leader_key_display(km, "edit_query"), "Edit search query"),
                 (leader_key_display(km, "show_help"), "Show this help"),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'clear_comments'))}",
@@ -346,6 +345,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
         (
             "Queries",
             [
+                (d(a.edit_query), "Edit search query"),
                 (
                     f"{d(a.open_saved_query_picker)}1-9 / {d(a.open_saved_query_picker)}0",
                     "Choose saved PR query",

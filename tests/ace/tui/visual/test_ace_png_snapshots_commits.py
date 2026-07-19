@@ -47,7 +47,7 @@ async def _commit_filter_query(
     query: str,
 ) -> None:
     values = parse_commit_filter_query(query)
-    await page.press("comma", "slash")
+    await page.press("slash")
     await page.wait_for(lambda _state: bar.display)
     bar.query_one("#commit-filter-input", SingleLineVimTextArea).load_text(query)
     await page.wait_for(
@@ -190,7 +190,7 @@ async def test_commits_filter_bar_prefilled_png_snapshot(
         pane, bar = await _open_commits(page, result)
         query = "repo:alpha-platform-repository feat"
         await _commit_filter_query(page, pane, bar, query)
-        await page.press("comma", "slash")
+        await page.press("slash")
         await page.wait_for(
             lambda _state: (
                 bar.display
@@ -296,7 +296,7 @@ async def test_commits_filter_parse_error_png_snapshot(
         initial_tab="changespecs",
     ) as page:
         _pane, bar = await _open_commits(page, result)
-        await page.press("comma", "slash")
+        await page.press("slash")
         await page.wait_for(lambda _state: bar.display)
         bar.query_one("#commit-filter-input", SingleLineVimTextArea).load_text("repo:")
         await page.wait_for(

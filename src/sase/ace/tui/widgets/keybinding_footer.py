@@ -9,8 +9,9 @@ by transient app state (e.g. marks exist, completed agents present).
 Rules:
   1. A keymap appears in the footer **if and only if** it has an associated
      condition that is sometimes true and sometimes false.
-  2. Global actions (quit, refresh, tab switch, fold, edit query, etc.) are
-     NOT shown — they belong in the help modal only.
+  2. Global actions (quit, refresh, tab switch, fold, etc.) are NOT shown —
+     they belong in the help modal only.  Contextual query actions are the
+     exception because their ownership changes by tab.
 
 Formatting:
   - Keymaps are sorted alphabetically; symbol keys (``<enter>``, ``<space>``,

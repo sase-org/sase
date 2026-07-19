@@ -39,15 +39,85 @@ async def test_remapped_navigation_key() -> None:
             await page.expect_state("idx", 0)
 
 
-async def test_leader_query_chord_opens_editor_and_bare_slash_is_inert() -> None:
-    for tab in ("changespecs", "agents", "axe"):
+async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
+    for subtab, subtab_key, expected_edit in (
+        ("prs", None, True),
+        ("commits", "2", True),
+        ("bugs", "3", False),
+        ("plans", "4", True),
+    ):
         with _patch_config():
-            async with AcePage(initial_tab=tab) as page:
+            async with AcePage(initial_tab="changespecs") as page:
+                if subtab_key is not None:
+                    await page.press(subtab_key)
+                    await page.expect_state("artifacts_subtab", subtab)
+                edits: list[str] = []
+                page.app.action_edit_query = (  # type: ignore[method-assign]
+                    lambda edits=edits, subtab=subtab: edits.append(subtab)
+                )
+
                 await page.press("slash")
-                await page.expect_no_modal()
+                assert edits == ([subtab] if expected_edit else [])
 
                 await page.press("comma", "slash")
-                await page.expect_modal("QueryEditModal")
+                assert edits == ([subtab] if expected_edit else [])
+
+    with _patch_config():
+        async with AcePage(initial_tab="axe") as page:
+            edits: list[bool] = []
+            page.app.action_edit_query = lambda: edits.append(True)  # type: ignore[method-assign]
+
+            await page.press("slash")
+            assert edits == [True]
+            await page.press("comma", "slash")
+            assert edits == [True]
+
+    with _patch_config():
+        async with AcePage(initial_tab="agents") as page:
+            searches: list[bool] = []
+            edits: list[bool] = []
+            page.app.action_search_forward = lambda: searches.append(True)  # type: ignore[method-assign]
+            page.app.action_edit_query = lambda: edits.append(True)  # type: ignore[method-assign]
+
+            await page.press("slash")
+            assert searches == [True]
+            assert edits == []
+
+            await page.press("comma", "slash")
+            assert edits == [True]
+
+
+async def test_custom_app_and_leader_query_remaps_stay_independent() -> None:
+    keymap_cfg = {
+        "app": {"edit_query": "f5"},
+        "modes": {"leader_mode": {"keys": {"edit_query": "f6"}}},
+    }
+
+    with _patch_config(keymap_cfg):
+        async with AcePage(initial_tab="changespecs") as page:
+            edits: list[bool] = []
+            page.app.action_edit_query = lambda: edits.append(True)  # type: ignore[method-assign]
+
+            await page.press("slash")
+            assert edits == []
+            await page.press("f5")
+            assert edits == [True]
+            await page.press("comma", "f6")
+            assert edits == [True]
+
+    with _patch_config(keymap_cfg):
+        async with AcePage(initial_tab="agents") as page:
+            searches: list[bool] = []
+            edits: list[bool] = []
+            page.app.action_search_forward = lambda: searches.append(True)  # type: ignore[method-assign]
+            page.app.action_edit_query = lambda: edits.append(True)  # type: ignore[method-assign]
+
+            await page.press("slash")
+            assert searches == [True]
+            await page.press("f5")
+            assert edits == []
+            await page.press("comma", "f6")
+            assert edits == [True]
 
 
 async def test_leader_help_chord_opens_help_and_bare_question_is_inert() -> None:

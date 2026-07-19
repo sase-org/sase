@@ -21,6 +21,7 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
                     "open_config_center": "f3",
                     "next_tab": "f4",
                     "open_command_palette": "f7",
+                    "edit_query": "f8",
                 },
                 "modes": {
                     "leader_mode": {
@@ -38,6 +39,7 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
 
     for key in ("f2", "f3", "f4", "f5", "f6", "f7"):
         assert key in card
+    assert "f8" not in card
     assert " ] " in card
     assert "Launch your first agent" in card
     assert "The full tour of this tab" in card
@@ -69,6 +71,7 @@ def test_artifacts_quickstart_uses_configured_subtab_keys() -> None:
                 "app": {
                     "cycle_artifacts_subtab_reverse": "f8",
                     "cycle_artifacts_subtab": "f9",
+                    "edit_query": "f10",
                 }
             }
         }
@@ -79,6 +82,7 @@ def test_artifacts_quickstart_uses_configured_subtab_keys() -> None:
 
     assert "f8" in card
     assert "f9" in card
+    assert "f10" in card
 
 
 def test_tab_quickstart_no_match_callout_is_prs_only() -> None:
@@ -105,4 +109,4 @@ def test_tab_quickstart_no_match_callout_is_prs_only() -> None:
     callout = _section_plain(no_match_prs, "#changespec-quickstart-callout")
     assert "No PRs match this query" in callout
     assert "3 exist" in callout
-    assert ",/ edits the query" in callout
+    assert "/ edits the query" in callout

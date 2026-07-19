@@ -170,6 +170,11 @@ class TabQuickStart(VerticalScroll):
     @classmethod
     def _build_card(cls, registry: KeymapRegistry, *, tab: TabQuickStartTab) -> Text:
         app = registry.app
+        query_key = (
+            leader_key_display(registry, "edit_query")
+            if tab == "agents"
+            else key_display_name(app.edit_query)
+        )
         rows: list[tuple[tuple[str, ...], str]] = [
             (
                 (key_display_name(app.start_agent_home),),
@@ -185,7 +190,7 @@ class TabQuickStart(VerticalScroll):
                 "Cycle tabs: Agents · Artifacts · AXE.",
             ),
             (
-                (leader_key_display(registry, "edit_query"),),
+                (query_key,),
                 "Search and filter this tab.",
             ),
             (
@@ -240,7 +245,7 @@ class TabQuickStart(VerticalScroll):
         text.append("No PRs match this query — ", style=f"bold {_CALLOUT_ACCENT}")
         text.append(str(total_changespecs), style=f"bold {_CALLOUT_ACCENT}")
         text.append(f" {noun}. ", style=f"bold {_CALLOUT_ACCENT}")
-        cls._append_keycap(text, leader_key_display(registry, "edit_query"))
+        cls._append_keycap(text, key_display_name(registry.app.edit_query))
         text.append("edits the query.", style=f"bold {_CALLOUT_ACCENT}")
         return text
 

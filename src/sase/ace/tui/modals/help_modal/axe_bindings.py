@@ -41,6 +41,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (d(a.scroll_to_top), "Scroll to top"),
                 (d(a.scroll_to_bottom), "Scroll to bottom"),
+                (d(a.edit_query), "Edit search query"),
             ],
         ),
         (
@@ -63,7 +64,6 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'repeat_last'))}",
                     "Repeat last leader command",
                 ),
-                (leader_key_display(km, "edit_query"), "Edit search query"),
                 (leader_key_display(km, "show_help"), "Show this help"),
                 (
                     key_sequence_display(lm.prefix, sk(lm.keys, "agent_home")),

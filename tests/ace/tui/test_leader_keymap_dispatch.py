@@ -35,14 +35,32 @@ def test_leader_question_mark_shows_help_on_all_tabs() -> None:
         assert app.refresh_count == 1
 
 
-def test_leader_slash_edits_query_on_all_tabs() -> None:
-    for tab in ("changespecs", "agents", "axe"):
+def test_leader_slash_edits_query_only_on_agents() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    assert app._handle_leader_key("slash") is True
+    assert app.edit_query_count == 1
+    assert app._last_leader_key == "slash"
+    assert app.refresh_count == 1
+
+    for tab in ("changespecs", "axe"):
         app = _FakeApp(current_tab=tab)
 
         assert app._handle_leader_key("slash") is True
-        assert app.edit_query_count == 1
-        assert app._last_leader_key == "slash"
+        assert app.edit_query_count == 0
+        assert app._last_leader_key is None
         assert app.refresh_count == 1
+
+
+def test_leader_query_repeat_rechecks_agents_context() -> None:
+    app = _FakeApp(current_tab="agents")
+    app._handle_leader_key("slash")
+    app.current_tab = "changespecs"  # type: ignore[assignment]
+
+    assert app._handle_leader_key("comma") is True
+    assert app.edit_query_count == 1
+    assert app._last_leader_key == "slash"
+    assert app.refresh_count == 2
 
 
 def test_leader_space_runs_agent_from_selected_agent_on_agents_tab() -> None:
