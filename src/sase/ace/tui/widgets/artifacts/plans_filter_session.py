@@ -1,0 +1,369 @@
+"""Live filter-session and deep-archive behavior for the plans pane."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from textual.worker import Worker, WorkerState
+
+from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.plan_search.filter_query import (
+    PlanFilterQueryError,
+    PlanFilterValues,
+    parse_plan_filter_query,
+    to_query_string,
+)
+
+from .plan_filter_bar import PlanFilterBar
+from .plans_data import PlansSnapshot
+from .plans_deep_archive import (
+    DeepArchiveRequest,
+    DeepArchiveResult,
+    deep_archive_coverage,
+    load_deep_archive_result,
+    make_deep_archive_request,
+    remember_deep_archive_result,
+)
+from .plans_filtering import (
+    PlanFilterIndex,
+    build_plan_filter_index,
+)
+
+if TYPE_CHECKING:
+    from textual.containers import Vertical as _MixinBase
+else:
+    _MixinBase = object
+
+
+class PlansFilterSessionMixin(_MixinBase):
+    """Own inline filtering and full archive search orchestration."""
+
+    project_scope: str | None
+    filters: PlanFilterValues
+    _snapshot: PlansSnapshot | None
+    _expanded_epics: set[tuple[str, str]]
+    _filter_index: PlanFilterIndex | None
+    _filter_index_snapshot: PlansSnapshot | None
+    _filter_session_open: bool
+    _filter_restore_values: PlanFilterValues | None
+    _filter_restore_expanded: set[tuple[str, str]] | None
+    _filter_restore_selection: str | None
+    _live_filter_values: PlanFilterValues | None
+    _filter_query_error: PlanFilterQueryError | None
+    _deep_archive_debouncer: DetailPanelDebouncer | None
+    _deep_archive_worker: Worker[DeepArchiveResult] | None
+    _deep_archive_request: DeepArchiveRequest | None
+    _deep_archive_in_flight: DeepArchiveRequest | None
+    _deep_archive_pending: DeepArchiveRequest | None
+    _deep_archive_cache: dict[DeepArchiveRequest, DeepArchiveResult]
+    _display_archive_total: int | None
+    _display_archive_coverage_label: str | None
+
+    if TYPE_CHECKING:
+
+        def _refresh_options(
+            self,
+            *,
+            preferred_id: str | None = None,
+            update_detail: bool = True,
+        ) -> None: ...
+
+        def _selected_option_id(self) -> str | None: ...
+
+        def focus_list(self) -> None: ...
+
+    def _init_plans_filter_session(self) -> None:
+        self.filters = PlanFilterValues()
+        self._filter_index = None
+        self._filter_index_snapshot = None
+        self._filter_session_open = False
+        self._filter_restore_values = None
+        self._filter_restore_expanded = None
+        self._filter_restore_selection = None
+        self._live_filter_values = None
+        self._filter_query_error = None
+        self._deep_archive_debouncer = None
+        self._deep_archive_worker = None
+        self._deep_archive_request = None
+        self._deep_archive_in_flight = None
+        self._deep_archive_pending = None
+        self._deep_archive_cache = {}
+
+    def show_filters(self) -> None:
+        """Open and focus the inline plans filter bar."""
+        bar = self.query_one(PlanFilterBar)
+        if self._filter_session_open:
+            bar.query_one("#plan-filter-input").focus()
+            return
+        self._filter_session_open = True
+        self._filter_restore_values = self.filters
+        self._filter_restore_expanded = set(self._expanded_epics)
+        self._filter_restore_selection = self._selected_option_id()
+        self._live_filter_values = self.filters
+        self._filter_query_error = None
+        self._ensure_filter_index(needed=True)
+        self._set_filter_completion_sources()
+        bar.open(to_query_string(self.filters))
+        self._refresh_options(preferred_id=self._filter_restore_selection)
+        self._schedule_deep_archive(self.filters)
+
+    def on_plan_filter_bar_query_changed(
+        self,
+        event: PlanFilterBar.QueryChanged,
+    ) -> None:
+        event.stop()
+        try:
+            values = parse_plan_filter_query(event.text)
+        except PlanFilterQueryError as exc:
+            self._filter_query_error = exc
+            self._invalidate_deep_archive_request()
+            self.query_one(PlanFilterBar).set_status(
+                None,
+                exact=False,
+                error=exc,
+            )
+            return
+
+        self._filter_query_error = None
+        self._live_filter_values = values
+        self._cancel_jump_mode_for_filter_change()
+        self._refresh_options()
+        self._schedule_deep_archive(values)
+
+    def on_plan_filter_bar_submitted(
+        self,
+        event: PlanFilterBar.Submitted,
+    ) -> None:
+        event.stop()
+        try:
+            values = parse_plan_filter_query(event.text)
+        except PlanFilterQueryError as exc:
+            self._filter_query_error = exc
+            self._invalidate_deep_archive_request()
+            self.query_one(PlanFilterBar).set_status(
+                None,
+                exact=False,
+                error=exc,
+            )
+            self.notify(exc.message, severity="error")
+            return
+
+        self.filters = values
+        self._live_filter_values = values
+        preferred_id = self._selected_option_id()
+        self._close_filter_session()
+        self._cancel_jump_mode_for_filter_change()
+        self._refresh_options(preferred_id=preferred_id)
+        self._schedule_deep_archive(values)
+        self.focus_list()
+
+    def on_plan_filter_bar_dismissed(
+        self,
+        event: PlanFilterBar.Dismissed,
+    ) -> None:
+        event.stop()
+        restore_values = self._filter_restore_values
+        restore_expanded = self._filter_restore_expanded
+        restore_selection = self._filter_restore_selection
+        if restore_values is not None:
+            self.filters = restore_values
+        if restore_expanded is not None:
+            self._expanded_epics = set(restore_expanded)
+        self._invalidate_deep_archive_request()
+        self._close_filter_session()
+        self._cancel_jump_mode_for_filter_change()
+        self._refresh_options(preferred_id=restore_selection)
+        self._schedule_deep_archive(self.filters)
+        self.focus_list()
+
+    def _close_filter_session(self) -> None:
+        self.query_one(PlanFilterBar).close()
+        self._filter_session_open = False
+        self._filter_restore_values = None
+        self._filter_restore_expanded = None
+        self._filter_restore_selection = None
+        self._live_filter_values = None
+        self._filter_query_error = None
+
+    def _display_filter_values(self) -> PlanFilterValues:
+        if self._filter_session_open and self._live_filter_values is not None:
+            return self._live_filter_values
+        return self.filters
+
+    def _ensure_filter_index(self, *, needed: bool) -> PlanFilterIndex | None:
+        snapshot = self._snapshot
+        if not needed or snapshot is None or snapshot.project != self.project_scope:
+            return None
+        if self._filter_index_snapshot is not snapshot:
+            self._filter_index = build_plan_filter_index(snapshot)
+            self._filter_index_snapshot = snapshot
+        return self._filter_index
+
+    def _set_filter_completion_sources(self) -> None:
+        snapshot = self._snapshot
+        index = self._ensure_filter_index(needed=True)
+        if snapshot is None or index is None:
+            self.query_one(PlanFilterBar).set_completion_sources((), ())
+            return
+        archive_statuses = tuple(
+            status
+            for record in index
+            if record.kind == "archive"
+            for status in record.status_labels
+        )
+        deep_result = self._deep_archive_result_for(self._display_filter_values())
+        if deep_result is not None:
+            archive_statuses = (
+                *archive_statuses,
+                *(
+                    status
+                    for item in deep_result.archive
+                    for status in (
+                        item.match.plan.status,
+                        item.match.plan.frontmatter.get("status", ""),
+                    )
+                    if status
+                ),
+            )
+        projects = tuple(
+            value
+            for project in snapshot.projects
+            for value in (project, snapshot.display_names.get(project, project))
+        )
+        self.query_one(PlanFilterBar).set_completion_sources(
+            archive_statuses,
+            projects,
+        )
+
+    def _filter_coverage(
+        self,
+        values: PlanFilterValues,
+    ) -> tuple[bool, str | None]:
+        return deep_archive_coverage(
+            self._snapshot,
+            values,
+            self._deep_archive_result_for(values),
+        )
+
+    def _deep_archive_request_for(
+        self,
+        values: PlanFilterValues,
+    ) -> DeepArchiveRequest | None:
+        return make_deep_archive_request(
+            self._snapshot,
+            project_scope=self.project_scope,
+            filter_session_open=self._filter_session_open,
+            values=values,
+        )
+
+    def _deep_archive_result_for(
+        self,
+        values: PlanFilterValues,
+    ) -> DeepArchiveResult | None:
+        request = self._deep_archive_request_for(values)
+        return None if request is None else self._deep_archive_cache.get(request)
+
+    def _schedule_deep_archive(self, values: PlanFilterValues) -> None:
+        request = self._deep_archive_request_for(values)
+        if request is None:
+            self._invalidate_deep_archive_request()
+            return
+        self._deep_archive_request = request
+        cached = self._deep_archive_cache.get(request)
+        if cached is not None:
+            if self._deep_archive_debouncer is not None:
+                self._deep_archive_debouncer.cancel()
+            if self.is_mounted:
+                self._refresh_options()
+            return
+        if self._deep_archive_in_flight == request:
+            return
+
+        def launch() -> None:
+            self._launch_deep_archive(request)
+
+        if self._deep_archive_debouncer is None:
+            launch()
+        else:
+            self._deep_archive_debouncer.schedule(launch)
+
+    def _launch_deep_archive(self, request: DeepArchiveRequest) -> None:
+        if request != self._deep_archive_request:
+            return
+        if request in self._deep_archive_cache:
+            self._refresh_options()
+            return
+        worker = self._deep_archive_worker
+        if worker is not None and not worker.is_finished:
+            self._deep_archive_pending = request
+            return
+        snapshot = self._snapshot
+        if snapshot is None or id(snapshot) != request.snapshot_identity:
+            return
+
+        def task() -> DeepArchiveResult:
+            return load_deep_archive_result(snapshot, request)
+
+        self._deep_archive_in_flight = request
+        self._deep_archive_pending = None
+        self._deep_archive_worker = self.run_worker(
+            task,
+            thread=True,
+            group="artifacts-plans-deep-archive",
+            exclusive=False,
+            exit_on_error=False,
+        )
+
+    def _on_deep_archive_worker_changed(
+        self,
+        event: Worker.StateChanged,
+    ) -> None:
+        if event.state not in {
+            WorkerState.SUCCESS,
+            WorkerState.ERROR,
+            WorkerState.CANCELLED,
+        }:
+            return
+        request = self._deep_archive_in_flight
+        self._deep_archive_worker = None
+        self._deep_archive_in_flight = None
+        if event.state == WorkerState.SUCCESS:
+            result = event.worker.result
+            if (
+                isinstance(result, DeepArchiveResult)
+                and request == self._deep_archive_request
+                and result.request == request
+            ):
+                remember_deep_archive_result(self._deep_archive_cache, result)
+                if self._filter_session_open:
+                    self._set_filter_completion_sources()
+                self._refresh_options()
+
+        pending = self._deep_archive_pending
+        self._deep_archive_pending = None
+        if pending is not None and pending == self._deep_archive_request:
+            self._launch_deep_archive(pending)
+
+    def _invalidate_deep_archive_request(self) -> None:
+        if self._deep_archive_debouncer is not None:
+            self._deep_archive_debouncer.cancel()
+        self._deep_archive_request = None
+        self._deep_archive_pending = None
+
+    def _reset_deep_archive_state(self) -> None:
+        self._invalidate_deep_archive_request()
+        self._deep_archive_cache.clear()
+        self._display_archive_total = None
+        self._display_archive_coverage_label = None
+
+    def _cancel_jump_mode_for_filter_change(self) -> None:
+        cancel_jump = getattr(
+            self.app,
+            "_cancel_artifacts_jump_mode_for_model_change",
+            None,
+        )
+        if callable(cancel_jump):
+            cancel_jump("plans")
+
+
+__all__ = ["PlansFilterSessionMixin"]
