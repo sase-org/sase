@@ -79,7 +79,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         directive_arg_ctx = self._get_directive_arg_token_context()
         if directive_arg_ctx is not None:
             self._completion_kind = "directive_arg"
-            row, start, end, directive_name, token, excluded_names = directive_arg_ctx
+            row, start, end, directive_name, token, selected_values = directive_arg_ctx
             candidates, shared_extension = build_directive_arg_completion_candidates(
                 directive_name,
                 token,
@@ -88,7 +88,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                     if directive_name == "wait"
                     else None
                 ),
-                excluded_names=excluded_names,
+                selected_values=selected_values,
             )
         else:
             arg_ctx = self._get_xprompt_arg_completion_context()
@@ -181,7 +181,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                     end,
                     directive_name,
                     token,
-                    excluded_names,
+                    selected_values,
                 ) = directive_arg_ctx
                 candidates, _ = build_directive_arg_completion_candidates(
                     directive_name,
@@ -191,7 +191,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                         if directive_name == "wait"
                         else None
                     ),
-                    excluded_names=excluded_names,
+                    selected_values=selected_values,
                 )
             elif self._completion_kind.startswith("xprompt_arg_"):
                 arg_ctx = self._get_xprompt_arg_completion_context()

@@ -196,6 +196,21 @@ def test_wait_paren_arg_completion_suggests_runners_keyword() -> None:
     assert shared == ""
 
 
+def test_wait_arg_completion_excludes_selected_keywords_case_insensitively() -> None:
+    candidates, shared = build_directive_arg_completion_candidates(
+        "wait",
+        "",
+        agent_candidates=[agent_candidate("planner"), agent_candidate("coder")],
+        selected_values=frozenset({"TIME=5m", "Planner"}),
+    )
+
+    assert [candidate.insertion for candidate in candidates] == [
+        "runners=",
+        "coder",
+    ]
+    assert shared == ""
+
+
 def test_directive_arg_completion_builds_model_candidates_from_catalog() -> None:
     with patch(MODEL_CATALOG_PATCH, return_value=model_entries()):
         candidates, shared = build_directive_arg_completion_candidates("model", "")

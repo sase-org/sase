@@ -160,7 +160,7 @@ def build_directive_arg_completion_candidates(
     partial: str,
     *,
     agent_candidates: Sequence[AgentCompletionCandidate] | None = None,
-    excluded_names: frozenset[str] = frozenset(),
+    selected_values: frozenset[str] = frozenset(),
 ) -> tuple[list[CompletionCandidate], str]:
     """Build fixed-value candidates for a directive argument token."""
     if directive_name == "model_alias_key":
@@ -191,7 +191,7 @@ def build_directive_arg_completion_candidates(
         return _build_wait_arg_completion_candidates(
             partial,
             agent_candidates,
-            excluded_names=excluded_names,
+            selected_values=selected_values,
         )
 
     values = _DIRECTIVE_ARGUMENT_VALUES.get(canonical)
@@ -329,15 +329,16 @@ def _build_wait_arg_completion_candidates(
     partial: str,
     agent_candidates: Sequence[AgentCompletionCandidate] | None,
     *,
-    excluded_names: frozenset[str] = frozenset(),
+    selected_values: frozenset[str] = frozenset(),
 ) -> tuple[list[CompletionCandidate], str]:
     """Build agent-name and keyword candidates for ``%wait`` arguments."""
     agents, _ = build_agent_arg_completion_candidates(
         partial,
         agent_candidates,
-        excluded_names=excluded_names,
+        excluded_names=selected_values,
     )
     partial_lower = partial.lower()
+    selected = {value.casefold() for value in selected_values}
     keywords = [
         CompletionCandidate(
             display=value,
@@ -351,6 +352,9 @@ def _build_wait_arg_completion_candidates(
         )
         for value, description in _WAIT_KEYWORD_ARGUMENTS
         if value.lower().startswith(partial_lower)
+        and not any(
+            selected_value.startswith(value.casefold()) for selected_value in selected
+        )
     ]
     candidates = [*keywords, *agents]
 

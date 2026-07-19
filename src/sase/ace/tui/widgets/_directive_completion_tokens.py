@@ -147,10 +147,8 @@ def selected_wait_values_around_cursor(
         if index == active_index:
             continue
         value = raw_value.strip()
-        if (
-            value
-            and "=" not in value
-            and all(_is_wait_directive_argument_identifier(char) for char in value)
+        if value and all(
+            _is_wait_directive_argument_identifier(char) for char in value
         ):
             selected.add(value)
     return frozenset(selected)

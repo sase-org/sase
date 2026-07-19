@@ -104,7 +104,15 @@ def test_wait_arg_extraction_reports_selected_values_on_both_sides() -> None:
     active_start = line.index("co")
 
     assert selected_wait_values_around_cursor(line, active_start) == frozenset(
-        {"planner", "@builders"}
+        {"planner", "@builders", "time=5m"}
+    )
+
+
+def test_wait_arg_extraction_tracks_keyword_and_target_values_to_the_right() -> None:
+    line = "%wait:, runners=1, Coder"
+
+    assert selected_wait_values_around_cursor(line, len("%wait:")) == frozenset(
+        {"runners=1", "Coder"}
     )
 
 

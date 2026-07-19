@@ -242,7 +242,7 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                 _end,
                 directive_name,
                 token,
-                excluded_names,
+                selected_values,
             ) = directive_arg_ctx
             candidates, _shared = build_directive_arg_completion_candidates(
                 directive_name,
@@ -252,7 +252,7 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                     if directive_name == "wait"
                     else None
                 ),
-                excluded_names=excluded_names,
+                selected_values=selected_values,
             )
         else:
             ctx = self._get_token_context()
