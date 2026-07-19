@@ -70,6 +70,7 @@ def run_script_chop_once(
     build_context_fn: Callable[[str, AxeConfig], str] = build_oneshot_context,
     is_process_running_fn: Callable[[int], bool] = is_process_running,
     launch_agent_from_cwd_fn: Callable[..., Any] | None = None,
+    launch_agents_from_cwd_fn: Callable[..., Any] | None = None,
 ) -> ChopRunOutcome:
     resolved_timeout = chop.timeout or chop_timeout_default
     finalize_launched_chop_runs(lumberjack_name, [chop.name])
@@ -385,6 +386,7 @@ def run_script_chop_once(
         chop_verbose=chop_verbose,
         preflight=preflight,
         launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
+        launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
     )
 
 

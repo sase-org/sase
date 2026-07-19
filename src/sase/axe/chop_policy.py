@@ -123,7 +123,10 @@ def evaluate_chop_preflight(
         )
         agents = (
             _agent_snapshots()
-            if any(guard.get("provider") == "agent_hood" for guard in chop.inhibit_if)
+            if any(
+                guard.get("provider") in {"agent_hood", "agent_clan"}
+                for guard in chop.inhibit_if
+            )
             else []
         )
 
@@ -492,6 +495,7 @@ def _agent_snapshots() -> list[dict[str, Any]]:
         {
             "name": str(agent.name),
             "status": str(agent.status),
+            "agent_clan": getattr(agent, "agent_clan", None),
             "active": True,
         }
         for agent in list_running_agents()

@@ -131,6 +131,7 @@ def test_parse_lumberjacks_normalizes_declarative_chop_policy() -> None:
                     "inhibit_if": {
                         "changespec": {"name_prefix": "audit_"},
                         "agent_hood": [{"hood": "audit"}],
+                        "agent_clan": {"name_prefix": "toobig-"},
                     },
                     "trigger": {
                         "git.commits_since": {
@@ -150,6 +151,7 @@ def test_parse_lumberjacks_normalizes_declarative_chop_policy() -> None:
     assert chop.inhibit_if == [
         {"provider": "changespec", "name_prefix": "audit_"},
         {"provider": "agent_hood", "hood": "audit"},
+        {"provider": "agent_clan", "name_prefix": "toobig-"},
     ]
     assert chop.trigger == {
         "provider": "git.commits_since",

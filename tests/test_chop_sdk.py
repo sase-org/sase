@@ -82,6 +82,8 @@ def test_result_builder_proposal_helper_round_trips(tmp_path: Path) -> None:
             "Fix the finding.",
             "gh:sase-org/sase",
             proposal_id="fix",
+            agent_name="worker",
+            clan="findings-@",
             model="codex/gpt-5.6-sol",
             env={"FINDING": "1"},
             dedupe_key="finding:1",
@@ -91,6 +93,8 @@ def test_result_builder_proposal_helper_round_trips(tmp_path: Path) -> None:
 
     proposal = document["proposed_launches"][0]
     assert proposal["id"] == "fix"
+    assert proposal["agent_name"] == "worker"
+    assert proposal["clan"] == "findings-@"
     assert proposal["workspace"] == "gh:sase-org/sase"
     assert proposal["env"] == {"FINDING": "1"}
     assert document["evidence"] == ["reports/finding.json"]

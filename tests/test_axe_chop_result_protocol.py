@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -12,9 +13,14 @@ import pytest
 from sase.axe.chop_agents import _record_chop_agent_launch
 from sase.axe.chop_lifecycle import _agent_completion, finalize_launched_chop_runs
 from sase.axe.chop_policy import apply_chop_once_per
-from sase.axe.chop_proposals import prepare_chop_proposals
+from sase.axe.chop_proposals import (
+    plan_chop_proposals,
+    prepare_chop_proposals,
+    proposal_previews,
+)
 from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.config import AxeConfig, ChopConfig
+from sase.agent.multi_prompt_launcher import MultiPromptPartialLaunchError
 from sase.axe.state import (
     ChopRunEntry,
     chop_run_context_path,
@@ -207,6 +213,168 @@ def test_dry_run_previews_scaffolds_and_never_launches(
     assert f"%id({first_name}, tribe=chop)" in first_prompt
     assert "%model:codex/gpt-5.6-sol" in first_prompt
     assert f"%wait:{first_name}" in second_prompt
+
+
+def test_deduped_clan_head_promotes_first_survivor_to_declarer(
+    temp_state_dir: Path,
+) -> None:
+    chop = ChopConfig(name="split", description="")
+    prepared = prepare_chop_proposals(
+        "split",
+        {
+            "proposed_launches": [
+                {
+                    "id": "head",
+                    "prompt": "Head.",
+                    "workspace": "git:sase",
+                    "agent_name": "split_file.head",
+                    "clan": "toobig-@",
+                    "dedupe_key": "split:head",
+                },
+                {
+                    "prompt": "Tail.",
+                    "workspace": "git:sase",
+                    "agent_name": "split_file.tail",
+                    "clan": "toobig-@",
+                    "wait_on": "head",
+                },
+            ]
+        },
+    )
+    apply_chop_once_per(
+        lumberjack_name="split",
+        chop=chop,
+        proposals=prepared[:1],
+        persist=True,
+    )
+    once_per = apply_chop_once_per(
+        lumberjack_name="split",
+        chop=chop,
+        proposals=prepared,
+        persist=False,
+    )
+    accepted = [
+        replace(prepared[index], wait_on=once_per.effective_waits[index])
+        for index in once_per.accepted_indices
+    ]
+    plans = plan_chop_proposals(accepted)
+    previews = proposal_previews(
+        prepared,
+        once_per_decisions=once_per.decisions,
+        effective_waits=once_per.effective_waits,
+        launch_plans=plans,
+    )
+
+    assert previews[0]["validation"] == "duplicate"
+    assert previews[0]["clan_role"] == "join"
+    assert previews[1]["clan_role"] == "declare"
+    assert previews[1]["wait_name"] is None
+    assert "%clan(toobig-0, tribe=chop)" in previews[1]["prompt"]
+
+
+def test_clan_planning_allocates_multiple_templates_after_historical_generation(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    from sase.agent.names import reserve_registered_clan_name
+
+    old_artifacts = tmp_path / "old-clan-member"
+    old_artifacts.mkdir()
+    reserve_registered_clan_name(
+        "toobig-0",
+        "old-generation",
+        old_artifacts,
+        create_only=True,
+    )
+    prepared = prepare_chop_proposals(
+        "split",
+        {
+            "proposed_launches": [
+                {
+                    "prompt": "Split.",
+                    "workspace": "git:sase",
+                    "agent_name": "split_file.new",
+                    "clan": "toobig-@",
+                },
+                {
+                    "prompt": "Review.",
+                    "workspace": "git:sase",
+                    "agent_name": "reviewer",
+                    "clan": "review-@",
+                },
+            ]
+        },
+    )
+
+    plans = plan_chop_proposals(prepared)
+
+    assert [plan.clan for plan in plans] == ["toobig-1", "review-0"]
+    assert [plan.agent_name for plan in plans] == [
+        "toobig-1.split_file.new",
+        "review-0.reviewer",
+    ]
+    assert all(plan.declares_clan for plan in plans)
+
+
+def test_clan_partial_launch_keeps_started_member_recorded(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    _result_script(
+        tmp_path,
+        "split",
+        {
+            "schema_version": 1,
+            "status": "ok",
+            "proposed_launches": [
+                {
+                    "prompt": "First.",
+                    "workspace": "git:sase",
+                    "agent_name": "first",
+                    "clan": "toobig-@",
+                    "dedupe_key": "split:first",
+                },
+                {
+                    "prompt": "Second.",
+                    "workspace": "git:sase",
+                    "agent_name": "second",
+                    "clan": "toobig-@",
+                    "dedupe_key": "split:second",
+                },
+            ],
+        },
+    )
+    started = SimpleNamespace(
+        pid=401,
+        agent_name="toobig-0.first",
+        timestamp="260719_130000",
+    )
+
+    def _fail_batch(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise MultiPromptPartialLaunchError(
+            [started],
+            RuntimeError("second spawn failed"),
+        )
+
+    with (
+        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.launch_agents_from_cwd", side_effect=_fail_batch),
+    ):
+        outcome = run_configured_chop_once(
+            lumberjack_name="split",
+            chop=ChopConfig(name="split", description=""),
+            axe_config=_config(tmp_path),
+        )
+
+    assert outcome.status == "action_failed"
+    assert [launch["pid"] for launch in outcome.launches] == [401]
+    assert outcome.run_id is not None
+    entry = read_chop_run("split", "split", outcome.run_id)
+    assert entry is not None
+    assert entry.status == "launched"
+    assert entry.finished_at is None
+    assert [launch["pid"] for launch in entry.launches] == [401]
 
 
 def test_runner_launches_proposals_in_order_with_wait_directive(

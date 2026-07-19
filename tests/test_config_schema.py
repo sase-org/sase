@@ -169,6 +169,7 @@ def test_config_schema_accepts_declarative_chop_policies() -> None:
                                         "statuses": ["WIP", "Ready"],
                                     },
                                     "agent_hood": {"hood": "audit"},
+                                    "agent_clan": {"name_prefix": "toobig-"},
                                 },
                                 "trigger": {
                                     "git.commits_since": {

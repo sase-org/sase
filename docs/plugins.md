@@ -407,6 +407,10 @@ their versioned result atomically to `SASE_CHOP_RESULT_FILE`, and emit structure
 `sase run` themselves, and proposal prompts cannot contain standalone `#!workflow` references. Axe validates and
 launches proposals so dry runs remain side-effect free and action lifecycle stays observable.
 
+Packages can group proposals in one runner-owned clan by passing the same template to `clan` and a member ID to
+`agent_name`. The runner allocates one concrete clan, makes the first accepted proposal its declarer, assigns the `chop`
+tribe at clan level, and resolves `wait_on` to full member names. Do not combine `clan` with `tribe`.
+
 ## Disabling Plugins
 
 Resource plugins can be disabled via environment variables:
@@ -553,6 +557,8 @@ def main() -> None:
         "Audit recent changes and fix confirmed correctness bugs only.",
         workspace,
         proposal_id="audit",
+        agent_name="audit",
+        clan="project-audit-@",
     )
     result.write(context=invocation.context)
 ```

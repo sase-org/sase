@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from sase.axe.chop_policy import (
@@ -151,6 +152,68 @@ def test_changespec_guard_skips_scheduled_run_and_force_bypasses_it(
     )
     assert forced.status == "success"
     assert marker.exists()
+
+
+def test_agent_clan_guard_uses_canonical_active_metadata_and_force_bypasses(
+    temp_state_dir: Path,
+) -> None:
+    chop = ChopConfig(
+        name="split",
+        description="",
+        inhibit_if=[{"provider": "agent_clan", "name_prefix": "toobig-"}],
+    )
+    active = SimpleNamespace(
+        name="ordinary.hood.member",
+        status="WAITING",
+        agent_clan="toobig-3",
+    )
+
+    with patch("sase.axe.chop_policy.list_running_agents", return_value=[active]):
+        skipped = evaluate_chop_preflight(
+            lumberjack_name="checks",
+            chop=chop,
+            context_file=None,
+            scheduled=False,
+        )
+        forced = evaluate_chop_preflight(
+            lumberjack_name="checks",
+            chop=chop,
+            context_file=None,
+            scheduled=False,
+            force=True,
+        )
+
+    assert skipped.outcome == "skip"
+    assert "toobig-3" in skipped.reason
+    assert "ordinary.hood.member" in skipped.reason
+    assert skipped.decision is not None
+    assert skipped.decision["provider"] == "agent_clan"
+    assert forced.outcome == "fire"
+
+
+def test_agent_clan_guard_does_not_infer_clan_from_dotted_name(
+    temp_state_dir: Path,
+) -> None:
+    chop = ChopConfig(
+        name="split",
+        description="",
+        inhibit_if=[{"provider": "agent_clan", "name_prefix": "toobig-"}],
+    )
+    active = SimpleNamespace(
+        name="toobig-3.split_file.module",
+        status="RUNNING",
+        agent_clan=None,
+    )
+
+    with patch("sase.axe.chop_policy.list_running_agents", return_value=[active]):
+        decision = evaluate_chop_preflight(
+            lumberjack_name="checks",
+            chop=chop,
+            context_file=None,
+            scheduled=False,
+        )
+
+    assert decision.outcome == "fire"
 
 
 def test_manual_run_bypasses_configured_git_trigger(

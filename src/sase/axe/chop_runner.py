@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from sase.ace.changespec import ChangeSpec, find_all_changespecs
 from sase.ace.hooks.processes import is_process_running
-from sase.agent.launcher import launch_agent_from_cwd
+from sase.agent.launcher import launch_agent_from_cwd, launch_agents_from_cwd
 from sase.core.query_facade import evaluate_query_many
 
 from .chop_runner_context import (
@@ -114,6 +114,7 @@ def _run_script_chop_once(
         build_context_fn=_build_oneshot_context,
         is_process_running_fn=is_process_running,
         launch_agent_from_cwd_fn=launch_agent_from_cwd,
+        launch_agents_from_cwd_fn=launch_agents_from_cwd,
     )
 
 

@@ -201,7 +201,7 @@ axe:
           env:
             MY_VAR: "value" # Custom environment variables
           inhibit_if:
-            agent_hood: { hood: busy_workers }
+            agent_clan: { name_prefix: toobig- }
           trigger:
             git.commits_since:
               project: "{target.name}"
@@ -224,7 +224,7 @@ axe:
 | `run_every`   | `str \| null`          | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)                          |
 | `timeout`     | `str \| null`          | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)                 |
 | `env`         | `dict[str, env-value]` | Values merged over lumberjack env; literals or `{env:}`, `{file:}`, `{pass:}` refs    |
-| `inhibit_if`  | list or map            | `changespec` / `agent_hood` guards evaluated before the script                        |
+| `inhibit_if`  | list or map            | `changespec` / `agent_hood` / `agent_clan` guards evaluated before the script         |
 | `trigger`     | string or map          | `always` or `git.commits_since`; scheduled runs fire only when it accepts             |
 | `once_per`    | string or object       | Bounded per-proposal dedupe-key template                                              |
 | `for_each`    | list or source         | Literal target objects or `source: projects`, expanded to stable per-target instances |
@@ -304,14 +304,18 @@ is required. A proposal-emitting script atomically writes a schema-versioned JSO
 ```
 
 Result `status` is `ok`, `no_op`, or `check_error`. Results can also carry a `reason`, integer `counters`, and relative
-`evidence` file paths. Each proposal requires `prompt` and `workspace`; optional fields are `id`, `agent_name`, `tribe`,
-`model`, `effort`, `env`, `dedupe_key`, and `wait_on` (an earlier proposal index or ID).
+`evidence` file paths. Each proposal requires `prompt` and `workspace`; optional fields are `id`, `agent_name`, `clan`,
+`tribe`, `model`, `effort`, `env`, `dedupe_key`, and `wait_on` (an earlier proposal index or ID). With `clan`,
+`agent_name` is the member ID and the runner owns concrete clan allocation plus the full `<clan>.<member>` identity.
+Clan proposals cannot also set `tribe`; the first accepted member declares the clan with the default `chop` tribe.
 
 The runner validates the full document before launching anything. It injects the workspace reference, a deterministic
 agent name and `tribe=chop` in one `%id(...)` directive, model/effort directives, and a `%wait` dependency for
-`wait_on`, then launches proposals in document order. Standalone `#!workflow` references are forbidden in proposal
-prompts; reusable inline `#xprompt` references remain valid. The runner records every launched agent in
-`agent_chops.json` and finalizes the chop only when the linked agents reach terminal state.
+`wait_on`, then launches proposals in document order. Clan-scoped proposals are preplanned as one multi-prompt batch:
+the first surviving member declares one concrete clan generation and later members join it, while waits use their full
+resolved names. Standalone `#!workflow` references are forbidden in proposal prompts; reusable inline `#xprompt`
+references remain valid. The runner records every launched agent in `agent_chops.json` and finalizes the chop only when
+the linked agents reach terminal state.
 
 A launcher can still fail partway through an otherwise valid batch. The caller receives `action_failed` immediately.
 When at least one proposal already started, however, the persisted chop run remains active as `launched` until every
@@ -328,8 +332,9 @@ and `launch_proposal`) for argument parsing, summaries, validation, and atomic r
 Policy is runner-owned and evaluated before the script:
 
 - `run_every` limits cadence for each expanded chop instance.
-- `inhibit_if` supports `changespec` and `agent_hood` guards. A matching guard records a visible `skipped` run with its
-  reason.
+- `inhibit_if` supports `changespec`, `agent_hood`, and `agent_clan` guards. `agent_clan.name_prefix` matches canonical
+  clan metadata on active agents only; dotted agent names are not treated as clans. A match records a visible `skipped`
+  run naming the clan and member.
 - `trigger` defaults to `always`. `git.commits_since` observes a project repository, fires when its threshold is met,
   and owns its checkpoint under the chop's state directory. A missing checkpoint fires once so a new chop is not
   silently inert.
@@ -349,7 +354,8 @@ Once-per filtering keeps proposal chains connected. If a surviving proposal's `w
 follows the skipped proposal's own dependency until it reaches the nearest earlier proposal that also survived the
 filter. If no such proposal exists, AXE removes the wait. Dry-run and recorded proposal previews put the resulting
 dependency in `wait_on` and explain the change in `dedupe_reason`, so removing duplicate work does not also discard a
-new downstream proposal.
+new downstream proposal. For a clan, the first surviving member becomes the declarer; dry runs show the same concrete
+clan, declaration/join roles, full member names, and effective waits without reserving names or spawning agents.
 
 #### Builtin `refresh_docs`
 

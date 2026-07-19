@@ -100,6 +100,7 @@ def render_chop_run_result(
         table.add_column("ID", no_wrap=True)
         table.add_column("Validation", no_wrap=True)
         table.add_column("Agent", overflow="fold")
+        table.add_column("Clan", overflow="fold")
         table.add_column("Workspace", overflow="fold")
         table.add_column("Wait On", overflow="fold")
         table.add_column("Model", overflow="fold")
@@ -115,6 +116,11 @@ def render_chop_run_result(
                     style="yellow" if validation == "duplicate" else "green",
                 ),
                 str(proposal.get("agent_name") or "-"),
+                (
+                    f"{proposal.get('clan')} ({proposal.get('clan_role')})"
+                    if proposal.get("clan")
+                    else "-"
+                ),
                 str(proposal.get("workspace") or "-"),
                 str(proposal.get("wait_name") or "-"),
                 str(proposal.get("model") or "-"),

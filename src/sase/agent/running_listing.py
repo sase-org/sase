@@ -44,6 +44,9 @@ class RunningAgentInfo:
     # Exact scheduler occupancy from the source scan record. ``None`` preserves
     # compatibility for integrations that construct this lightweight type.
     holds_runner_slot: bool | None = None
+    # Canonical clan metadata from agent_meta.json. This is intentionally not
+    # inferred from the agent's dotted name because ordinary hoods are not clans.
+    agent_clan: str | None = None
 
 
 class _RunningAgentListing(list[RunningAgentInfo]):
@@ -223,6 +226,7 @@ def _running_info_from_running_record(
         duration_seconds=duration_seconds,
         artifacts_dir=record.artifact_dir,
         holds_runner_slot=bool(meta.run_started_at) and record.pending_question is None,
+        agent_clan=meta.agent_clan,
     )
 
 
@@ -323,6 +327,7 @@ def _done_info_from_record(
         started_at=started_at,
         duration_seconds=duration_seconds,
         artifacts_dir=record.artifact_dir,
+        agent_clan=meta.agent_clan if meta is not None else None,
     )
 
 

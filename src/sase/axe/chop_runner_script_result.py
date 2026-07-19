@@ -17,6 +17,7 @@ from .chop_policy import (
 )
 from .chop_proposals import (
     launch_chop_proposals,
+    plan_chop_proposals,
     prepare_chop_proposals,
     proposal_previews,
 )
@@ -85,6 +86,7 @@ def process_script_chop_result(
     chop_verbose: bool,
     preflight: ChopPreflight,
     launch_agent_from_cwd_fn: Callable[..., Any] | None,
+    launch_agents_from_cwd_fn: Callable[..., Any] | None,
 ) -> ChopRunOutcome:
     """Validate a script result, apply dedupe, and launch accepted proposals."""
     structured_result: dict[str, Any] | None = None
@@ -101,7 +103,9 @@ def process_script_chop_result(
                 target_key=chop.target_key or None,
                 run_id=run_id,
             )
-            proposals = proposal_previews(prepared_proposals)
+            # Clan allocation must be based on proposals that survive once-per
+            # filtering. Use structural fallbacks until that set is known.
+            proposals = proposal_previews(prepared_proposals, launch_plans=[])
         except Exception as exc:
             tb = capture_traceback()
             finalize_script_chop_run(
@@ -295,11 +299,6 @@ def process_script_chop_result(
         )
 
     if once_per.decisions:
-        proposals = proposal_previews(
-            prepared_proposals,
-            once_per_decisions=once_per.decisions,
-            effective_waits=once_per.effective_waits,
-        )
         append_once_per_summary(
             lumberjack_name,
             chop.name,
@@ -319,6 +318,53 @@ def process_script_chop_result(
         for proposal in prepared_proposals
         if proposal.index in accepted_indices
     ]
+
+    try:
+        launch_plans = plan_chop_proposals(accepted_proposals)
+        proposals = proposal_previews(
+            prepared_proposals,
+            once_per_decisions=once_per.decisions,
+            effective_waits=once_per.effective_waits,
+            launch_plans=launch_plans,
+        )
+    except Exception as exc:
+        tb = capture_traceback()
+        if not dry_run:
+            _release_unlaunched_once_per_keys(
+                lumberjack_name=lumberjack_name,
+                chop_name=chop.name,
+                run_id=run_id,
+                accepted_proposals=accepted_proposals,
+                successful_launches=[],
+            )
+        finalize_script_chop_run(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            status="check_error",
+            exit_code=0,
+            error=exc,
+            tb=tb,
+            result_file=result_path.name,
+            structured_result=structured_result,
+            proposals=proposals,
+            dry_run=dry_run,
+            preflight=preflight,
+        )
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="check_error",
+            run_id=run_id,
+            exit_code=0,
+            error=exc,
+            traceback=tb,
+            result=structured_result,
+            proposals=tuple(proposals),
+            dry_run=dry_run,
+            chop_verbose=chop_verbose,
+        )
 
     if not prepared_proposals or dry_run:
         finalize_script_chop_run(
@@ -387,6 +433,8 @@ def process_script_chop_result(
             run_id=run_id,
             proposals=accepted_proposals,
             launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
+            launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
+            launch_plans=launch_plans,
             launch_recorded_fn=successful_launches.append,
         )
     except Exception as exc:
