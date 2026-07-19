@@ -48,6 +48,8 @@ def agent_to_cleanup_target(agent: Any) -> AgentCleanupTargetWire:
         from_changespec=bool(getattr(agent, "_from_changespec", False)),
         workspace=agent.effective_workspace_num,
         tag=agent.tag,
+        agent_clan=agent.agent_clan,
+        agent_clan_generation=agent.agent_clan_generation,
         agent_name=agent.agent_name,
         display_name=agent.display_name,
         start_time=_iso_or_none(agent.start_time),

@@ -15,6 +15,7 @@ from sase.core.agent_cleanup_wire import (
     CLEANUP_MODE_DISMISS_COMPLETED,
     CLEANUP_MODE_KILL_AND_DISMISS,
     CLEANUP_SCOPE_ALL_PANELS,
+    CLEANUP_SCOPE_CLAN,
     CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
     CLEANUP_SCOPE_FOCUSED_PANEL,
     CLEANUP_SCOPE_TAG,
@@ -28,6 +29,8 @@ from tests.test_core_facade._agent_cleanup_helpers import (
     _id,
     _request,
     _SCENARIOS,
+    _scenario_clan_scope,
+    _scenario_clan_scope_active_parallel_family,
     _scenario_collapsed_group,
     _scenario_custom_child_running,
     _scenario_duplicate_child_inputs,
@@ -66,6 +69,20 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
         assert [item.reason for item in plan.skipped_items].count(
             "workflow_child_cascade_only"
         ) == 1
+    elif scenario is _scenario_clan_scope:
+        assert [item.identity.cl_name for item in plan.kill_items] == ["release"]
+        assert [item.identity.cl_name for item in plan.dismiss_items] == ["verified"]
+        assert [item.cl_name for item in plan.cascaded_workflow_children] == [
+            "release-step"
+        ]
+    elif scenario is _scenario_clan_scope_active_parallel_family:
+        assert plan.kill_items == ()
+        assert plan.dismiss_items == ()
+        assert any(
+            item.identity.cl_name == "family"
+            and item.detail == "parallel family still active"
+            for item in plan.skipped_items
+        )
     elif scenario is _scenario_workflow_parent_with_children:
         assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
             ("workflow", KILL_KIND_WORKFLOW)
@@ -243,6 +260,36 @@ def test_python_cleanup_planner_broad_scopes_keep_children_cascade_only() -> Non
         assert [item.reason for item in plan.skipped_items] == [
             SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY
         ]
+
+
+def test_python_cleanup_planner_clan_scope_without_generation_selects_all() -> None:
+    current = _agent(
+        cl_name="current",
+        pid=101,
+        agent_clan="research",
+        agent_clan_generation="current-gen",
+    )
+    stale = _agent(
+        cl_name="stale",
+        pid=102,
+        raw_suffix="stale-ts",
+        agent_clan="research",
+        agent_clan_generation="stale-gen",
+    )
+    request = _request(
+        scope=CLEANUP_SCOPE_CLAN,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        clan_name="research",
+    )
+
+    plan = _plan_agent_cleanup_python(
+        agents_to_cleanup_targets([current, stale]), request
+    )
+
+    assert [item.identity.cl_name for item in plan.kill_items] == [
+        "current",
+        "stale",
+    ]
 
 
 def test_python_cleanup_planner_direct_workflow_child_keeps_parent_workspace() -> None:

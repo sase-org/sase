@@ -14,6 +14,7 @@ from sase.core.agent_cleanup_wire import (
     CLEANUP_MODE_KILL_AND_DISMISS,
     CLEANUP_MODE_PREVIEW_ONLY,
     CLEANUP_SCOPE_ALL_PANELS,
+    CLEANUP_SCOPE_CLAN,
     CLEANUP_SCOPE_CUSTOM_SELECTION,
     CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
     CLEANUP_SCOPE_FOCUSED_GROUP,
@@ -85,6 +86,14 @@ def _selected_by_scope(
         return _effective_tag(target, parent_tags) == request.focused_panel_tag
     if request.scope == CLEANUP_SCOPE_TAG:
         return _effective_tag(target, parent_tags) == request.tag
+    if request.scope == CLEANUP_SCOPE_CLAN:
+        return request.clan_name is not None and (
+            target.agent_clan == request.clan_name
+            and (
+                request.clan_generation is None
+                or target.agent_clan_generation == request.clan_generation
+            )
+        )
     if request.scope in {
         CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         CLEANUP_SCOPE_FOCUSED_GROUP,

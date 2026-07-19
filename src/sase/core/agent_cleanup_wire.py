@@ -19,6 +19,7 @@ CLEANUP_SCOPE_FOCUSED_PANEL = "focused_panel"
 CLEANUP_SCOPE_ALL_PANELS = "all_panels"
 CLEANUP_SCOPE_EXPLICIT_IDENTITIES = "explicit_identities"
 CLEANUP_SCOPE_TAG = "tag"
+CLEANUP_SCOPE_CLAN = "clan"
 CLEANUP_SCOPE_FOCUSED_GROUP = "focused_group"
 CLEANUP_SCOPE_CUSTOM_SELECTION = "custom_selection"
 
@@ -81,6 +82,8 @@ class AgentCleanupTargetWire:
     from_changespec: bool = False
     workspace: int | None = None
     tag: str | None = None
+    agent_clan: str | None = None
+    agent_clan_generation: str | None = None
     agent_name: str | None = None
     display_name: str | None = None
     start_time: str | None = None
@@ -100,6 +103,8 @@ class AgentCleanupRequestWire:
     mode: str
     focused_panel_tag: str | None = None
     tag: str | None = None
+    clan_name: str | None = None
+    clan_generation: str | None = None
     identities: tuple[AgentCleanupIdentityWire, ...] = ()
     include_pidless_as_dismissable: bool = False
 
@@ -264,6 +269,14 @@ def cleanup_target_from_dict(data: dict[str, Any]) -> AgentCleanupTargetWire:
         from_changespec=bool(data.get("from_changespec", False)),
         workspace=None if data.get("workspace") is None else int(data["workspace"]),
         tag=None if data.get("tag") is None else str(data["tag"]),
+        agent_clan=(
+            None if data.get("agent_clan") is None else str(data["agent_clan"])
+        ),
+        agent_clan_generation=(
+            None
+            if data.get("agent_clan_generation") is None
+            else str(data["agent_clan_generation"])
+        ),
         agent_name=None if data.get("agent_name") is None else str(data["agent_name"]),
         display_name=(
             None if data.get("display_name") is None else str(data["display_name"])
@@ -296,6 +309,12 @@ def cleanup_request_from_dict(data: dict[str, Any]) -> AgentCleanupRequestWire:
             else str(data["focused_panel_tag"])
         ),
         tag=None if data.get("tag") is None else str(data["tag"]),
+        clan_name=(None if data.get("clan_name") is None else str(data["clan_name"])),
+        clan_generation=(
+            None
+            if data.get("clan_generation") is None
+            else str(data["clan_generation"])
+        ),
         identities=tuple(
             _identity_from_dict(item) for item in data.get("identities") or ()
         ),
@@ -429,6 +448,7 @@ __all__ = [
     "CLEANUP_MODE_KILL_AND_DISMISS",
     "CLEANUP_MODE_PREVIEW_ONLY",
     "CLEANUP_SCOPE_ALL_PANELS",
+    "CLEANUP_SCOPE_CLAN",
     "CLEANUP_SCOPE_CUSTOM_SELECTION",
     "CLEANUP_SCOPE_EXPLICIT_IDENTITIES",
     "CLEANUP_SCOPE_FOCUSED_GROUP",

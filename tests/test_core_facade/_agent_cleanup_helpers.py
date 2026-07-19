@@ -11,6 +11,7 @@ from sase.core.agent_cleanup_wire import (
     AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
     CLEANUP_MODE_DISMISS_COMPLETED,
     CLEANUP_MODE_KILL_AND_DISMISS,
+    CLEANUP_SCOPE_CLAN,
     CLEANUP_SCOPE_CUSTOM_SELECTION,
     CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
     CLEANUP_SCOPE_FOCUSED_GROUP,
@@ -36,6 +37,8 @@ def _agent(
     parent_workflow: str | None = None,
     parent_timestamp: str | None = None,
     agent_family_parallel: bool = False,
+    agent_clan: str | None = None,
+    agent_clan_generation: str | None = None,
     tag: str | None = None,
     agent_name: str | None = None,
     workspace_num: int | None = 7,
@@ -57,6 +60,8 @@ def _agent(
         parent_workflow=parent_workflow,
         parent_timestamp=parent_timestamp,
         agent_family_parallel=agent_family_parallel,
+        agent_clan=agent_clan,
+        agent_clan_generation=agent_clan_generation,
         tag=tag,
         agent_name=agent_name,
         artifacts_dir=artifacts_dir,
@@ -77,6 +82,8 @@ def _request(
     mode: str,
     focused_panel_tag: str | None = None,
     tag: str | None = None,
+    clan_name: str | None = None,
+    clan_generation: str | None = None,
     identities: tuple[AgentCleanupIdentityWire, ...] = (),
     include_pidless_as_dismissable: bool = False,
 ) -> AgentCleanupRequestWire:
@@ -86,6 +93,8 @@ def _request(
         mode=mode,
         focused_panel_tag=focused_panel_tag,
         tag=tag,
+        clan_name=clan_name,
+        clan_generation=clan_generation,
         identities=identities,
         include_pidless_as_dismissable=include_pidless_as_dismissable,
     )
@@ -187,6 +196,90 @@ def _scenario_tag_scope() -> tuple[list[Agent], AgentCleanupRequestWire]:
         scope=CLEANUP_SCOPE_TAG,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
         tag="alpha",
+    )
+
+
+def _scenario_clan_scope() -> tuple[list[Agent], AgentCleanupRequestWire]:
+    parent = _agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="release",
+        status="RUNNING",
+        pid=101,
+        raw_suffix="parent-ts",
+        workflow="release",
+        agent_clan="shipping",
+        agent_clan_generation="current-gen",
+    )
+    child = _agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="release-step",
+        status="RUNNING",
+        pid=102,
+        raw_suffix="child-ts",
+        workflow="release",
+        parent_workflow="release",
+        parent_timestamp="parent-ts",
+        agent_clan="shipping",
+        agent_clan_generation="current-gen",
+    )
+    done = _agent(
+        cl_name="verified",
+        status="DONE",
+        pid=None,
+        raw_suffix="done-ts",
+        stop_time=_STOP,
+        agent_clan="shipping",
+        agent_clan_generation="current-gen",
+    )
+    stale = _agent(
+        cl_name="stale",
+        pid=201,
+        raw_suffix="stale-ts",
+        agent_clan="shipping",
+        agent_clan_generation="stale-gen",
+    )
+    other = _agent(
+        cl_name="other",
+        pid=202,
+        raw_suffix="other-ts",
+        agent_clan="research",
+        agent_clan_generation="current-gen",
+    )
+    return [parent, child, done, stale, other], _request(
+        scope=CLEANUP_SCOPE_CLAN,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        clan_name="shipping",
+        clan_generation="current-gen",
+    )
+
+
+def _scenario_clan_scope_active_parallel_family() -> tuple[
+    list[Agent], AgentCleanupRequestWire
+]:
+    root = _agent(
+        cl_name="family",
+        raw_suffix="root-ts",
+        status="DONE",
+        pid=None,
+        stop_time=_STOP,
+        agent_family_parallel=True,
+        agent_clan="research",
+        agent_clan_generation="generation",
+    )
+    member = _agent(
+        cl_name="family.1",
+        raw_suffix="member-ts",
+        pid=101,
+        parent_timestamp="root-ts",
+        agent_family_parallel=True,
+        agent_clan="research",
+        agent_clan_generation="generation",
+    )
+    return [root, member], _request(
+        scope=CLEANUP_SCOPE_CLAN,
+        mode=CLEANUP_MODE_DISMISS_COMPLETED,
+        clan_name="research",
+        clan_generation="generation",
     )
 
 
@@ -374,6 +467,11 @@ _SCENARIOS = [
     pytest.param(_scenario_marked_set, id="marked-set"),
     pytest.param(_scenario_collapsed_group, id="collapsed-group"),
     pytest.param(_scenario_tag_scope, id="tag-scope"),
+    pytest.param(_scenario_clan_scope, id="clan-scope"),
+    pytest.param(
+        _scenario_clan_scope_active_parallel_family,
+        id="clan-scope-active-parallel-family",
+    ),
     pytest.param(
         _scenario_workflow_parent_with_children,
         id="workflow-parent-cascade",
