@@ -483,10 +483,6 @@ def is_command_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     Default: visible. Predicates only return ``False`` when a real
     precondition is violated.
     """
-    if spec.id in {"app.search_forward", "app.search_reverse"}:
-        # Their bindings are reserved by this remap phase; the metadata-search
-        # phase supplies the runnable actions and palette availability.
-        return False
     if ctx.tab not in spec.tabs:
         return False
 

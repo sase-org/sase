@@ -59,6 +59,9 @@ class AgentDetailPanelMixin(Static):
     _file_total_lines: int
     _file_content_capped: bool
 
+    def _active_metadata_scroll(self) -> VerticalScroll:
+        raise NotImplementedError
+
     def update_display(
         self, agent: Agent, stale_threshold_seconds: int = 10
     ) -> None: ...
@@ -66,7 +69,7 @@ class AgentDetailPanelMixin(Static):
     def _expand_prompt_only(self) -> None:
         """Hide the file panel and expand the prompt panel to fill the space."""
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        prompt_scroll = self._active_metadata_scroll()
         file_scroll.add_class("hidden")
         file_scroll.remove_class("layout-secondary")
         prompt_scroll.add_class("expanded")
@@ -149,7 +152,7 @@ class AgentDetailPanelMixin(Static):
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
         tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
-        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        prompt_scroll = self._active_metadata_scroll()
 
         if mode == DetailPanelMode.TOOLS:
             # Show tools, hide file
@@ -235,7 +238,7 @@ class AgentDetailPanelMixin(Static):
         if self._panel_mode != DetailPanelMode.TOOLS:
             return
 
-        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        prompt_scroll = self._active_metadata_scroll()
         tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
 
         tools_scroll.remove_class("hidden")
@@ -260,7 +263,7 @@ class AgentDetailPanelMixin(Static):
         if self._panel_mode in (DetailPanelMode.TOOLS, DetailPanelMode.INFO):
             return
 
-        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        prompt_scroll = self._active_metadata_scroll()
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
 
         if message.has_file:
@@ -320,7 +323,7 @@ class AgentDetailPanelMixin(Static):
     def _update_panel_indicators(self) -> None:
         """Update the border subtitle on the prompt panel to show panel state."""
         try:
-            prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+            prompt_scroll = self._active_metadata_scroll()
         except Exception:
             return
 

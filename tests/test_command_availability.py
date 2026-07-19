@@ -171,12 +171,12 @@ def test_agent_fold_palette_is_hidden_without_summary_selection() -> None:
     assert not is_command_available(catalog["app.start_fold_mode"], group_ctx)
 
 
-def test_metadata_search_palette_entries_stay_hidden_until_actions_land() -> None:
+def test_metadata_search_palette_entries_are_available_when_actions_land() -> None:
     catalog = _catalog_by_id()
     ctx = CommandContext(tab="agents")
 
-    assert not is_command_available(catalog["app.search_forward"], ctx)
-    assert not is_command_available(catalog["app.search_reverse"], ctx)
+    assert is_command_available(catalog["app.search_forward"], ctx)
+    assert is_command_available(catalog["app.search_reverse"], ctx)
 
 
 # ---------------------------------------------------------------------------

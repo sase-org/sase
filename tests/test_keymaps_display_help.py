@@ -315,6 +315,19 @@ def test_help_modal_labels_lowercase_a_as_agent_artifacts() -> None:
         assert "Agent run log" in action_labels
 
 
+def test_agents_help_documents_inline_metadata_search() -> None:
+    reg = load_keymap_registry({})
+    sections = dict(agents_bindings(reg))
+
+    assert sections["Metadata Search"] == [
+        ("/ / ?", "Search metadata forward / backward"),
+        ("n / N", "Next / previous match"),
+        ("Enter / Esc / Ctrl+C", "Accept / cancel search query"),
+        ("Esc / q", "Close committed search"),
+        ("y / Y", "Yank selection/match / whole line"),
+    ]
+
+
 def test_key_display_special_keys() -> None:
     """Special Textual key names are mapped to display characters."""
     assert key_display_name("full_stop") == "."

@@ -300,11 +300,18 @@ class AceApp(
             if isinstance(self.focused, VimTextArea):
                 return False
         if action in {"search_forward", "search_reverse"}:
-            # The metadata-search phase supplies these actions. Until then,
-            # keep the newly freed keys inert; once installed, search remains
-            # Agents-only by design.
-            if self.current_tab != "agents" or not callable(
-                getattr(self, f"action_{action}", None)
+            from textual.screen import ModalScreen
+
+            if (
+                self.current_tab != "agents"
+                or (
+                    bool(getattr(self, "_screen_stack", ()))
+                    and isinstance(self.screen, ModalScreen)
+                )
+                or (
+                    bool(getattr(self, "_screen_stack", ()))
+                    and self._prompt_input_active()
+                )
             ):
                 return False
         from .actions.artifact_bugs import BUG_ARTIFACT_ACTIONS
@@ -477,6 +484,7 @@ class AceApp(
         # the new tab will redraw fresh and the deferred work would land in a
         # now-hidden view.
         if old_tab == "agents":
+            self._exit_agent_metadata_search_for_context_change()
             self._agent_detail_debouncer.cancel()
             self._expanded_panel_focus = False
         elif old_tab == "axe":

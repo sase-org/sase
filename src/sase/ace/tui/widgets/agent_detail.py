@@ -4,6 +4,7 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
+from textual.message import Message
 from textual.widgets import Static
 
 from sase.agent.status_buckets import (
@@ -43,6 +44,14 @@ _ACTIVE_STATUSES = frozenset(
 )
 
 
+class AgentMetadataIdentityChanged(Message):
+    """The document represented by the metadata panel changed identity."""
+
+    def __init__(self, identity: object | None) -> None:
+        super().__init__()
+        self.identity = identity
+
+
 class AgentDetail(AgentDetailPanelMixin, Static):
     """Combined widget with prompt and file panels."""
 
@@ -73,10 +82,40 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         with Vertical(id="agent-detail-layout"):
             with VerticalScroll(id="agent-prompt-scroll"):
                 yield AgentPromptPanel(id="agent-prompt-panel")
+            with VerticalScroll(id="agent-search-scroll", classes="hidden"):
+                yield Static(id="agent-search-panel")
+            yield Static(id="agent-search-command", classes="hidden")
             with VerticalScroll(id="agent-file-scroll"):
                 yield AgentFilePanel(id="agent-file-panel")
             with VerticalScroll(id="agent-tools-scroll", classes="hidden"):
                 yield AgentToolsPanel(id="agent-tools-panel")
+
+    @property
+    def metadata_identity(self) -> object | None:
+        """Return a stable identity for the document in the metadata panel."""
+        tribe_identity = getattr(self, "_current_tribe_identity", None)
+        if tribe_identity is not None:
+            return ("tribe", tribe_identity)
+        current_agent = getattr(self, "_current_agent", None)
+        if current_agent is not None:
+            return (
+                "agent",
+                current_agent.identity,
+                getattr(self, "_current_attempt_number", None),
+            )
+        return None
+
+    def _active_metadata_scroll(self) -> VerticalScroll:
+        """Return the search overlay or the native prompt scroll."""
+        search_scroll = self.query_one("#agent-search-scroll", VerticalScroll)
+        if not search_scroll.has_class("hidden"):
+            return search_scroll
+        return self.query_one("#agent-prompt-scroll", VerticalScroll)
+
+    def _publish_metadata_identity_change(self, previous: object | None) -> None:
+        current = self.metadata_identity
+        if current != previous:
+            self.post_message(AgentMetadataIdentityChanged(current))
 
     def update_display(
         self,
@@ -96,6 +135,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             attempt_number: When non-None, pin the detail view to the matching
                 prior-attempt record (shows full error + that attempt's reply).
         """
+        previous_identity = self.metadata_identity
         self._agent_detail_generation += 1
         self._current_tribe_identity = None
         with tui_trace("widget.agent_detail.update_display", status=agent.status):
@@ -104,6 +144,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 stale_threshold_seconds=stale_threshold_seconds,
                 attempt_number=attempt_number,
             )
+        self._publish_metadata_identity_change(previous_identity)
 
     def update_display_immediate(
         self,
@@ -117,6 +158,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         latency, while the file/tools/diff workers wait for the detail
         debouncer to settle on a final selection.
         """
+        previous_identity = self.metadata_identity
         self._agent_detail_generation += 1
         self._current_tribe_identity = None
         with tui_trace(
@@ -128,6 +170,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             prompt_panel.attempt_view_mode = self._attempt_view_mode
             prompt_panel.attempt_pinned_number = attempt_number
             prompt_panel.update_header_only(agent)
+        self._publish_metadata_identity_change(previous_identity)
 
     def _update_display_impl(
         self,
@@ -227,7 +270,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         # INFO mode: only update prompt, hide both secondary panels
         if self._panel_mode == DetailPanelMode.INFO:
             file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-            prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+            prompt_scroll = self._active_metadata_scroll()
             file_scroll.add_class("hidden")
             prompt_scroll.add_class("expanded")
             return
@@ -312,6 +355,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         Returns:
             File hint mappings and deferred tool-call report specs.
         """
+        previous_identity = self.metadata_identity
         self._agent_detail_generation += 1
         self._current_tribe_identity = None
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
@@ -332,7 +376,9 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 attempt_pinned_number=self._current_attempt_number,
                 is_current=self._is_agent_detail_render_current,
             )
-        return prompt_panel.update_display_with_hints(agent)
+        result = prompt_panel.update_display_with_hints(agent)
+        self._publish_metadata_identity_change(previous_identity)
+        return result
 
     def refresh_detail_header_from_cache(self, agent: Agent) -> None:
         """Apply cached header enrichment without advancing the generation."""
@@ -346,6 +392,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
     def show_empty(self) -> None:
         """Show empty state for all panels."""
+        previous_identity = self.metadata_identity
         self._agent_detail_generation += 1
         self._current_agent = None
         self._current_tribe_identity = None
@@ -359,7 +406,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         tools_panel.show_empty()
 
         # Hide file and tools panels when no agent is selected
-        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        prompt_scroll = self._active_metadata_scroll()
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
         file_scroll.add_class("hidden")
@@ -376,6 +423,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         prompt_scroll.border_subtitle = ""
         file_scroll.border_title = ""
         file_scroll.border_subtitle = ""
+        self._publish_metadata_identity_change(previous_identity)
 
     def show_tribe_summary(
         self,
@@ -384,13 +432,14 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         cheap: bool = False,
     ) -> None:
         """Show a tribe document on the regular fold-aware prompt surface."""
+        previous_identity = self.metadata_identity
         self._agent_detail_generation += 1
         self._current_agent = None
         self._current_tribe_identity = snapshot.container_identity
         self._current_attempt_number = None
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         prompt_panel.update_tribe_display(snapshot, cheap=cheap)
-        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        prompt_scroll = self._active_metadata_scroll()
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
         file_scroll.add_class("hidden")
@@ -400,6 +449,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._has_file_content = False
         self._has_tools_content = False
         prompt_scroll.border_subtitle = ""
+        self._publish_metadata_identity_change(previous_identity)
 
     def refresh_current_file(self, agent: Agent) -> None:
         """Force refresh the file for the given agent.
@@ -439,7 +489,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
     def toggle_layout(self) -> None:
         """Toggle between default (30/70) and swapped (70/30) layout."""
-        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        prompt_scroll = self._active_metadata_scroll()
 
         self._layout_swapped = not self._layout_swapped
 

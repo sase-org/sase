@@ -20,6 +20,15 @@ class EventKeyboardMixin(EventHandlersBase):
         """Handle key events, including fold, checkout, copy, and ancestry sub-keys."""
         self._last_input_action = event.key
         self._record_input_event()
+        metadata_search_handler = getattr(
+            self,
+            "_handle_agent_metadata_search_key",
+            None,
+        )
+        if callable(metadata_search_handler) and metadata_search_handler(event):
+            event.prevent_default()
+            event.stop()
+            return
         member_jump_handler = getattr(self, "_handle_member_jump_key", None)
         key = normalize_jump_key(event.key, event.character)
         if (

@@ -2528,12 +2528,43 @@ HintInputBar #hint-escape-hint {
     height: 100%;
 }
 
-#agent-prompt-scroll {
+#agent-prompt-scroll,
+#agent-search-scroll {
     height: 3fr;
     border: solid $secondary;
     padding: 1 2;
     scrollbar-gutter: stable;
     border-subtitle-align: center;
+}
+
+#agent-search-scroll {
+    border: solid $accent;
+    overflow-x: auto;
+}
+
+#agent-prompt-scroll.hidden,
+#agent-search-scroll.hidden {
+    display: none;
+}
+
+#agent-search-panel {
+    width: auto;
+    min-width: 100%;
+    height: auto;
+}
+
+#agent-search-command {
+    width: 100%;
+    height: auto;
+    max-height: 3;
+    border: round $accent;
+    background: $panel;
+    color: $text;
+    padding: 0 1;
+}
+
+#agent-search-command.hidden {
+    display: none;
 }
 
 #agent-file-scroll {
@@ -2553,8 +2584,13 @@ HintInputBar #hint-escape-hint {
     height: 100%;
 }
 
+#agent-search-scroll.expanded {
+    height: 1fr;
+}
+
 /* Swapped layout (prompt gets priority) */
-#agent-prompt-scroll.layout-priority {
+#agent-prompt-scroll.layout-priority,
+#agent-search-scroll.layout-priority {
     height: 7fr;
 }
 

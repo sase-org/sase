@@ -105,6 +105,19 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            "Metadata Search",
+            [
+                (
+                    f"{d(a.search_forward)} / {d(a.search_reverse)}",
+                    "Search metadata forward / backward",
+                ),
+                ("n / N", "Next / previous match"),
+                ("Enter / Esc / Ctrl+C", "Accept / cancel search query"),
+                ("Esc / q", "Close committed search"),
+                ("y / Y", "Yank selection/match / whole line"),
+            ],
+        ),
+        (
             "Panel / Group / Clan / Workflow Folding",
             [
                 (
