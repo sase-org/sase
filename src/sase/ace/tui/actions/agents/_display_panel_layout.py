@@ -204,8 +204,10 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
                 widget.clear_highlight()
 
         hint_bar_active = getattr(self, "_hint_input_bar_active", None)
-        if focused_widget is not None and not (
-            callable(hint_bar_active) and hint_bar_active()
+        if (
+            focused_widget is not None
+            and panel_focus is None
+            and not (callable(hint_bar_active) and hint_bar_active())
         ):
             try:
                 focused_widget.focus()

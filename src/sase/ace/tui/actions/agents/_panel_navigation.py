@@ -110,7 +110,17 @@ class AgentPanelNavigationMixin:
 
         refresh = getattr(self, "_refresh_panel_focus_state", None)
         if callable(refresh):
-            refresh(old_focused_idx=old_focused_idx)
+            refresh(
+                old_focused_idx=old_focused_idx,
+                render_detail_immediate=False,
+            )
+        # Whole-panel focus is reactive state outside ``current_idx``. Its
+        # remembered row may be the same across a hop, so the ordinary index
+        # watcher is not a reliable paint-sample terminator for lower-case
+        # j/k instrumentation.
+        jk_perf = getattr(self, "_jk_perf", None)
+        if jk_perf is not None:
+            self.call_after_refresh(jk_perf.mark_painted)  # type: ignore[attr-defined]
         return True
 
     def _change_focused_agent_panel(self, *, forward: bool) -> None:

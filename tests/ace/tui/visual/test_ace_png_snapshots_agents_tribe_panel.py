@@ -154,3 +154,39 @@ async def test_tribe_panel_four_level_png_snapshots(
                 == "visual-tribe-review"
             )
         )
+        assert page.app._resolve_focused_panel() is None
+
+        # Member jumps publish a panel anchor. Fast back-jump must restore
+        # whole-panel focus without moving the remembered row, even though the
+        # member jump expanded the formerly collapsed panel.
+        await page.press("ctrl+o")
+        await page.wait_for(
+            lambda _screen: page.app._resolve_focused_panel() is not None
+        )
+        focus = page.app._resolve_focused_panel()
+        assert focus is not None
+        assert focus.panel_key == "epic"
+        assert focus.collapsed is False
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_tribe_panel_selected_expanded_120x40",
+            title="ACE selected expanded tribe panel",
+        )
+
+        # Complete the four-level wrap, then exercise lower-case panel cycling
+        # across expanded and collapsed destinations without descending.
+        await page.press("z", "z")
+        assert page.app.panel_fold_level.value == "collapsed"
+        await page.press("h")
+        await page.wait_for(lambda _screen: "epic" in page.app._collapsed_panel_keys)
+        await page.press("j")
+        focus = page.app._resolve_focused_panel()
+        assert focus is not None
+        assert focus.panel_key is None
+        assert focus.collapsed is False
+        await page.press("k")
+        focus = page.app._resolve_focused_panel()
+        assert focus is not None
+        assert focus.panel_key == "epic"
+        assert focus.collapsed is True

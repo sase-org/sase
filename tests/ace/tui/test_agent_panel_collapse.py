@@ -335,4 +335,42 @@ def test_panel_collapse_state_prunes_and_clears_on_grouping_toggle() -> None:
     app.action_toggle_agent_panel_grouping()
     assert app._collapsed_panel_keys == set()
     assert app._agent_panels_grouped is True
+    assert app._resolve_focused_panel() is None
     assert app.refresh_calls == [True]
+
+
+def test_expanded_panel_focus_reconciles_when_refresh_membership_churns() -> None:
+    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app.current_idx = 2
+    app._panel_selection_memory["alpha"] = ("agent", 2)
+    app._expanded_panel_focus = True
+
+    # Search/refilter-style churn that leaves the panel alive keeps its
+    # key-based whole-panel focus and snaps the stale row anchor in-panel.
+    app._agents = [agent for agent in app._agents if agent.agent_name != "raw-first"]
+    app._invalidate_agent_panel_cache()
+    app._sync_panel_group()
+
+    focus = app._resolve_focused_panel()
+    assert focus is not None
+    assert focus.panel_key == "alpha"
+    assert focus.collapsed is False
+    assert app._agents[app.current_idx].tag == "alpha"
+
+    # If refresh/filter churn removes that tribe, explicit focus and stale
+    # selection memory are discarded. Reappearance must not resurrect focus.
+    alpha_agents = [agent for agent in app._agents if agent.tag == "alpha"]
+    app._agents = [agent for agent in app._agents if agent.tag != "alpha"]
+    app._invalidate_agent_panel_cache()
+    app._sync_panel_group()
+
+    assert app._resolve_focused_panel() is None
+    assert "alpha" not in app._panel_selection_memory
+    assert app._panel_group.focused_key in {None, "beta"}
+
+    app._agents.extend(alpha_agents)
+    app._invalidate_agent_panel_cache()
+    app._sync_panel_group()
+
+    assert "alpha" in app._panel_group.panel_keys
+    assert app._resolve_focused_panel() is None

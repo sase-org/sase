@@ -17,6 +17,7 @@ from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import AgentHintRender
@@ -320,6 +321,42 @@ def test_collapsed_panel_tribe_uses_cheap_then_debounced_document() -> None:
     refreshed = app.detail_widget.tribe_calls[-1][0]
     assert refreshed.counts.running == 1
     assert refreshed.counts.waiting == 1
+
+
+def test_selected_tribe_navigation_defers_even_the_cheap_document() -> None:
+    agents = [_make_agent("agent_0"), _make_agent("agent_1")]
+    app = _SummaryApp(agents=agents)
+
+    app._refresh_agent_focus_detail(render_immediate=False)
+
+    assert app.detail_widget.tribe_calls == []
+    assert app.detail_widget.immediate_calls == []
+    assert app.detail_widget.full_calls == []
+    assert app._agent_detail_debouncer.is_pending
+
+    app._fire_debounced_detail_update()
+
+    assert len(app.detail_widget.tribe_calls) == 1
+    assert app.detail_widget.tribe_calls[0][1] is False
+
+
+def test_debounced_document_waits_for_navigation_gate_to_quiesce() -> None:
+    agents = [_make_agent("agent_0"), _make_agent("agent_1")]
+    app = _SummaryApp(agents=agents)
+    app._nav_gate = NavigationGate(window_s=10.0)
+    app._nav_gate.record()
+
+    app._refresh_agent_focus_detail(render_immediate=False)
+    app._fire_debounced_detail_update()
+
+    assert app.detail_widget.tribe_calls == []
+    assert app._agent_detail_debouncer.is_pending
+
+    app._nav_gate = NavigationGate(window_s=0.0)
+    app._fire_debounced_detail_update()
+
+    assert len(app.detail_widget.tribe_calls) == 1
+    assert app.detail_widget.tribe_calls[0][1] is False
 
 
 def test_generation_token_increments_per_phase() -> None:

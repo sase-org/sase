@@ -666,9 +666,19 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
         await page.expect_modal("AgentNeighborModal")
         page.app._refresh_agent_footer_bindings_only()
         # The direct private-state mutation above bypasses the normal action
-        # path that refreshes the footer. Repaint it explicitly, then keep the
-        # rendered-count poll as a cheap guard before taking the snapshot.
-        await wait_for_svg_contains(page, "neighbors (2)")
+        # path that refreshes the footer. Repaint it explicitly, then wait on
+        # footer state specifically: the modal's "2 descendants" text can
+        # otherwise satisfy a broad SVG poll while the footer is still stale.
+        footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
+        await page.wait_for(
+            lambda _screen: (
+                footer._last_layout_inputs is not None
+                and any(
+                    label == "neighbors (2)"
+                    for _key, label in footer._last_layout_inputs[0]
+                )
+            )
+        )
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "Descendants")
         assert_page_svg_contains(page, "visual.root.dismissed")

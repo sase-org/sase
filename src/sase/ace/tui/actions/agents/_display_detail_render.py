@@ -125,8 +125,17 @@ class AgentDetailRenderMixin:
         )
         return False
 
-    def _refresh_agent_focus_detail(self) -> None:
-        """Repaint info/detail after a focus change, debouncing real agents."""
+    def _refresh_agent_focus_detail(self, *, render_immediate: bool = True) -> None:
+        """Repaint info/detail after focus changes and debounce full documents.
+
+        Selected-tribe ``j``/``k`` navigation suppresses even the cheap
+        prompt repaint: changing that document forces a layout before the
+        selected-panel chrome can paint. Other focus transitions retain the
+        immediate header path.
+        """
+        if not render_immediate:
+            self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+            return
         update_info = getattr(self, "_update_agents_info_panel", None)
         if callable(update_info):
             update_info()
@@ -154,6 +163,18 @@ class AgentDetailRenderMixin:
 
     def _fire_debounced_detail_update(self) -> None:
         """Apply the debounced detail update once the j/k burst quiesces."""
+        nav_gate = getattr(self, "_nav_gate", None)
+        is_navigating = getattr(nav_gate, "is_navigating", None)
+        if callable(is_navigating) and is_navigating():
+            # The 150 ms detail timer can land between individually painted
+            # keys while the wider navigation activity window is still open.
+            # Keep this pump callback thin and try again after another quiet
+            # interval instead of laying out a document mid-navigation.
+            self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+            return
+        update_info = getattr(self, "_update_agents_info_panel", None)
+        if callable(update_info):
+            update_info()
         from textual.css.query import NoMatches
 
         from ...widgets import AgentDetail, KeybindingFooter

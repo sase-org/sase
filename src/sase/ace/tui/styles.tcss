@@ -2407,7 +2407,9 @@ HintInputBar #hint-escape-hint {
 }
 
 #agent-list-container AgentList.-whole-panel-focus {
-    border: double #FFD75F;
+    /* Outline is paint-only: unlike swapping border geometry on every j/k
+       panel hop, it does not force the panel collection through layout. */
+    outline: heavy #FFD75F;
     border-title-color: #FFD75F;
 }
 

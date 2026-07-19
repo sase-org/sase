@@ -109,6 +109,7 @@ class _FakeApp(DetailMixin):
             dict[str, SlowToolCallReportSpec],
             {"old-tool-call": object()},
         )
+        self.info_updates = 0
         self.footer_updates: list[Agent | None] = []
         self.hint_input = type("_HintInput", (), {"value": hint_input_value})()
         self._widgets: dict[str, Any] = {
@@ -123,6 +124,9 @@ class _FakeApp(DetailMixin):
 
     def _get_selected_agent(self) -> Agent | None:
         return self.agent
+
+    def _update_agents_info_panel(self) -> None:
+        self.info_updates += 1
 
     def _apply_agent_footer_update(
         self,
@@ -179,6 +183,7 @@ def test_debounced_agent_detail_refresh_preserves_active_view_hints() -> None:
     assert app._hint_mappings == app.detail.hint_render.file_hints
     assert app._hint_commit_views == app.detail.hint_render.commit_views
     assert app._hint_tool_call_reports == app.detail.hint_render.tool_call_reports
+    assert app.info_updates == 1
     assert app.footer_updates == [app.agent]
 
 

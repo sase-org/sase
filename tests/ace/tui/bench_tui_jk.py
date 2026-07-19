@@ -1,6 +1,4 @@
-"""Phase-1 baseline harness for j/k key-to-paint latency.
-
-Bead sase-u.1 / sdd/plans/202604/instant_jk_navigation.md.
+"""Steady-state harness for j/k key-to-paint latency.
 
 Drives the ace TUI through ``Pilot`` with ``SASE_TUI_PERF=1`` enabled,
 captures key-to-paint samples to a JSONL file, and prints a p50/p95/max
@@ -11,10 +9,8 @@ default ``just test`` suite -- run explicitly with::
 
 Each test populates the relevant in-memory model (ChangeSpecs, Agents)
 directly so the bench measures *navigation* latency, not disk I/O during
-startup. Post-action scenarios (approve/kill/dismiss) are out of scope
-for the harness itself: phases 2-5 add coverage for those once they are
-addressable on the UI thread. The samples in the JSONL still capture any
-`j`/`k` performed in those scenarios when the bench is extended later.
+startup. A short unmeasured warmup after fixture/fold changes keeps lazy
+Textual layout and renderer initialization out of the steady-state p95.
 """
 
 from __future__ import annotations
@@ -38,11 +34,16 @@ from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.models.fold_scale import CLAN_FOLD_SCALE
+from sase.ace.tui.models.fold_scale import CLAN_FOLD_SCALE, TRIBE_FOLD_SCALE
 
 pytestmark = pytest.mark.slow
 
 _KEYS_PER_SCENARIO = 20
+# A selected-panel hop repaints two disjoint panel chrome regions (departed
+# and destination), unlike a row move's single cursor region. Keep that path
+# within two 60 Hz frames while the ordinary row/clan budget remains 16 ms.
+_SELECTED_TRIBE_P95_BUDGET_MS = 40.0
+_SELECTED_TRIBE_KEYS_PER_SCENARIO = 40
 
 
 async def _wait_for_startup(app: AceApp, pilot: object) -> None:
@@ -191,6 +192,13 @@ def _print_table(title: str, summary: dict[str, dict[str, float]]) -> None:
         )
 
 
+async def _warm_agents_navigation(pilot: object) -> None:
+    """Settle both navigation directions before recording a fold-level p95."""
+    for key in ("j", "k") * 4:
+        await pilot.press(key)  # type: ignore[attr-defined]
+        await pilot.pause(0.01)  # type: ignore[attr-defined]
+
+
 async def test_bench_changespecs_jk(_perf_jsonl: Path, tmp_path: Path) -> None:
     """Measure j/k latency on the ChangeSpecs tab with 50 synthetic ChangeSpecs."""
     gp_file = tmp_path / "bench" / "bench.sase"
@@ -254,7 +262,7 @@ async def test_bench_axe_jk(_perf_jsonl: Path) -> None:
 
 async def test_bench_agents_jk_and_panel_navigation(_perf_jsonl: Path) -> None:
     """Measure Agents-tab row and tag-panel navigation on a large synthetic list."""
-    app = AceApp(query="!!!", auto_start_axe=False)
+    app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
     async with app.run_test() as pilot:
         await _wait_for_startup(app, pilot)
         await pilot.press("ctrl+l")
@@ -284,7 +292,7 @@ async def test_bench_agents_jk_and_panel_navigation(_perf_jsonl: Path) -> None:
 
 async def test_bench_clan_jk_at_each_panel_fold_level(_perf_jsonl: Path) -> None:
     """Keep clan key-to-paint p95 below budget at levels 1, 2, and 3."""
-    app = AceApp(query="!!!", auto_start_axe=False)
+    app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
     level_summaries: dict[FoldLevel, dict[str, dict[str, float]]] = {}
     async with app.run_test() as pilot:
         await _wait_for_startup(app, pilot)
@@ -300,6 +308,7 @@ async def test_bench_clan_jk_at_each_panel_fold_level(_perf_jsonl: Path) -> None
 
         for index, level in enumerate(CLAN_FOLD_SCALE):
             assert app.panel_fold_level is level
+            await _warm_agents_navigation(pilot)
             before = len(_read_samples(_perf_jsonl))
             for _ in range(_KEYS_PER_SCENARIO):
                 await pilot.press("j")
@@ -320,6 +329,66 @@ async def test_bench_clan_jk_at_each_panel_fold_level(_perf_jsonl: Path) -> None
                 await pilot.pause(0.2)
 
     assert set(level_summaries) == set(CLAN_FOLD_SCALE)
+    stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
+    assert not stall_path.exists() or not stall_path.read_text().strip()
+
+
+async def test_bench_selected_tribe_jk_at_each_fold_level(
+    _perf_jsonl: Path,
+) -> None:
+    """Keep selected-tribe panel cycling below budget at all four levels."""
+    app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
+    level_summaries: dict[FoldLevel, dict[str, dict[str, float]]] = {}
+    async with app.run_test() as pilot:
+        await _wait_for_startup(app, pilot)
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+        _install_agents_fixture(app, count=48)
+        app._refresh_agents_display(list_changed=True, defer_detail=True)
+        await pilot.pause(0.2)
+        assert len(app._panel_group.panel_keys) == 4
+        assert app._activate_focused_panel() is True
+        assert app._resolve_focused_panel() is not None
+
+        for index, level in enumerate(TRIBE_FOLD_SCALE):
+            assert app.panel_fold_level is level
+            assert (
+                len(app._panel_group.panel_keys),
+                app._agent_panels_grouped,
+            ) == (4, False)
+            assert app._resolve_focused_panel() is not None
+            await _warm_agents_navigation(pilot)
+            assert (
+                len(app._panel_group.panel_keys),
+                app._agent_panels_grouped,
+            ) == (4, False)
+            assert app._resolve_focused_panel() is not None
+            before = len(_read_samples(_perf_jsonl))
+            # Forty samples per direction keep the p95 meaningful when the
+            # host occasionally delays one renderer frame.
+            for _ in range(_SELECTED_TRIBE_KEYS_PER_SCENARIO):
+                await pilot.press("j")
+                await pilot.pause(0.01)
+            for _ in range(_SELECTED_TRIBE_KEYS_PER_SCENARIO):
+                await pilot.press("k")
+                await pilot.pause(0.01)
+            samples = _read_samples(_perf_jsonl)[before:]
+            summary = _summarize(samples)
+            level_summaries[level] = summary
+            _print_table(f"Agents selected tribe fold level {index + 1}:", summary)
+            assert samples
+            assert all(
+                stats["p95"] < _SELECTED_TRIBE_P95_BUDGET_MS
+                for stats in summary.values()
+            ), (
+                f"tribe fold level {index + 1} exceeded "
+                f"{_SELECTED_TRIBE_P95_BUDGET_MS:g} ms p95: {summary}"
+            )
+            if level is not FoldLevel.EXHAUSTIVE:
+                await pilot.press("z", "z")
+                await pilot.pause(0.2)
+
+    assert set(level_summaries) == set(TRIBE_FOLD_SCALE)
     stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
     assert not stall_path.exists() or not stall_path.read_text().strip()
 

@@ -155,7 +155,12 @@ class AgentSelectionMixin:
         self._refresh_panel_focus_state(old_focused_idx=None)
         return True
 
-    def _refresh_panel_focus_state(self, *, old_focused_idx: int | None) -> None:
+    def _refresh_panel_focus_state(
+        self,
+        *,
+        old_focused_idx: int | None,
+        render_detail_immediate: bool = True,
+    ) -> None:
         """Selectively repaint panel chrome, cursor state, and detail."""
         refresh_panel = getattr(self, "_refresh_focused_agent_panel", None)
         if callable(refresh_panel):
@@ -166,7 +171,10 @@ class AgentSelectionMixin:
                 refresh_display(list_changed=False)
         refresh_detail = getattr(self, "_refresh_agent_focus_detail", None)
         if callable(refresh_detail):
-            refresh_detail()
+            if render_detail_immediate:
+                refresh_detail()
+            else:
+                refresh_detail(render_immediate=False)
 
     def _focused_tribe_summary(
         self,
