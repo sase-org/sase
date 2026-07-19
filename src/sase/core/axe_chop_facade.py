@@ -17,15 +17,6 @@ CHOP_RESULT_SCHEMA_VERSION = 1
 CHOP_STATE_SCHEMA_VERSION = 1
 
 
-def chop_schema_versions() -> tuple[int, int, int]:
-    """Return engine, result, and persisted-state schema versions from Rust."""
-
-    engine = require_rust_binding("chop_engine_schema_version")
-    result = require_rust_binding("chop_result_schema_version")
-    state = require_rust_binding("chop_state_schema_version")
-    return int(engine()), int(result()), int(state())
-
-
 def parse_chop_result(document: str) -> dict[str, Any]:
     """Parse and fail-closed validate one script result JSON document."""
 

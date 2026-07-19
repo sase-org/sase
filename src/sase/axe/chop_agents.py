@@ -15,9 +15,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
-from sase.ace.hooks.processes import is_process_running
 from sase.artifacts import convert_timestamp_to_artifacts_format
-from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
 
@@ -191,48 +189,6 @@ def _write_records_unlocked(
                 pass
 
 
-def _artifacts_dir(record: _ChopAgentRecord) -> Path | None:
-    if not record.project_name or not record.artifacts_timestamp:
-        return None
-    return resolve_agent_artifact_timestamp_path(
-        record.project_name,
-        "ace-run",
-        record.artifacts_timestamp,
-    )
-
-
-def _has_done_marker(record: _ChopAgentRecord) -> bool:
-    artifacts_dir = _artifacts_dir(record)
-    return bool(artifacts_dir and (artifacts_dir / "done.json").exists())
-
-
-def _is_live_record(record: _ChopAgentRecord) -> bool:
-    return is_process_running(record.pid) and not _has_done_marker(record)
-
-
-def get_live_chop_agent_records(
-    lumberjack_name: str,
-    *,
-    chop_name: str | None = None,
-    prompt_hash_value: str | None = None,
-) -> list[_ChopAgentRecord]:
-    """Return live registry records, optionally filtered by chop/prompt.
-
-    The structured-result phase consumes this durable linkage to finalize
-    runner-owned launch lifecycles after proposal agents reach terminal state.
-    """
-    with _registry_lock(lumberjack_name):
-        records = _read_records_unlocked(lumberjack_name)
-    records = [record for record in records if _is_live_record(record)]
-    if chop_name is not None:
-        records = [record for record in records if record.chop_name == chop_name]
-    if prompt_hash_value is not None:
-        records = [
-            record for record in records if record.prompt_hash == prompt_hash_value
-        ]
-    return records
-
-
 def get_chop_agent_records(
     lumberjack_name: str,
     *,
@@ -242,8 +198,8 @@ def get_chop_agent_records(
     """Return durable records without discarding completed agents.
 
     Lifecycle housekeeping needs completed records long enough to inspect
-    their immutable ``done.json`` markers. The live-record query above is a
-    view only; it intentionally no longer deletes terminal linkage.
+    their immutable ``done.json`` markers, so this query never deletes
+    terminal linkage.
     """
     with _registry_lock(lumberjack_name):
         records = _read_records_unlocked(lumberjack_name)

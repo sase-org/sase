@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import hashlib
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -18,9 +17,8 @@ from sase.axe.chop_agents import (
     ENV_CHOP_RUN_ID,
     agent_meta_from_chop_env,
     build_chop_launch_env,
-    get_live_chop_agent_records,
+    get_chop_agent_records,
 )
-from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 from sase.linked_repos import LinkedRepoResolution
 from sase.running_field import ClaimResult
 
@@ -270,7 +268,6 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     monkeypatch.setenv(ENV_CHOP_RUN_ID, "run-1")
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
-    monkeypatch.setattr("sase.axe.chop_agents.is_process_running", lambda _pid: True)
     monkeypatch.setattr(
         "sase.linked_repos.resolve_linked_repos_for_project",
         lambda **_: LinkedRepoResolution(()),
@@ -311,7 +308,7 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     assert Path(prepared.argv[8]).read_text() == "do work"
     assert Path(prepared.argv[8]).parent == tmp_dir
     assert mock_spawn.call_args.kwargs["claim_callback"] is not None
-    records = get_live_chop_agent_records("hooks", chop_name="split")
+    records = get_chop_agent_records("hooks", chop_name="split")
     assert len(records) == 1
     assert records[0].pid == 4321
     assert records[0].project_name == "proj"
@@ -360,41 +357,6 @@ def test_spawn_agent_subprocess_ignores_post_spawn_chop_record_failure(
 
     assert result.pid == 4321
     record.assert_called_once()
-
-
-def test_live_records_prune_when_done_marker_exists(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A done.json marker makes a registry record no longer live."""
-    from sase.axe.chop_agents import _record_chop_agent_launch
-
-    sase_home = tmp_path / ".sase"
-    monkeypatch.setenv("SASE_HOME", str(sase_home))
-    monkeypatch.setattr(
-        "sase.axe.state.JACK_STATE_DIR", sase_home / "axe" / "lumberjacks"
-    )
-    monkeypatch.setattr("sase.axe.chop_agents.is_process_running", lambda _pid: True)
-    _record_chop_agent_launch(
-        lumberjack_name="hooks",
-        chop_name="split",
-        pid=111,
-        project_file="/tmp/projects/proj/proj.sase",
-        project_name="proj",
-        workspace_num=1,
-        workflow_name="ace(run)-260101_120000",
-        cl_name="proj",
-        timestamp="260101_120000",
-        prompt="do work",
-    )
-
-    done_dir = resolve_agent_artifact_timestamp_path(
-        "proj", "ace-run", "20260101120000"
-    )
-    done_dir.mkdir(parents=True)
-    (done_dir / "done.json").write_text(json.dumps({"outcome": "ok"}))
-
-    assert get_live_chop_agent_records("hooks", chop_name="split") == []
 
 
 @patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
@@ -483,4 +445,4 @@ def test_spawn_agent_subprocess_does_not_record_without_chop_env(
         project_name="proj",
     )
 
-    assert get_live_chop_agent_records("hooks", chop_name="split") == []
+    assert get_chop_agent_records("hooks", chop_name="split") == []

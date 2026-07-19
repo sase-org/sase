@@ -7,9 +7,11 @@ import json
 import pytest
 
 from sase.core.axe_chop_facade import (
+    CHOP_ENGINE_SCHEMA_VERSION,
+    CHOP_RESULT_SCHEMA_VERSION,
+    CHOP_STATE_SCHEMA_VERSION,
     apply_chop_checkpoint_update,
     check_and_record_chop_once_per,
-    chop_schema_versions,
     derive_chop_agent_name,
     evaluate_chop_decision,
     expand_chop_targets,
@@ -18,6 +20,7 @@ from sase.core.axe_chop_facade import (
     validate_axe_config,
     validate_chop_proposal,
 )
+from sase.core.rust import require_rust_binding
 
 
 def test_result_contract_round_trips_through_rust() -> None:
@@ -146,4 +149,9 @@ def test_strict_config_diagnostics_preserve_provenance() -> None:
 
 
 def test_schema_versions_match_the_facade_contract() -> None:
-    assert chop_schema_versions() == (1, 1, 1)
+    for binding_name, expected in [
+        ("chop_engine_schema_version", CHOP_ENGINE_SCHEMA_VERSION),
+        ("chop_result_schema_version", CHOP_RESULT_SCHEMA_VERSION),
+        ("chop_state_schema_version", CHOP_STATE_SCHEMA_VERSION),
+    ]:
+        assert require_rust_binding(binding_name)() == expected
