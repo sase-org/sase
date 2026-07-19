@@ -8,6 +8,7 @@ from sase.uv_tool.preflight import (
     _is_ephemeral_plugin_path,
     _missing_local_requirements,
     _requirement_local_path,
+    ephemeral_install_source_error,
     missing_local_requirements_error,
 )
 from sase.uv_tool.receipt import Requirement, parse_receipt
@@ -45,6 +46,24 @@ def test_ephemeral_plugin_path_allows_durable_checkout(
     monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(tmp_path / "workspace-store"))
 
     assert not _is_ephemeral_plugin_path(tmp_path / "projects" / "plugin")
+
+
+def test_ephemeral_plugin_path_resolves_symlinked_source(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    store = tmp_path / "workspace-store"
+    source = store / "owner" / "repo" / "sase_7" / "plugin"
+    source.mkdir(parents=True)
+    alias = tmp_path / "durable-looking-plugin"
+    alias.symlink_to(source, target_is_directory=True)
+    monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(store))
+
+    error = ephemeral_install_source_error(
+        Requirement(name="sase-demo", editable=str(alias))
+    )
+
+    assert error is not None
+    assert str(source) in str(error)
 
 
 def test_requirement_local_path_supports_file_urls(tmp_path: Path) -> None:

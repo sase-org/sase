@@ -128,7 +128,7 @@ def _local_url_path(value: str | None) -> str | None:
 
 
 def _normalized_path(path: str | Path) -> Path:
-    return Path(os.path.abspath(os.path.expanduser(os.fspath(path))))
+    return Path(os.path.realpath(os.path.expanduser(os.fspath(path))))
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:
