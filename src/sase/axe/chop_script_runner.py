@@ -9,9 +9,23 @@ import shutil
 import subprocess
 import sys
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+
+from sase.agent.env_hygiene import scrub_agent_identity_env
+
+
+def _compose_chop_subprocess_env(
+    environ: Mapping[str, str],
+    extras: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Return a chop environment without ambient agent identity context."""
+    subprocess_env = dict(environ)
+    scrub_agent_identity_env(subprocess_env)
+    if extras:
+        subprocess_env.update(extras)
+    return subprocess_env
 
 
 def discover_chop_script(name: str, search_dirs: list[str]) -> Path | None:
@@ -71,10 +85,7 @@ def run_chop_script(
     Returns:
         The completed process result.
     """
-    subprocess_env: dict[str, str] | None = None
-    if env:
-        subprocess_env = dict(os.environ)
-        subprocess_env.update(env)
+    subprocess_env = _compose_chop_subprocess_env(os.environ, env)
 
     return subprocess.run(
         [str(script_path), "--context", str(context_file)],
@@ -123,10 +134,7 @@ def stream_chop_script(
     ``returncode`` may be ``None`` if the kill happened before the OS recorded
     an exit status.
     """
-    subprocess_env: dict[str, str] | None = None
-    if env:
-        subprocess_env = dict(os.environ)
-        subprocess_env.update(env)
+    subprocess_env = _compose_chop_subprocess_env(os.environ, env)
 
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_file = open(log_path, "ab", buffering=0)

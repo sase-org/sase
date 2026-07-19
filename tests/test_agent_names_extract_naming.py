@@ -54,6 +54,21 @@ class TestExtractDirectivesNaming:
         assert result["info"].name == "planned"
         assert result["meta"].get("name") == "planned"
 
+    def test_planned_name_reserved_for_different_run_is_ignored(
+        self, tmp_path: Path, caplog
+    ) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                planned_name="stale-worker",
+                planned_name_owner=tmp_path / "other-artifacts",
+                prompt="expanded prompt",
+            )
+
+        assert result["info"].name == "0"
+        assert result["meta"].get("name") == "0"
+        assert "Ignoring stale SASE_AGENT_PLANNED_NAME='stale-worker'" in caplog.text
+
     def test_explicit_name_wins_over_resume(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             result = run_extract(

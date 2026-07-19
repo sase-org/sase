@@ -8,11 +8,50 @@ from unittest.mock import patch
 
 
 from sase.axe.chop_script_runner import (
+    _compose_chop_subprocess_env,
     discover_chop_script,
     list_chop_scripts,
     run_chop_script,
     stream_chop_script,
 )
+
+
+def test_compose_chop_env_strips_agent_identity_without_extras() -> None:
+    environ = {
+        "PATH": "/bin",
+        "SASE_AGENT": "1",
+        "SASE_AGENT_NAME": "parent",
+        "SASE_AGENT_PLANNED_NAME": "parent",
+        "SASE_AGENT_AUTO_APPROVE": "1",
+        "SASE_CHOP_NAME": "workflow_checks",
+    }
+
+    result = _compose_chop_subprocess_env(environ)
+
+    assert result == {
+        "PATH": "/bin",
+        "SASE_CHOP_NAME": "workflow_checks",
+    }
+    assert environ["SASE_AGENT_NAME"] == "parent"
+
+
+def test_compose_chop_env_applies_extras_after_scrubbing() -> None:
+    result = _compose_chop_subprocess_env(
+        {
+            "SASE_AGENT_NAME": "parent",
+            "SASE_AGENT_RETRY_HANDOFF": "old",
+            "KEEP": "ambient",
+        },
+        {
+            "SASE_AGENT_RETRY_HANDOFF": "current",
+            "KEEP": "extra",
+        },
+    )
+
+    assert result == {
+        "SASE_AGENT_RETRY_HANDOFF": "current",
+        "KEEP": "extra",
+    }
 
 
 def _make_executable(path, content="#!/bin/sh\necho ok"):

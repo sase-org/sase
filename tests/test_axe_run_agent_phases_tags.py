@@ -213,6 +213,9 @@ def _extract_with_agent_tags(
     env_patch = {}
     if planned_name is not None:
         env_patch["SASE_AGENT_PLANNED_NAME"] = planned_name
+    planned_entry = (
+        {"artifacts_dir": str(artifacts_dir)} if planned_name is not None else None
+    )
 
     with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", tag_file):
         assert save_agent_tags(seed_tags)
@@ -225,6 +228,10 @@ def _extract_with_agent_tags(
             ),
             patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
             patch("sase.agent.names.claim_agent_name"),
+            patch(
+                "sase.agent.names.lookup_registered_name",
+                return_value=planned_entry,
+            ),
         ):
             info = extract_directives_and_write_meta(
                 prompt,

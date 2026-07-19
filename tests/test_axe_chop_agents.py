@@ -178,6 +178,44 @@ def test_spawn_agent_subprocess_extra_env_codex_home_wins(
 
 @patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
 @patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_replaces_ambient_agent_identity_with_launch_env(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT", "poisoned")
+    monkeypatch.setenv("SASE_AGENT_NAME", "stale-worker")
+    monkeypatch.setenv("SASE_AGENT_PLANNED_NAME", "stale-worker")
+    monkeypatch.setenv("SASE_AGENT_AUTO_APPROVE", "1")
+    monkeypatch.setenv("SASE_AGENT_CHAT_PATH", "/tmp/stale-chat.jsonl")
+    monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "20260701010101")
+    monkeypatch.setenv("SASE_CHOP_NAME", "workflow_checks")
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+        extra_env={
+            "SASE_AGENT_PLANNED_NAME": "current-worker",
+            "SASE_AGENT_CHAT_PATH": "/tmp/current-chat.jsonl",
+            "SASE_AGENT_RETRY_HANDOFF": "current-handoff",
+        },
+    )
+
+    env = mock_spawn.call_args.kwargs["env"]
+    assert env["SASE_AGENT"] == "1"
+    assert env["SASE_AGENT_PLANNED_NAME"] == "current-worker"
+    assert env["SASE_AGENT_CHAT_PATH"] == "/tmp/current-chat.jsonl"
+    assert env["SASE_AGENT_RETRY_HANDOFF"] == "current-handoff"
+    assert env["SASE_CHOP_NAME"] == "workflow_checks"
+    assert "SASE_AGENT_NAME" not in env
+    assert "SASE_AGENT_AUTO_APPROVE" not in env
+    assert "SASE_AGENT_ROOT_TIMESTAMP" not in env
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_scopes_model_alias_override_env(
     mock_spawn: MagicMock,
     mock_claim: MagicMock,

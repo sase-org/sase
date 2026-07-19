@@ -17,6 +17,7 @@ def run_extract(
     *,
     env_auto_dismiss: bool = False,
     planned_name: str | None = None,
+    planned_name_owner: str | Path | None = None,
     generated_name: bool = False,
     prompt: str = "do stuff",
     raw_resolved_prompt: str | None = None,
@@ -32,6 +33,13 @@ def run_extract(
     artifacts = str(tmp_path / "artifacts")
     os.makedirs(workspace, exist_ok=True)
     os.makedirs(artifacts, exist_ok=True)
+    if planned_name is not None:
+        from sase.agent.names import reserve_registered_name
+
+        reserve_registered_name(
+            planned_name,
+            artifacts if planned_name_owner is None else planned_name_owner,
+        )
 
     env_patch: dict[str, str] = {}
     if env_auto_dismiss:

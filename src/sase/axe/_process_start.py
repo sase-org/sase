@@ -6,13 +6,27 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
+
+from sase.agent.env_hygiene import (
+    scrub_agent_identity_env,
+    scrub_chop_context_env,
+)
 
 from .config import AxeConfig, AxeConfigError, load_axe_config
 from .lock import AXE_LOCK_FD_ENV, AxeLifecycleLock
 from .state import AXE_STATE_DIR
 from ._process_probe import get_axe_pid, get_pid_from_pid_files, probe_orchestrator
 from ._process_types import AxeStartResult
+
+
+def _compose_axe_daemon_env(environ: Mapping[str, str]) -> dict[str, str]:
+    """Return a system-service environment without agent or chop context."""
+    env = dict(environ)
+    scrub_agent_identity_env(env)
+    scrub_chop_context_env(env)
+    return env
 
 
 def start_axe_daemon(config: AxeConfig | None = None) -> int | None:
@@ -96,7 +110,7 @@ def start_axe_daemon_result(config: AxeConfig | None = None) -> AxeStartResult:
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / "axe.log"
 
-        env = os.environ.copy()
+        env = _compose_axe_daemon_env(os.environ)
         env[AXE_LOCK_FD_ENV] = str(lifecycle_lock.fd)
         with open(log_file, "a") as log:
             process = subprocess.Popen(

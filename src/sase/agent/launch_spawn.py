@@ -31,17 +31,16 @@ def _remove_inherited_workspace_preallocation_env(env: dict[str, str]) -> None:
             env.pop(key, None)
 
 
-def _remove_inherited_deferred_workspace_env(env: dict[str, str]) -> None:
-    """Drop stale deferred-workspace launch-control env from parent agents."""
-    env.pop("SASE_AGENT_DEFERRED_WORKSPACE", None)
-    env.pop("SASE_AGENT_VCS_WORKFLOW_TYPE", None)
+def _remove_inherited_agent_identity_env(env: dict[str, str]) -> None:
+    """Drop all stale per-agent context unless this launch supplies it.
 
+    This includes deferred-workspace controls and cross-agent variable context;
+    every legitimate ``SASE_AGENT_*`` value is restored from ``env_delta``
+    after the ambient environment has been scrubbed.
+    """
+    from sase.agent.env_hygiene import scrub_agent_identity_env
 
-def _remove_inherited_agent_var_context_env(env: dict[str, str]) -> None:
-    """Drop stale cross-agent variable context unless the launch supplies it."""
-    from sase.agent.output_variable_context import SASE_AGENT_VAR_UPSTREAMS_ENV
-
-    env.pop(SASE_AGENT_VAR_UPSTREAMS_ENV, None)
+    scrub_agent_identity_env(env)
 
 
 def _remove_inherited_multi_agent_prompt_env(env: dict[str, str]) -> None:
@@ -250,8 +249,7 @@ def spawn_agent_subprocess(
         subprocess_env = dict(os.environ)
         _remove_inherited_sase_codex_home(subprocess_env)
         _remove_inherited_workspace_preallocation_env(subprocess_env)
-        _remove_inherited_deferred_workspace_env(subprocess_env)
-        _remove_inherited_agent_var_context_env(subprocess_env)
+        _remove_inherited_agent_identity_env(subprocess_env)
         _remove_inherited_multi_agent_prompt_env(subprocess_env)
         _remove_inherited_model_alias_overrides(subprocess_env, extra_env)
         _remove_inherited_linked_repo_env(subprocess_env)

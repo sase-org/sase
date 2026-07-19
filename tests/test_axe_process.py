@@ -14,6 +14,7 @@ from sase.axe.lock import AxeLifecycleLock
 from sase.axe._process_probe import probe_orchestrator
 from sase.axe._process_start import (
     _build_axe_start_command,
+    _compose_axe_daemon_env,
     _wait_for_daemon_start,
 )
 from sase.axe._process_stop import _send_signal
@@ -61,6 +62,23 @@ def axe_config() -> AxeConfig:
 
 
 # --- start_axe_daemon Tests ---
+
+
+def test_compose_axe_daemon_env_strips_agent_and_chop_context() -> None:
+    environ = {
+        "PATH": "/bin",
+        "SASE_AGENT": "1",
+        "SASE_AGENT_NAME": "parent",
+        "SASE_AGENT_AUTO_APPROVE": "1",
+        "SASE_CHOP_NAME": "workflow_checks",
+        "SASE_CHOP_LUMBERJACK": "hooks",
+        "SASE_AXE_OTHER": "keep",
+    }
+
+    result = _compose_axe_daemon_env(environ)
+
+    assert result == {"PATH": "/bin", "SASE_AXE_OTHER": "keep"}
+    assert environ["SASE_AGENT_NAME"] == "parent"
 
 
 @patch("sase.axe._process_start.subprocess.Popen")

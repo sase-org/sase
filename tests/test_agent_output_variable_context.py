@@ -626,10 +626,10 @@ def test_raw_key_producer_renders_via_bracket_access(tmp_path: Path) -> None:
 
 
 def test_spawn_env_scrubber_removes_inherited_upstream_context() -> None:
-    from sase.agent.launch_spawn import _remove_inherited_agent_var_context_env
+    from sase.agent.launch_spawn import _remove_inherited_agent_identity_env
 
     env = {SASE_AGENT_VAR_UPSTREAMS_ENV: "[]", "OTHER": "1"}
 
-    _remove_inherited_agent_var_context_env(env)
+    _remove_inherited_agent_identity_env(env)
 
     assert env == {"OTHER": "1"}

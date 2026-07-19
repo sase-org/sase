@@ -1,11 +1,14 @@
 """Directive extraction and agent metadata setup for the run agent runner."""
 
 import json
+import logging
 import os
 from typing import Any, NamedTuple
 
 from sase.axe.chop_agents import agent_meta_from_chop_env
 from sase.axe.run_agent_markers import write_agent_meta
+
+log = logging.getLogger(__name__)
 
 
 def _preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
@@ -298,6 +301,17 @@ def extract_directives_and_write_meta(
 
     agent_tag: str | None = None
     with name_lock_context:
+        if planned_name and not _planned_name_is_reserved_for_artifacts(
+            planned_name, artifacts_dir
+        ):
+            log.warning(
+                "Ignoring stale SASE_AGENT_PLANNED_NAME=%r because its "
+                "registry reservation does not belong to artifacts directory %s",
+                planned_name,
+                artifacts_dir,
+            )
+            planned_name = None
+
         agent_name_from_template = False
         if directives.name_explicit and directives.name_template and agent_name:
             from sase.agent.names import (
@@ -554,3 +568,20 @@ def _planned_name_matches_resume_target(planned_name: str, resume_name: str) -> 
         )
     except AgentNameTemplateError:
         return False
+
+
+def _planned_name_is_reserved_for_artifacts(
+    planned_name: str, artifacts_dir: str
+) -> bool:
+    """Return whether *planned_name* is durably reserved for this run."""
+    from sase.agent.names import lookup_registered_name
+
+    entry = lookup_registered_name(planned_name)
+    if entry is None:
+        return False
+    reserved_dir = entry.get("artifacts_dir")
+    if not isinstance(reserved_dir, str) or not reserved_dir:
+        return False
+    return os.path.realpath(os.path.expanduser(reserved_dir)) == os.path.realpath(
+        os.path.expanduser(artifacts_dir)
+    )
