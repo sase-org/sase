@@ -311,11 +311,12 @@ agent name and `tribe=chop` in one `%id(...)` directive, model/effort directives
 prompts; reusable inline `#xprompt` references remain valid. The runner records every launched agent in
 `agent_chops.json` and finalizes the chop only when the linked agents reach terminal state.
 
-A launcher can still fail partway through an otherwise valid batch. When at least one proposal already started, the chop
-remains active as `launched` until those agents finish, then finalizes as `action_failed` with both the launch error and
-any agent failures. Once-per keys for accepted proposals that never started are released immediately; a started proposal
-keeps its key while it runs, then releases it only if that agent fails. Successful work remains de-duplicated. A
-key-release error is appended to the chop output and does not replace the original launch or agent outcome.
+A launcher can still fail partway through an otherwise valid batch. The caller receives `action_failed` immediately.
+When at least one proposal already started, however, the persisted chop run remains active as `launched` until every
+started agent finishes; it then finalizes as `action_failed` with both the original launch error and any agent failures.
+Once-per keys for accepted proposals that never started are released immediately. A started proposal keeps its key while
+it runs, then releases it only if that agent fails, so successful work remains de-duplicated. A key-release error is
+appended to the chop output and does not replace the original launch or agent outcome.
 
 Python chop packages should use the public `sase.chops` SDK (`load_chop_invocation`, `ChopLogger`, `ChopResultBuilder`,
 and `launch_proposal`) for argument parsing, summaries, validation, and atomic result writes.

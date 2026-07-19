@@ -387,7 +387,7 @@ jump-back history.
 | `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                          |
 | `V`                 | Open the Agent Run Log modal for the focused agent                                                         |
 | `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                            |
-| `W`                 | Prepare a wait for the selected agent/family, clan, or named tribe; marks fan out to `%w:a,b,c`            |
+| `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`  |
 | `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)    |
 | `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                      |
 | `U`                 | Toggle the focused agent's unread marker                                                                   |
@@ -414,23 +414,26 @@ expanded or collapsed named tribe panel has whole-panel focus (`#fork:@<tribe>`)
 banners are not fork targets.
 
 Press `W` on the same selections to prepare `%w:<agent-or-family>`, `%w:<clan>`, or `%w:@<tribe>`. A non-empty marked
-set takes precedence and produces one comma-separated wait over the named marked agents instead of the focused group.
-The `(untagged)` panel and grouping banners are not wait targets either.
+set takes precedence and produces one comma-separated wait over the named marked rows instead of the focused group. The
+`(no tribe)` panel and grouping banners are not wait targets either.
 
 Group references are dynamic; pressing `f` does not snapshot the selected transcripts. A family reference contributes
-its readable successfully completed member conversations in sequential chain order and reports excluded running, failed,
-missing, or unreadable members; an explicit `--<suffix>` reference still contributes only that member. A clan reference
-resolves the newest complete clan generation when the deferred launch proceeds. A tribe reference follows the
+the readable transcripts of successful members in sequential chain order. The injected context also lists excluded
+members, whether they are still running, ended unsuccessfully, or have a missing or unreadable transcript. An explicit
+`--<suffix>` reference contributes only that member. A clan reference resolves the newest clan generation when the
+deferred launch proceeds and requires every member of that generation to have succeeded. A tribe reference follows the
 next-entity rule: the new run waits for the earliest successful entity in that tribe launched after its own artifact was
 created. It does not fork the agents currently visible in the selected tribe panel. See
 [Tribe wait and fork targets](agent_families.md#tribe-wait-and-fork-targets) for the full ordering rules.
 
-ACE also tries to carry VCS context into either prefilled prompt. For one agent or family row, it uses that row's launch
-ref when it can resolve it. For a clan or tribe, it adds a VCS tag only when every real agent currently in the selected
-scope resolves to the same workflow and ref. Mixed or missing context produces only the `#fork` or `%w` reference,
-leaving you to add the desired `#git`, `#gh`, or other VCS tag. The VCS lookup runs off the UI thread. Before opening
-the prompt, ACE checks that the same scope is still selected; marked waits likewise verify that the marked target set
-did not change. A stale selection cancels with a warning rather than opening a prompt for the wrong target.
+ACE also tries to carry VCS context into either prefilled prompt. For one selected agent or family row, it uses that
+row's launch ref when it can resolve it. For a selected clan or tribe, it adds a VCS tag only when every real agent in
+the current scope resolves to the same workflow and ref. Mixed or missing context produces only the `#fork` or `%w`
+reference, leaving you to add the desired `#git`, `#gh`, or other VCS tag. A marked wait is different: one mark uses
+that row's context; multiple marks use the selected marked row, or the first named mark when the selection is elsewhere.
+The VCS lookup runs off the UI thread. Before opening the prompt, ACE verifies that the selected scope and its members
+did not change; marked waits instead verify the marked target set. A stale selection cancels with a warning rather than
+opening a prompt for the wrong target.
 
 ### Clan and Family Detail Panels
 
@@ -633,12 +636,13 @@ progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)` instead of look
 
 The Agents tab is laid out as a series of vertically-stacked side panels, one per agent **tribe**. Agents without a
 tribe live in the `(no tribe)` panel; each tribe renders as `@<tribe>` with an agent count in the panel title. Each
-panel title can also show compact scoped metrics in the form `[H1 R2 W1 F1 U1 D3]`: `H` is human-in-the-loop, `R` is
-running, `W` is waiting, `F` is failed, `U` is unread terminal work, and `D` is done/read terminal work. Zero-count
-metrics are omitted. On the selected whole panel, the title marker, total, and status-chip chrome use the focus accent
-while each non-zero metric keeps its semantic status color. Panel heights are sized to their content and separated by a
-one-row gap. When the panels fit, the first panel grows to absorb leftover vertical space while later panels stay pinned
-to their natural height; when the panels overflow, space is weighted by each panel's rendered row count.
+panel title can also show compact scoped metrics in the form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R`
+is running, `W` is waiting to start, `F` is failed, `U` is unread terminal work, and `D` is done/read terminal work.
+Zero-count metrics are omitted. On the selected whole panel, the title marker, total, brackets, and metric letters use
+the focus accent; each numeric metric count retains its semantic status color. Panel heights are sized to their content
+and separated by a one-row gap. When the panels fit, the first panel grows to absorb leftover vertical space while later
+panels stay pinned to their natural height; when the panels overflow, space is weighted by each panel's rendered row
+count.
 
 Use `J` / `K` to move across panels (forward / reverse) and enter the first or last selectable row in the destination;
 collapsed grouping banners count as rows. Whole-panel focus is available only in the split layout. When at least two
@@ -884,14 +888,16 @@ words are substring-matched against an agent's `cl_name`, `display_name`, `agent
 
 Property keys (closed allowlist):
 
-| Key                                                                                       | Form                                | Notes                                                                                                   |
-| ----------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `status`, `cl`, `project`, `name`, `model`, `provider`, `tribe`, `text`, `type`, `source` | `key:value` (substring match)       | `tribe:` means any assigned tribe when value is empty. `source` is `axe` (workflow / step) or `manual`. |
-| `pinned`, `hidden`, `attention`, `needs`                                                  | `key:true` / `key:false`            | `pinned:true` is sugar for `tribe:pinned`.                                                              |
-| `age`                                                                                     | `age<5m`, `age>=2h`, `age:1d`, etc. | `:` is sugar for `>=`. Suffixes: `s`/`m`/`h`/`d`.                                                       |
-
-The query key remains `tag:` for compatibility, but it matches the agent's tribe exactly (case-insensitively); `tag:`
-with no value means any agent assigned to a tribe.
+| Key                                                    | Form                                | Matching behavior                                        |
+| ------------------------------------------------------ | ----------------------------------- | -------------------------------------------------------- |
+| `status`, `cl`, `project`, `name`, `model`, `provider` | `key:value`                         | Case-insensitive substring.                              |
+| `text`                                                 | `text:value`                        | Case-insensitive substring over the full text corpus.    |
+| `tribe`                                                | `tribe:value` or `tribe:`           | Exact, case-insensitive; empty means any assigned tribe. |
+| `type`                                                 | `type:workflow`, `type:run`         | `type:running` is an alias for `type:run`.               |
+| `source`                                               | `source:axe`, `source:manual`       | Axe workflow/step or manually launched agent.            |
+| `needs`                                                | `needs:input`                       | Question/waiting-input or approved/working plan handoff. |
+| `pinned`, `hidden`, `attention`                        | `key:true` / `key:false`            | Boolean properties; `pinned:true` equals `tribe:pinned`. |
+| `age`                                                  | `age<5m`, `age>=2h`, `age:1d`, etc. | `:` is sugar for `>=`. Suffixes: `s`/`m`/`h`/`d`.        |
 
 Boolean operators: juxtaposition is implicit `AND`; explicit `AND`, `OR`, and `NOT` (with parentheses) are honored.
 Precedence is `NOT > AND > OR`. The help modal carries an **Agent Query Syntax** section listing the same grammar.
