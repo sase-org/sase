@@ -1,0 +1,111 @@
+"""ACE PNG visual snapshots for the Admin Center Statistics tab."""
+
+from __future__ import annotations
+
+import pytest
+
+from sase.ace.testing import AcePage
+from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
+    _open_statistics_modal,
+    _patch_config_view,
+    _patch_plugins_catalog,
+    _patch_statistics_empty,
+    _patch_statistics_loading,
+    _patch_statistics_populated,
+    _patch_xprompt_sources,
+)
+from tests.ace.tui.visual._ace_png_snapshot_helpers import (
+    changespecs,
+    patch_startup_loaders,
+    wait_for_startup,
+)
+from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
+
+pytestmark = pytest.mark.visual
+
+
+def _patch_siblings(monkeypatch: pytest.MonkeyPatch) -> None:
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_plugins_catalog(monkeypatch)
+    _patch_config_view(monkeypatch, None)
+
+
+async def test_config_center_statistics_overview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_statistics_modal(page)
+        assert pane._last_result is not None
+        assert pane._last_result.views.empty is False
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_overview_120x40",
+            title="ACE SASE Admin Center — Statistics overview",
+        )
+
+
+async def test_config_center_statistics_runtime_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("runtime")
+        await page.pause()
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_runtime_120x40",
+            title="ACE SASE Admin Center — Statistics runtime",
+        )
+
+
+async def test_config_center_statistics_empty_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_empty(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_statistics_modal(page)
+        assert pane._last_result is not None
+        assert pane._last_result.views.empty is True
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_empty_120x40",
+            title="ACE SASE Admin Center — Statistics empty state",
+        )
+
+
+async def test_config_center_statistics_loading_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_loading(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_statistics_modal(page, wait_for_load=False)
+        assert pane._loading is True
+        assert pane._last_result is None
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_loading_120x40",
+            title="ACE SASE Admin Center — Statistics loading state",
+        )

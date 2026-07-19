@@ -158,12 +158,15 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("dismiss_toasts", "Dismiss Toasts", False),
 ]
 
-# Scoped bindings owned by the focused Admin Center Telemetry pane.  These are
-# deliberately excluded from ``AppKeymaps`` so common keys such as ``s`` and
-# ``r`` never become globally active.
-_TELEMETRY_BINDING_META: tuple[tuple[str, str], ...] = (
-    ("cycle_subsystem", "Subsystem"),
+# Scoped bindings owned by the focused Admin Center Statistics pane.  These
+# are deliberately excluded from ``AppKeymaps`` so common keys such as ``t``
+# and ``r`` never become globally active.
+_STATISTICS_BINDING_META: tuple[tuple[str, str], ...] = (
+    ("prev_view", "Previous View"),
+    ("next_view", "Next View"),
     ("cycle_range", "Time Range"),
+    ("custom_range", "Custom Range"),
+    ("cycle_group", "Group By"),
     ("refresh", "Refresh"),
 )
 
@@ -453,11 +456,14 @@ class AppKeymaps:
 
 
 @dataclass
-class TelemetryPaneKeymaps:
-    """Focused-pane actions for the Admin Center Telemetry tab."""
+class StatisticsPaneKeymaps:
+    """Focused-pane actions for the Admin Center Statistics tab."""
 
-    cycle_subsystem: str = "s"
+    prev_view: str = "left_square_bracket"
+    next_view: str = "right_square_bracket"
     cycle_range: str = "t"
+    custom_range: str = "c"
+    cycle_group: str = "g"
     refresh: str = "r"
 
 
@@ -626,7 +632,7 @@ class KeymapRegistry:
     """Top-level container for all keymap configuration."""
 
     app: AppKeymaps
-    telemetry: TelemetryPaneKeymaps = field(default_factory=TelemetryPaneKeymaps)
+    statistics: StatisticsPaneKeymaps = field(default_factory=StatisticsPaneKeymaps)
     gate: GateModalKeymaps = field(default_factory=GateModalKeymaps)
     modes: dict[str, ModeKeymaps] = field(default_factory=dict)
 

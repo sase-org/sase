@@ -10,7 +10,15 @@ from sase.ace.admin_center_tab import (
     save_admin_center_tab,
 )
 
-_VALID_TABS = ("config", "logs", "projects", "tasks", "updates", "xprompts")
+_VALID_TABS = (
+    "config",
+    "logs",
+    "projects",
+    "statistics",
+    "tasks",
+    "updates",
+    "xprompts",
+)
 
 
 def test_load_missing_file_returns_none(tmp_path: Path) -> None:
@@ -38,6 +46,13 @@ def test_load_unknown_tab_returns_none(tmp_path: Path) -> None:
     tab_file.write_text('{"active_tab": "bogus"}', encoding="utf-8")
     with patch("sase.ace.admin_center_tab._ADMIN_CENTER_TAB_FILE", tab_file):
         assert load_admin_center_tab(_VALID_TABS) is None
+
+
+def test_load_legacy_telemetry_tab_migrates_to_statistics(tmp_path: Path) -> None:
+    tab_file = tmp_path / "admin_center_tab.json"
+    tab_file.write_text('{"active_tab": "telemetry"}', encoding="utf-8")
+    with patch("sase.ace.admin_center_tab._ADMIN_CENTER_TAB_FILE", tab_file):
+        assert load_admin_center_tab(_VALID_TABS) == "statistics"
 
 
 def test_load_non_string_tab_returns_none(tmp_path: Path) -> None:

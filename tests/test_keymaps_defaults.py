@@ -9,11 +9,11 @@ from sase.ace.tui.keymaps import (
     GateModalKeymaps,
     KeymapRegistry,
     LeaderModeKeymaps,
-    TelemetryPaneKeymaps,
+    StatisticsPaneKeymaps,
     _BINDING_META,
     load_builtin_app_defaults,
     load_builtin_gate_defaults,
-    load_builtin_telemetry_defaults,
+    load_builtin_statistics_defaults,
     load_keymap_registry,
 )
 from sase.ace.tui.modals.help_modal.bindings import (
@@ -306,14 +306,17 @@ def test_default_config_covers_all_app_keymaps() -> None:
     assert not missing, f"default_config.yml missing: {sorted(missing)}"
 
 
-def test_default_config_covers_all_telemetry_keymaps() -> None:
-    """The bundled config is the source of truth for Telemetry-pane keys."""
-    defaults = load_builtin_telemetry_defaults()
-    field_names = {field.name for field in fields(TelemetryPaneKeymaps)}
+def test_default_config_covers_all_statistics_keymaps() -> None:
+    """The bundled config is the source of truth for Statistics-pane keys."""
+    defaults = load_builtin_statistics_defaults()
+    field_names = {field.name for field in fields(StatisticsPaneKeymaps)}
 
     assert defaults == {
-        "cycle_subsystem": "s",
+        "prev_view": "left_square_bracket",
+        "next_view": "right_square_bracket",
         "cycle_range": "t",
+        "custom_range": "c",
+        "cycle_group": "g",
         "refresh": "r",
     }
     assert field_names == set(defaults)

@@ -575,7 +575,7 @@ def test_command_specs_are_well_formed() -> None:
             "logs",
             "projects",
             "tasks",
-            "telemetry",
+            "statistics",
         }:
             # These Admin Center panels are intentionally keyless: searchable
             # commands with no direct binding that open the corresponding tab.

@@ -99,8 +99,8 @@ async def test_admin_center_reaches_projects_tab_from_config(
         assert page.app.focused is option_list
 
         await page.press("tab")
-        await page.wait_for(lambda _s: modal._active_tab == "tasks")
-        assert switcher.current == "tasks"
+        await page.wait_for(lambda _s: modal._active_tab == "statistics")
+        assert switcher.current == "statistics"
         assert page.app.current_tab == "changespecs"
 
 
@@ -186,7 +186,7 @@ async def test_projects_filter_yields_tab_to_admin_center(
         # The Admin Center's priority Tab binding wins over focused-input
         # traversal and leaves the Projects sub-tab untouched.
         await page.press("tab")
-        await page.wait_for(lambda _s: modal._active_tab == "tasks")
+        await page.wait_for(lambda _s: modal._active_tab == "statistics")
         assert pane._active_subtab == "projects"
         assert page.app.current_tab == "changespecs"
 

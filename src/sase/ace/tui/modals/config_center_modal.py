@@ -1,4 +1,4 @@
-"""SASE Admin Center modal: config, logs, projects, tasks, telemetry, updates, xprompts.
+"""SASE Admin Center modal: config, logs, projects, statistics, tasks, updates, xprompts.
 
 SASE Admin Center is a full-screen ``ModalScreen`` that hosts seven internal
 alphabetical tabs over a :class:`ContentSwitcher`:
@@ -9,10 +9,10 @@ alphabetical tabs over a :class:`ContentSwitcher`:
   the standalone ``,L`` modal.
 - **Projects** (tab 3) — the migrated project lifecycle manager
   (:class:`ProjectsPane`), replacing the standalone ``,p`` modal.
-- **Tasks** (tab 4) — the canonical background-task monitor (:class:`TasksPane`),
+- **Statistics** (tab 4) — historical numeric activity views
+  (:class:`StatisticsPane`).
+- **Tasks** (tab 5) — the canonical background-task monitor (:class:`TasksPane`),
   replacing the standalone ``,t`` modal.
-- **Telemetry** (tab 5) — local stat tiles and time-series charts
-  (:class:`TelemetryPane`).
 - **Updates** (tab 6) — SASE core + plugin updates
   (:class:`PluginsBrowserPane`), mirroring ``sase update`` and
   ``sase plugin list``.
@@ -49,15 +49,15 @@ from .xprompt_browser_pane import XPromptBrowserPane
 from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
 CenterTab = Literal[
-    "config", "logs", "projects", "tasks", "telemetry", "updates", "xprompts"
+    "config", "logs", "projects", "statistics", "tasks", "updates", "xprompts"
 ]
 
 _TAB_ORDER: tuple[CenterTab, ...] = (
     "config",
     "logs",
     "projects",
+    "statistics",
     "tasks",
-    "telemetry",
     "updates",
     "xprompts",
 )
@@ -65,8 +65,8 @@ _TAB_LABELS: list[tuple[CenterTab, str]] = [
     ("config", "Config"),
     ("logs", "Logs"),
     ("projects", "Projects"),
+    ("statistics", "Statistics"),
     ("tasks", "Tasks"),
-    ("telemetry", "Telemetry"),
     ("updates", "Updates"),
     ("xprompts", "XPrompts"),
 ]
@@ -74,8 +74,8 @@ _TAB_COLORS: dict[CenterTab, str] = {
     "config": "#00D7AF",
     "logs": "#FFD700",
     "projects": "#FFAF5F",
+    "statistics": "#FF87D7",
     "tasks": "#5FD75F",
-    "telemetry": "#FF87D7",
     "updates": "#AF87FF",
     "xprompts": "#87D7FF",
 }
@@ -86,8 +86,8 @@ _TAB_DESCRIPTIONS: dict[CenterTab, str] = {
     "config": "Edit layered SASE settings with live preview",
     "logs": "Browse SASE logs and launch failures",
     "projects": "Manage projects, repos, and workspace directories",
+    "statistics": "Aggregate SASE agent activity over any time range",
     "tasks": "Monitor background tasks and live output",
-    "telemetry": "Explore local SASE activity and health trends",
     "updates": "Update SASE core and plugins with incoming commit previews",
     "xprompts": "Browse and preview xprompt definitions",
 }
@@ -199,13 +199,13 @@ class ConfigCenterModal(ModalScreen[None]):
         )
 
     def compose(self) -> ComposeResult:
-        # Keep chart/render imports off ACE startup; this module is imported
-        # early for ``_TAB_ORDER``, while Telemetry is only needed once the
+        # Keep statistics/render imports off ACE startup; this module is imported
+        # early for ``_TAB_ORDER``, while Statistics is only needed once the
         # Admin Center itself is opened.
-        from .telemetry_pane import TelemetryPane
+        from .statistics_pane import StatisticsPane
 
         registry = getattr(self.app, "_keymap_registry", None)
-        telemetry_keymaps = getattr(registry, "telemetry", None)
+        statistics_keymaps = getattr(registry, "statistics", None)
 
         with Container(id="config-center-container"):
             yield Label(
@@ -230,8 +230,8 @@ class ConfigCenterModal(ModalScreen[None]):
                 yield ConfigPane(project=self._project, id="config")
                 yield LogsPane(id="logs")
                 yield ProjectsPane(id="projects")
+                yield StatisticsPane(id="statistics", keymaps=statistics_keymaps)
                 yield TasksPane(id="tasks")
-                yield TelemetryPane(id="telemetry", keymaps=telemetry_keymaps)
                 yield PluginsBrowserPane(
                     id="updates", auto_update_on_load=self._auto_update
                 )

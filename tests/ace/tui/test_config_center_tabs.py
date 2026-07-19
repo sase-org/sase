@@ -39,8 +39,8 @@ def test_numbered_tab_strip_plain_text_and_click_ranges() -> None:
         "1 Config",
         "2 Logs",
         "3 Projects",
-        "4 Tasks",
-        "5 Telemetry",
+        "4 Statistics",
+        "5 Tasks",
         "6 Updates",
         "7 XPrompts",
     ]
@@ -159,20 +159,20 @@ async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(
         assert str(content.style) == _TAB_COLORS["projects"]
 
         await page.press("4")
+        await page.wait_for(lambda _s: modal._active_tab == "statistics")
+        assert switcher.current == "statistics"
+        content = description.content
+        assert isinstance(content, Text)
+        assert content.plain == "› Aggregate SASE agent activity over any time range"
+        assert str(content.style) == _TAB_COLORS["statistics"]
+
+        await page.press("5")
         await page.wait_for(lambda _s: modal._active_tab == "tasks")
         assert switcher.current == "tasks"
         content = description.content
         assert isinstance(content, Text)
         assert content.plain == "› Monitor background tasks and live output"
         assert str(content.style) == _TAB_COLORS["tasks"]
-
-        await page.press("5")
-        await page.wait_for(lambda _s: modal._active_tab == "telemetry")
-        assert switcher.current == "telemetry"
-        content = description.content
-        assert isinstance(content, Text)
-        assert content.plain == "› Explore local SASE activity and health trends"
-        assert str(content.style) == _TAB_COLORS["telemetry"]
 
         await page.press("6")
         await page.wait_for(lambda _s: modal._active_tab == "updates")
@@ -226,7 +226,7 @@ async def test_admin_center_remembers_active_tab_across_escape_and_q(
         first = page.app.screen
         assert isinstance(first, ConfigCenterModal)
 
-        await page.press("4")
+        await page.press("5")
         await page.wait_for(lambda _s: first._active_tab == "tasks")
         assert page.app._admin_center_tab == "tasks"
         # The in-memory field is mirrored to disk off-thread.
@@ -311,7 +311,7 @@ async def test_active_tab_persists_across_fresh_session(
         modal = page.app.screen
         assert isinstance(modal, ConfigCenterModal)
 
-        await page.press("4")
+        await page.press("5")
         await page.wait_for(lambda _s: modal._active_tab == "tasks")
         await page.wait_for(lambda _s: load_admin_center_tab(_TAB_ORDER) == "tasks")
 

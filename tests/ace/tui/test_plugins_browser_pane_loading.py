@@ -415,9 +415,9 @@ async def test_config_center_cycles_seven_tabs(
         modal.action_next_center_tab()
         assert modal._active_tab == "projects"
         modal.action_next_center_tab()
-        assert modal._active_tab == "tasks"
+        assert modal._active_tab == "statistics"
         modal.action_next_center_tab()
-        assert modal._active_tab == "telemetry"
+        assert modal._active_tab == "tasks"
         modal.action_next_center_tab()
         assert modal._active_tab == "updates"
         modal.action_next_center_tab()

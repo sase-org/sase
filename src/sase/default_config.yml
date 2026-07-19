@@ -87,11 +87,14 @@ ace:
       toggle_option: "space"
       submit_primary: "enter"
       submit_branch: "ctrl+s"
-    # Focused Admin Center Telemetry-pane bindings. These keys are inactive
+    # Focused Admin Center Statistics-pane bindings. These keys are inactive
     # everywhere else, even when they overlap app-level actions.
-    telemetry:
-      cycle_subsystem: "s"
+    statistics:
+      prev_view: "left_square_bracket"
+      next_view: "right_square_bracket"
       cycle_range: "t"
+      custom_range: "c"
+      cycle_group: "g"
       refresh: "r"
     app:
       # Navigation

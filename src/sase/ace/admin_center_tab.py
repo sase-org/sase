@@ -44,6 +44,8 @@ def load_admin_center_tab(valid_tabs: Collection[str]) -> str | None:
     if not isinstance(data, dict):
         return None
     tab = data.get("active_tab")
+    if tab == "telemetry":
+        tab = "statistics"
     if not isinstance(tab, str) or tab not in valid_tabs:
         return None
     return tab

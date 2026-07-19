@@ -58,8 +58,8 @@ def test_admin_center_tabs_are_alphabetical_by_label() -> None:
         "config",
         "logs",
         "projects",
+        "statistics",
         "tasks",
-        "telemetry",
         "updates",
         "xprompts",
     )
@@ -99,17 +99,18 @@ def test_keyless_tasks_command_opens_tasks_tab() -> None:
     assert "task queue" in spec.aliases
 
 
-def test_keyless_telemetry_command_opens_telemetry_tab() -> None:
+def test_keyless_statistics_command_opens_statistics_tab() -> None:
     catalog = build_command_catalog(load_keymap_registry({}))
-    spec = next(c for c in catalog if c.id == "telemetry")
+    spec = next(c for c in catalog if c.id == "statistics")
 
-    assert spec.label == "Open telemetry dashboard"
+    assert spec.label == "Open statistics"
     assert spec.key_display == ""
     assert spec.key_sequence == ()
     assert spec.tabs == ("changespecs", "agents", "axe")
     assert spec.executor.kind == "app_action"
-    assert spec.executor.action == "open_telemetry_panel"
+    assert spec.executor.action == "open_statistics_panel"
     assert "metrics" in spec.aliases
+    assert "telemetry" in spec.aliases
 
 
 def test_open_log_panel_action_pushes_admin_center_on_logs() -> None:
@@ -134,15 +135,15 @@ def test_open_tasks_panel_action_pushes_admin_center_on_tasks() -> None:
     assert modal._active_tab == "tasks"
 
 
-def test_open_telemetry_panel_action_pushes_admin_center_on_telemetry() -> None:
+def test_open_statistics_panel_action_pushes_admin_center_on_statistics() -> None:
     app = _ActionApp()
 
-    app.action_open_telemetry_panel()
+    app.action_open_statistics_panel()
 
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
-    assert modal._active_tab == "telemetry"
+    assert modal._active_tab == "statistics"
 
 
 def test_open_updates_panel_action_pushes_admin_center_on_updates() -> None:

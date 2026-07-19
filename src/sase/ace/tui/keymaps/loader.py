@@ -25,7 +25,7 @@ from sase.ace.tui.keymaps.types import (
     GateModalKeymaps,
     KeymapRegistry,
     ModeKeymaps,
-    TelemetryPaneKeymaps,
+    StatisticsPaneKeymaps,
     canonicalize_key_binding,
     canonicalize_single_key,
     is_valid_key,
@@ -37,7 +37,7 @@ from sase.ace.tui.keymaps.types import (
 from sase.ace.tui.keymaps.types import (
     _BINDING_META,
     _GATE_BINDING_META,
-    _TELEMETRY_BINDING_META,
+    _STATISTICS_BINDING_META,
 )
 
 log = logging.getLogger(__name__)
@@ -110,22 +110,22 @@ def load_builtin_app_defaults() -> dict[str, str]:
 
 
 @functools.cache
-def _builtin_telemetry_defaults() -> Mapping[str, str]:
-    """Cache focused Telemetry-pane defaults from bundled configuration."""
+def _builtin_statistics_defaults() -> Mapping[str, str]:
+    """Cache focused Statistics-pane defaults from bundled configuration."""
 
-    telemetry = _builtin_keymaps_config().get("telemetry", {})
-    if not isinstance(telemetry, dict):
-        msg = "default_config.yml missing ace.keymaps.telemetry section"
+    statistics = _builtin_keymaps_config().get("statistics", {})
+    if not isinstance(statistics, dict):
+        msg = "default_config.yml missing ace.keymaps.statistics section"
         raise RuntimeError(msg)
     return MappingProxyType(
-        {k: canonicalize_key_binding(str(v)) for k, v in telemetry.items()}
+        {k: canonicalize_key_binding(str(v)) for k, v in statistics.items()}
     )
 
 
-def load_builtin_telemetry_defaults() -> dict[str, str]:
-    """Return a mutable copy of bundled focused Telemetry-pane defaults."""
+def load_builtin_statistics_defaults() -> dict[str, str]:
+    """Return a mutable copy of bundled focused Statistics-pane defaults."""
 
-    return dict(_builtin_telemetry_defaults())
+    return dict(_builtin_statistics_defaults())
 
 
 @functools.cache
@@ -147,24 +147,24 @@ def load_builtin_gate_defaults() -> dict[str, str]:
     return dict(_builtin_gate_defaults())
 
 
-def _load_telemetry_keymaps(keymaps_cfg: dict[str, Any]) -> TelemetryPaneKeymaps:
-    """Load and validate the focused Telemetry-pane binding scope."""
+def _load_statistics_keymaps(keymaps_cfg: dict[str, Any]) -> StatisticsPaneKeymaps:
+    """Load and validate the focused Statistics-pane binding scope."""
 
-    defaults = load_builtin_telemetry_defaults()
-    field_names = {field.name for field in fields(TelemetryPaneKeymaps)}
+    defaults = load_builtin_statistics_defaults()
+    field_names = {field.name for field in fields(StatisticsPaneKeymaps)}
     missing = sorted(field_names - set(defaults))
     if missing:
         raise ValueError(
-            "default_config.yml missing telemetry keymaps: "
-            f"{', '.join(missing)}. Add these under ace.keymaps.telemetry."
+            "default_config.yml missing statistics keymaps: "
+            f"{', '.join(missing)}. Add these under ace.keymaps.statistics."
         )
 
-    raw_overrides = keymaps_cfg.get("telemetry", {})
+    raw_overrides = keymaps_cfg.get("statistics", {})
     overrides = raw_overrides if isinstance(raw_overrides, dict) else {}
     extra = sorted(set(overrides) - field_names)
     if extra:
         log.warning(
-            "Unknown telemetry keymap action(s) in config (ignored): %s",
+            "Unknown statistics keymap action(s) in config (ignored): %s",
             ", ".join(extra),
         )
 
@@ -180,7 +180,7 @@ def _load_telemetry_keymaps(keymaps_cfg: dict[str, Any]) -> TelemetryPaneKeymaps
         key = values[name]
         if not is_valid_key(key):
             log.warning(
-                "Invalid key %r for telemetry action %r; reverting to default %r",
+                "Invalid key %r for statistics action %r; reverting to default %r",
                 key,
                 name,
                 defaults[name],
@@ -199,7 +199,7 @@ def _load_telemetry_keymaps(keymaps_cfg: dict[str, Any]) -> TelemetryPaneKeymaps
             continue
         for name in [action for action in actions if action in user_overridden]:
             log.warning(
-                "Duplicate telemetry key %r: action %r conflicts with %s; "
+                "Duplicate statistics key %r: action %r conflicts with %s; "
                 "reverting to default %r",
                 key_value,
                 name,
@@ -208,7 +208,7 @@ def _load_telemetry_keymaps(keymaps_cfg: dict[str, Any]) -> TelemetryPaneKeymaps
             )
             values[name] = defaults[name]
 
-    return TelemetryPaneKeymaps(**values)
+    return StatisticsPaneKeymaps(**values)
 
 
 def _load_gate_keymaps(keymaps_cfg: dict[str, Any]) -> GateModalKeymaps:
@@ -421,7 +421,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
             app_kwargs[fname] = default_val
 
     app_km = AppKeymaps(**app_kwargs)
-    telemetry_km = _load_telemetry_keymaps(keymaps_cfg)
+    statistics_km = _load_statistics_keymaps(keymaps_cfg)
     gate_km = _load_gate_keymaps(keymaps_cfg)
 
     # --- Mode keymaps ---
@@ -512,7 +512,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
 
     registry = KeymapRegistry(
         app=app_km,
-        telemetry=telemetry_km,
+        statistics=statistics_km,
         gate=gate_km,
         modes=modes,
     )
@@ -587,8 +587,8 @@ def build_app_bindings(app_km: AppKeymaps) -> list[Binding]:
     return bindings
 
 
-def build_telemetry_bindings(keymaps: TelemetryPaneKeymaps) -> list[Binding]:
-    """Build instance-local bindings for the focused Telemetry pane."""
+def build_statistics_bindings(keymaps: StatisticsPaneKeymaps) -> list[Binding]:
+    """Build instance-local bindings for the focused Statistics pane."""
 
     return [
         Binding(
@@ -597,7 +597,7 @@ def build_telemetry_bindings(keymaps: TelemetryPaneKeymaps) -> list[Binding]:
             description,
             show=False,
         )
-        for action, description in _TELEMETRY_BINDING_META
+        for action, description in _STATISTICS_BINDING_META
     ]
 
 
@@ -616,14 +616,14 @@ def build_gate_modal_bindings(keymaps: GateModalKeymaps) -> list[Binding]:
     ]
 
 
-def telemetry_help_bindings(
-    keymaps: TelemetryPaneKeymaps,
+def statistics_help_bindings(
+    keymaps: StatisticsPaneKeymaps,
 ) -> list[tuple[str, str]]:
-    """Return effective Telemetry keys and descriptions for help surfaces."""
+    """Return effective Statistics keys and descriptions for help surfaces."""
 
     return [
         (key_display_name(getattr(keymaps, action)), description)
-        for action, description in _TELEMETRY_BINDING_META
+        for action, description in _STATISTICS_BINDING_META
     ]
 
 

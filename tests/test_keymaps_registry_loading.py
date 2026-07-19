@@ -11,7 +11,7 @@ from sase.ace.tui.keymaps import (
     GateModalKeymaps,
     LeaderModeKeymaps,
     ModeKeymaps,
-    TelemetryPaneKeymaps,
+    StatisticsPaneKeymaps,
     load_keymap_registry,
 )
 
@@ -44,31 +44,40 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert isinstance(reg.copy_mode, CopyModeKeymaps)
     assert isinstance(reg.leader_mode, LeaderModeKeymaps)
     assert isinstance(reg.bang_mode, BangModeKeymaps)
-    assert isinstance(reg.telemetry, TelemetryPaneKeymaps)
+    assert isinstance(reg.statistics, StatisticsPaneKeymaps)
     assert isinstance(reg.gate, GateModalKeymaps)
     assert reg.gate.toggle_option == "space"
     assert reg.gate.submit_branch == "ctrl+s"
-    assert reg.telemetry.cycle_subsystem == "s"
-    assert reg.telemetry.cycle_range == "t"
-    assert reg.telemetry.refresh == "r"
+    assert reg.statistics.prev_view == "left_square_bracket"
+    assert reg.statistics.next_view == "right_square_bracket"
+    assert reg.statistics.cycle_range == "t"
+    assert reg.statistics.custom_range == "c"
+    assert reg.statistics.cycle_group == "g"
+    assert reg.statistics.refresh == "r"
 
 
-def test_telemetry_pane_keys_can_be_overridden_independently() -> None:
+def test_statistics_pane_keys_can_be_overridden_independently() -> None:
     reg = load_keymap_registry(
         {
             "keymaps": {
-                "telemetry": {
-                    "cycle_subsystem": "f12",
-                    "cycle_range": "f11",
-                    "refresh": "f10",
+                "statistics": {
+                    "prev_view": "f12",
+                    "next_view": "f11",
+                    "cycle_range": "f10",
+                    "custom_range": "f9",
+                    "cycle_group": "f8",
+                    "refresh": "f7",
                 }
             }
         }
     )
 
-    assert reg.telemetry.cycle_subsystem == "f12"
-    assert reg.telemetry.cycle_range == "f11"
-    assert reg.telemetry.refresh == "f10"
+    assert reg.statistics.prev_view == "f12"
+    assert reg.statistics.next_view == "f11"
+    assert reg.statistics.cycle_range == "f10"
+    assert reg.statistics.custom_range == "f9"
+    assert reg.statistics.cycle_group == "f8"
+    assert reg.statistics.refresh == "f7"
 
 
 def test_gate_modal_keys_can_be_overridden_independently() -> None:

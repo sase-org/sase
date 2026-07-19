@@ -46,15 +46,18 @@ def test_default_config_matches_public_schema() -> None:
     assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
-def test_config_schema_accepts_scoped_telemetry_keymaps() -> None:
+def test_config_schema_accepts_scoped_statistics_keymaps() -> None:
     Draft7Validator(_schema()).validate(
         {
             "ace": {
                 "keymaps": {
-                    "telemetry": {
-                        "cycle_subsystem": "f12",
-                        "cycle_range": "f11",
-                        "refresh": "f10",
+                    "statistics": {
+                        "prev_view": "f12",
+                        "next_view": "f11",
+                        "cycle_range": "f10",
+                        "custom_range": "f9",
+                        "cycle_group": "f8",
+                        "refresh": "f7",
                     }
                 }
             }
@@ -101,18 +104,18 @@ def test_config_schema_rejects_invalid_scoped_gate_keymaps(
 
 
 @pytest.mark.parametrize(
-    "telemetry",
+    "statistics",
     [
-        {"cycle_subsystem": 12},
+        {"next_view": 12},
         {"unknown_action": "x"},
     ],
 )
-def test_config_schema_rejects_invalid_scoped_telemetry_keymaps(
-    telemetry: dict[str, Any],
+def test_config_schema_rejects_invalid_scoped_statistics_keymaps(
+    statistics: dict[str, Any],
 ) -> None:
     with pytest.raises(ValidationError):
         Draft7Validator(_schema()).validate(
-            {"ace": {"keymaps": {"telemetry": telemetry}}}
+            {"ace": {"keymaps": {"statistics": statistics}}}
         )
 
 

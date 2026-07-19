@@ -158,36 +158,36 @@ def test_compound_key_conflict_logs_warning(
     assert any("Duplicate key" in r.message for r in caplog.records)
 
 
-def test_telemetry_key_can_overlap_global_app_key() -> None:
-    """Scoped Telemetry keys do not participate in global app conflicts."""
-    reg = load_keymap_registry({"keymaps": {"telemetry": {"cycle_subsystem": "q"}}})
+def test_statistics_key_can_overlap_global_app_key() -> None:
+    """Scoped Statistics keys do not participate in global app conflicts."""
+    reg = load_keymap_registry({"keymaps": {"statistics": {"cycle_group": "q"}}})
 
-    assert reg.telemetry.cycle_subsystem == "q"
+    assert reg.statistics.cycle_group == "q"
     assert reg.app.quit == "q"
 
 
-def test_duplicate_telemetry_keys_revert_overrides() -> None:
+def test_duplicate_statistics_keys_revert_overrides() -> None:
     reg = load_keymap_registry(
         {
             "keymaps": {
-                "telemetry": {
-                    "cycle_subsystem": "f12",
-                    "cycle_range": "f12",
+                "statistics": {
+                    "prev_view": "f12",
+                    "next_view": "f12",
                 }
             }
         }
     )
 
-    assert reg.telemetry.cycle_subsystem == "s"
-    assert reg.telemetry.cycle_range == "t"
+    assert reg.statistics.prev_view == "left_square_bracket"
+    assert reg.statistics.next_view == "right_square_bracket"
 
 
-def test_invalid_telemetry_key_reverts_to_default() -> None:
+def test_invalid_statistics_key_reverts_to_default() -> None:
     reg = load_keymap_registry(
-        {"keymaps": {"telemetry": {"refresh": "not_a_real_key"}}}
+        {"keymaps": {"statistics": {"refresh": "not_a_real_key"}}}
     )
 
-    assert reg.telemetry.refresh == "r"
+    assert reg.statistics.refresh == "r"
 
 
 def test_duplicate_gate_keys_revert_overrides() -> None:

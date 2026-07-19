@@ -183,22 +183,22 @@ def _iter_tasks_command() -> Iterator[CommandSpec]:
     )
 
 
-def _iter_telemetry_command() -> Iterator[CommandSpec]:
-    """Yield the keyless Admin Center Telemetry-tab command."""
+def _iter_statistics_command() -> Iterator[CommandSpec]:
+    """Yield the keyless Admin Center Statistics-tab command."""
 
     yield CommandSpec(
-        id="telemetry",
-        label="Open telemetry dashboard",
+        id="statistics",
+        label="Open statistics",
         key_sequence=(),
         key_display="",
         category="Display",
         tabs=ALL_TABS,
-        executor=CommandExecutor(kind="app_action", action="open_telemetry_panel"),
+        executor=CommandExecutor(kind="app_action", action="open_statistics_panel"),
         aliases=(
-            "telemetry",
+            "statistics",
+            "stats",
             "metrics",
-            "charts",
-            "health",
+            "telemetry",
             "admin center",
         ),
     )
@@ -209,7 +209,7 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
 
     Order is deterministic: app commands (in ``_APP_COMMAND_META``
     order), then saved-query sequences, numbered Artifacts jumps, the keyless
-    Tasks, Telemetry, Logs, and Projects commands, then
+    Tasks, Statistics, Logs, and Projects commands, then
     mode commands (fold, copy, leader, bang, custom; each in registry
     insertion order).
     """
@@ -218,7 +218,7 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     catalog.extend(iter_saved_query_commands(registry))
     catalog.extend(_iter_artifacts_subtab_commands())
     catalog.extend(_iter_tasks_command())
-    catalog.extend(_iter_telemetry_command())
+    catalog.extend(_iter_statistics_command())
     catalog.extend(_iter_logs_command())
     catalog.extend(_iter_projects_command())
     catalog.extend(iter_mode_commands(registry))
