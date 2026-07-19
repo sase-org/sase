@@ -405,7 +405,20 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         (),
     ),
     # Queries
-    ("edit_query", "Edit query", "Queries", ALL_TABS, ("/",)),
+    (
+        "search_forward",
+        "Search metadata forward",
+        "Queries",
+        AGENTS_ONLY,
+        ("find", "forward", "/"),
+    ),
+    (
+        "search_reverse",
+        "Search metadata backward",
+        "Queries",
+        AGENTS_ONLY,
+        ("find", "reverse", "?"),
+    ),
     (
         "open_saved_query_picker",
         "Choose saved PR query",
@@ -419,7 +432,6 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("toggle_hide_reverted", "Toggle hide reverted", "Display", CL_ONLY, ()),
     ("toggle_hide_submitted", "Toggle hide submitted", "Display", CL_ONLY, ()),
     ("show_notifications", "Show notifications", "Display", ALL_TABS, ()),
-    ("show_help", "Show help", "Display", ALL_TABS, ("?",)),
     (
         "open_config_center",
         "Open SASE Admin Center",

@@ -171,6 +171,14 @@ def test_agent_fold_palette_is_hidden_without_summary_selection() -> None:
     assert not is_command_available(catalog["app.start_fold_mode"], group_ctx)
 
 
+def test_metadata_search_palette_entries_stay_hidden_until_actions_land() -> None:
+    catalog = _catalog_by_id()
+    ctx = CommandContext(tab="agents")
+
+    assert not is_command_available(catalog["app.search_forward"], ctx)
+    assert not is_command_available(catalog["app.search_reverse"], ctx)
+
+
 # ---------------------------------------------------------------------------
 # ChangeSpecs tab
 # ---------------------------------------------------------------------------
@@ -194,7 +202,7 @@ def test_bug_commands_only_available_on_bugs_subtab() -> None:
 
 
 def test_edit_query_is_available_on_prs_commits_and_plans() -> None:
-    spec = _catalog_by_id()["app.edit_query"]
+    spec = _catalog_by_id()["leader.edit_query"]
     assert is_command_available(
         spec,
         CommandContext(tab="changespecs", artifacts_subtab="prs"),

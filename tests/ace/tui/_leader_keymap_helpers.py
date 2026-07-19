@@ -55,6 +55,8 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.marked_agent_run_count = 0
         self.update_sase_shortcut_count = 0
         self.open_prompt_stash_count = 0
+        self.edit_query_count = 0
+        self.show_help_count = 0
         self.scheduled_callbacks: list[Any] = []
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
@@ -133,6 +135,12 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
 
     def action_update_sase_shortcut(self) -> None:
         self.update_sase_shortcut_count += 1
+
+    def action_edit_query(self) -> None:
+        self.edit_query_count += 1
+
+    def action_show_help(self) -> None:
+        self.show_help_count += 1
 
     async def action_open_prompt_stash(self) -> None:
         self.open_prompt_stash_count += 1

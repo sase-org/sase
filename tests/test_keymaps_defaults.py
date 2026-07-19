@@ -138,11 +138,17 @@ def test_leader_mode_includes_agent_run_log() -> None:
     assert reg.leader_mode.keys["agent_run_log"] == "A"
 
 
-def test_leader_mode_drops_tab_guide_key() -> None:
-    """The ``,?`` tab guide leader key was retired into the Help panel."""
+def test_leader_mode_uses_slash_and_question_mark_for_query_and_help() -> None:
+    """The former app actions live on configurable leader chords."""
     reg = load_keymap_registry({})
     assert "tab_guide" not in LeaderModeKeymaps().keys
     assert "tab_guide" not in reg.leader_mode.keys
+    assert reg.leader_mode.keys["edit_query"] == "slash"
+    assert reg.leader_mode.keys["show_help"] == "question_mark"
+    assert reg.app.search_forward == "slash"
+    assert reg.app.search_reverse == "question_mark"
+    assert not hasattr(reg.app, "edit_query")
+    assert not hasattr(reg.app, "show_help")
 
 
 def test_leader_mode_drops_project_management_key() -> None:

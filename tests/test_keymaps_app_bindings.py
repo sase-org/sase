@@ -40,6 +40,16 @@ def test_build_app_bindings_uses_config_keys() -> None:
     assert by_action["quit"].key == "Q"
 
 
+def test_search_replaces_app_query_and_help_bindings() -> None:
+    bindings = build_app_bindings(default_app_keymaps())
+    by_action = {binding.action: binding for binding in bindings}
+
+    assert by_action["search_forward"].key == "slash"
+    assert by_action["search_reverse"].key == "question_mark"
+    assert "edit_query" not in by_action
+    assert "show_help" not in by_action
+
+
 def test_build_app_bindings_uses_plus_custom_agent_binding() -> None:
     """The custom-agent launcher builds a ``plus`` binding, not ``at``."""
     bindings = build_app_bindings(default_app_keymaps())

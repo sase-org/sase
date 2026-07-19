@@ -87,7 +87,9 @@ def test_axe_info_panel_uses_configured_help_key() -> None:
         lambda text, **_kwargs: captured.append(text.plain),
     ):
         panel.set_keymap_registry(
-            load_keymap_registry({"keymaps": {"app": {"show_help": "f1"}}})
+            load_keymap_registry(
+                {"keymaps": {"modes": {"leader_mode": {"keys": {"show_help": "f1"}}}}}
+            )
         )
 
     assert captured, "panel.set_keymap_registry did not refresh display"

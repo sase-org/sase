@@ -70,6 +70,18 @@ class LeaderModeMixin:
         """Dispatch a non-repeat leader subkey."""
         leader_keys = self._keymap_registry.leader_mode.keys
 
+        if key == leader_keys["edit_query"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            self.action_edit_query()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
+        if key == leader_keys["show_help"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            self.action_show_help()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["run_cmd"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab != "changespecs":
@@ -260,9 +272,6 @@ class LeaderModeMixin:
             self.action_update_sase_shortcut()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
-
-        if key == "question_mark":
-            self.notify("Tab guide moved: press ? then ]")  # type: ignore[attr-defined]
 
         # Unknown key - just exit mode and restore footer
         self._refresh_current_tab()  # type: ignore[attr-defined]

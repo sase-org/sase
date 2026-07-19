@@ -39,6 +39,28 @@ async def test_remapped_navigation_key() -> None:
             await page.expect_state("idx", 0)
 
 
+async def test_leader_query_chord_opens_editor_and_bare_slash_is_inert() -> None:
+    for tab in ("changespecs", "agents", "axe"):
+        with _patch_config():
+            async with AcePage(initial_tab=tab) as page:
+                await page.press("slash")
+                await page.expect_no_modal()
+
+                await page.press("comma", "slash")
+                await page.expect_modal("QueryEditModal")
+
+
+async def test_leader_help_chord_opens_help_and_bare_question_is_inert() -> None:
+    for tab in ("changespecs", "agents", "axe"):
+        with _patch_config():
+            async with AcePage(initial_tab=tab) as page:
+                await page.press("question_mark")
+                await page.expect_no_modal()
+
+                await page.press("comma", "question_mark")
+                await page.expect_modal("HelpModal")
+
+
 async def test_plus_dispatches_custom_agent_and_at_does_not() -> None:
     """Default ``+`` launches the custom-agent selector; ``@`` no longer does."""
     with _patch_config():

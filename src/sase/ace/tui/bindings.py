@@ -44,7 +44,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Note: "!" binding removed - use "A" then "@" to mark ready to mail
     Binding("y", "refresh", "Refresh", show=False),
     Binding("Y", "sync", "Sync", show=False),
-    Binding("slash", "edit_query", "Edit Query", show=False),
+    Binding("slash", "search_forward", "Search Forward", show=False),
+    Binding("question_mark", "search_reverse", "Search Reverse", show=False),
     Binding("e", "edit_spec", "Edit Spec", show=False),
     Binding("ctrl+d", "scroll_detail_down", "Scroll Down", show=False),
     Binding("ctrl+u", "scroll_detail_up", "Scroll Up", show=False),
@@ -171,8 +172,6 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Scroll to top/bottom (Axe tab)
     Binding("g", "scroll_to_top", "Top", show=False),
     Binding("G", "scroll_to_bottom", "Bottom", show=False),
-    # Help
-    Binding("question_mark", "show_help", "Help", show=False),
     # SASE Admin Center (config editor + xprompt browser)
     Binding("number_sign", "open_config_center", "SASE Admin Center", show=False),
     # Query history navigation

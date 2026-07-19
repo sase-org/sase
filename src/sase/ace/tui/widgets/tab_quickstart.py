@@ -9,7 +9,12 @@ from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
-from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
+from ..keymaps import (
+    KeymapRegistry,
+    key_display_name,
+    leader_key_display,
+    load_keymap_registry,
+)
 
 TabQuickStartTab = Literal["agents", "changespecs"]
 
@@ -180,15 +185,15 @@ class TabQuickStart(VerticalScroll):
                 "Cycle tabs: Agents · Artifacts · AXE.",
             ),
             (
-                (key_display_name(app.edit_query),),
+                (leader_key_display(registry, "edit_query"),),
                 "Search and filter this tab.",
             ),
             (
-                (key_display_name(app.show_help),),
+                (leader_key_display(registry, "show_help"),),
                 "Every keymap for the current tab.",
             ),
             (
-                (key_display_name(app.show_help), "]"),
+                (leader_key_display(registry, "show_help"), "]"),
                 "The full tour of this tab: the in-depth guide.",
             ),
             (
@@ -235,7 +240,7 @@ class TabQuickStart(VerticalScroll):
         text.append("No PRs match this query — ", style=f"bold {_CALLOUT_ACCENT}")
         text.append(str(total_changespecs), style=f"bold {_CALLOUT_ACCENT}")
         text.append(f" {noun}. ", style=f"bold {_CALLOUT_ACCENT}")
-        cls._append_keycap(text, key_display_name(registry.app.edit_query))
+        cls._append_keycap(text, leader_key_display(registry, "edit_query"))
         text.append("edits the query.", style=f"bold {_CALLOUT_ACCENT}")
         return text
 

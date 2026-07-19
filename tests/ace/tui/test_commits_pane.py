@@ -314,7 +314,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         detail = pane.query_one("#commits-detail", Static)
         footer = pane.query_one("#commits-footer", Static)
         assert footer.content.plain == (
-            "j/k navigate  enter view  y copy  / filter  d SDD  "
+            "j/k navigate  enter view  y copy  ,/ filter  d SDD  "
             "a all  F fetch  R refresh  p project"
         )
         await page.wait_for(lambda _state: "Changes:" in _rendered_text(detail.content))
@@ -331,7 +331,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         bar = pane.query_one(CommitFilterBar)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
         baseline_calls = len(calls)
-        await page.press("slash")
+        await page.press("comma", "slash")
         await page.wait_for(lambda _state: bar.display)
         assert editor.text == ""
         assert page.app.focused is editor
@@ -426,7 +426,7 @@ async def test_commits_filter_bar_rejects_invalid_submit(
         await page.wait_for(lambda _state: pane.result is result)
         bar = pane.query_one(CommitFilterBar)
 
-        await page.press("slash", "r", "e", "p", "o", "colon", "enter")
+        await page.press("comma", "slash", "r", "e", "p", "o", "colon", "enter")
         await page.pause()
 
         assert bar.display is True
@@ -451,7 +451,7 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         bar = pane.query_one(CommitFilterBar)
-        await page.press("slash")
+        await page.press("comma", "slash")
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
         query = "-repo:sase-core-foundation"
         editor.load_text(query)
@@ -474,7 +474,7 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
         assert pane.filters.excluded_repos == ("sase-core-foundation",)
         assert query in pane.query_one("#commits-info", Static).content.plain
 
-        await page.press("slash")
+        await page.press("comma", "slash")
         editor.load_text("-author:Grace")
         editor.cursor_position = len(editor.text)
         await page.wait_for(
@@ -521,7 +521,7 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
         await page.press("f2")
         await page.wait_for(lambda _state: len(calls) == baseline + 1)
 
-        await page.press("question_mark")
+        await page.press("comma", "question_mark")
         await page.expect_modal("HelpModal")
         modal = page.app.screen
         assert isinstance(modal, HelpModal)

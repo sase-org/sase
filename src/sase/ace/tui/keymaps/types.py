@@ -61,7 +61,8 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("start_checkout_mode", "Checkout Mode", False),
     ("refresh", "Refresh", False),
     ("sync", "Sync", False),
-    ("edit_query", "Edit Query", False),
+    ("search_forward", "Search Forward", False),
+    ("search_reverse", "Search Reverse", False),
     ("open_saved_query_picker", "Saved Queries", False),
     ("edit_spec", "Edit Spec", False),
     ("scroll_detail_down", "Scroll Down", False),
@@ -131,7 +132,6 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("copy_tab_content", "Copy", False),
     ("scroll_to_top", "Top", False),
     ("scroll_to_bottom", "Bottom", False),
-    ("show_help", "Help", False),
     ("open_config_center", "SASE Admin Center", False),
     ("prev_query", "Prev Query", False),
     ("next_query", "Next Query", False),
@@ -427,7 +427,8 @@ class AppKeymaps:
     toggle_thinking: str
     toggle_thinking_reverse: str
     # Queries
-    edit_query: str
+    search_forward: str
+    search_reverse: str
     open_saved_query_picker: str
     prev_query: str
     next_query: str
@@ -435,7 +436,6 @@ class AppKeymaps:
     toggle_hide_reverted: str
     toggle_hide_submitted: str
     show_notifications: str
-    show_help: str
     open_config_center: str
     open_command_palette: str
     dismiss_toasts: str
@@ -564,6 +564,8 @@ class LeaderModeKeymaps(ModeKeymaps):
     keys: dict[str, str | dict[str, str]] = field(
         default_factory=lambda: {
             "repeat_last": "comma",
+            "edit_query": "slash",
+            "show_help": "question_mark",
             "run_cmd": "exclamation_mark",
             "runners": "R",
             "revert_agent": "r",

@@ -20,9 +20,13 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
                     "start_agent_home": "f2",
                     "open_config_center": "f3",
                     "next_tab": "f4",
-                    "edit_query": "f5",
-                    "show_help": "f6",
                     "open_command_palette": "f7",
+                },
+                "modes": {
+                    "leader_mode": {
+                        "prefix": "g",
+                        "keys": {"edit_query": "f5", "show_help": "f6"},
+                    }
                 },
             }
         }
@@ -101,4 +105,4 @@ def test_tab_quickstart_no_match_callout_is_prs_only() -> None:
     callout = _section_plain(no_match_prs, "#changespec-quickstart-callout")
     assert "No PRs match this query" in callout
     assert "3 exist" in callout
-    assert "/ edits the query" in callout
+    assert ",/ edits the query" in callout

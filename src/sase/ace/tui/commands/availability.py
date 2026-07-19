@@ -91,7 +91,7 @@ _NON_PRS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.start_last_vcs_xprompt_in_editor",
         "app.restore_prompt_stash",
         "app.show_notifications",
-        "app.show_help",
+        "leader.show_help",
         "app.open_config_center",
         "app.open_command_palette",
         "app.dismiss_toasts",
@@ -210,7 +210,7 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.artifacts_subtab == "commits"
     if spec.id in _PLANS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "plans"
-    if spec.id == "app.edit_query" and ctx.artifacts_subtab != "prs":
+    if spec.id == "leader.edit_query" and ctx.artifacts_subtab != "prs":
         return ctx.artifacts_subtab in {"commits", "plans"}
     if ctx.artifacts_subtab != "prs":
         return spec.id.startswith("artifacts.") or spec.id in _NON_PRS_ARTIFACT_COMMANDS
@@ -483,6 +483,10 @@ def is_command_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     Default: visible. Predicates only return ``False`` when a real
     precondition is violated.
     """
+    if spec.id in {"app.search_forward", "app.search_reverse"}:
+        # Their bindings are reserved by this remap phase; the metadata-search
+        # phase supplies the runnable actions and palette availability.
+        return False
     if ctx.tab not in spec.tabs:
         return False
 

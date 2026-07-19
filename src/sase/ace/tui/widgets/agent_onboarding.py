@@ -9,7 +9,12 @@ from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
-from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
+from ..keymaps import (
+    KeymapRegistry,
+    key_display_name,
+    leader_key_display,
+    load_keymap_registry,
+)
 from ..tab_order import TAB_ORDER, TabName
 from ._onboarding_common import (
     append_doc_link,
@@ -327,7 +332,7 @@ class AgentOnboarding(VerticalScroll):
             "supercharge prompts with #xprompts.",
             accent=_AGENTS_ACCENT,
         )
-        append_keycap(text, key_display_name(app.show_help))
+        append_keycap(text, leader_key_display(registry, "show_help"))
         text.append("full keybinding reference for this tab.")
         text.append("\n")
         append_keycap(text, key_display_name(app.open_command_palette))

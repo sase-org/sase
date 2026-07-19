@@ -73,6 +73,8 @@ _COPY_LABELS: dict[str, dict[str, str]] = {
 
 _LEADER_LABELS: dict[str, str] = {
     "repeat_last": "Repeat last leader command",
+    "edit_query": "Edit query",
+    "show_help": "Show help",
     "run_cmd": "Run background command",
     "runners": "Show runners",
     "revert_agent": "Revert agent + opened repos",

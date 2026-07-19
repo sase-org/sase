@@ -73,7 +73,7 @@ async def test_query_edit_modal_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         await page.expect_state("tab", "changespecs")
-        await page.press("slash")
+        await page.press("comma", "slash")
         await page.expect_modal("QueryEditModal")
         await wait_for_visual_idle(page)
 

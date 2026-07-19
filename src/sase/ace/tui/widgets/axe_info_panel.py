@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 from rich.text import Text
 from textual.widgets import Static
 
-from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
+from ..keymaps import KeymapRegistry, leader_key_display, load_keymap_registry
 
 if TYPE_CHECKING:
     from ..bgcmd import BackgroundCommandInfo
@@ -190,7 +190,7 @@ class AxeInfoPanel(Static):
         if text.plain:
             text.append("  ", style="")
         text.append(
-            f" {key_display_name(self._registry.app.show_help)} ",
+            f" {leader_key_display(self._registry, 'show_help')} ",
             style="bold #1a1a1a on #00D7AF",
         )
         text.append(" ] ", style="bold #1a1a1a on #00D7AF")

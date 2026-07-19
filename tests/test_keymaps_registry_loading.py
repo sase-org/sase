@@ -40,6 +40,10 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.app.jump_to_entry_forward == "ctrl+shift+o"
     assert reg.app.next_agent_metadata_section == "ctrl+j"
     assert reg.app.prev_agent_metadata_section == "ctrl+k"
+    assert reg.app.search_forward == "slash"
+    assert reg.app.search_reverse == "question_mark"
+    assert reg.leader_mode.keys["edit_query"] == "slash"
+    assert reg.leader_mode.keys["show_help"] == "question_mark"
     assert isinstance(reg.fold_mode, FoldModeKeymaps)
     assert isinstance(reg.copy_mode, CopyModeKeymaps)
     assert isinstance(reg.leader_mode, LeaderModeKeymaps)
@@ -55,6 +59,21 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.statistics.cycle_group == "g"
     assert reg.statistics.cycle_project_filter == "p"
     assert reg.statistics.refresh == "r"
+
+
+def test_retired_app_query_and_help_overrides_are_dropped_quietly(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.DEBUG):
+        reg = load_keymap_registry(
+            {"keymaps": {"app": {"edit_query": "f5", "show_help": "f6"}}}
+        )
+
+    assert not hasattr(reg.app, "edit_query")
+    assert not hasattr(reg.app, "show_help")
+    assert "Ignoring retired app keymap action: edit_query" in caplog.text
+    assert "Ignoring retired app keymap action: show_help" in caplog.text
+    assert "Unknown keymap action" not in caplog.text
 
 
 def test_statistics_pane_keys_can_be_overridden_independently() -> None:

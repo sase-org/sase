@@ -29,7 +29,7 @@ def test_axe_onboarding_content_describes_axe_chops_bgcmds_and_docs() -> None:
     assert "https://sase.sh/axe/" in rendered
     assert "https://sase.sh/workflow_spec/" in rendered
     assert "https://sase.sh/mentors/" in rendered
-    assert ",?" not in rendered
+    assert ",?" in rendered
 
 
 def test_axe_onboarding_uses_active_keymap_registry() -> None:
@@ -40,9 +40,11 @@ def test_axe_onboarding_uses_active_keymap_registry() -> None:
                     "kill_agent": "f4",
                     "edit_spec": "f5",
                     "run_workflow": "f3",
-                    "show_help": "f1",
                 },
-                "modes": {"bang_mode": {"prefix": "B", "keys": {"run_cmd": "R"}}},
+                "modes": {
+                    "bang_mode": {"prefix": "B", "keys": {"run_cmd": "R"}},
+                    "leader_mode": {"keys": {"show_help": "f1"}},
+                },
             }
         }
     )

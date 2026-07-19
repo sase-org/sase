@@ -5,7 +5,7 @@ from __future__ import annotations
 from rich.console import Group, RenderableType
 from rich.text import Text
 
-from sase.ace.tui.keymaps import KeymapRegistry, key_display_name
+from sase.ace.tui.keymaps import KeymapRegistry, key_display_name, leader_key_display
 from sase.ace.tui.util.lazy_syntax import (
     PLAIN_RENDER_MAX_LINES,
     LazySyntaxRenderCache,
@@ -87,16 +87,16 @@ def build_commits_hints(registry: KeymapRegistry) -> Text:
         f"{key_display_name(actions.commits_prev)} navigate  {view_key} view"
     )
     for key, label in (
-        (actions.commits_copy_sha, "copy"),
-        (actions.edit_query, "filter"),
-        (actions.commits_toggle_sdd, "SDD"),
-        (actions.commits_toggle_all_projects, "all"),
-        (actions.commits_fetch, "fetch"),
-        (actions.commits_refresh, "refresh"),
-        (actions.pick_artifacts_project, "project"),
+        (key_display_name(actions.commits_copy_sha), "copy"),
+        (leader_key_display(registry, "edit_query"), "filter"),
+        (key_display_name(actions.commits_toggle_sdd), "SDD"),
+        (key_display_name(actions.commits_toggle_all_projects), "all"),
+        (key_display_name(actions.commits_fetch), "fetch"),
+        (key_display_name(actions.commits_refresh), "refresh"),
+        (key_display_name(actions.pick_artifacts_project), "project"),
     ):
         text.append("  ")
-        text.append(key_display_name(key))
+        text.append(key)
         text.append(f" {label}")
     return text
 

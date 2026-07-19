@@ -299,6 +299,14 @@ class AceApp(
 
             if isinstance(self.focused, VimTextArea):
                 return False
+        if action in {"search_forward", "search_reverse"}:
+            # The metadata-search phase supplies these actions. Until then,
+            # keep the newly freed keys inert; once installed, search remains
+            # Agents-only by design.
+            if self.current_tab != "agents" or not callable(
+                getattr(self, f"action_{action}", None)
+            ):
+                return False
         from .actions.artifact_bugs import BUG_ARTIFACT_ACTIONS
         from .actions.artifacts import (
             COMMITS_ARTIFACT_ACTIONS,
@@ -310,10 +318,6 @@ class AceApp(
             self.current_tab == ARTIFACTS_TAB
             and self.current_artifacts_subtab != "prs"
             and action not in NON_PRS_ARTIFACT_ACTIONS
-            and not (
-                self.current_artifacts_subtab in {"commits", "plans"}
-                and action == "edit_query"
-            )
         ):
             return False
         if action in BUG_ARTIFACT_ACTIONS:

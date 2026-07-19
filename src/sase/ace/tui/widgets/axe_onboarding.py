@@ -9,7 +9,12 @@ from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
-from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
+from ..keymaps import (
+    KeymapRegistry,
+    key_display_name,
+    leader_key_display,
+    load_keymap_registry,
+)
 from ._axe_dashboard_render import CHOP_NAME_STYLE, LJ_NAME_STYLE
 from ._onboarding_common import (
     append_doc_link,
@@ -202,7 +207,6 @@ class AxeOnboarding(VerticalScroll):
 
     @staticmethod
     def _build_learn_card(registry: KeymapRegistry) -> Text:
-        app = registry.app
         text = Text()
         append_doc_link(
             text,
@@ -222,7 +226,7 @@ class AxeOnboarding(VerticalScroll):
             "automated review mentors Axe keeps running.",
             accent=_ACCENT,
         )
-        append_keycap(text, key_display_name(app.show_help))
+        append_keycap(text, leader_key_display(registry, "show_help"))
         text.append("full keybinding reference for this tab.")
         text.append("\n")
         text.append(_DOCS_URL, style=f"bold {_ACCENT} link {_DOCS_URL}")

@@ -1,6 +1,6 @@
 """Agents tab keybinding sections for the help modal."""
 
-from ...keymaps import KeymapRegistry, key_display_name
+from ...keymaps import KeymapRegistry, key_display_name, leader_key_display
 from .binding_common import (
     PROMPT_INPUT_SECTION,
     Sections,
@@ -180,6 +180,8 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'repeat_last'))}",
                     "Repeat last leader command",
                 ),
+                (leader_key_display(km, "edit_query"), "Filter agents by query"),
+                (leader_key_display(km, "show_help"), "Show this help"),
                 (
                     key_sequence_display(lm.prefix, sk(lm.keys, "agent_home")),
                     "Run agent (home)",
@@ -275,12 +277,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (f"{d(cm.prefix)}{d(ag_copy['name'])}", "Copy agent name"),
                 (f"{d(cm.prefix)}{d(ag_copy['prompt'])}", "Copy agent prompt"),
                 (f"{d(cm.prefix)}{d(ag_copy['snapshot'])}", "Copy sase ace snapshot"),
-            ],
-        ),
-        (
-            "Search",
-            [
-                (d(a.edit_query), "Filter agents by query"),
             ],
         ),
         (
@@ -381,7 +377,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.refresh), "Refresh"),
                 (d(a.quit), "Quit"),
                 (d(a.open_command_palette), "Open command palette"),
-                (d(a.show_help), "Show this help"),
             ],
         ),
     )

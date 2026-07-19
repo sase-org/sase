@@ -79,7 +79,7 @@ async def _commit_plan_filter_query(
     query: str,
 ) -> None:
     values = parse_plan_filter_query(query)
-    await page.press("slash")
+    await page.press("comma", "slash")
     await page.wait_for(lambda _state: bar.display)
     bar.query_one("#plan-filter-input", SingleLineVimTextArea).load_text(query)
     await page.wait_for(lambda _state: pane._live_filter_values == values)
@@ -167,7 +167,7 @@ async def test_plans_filter_bar_prefilled_png_snapshot(
         pane, bar = await _open_plans(page, snapshot)
         query = "kind:phase load"
         await _commit_plan_filter_query(page, pane, bar, query)
-        await page.press("slash")
+        await page.press("comma", "slash")
         editor = bar.query_one("#plan-filter-input", SingleLineVimTextArea)
         await page.wait_for(lambda _state: bar.display and editor.text == query)
         await wait_for_svg_contains(page, "1 match")
@@ -284,7 +284,7 @@ async def test_plans_filter_parse_error_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         _pane, bar = await _open_plans(page, snapshot)
-        await page.press("slash")
+        await page.press("comma", "slash")
         await page.wait_for(lambda _state: bar.display)
         bar.query_one("#plan-filter-input", SingleLineVimTextArea).load_text("status:")
         await page.wait_for(

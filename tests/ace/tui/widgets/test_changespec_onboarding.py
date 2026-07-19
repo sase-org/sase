@@ -27,7 +27,12 @@ def test_changespec_onboarding_content_includes_docs_lifecycle_and_storage() -> 
 
 def test_changespec_onboarding_uses_active_keymap_registry() -> None:
     registry = load_keymap_registry(
-        {"keymaps": {"app": {"prev_tab": "f2", "show_help": "f1"}}}
+        {
+            "keymaps": {
+                "app": {"prev_tab": "f2"},
+                "modes": {"leader_mode": {"keys": {"show_help": "f1"}}},
+            }
+        }
     )
 
     sections = ChangeSpecOnboarding.render_content(registry)
@@ -51,8 +56,8 @@ def test_changespec_onboarding_queue_card_uses_active_keymap_registry() -> None:
                     "change_status": "f4",
                     "mail": "f5",
                     "edit_spec": "f6",
-                    "edit_query": "f7",
-                }
+                },
+                "modes": {"leader_mode": {"keys": {"edit_query": "f7"}}},
             }
         }
     )

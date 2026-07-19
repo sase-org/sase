@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...changespec import ChangeSpec
-from ..keymaps import KeymapRegistry, footer_key_display
+from ..keymaps import KeymapRegistry, footer_key_display, leader_key_display
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
@@ -79,7 +79,7 @@ class KeybindingModesMixin:
         bindings: list[tuple[str, str]] = []
         if project_name:
             bindings.append((self._kd("open_tmux"), "tmux"))
-        bindings.append((self._kd("edit_query"), "edit query"))
+        bindings.append((leader_key_display(self._kr(), "edit_query"), "edit query"))
         self._update_display(bindings)
 
     def show_artifacts_pane(self) -> None:
@@ -248,6 +248,8 @@ class KeybindingModesMixin:
 
         bindings: list[tuple[str, str]] = []
         bindings.append((k("repeat_last"), "repeat"))
+        bindings.append((k("edit_query"), "edit query"))
+        bindings.append((k("show_help"), "help"))
         if current_tab == "changespecs":
             if has_comments:
                 bindings.append((k("clear_comments"), "clear comments"))

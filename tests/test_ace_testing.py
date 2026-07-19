@@ -77,7 +77,7 @@ async def test_expect_state_nested_key() -> None:
 async def test_expect_modal() -> None:
     """expect_modal succeeds after opening the query modal."""
     async with AcePage() as page:
-        await page.press("slash")
+        await page.press("comma", "slash")
         await page.expect_modal("QueryEditModal")
 
 

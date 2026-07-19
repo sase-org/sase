@@ -76,13 +76,14 @@ def test_footer_surfaces_configured_prompt_stash_key_on_all_tabs() -> None:
         assert ("P", "prompt stash") in captured[-1][0]
 
 
-def test_footer_omits_tab_guide_after_help_panel_merge() -> None:
+def test_footer_surfaces_query_and_help_on_all_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
     for tab in ("changespecs", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
-        assert "tab guide" not in _last_labels(captured)
+        assert ("/", "edit query") in captured[-1][0]
+        assert ("?", "help") in captured[-1][0]
 
 
 def test_footer_surfaces_update_sase_on_all_tabs() -> None:

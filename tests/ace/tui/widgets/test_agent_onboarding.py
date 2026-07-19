@@ -40,7 +40,9 @@ def test_agent_onboarding_tab_rows_follow_visible_tab_order() -> None:
 
 
 def test_agent_onboarding_uses_active_keymap_registry() -> None:
-    registry = load_keymap_registry({"keymaps": {"app": {"show_help": "f1"}}})
+    registry = load_keymap_registry(
+        {"keymaps": {"modes": {"leader_mode": {"keys": {"show_help": "f1"}}}}}
+    )
     widget = AgentOnboarding()
 
     sections = widget.render_content(registry)

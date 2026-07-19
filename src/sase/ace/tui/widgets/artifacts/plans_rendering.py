@@ -10,7 +10,7 @@ from rich.text import Text
 from sase.bead.model import Issue, Status
 from sase.plan_search.model import PlanSearchMatch
 
-from ...keymaps import KeymapRegistry, key_display_name
+from ...keymaps import KeymapRegistry, key_display_name, leader_key_display
 from .plans_data import PlanProposal, PlansSnapshot
 from .types import ARTIFACTS_ACCENTS
 
@@ -126,25 +126,25 @@ def build_plans_hints(registry: KeymapRegistry) -> Text:
     """Build the configured action hints shown below the plan panels."""
     keymap = registry.app
     parts = (
-        (keymap.plans_next, "next"),
-        (keymap.plans_prev, "prev"),
-        (keymap.plans_view_selected, "view"),
-        (keymap.edit_query, "filter"),
-        (keymap.plans_expand, "expand"),
-        (keymap.plans_collapse, "collapse"),
-        (keymap.plans_cycle_status, "status"),
-        (keymap.plans_edit_bead, "edit"),
-        (keymap.plans_launch_epic, "work"),
-        (keymap.plans_approve, "approve"),
-        (keymap.plans_reject, "reject"),
-        (keymap.plans_open_bug, "bug"),
-        (keymap.plans_refresh, "refresh"),
+        (key_display_name(keymap.plans_next), "next"),
+        (key_display_name(keymap.plans_prev), "prev"),
+        (key_display_name(keymap.plans_view_selected), "view"),
+        (leader_key_display(registry, "edit_query"), "filter"),
+        (key_display_name(keymap.plans_expand), "expand"),
+        (key_display_name(keymap.plans_collapse), "collapse"),
+        (key_display_name(keymap.plans_cycle_status), "status"),
+        (key_display_name(keymap.plans_edit_bead), "edit"),
+        (key_display_name(keymap.plans_launch_epic), "work"),
+        (key_display_name(keymap.plans_approve), "approve"),
+        (key_display_name(keymap.plans_reject), "reject"),
+        (key_display_name(keymap.plans_open_bug), "bug"),
+        (key_display_name(keymap.plans_refresh), "refresh"),
     )
     text = Text(justify="center")
     for index, (key, label) in enumerate(parts):
         if index:
             text.append("  ", style="dim")
-        text.append(key_display_name(key), style=f"bold {ARTIFACTS_ACCENTS['plans']}")
+        text.append(key, style=f"bold {ARTIFACTS_ACCENTS['plans']}")
         text.append(f" {label}", style="dim")
     return text
 

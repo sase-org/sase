@@ -10,7 +10,12 @@ from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from ...display_helpers import get_status_color
-from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
+from ..keymaps import (
+    KeymapRegistry,
+    key_display_name,
+    leader_key_display,
+    load_keymap_registry,
+)
 from ._onboarding_common import (
     append_doc_link,
     append_keycap,
@@ -186,13 +191,12 @@ class ChangeSpecOnboarding(VerticalScroll):
         append_keycap(text, key_display_name(app.edit_spec))
         text.append("open the spec in $EDITOR.")
         text.append("\n")
-        append_keycap(text, key_display_name(app.edit_query))
+        append_keycap(text, leader_key_display(registry, "edit_query"))
         text.append("filter with a query.")
         return text
 
     @staticmethod
     def _build_learn_card(registry: KeymapRegistry) -> Text:
-        app = registry.app
         text = Text()
         append_doc_link(
             text,
@@ -212,6 +216,6 @@ class ChangeSpecOnboarding(VerticalScroll):
             "sase-github & other PR integrations.",
             accent=_ACCENT,
         )
-        append_keycap(text, key_display_name(app.show_help))
+        append_keycap(text, leader_key_display(registry, "show_help"))
         text.append("full keybinding reference for this tab.")
         return text

@@ -21,7 +21,7 @@ def test_leader_space_runs_agent_from_current_cl() -> None:
     assert app.refresh_count == 1
 
 
-def test_leader_question_mark_shows_tab_guide_moved_toast() -> None:
+def test_leader_question_mark_shows_help_on_all_tabs() -> None:
     for tab in ("changespecs", "agents", "axe"):
         app = _FakeApp(current_tab=tab)
 
@@ -29,25 +29,20 @@ def test_leader_question_mark_shows_tab_guide_moved_toast() -> None:
 
         assert handled is True
         assert app._leader_mode_active is False
-        assert app.pushed_modals == []
-        assert app.notifications == ["Tab guide moved: press ? then ]"]
-        assert app._last_leader_key is None
+        assert app.show_help_count == 1
+        assert app.notifications == []
+        assert app._last_leader_key == "question_mark"
         assert app.refresh_count == 1
 
 
-def test_leader_question_mark_is_not_repeatable() -> None:
-    app = _FakeApp(current_tab="axe")
+def test_leader_slash_edits_query_on_all_tabs() -> None:
+    for tab in ("changespecs", "agents", "axe"):
+        app = _FakeApp(current_tab=tab)
 
-    app._handle_leader_key("question_mark")
-    app._handle_leader_key("comma")
-
-    assert app.pushed_modals == []
-    assert app._last_leader_key is None
-    assert app.notifications == [
-        "Tab guide moved: press ? then ]",
-        "No leader command to repeat",
-    ]
-    assert app.refresh_count == 2
+        assert app._handle_leader_key("slash") is True
+        assert app.edit_query_count == 1
+        assert app._last_leader_key == "slash"
+        assert app.refresh_count == 1
 
 
 def test_leader_space_runs_agent_from_selected_agent_on_agents_tab() -> None:

@@ -43,6 +43,11 @@ from sase.ace.tui.keymaps.types import (
 log = logging.getLogger(__name__)
 
 
+# Retired app-level action ids. Drop stale user overrides quietly so configs
+# from before the leader-chord remap continue to load without warnings.
+_RETIRED_APP_KEYS: frozenset[str] = frozenset({"edit_query", "show_help"})
+
+
 # Retired built-in leader-mode action ids. These are dropped while loading so a
 # stale user override cannot deep-merge a removed command back into the registry.
 # ``kill_marked_and_edit`` was folded into the contextual ``kill_and_edit``
@@ -358,6 +363,11 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
     app_overrides = keymaps_cfg.get("app", {})
     if not isinstance(app_overrides, dict):
         app_overrides = {}
+    else:
+        app_overrides = dict(app_overrides)
+        for retired_name in sorted(_RETIRED_APP_KEYS & app_overrides.keys()):
+            app_overrides.pop(retired_name)
+            log.debug("Ignoring retired app keymap action: %s", retired_name)
 
     # Warn about unknown keys in config.
     extra = sorted(set(app_overrides.keys()) - app_field_names)
@@ -659,6 +669,21 @@ def key_display_name(textual_key: str) -> str:
         key_name = _KEY_DISPLAY.get(key_parts[-1], key_parts[-1].upper())
         return "+".join([*(modifiers[part] for part in key_parts[:-1]), key_name])
     return textual_key
+
+
+def leader_key_display(registry: KeymapRegistry, action_name: str) -> str:
+    """Format one configured leader chord for display surfaces."""
+    subkey = registry.leader_mode.keys[action_name]
+    assert isinstance(subkey, str)
+    parts = [
+        key_display_name(registry.leader_mode.prefix),
+        key_display_name(subkey),
+    ]
+    if all(len(part) == 1 for part in parts):
+        return "".join(parts)
+    if len(parts[1]) == 1 and not parts[1].isalnum():
+        return "".join(parts)
+    return " ".join(parts)
 
 
 def footer_key_display(textual_key: str) -> str:

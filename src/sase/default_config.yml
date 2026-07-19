@@ -220,7 +220,8 @@ ace:
       cycle_grouping_mode: "o"
       cycle_grouping_mode_reverse: "O"
       # Queries
-      edit_query: "slash"
+      search_forward: "slash"
+      search_reverse: "question_mark"
       open_saved_query_picker: "asterisk"
       prev_query: "circumflex_accent"
       next_query: "underscore"
@@ -228,7 +229,6 @@ ace:
       toggle_hide_reverted: "full_stop"
       toggle_hide_submitted: "x"
       show_notifications: "i"
-      show_help: "question_mark"
       open_config_center: "number_sign"
       open_command_palette: "colon,semicolon"
       dismiss_toasts: "ctrl+l"
@@ -300,6 +300,8 @@ ace:
         prefix: "comma"
         keys:
           repeat_last: "comma"
+          edit_query: "slash"
+          show_help: "question_mark"
           run_cmd: "exclamation_mark"
           runners: "R"
           revert_agent: "r"
