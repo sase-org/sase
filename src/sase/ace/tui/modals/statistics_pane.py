@@ -653,14 +653,24 @@ class StatisticsPane(StatisticsProjectsRenderingMixin, Vertical):
             f"Proposed  {view.plans_proposed}  ·  Approved  {view.plans_approved}  ·  "
             f"Rejected  {view.plans_rejected}  ·  Pending  {view.plans_pending}"
         )
-        tiers = self._count_table("Tier", view.plan_tiers)
-        phases = self._distribution_table("Phases", view.phases_per_epic)
-        questions_summary = Text(
-            f"Sessions  {view.question_sessions}  ·  Asking agents  {view.asking_agents}  ·  "
-            f"Questions  {view.questions}"
+        tiers = self._count_table(f"Tier{unscoped_suffix}", view.plan_tiers)
+        phases = self._distribution_table(
+            f"Phases{unscoped_suffix}", view.phases_per_epic
         )
+        questions_summary = Text(
+            f"Sessions  {view.question_sessions}  ·  Asking agents  {view.asking_agents}"
+        )
+        question_summary_rows: tuple[Text, ...]
+        if self._project_filter:
+            question_summary_rows = (
+                questions_summary,
+                Text(f"Questions{unscoped_suffix}: {view.questions}"),
+            )
+        else:
+            questions_summary.append(f"  ·  Questions  {view.questions}")
+            question_summary_rows = (questions_summary,)
         question_sizes = self._distribution_table(
-            "Questions", view.questions_per_session
+            f"Questions{unscoped_suffix}", view.questions_per_session
         )
         return Columns(
             (
@@ -669,25 +679,27 @@ class StatisticsPane(StatisticsProjectsRenderingMixin, Vertical):
                         plans_summary,
                         tiers,
                         Text(
-                            f"Mean phases per epic: {view.mean_phases_per_epic:.2f}",
+                            "Mean phases per epic"
+                            f"{unscoped_suffix}: {view.mean_phases_per_epic:.2f}",
                             style="dim",
                         ),
                         phases,
                     ),
-                    title=f"Plans{unscoped_suffix}",
+                    title="Plans",
                     border_style=_ACCENT,
                 ),
                 Panel(
                     Group(
-                        questions_summary,
+                        *question_summary_rows,
                         Text(
-                            "Mean questions per session: "
+                            "Mean questions per session"
+                            f"{unscoped_suffix}: "
                             f"{view.mean_questions_per_session:.2f}",
                             style="dim",
                         ),
                         question_sizes,
                     ),
-                    title=f"Questions{unscoped_suffix}",
+                    title="Questions",
                     border_style=_CYAN,
                 ),
             ),

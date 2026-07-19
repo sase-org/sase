@@ -478,18 +478,19 @@ def _build_activity_view(
 def _build_plans_questions_view(
     run_payload: Payload, activity_payload: Payload
 ) -> _PlansQuestionsView:
-    plans = _mapping(activity_payload.get("plans"))
+    run_plans = _mapping(run_payload.get("plans"))
+    activity_plans = _mapping(activity_payload.get("plans"))
     questions = _mapping(activity_payload.get("questions"))
     run_questions = _mapping(run_payload.get("questions"))
     return _PlansQuestionsView(
-        plans_proposed=_integer(plans.get("proposed")),
-        plan_tiers=_count_rows(_rows(plans, "tiers")),
-        plans_approved=_integer(plans.get("approved")),
-        plans_rejected=_integer(plans.get("rejected")),
-        plans_pending=_integer(plans.get("pending")),
-        phases_per_epic=_distribution_rows(_rows(plans, "phases_per_epic")),
-        mean_phases_per_epic=_number(plans.get("mean_phases_per_epic")),
-        question_sessions=_integer(questions.get("sessions")),
+        plans_proposed=_integer(run_plans.get("proposed")),
+        plan_tiers=_count_rows(_rows(activity_plans, "tiers")),
+        plans_approved=_integer(run_plans.get("approved")),
+        plans_rejected=_integer(run_plans.get("rejected")),
+        plans_pending=_integer(run_plans.get("pending")),
+        phases_per_epic=_distribution_rows(_rows(activity_plans, "phases_per_epic")),
+        mean_phases_per_epic=_number(activity_plans.get("mean_phases_per_epic")),
+        question_sessions=_integer(run_questions.get("sessions")),
         asking_agents=_integer(run_questions.get("asking_agents")),
         questions=_integer(questions.get("questions")),
         questions_per_session=_distribution_rows(

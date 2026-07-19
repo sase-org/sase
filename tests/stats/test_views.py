@@ -62,7 +62,13 @@ def _run_payload() -> dict[str, object]:
                 {"name": "core", "count": 2},
             ],
         },
-        "questions": {"sessions": 2, "asking_agents": 1},
+        "plans": {
+            "proposed": 4,
+            "approved": 1,
+            "rejected": 2,
+            "pending": 1,
+        },
+        "questions": {"sessions": 1, "asking_agents": 1},
         "workspaces": [
             {"project": "sase", "workspace_num": 17, "runs": 4},
             {"project": "core", "workspace_num": 2, "runs": 2},
@@ -230,6 +236,11 @@ def test_builds_all_presentation_views_from_binding_payloads() -> None:
     assert views.activity.skills[0].distinct_agents == 3
     assert views.activity.workspaces[0].workspace_num == 17
     assert views.plans_questions.mean_phases_per_epic == 3.0
+    assert views.plans_questions.plans_proposed == 4
+    assert views.plans_questions.plans_approved == 1
+    assert views.plans_questions.plans_rejected == 2
+    assert views.plans_questions.plans_pending == 1
+    assert views.plans_questions.question_sessions == 1
     assert views.plans_questions.asking_agents == 1
     assert views.plans_questions.questions_per_session[-1].label == "2"
 
@@ -239,6 +250,34 @@ def test_models_are_frozen() -> None:
 
     with pytest.raises(FrozenInstanceError):
         views.overview.agents_run = 99  # type: ignore[misc]
+
+
+def test_filtered_plans_questions_keep_global_document_aggregates() -> None:
+    run_payload = _run_payload()
+    run_payload["plans"] = {
+        "proposed": 1,
+        "approved": 1,
+        "rejected": 0,
+        "pending": 0,
+    }
+    run_payload["questions"] = {"sessions": 1, "asking_agents": 1}
+
+    view = build_statistics_views(run_payload, _activity_payload()).plans_questions
+
+    assert (
+        view.plans_proposed,
+        view.plans_approved,
+        view.plans_rejected,
+        view.plans_pending,
+    ) == (1, 1, 0, 0)
+    assert (view.question_sessions, view.asking_agents) == (1, 1)
+    assert [(row.label, row.count) for row in view.plan_tiers] == [
+        ("epic", 2),
+        ("tale", 1),
+    ]
+    assert view.mean_phases_per_epic == 3.0
+    assert view.questions == 3
+    assert view.mean_questions_per_session == 1.5
 
 
 def test_empty_and_partial_payloads_are_safe() -> None:

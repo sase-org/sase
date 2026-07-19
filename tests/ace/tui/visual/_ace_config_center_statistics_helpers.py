@@ -80,6 +80,12 @@ def _populated_statistics_view(
                 {"name": "sase-github", "count": 4},
             ],
         },
+        "plans": {
+            "proposed": 11,
+            "approved": 8,
+            "rejected": 1,
+            "pending": 2,
+        },
         "questions": {"sessions": 8, "asking_agents": 6},
         "workspaces": [
             {"project": "sase", "workspace_num": 15, "runs": 12},

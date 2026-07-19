@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from rich.console import Console
 from textual.widgets import Input, Static
 from textual.worker import WorkerState
 
@@ -76,7 +77,13 @@ def _run_payload(selected_range: StatsRange, group_by: RuntimeGroupBy) -> dict:
             "distribution": {"zero": 3, "one": 1, "two": 1, "three_plus": 1},
             "top_repos": [{"name": "sase", "count": 7}],
         },
-        "questions": {"sessions": 2, "asking_agents": 2},
+        "plans": {
+            "proposed": 1,
+            "approved": 1,
+            "rejected": 0,
+            "pending": 0,
+        },
+        "questions": {"sessions": 1, "asking_agents": 1},
         "workspaces": [{"project": "sase", "workspace_num": 15, "runs": 6}],
         "buckets": [
             {"start_ts": selected_range.start_ts, "runs": 2},
@@ -376,17 +383,43 @@ def test_stale_project_filter_result_is_discarded_and_rescheduled(
     assert pane._last_result is None
 
 
-def test_project_filter_marks_unscoped_plan_and_question_tables() -> None:
+def _render_plain(renderable: object) -> str:
+    console = Console(width=180, color_system=None)
+    with console.capture() as capture:
+        console.print(renderable)
+    return capture.get()
+
+
+def test_all_project_plan_and_question_values_need_no_scope_markers() -> None:
+    pane = StatisticsPane(auto_load=False)
+    view = _result(pane._view, pane._range, pane._runtime_group_by).views
+
+    columns = pane._plans_questions_renderable(view.plans_questions)
+    rendered = _render_plain(columns)
+
+    assert [panel.title for panel in columns.renderables] == ["Plans", "Questions"]
+    assert "all projects" not in rendered
+    assert "Proposed  1  ·  Approved  1  ·  Rejected  0  ·  Pending  0" in rendered
+    assert "Sessions  1  ·  Asking agents  1  ·  Questions  3" in rendered
+
+
+def test_project_filter_marks_only_global_plan_and_question_values() -> None:
     pane = StatisticsPane(auto_load=False)
     pane._project_filter = "sase"
     view = _result(pane._view, pane._range, pane._runtime_group_by).views
 
     columns = pane._plans_questions_renderable(view.plans_questions)
+    rendered = _render_plain(columns)
 
-    assert [panel.title for panel in columns.renderables] == [
-        "Plans (all projects)",
-        "Questions (all projects)",
-    ]
+    assert [panel.title for panel in columns.renderables] == ["Plans", "Questions"]
+    assert "Proposed  1  ·  Approved  1  ·  Rejected  0  ·  Pending  0" in rendered
+    assert "Sessions  1  ·  Asking agents  1" in rendered
+    assert "Tier (all projects)" in rendered
+    assert "Mean phases per epic (all projects): 5.00" in rendered
+    assert "Phases (all projects)" in rendered
+    assert "Questions (all projects): 3" in rendered
+    assert "Mean questions per session (all projects): 1.50" in rendered
+    assert "Questions (all projects)" in rendered
 
 
 async def test_view_cycle_reuses_composite_result_and_updates_strip(
