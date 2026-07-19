@@ -31,6 +31,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
+from sase.ace.tui.agent_completion import agent_prompt_name
 from sase.ace.tui.commands.types import CommandContext, CommandSpec
 from sase.ace.tui.models.agent_status import (
     DISMISSABLE_STATUSES,
@@ -323,6 +324,25 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 
     if spec.id == "app.save_marked_agents":
         return ctx.mark_count > 0
+
+    # add_tag on Agents starts a new prompt with a wait dependency. Marks
+    # take precedence over every focused row/scope, matching the action.
+    if spec.id == "app.add_tag":
+        if ctx.mark_count > 0:
+            return True
+        if panel_focused:
+            return bool(ctx.focused_panel_key)
+        if ctx.group_focused or agent is None:
+            return False
+        if getattr(agent, "is_clan_container", False):
+            return bool(getattr(agent, "agent_clan", None))
+        if not getattr(agent, "is_agent_entry", False) or getattr(
+            agent,
+            "is_synthetic_planner",
+            False,
+        ):
+            return False
+        return bool(agent_prompt_name(agent))
 
     # kill_agent: marks, a whole panel, and an in-panel group banner
     # are explicit scopes. Otherwise it needs a focused agent.

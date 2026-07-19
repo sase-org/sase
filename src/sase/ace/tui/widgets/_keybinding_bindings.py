@@ -129,6 +129,7 @@ class KeybindingBindingsMixin:
             bindings.append(
                 (self._kd("edit_spec"), f"edit chats ({marked_count} marked)")
             )
+            bindings.append((self._kd("add_tag"), f"wait for {marked_count} marked"))
         elif panel_focused:
             # Whole panels are first-class selections; their remembered row is
             # intentionally not exposed as the selected agent.
@@ -141,6 +142,8 @@ class KeybindingBindingsMixin:
 
         if panel_focused and focused_panel_key:
             bindings.append((self._kd("edit_hooks"), "fork tribe"))
+            if marked_count == 0:
+                bindings.append((self._kd("add_tag"), "wait for tribe"))
 
         if artifact_file_viewer_active:
             bindings.append((self._kd("next_tab"), "focus artifact pane"))
@@ -204,6 +207,8 @@ class KeybindingBindingsMixin:
                 bindings.append((x, "kill/dismiss clan"))
             if not panel_focused and not group_focused:
                 bindings.append((self._kd("edit_hooks"), "fork clan"))
+                if marked_count == 0:
+                    bindings.append((self._kd("add_tag"), "wait for clan"))
             if completed_count > 0:
                 bindings.append(
                     (

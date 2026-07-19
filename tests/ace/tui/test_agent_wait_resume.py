@@ -15,8 +15,10 @@ from sase.ace.tui.actions.base import BaseActionsMixin
 from sase.ace.tui.actions.agents._wait_resume import (
     AgentWaitResumeMixin,
     _prompt_wait_spec,
-    _resolve_agent_fork_scope,
     _wait_modal_candidates,
+)
+from sase.ace.tui.actions.agents._wait_helpers import (
+    resolve_agent_prompt_target_scope as _resolve_agent_prompt_target_scope,
 )
 from sase.ace.tui.actions.task_actions import TrackedTaskCompletion, TrackedTaskResult
 from sase.ace.tui.actions.hints._hooks import HookEditingMixin
@@ -539,7 +541,7 @@ def test_clan_fork_scope_uses_only_selected_generation_in_display_order() -> Non
     duplicate = first
     app = _FakeResumeActionApp([container, second, other_generation, first, duplicate])
 
-    scope, warning = _resolve_agent_fork_scope(app)
+    scope, warning = _resolve_agent_prompt_target_scope(app, action="fork")
 
     assert warning is None
     assert scope is not None
@@ -556,6 +558,46 @@ def test_clan_fork_inherits_only_unanimous_vcs_context() -> None:
     app.action_fork_agent()
 
     assert app.prompt_bar_calls[0]["initial_text"] == ("#git:myproj #fork:builders ")
+
+
+@pytest.mark.parametrize("status", ["RUNNING", "DONE"])
+def test_wait_for_clan_prefills_scope_for_active_and_done(status: str) -> None:
+    container, first, second = _make_clan_fixture(status=status)
+    app = _FakeResumeActionApp([container, first, second])
+
+    app.action_wait_for_agent()
+
+    assert app.notifications == []
+    assert app.prompt_bar_calls == [
+        {
+            "initial_text": "%w:builders ",
+            "display_name": "wait(builders)",
+            "history_sort_key": "builders",
+        }
+    ]
+
+
+def test_wait_for_clan_inherits_only_unanimous_vcs_context() -> None:
+    container, first, second = _make_clan_fixture()
+    for agent in (first, second):
+        agent.cl_name = "myproj"
+        agent.get_raw_xprompt_content = lambda: "#git:myproj do work"  # type: ignore[assignment]
+    app = _FakeResumeActionApp([container, first, second])
+
+    app.action_wait_for_agent()
+
+    assert app.prompt_bar_calls[0]["initial_text"] == "#git:myproj %w:builders "
+
+
+def test_wait_for_clan_omits_mixed_vcs_context() -> None:
+    container, first, second = _make_clan_fixture()
+    first.get_raw_xprompt_content = lambda: "#git:myproj do work"  # type: ignore[assignment]
+    second.get_raw_xprompt_content = lambda: "#git:myproj do work"  # type: ignore[assignment]
+    app = _FakeResumeActionApp([container, first, second])
+
+    app.action_wait_for_agent()
+
+    assert app.prompt_bar_calls[0]["initial_text"] == "%w:builders "
 
 
 @pytest.mark.parametrize("collapsed", [False, True])
@@ -590,6 +632,38 @@ def test_fork_agent_named_tribe_prefills_expanded_or_collapsed(
     ]
 
 
+@pytest.mark.parametrize("collapsed", [False, True])
+def test_wait_for_named_tribe_prefills_expanded_or_collapsed(
+    collapsed: bool,
+) -> None:
+    first = _make_waiting_agent(
+        cl_name="branch_one",
+        raw_suffix="20240101120100",
+        status="RUNNING",
+        agent_name="one",
+    )
+    second = _make_waiting_agent(
+        cl_name="branch_two",
+        raw_suffix="20240101120200",
+        status="DONE",
+        agent_name="two",
+    )
+    app = _FakeResumeActionApp([first, second])
+    app.panel_focus = SimpleNamespace(panel_key="builders", collapsed=collapsed)
+    app.panel_keys = ["builders", "builders"]
+
+    app.action_wait_for_agent()
+
+    assert app.notifications == []
+    assert app.prompt_bar_calls == [
+        {
+            "initial_text": "%w:@builders ",
+            "display_name": "wait(@builders)",
+            "history_sort_key": "@builders",
+        }
+    ]
+
+
 def test_tribe_scope_excludes_synthetic_rows_and_deduplicates_members() -> None:
     container, first, _second = _make_clan_fixture()
     nested = _make_waiting_agent(
@@ -603,7 +677,7 @@ def test_tribe_scope_excludes_synthetic_rows_and_deduplicates_members() -> None:
     app.panel_focus = SimpleNamespace(panel_key="builders", collapsed=False)
     app.panel_keys = ["builders"] * 4
 
-    scope, warning = _resolve_agent_fork_scope(app)
+    scope, warning = _resolve_agent_prompt_target_scope(app, action="fork")
 
     assert warning is None
     assert scope is not None
@@ -633,12 +707,62 @@ def test_fork_agent_invalid_panel_warns_without_opening_prompt(
     assert app.prompt_bar_calls == []
 
 
+@pytest.mark.parametrize(
+    ("panel_key", "panel_keys", "expected"),
+    [
+        (None, [None], "The untagged panel cannot be used as a wait target"),
+        ("stale", ["other"], "Tribe '@stale' has no agents"),
+    ],
+)
+def test_wait_for_invalid_panel_warns_without_opening_prompt(
+    panel_key: str | None,
+    panel_keys: list[str | None],
+    expected: str,
+) -> None:
+    agent = _make_waiting_agent(agent_name="one")
+    app = _FakeResumeActionApp([agent])
+    app.panel_focus = SimpleNamespace(panel_key=panel_key, collapsed=True)
+    app.panel_keys = panel_keys
+
+    app.action_wait_for_agent()
+
+    assert app.notifications == [(expected, "warning")]
+    assert app.prompt_bar_calls == []
+
+
+def test_wait_for_empty_clan_warns_without_opening_prompt() -> None:
+    container = _make_waiting_agent(
+        cl_name="builders",
+        raw_suffix=None,
+        agent_clan="builders",
+        agent_clan_generation="gen-1",
+        is_clan_container=True,
+    )
+    app = _FakeResumeActionApp([container])
+
+    app.action_wait_for_agent()
+
+    assert app.notifications == [("Clan 'builders' has no agents", "warning")]
+    assert app.prompt_bar_calls == []
+
+
+def test_wait_for_group_banner_does_not_use_remembered_agent() -> None:
+    agent = _make_waiting_agent(agent_name="one")
+    app = _FakeResumeActionApp([agent])
+    app._current_group_key = ("running",)
+
+    app.action_wait_for_agent()
+
+    assert app.notifications == [("No agent, clan, or tribe selected", "warning")]
+    assert app.prompt_bar_calls == []
+
+
 def test_fork_agent_revalidates_scope_before_opening_prompt() -> None:
     first = _make_waiting_agent(agent_name="one", tag="builders")
     app = _FakeResumeActionApp([first])
     app.panel_focus = SimpleNamespace(panel_key="builders", collapsed=False)
     app.panel_keys = ["builders"]
-    scope, warning = _resolve_agent_fork_scope(app)
+    scope, warning = _resolve_agent_prompt_target_scope(app, action="fork")
     assert warning is None
     assert scope is not None
 
@@ -655,7 +779,7 @@ def test_fork_agent_revalidates_scope_before_opening_prompt() -> None:
 def test_fork_scope_snapshots_member_identities_at_keypress() -> None:
     container, first, second = _make_clan_fixture()
     app = _FakeResumeActionApp([container, first, second])
-    scope, warning = _resolve_agent_fork_scope(app)
+    scope, warning = _resolve_agent_prompt_target_scope(app, action="fork")
     assert warning is None
     assert scope is not None
 
@@ -665,6 +789,57 @@ def test_fork_scope_snapshots_member_identities_at_keypress() -> None:
     assert app.notifications == [
         ("Fork scope changed before the prompt opened", "warning")
     ]
+    assert app.prompt_bar_calls == []
+
+
+def test_wait_target_revalidates_scope_before_opening_prompt() -> None:
+    first = _make_waiting_agent(agent_name="one", tag="builders")
+    app = _FakeResumeActionApp([first])
+    app.panel_focus = SimpleNamespace(panel_key="builders", collapsed=False)
+    app.panel_keys = ["builders"]
+    scope, warning = _resolve_agent_prompt_target_scope(app, action="wait")
+    assert warning is None
+    assert scope is not None
+
+    app.panel_focus = SimpleNamespace(panel_key="reviewers", collapsed=False)
+    app.panel_keys = ["reviewers"]
+    app._complete_agent_wait_scope(scope, None)
+
+    assert app.notifications == [
+        ("Wait target changed before the prompt opened", "warning")
+    ]
+    assert app.prompt_bar_calls == []
+
+
+@pytest.mark.parametrize("focused_scope", ["clan", "tribe"])
+def test_marked_wait_target_takes_precedence_over_group_focus(
+    focused_scope: str,
+) -> None:
+    container, first, second = _make_clan_fixture()
+    app = _FakeResumeActionApp([container, first, second])
+    app._marked_agents = {second.identity}
+    if focused_scope == "tribe":
+        app.panel_focus = SimpleNamespace(panel_key="builders", collapsed=True)
+        app.panel_keys = ["builders", "builders", "builders"]
+
+    app.action_wait_for_agent()
+
+    assert app.notifications == []
+    assert app.prompt_bar_calls[0]["initial_text"] == "%w:two "
+
+
+def test_wait_prompt_scheduling_failure_is_user_visible() -> None:
+    agent = _make_waiting_agent(agent_name="one")
+    app = _FakeResumeActionApp([agent])
+
+    def fail_to_schedule(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("worker unavailable")
+
+    app.run_worker = fail_to_schedule  # type: ignore[attr-defined]
+
+    app.action_wait_for_agent()
+
+    assert app.notifications == [("Unable to prepare wait prompt", "error")]
     assert app.prompt_bar_calls == []
 
 

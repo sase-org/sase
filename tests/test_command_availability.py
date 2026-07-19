@@ -547,6 +547,66 @@ def test_edit_hooks_fork_allows_only_named_tribe_panel_focus() -> None:
     )
 
 
+def test_wait_command_allows_agent_family_clan_tribe_and_marks() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.add_tag"]
+    agent = _make_agent(status="RUNNING")
+    agent.agent_name = "worker"
+    family = _make_agent(status="DONE")
+    family.agent_name = "builders-plan"
+    family.agent_family = "builders"
+    family.agent_family_role = "root"
+    family.plan_chain_root = True
+    clan = _make_agent(status="RUNNING")
+    clan.is_clan_container = True
+    clan.agent_clan = "builders"
+
+    assert is_command_available(spec, CommandContext(tab="agents", agent=agent))
+    assert is_command_available(spec, CommandContext(tab="agents", agent=family))
+    assert is_command_available(spec, CommandContext(tab="agents", agent=clan))
+    for collapsed in (False, True):
+        assert is_command_available(
+            spec,
+            CommandContext(
+                tab="agents",
+                panel_focused=True,
+                panel_collapsed=collapsed,
+                focused_panel_key="builders",
+            ),
+        )
+    assert is_command_available(
+        spec,
+        CommandContext(
+            tab="agents",
+            group_focused=True,
+            mark_count=2,
+        ),
+    )
+
+
+def test_wait_command_rejects_untagged_panel_group_banner_and_unnamed_agent() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.add_tag"]
+    unnamed = _make_agent(status="RUNNING")
+
+    assert not is_command_available(
+        spec,
+        CommandContext(
+            tab="agents",
+            panel_focused=True,
+            focused_panel_key=None,
+        ),
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="agents", group_focused=True),
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="agents", agent=unnamed),
+    )
+
+
 def test_accept_proposal_on_agents_only_for_active_statuses() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.accept_proposal"]

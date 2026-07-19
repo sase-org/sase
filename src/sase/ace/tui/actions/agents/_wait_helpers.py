@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.ace.tui.agent_completion import (
@@ -14,11 +15,11 @@ from sase.xprompt.directive_edit import PromptWaitDirective
 
 from ...models.agent_status import is_resumable_done_status
 from ._fork_scope import (
-    AgentForkScope,
-    agent_fork_scope,
-    clan_fork_scope,
+    AgentPromptTargetScope,
+    agent_prompt_target_scope,
+    clan_prompt_target_scope,
     resolve_vcs_tag,
-    tribe_fork_scope,
+    tribe_prompt_target_scope,
 )
 
 if TYPE_CHECKING:
@@ -121,7 +122,7 @@ def wait_modal_candidates(
 def resolve_agent_vcs_tag(
     agent: Agent,
     name: str,
-    agents: list[Agent] | None = None,
+    agents: Sequence[Agent] | None = None,
 ) -> str | None:
     """Resolve one agent's display-ready smart VCS launch tag."""
     return resolve_vcs_tag(agent, name, agents or ())
@@ -151,17 +152,25 @@ def fork_panel_keys(owner: Any) -> list[str | None]:
     return effective_tag_per_agent(owner._agents)
 
 
-def resolve_agent_fork_scope(
+def resolve_agent_prompt_target_scope(
     owner: Any,
-) -> tuple[AgentForkScope | None, str | None]:
-    """Resolve the current in-memory Agents-tab selection into a fork scope."""
+    *,
+    action: Literal["fork", "wait"],
+) -> tuple[AgentPromptTargetScope | None, str | None]:
+    """Resolve the current selection into a reusable prompt target scope."""
     panel_resolver = getattr(owner, "_resolve_focused_panel", None)
     focus = panel_resolver() if callable(panel_resolver) else None
     if focus is not None:
         panel_key = getattr(focus, "panel_key", None)
         if not panel_key:
-            return None, "The untagged panel cannot be forked"
-        scope = tribe_fork_scope(panel_key, owner._agents, fork_panel_keys(owner))
+            if action == "fork":
+                return None, "The untagged panel cannot be forked"
+            return None, "The untagged panel cannot be used as a wait target"
+        scope = tribe_prompt_target_scope(
+            panel_key,
+            owner._agents,
+            fork_panel_keys(owner),
+        )
         if scope is None:
             return None, f"Tribe '@{panel_key}' has no agents"
         return scope, None
@@ -174,17 +183,39 @@ def resolve_agent_fork_scope(
         return None, "No agent, clan, or tribe selected"
 
     if agent.is_clan_container:
-        scope = clan_fork_scope(agent, owner._agents)
+        scope = clan_prompt_target_scope(agent, owner._agents)
         if scope is None:
             label = agent.agent_clan or agent.display_name
             return None, f"Clan '{label}' has no agents"
         return scope, None
 
+    if not agent.is_agent_entry or agent.is_synthetic_planner:
+        return None, "No agent, clan, or tribe selected"
+
     from ._core import DISMISSABLE_STATUSES
 
     prompt_name = action_agent_prompt_name(agent)
+    if action == "wait":
+        if not prompt_name:
+            return None, "No agent name found"
+        return (
+            agent_prompt_target_scope(
+                agent,
+                prompt_name,
+                history_fallback="wait",
+            ),
+            None,
+        )
+
     if agent.status not in DISMISSABLE_STATUSES and prompt_name:
-        return agent_fork_scope(agent, prompt_name), None
+        return (
+            agent_prompt_target_scope(
+                agent,
+                prompt_name,
+                history_fallback="fork",
+            ),
+            None,
+        )
 
     if agent.status in _PLAN_HANDOFF_DONE_STATUSES and not is_agent_family_root(agent):
         coder = next(
@@ -197,10 +228,11 @@ def resolve_agent_fork_scope(
         )
         if coder and coder.agent_name:
             return (
-                agent_fork_scope(
+                agent_prompt_target_scope(
                     agent,
                     coder.agent_name,
                     vcs_prompt_name=coder.agent_name,
+                    history_fallback="fork",
                 ),
                 None,
             )
@@ -209,4 +241,18 @@ def resolve_agent_fork_scope(
         return None, "Agent not finished yet"
     if not prompt_name:
         return None, "No agent name found"
-    return agent_fork_scope(agent, prompt_name), None
+    return (
+        agent_prompt_target_scope(
+            agent,
+            prompt_name,
+            history_fallback="fork",
+        ),
+        None,
+    )
+
+
+def resolve_agent_fork_scope(
+    owner: Any,
+) -> tuple[AgentPromptTargetScope | None, str | None]:
+    """Compatibility wrapper for resolving a fork target."""
+    return resolve_agent_prompt_target_scope(owner, action="fork")

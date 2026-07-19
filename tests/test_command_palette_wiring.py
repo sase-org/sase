@@ -321,6 +321,17 @@ def test_execute_app_action_calls_method() -> None:
     app.action_refresh.assert_called_once_with()
 
 
+def test_execute_wait_command_dispatches_shared_add_tag_action() -> None:
+    app = MagicMock()
+    catalog = {
+        spec.id: spec for spec in build_command_catalog(load_keymap_registry({}))
+    }
+
+    execute_command(app, catalog["app.add_tag"])
+
+    app.action_add_tag.assert_called_once_with()
+
+
 def test_execute_unknown_app_action_notifies() -> None:
     app = SimpleNamespace(notify=MagicMock())
     spec = _spec(

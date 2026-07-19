@@ -157,6 +157,18 @@ def test_run_workflow_command_is_contextual_retry_on_agents() -> None:
     assert "retry" in spec.aliases
 
 
+def test_add_tag_command_is_contextual_wait_on_agents() -> None:
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.add_tag"]
+
+    assert spec.label == "Add tag / wait for agent, clan, or tribe"
+    assert spec.tabs == ("changespecs", "agents")
+    assert spec.key_sequence == ("W",)
+    assert "wait for agent" in spec.aliases
+    assert "wait for clan" in spec.aliases
+    assert "wait for tribe" in spec.aliases
+
+
 def test_pr_sync_commands_use_pr_labels() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
 

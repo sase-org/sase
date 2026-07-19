@@ -1,4 +1,4 @@
-"""Pure scope and VCS-consensus helpers for Agents-tab forks."""
+"""Pure scope and VCS-consensus helpers for Agents-tab prompt targets."""
 
 from __future__ import annotations
 
@@ -13,11 +13,11 @@ if TYPE_CHECKING:
     from ...models.agent import Agent, AgentType
 
 type AgentIdentity = tuple["AgentType", str, str | None]
-type ForkScopeKind = Literal["agent", "clan", "tribe"]
+type PromptTargetKind = Literal["agent", "clan", "tribe"]
 
 
 @dataclass(frozen=True, slots=True)
-class _ForkVcsMember:
+class _PromptTargetVcsMember:
     """One real agent whose launch context participates in VCS consensus."""
 
     agent: Agent
@@ -25,14 +25,14 @@ class _ForkVcsMember:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentForkScope:
-    """Immutable fork target captured when the user presses ``f``."""
+class AgentPromptTargetScope:
+    """Immutable agent, clan, or tribe target captured at keypress."""
 
-    kind: ForkScopeKind
+    kind: PromptTargetKind
     prompt_reference: str
     label: str
     history_sort_key: str
-    vcs_members: tuple[_ForkVcsMember, ...]
+    vcs_members: tuple[_PromptTargetVcsMember, ...]
     member_identities: tuple[AgentIdentity, ...]
 
 
@@ -49,7 +49,7 @@ class _ResolvedVcsTag:
         return (self.workflow, self.ref)
 
 
-def _is_real_fork_agent(agent: Agent) -> bool:
+def _is_real_prompt_target_agent(agent: Agent) -> bool:
     """Return whether *agent* represents a real chat-bearing agent row."""
     return (
         not agent.is_clan_container
@@ -63,7 +63,7 @@ def _stable_real_agents(agents: Iterable[Agent]) -> tuple[Agent, ...]:
     real: list[Agent] = []
     seen: set[AgentIdentity] = set()
     for agent in agents:
-        if not _is_real_fork_agent(agent) or agent.identity in seen:
+        if not _is_real_prompt_target_agent(agent) or agent.identity in seen:
             continue
         seen.add(agent.identity)
         real.append(agent)
@@ -74,9 +74,9 @@ def _vcs_members(
     agents: Iterable[Agent],
     *,
     prompt_name: str | None = None,
-) -> tuple[_ForkVcsMember, ...]:
+) -> tuple[_PromptTargetVcsMember, ...]:
     return tuple(
-        _ForkVcsMember(
+        _PromptTargetVcsMember(
             agent=agent,
             prompt_name=(
                 prompt_name if prompt_name is not None else agent_prompt_name(agent)
@@ -86,31 +86,32 @@ def _vcs_members(
     )
 
 
-def agent_fork_scope(
+def agent_prompt_target_scope(
     agent: Agent,
     prompt_reference: str,
     *,
     vcs_prompt_name: str | None = None,
-) -> AgentForkScope:
-    """Build a single-agent or plan-family fork scope."""
+    history_fallback: str = "agent",
+) -> AgentPromptTargetScope:
+    """Build a single-agent or plan-family prompt target scope."""
     members = _vcs_members(
         (agent,),
         prompt_name=vcs_prompt_name or prompt_reference,
     )
-    return AgentForkScope(
+    return AgentPromptTargetScope(
         kind="agent",
         prompt_reference=prompt_reference,
         label=prompt_reference,
-        history_sort_key=agent.cl_name or "fork",
+        history_sort_key=agent.cl_name or history_fallback,
         vcs_members=members,
         member_identities=tuple(member.agent.identity for member in members),
     )
 
 
-def clan_fork_scope(
+def clan_prompt_target_scope(
     container: Agent,
     agents: Sequence[Agent],
-) -> AgentForkScope | None:
+) -> AgentPromptTargetScope | None:
     """Build a clan scope using only the selected generation's real members."""
     clan = container.agent_clan
     if not clan:
@@ -128,7 +129,7 @@ def clan_fork_scope(
     if not members:
         return None
     vcs_members = _vcs_members(members)
-    return AgentForkScope(
+    return AgentPromptTargetScope(
         kind="clan",
         prompt_reference=clan,
         label=clan,
@@ -138,11 +139,11 @@ def clan_fork_scope(
     )
 
 
-def tribe_fork_scope(
+def tribe_prompt_target_scope(
     panel_key: str | None,
     agents: Sequence[Agent],
     panel_keys: Sequence[str | None],
-) -> AgentForkScope | None:
+) -> AgentPromptTargetScope | None:
     """Build a named-tribe scope from the already-loaded panel projection."""
     if not panel_key or len(agents) != len(panel_keys):
         return None
@@ -153,7 +154,7 @@ def tribe_fork_scope(
         return None
     reference = f"@{panel_key}"
     vcs_members = _vcs_members(members)
-    return AgentForkScope(
+    return AgentPromptTargetScope(
         kind="tribe",
         prompt_reference=reference,
         label=reference,
@@ -163,7 +164,10 @@ def tribe_fork_scope(
     )
 
 
-def same_fork_scope(left: AgentForkScope, right: AgentForkScope) -> bool:
+def same_prompt_target_scope(
+    left: AgentPromptTargetScope,
+    right: AgentPromptTargetScope,
+) -> bool:
     """Compare the selection-sensitive portion of two scope snapshots."""
     return (
         left.kind == right.kind
@@ -265,7 +269,7 @@ def resolve_vcs_tag(
 
 
 def _resolve_vcs_tag_consensus(
-    members: Sequence[_ForkVcsMember],
+    members: Sequence[_PromptTargetVcsMember],
     agents: Sequence[Agent],
 ) -> str | None:
     """Return one representative tag only when every member resolves equally."""
@@ -290,11 +294,11 @@ def _resolve_vcs_tag_consensus(
     return first.display_tag
 
 
-def resolve_fork_scope_vcs_tag(
-    scope: AgentForkScope,
+def resolve_prompt_target_scope_vcs_tag(
+    scope: AgentPromptTargetScope,
     agents: Sequence[Agent],
 ) -> str | None:
-    """Resolve a scope prefix while preserving legacy single-agent behavior."""
+    """Resolve a target prefix while preserving legacy single-agent behavior."""
     if scope.kind != "agent":
         return _resolve_vcs_tag_consensus(scope.vcs_members, agents)
     if not scope.vcs_members:
@@ -310,12 +314,21 @@ def resolve_fork_scope_vcs_tag(
         return None
 
 
+AgentForkScope = AgentPromptTargetScope
+_ForkVcsMember = _PromptTargetVcsMember
+agent_fork_scope = agent_prompt_target_scope
+clan_fork_scope = clan_prompt_target_scope
+resolve_fork_scope_vcs_tag = resolve_prompt_target_scope_vcs_tag
+same_fork_scope = same_prompt_target_scope
+tribe_fork_scope = tribe_prompt_target_scope
+
+
 __all__ = [
-    "AgentForkScope",
-    "agent_fork_scope",
-    "clan_fork_scope",
-    "resolve_fork_scope_vcs_tag",
+    "AgentPromptTargetScope",
+    "agent_prompt_target_scope",
+    "clan_prompt_target_scope",
+    "resolve_prompt_target_scope_vcs_tag",
     "resolve_vcs_tag",
-    "same_fork_scope",
-    "tribe_fork_scope",
+    "same_prompt_target_scope",
+    "tribe_prompt_target_scope",
 ]

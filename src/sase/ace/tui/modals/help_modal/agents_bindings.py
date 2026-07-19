@@ -76,8 +76,11 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.rename_cl), "Name agent"),
                 (d(a.edit_hooks), "Fork chat as agent"),
                 (d(a.start_rewind), "Revive dismissed (^k loads more)"),
-                (d(a.add_tag), "Wait for agent (or marked set)"),
-                (d(a.reword), "Edit wait deps/time / run now"),
+                (
+                    d(a.add_tag),
+                    "Start prompt waiting for agent / marked set / clan / tribe",
+                ),
+                (d(a.reword), "Edit one current agent's wait deps/time / run now"),
                 (d(a.save_marked_agents), "Save/dismiss marked agents"),
                 (d(a.kill_agent), "Clean row/panel/group/clan/marks"),
                 (d(a.toggle_mark), "Mark/unmark current agent or focused group"),

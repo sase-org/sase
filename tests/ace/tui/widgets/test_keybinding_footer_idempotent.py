@@ -147,3 +147,50 @@ def test_clan_footer_keeps_row_cleanup_and_panel_chooser_labels() -> None:
 
     assert ("x", "kill/dismiss clan") in bindings
     assert ("X", "cleanup (2 done)") in bindings
+    assert ("f", "fork clan") in bindings
+    assert ("W", "wait for clan") in bindings
+
+
+def test_named_tribe_footer_advertises_fork_and_wait() -> None:
+    footer = KeybindingFooter()
+
+    bindings = set(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            focused_panel_key="builders",
+        )
+    )
+
+    assert ("f", "fork tribe") in bindings
+    assert ("W", "wait for tribe") in bindings
+
+
+def test_untagged_panel_footer_does_not_advertise_hidden_wait_target() -> None:
+    footer = KeybindingFooter()
+
+    bindings = set(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            focused_panel_key=None,
+        )
+    )
+
+    assert all(key != "W" for key, _label in bindings)
+
+
+def test_marked_footer_wait_label_takes_precedence_over_group_scope() -> None:
+    footer = KeybindingFooter()
+
+    bindings = set(
+        footer._compute_agent_bindings(
+            None,
+            marked_count=3,
+            panel_focused=True,
+            focused_panel_key="builders",
+        )
+    )
+
+    assert ("W", "wait for 3 marked") in bindings
+    assert ("W", "wait for tribe") not in bindings
