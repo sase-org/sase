@@ -177,13 +177,17 @@ def test_extract_context_expanded_panel_clears_hidden_backing_agent() -> None:
         current_idx=0,
     )
     app._get_selected_agent = lambda: None
-    app._resolve_focused_panel = lambda: SimpleNamespace(collapsed=False)
+    app._resolve_focused_panel = lambda: SimpleNamespace(
+        collapsed=False,
+        panel_key="builders",
+    )
 
     ctx = extract_command_context(app)  # type: ignore[arg-type]
 
     assert ctx.agent is None
     assert ctx.panel_focused is True
     assert ctx.panel_collapsed is False
+    assert ctx.focused_panel_key == "builders"
     assert ctx.collapsed_panel_focused is False
     assert ctx.group_focused is False
 

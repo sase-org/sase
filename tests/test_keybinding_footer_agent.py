@@ -162,6 +162,37 @@ def test_keybinding_footer_expanded_panel_focus_advertises_navigation() -> None:
     assert labels.count("enter panel") == 2
 
 
+def test_keybinding_footer_named_panel_advertises_tribe_fork() -> None:
+    footer = KeybindingFooter()
+
+    bindings = footer._compute_agent_bindings(
+        None,
+        panel_focused=True,
+        focused_panel_key="builders",
+    )
+
+    assert ("f", "fork tribe") in bindings
+
+
+def test_keybinding_footer_clan_advertises_clan_fork() -> None:
+    footer = KeybindingFooter()
+    clan = _make_agent()
+    clan.is_clan_container = True
+    clan.agent_clan = "builders"
+
+    bindings = footer._compute_agent_bindings(clan)
+
+    assert ("f", "fork clan") in bindings
+    assert ("f", "fork clan") in footer._compute_agent_bindings(
+        clan,
+        marked_count=2,
+    )
+    assert ("f", "fork clan") not in footer._compute_agent_bindings(
+        clan,
+        group_focused=True,
+    )
+
+
 def test_keybinding_footer_canonical_collapsed_panel_focus_shows_expand() -> None:
     footer = KeybindingFooter()
 

@@ -95,6 +95,7 @@ class KeybindingBindingsMixin:
         attempt_pinned: bool = False,
         panel_focused: bool = False,
         panel_collapsed: bool = False,
+        focused_panel_key: str | None = None,
         collapsed_panel_focused: bool = False,
         group_focused: bool = False,
         has_artifact_files: bool = False,
@@ -137,6 +138,9 @@ class KeybindingBindingsMixin:
             # every agent in the group.  Surfaces the affordance so users
             # know the key changed meaning.
             bindings.append((x, "kill/dismiss group"))
+
+        if panel_focused and focused_panel_key:
+            bindings.append((self._kd("edit_hooks"), "fork tribe"))
 
         if artifact_file_viewer_active:
             bindings.append((self._kd("next_tab"), "focus artifact pane"))
@@ -198,6 +202,8 @@ class KeybindingBindingsMixin:
         if agent.is_clan_container:
             if marked_count == 0 and not panel_focused and not group_focused:
                 bindings.append((x, "kill/dismiss clan"))
+            if not panel_focused and not group_focused:
+                bindings.append((self._kd("edit_hooks"), "fork clan"))
             if completed_count > 0:
                 bindings.append(
                     (

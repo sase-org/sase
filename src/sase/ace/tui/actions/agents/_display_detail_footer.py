@@ -113,6 +113,9 @@ class AgentFooterDisplayMixin:
                 attempt_pinned=self.current_attempt_number is not None,
                 panel_focused=panel_focused,
                 panel_collapsed=panel_collapsed,
+                focused_panel_key=(
+                    panel_focus.panel_key if panel_focus is not None else None
+                ),
                 group_focused=self._current_group_key is not None,
                 has_artifact_files=has_artifact_files,
                 artifact_file_viewer_active=artifact_file_viewer_active,

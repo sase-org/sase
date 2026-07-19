@@ -5,13 +5,17 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
+
+import pytest
 
 from sase.ace.tui.actions.base import BaseActionsMixin
 from sase.ace.tui.actions.agents._wait_resume import (
     AgentWaitResumeMixin,
     _prompt_wait_spec,
+    _resolve_agent_fork_scope,
     _wait_modal_candidates,
 )
 from sase.ace.tui.actions.task_actions import TrackedTaskCompletion, TrackedTaskResult
@@ -140,6 +144,9 @@ class _FakeResumeActionApp(AgentWaitResumeMixin):
         self._agents = list(agents)
         self._agents_with_children = list(agents)
         self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
+        self._current_group_key: tuple[str, ...] | None = None
+        self.panel_focus: object | None = None
+        self.panel_keys: list[str | None] | None = None
         self.notifications: list[tuple[str, str]] = []
         self.prompt_bar_calls: list[dict[str, str | None]] = []
 
@@ -147,9 +154,19 @@ class _FakeResumeActionApp(AgentWaitResumeMixin):
         self.notifications.append((message, severity))
 
     def _get_selected_agent(self) -> Agent | None:
+        if self.panel_focus is not None:
+            return None
         if 0 <= self.current_idx < len(self._agents):
             return self._agents[self.current_idx]
         return None
+
+    def _resolve_focused_panel(self) -> object | None:
+        return self.panel_focus
+
+    def _panel_keys_per_agent(self) -> list[str | None]:
+        if self.panel_keys is not None:
+            return self.panel_keys
+        return [agent.tag for agent in self._agents]
 
     def _show_prompt_input_bar_for_home(
         self,
@@ -463,6 +480,194 @@ def test_fork_agent_plan_done_family_root_uses_family_name() -> None:
 
     assert app.notifications == []
     assert app.prompt_bar_calls[0]["initial_text"] == "#fork:planner "
+
+
+def _make_clan_fixture(*, status: str = "RUNNING") -> tuple[Agent, Agent, Agent]:
+    first = _make_waiting_agent(
+        cl_name="branch_one",
+        raw_suffix="20240101120100",
+        status=status,
+        agent_name="one",
+        agent_clan="builders",
+        agent_clan_generation="gen-1",
+    )
+    second = _make_waiting_agent(
+        cl_name="branch_two",
+        raw_suffix="20240101120200",
+        status=status,
+        agent_name="two",
+        agent_clan="builders",
+        agent_clan_generation="gen-1",
+    )
+    container = _make_waiting_agent(
+        cl_name="builders",
+        raw_suffix=None,
+        status=status,
+        agent_clan="builders",
+        agent_clan_generation="gen-1",
+        is_clan_container=True,
+    )
+    container.runtime_children.extend((first, second))
+    return container, first, second
+
+
+@pytest.mark.parametrize("status", ["RUNNING", "DONE"])
+def test_fork_agent_clan_prefills_scope_for_active_and_done(status: str) -> None:
+    container, first, second = _make_clan_fixture(status=status)
+    app = _FakeResumeActionApp([container, first, second])
+
+    app.action_fork_agent()
+
+    assert app.notifications == []
+    assert app.prompt_bar_calls == [
+        {
+            "initial_text": "#fork:builders ",
+            "display_name": "fork(builders)",
+            "history_sort_key": "builders",
+        }
+    ]
+
+
+def test_clan_fork_scope_uses_only_selected_generation_in_display_order() -> None:
+    container, first, second = _make_clan_fixture()
+    other_generation = _make_waiting_agent(
+        cl_name="branch_old",
+        raw_suffix="20230101120200",
+        status="DONE",
+        agent_name="old",
+        agent_clan="builders",
+        agent_clan_generation="gen-0",
+    )
+    duplicate = first
+    app = _FakeResumeActionApp([container, second, other_generation, first, duplicate])
+
+    scope, warning = _resolve_agent_fork_scope(app)
+
+    assert warning is None
+    assert scope is not None
+    assert [member.agent for member in scope.vcs_members] == [second, first]
+
+
+def test_clan_fork_inherits_only_unanimous_vcs_context() -> None:
+    container, first, second = _make_clan_fixture()
+    for agent in (first, second):
+        agent.cl_name = "myproj"
+        agent.get_raw_xprompt_content = lambda: "#git:myproj do work"  # type: ignore[assignment]
+    app = _FakeResumeActionApp([container, first, second])
+
+    app.action_fork_agent()
+
+    assert app.prompt_bar_calls[0]["initial_text"] == ("#git:myproj #fork:builders ")
+
+
+@pytest.mark.parametrize("collapsed", [False, True])
+def test_fork_agent_named_tribe_prefills_expanded_or_collapsed(
+    collapsed: bool,
+) -> None:
+    first = _make_waiting_agent(
+        cl_name="branch_one",
+        raw_suffix="20240101120100",
+        status="RUNNING",
+        agent_name="one",
+    )
+    second = _make_waiting_agent(
+        cl_name="branch_two",
+        raw_suffix="20240101120200",
+        status="DONE",
+        agent_name="two",
+    )
+    app = _FakeResumeActionApp([first, second])
+    app.panel_focus = SimpleNamespace(panel_key="builders", collapsed=collapsed)
+    app.panel_keys = ["builders", "builders"]
+
+    app.action_fork_agent()
+
+    assert app.notifications == []
+    assert app.prompt_bar_calls == [
+        {
+            "initial_text": "#fork:@builders ",
+            "display_name": "fork(@builders)",
+            "history_sort_key": "@builders",
+        }
+    ]
+
+
+def test_tribe_scope_excludes_synthetic_rows_and_deduplicates_members() -> None:
+    container, first, _second = _make_clan_fixture()
+    nested = _make_waiting_agent(
+        cl_name="nested",
+        raw_suffix="20240101120300",
+        status="DONE",
+        agent_name="nested",
+        parent_timestamp=first.raw_suffix,
+    )
+    app = _FakeResumeActionApp([container, first, nested, first])
+    app.panel_focus = SimpleNamespace(panel_key="builders", collapsed=False)
+    app.panel_keys = ["builders"] * 4
+
+    scope, warning = _resolve_agent_fork_scope(app)
+
+    assert warning is None
+    assert scope is not None
+    assert [member.agent for member in scope.vcs_members] == [first, nested]
+
+
+@pytest.mark.parametrize(
+    ("panel_key", "panel_keys", "expected"),
+    [
+        (None, [None], "The untagged panel cannot be forked"),
+        ("stale", ["other"], "Tribe '@stale' has no agents"),
+    ],
+)
+def test_fork_agent_invalid_panel_warns_without_opening_prompt(
+    panel_key: str | None,
+    panel_keys: list[str | None],
+    expected: str,
+) -> None:
+    agent = _make_waiting_agent(agent_name="one")
+    app = _FakeResumeActionApp([agent])
+    app.panel_focus = SimpleNamespace(panel_key=panel_key, collapsed=True)
+    app.panel_keys = panel_keys
+
+    app.action_fork_agent()
+
+    assert app.notifications == [(expected, "warning")]
+    assert app.prompt_bar_calls == []
+
+
+def test_fork_agent_revalidates_scope_before_opening_prompt() -> None:
+    first = _make_waiting_agent(agent_name="one", tag="builders")
+    app = _FakeResumeActionApp([first])
+    app.panel_focus = SimpleNamespace(panel_key="builders", collapsed=False)
+    app.panel_keys = ["builders"]
+    scope, warning = _resolve_agent_fork_scope(app)
+    assert warning is None
+    assert scope is not None
+
+    app.panel_focus = SimpleNamespace(panel_key="reviewers", collapsed=False)
+    app.panel_keys = ["reviewers"]
+    app._complete_agent_fork_scope(scope, None)
+
+    assert app.notifications == [
+        ("Fork scope changed before the prompt opened", "warning")
+    ]
+    assert app.prompt_bar_calls == []
+
+
+def test_fork_scope_snapshots_member_identities_at_keypress() -> None:
+    container, first, second = _make_clan_fixture()
+    app = _FakeResumeActionApp([container, first, second])
+    scope, warning = _resolve_agent_fork_scope(app)
+    assert warning is None
+    assert scope is not None
+
+    first.cl_name = "moved_branch"
+    app._complete_agent_fork_scope(scope, None)
+
+    assert app.notifications == [
+        ("Fork scope changed before the prompt opened", "warning")
+    ]
+    assert app.prompt_bar_calls == []
 
 
 def test_run_workflow_on_agents_dispatches_retry_edit_and_does_not_fork() -> None:

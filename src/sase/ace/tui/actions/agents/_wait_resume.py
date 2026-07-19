@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+import asyncio
+import logging
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from sase.ace.tui.agent_completion import (
     AgentCompletionCandidate,
@@ -10,7 +12,7 @@ from sase.ace.tui.agent_completion import (
     build_agent_completion_candidates,
     visible_agent_completion_agents,
 )
-from sase.project_display_names import humanize_cl_name, humanize_vcs_refs_in_text
+from sase.project_display_names import humanize_cl_name
 from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
 
 from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
@@ -21,6 +23,15 @@ from ._directive_persistence import (
     persist_agent_directive_update,
     wait_meta_patch_for_token,
     waiting_marker_patch_for_token,
+)
+from ._fork_scope import (
+    AgentForkScope,
+    agent_fork_scope,
+    clan_fork_scope,
+    resolve_fork_scope_vcs_tag,
+    resolve_vcs_tag,
+    same_fork_scope,
+    tribe_fork_scope,
 )
 from sase.plan_chain import agent_family_role_for_suffix
 
@@ -38,6 +49,8 @@ TabName = Literal["changespecs", "agents", "axe"]
 # follow-up's chat rather than the planner's. Symmetric with the
 # DISMISSABLE_STATUSES set used by other consumers.
 _PLAN_HANDOFF_DONE_STATUSES: frozenset[str] = frozenset({"PLAN DONE", "TALE DONE"})
+
+log = logging.getLogger(__name__)
 
 
 def _is_coder_followup_suffix(suffix: str | None) -> bool:
@@ -125,47 +138,97 @@ def _wait_modal_candidates(
 
 
 def _resolve_vcs_tag(
-    agent: Agent, name: str, agents: list[Agent] | None = None
+    agent: Agent,
+    name: str,
+    agents: list[Agent] | None = None,
 ) -> str | None:
-    """Resolve a VCS workflow tag for the given agent, applying smart ref replacement.
+    """Resolve one agent's display-ready smart VCS launch tag."""
+    return resolve_vcs_tag(agent, name, agents or ())
 
-    Falls back to the parent agent's raw_xprompt when the current agent (e.g. a
-    coder follow-up) doesn't have its own raw_xprompt.md.
 
-    Returns the tag string (with trailing space) or None if no VCS tag found.
-    """
-    from sase.xprompt import (
-        extract_vcs_workflow_tag,
-        find_vcs_workflow_tag,
-        replace_ref_in_vcs_tag,
-    )
+def _fork_panel_keys(owner: Any) -> list[str | None]:
+    """Return the cached effective panel key for every loaded agent."""
+    index_resolver = getattr(owner, "_agent_panel_index", None)
+    if callable(index_resolver):
+        try:
+            keys = list(index_resolver().keys_per_agent)
+            if len(keys) == len(owner._agents):
+                return keys
+        except Exception:
+            pass
+    key_resolver = getattr(owner, "_panel_keys_per_agent", None)
+    if callable(key_resolver):
+        try:
+            keys = list(key_resolver())
+            if len(keys) == len(owner._agents):
+                return keys
+        except Exception:
+            pass
 
-    raw_content = agent.get_raw_xprompt_content()
-    if not raw_content and agent.parent_timestamp and agents:
-        for parent in agents:
-            if parent.raw_suffix == agent.parent_timestamp:
-                raw_content = parent.get_raw_xprompt_content()
-                break
-    if not raw_content:
-        return None
+    from ...models.agent_panels import effective_tag_per_agent
 
-    vcs_tag = extract_vcs_workflow_tag(raw_content) or find_vcs_workflow_tag(
-        raw_content
-    )
-    if not vcs_tag:
-        return None
+    return effective_tag_per_agent(owner._agents)
 
-    # Use actual branch name if agent has one (not just the project name)
-    if not agent.is_project_agent:
-        return humanize_vcs_refs_in_text(replace_ref_in_vcs_tag(vcs_tag, agent.cl_name))
 
-    # Use @<name> if prompt contains #pr (will resolve to agent's branch)
-    from sase.xprompt.workflow_validator_extract import extract_xprompt_calls
+def _resolve_agent_fork_scope(
+    owner: Any,
+) -> tuple[AgentForkScope | None, str | None]:
+    """Resolve the current in-memory Agents-tab selection into a fork scope."""
+    panel_resolver = getattr(owner, "_resolve_focused_panel", None)
+    focus = panel_resolver() if callable(panel_resolver) else None
+    if focus is not None:
+        panel_key = getattr(focus, "panel_key", None)
+        if not panel_key:
+            return None, "The untagged panel cannot be forked"
+        scope = tribe_fork_scope(panel_key, owner._agents, _fork_panel_keys(owner))
+        if scope is None:
+            return None, f"Tribe '@{panel_key}' has no agents"
+        return scope, None
 
-    if any(call.name == "pr" for call in extract_xprompt_calls(raw_content)):
-        return humanize_vcs_refs_in_text(replace_ref_in_vcs_tag(vcs_tag, f"@{name}"))
+    if getattr(owner, "_current_group_key", None) is not None:
+        return None, "No agent, clan, or tribe selected"
 
-    return humanize_vcs_refs_in_text(vcs_tag)
+    agent = owner._get_selected_agent()
+    if agent is None:
+        return None, "No agent, clan, or tribe selected"
+
+    if agent.is_clan_container:
+        scope = clan_fork_scope(agent, owner._agents)
+        if scope is None:
+            label = agent.agent_clan or agent.display_name
+            return None, f"Clan '{label}' has no agents"
+        return scope, None
+
+    from ._core import DISMISSABLE_STATUSES
+
+    prompt_name = _agent_prompt_name(agent)
+    if agent.status not in DISMISSABLE_STATUSES and prompt_name:
+        return agent_fork_scope(agent, prompt_name), None
+
+    if agent.status in _PLAN_HANDOFF_DONE_STATUSES and not _is_agent_family_root(agent):
+        coder = next(
+            (
+                followup
+                for followup in agent.followup_agents
+                if _is_coder_followup_suffix(followup.role_suffix)
+            ),
+            None,
+        )
+        if coder and coder.agent_name:
+            return (
+                agent_fork_scope(
+                    agent,
+                    coder.agent_name,
+                    vcs_prompt_name=coder.agent_name,
+                ),
+                None,
+            )
+
+    if not is_resumable_done_status(agent.status):
+        return None, "Agent not finished yet"
+    if not prompt_name:
+        return None, "No agent name found"
+    return agent_fork_scope(agent, prompt_name), None
 
 
 class AgentWaitResumeMixin:
@@ -503,80 +566,65 @@ class AgentWaitResumeMixin:
         self.push_screen(ConfirmKillModal(agent_description), on_confirm)  # type: ignore[attr-defined]
 
     def action_fork_agent(self) -> None:
-        """Fork a DONE agent's chat, or queue a fork for a running named agent."""
+        """Fork the selected agent, clan, or named tribe."""
         if self.current_tab != "agents":
             return
 
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        if agent is None:
-            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+        scope, warning = _resolve_agent_fork_scope(self)
+        if scope is None:
+            self.notify(warning or "No fork scope selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Running named agents: a #fork:<name> implies %w:<name>, so the
-        # forked agent waits for the target to finish before starting.
-        from ._core import DISMISSABLE_STATUSES
+        agents_snapshot = tuple(self._agents)
+        run_worker = getattr(self, "run_worker", None)
+        if not callable(run_worker):
+            # Direct mixin harnesses have no Textual worker infrastructure.
+            vcs_tag = resolve_fork_scope_vcs_tag(scope, agents_snapshot)
+            self._complete_agent_fork_scope(scope, vcs_tag)
+            return
 
-        prompt_name = _agent_prompt_name(agent)
+        async def prepare_fork_prompt() -> None:
+            vcs_tag = await asyncio.to_thread(
+                resolve_fork_scope_vcs_tag,
+                scope,
+                agents_snapshot,
+            )
+            self._complete_agent_fork_scope(scope, vcs_tag)
 
-        if agent.status not in DISMISSABLE_STATUSES and prompt_name:
-            name = prompt_name
-            prefix = f"#fork:{name} "
+        worker_coro = prepare_fork_prompt()
+        try:
+            run_worker(
+                cast(Any, worker_coro),
+                name="agent-fork-prompt",
+                group="agent-fork-prompt",
+                exclusive=True,
+            )
+        except Exception:
+            worker_coro.close()
+            log.exception("Failed to schedule fork prompt preparation")
+            self.notify("Unable to prepare fork prompt", severity="error")  # type: ignore[attr-defined]
 
-            vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
-            if vcs_tag:
-                prefix = f"{vcs_tag}{prefix}"
-
-            self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
-                initial_text=prefix,
-                display_name=f"fork({name})",
-                history_sort_key=agent.cl_name or "fork",
+    def _complete_agent_fork_scope(
+        self,
+        scope: AgentForkScope,
+        vcs_tag: str | None,
+    ) -> None:
+        """Revalidate a worker result and open the prefilled prompt bar."""
+        current_scope, _warning = _resolve_agent_fork_scope(self)
+        if current_scope is None or not same_fork_scope(scope, current_scope):
+            self.notify(  # type: ignore[attr-defined]
+                "Fork scope changed before the prompt opened",
+                severity="warning",
             )
             return
 
-        if agent.status in _PLAN_HANDOFF_DONE_STATUSES and not _is_agent_family_root(
-            agent
-        ):
-            # Find the coder follow-up agent to fork its conversation.
-            coder = next(
-                (
-                    f
-                    for f in agent.followup_agents
-                    if _is_coder_followup_suffix(f.role_suffix)
-                ),
-                None,
-            )
-            if coder and coder.agent_name:
-                name = coder.agent_name
-                prefix = f"#fork:{name} "
-                vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
-                if vcs_tag:
-                    prefix = f"{vcs_tag}{prefix}"
-                self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
-                    initial_text=prefix,
-                    display_name=f"fork({name})",
-                    history_sort_key=agent.cl_name or "fork",
-                )
-                return
-
-        if not is_resumable_done_status(agent.status):
-            self.notify("Agent not finished yet", severity="warning")  # type: ignore[attr-defined]
-            return
-
-        if not prompt_name:
-            self.notify("No agent name found", severity="warning")  # type: ignore[attr-defined]
-            return
-
-        name = prompt_name
-        prefix = f"#fork:{name} "
-
-        vcs_tag = _resolve_vcs_tag(agent, name, self._agents)
+        prefix = f"#fork:{scope.prompt_reference} "
         if vcs_tag:
             prefix = f"{vcs_tag}{prefix}"
-
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=prefix,
-            display_name=f"fork({name})",
-            history_sort_key=agent.cl_name or "fork",
+            display_name=f"fork({scope.label})",
+            history_sort_key=scope.history_sort_key,
         )
 
     def action_resume_agent(self) -> None:

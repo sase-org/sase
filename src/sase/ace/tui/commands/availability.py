@@ -367,8 +367,14 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return is_resumable_done_status(agent.status)
 
     if spec.id == "app.edit_hooks":
+        if panel_focused:
+            return bool(ctx.focused_panel_key)
+        if ctx.group_focused:
+            return False
         if agent is None:
             return False
+        if getattr(agent, "is_clan_container", False):
+            return bool(getattr(agent, "agent_clan", None))
         if agent.status not in DISMISSABLE_STATUSES:
             return bool(getattr(agent, "agent_name", None)) or bool(
                 getattr(agent, "agent_family", None)

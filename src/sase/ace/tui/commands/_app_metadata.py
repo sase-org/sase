@@ -224,7 +224,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     # ChangeSpec edits
     (
         "edit_hooks",
-        "Edit hooks / fork agent",
+        "Edit hooks / fork agent, clan, or tribe",
         "ChangeSpec Edits",
         CL_AGENTS,
         ("fork",),

@@ -494,6 +494,46 @@ def test_edit_hooks_fork_allows_tale_done_with_response_path() -> None:
     assert is_command_available(spec, CommandContext(tab="agents", agent=with_path))
 
 
+def test_edit_hooks_fork_allows_named_clan_container() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.edit_hooks"]
+    clan = _make_agent(status="RUNNING")
+    clan.is_clan_container = True
+    clan.agent_clan = "builders"
+
+    assert is_command_available(spec, CommandContext(tab="agents", agent=clan))
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="agents", agent=clan, group_focused=True),
+    )
+
+
+def test_edit_hooks_fork_allows_only_named_tribe_panel_focus() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.edit_hooks"]
+
+    for collapsed in (False, True):
+        assert is_command_available(
+            spec,
+            CommandContext(
+                tab="agents",
+                agent=None,
+                panel_focused=True,
+                panel_collapsed=collapsed,
+                focused_panel_key="builders",
+            ),
+        )
+    assert not is_command_available(
+        spec,
+        CommandContext(
+            tab="agents",
+            agent=None,
+            panel_focused=True,
+            focused_panel_key=None,
+        ),
+    )
+
+
 def test_accept_proposal_on_agents_only_for_active_statuses() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.accept_proposal"]

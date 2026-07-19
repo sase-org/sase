@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from sase.ace.tui.actions.agents import _fork_scope
+from sase.ace.tui.actions.agents._fork_scope import (
+    _ForkVcsMember,
+    _resolve_vcs_tag_consensus,
+)
 from sase.ace.tui.actions.agents._wait_resume import (
     _is_coder_followup_suffix,
     _resolve_vcs_tag,
@@ -138,6 +143,105 @@ class TestResolveVcsTag:
         assert result is not None
         assert "my_feature_branch" in result
         assert "#git:my_project " not in result
+
+
+class TestResolveVcsTagConsensus:
+    """Tests for strict group VCS inheritance."""
+
+    def test_colon_and_parenthesized_tags_compare_canonically(self) -> None:
+        colon = _make_agent(
+            raw_content="#git:my_project do stuff",
+        )
+        paren = _make_agent(
+            raw_content="#git(my_project) do other stuff",
+        )
+
+        result = _resolve_vcs_tag_consensus(
+            (
+                _ForkVcsMember(colon, "colon"),
+                _ForkVcsMember(paren, "paren"),
+            ),
+            (colon, paren),
+        )
+
+        assert result == "#git:my_project "
+
+    def test_different_branches_omit_group_prefix(self) -> None:
+        first = _make_agent(
+            cl_name="branch_one",
+            raw_content="#git:my_project do stuff",
+        )
+        second = _make_agent(
+            cl_name="branch_two",
+            raw_content="#git:my_project do stuff",
+        )
+
+        assert (
+            _resolve_vcs_tag_consensus(
+                (
+                    _ForkVcsMember(first, "first"),
+                    _ForkVcsMember(second, "second"),
+                ),
+                (first, second),
+            )
+            is None
+        )
+
+    def test_tagged_and_untagged_members_omit_group_prefix(self) -> None:
+        tagged = _make_agent(raw_content="#git:my_project do stuff")
+        untagged = _make_agent(raw_content="do stuff")
+
+        assert (
+            _resolve_vcs_tag_consensus(
+                (
+                    _ForkVcsMember(tagged, "tagged"),
+                    _ForkVcsMember(untagged, "untagged"),
+                ),
+                (tagged, untagged),
+            )
+            is None
+        )
+
+    def test_mixed_workflow_types_omit_group_prefix(self, monkeypatch: Any) -> None:
+        first = _make_agent(cl_name="first")
+        second = _make_agent(cl_name="second")
+        monkeypatch.setattr(
+            _fork_scope,
+            "_raw_vcs_tag",
+            lambda agent, _name, _agents: (
+                "#git:shared " if agent is first else "#gh:shared "
+            ),
+        )
+        monkeypatch.setattr(
+            "sase.workspace_provider.get_workflow_names",
+            lambda: {"git", "gh"},
+        )
+
+        assert (
+            _resolve_vcs_tag_consensus(
+                (
+                    _ForkVcsMember(first, "first"),
+                    _ForkVcsMember(second, "second"),
+                ),
+                (first, second),
+            )
+            is None
+        )
+
+    def test_pr_smart_refs_that_diverge_by_member_omit_prefix(self) -> None:
+        first = _make_agent(raw_content="#git:my_project #pr do stuff")
+        second = _make_agent(raw_content="#git:my_project #pr do stuff")
+
+        assert (
+            _resolve_vcs_tag_consensus(
+                (
+                    _ForkVcsMember(first, "alice"),
+                    _ForkVcsMember(second, "bob"),
+                ),
+                (first, second),
+            )
+            is None
+        )
 
 
 class TestCoderFollowupSuffix:
