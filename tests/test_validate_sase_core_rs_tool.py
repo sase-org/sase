@@ -51,6 +51,18 @@ def test_validate_sase_core_rs_requires_plan_validation_bindings() -> None:
         )
 
 
+def test_validate_sase_core_rs_requires_inline_code_binding() -> None:
+    validator = _load_validate_sase_core_rs()
+
+    assert "inline_code_ranges" in validator.REQUIRED_BINDINGS
+    assert not validator._validate_bindings(
+        _module_with_required_bindings(
+            validator,
+            missing={"inline_code_ranges"},
+        )
+    )
+
+
 def test_validate_sase_core_rs_requires_telemetry_bindings() -> None:
     validator = _load_validate_sase_core_rs()
     telemetry_bindings = {

@@ -11,6 +11,7 @@ literal pass-through text and are never part of launch processing.
 from __future__ import annotations
 
 from bisect import bisect_left
+from collections.abc import Iterator
 import re
 from dataclasses import dataclass
 from typing import Literal
@@ -79,9 +80,12 @@ def tokenize(
     spans: list[XPromptSpan] = []
 
     if "#" in text:
-        for match in XPROMPT_REFERENCE_PATTERN.finditer(text):
-            if _overlaps_protected(match.start(), match.end(), protected):
-                continue
+        for match in _matches_outside_ranges(
+            XPROMPT_REFERENCE_PATTERN,
+            text,
+            protected,
+            needle="#",
+        ):
             reference = xprompt_reference_from_match(text, match)
             if _overlaps_protected(reference.start, reference.end, protected):
                 continue
@@ -93,9 +97,12 @@ def tokenize(
                 )
 
     if "%" in text:
-        for match in _DIRECTIVE_RE.finditer(text):
-            if _overlaps_protected(match.start(), match.end(), protected):
-                continue
+        for match in _matches_outside_ranges(
+            _DIRECTIVE_RE,
+            text,
+            protected,
+            needle="%",
+        ):
             raw_name = match.group(1)
             name = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
             if name not in _KNOWN_DIRECTIVES:
@@ -108,19 +115,35 @@ def tokenize(
                 spans.append(XPromptSpan(match.end(1), end, "directive_arg"))
 
     if "---" in text:
-        for match in _SEGMENT_SEPARATOR_RE.finditer(text):
-            if not _overlaps_protected(match.start(), match.end(), protected):
-                spans.append(XPromptSpan(match.start(), match.end(), "separator"))
+        for match in _matches_outside_ranges(
+            _SEGMENT_SEPARATOR_RE,
+            text,
+            protected,
+            needle="---",
+        ):
+            spans.append(XPromptSpan(match.start(), match.end(), "separator"))
 
     if known_skills and "/" in text:
-        for match in _SKILL_REFERENCE_RE.finditer(text):
+        for match in _matches_outside_ranges(
+            _SKILL_REFERENCE_RE,
+            text,
+            protected,
+            needle="/",
+        ):
             if match.group("name") not in known_skills:
                 continue
-            if not _overlaps_protected(match.start(), match.end(), protected):
-                spans.append(XPromptSpan(match.start(), match.end(), "skill"))
+            spans.append(XPromptSpan(match.start(), match.end(), "skill"))
 
     spans.sort(key=lambda span: (span.start, span.end))
     return spans
+
+
+def _directive_end(text: str, match: re.Match[str]) -> int:
+    if match.group(2) is None:
+        return match.end()
+    paren_start = match.end() - 1
+    paren_end = find_matching_paren_for_args(text, paren_start)
+    return match.end() if paren_end is None else paren_end + 1
 
 
 def _overlaps_protected(
@@ -132,12 +155,20 @@ def _overlaps_protected(
     return candidate >= 0 and protected_ranges[candidate][1] > start
 
 
-def _directive_end(text: str, match: re.Match[str]) -> int:
-    if match.group(2) is None:
-        return match.end()
-    paren_start = match.end() - 1
-    paren_end = find_matching_paren_for_args(text, paren_start)
-    return match.end() if paren_end is None else paren_end + 1
+def _matches_outside_ranges(
+    pattern: re.Pattern[str],
+    text: str,
+    ranges: list[tuple[int, int]],
+    *,
+    needle: str,
+) -> Iterator[re.Match[str]]:
+    cursor = 0
+    for start, end in ranges:
+        if cursor < start and text.find(needle, cursor, start) != -1:
+            yield from pattern.finditer(text, cursor, start)
+        cursor = max(cursor, end)
+    if cursor < len(text) and text.find(needle, cursor) != -1:
+        yield from pattern.finditer(text, cursor)
 
 
 __all__ = ["XPromptSpan", "XPromptSpanKind", "tokenize"]

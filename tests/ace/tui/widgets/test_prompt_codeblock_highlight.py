@@ -151,17 +151,27 @@ async def test_codeblock_band_lines_follow_fenced_block_details() -> None:
             assert text_area._codeblock_band_lines == expected
 
 
-async def test_inline_code_chip_tints_delimiters_and_content() -> None:
+async def test_adjacent_inline_code_chips_tint_both_delimiter_pairs() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         text_area = app.query_one(PromptTextArea)
-        text_area.load_text("Use `sase bead` now")
+        text_area.load_text("`foo`/`bar` #active %auto {{ live }}")
         text_area._build_highlight_map()
 
         row = text_area._highlights[0]
-        assert (4, 15, "codeblock.inline") in row
-        assert (4, 5, "codeblock.delimiter") in row
-        assert (14, 15, "codeblock.delimiter") in row
+        assert (0, 5, "codeblock.inline") in row
+        assert (6, 11, "codeblock.inline") in row
+        for delimiter in ((0, 1), (4, 5), (6, 7), (10, 11)):
+            assert (*delimiter, "codeblock.delimiter") in row
+
+        semantic = [
+            (start, end, name)
+            for start, end, name in row
+            if name.startswith(("xprompt.", "jinja."))
+        ]
+        assert semantic
+        assert all(end <= 6 or start >= 11 for start, end, _name in semantic)
+        assert any(start >= 12 for start, _end, _name in semantic)
         _assert_inline_chip_contract(text_area)
 
 

@@ -101,7 +101,10 @@ def test_tokenize_skips_fences_and_disabled_regions() -> None:
 
 
 def test_tokenize_skips_every_overlay_kind_inside_inline_code() -> None:
-    text = "`#hidden:arg %m:opus --- /sase_plan` #active:arg %m:sonnet /sase_plan"
+    text = (
+        "prefix`#hidden:arg %m:opus --- /sase_plan`/"
+        "`#also_hidden %auto` suffix #active:arg %m:sonnet /sase_plan"
+    )
     known = frozenset({"sase_plan"})
 
     assert _source_by_kind(text, "invocation", known_skills=known) == ["#active"]

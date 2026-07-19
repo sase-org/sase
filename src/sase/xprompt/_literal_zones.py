@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from bisect import bisect_right
+from collections.abc import Iterator
 import re
 
 from ._directive_types import (
@@ -39,14 +39,14 @@ def _inline_literal_ranges(
     disabled = disabled_region_ranges(text)
     masks = [*fenced, *disabled]
     protected = _merge_ranges(masks)
-    for match in XPROMPT_REFERENCE_PATTERN.finditer(text):
-        if _position_in_ranges(match.start(), protected):
-            continue
+    for match in _matches_outside_ranges(
+        XPROMPT_REFERENCE_PATTERN,
+        text,
+        protected,
+    ):
         reference = xprompt_reference_from_match(text, match)
         masks.append((reference.start, reference.end))
-    for match in _DIRECTIVE_RE.finditer(text):
-        if _position_in_ranges(match.start(), protected):
-            continue
+    for match in _matches_outside_ranges(_DIRECTIVE_RE, text, protected):
         raw_name = match.group(1)
         name = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
         if name not in _KNOWN_DIRECTIVES and name not in _DEPRECATED_DIRECTIVES:
@@ -88,9 +88,18 @@ def _merge_ranges(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return merged
 
 
-def _position_in_ranges(position: int, ranges: list[tuple[int, int]]) -> bool:
-    candidate = bisect_right(ranges, (position, 1 << 63)) - 1
-    return candidate >= 0 and position < ranges[candidate][1]
+def _matches_outside_ranges(
+    pattern: re.Pattern[str],
+    text: str,
+    ranges: list[tuple[int, int]],
+) -> Iterator[re.Match[str]]:
+    cursor = 0
+    for start, end in ranges:
+        if cursor < start:
+            yield from pattern.finditer(text, cursor, start)
+        cursor = max(cursor, end)
+    if cursor < len(text):
+        yield from pattern.finditer(text, cursor)
 
 
 __all__ = [

@@ -359,13 +359,12 @@ def test_xprompt_tokenizer_code_heavy_benchmark() -> None:
     code_line = (
         "def transform(value): return {'value': value + 1}  # literal #hidden %auto\n"
     )
-    code = (code_line * 1_000)[:50_000]
-    text = (
-        "```python\n"
-        f"{code}"
-        "```\n"
-        "Keep `#commit %m:opus` literal, then run #gh:sase %auto\n"
+    code = (code_line * 1_000)[:40_000]
+    adjacent_line = (
+        "Keep `#hidden`/`%m:opus`/`{{ hidden }}` and prefix`value`suffix literal.\n"
     )
+    adjacent = (adjacent_line * 1_000)[:39_000]
+    text = f"```python\n{code}```\n{adjacent}Then run #gh:sase %auto\n"
     samples_ms: list[float] = []
 
     for _ in range(100):
@@ -376,7 +375,7 @@ def test_xprompt_tokenizer_code_heavy_benchmark() -> None:
     ordered = sorted(samples_ms)
     p95_index = max(0, int(round(0.95 * (len(ordered) - 1))))
     p95_ms = ordered[p95_index]
-    print("\nxprompt tokenizer (50 KB code-heavy prompt, 100 iterations)")
+    print("\nxprompt tokenizer (80 KB code-heavy prompt, 100 iterations)")
     print("p50_ms  p95_ms  max_ms")
     print(f"{statistics.median(ordered):>6.2f}  {p95_ms:>6.2f}  {ordered[-1]:>6.2f}")
     assert p95_ms < 16.0

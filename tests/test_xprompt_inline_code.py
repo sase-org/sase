@@ -7,6 +7,7 @@ from sase.xprompt._fenced_blocks import (
     protect_fenced_blocks,
     unprotect_fenced_blocks,
 )
+from sase.xprompt._jinja import render_toplevel_jinja2
 from sase.xprompt._inline_code import inline_code_spans
 from sase.xprompt._literal_zones import (
     code_literal_ranges,
@@ -37,12 +38,15 @@ def test_inline_scanner_ignores_unmatched_and_multiline_runs() -> None:
     assert inline_code_spans("`first line\nsecond line`") == []
 
 
-def test_inline_scanner_requires_xprompt_leading_context() -> None:
-    text = "word`no` colon:`no` (#yes) [`also`] ' `quoted`'"
+def test_inline_scanner_accepts_punctuation_and_word_adjacency() -> None:
+    text = "`foo`/`bar` `foo`,`bar` prefix`value`suffix"
 
     assert _sources(text, inline_code_spans(text)) == [
-        "`also`",
-        "`quoted`",
+        "`foo`",
+        "`bar`",
+        "`foo`",
+        "`bar`",
+        "`value`",
     ]
 
 
@@ -56,6 +60,14 @@ def test_inline_scanner_skips_masked_delimiters() -> None:
     )
 
     assert _sources(text, spans) == ["`active`"]
+
+
+def test_inline_scanner_converts_unicode_offsets_at_binding_boundary() -> None:
+    text = "é`值`/`ß`"
+
+    assert inline_code_spans(text) == [(1, 4), (5, 8)]
+    assert _sources(text, inline_code_spans(text)) == ["`值`", "`ß`"]
+    assert inline_code_spans(text, masked_ranges=[(1, 4)]) == [(5, 8)]
 
 
 def test_launch_masks_reference_and_directive_argument_backticks() -> None:
@@ -98,21 +110,22 @@ def test_xprompt_reference_inside_inline_code_survives_launch_expansion() -> Non
     xprompt = XPrompt(name="foo", content="expanded")
 
     result = process_xprompt_references(
-        "keep `#foo` but expand #foo",
+        "keep:`#foo`/`#foo` but expand #foo",
         extra_xprompts={"foo": xprompt},
     )
 
-    assert result == "keep `#foo` but expand expanded"
+    assert result == "keep:`#foo`/`#foo` but expand expanded"
 
 
 def test_directive_and_alt_inside_inline_code_survive_verbatim() -> None:
-    prompt = "keep `%m:opus` and `%{fast | slow}`"
+    prompt = "keep:`%m:opus`/`%{fast | slow}`/`{{ 1 + 1 }}`"
 
     cleaned, directives = extract_prompt_directives(prompt)
 
     assert cleaned == prompt
     assert directives.model is None
     assert split_prompt_for_alternatives(prompt) is None
+    assert render_toplevel_jinja2(prompt) == prompt
 
 
 def test_backtick_colon_argument_still_expands_normally() -> None:

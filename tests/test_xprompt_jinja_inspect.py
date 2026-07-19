@@ -55,6 +55,15 @@ def test_tokenize_skips_fenced_blocks() -> None:
     assert any(span.kind == "keyword" and span.value == "if" for span in spans)
 
 
+def test_tokenize_skips_punctuation_adjacent_inline_code() -> None:
+    text = "prefix`{{ hidden }}`/`{% if hidden %}no{% endif %}` {{ visible }}"
+
+    spans = jinja_inspect.tokenize(text)
+
+    assert [span.value for span in spans if span.kind == "variable"] == ["visible"]
+    assert not any(span.value == "hidden" for span in spans)
+
+
 def test_alt_with_adjacent_directive_is_not_a_jinja_statement() -> None:
     text = "%{%m:opus | %m:sonnet} and {{ root }}"
 
