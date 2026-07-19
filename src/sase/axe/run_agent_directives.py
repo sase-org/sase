@@ -384,6 +384,24 @@ def extract_directives_and_write_meta(
                 member_name=agent_name,
                 member_name_template=directives.name,
             )
+            clan_prefix = f"{clan_membership_plan.clan_name}."
+            if (
+                not agent_name
+                or not agent_name.startswith(clan_prefix)
+                or not agent_name.removeprefix(clan_prefix)
+            ):
+                from sase.agent.names import release_planned_registered_clan_name
+
+                release_planned_registered_clan_name(
+                    clan_membership_plan.clan_name,
+                    clan_membership_plan.generation,
+                    artifacts_dir,
+                )
+                raise ClanMembershipError(
+                    f"Agent '{agent_name or ''}' cannot join clan "
+                    f"'{clan_membership_plan.clan_name}': clan members must use "
+                    f"the '{clan_prefix}<suffix>' hood"
+                )
 
         agent_tribe = directives.tribe
 

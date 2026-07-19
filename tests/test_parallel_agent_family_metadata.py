@@ -168,6 +168,26 @@ def test_runner_fallback_joiner_creates_missing_clan(
     assert info.meta[AGENT_CLAN_GENERATION_FIELD] == "20260716020303"
 
 
+def test_runner_releases_new_clan_reservation_when_member_is_outside_hood(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+
+    with pytest.raises(ClanMembershipError, match="clan members must use"):
+        _extract_runner_metadata(
+            "%id:outsider\n%clan:ghost\nWork",
+            artifacts_dir=(
+                sase_home / "projects/sase/artifacts/ace-run/20260716020304"
+            ),
+        )
+
+    from sase.agent.names import get_reserved_clan_names
+
+    assert "ghost" not in get_reserved_clan_names()
+
+
 def test_runner_fallback_declaration_rejects_existing_clan(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

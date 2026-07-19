@@ -830,6 +830,48 @@ def test_marked_wait_target_takes_precedence_over_group_focus(
     assert app.prompt_bar_calls[0]["initial_text"] == "%w:two "
 
 
+@pytest.mark.parametrize("marked_count", [1, 2])
+def test_marked_wait_target_revalidates_after_prompt_preparation(
+    marked_count: int,
+) -> None:
+    first = _make_waiting_agent(
+        cl_name="branch_one",
+        raw_suffix="20240101120100",
+        agent_name="one",
+    )
+    second = _make_waiting_agent(
+        cl_name="branch_two",
+        raw_suffix="20240101120200",
+        agent_name="two",
+    )
+    replacement = _make_waiting_agent(
+        cl_name="branch_three",
+        raw_suffix="20240101120300",
+        agent_name="three",
+    )
+    app = _FakeResumeActionApp([first, second, replacement])
+    app._marked_agents = {agent.identity for agent in (first, second)[:marked_count]}
+    completions: list[Any] = []
+
+    def defer_preparation(
+        _resolver: Any,
+        on_complete: Any,
+        **_kwargs: object,
+    ) -> None:
+        completions.append(on_complete)
+
+    app._run_prompt_vcs_preparation = defer_preparation  # type: ignore[method-assign]
+
+    app.action_wait_for_agent()
+    app._marked_agents = {replacement.identity}
+    completions[0](None)
+
+    assert app.notifications == [
+        ("Marked wait targets changed before the prompt opened", "warning")
+    ]
+    assert app.prompt_bar_calls == []
+
+
 def test_wait_prompt_scheduling_failure_is_user_visible() -> None:
     agent = _make_waiting_agent(agent_name="one")
     app = _FakeResumeActionApp([agent])

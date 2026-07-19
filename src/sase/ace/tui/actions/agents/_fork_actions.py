@@ -193,8 +193,18 @@ class AgentForkActionsMixin:
         vcs_tag: str | None,
         *,
         revalidate_selection: bool = True,
+        marked_target_snapshot: tuple[tuple[object, str], ...] | None = None,
     ) -> None:
         """Revalidate a wait-target worker result and open the prompt bar."""
+        if (
+            marked_target_snapshot is not None
+            and self._marked_wait_target_snapshot() != marked_target_snapshot
+        ):
+            self.notify(  # type: ignore[attr-defined]
+                "Marked wait targets changed before the prompt opened",
+                severity="warning",
+            )
+            return
         if revalidate_selection:
             current_scope, _warning = resolve_agent_prompt_target_scope(
                 self,
@@ -227,13 +237,40 @@ class AgentForkActionsMixin:
         ]
         named: list[Agent] = [a for a in marked if action_agent_prompt_name(a)]
         skipped = len(marked) - len(named)
+        marked_target_snapshot = tuple(
+            (agent.identity, name)
+            for agent in named
+            if (name := action_agent_prompt_name(agent))
+        )
 
         if not named:
             self.notify("No marked agents have a name", severity="warning")  # type: ignore[attr-defined]
             return
 
         if len(named) == 1:
-            self._wait_for_single_agent(named[0], revalidate_selection=False)
+            agent = named[0]
+            name = action_agent_prompt_name(agent)
+            assert name is not None
+            scope = agent_prompt_target_scope(
+                agent,
+                name,
+                history_fallback="wait",
+            )
+            agents_snapshot = tuple(self._agents)
+            self._run_prompt_vcs_preparation(
+                lambda: resolve_prompt_target_scope_vcs_tag(
+                    scope,
+                    agents_snapshot,
+                ),
+                lambda vcs_tag: self._complete_agent_wait_scope(
+                    scope,
+                    vcs_tag,
+                    revalidate_selection=False,
+                    marked_target_snapshot=marked_target_snapshot,
+                ),
+                worker_name="agent-marked-wait-prompt",
+                failure_message="Unable to prepare wait prompt",
+            )
             if skipped:
                 self.notify(  # type: ignore[attr-defined]
                     f"Skipped {skipped} marked agent(s) with no name",
@@ -253,6 +290,12 @@ class AgentForkActionsMixin:
         history_sort_key = (cursor.cl_name if cursor else "wait") or "wait"
 
         def complete_bulk_wait(vcs_tag: str | None) -> None:
+            if self._marked_wait_target_snapshot() != marked_target_snapshot:
+                self.notify(  # type: ignore[attr-defined]
+                    "Marked wait targets changed before the prompt opened",
+                    severity="warning",
+                )
+                return
             prefix = f"%w:{','.join(names)} "
             if vcs_tag:
                 prefix = f"{vcs_tag}{prefix}"
@@ -276,4 +319,13 @@ class AgentForkActionsMixin:
             complete_bulk_wait,
             worker_name="agent-marked-wait-prompt",
             failure_message="Unable to prepare wait prompt",
+        )
+
+    def _marked_wait_target_snapshot(self) -> tuple[tuple[object, str], ...]:
+        """Return the ordered, currently marked prompt targets."""
+        return tuple(
+            (agent.identity, name)
+            for agent in self._agents_with_children
+            if agent.identity in self._marked_agents
+            and (name := action_agent_prompt_name(agent))
         )

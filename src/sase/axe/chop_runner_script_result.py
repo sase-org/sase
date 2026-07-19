@@ -398,13 +398,15 @@ def process_script_chop_result(
             accepted_proposals=accepted_proposals,
             successful_launches=successful_launches,
         )
+        partial_launch = bool(successful_launches)
         finalize_script_chop_run(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
             run_id=run_id,
             started_at=started_at,
-            status="action_failed",
+            status="launched" if partial_launch else "action_failed",
             exit_code=0,
+            agent_pid=(int(successful_launches[0]["pid"]) if partial_launch else None),
             error=exc,
             tb=tb,
             result_file=result_path.name,
@@ -412,6 +414,7 @@ def process_script_chop_result(
             proposals=proposals,
             launches=successful_launches,
             dry_run=False,
+            active=partial_launch,
             preflight=preflight,
         )
         return ChopRunOutcome(
