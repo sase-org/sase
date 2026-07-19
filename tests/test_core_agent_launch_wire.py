@@ -495,18 +495,31 @@ def test_plan_agent_launch_fanout_rust_allocates_named_and_numeric_alt_ids() -> 
     assert [slot.prompt for slot in plan.slots] == ["a x", "a y", "b x", "b y"]
 
 
-def test_plan_agent_launch_fanout_rust_repeat() -> None:
+def test_plan_agent_launch_fanout_rust_repeat_handles_id_aliases_and_literals() -> None:
     pytest.importorskip("sase_core_rs")
 
+    prompt = (
+        "%xprompts_enabled:false\n"
+        "%repeat:9 %id:disabled\n"
+        "%xprompts_enabled:true\n"
+        "```text\n%r:8 %i:fenced\n```\n"
+        "keep `foo`/`%repeat:7` and prefix`%id:inline`suffix "
+        "%r:3 %i:task %model:opus do work"
+    )
     plan = plan_agent_launch_fanout(
-        "%r:3 %i:task %model:opus do work",
+        prompt,
         launch_kind="repeat",
     )
 
     assert plan.launch_kind == "repeat"
     assert len(plan.slots) == 3
     assert plan.slots[0].repeat_name == "task"
-    assert plan.slots[0].prompt == "  %model:opus do work"
+    assert plan.slots[0].prompt == (
+        "%repeat:9 %id:disabled\n"
+        "```text\n%r:8 %i:fenced\n```\n"
+        "keep `foo`/`%repeat:7` and prefix`%id:inline`suffix "
+        "  %model:opus do work"
+    )
     assert [slot.wait_for_previous for slot in plan.slots] == [False, True, True]
 
 
