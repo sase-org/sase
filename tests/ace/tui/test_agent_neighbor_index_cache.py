@@ -189,14 +189,16 @@ def test_agent_neighbor_index_cache_tracks_dismiss_revive_epoch() -> None:
     dismissed_2 = _agent("foo.plan.child2", suffix="e")
     app._dismissed_agent_objects.append(dismissed_2)
     app._dismissed_agents.add(dismissed_2.identity)
-    assert app._agent_neighbor_index() is first
+    changed_membership = app._agent_neighbor_index()
+    assert changed_membership is not first
+    assert changed_membership.descendant_count(0) == 2
 
     app._dismiss_revive_epoch += 1
     second = app._agent_neighbor_index()
 
-    assert second is not first
+    assert second is not changed_membership
     assert second.descendant_count(0) == 2
-    assert app.visible_walk_count == 2
+    assert app.visible_walk_count == 3
 
 
 def test_agents_info_panel_update_uses_cached_neighbor_count() -> None:

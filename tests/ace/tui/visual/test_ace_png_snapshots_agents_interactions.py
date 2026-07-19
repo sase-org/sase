@@ -164,6 +164,8 @@ def _neighbor_panel_reveal_agents() -> list[Agent]:
             raw_suffix="20260718-163100-neighbor-target",
             agent_name="visual.jump.code",
             tribe="alpha",
+            agent_clan="visual-workers",
+            agent_clan_generation="20260718-163100",
         ),
         Agent(
             agent_type=AgentType.RUNNING,
@@ -176,6 +178,24 @@ def _neighbor_panel_reveal_agents() -> list[Agent]:
             tribe="zeta",
         ),
     ]
+
+
+def _folded_clan_neighbor_modal_agents() -> list[Agent]:
+    """Two hidden hood neighbors, one also inside a collapsed tribe panel."""
+    agents = _neighbor_panel_reveal_agents()
+    peer = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-neighbor-peer",
+        project_file="/workspace/sase/visual_project.sase",
+        status="WAITING",
+        start_time=datetime(2026, 7, 18, 16, 32, 0),
+        raw_suffix="20260718-163200-neighbor-peer",
+        agent_name="visual.jump.review",
+        tribe="beta",
+        agent_clan="visual-reviewers",
+        agent_clan_generation="20260718-163200",
+    )
+    return [agents[0], agents[1], peer, agents[2]]
 
 
 def _overflowing_panel_agents() -> list[Agent]:
@@ -595,7 +615,53 @@ async def test_agents_neighbor_jump_expands_target_panel_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "agents_neighbor_jump_expanded_panel_120x40",
-            title="ACE agents neighbor jump expanded panel",
+            title="ACE folded-clan neighbor jump expanded panel",
+        )
+
+
+async def test_agent_neighbor_modal_folded_clan_and_tribe_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents = _folded_clan_neighbor_modal_agents()
+    patch_startup_loaders(monkeypatch, agents=agents)
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(70, 32)
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+
+        await page.press("J")
+        assert page.app._panel_group.focused_key == "alpha"
+        await page.press("h")
+        await page.wait_for(
+            lambda _screen: page.app._resolve_focused_panel() is not None
+        )
+        await page.press("h")
+        await page.wait_for(lambda _screen: "alpha" in page.app._collapsed_panel_keys)
+        await page.press("J")
+        assert page.app._panel_group.focused_key is None
+
+        page.app.action_start_sibling_mode()
+        await page.expect_modal("AgentNeighborModal")
+        await wait_for_svg_contains(page, "visual.jump.code")
+        await wait_for_visual_idle(page)
+
+        modal = page.app.screen_stack[-1]
+        choices = vars(modal)["_choices"]
+        assert [choice.agent_name for choice in choices] == [
+            "visual.jump.review",
+            "visual.jump.code",
+        ]
+        assert [choice.panel_label for choice in choices] == ["@beta", "@alpha"]
+        assert [choice.global_idx for choice in choices] == [None, None]
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agent_neighbor_folded_clan_modal_70x32",
+            title="ACE folded-clan neighbor chooser",
         )
 
 

@@ -12,6 +12,7 @@ from ...models.agent_status import is_unread_completed_status
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
+    from ._prospective_clan import ProspectiveClanMember
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,132 +152,42 @@ class AgentUnreadJumpCandidatesMixin:
         time_for_agent: Callable[[Agent], datetime | None] | None,
         seen: set[tuple[AgentType, str, str | None]],
     ) -> list[TimedAgentJumpCandidate]:
-        """Return direct members hidden only by a collapsed outer clan fold."""
+        """Return direct members hidden only by collapsed outer clan folds."""
         complete = list(getattr(self, "_agents_with_children", ()) or ())
         fold_manager = getattr(self, "_fold_manager", None)
         if not complete or fold_manager is None:
             return []
 
-        from ...models._agent_tree import agent_fold_key
-        from ...models.fold_state import FoldLevel
-
-        members_by_fold: dict[str, list[Agent]] = {}
-        for container in complete:
-            if not container.is_clan_container:
-                continue
-            fold_key = agent_fold_key(container)
-            if fold_key is None or fold_manager.get(fold_key) != FoldLevel.COLLAPSED:
-                continue
-            direct_members = [
-                member
-                for member in container.runtime_children
-                if not member.is_clan_container
-                and member.tree_parent_key == fold_key
-                and member.identity not in seen
-            ]
-            if direct_members:
-                members_by_fold[fold_key] = direct_members
-
         candidates: list[TimedAgentJumpCandidate] = []
-        for fold_key, direct_members in members_by_fold.items():
-            visible_by_identity = self._prospective_clan_member_panels(
-                complete,
-                fold_key,
-            )
-            for member in direct_members:
-                panel_key = visible_by_identity.get(member.identity)
-                if member.identity not in visible_by_identity or not predicate(member):
-                    continue
-                candidates.append(
-                    TimedAgentJumpCandidate(
-                        identity=member.identity,
-                        panel_key=panel_key,
-                        jump_time=(
-                            time_for_agent(member)
-                            if time_for_agent is not None
-                            else member.stop_time or member.start_time
-                        ),
-                        visible_idx=None,
-                        clan_fold_key=fold_key,
-                    )
+        projected = self._prospective_clan_member_panels(complete)
+        for target in projected.values():
+            member = target.agent
+            if member.identity in seen or not predicate(member):
+                continue
+            candidates.append(
+                TimedAgentJumpCandidate(
+                    identity=member.identity,
+                    panel_key=target.panel_key,
+                    jump_time=(
+                        time_for_agent(member)
+                        if time_for_agent is not None
+                        else member.stop_time or member.start_time
+                    ),
+                    visible_idx=None,
+                    clan_fold_key=target.clan_fold_key,
                 )
-                seen.add(member.identity)
+            )
+            seen.add(member.identity)
         return candidates
 
     def _prospective_clan_member_panels(
         self,
         complete: list[Agent],
-        fold_key: str,
-    ) -> dict[tuple[AgentType, str, str | None], str | None]:
-        """Project rows that would render after expanding exactly one clan."""
-        from sase.core.time import local_now
+    ) -> dict[
+        tuple[AgentType, str, str | None],
+        ProspectiveClanMember,
+    ]:
+        """Project all direct rows hidden only by collapsed clan ancestry."""
+        from ._prospective_clan import prospective_clan_members
 
-        from ...models import filter_agents_by_fold_state
-        from ...models.agent_groups import GroupingMode, build_agent_tree
-        from ...models.agent_panels import AgentPanelGroup, agents_for_panel
-        from ...models.fold_state import FoldLevel, FoldStateManager
-        from ._fold_scope import panel_fold_registry
-
-        source_manager = self._fold_manager  # type: ignore[attr-defined]
-        projected_manager = FoldStateManager()
-        for key, level in source_manager.snapshot().items():
-            if level in {FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED}:
-                projected_manager.expand(key)
-            if level == FoldLevel.FULLY_EXPANDED:
-                projected_manager.expand(key)
-        projected_manager.expand(fold_key)
-        projected, _counts = filter_agents_by_fold_state(
-            complete,
-            projected_manager,
-        )
-
-        raw_query = getattr(self, "_agent_search_query", "") or ""
-        if raw_query:
-            parse_query = getattr(self, "_get_or_parse_agent_query", None)
-            parsed = parse_query() if callable(parse_query) else None
-            if parsed is None:
-                from ....agent_query import parse_agent_query
-
-                try:
-                    parsed = parse_agent_query(raw_query)
-                except Exception:
-                    return {}
-            from ....agent_query import evaluate_agent_query
-            from ...models._agent_tree import filter_tree_rows
-
-            content_index = getattr(self, "_agent_content_search_index", None)
-            now = local_now()
-            projected = filter_tree_rows(
-                projected,
-                lambda agent: evaluate_agent_query(
-                    parsed,
-                    agent,
-                    now=now,
-                    content_cache=content_index,
-                ),
-            )
-
-        mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-        merge_tribe_panels = bool(getattr(self, "_agent_panels_grouped", False))
-        panel_group = AgentPanelGroup.from_agents(
-            projected,
-            merge_tribe_panels=merge_tribe_panels,
-        )
-        rendered: dict[tuple[AgentType, str, str | None], str | None] = {}
-        for panel_key in panel_group.panel_keys:
-            panel_agents = agents_for_panel(
-                projected,
-                panel_key,
-                merge_tribe_panels=merge_tribe_panels,
-            )
-            tree = build_agent_tree(
-                panel_agents,
-                fold_registry=panel_fold_registry(self, panel_key),
-                mode=mode,
-            )
-            for entry in tree:
-                if entry.kind != "agent" or entry.agent_idx is None:
-                    continue
-                if 0 <= entry.agent_idx < len(panel_agents):
-                    rendered[panel_agents[entry.agent_idx].identity] = panel_key
-        return rendered
+        return prospective_clan_members(self, complete)
