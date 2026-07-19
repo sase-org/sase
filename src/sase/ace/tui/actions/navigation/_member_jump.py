@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from textual.screen import ModalScreen
 
 from ...models.agent import Agent, AgentType
+from ...models.agent_family_members import concrete_family_member_rows
 from ...models.agent_tribe_summary import AgentPanelFocus
 from ._agent_reveal import (
     AgentRevealFailure,
@@ -124,12 +125,9 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
                 for member in container.runtime_children
                 if not member.is_clan_container
             )
-        if target_identity == container.identity:
-            return True
         return any(
             member.identity == target_identity
-            for member in container.followup_agents
-            if not member.is_synthetic_planner and not member.agent_family_parallel
+            for member in concrete_family_member_rows(container)
         )
 
     def _member_jump_target(

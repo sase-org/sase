@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from copy import copy
 from dataclasses import dataclass
 from datetime import datetime
@@ -12,6 +12,9 @@ from rich.text import Text
 
 from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import Agent
+from ...models.agent_family_members import (
+    concrete_family_member_rows as family_member_rows,
+)
 from ...models.agent_time import compute_row_runtime
 from ...models.fold_state import FoldLevel
 from ...models.fold_scale import (
@@ -104,34 +107,6 @@ def family_fold_indicator(level: FoldLevel) -> tuple[str, str]:
     """Return the visible glyph and style for one family fold level."""
     level = effective_fold_level(level, FAMILY_FOLD_SCALE)
     return _FOLD_CHARS[level], _FOLD_STYLES[level]
-
-
-def family_member_rows(agent: Agent) -> tuple[Agent, ...]:
-    """Return the real family chain rows in stable chain order.
-
-    Rename-on-attach families retain their first real member in ``agent`` and
-    give it a suffixed persisted name.  Legacy root-shaped containers keep the
-    bare family name and are not duplicated as a numbered member.  Synthetic
-    planner projections are display scaffolding rather than jump targets.
-    """
-    family_name = agent.agent_family or agent.family_reference_name()
-    include_root = not bool(
-        agent.agent_name and family_name and agent.agent_name == family_name
-    )
-    candidates: Sequence[Agent] = ((agent,) if include_root else ()) + tuple(
-        child
-        for child in agent.followup_agents
-        if not child.is_synthetic_planner and not child.agent_family_parallel
-    )
-    rows: list[Agent] = []
-    seen: set[int] = set()
-    for candidate in candidates:
-        object_identity = id(candidate)
-        if object_identity in seen:
-            continue
-        seen.add(object_identity)
-        rows.append(candidate)
-    return tuple(rows)
 
 
 def _family_roster_entries(

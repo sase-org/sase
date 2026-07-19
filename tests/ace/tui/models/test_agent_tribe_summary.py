@@ -140,3 +140,64 @@ def test_attention_digest_and_untagged_identity_use_unit_statuses() -> None:
     assert [(entry.unit_label, entry.preview) for entry in snapshot.attention] == [
         ("research", "Build failed")
     ]
+
+
+def test_family_unit_counts_and_children_use_concrete_planner_projection() -> None:
+    root = _agent(
+        "build--plan",
+        "WORKING TALE",
+        start_minute=0,
+        family="build",
+        role="plan",
+    )
+    planner = _agent(
+        "build--plan-step",
+        "TALE APPROVED",
+        start_minute=0,
+        family="build",
+        role="plan",
+        parent=root.raw_suffix,
+    )
+    planner.agent_family_role = "plan"
+    planner.parent_workflow = "ace-run"
+    planner.step_type = "agent"
+    planner.model = "claude/opus"
+    coder = _agent(
+        "build--code",
+        "WORKING TALE",
+        start_minute=10,
+        family="build",
+        role="code",
+        parent=root.raw_suffix,
+    )
+    coder.model = "codex/gpt-5"
+    root.runtime_children = [planner, coder]
+    root.followup_agents = [coder]
+
+    snapshot = build_agent_tribe_summary_snapshot(
+        "epic",
+        [root, planner, coder],
+        panel_collapsed=True,
+        now=_NOW,
+    )
+
+    family = snapshot.units[0]
+    assert family.identity == root.identity
+    assert family.status == "WORKING TALE"
+    assert [child.identity for child in family.children] == [
+        planner.identity,
+        coder.identity,
+    ]
+    assert [child.status for child in family.children] == [
+        "TALE APPROVED",
+        "WORKING TALE",
+    ]
+    assert [child.model for child in family.children] == [
+        "claude/opus",
+        "codex/gpt-5",
+    ]
+    assert family.status_counts is not None
+    assert family.status_counts.running == 2
+    assert family.status_counts.done == 0
+    assert snapshot.agent_count == 2
+    assert snapshot.nested_count == 2

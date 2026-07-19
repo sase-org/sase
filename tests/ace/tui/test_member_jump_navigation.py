@@ -343,6 +343,28 @@ def test_family_member_jump_reveals_standalone_and_nested_chains(
     assert app._fold_manager.get(root.raw_suffix or "") is FoldLevel.EXPANDED
 
 
+def test_family_member_jump_accepts_concrete_workflow_planner_target() -> None:
+    root = _agent("alpha--plan", family="alpha", role="plan")
+    planner = _agent("alpha--plan-step", family="alpha", role="plan")
+    planner.plan_chain_root = False
+    planner.parent_timestamp = root.raw_suffix
+    planner.parent_workflow = "ace-run"
+    planner.step_type = "agent"
+    coder = _agent("alpha--code", family="alpha", role="code")
+    coder.parent_timestamp = root.raw_suffix
+    root.runtime_children = [planner, coder]
+    root.followup_agents = [coder]
+    complete = [root, planner, coder]
+    app = _JumpHarness(complete, root)
+    app._member_jump_maps[root.identity] = _jump_map(root, [planner, coder])
+
+    assert app._handle_member_jump_key("0") is True
+
+    assert app.notifications == []
+    assert app._agents[app.current_idx].identity == planner.identity
+    assert app._fold_manager.get(root.raw_suffix or "") is FoldLevel.EXPANDED
+
+
 def test_two_digit_buffer_completion_escape_and_other_key_cancellation() -> None:
     complete, container = _clan(11)
     members = list(container.runtime_children)

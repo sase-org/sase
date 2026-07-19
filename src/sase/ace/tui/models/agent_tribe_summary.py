@@ -22,6 +22,7 @@ from ._agent_clan_sections import (
 )
 from ._agent_tree import agent_is_tree_child
 from .agent import Agent, AgentType, compute_row_runtime
+from .agent_family_members import concrete_family_member_rows
 from .agent_panels import PanelKey
 from . import agent_time
 
@@ -164,20 +165,6 @@ def _member_kind(agent: Agent) -> str:
     return "agent"
 
 
-def _family_member_rows(agent: Agent) -> tuple[Agent, ...]:
-    """Return real rows in a family without importing presentation widgets."""
-    family_name = agent.agent_family or agent.family_reference_name()
-    include_root = not bool(
-        agent.agent_name and family_name and agent.agent_name == family_name
-    )
-    candidates = ((agent,) if include_root else ()) + tuple(
-        child
-        for child in agent.followup_agents
-        if not child.is_synthetic_planner and not child.agent_family_parallel
-    )
-    return _dedupe_rows(candidates)
-
-
 def _descendant_rows(agent: Agent) -> tuple[Agent, ...]:
     rows: list[Agent] = []
     seen: set[AgentIdentity] = set()
@@ -200,7 +187,7 @@ def tribe_unit_real_rows(unit: Agent) -> tuple[Agent, ...]:
     if unit.is_clan_container:
         return clan_section_member_rows(unit)
     if unit.is_family_container_row:
-        return _family_member_rows(unit)
+        return concrete_family_member_rows(unit)
     return _dedupe_rows((unit, *_descendant_rows(unit)))
 
 
