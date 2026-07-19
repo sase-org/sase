@@ -19,7 +19,12 @@ from textual.worker import Worker, WorkerState
 from sase.core.paths import sase_home
 from sase.logs import TOAST_HISTORY_LIMIT, current_toast_session, read_recent_toasts
 
-from ..actions.navigation.jump_hints import build_jump_hint_maps, normalize_jump_key
+from ..actions.navigation.jump_hints import (
+    JumpHintMatchOutcome,
+    build_jump_hint_maps,
+    match_jump_hint,
+    normalize_jump_key,
+)
 from ..logs import LogSource, log_sources
 from .base import CopyModeForwardingMixin
 from .logs_pane_toasts import render_toast_detail_body
@@ -324,6 +329,7 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         self._selected_index = 0
         self._last_detail_text: Text = Text("Loading logs...", style="dim")
         self._log_jump_mode_active = False
+        self._log_jump_pending_prefix = ""
         self._log_jump_hint_to_index: dict[str, int] = {}
         self._log_jump_index_to_hint: dict[int, str] = {}
         self._log_jump_back_stack: list[int] = []
@@ -531,7 +537,7 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         self._start_load(selected_index=self._highlighted_index(), reset_scroll=True)
 
     def action_jump_to_entry(self) -> None:
-        """Enter one-key jump mode for log source rows."""
+        """Enter adaptive jump mode for log source rows."""
         indices = list(range(len(self._source_options)))
         if not indices:
             return
@@ -541,12 +547,14 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         if not self._log_jump_hint_to_index:
             return
 
+        self._log_jump_pending_prefix = ""
         self._log_jump_mode_active = True
         self._rebuild_options(selected_index=self._highlighted_index())
         self._update_hints()
 
     def _clear_log_jump_hints(self) -> None:
         self._log_jump_mode_active = False
+        self._log_jump_pending_prefix = ""
         self._log_jump_hint_to_index = {}
         self._log_jump_index_to_hint = {}
 
@@ -572,9 +580,25 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
                         target_index,
                         push_current=False,
                     )
-            key = "1"
+            hint_target_index = next(
+                iter(self._log_jump_hint_to_index.values()),
+                None,
+            )
+        else:
+            match = match_jump_hint(
+                self._log_jump_hint_to_index,
+                self._log_jump_pending_prefix,
+                key,
+            )
+            if match.outcome is JumpHintMatchOutcome.PENDING:
+                self._log_jump_pending_prefix = match.prefix
+                return True
+            if match.outcome is JumpHintMatchOutcome.INVALID:
+                self._exit_log_jump_mode()
+                return True
+            hint_target_index = match.target
+            self._log_jump_pending_prefix = ""
 
-        hint_target_index = self._log_jump_hint_to_index.get(key)
         if hint_target_index is None:
             self._exit_log_jump_mode()
             return True

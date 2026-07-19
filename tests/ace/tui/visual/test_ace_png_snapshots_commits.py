@@ -162,7 +162,7 @@ async def test_commits_jump_hints_png_snapshot(
         await wait_for_svg_contains(page, "feat(artifacts): keep every commit")
         await page.press("apostrophe")
         await wait_for_svg_contains(page, "JUMP")
-        await wait_for_svg_contains(page, "[1]")
+        await wait_for_svg_contains(page, "[0]")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

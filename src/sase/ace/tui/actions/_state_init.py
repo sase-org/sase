@@ -269,8 +269,10 @@ class StateInitMixin:
         # Custom mode state (for user-defined prefix-key modes)
         self._custom_mode_active: str | None = None
 
-        # One-key jump mode state (V)
+        # Adaptive one- or two-character entry-jump mode state.
         self._entry_jump_mode_active: bool = False
+        self._entry_jump_hint_to_target: dict[str, object] = {}
+        self._entry_jump_pending_prefix: str = ""
         self._entry_jump_hint_to_index: dict[str, int] = {}
         self._entry_jump_index_to_hint: dict[int, str] = {}
         # Agents-tab banner targets (kept in their own maps so the int-keyed
@@ -308,6 +310,7 @@ class StateInitMixin:
         from ..widgets.artifacts import ArtifactEntryTarget, ArtifactsSubTab
 
         self._artifacts_jump_mode_subtab: ArtifactsSubTab | None = None
+        self._artifacts_jump_pending_prefix: str = ""
         self._artifacts_jump_hint_to_target: dict[str, ArtifactEntryTarget] = {}
         self._artifacts_jump_target_to_hint: dict[ArtifactEntryTarget, str] = {}
         self._artifacts_jump_history: dict[ArtifactsSubTab, ArtifactEntryTarget] = {}

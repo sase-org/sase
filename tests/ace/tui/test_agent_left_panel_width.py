@@ -113,10 +113,12 @@ def test_collapsed_agent_list_width_tracks_transient_jump_hint() -> None:
     assert widget._requested_width == normal_width
 
 
-def test_collapsed_agent_list_title_only_refresh_tracks_numeric_hint_width() -> None:
+def test_collapsed_agent_list_title_only_refresh_tracks_two_character_hint_width() -> (
+    None
+):
     widget = AgentList()
     normal_title = Text("▸ @tag · 1 [R1]")
-    hinted_title = Text("[12] ▸ @tag · 1 [R1]")
+    hinted_title = Text("[00] ▸ @tag · 1 [R1]")
 
     widget.border_title = normal_title
     widget.render_collapsed()

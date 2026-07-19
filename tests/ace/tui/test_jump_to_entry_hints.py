@@ -19,7 +19,10 @@ from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
 from sase.ace.tui.actions.navigation.jump_hints import (
     JUMP_HINT_CHARS,
+    JUMP_HINT_CAPACITY,
+    JumpHintMatchOutcome,
     build_jump_hint_maps,
+    match_jump_hint,
     normalize_jump_key,
 )
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
@@ -67,6 +70,8 @@ class _InlineJumpApp(AdvancedNavigationMixin, ChangeSpecGroupingNavMixin):
         self.current_tab = "changespecs"
         self._axe_items: list[Any] = []
         self._entry_jump_mode_active = False
+        self._entry_jump_hint_to_target: dict[str, object] = {}
+        self._entry_jump_pending_prefix = ""
         self._entry_jump_hint_to_index: dict[str, int] = {}
         self._entry_jump_index_to_hint: dict[int, str] = {}
         self._entry_jump_hint_to_banner: dict[str, Any] = {}
@@ -134,25 +139,84 @@ class _JumpAllTestApp(App[object | None]):
 def test_build_jump_hint_maps_uses_expected_order() -> None:
     indices = [10, 11, 12]
     hint_to_index, index_to_hint = build_jump_hint_maps(indices)
-    assert hint_to_index == {"1": 10, "2": 11, "3": 12}
-    assert index_to_hint == {10: "1", 11: "2", 12: "3"}
+    assert hint_to_index == {"0": 10, "1": 11, "2": 12}
+    assert index_to_hint == {10: "0", 11: "1", 12: "2"}
 
 
-def test_build_jump_hint_maps_truncates_to_hint_alphabet() -> None:
-    indices = list(range(len(JUMP_HINT_CHARS) + 5))
+def test_build_jump_hint_maps_uses_one_character_through_exactly_62() -> None:
+    indices = list(range(len(JUMP_HINT_CHARS)))
     hint_to_index, index_to_hint = build_jump_hint_maps(indices)
     assert len(hint_to_index) == len(JUMP_HINT_CHARS)
-    assert hint_to_index["1"] == 0
-    assert hint_to_index["0"] == 9
+    assert hint_to_index["0"] == 0
+    assert hint_to_index["9"] == 9
     assert hint_to_index["a"] == 10
     assert hint_to_index["z"] == 35
     assert hint_to_index["A"] == 36
     assert hint_to_index["Z"] == 61
-    assert (len(JUMP_HINT_CHARS) + 1) not in index_to_hint
+    assert index_to_hint[61] == "Z"
+
+
+def test_build_jump_hint_maps_switches_entire_63_target_session_to_two_chars() -> None:
+    hint_to_index, index_to_hint = build_jump_hint_maps(list(range(63)))
+
+    assert hint_to_index["00"] == 0
+    assert hint_to_index["09"] == 9
+    assert hint_to_index["0a"] == 10
+    assert hint_to_index["0Z"] == 61
+    assert hint_to_index["10"] == 62
+    assert index_to_hint[0] == "00"
+
+
+def test_build_jump_hint_maps_stops_at_zz_capacity() -> None:
+    targets = list(range(JUMP_HINT_CAPACITY + 2))
+    hint_to_index, index_to_hint = build_jump_hint_maps(targets)
+
+    assert len(hint_to_index) == JUMP_HINT_CAPACITY
+    assert hint_to_index["ZZ"] == JUMP_HINT_CAPACITY - 1
+    assert JUMP_HINT_CAPACITY not in index_to_hint
+
+
+def test_build_jump_hint_maps_one_target_starts_at_zero() -> None:
+    assert build_jump_hint_maps(["only"]) == ({"0": "only"}, {"only": "0"})
 
 
 def test_jump_hint_alphabet_has_62_chars() -> None:
     assert len(JUMP_HINT_CHARS) == 62
+
+
+def test_match_jump_hint_waits_for_two_character_completion() -> None:
+    hint_to_target, _ = build_jump_hint_maps(list(range(63)))
+
+    pending = match_jump_hint(hint_to_target, "", "1")
+    complete = match_jump_hint(hint_to_target, pending.prefix, "0")
+
+    assert pending.outcome is JumpHintMatchOutcome.PENDING
+    assert pending.prefix == "1"
+    assert complete.outcome is JumpHintMatchOutcome.COMPLETE
+    assert complete.target == 62
+
+
+def test_match_jump_hint_is_case_sensitive_and_rejects_invalid_sequences() -> None:
+    hint_to_target, _ = build_jump_hint_maps(list(range(63)))
+
+    assert match_jump_hint(hint_to_target, "0", "Z").target == 61
+    assert (
+        match_jump_hint(hint_to_target, "0", "z").outcome
+        is JumpHintMatchOutcome.COMPLETE
+    )
+    assert (
+        match_jump_hint(hint_to_target, "Z", "Z").outcome
+        is JumpHintMatchOutcome.INVALID
+    )
+
+
+def test_match_jump_hint_keeps_one_character_sessions_immediate() -> None:
+    hint_to_target, _ = build_jump_hint_maps([10, 11])
+
+    match = match_jump_hint(hint_to_target, "", "1")
+
+    assert match.outcome is JumpHintMatchOutcome.COMPLETE
+    assert match.target == 11
 
 
 def test_normalize_jump_key_prefers_uppercase_hint_character() -> None:
@@ -176,6 +240,59 @@ def test_inline_jump_to_entry_allocates_and_dispatches_uppercase_hint() -> None:
     assert handled is True
     assert app.current_idx == 36
     assert app._entry_jump_mode_active is False
+
+
+def test_inline_two_character_jump_waits_for_second_character() -> None:
+    app = _InlineJumpApp([_make_changespec(f"feature_{i:02d}") for i in range(63)])
+
+    app.action_jump_to_entry()
+
+    assert app._entry_jump_index_to_hint[0] == "00"
+    assert app._entry_jump_index_to_hint[62] == "10"
+    refreshes_after_activation = app.refreshes
+    assert app._handle_entry_jump_key("1") is True
+    assert app.current_idx == 0
+    assert app._entry_jump_mode_active is True
+    assert app._entry_jump_pending_prefix == "1"
+    assert app.refreshes == refreshes_after_activation
+
+    assert app._handle_entry_jump_key("0") is True
+    assert app.current_idx == 62
+    assert app._entry_jump_mode_active is False
+    assert app._entry_jump_pending_prefix == ""
+
+
+def test_inline_two_character_jump_escape_clears_partial_prefix() -> None:
+    app = _InlineJumpApp([_make_changespec(f"feature_{i:02d}") for i in range(63)])
+    app.action_jump_to_entry()
+    assert app._handle_entry_jump_key("0") is True
+
+    assert app._handle_entry_jump_key("escape") is True
+
+    assert app._entry_jump_mode_active is False
+    assert app._entry_jump_pending_prefix == ""
+
+
+def test_apostrophe_selects_first_target_directly_at_two_character_width() -> None:
+    app = _InlineJumpApp([_make_changespec(f"feature_{i:02d}") for i in range(63)])
+    app.current_idx = 62
+
+    app.action_jump_to_entry()
+    assert app._handle_entry_jump_key("apostrophe") is True
+
+    assert app.current_idx == 0
+    assert app._entry_jump_index_stack["changespecs"] == [62]
+
+
+def test_fast_jump_selects_first_target_directly_at_two_character_width() -> None:
+    app = _InlineJumpApp([_make_changespec(f"feature_{i:02d}") for i in range(63)])
+    app.current_idx = 62
+
+    app.action_jump_to_entry_fast()
+
+    assert app.current_idx == 0
+    assert app._entry_jump_index_stack["changespecs"] == [62]
+    assert app._entry_jump_pending_prefix == ""
 
 
 def test_apostrophe_without_history_dispatches_first_changespec_hint() -> None:
@@ -225,7 +342,7 @@ def test_changespec_jump_stack_walks_back_and_forward() -> None:
     app.current_idx = 2
 
     app.action_jump_to_entry()
-    handled = app._handle_entry_jump_key("1")
+    handled = app._handle_entry_jump_key("0")
 
     assert handled is True
     assert app.current_idx == 0
@@ -251,7 +368,7 @@ def test_new_changespec_hint_jump_clears_forward_history() -> None:
     app._entry_jump_forward_index_stack["changespecs"] = [0]
 
     app.action_jump_to_entry()
-    handled = app._handle_entry_jump_key("2")
+    handled = app._handle_entry_jump_key("1")
 
     assert handled is True
     assert app.current_idx == 1
@@ -495,6 +612,55 @@ def test_jump_all_modal_on_key_uses_uppercase_event_character(
     assert dismissed == [JumpAllResult(tab="changespecs", index=36)]
     assert event.prevented is True
     assert event.stopped is True
+
+
+def test_jump_all_modal_two_character_hint_dispatches_only_after_completion(
+    monkeypatch: Any,
+) -> None:
+    modal = JumpAllModal(
+        changespecs=[_make_changespec(f"feature_{i:02d}") for i in range(63)],
+        agents=[],
+        axe_items=[],
+    )
+    dismissed: list[JumpAllResult | None] = []
+    monkeypatch.setattr(modal, "dismiss", dismissed.append)
+
+    first = _KeyEvent(key="1", character="1")
+    modal.on_key(first)  # type: ignore[arg-type]
+    assert dismissed == []
+    assert modal._pending_hint_prefix == "1"
+    assert first.prevented is True
+    assert first.stopped is True
+
+    second = _KeyEvent(key="0", character="0")
+    modal.on_key(second)  # type: ignore[arg-type]
+    assert dismissed == [JumpAllResult(tab="changespecs", index=62)]
+    assert modal._pending_hint_prefix == ""
+
+
+def test_jump_all_backtick_remains_control_during_partial_hint(
+    monkeypatch: Any,
+) -> None:
+    last_position = JumpAllResult(tab="agents", index=4)
+    modal = JumpAllModal(
+        changespecs=[_make_changespec(f"feature_{i:02d}") for i in range(63)],
+        agents=[],
+        axe_items=[],
+        last_position=last_position,
+    )
+    dismissed: list[JumpAllResult | None] = []
+    monkeypatch.setattr(modal, "dismiss", dismissed.append)
+
+    modal.on_key(_KeyEvent(key="0", character="0"))  # type: ignore[arg-type]
+    assert modal._pending_hint_prefix == "0"
+
+    back = _KeyEvent(key="grave_accent", character="`")
+    modal.on_key(back)  # type: ignore[arg-type]
+
+    assert dismissed == [last_position]
+    assert modal._pending_hint_prefix == ""
+    assert back.prevented is True
+    assert back.stopped is True
 
 
 async def test_jump_all_modal_ctrl_d_scrolls_without_dismissing() -> None:

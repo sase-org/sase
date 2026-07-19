@@ -44,7 +44,7 @@ async def test_apostrophe_enters_jump_mode_with_hints_on_enabled_rows_only() -> 
 
         option_list = modal.query_one("#saved-agent-group-list", OptionList)
         labels = {option.id: _option_plain(option) for option in option_list.options}
-        assert labels["group:group-00"].startswith("[1] ")
+        assert labels["group:group-00"].startswith("[0] ")
         assert labels["custom-search"].startswith("[")
         assert not labels["heading:saved"].startswith("[")
         assert not labels["sep:1"].startswith("[")

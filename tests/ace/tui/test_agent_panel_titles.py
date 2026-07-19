@@ -170,6 +170,25 @@ def test_collapsed_panel_title_prepends_yellow_jump_hint() -> None:
     )
 
 
+def test_panel_title_renders_two_character_jump_hint() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1, waiting=2),
+        collapsed=True,
+        jump_hint="0Z",
+    )
+
+    assert title.plain == "[0Z] ▸ @chop · 3 [R1 W2]"
+    _assert_title_span(
+        title,
+        start=0,
+        end=5,
+        style="bold #FFFF00",
+        text="[0Z] ",
+    )
+
+
 def test_panel_title_renders_multi_digit_numeric_selection_hint() -> None:
     title = agent_panel_border_title(
         None,

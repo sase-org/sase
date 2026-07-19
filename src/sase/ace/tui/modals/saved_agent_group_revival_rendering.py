@@ -65,7 +65,7 @@ def _saved_group_time_label(created_at: str, *, now: datetime | None = None) -> 
 
 
 def apply_jump_hint_prefix(label: Text, hint: str) -> Text:
-    """Prefix a selectable row label with a one-key jump hint marker.
+    """Prefix a selectable row label with an adaptive jump hint marker.
 
     Builds a fresh ``Text`` so the original styled label, its ``no_wrap``
     flag, and its overflow behavior are preserved while a ``[N] `` hint

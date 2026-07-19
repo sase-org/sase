@@ -132,7 +132,7 @@ class BgCmdList(OptionList):
             axe_running: Whether axe daemon is running.
             lumberjack_names: Configured lumberjack names (ordered).
             bgcmd_infos: Mapping of slot -> info for bgcmds.
-            jump_hints: Optional local row index -> hint character mapping.
+            jump_hints: Optional local row index -> adaptive hint mapping.
             lumberjack_statuses: Cached status per lumberjack. If omitted, the
                 widget falls back to a synchronous read from disk (old
                 behavior — only used by tests / legacy callers).

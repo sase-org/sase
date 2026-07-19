@@ -1,6 +1,6 @@
 """Jump-hint order on the Agents tab follows tree-walk render order.
 
-The single-key jump hints next to each agent must read top-to-bottom in
+The adaptive jump hints next to each agent must read top-to-bottom in
 ``JUMP_HINT_CHARS`` order. Storage order can differ from render order
 because :func:`build_agent_tree` sorts by project / name-root, so the
 hint-candidate indices must come from the same tree walk the renderer

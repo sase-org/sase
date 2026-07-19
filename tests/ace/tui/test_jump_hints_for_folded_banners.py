@@ -1,9 +1,9 @@
 """Jump hints cover collapsed group banners and panel titles on the Agents tab.
 
 Pressing ``'`` should paint a ``[x]`` chip next to every collapsed banner
-row alongside the visible-agent chips and every split-panel title, so a single
-keystroke can land on an agent, focus a folded group banner, or focus a panel
-in either its collapsed or expanded state. Expanded banners stay hint-less.
+row alongside the visible-agent chips and every split-panel title, so a
+completed hint can land on an agent, focus a folded group banner, or focus a
+panel in either its collapsed or expanded state. Expanded banners stay hint-less.
 """
 
 from tests.ace.tui._jump_hints_for_folded_banners_helpers import _agent, _StubApp
@@ -79,12 +79,38 @@ def test_all_panel_maps_use_stable_keys_including_untagged() -> None:
     app._begin_agents_jump_mode()
 
     assert app._entry_jump_hint_to_panel == {
-        "1": ("panel", "apple"),
-        "3": ("panel", None),
-        "4": ("panel", "chop"),
+        "0": ("panel", "apple"),
+        "2": ("panel", None),
+        "3": ("panel", "chop"),
     }
     assert app._entry_jump_panel_to_hint == {
-        ("panel", "apple"): "1",
-        ("panel", None): "3",
-        ("panel", "chop"): "4",
+        ("panel", "apple"): "0",
+        ("panel", None): "2",
+        ("panel", "chop"): "3",
     }
+
+
+def test_large_agents_namespace_includes_rows_banner_and_panel_title() -> None:
+    visible = [
+        _agent(project="alpha", cl=f"visible-{index:02d}", name=f"agent-{index:02d}")
+        for index in range(63)
+    ]
+    hidden = [
+        _agent(project="alpha", cl="collapsed", name=f"hidden-{index}")
+        for index in range(2)
+    ]
+    app = _StubApp(
+        [*visible, *hidden],
+        collapsed=[("alpha", "collapsed")],
+    )
+
+    targets = app._jump_candidate_targets()
+    app._begin_agents_jump_mode()
+
+    assert len(targets) == 65  # one panel title + one banner + 63 agent rows
+    assert {target[0] for target in targets} == {"panel", "banner", "agent"}
+    assert len(app._entry_jump_hint_to_target) == 65
+    assert all(len(hint) == 2 for hint in app._entry_jump_hint_to_target)
+    assert len(app._entry_jump_hint_to_panel) == 1
+    assert len(app._entry_jump_hint_to_banner) == 1
+    assert len(app._entry_jump_hint_to_index) == 63

@@ -92,6 +92,7 @@ class NotificationModal(
         self._pending_confirm_notification_ids: list[str] | None = None
         self._marked_notification_ids: set[str] = set()
         self._entry_jump_mode_active = False
+        self._entry_jump_pending_prefix = ""
         self._entry_jump_hint_to_index: dict[str, int] = {}
         self._entry_jump_index_to_hint: dict[int, str] = {}
         self._entry_jump_last_index: int | None = None

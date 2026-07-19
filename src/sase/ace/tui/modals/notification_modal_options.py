@@ -10,7 +10,9 @@ from textual.widgets import Label
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.actions.navigation.jump_hints import (
+    JumpHintMatchOutcome,
     build_jump_hint_maps,
+    match_jump_hint,
     normalize_jump_key,
 )
 from sase.notifications import (
@@ -174,7 +176,7 @@ class NotificationOptionMixin:
         return self._visual_notification_index_order()
 
     def action_jump_to_entry(self: Any) -> None:
-        """Enter one-key jump mode for notification rows."""
+        """Enter adaptive jump mode for notification rows."""
         indices = self._jump_candidate_indices()
         if not indices:
             return
@@ -184,6 +186,7 @@ class NotificationOptionMixin:
         if not self._entry_jump_hint_to_index:
             return
 
+        self._entry_jump_pending_prefix = ""
         self._entry_jump_mode_active = True
         self._update_hint_footer()
         self._rebuild_list(
@@ -194,6 +197,7 @@ class NotificationOptionMixin:
     def _clear_entry_jump_hints(self: Any) -> None:
         """Clear transient jump hint maps."""
         self._entry_jump_mode_active = False
+        self._entry_jump_pending_prefix = ""
         self._entry_jump_hint_to_index = {}
         self._entry_jump_index_to_hint = {}
 
@@ -205,7 +209,7 @@ class NotificationOptionMixin:
         self._rebuild_list(highlight_index=highlight_index)
 
     def _handle_entry_jump_key(self: Any, key: str) -> bool:
-        """Handle one keypress while notification jump mode is active."""
+        """Handle one keypress or prefix while notification jump mode is active."""
         if not self._entry_jump_mode_active:
             return False
         if key == "escape":
@@ -222,9 +226,22 @@ class NotificationOptionMixin:
                 if current is not None:
                     self._entry_jump_last_index = current
                 return self._jump_to_notification_index(last_target)
-            key = "1"
+            hint_target = next(iter(self._entry_jump_hint_to_index.values()), None)
+        else:
+            match = match_jump_hint(
+                self._entry_jump_hint_to_index,
+                self._entry_jump_pending_prefix,
+                key,
+            )
+            if match.outcome is JumpHintMatchOutcome.PENDING:
+                self._entry_jump_pending_prefix = match.prefix
+                return True
+            if match.outcome is JumpHintMatchOutcome.INVALID:
+                self._exit_entry_jump_mode()
+                return True
+            hint_target = match.target
+            self._entry_jump_pending_prefix = ""
 
-        hint_target = self._entry_jump_hint_to_index.get(key)
         if hint_target is None:
             self._exit_entry_jump_mode()
             return True

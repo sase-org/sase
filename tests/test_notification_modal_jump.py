@@ -124,7 +124,7 @@ def test_notification_jump_resets_file_index_and_refreshes_preview() -> None:
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
-    handled = modal._handle_entry_jump_key("2")
+    handled = modal._handle_entry_jump_key("1")
 
     assert handled is True
     assert modal._get_selected_index() == 1
@@ -141,7 +141,7 @@ def test_notification_jump_on_key_stops_valid_hint_without_dismiss() -> None:
     _wire_fake_option_list(modal, highlighted_index=0)
     modal._display_file = MagicMock()  # type: ignore[method-assign]
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
-    event = _KeyEvent(key="2", character="2")
+    event = _KeyEvent(key="1", character="1")
 
     modal.action_jump_to_entry()
     modal.on_key(event)  # type: ignore[arg-type]
@@ -162,7 +162,7 @@ def test_notification_jump_then_enter_activates_highlighted_notification() -> No
     modal.dismiss = MagicMock()  # type: ignore[method-assign]
 
     modal.action_jump_to_entry()
-    assert modal._handle_entry_jump_key("2") is True
+    assert modal._handle_entry_jump_key("1") is True
     modal.dismiss.assert_not_called()
 
     event = MagicMock()
@@ -184,9 +184,31 @@ async def test_notification_jump_pilot_keeps_modal_open_and_moves_highlight() ->
         await pilot.pause()
 
         await pilot.press("apostrophe")
-        await pilot.press("2")
+        await pilot.press("1")
         await pilot.pause()
 
         assert pilot.app.screen is modal
         assert dismissed == []
         assert modal._get_selected_index() == 1
+
+
+def test_notification_two_character_hint_waits_and_cleans_up() -> None:
+    notifications = [
+        _make_notification(f"n{i:02d}", action="JumpToAgent") for i in range(63)
+    ]
+    modal = NotificationModal(notifications)
+    _wire_fake_option_list(modal, highlighted_index=0)
+    modal._display_file = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_jump_to_entry()
+    assert modal._entry_jump_index_to_hint[62] == "10"
+
+    assert modal._handle_entry_jump_key("1") is True
+    assert modal._entry_jump_mode_active is True
+    assert modal._entry_jump_pending_prefix == "1"
+    assert modal._get_selected_index() == 0
+
+    assert modal._handle_entry_jump_key("0") is True
+    assert modal._get_selected_index() == 62
+    assert modal._entry_jump_mode_active is False
+    assert modal._entry_jump_pending_prefix == ""

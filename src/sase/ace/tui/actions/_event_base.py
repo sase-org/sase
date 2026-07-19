@@ -43,6 +43,7 @@ class EventHandlersBase:
     _custom_mode_active: str | None
     _custom_mode_prefixes: dict[str, str]
     _entry_jump_mode_active: bool
+    _entry_jump_pending_prefix: str
     _member_jump_pending_digit: str | None
     _last_input_mono: float
     _last_input_action: str | None

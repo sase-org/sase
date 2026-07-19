@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ._entry_jump_mode import EntryJumpModeMixin
+from .jump_hints import JumpHintMatchOutcome, match_jump_hint
 
 
 class EntryJumpDispatchMixin(EntryJumpModeMixin):
@@ -68,7 +69,7 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
         self._refresh_after_entry_jump_restore()
 
     def _handle_entry_jump_key(self, key: str) -> bool:
-        """Handle one keypress while jump mode is active."""
+        """Handle one keypress or prefix character while jump mode is active."""
         if not self._entry_jump_mode_active:
             return False
         handle_artifacts = getattr(self, "_handle_non_pr_artifacts_jump_key", None)
@@ -80,6 +81,7 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
             self._exit_entry_jump_mode()
             return True
 
+        resolved_target: object | None = None
         if key == "apostrophe":
             if self.current_tab == "agents":
                 guard = getattr(
@@ -94,7 +96,6 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                     if callable(refresh_detail):
                         refresh_detail()
                     return True
-                key = "1"
             else:
                 last_anchor = self._pop_entry_jump_index()
                 if last_anchor is not None:
@@ -107,12 +108,46 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                     self._restore_entry_jump_anchor(last_anchor)
                     self._exit_entry_jump_mode()
                     return True
-                key = "1"
+
+            resolved_target = next(
+                iter(self._active_entry_jump_target_map().values()),
+                None,
+            )
+        else:
+            match = match_jump_hint(
+                self._active_entry_jump_target_map(),
+                getattr(self, "_entry_jump_pending_prefix", ""),
+                key,
+            )
+            if match.outcome is JumpHintMatchOutcome.PENDING:
+                self._entry_jump_pending_prefix = match.prefix
+                return True
+            if match.outcome is JumpHintMatchOutcome.INVALID:
+                self._exit_entry_jump_mode()
+                return True
+            resolved_target = match.target
+            self._entry_jump_pending_prefix = ""
+
+        if resolved_target is None:
+            self._exit_entry_jump_mode()
+            return True
 
         if self.current_tab == "agents":
-            banner_target = self._entry_jump_hint_to_banner.get(key)
-            panel_target = self._entry_jump_hint_to_panel.get(key)
-            agent_target = self._entry_jump_hint_to_index.get(key)
+            banner_target = (
+                resolved_target
+                if isinstance(resolved_target, tuple) and resolved_target[0] == "banner"
+                else None
+            )
+            panel_target = (
+                resolved_target
+                if isinstance(resolved_target, tuple) and resolved_target[0] == "panel"
+                else None
+            )
+            agent_target = (
+                resolved_target[1]
+                if isinstance(resolved_target, tuple) and resolved_target[0] == "agent"
+                else None
+            )
             if banner_target is None and panel_target is None and agent_target is None:
                 self._exit_entry_jump_mode()
                 return True
@@ -245,8 +280,17 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
             return True
 
         if self.current_tab == "changespecs":
-            banner_key = self._entry_jump_hint_to_changespec_banner.get(key)
-            agent_target = self._entry_jump_hint_to_index.get(key)
+            banner_key = (
+                resolved_target[1]
+                if isinstance(resolved_target, tuple) and resolved_target[0] == "banner"
+                else None
+            )
+            agent_target = (
+                resolved_target[1]
+                if isinstance(resolved_target, tuple)
+                and resolved_target[0] == "changespec"
+                else None
+            )
             if banner_key is None and agent_target is None:
                 self._exit_entry_jump_mode()
                 return True
@@ -268,12 +312,38 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
             self._refresh_display()  # type: ignore[attr-defined]
             return True
 
-        target = self._entry_jump_hint_to_index.get(key)
-        if target is None:
+        if not isinstance(resolved_target, int):
             self._exit_entry_jump_mode()
             return True
 
+        target = resolved_target
         self._push_entry_jump_index_origin_if_changed(target_idx=target)
         self.current_idx = target
         self._exit_entry_jump_mode()
         return True
+
+    def _active_entry_jump_target_map(self) -> dict[str, object]:
+        """Return the unified active map, with compatibility for small harnesses."""
+        unified = getattr(self, "_entry_jump_hint_to_target", None)
+        if unified:
+            return unified
+
+        if self.current_tab == "agents":
+            targets: dict[str, object] = {
+                hint: ("agent", index)
+                for hint, index in self._entry_jump_hint_to_index.items()
+            }
+            targets.update(self._entry_jump_hint_to_banner)
+            targets.update(self._entry_jump_hint_to_panel)
+            return targets
+        if self.current_tab == "changespecs":
+            targets = {
+                hint: ("changespec", index)
+                for hint, index in self._entry_jump_hint_to_index.items()
+            }
+            targets.update(
+                (hint, ("banner", group_key))
+                for hint, group_key in self._entry_jump_hint_to_changespec_banner.items()
+            )
+            return targets
+        return dict(self._entry_jump_hint_to_index)

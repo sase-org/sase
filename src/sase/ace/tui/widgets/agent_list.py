@@ -164,7 +164,7 @@ class AgentList(OptionList, inherit_bindings=False):
             marked_agents: Optional set of marked agent identities
             unread_agents: Optional set of completed agent identities with unseen
                 results in this TUI session.
-            jump_hints: Optional row index -> hint character mapping
+            jump_hints: Optional row index -> adaptive hint mapping
             current_attempt_number: Accepted for compatibility with pinned
                 attempt detail state. The list still highlights the selected
                 agent row because prior-attempt child rows are not rendered.

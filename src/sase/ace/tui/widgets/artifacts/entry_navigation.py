@@ -27,10 +27,10 @@ class ArtifactEntryNavigator(Protocol):
         self,
         hints: Mapping[ArtifactEntryTarget, str],
     ) -> None:
-        """Repaint selectable rows with transient one-key hints."""
+        """Repaint selectable rows with transient adaptive jump hints."""
 
     def clear_entry_jump_hints(self) -> None:
-        """Remove transient one-key hints while preserving selection."""
+        """Remove transient jump hints while preserving selection."""
 
 
 def select_relative_entry(

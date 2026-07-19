@@ -81,13 +81,18 @@ work list. Movement clamps at the first or last entry and silently does nothing 
 | `g` / `G`                 | Select the first / last commit, issue, proposal, bead, phase, or archived plan          |
 | `Ctrl+F` / `Ctrl+B`       | Move down / up 10 selectable entries                                                    |
 | `Ctrl+D` / `Ctrl+U`       | Scroll the active right-hand detail pane down / up (half page)                          |
-| `'`                       | Show one-key entry hints; press `'` again for the first entry or the last jump origin   |
+| `'`                       | Show adaptive entry hints; press `'` again for the first entry or the last jump origin  |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the pane's jump stack; back falls through to first hint |
 
 Hint keys select an entry without activating it. Jump-back history is kept separately for Commits, Bugs, and Plans, and
 stale origins disappear automatically after filtering, changing project scope, refreshing data, or collapsing an
 expanded plan tree. Escape or an invalid hint exits jump mode. These actions use the configured keymap values; the keys
 above are the defaults.
+
+Shared entry-jump surfaces allocate hints from the zero-based alphabet `0`–`9`, `a`–`z`, `A`–`Z`. A session with at most
+62 targets uses one character (`0` through `Z`). A larger session uses two characters for every target, beginning `00`,
+`01`, …, `0Z`, `10` and ending at the fixed `ZZ` capacity. The first character of a two-character hint keeps jump mode
+open; the second completes the jump. Hints remain case-sensitive.
 
 ### Filtering Commits and Plans
 
@@ -120,7 +125,7 @@ for both inclusion and exclusion.
 | ------------------------- | -------------------------------------------------------------------------------------------- |
 | `j` / `k`                 | Move to next / previous visible row (banner at fold `< L2`, PR at the leaf level)            |
 | `<` / `>` / `~`           | Navigate to ancestor / child / sibling PR                                                    |
-| `'`                       | Jump to entry by hint character (current tab); hints land on collapsed banners too           |
+| `'`                       | Jump by adaptive hint (current tab); hints land on collapsed banners too                     |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                        |
 | `o` / `O`                 | Cycle PR grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)            |
@@ -336,7 +341,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | ------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, cycle whole panels instead |
 | `J` / `K`                 | Cycle focus across tribe side panels (forward / reverse)                                             |
-| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by hint character                     |
+| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                      |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint         |
 | `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                  |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                |
@@ -1006,7 +1011,7 @@ numerical identity.
 | ------------------------- | ----------------------------------------------------------------------------- |
 | `j` / `k`                 | Move to next / previous sidebar row (lumberjack, chop, or background command) |
 | `Ctrl+N` / `Ctrl+P`       | Page through the focused chop's run history (newer / older)                   |
-| `'`                       | Jump to a current-tab entry by hint character                                 |
+| `'`                       | Jump to a current-tab entry by adaptive hint                                  |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack                    |
 | `` ` ``                   | Jump to an entry across all tabs                                              |
 | `g`                       | Scroll to top                                                                 |
@@ -1436,15 +1441,15 @@ Press `Ctrl+O` to start the guided creation flow:
 ## Jump All Modal
 
 Press `` ` `` (backtick) on any tab to open the Jump All Modal. It displays all entries across Agents, Artifacts, and
-Axe tabs with single-keypress hint characters for instant navigation. Selecting an entry switches to the appropriate tab
-and focuses it.
+Axe tabs with the same adaptive one- or two-character hints used by current-tab entry jump. Completing an entry's hint
+switches to the appropriate tab and focuses it.
 
-Hint characters are drawn from an extended alphabet — lowercase `a`–`z` first, then uppercase `A`–`Z` — so modals with
-many entries can still fit a unique single-keypress hint per row without resorting to multi-character hints.
+Up to 62 entries use `0`–`9`, `a`–`z`, `A`–`Z`. Larger result sets use fixed-width pairs from `00` through `ZZ`; a first
+character is consumed without closing the modal, and uppercase characters remain case-sensitive.
 
 | Key         | Action                          |
 | ----------- | ------------------------------- |
-| Hint char   | Jump to the corresponding entry |
+| Hint        | Jump to the corresponding entry |
 | `Esc` / `q` | Close modal                     |
 
 The modal groups entries by tab (Agents, Artifacts, Axe) and shows contextual information for each: PR names and

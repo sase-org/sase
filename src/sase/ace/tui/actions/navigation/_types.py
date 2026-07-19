@@ -70,6 +70,8 @@ class NavigationMixinBase:
     _child_mode_active: bool
     _sibling_mode_active: bool
     _entry_jump_mode_active: bool
+    _entry_jump_hint_to_target: dict[str, object]
+    _entry_jump_pending_prefix: str
     _entry_jump_hint_to_index: dict[str, int]
     _entry_jump_index_to_hint: dict[int, str]
     _entry_jump_index_stack: dict[str, list[EntryJumpAnchor]]
@@ -92,6 +94,7 @@ class NavigationMixinBase:
     _entry_jump_agents_anchor_stack: list[AgentJumpAnchor]
     _entry_jump_agents_forward_anchor_stack: list[AgentJumpAnchor]
     _artifacts_jump_mode_subtab: ArtifactsSubTab | None
+    _artifacts_jump_pending_prefix: str
     _artifacts_jump_hint_to_target: dict[str, ArtifactEntryTarget]
     _artifacts_jump_target_to_hint: dict[ArtifactEntryTarget, str]
     _artifacts_jump_history: dict[ArtifactsSubTab, ArtifactEntryTarget]

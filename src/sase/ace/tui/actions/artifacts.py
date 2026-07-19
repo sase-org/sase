@@ -137,6 +137,7 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
     _artifacts_project_picker_pending: bool
     _artifacts_scope_was_picked: bool
     _artifacts_jump_mode_subtab: ArtifactsSubTab | None
+    _artifacts_jump_pending_prefix: str
     _artifacts_jump_hint_to_target: dict[str, ArtifactEntryTarget]
     _artifacts_jump_target_to_hint: dict[ArtifactEntryTarget, str]
     _artifacts_jump_history: dict[ArtifactsSubTab, ArtifactEntryTarget]
@@ -208,7 +209,7 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
         return True
 
     def _begin_non_pr_artifacts_jump_mode(self) -> bool:
-        """Paint shared one-key hints for the active non-PR Artifacts list."""
+        """Paint shared adaptive hints for the active non-PR Artifacts list."""
         if not self._non_pr_artifacts_active():
             return False
         pane = self._artifacts_entry_navigator()
@@ -222,6 +223,7 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
         hint_to_target, target_to_hint = build_jump_hint_maps(targets)
         self._artifacts_jump_hint_to_target = hint_to_target
         self._artifacts_jump_target_to_hint = target_to_hint
+        self._artifacts_jump_pending_prefix = ""
         self._artifacts_jump_mode_subtab = self.current_artifacts_subtab
         self._entry_jump_mode_active = True  # type: ignore[attr-defined]
         pane.apply_entry_jump_hints(target_to_hint)
@@ -262,10 +264,26 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
         if key == "apostrophe":
             target = self._valid_artifacts_jump_history(subtab, pane)
             if target is None:
-                targets = pane.entry_targets()
-                target = targets[0] if targets else None
+                target = next(iter(self._artifacts_jump_hint_to_target.values()), None)
         else:
-            target = self._artifacts_jump_hint_to_target.get(key)
+            from .navigation.jump_hints import (
+                JumpHintMatchOutcome,
+                match_jump_hint,
+            )
+
+            match = match_jump_hint(
+                self._artifacts_jump_hint_to_target,
+                self._artifacts_jump_pending_prefix,
+                key,
+            )
+            if match.outcome is JumpHintMatchOutcome.PENDING:
+                self._artifacts_jump_pending_prefix = match.prefix
+                return True
+            if match.outcome is JumpHintMatchOutcome.INVALID:
+                self._cancel_non_pr_artifacts_jump_mode()
+                return True
+            target = match.target
+            self._artifacts_jump_pending_prefix = ""
 
         if target is None or target not in pane.entry_targets():
             self._cancel_non_pr_artifacts_jump_mode()
@@ -285,6 +303,7 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
             if pane is not None:
                 pane.clear_entry_jump_hints()
         self._artifacts_jump_mode_subtab = None
+        self._artifacts_jump_pending_prefix = ""
         self._artifacts_jump_hint_to_target = {}
         self._artifacts_jump_target_to_hint = {}
         if owner is not None:

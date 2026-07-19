@@ -108,7 +108,7 @@ class ChangeSpecList(OptionList):
             marked_indices: Set of indices that are marked
             hide_reverted: Whether reverted ChangeSpecs are currently hidden
             hide_submitted: Whether submitted ChangeSpecs are currently hidden
-            jump_hints: Optional local row index -> hint character mapping
+            jump_hints: Optional local row index -> adaptive hint mapping
             grouping_mode: Which ChangeSpec grouping mode to render.  Banner rows
                 are produced by :func:`build_changespec_tree` and
                 interleaved with the ChangeSpec rows.
@@ -118,7 +118,7 @@ class ChangeSpecList(OptionList):
             current_group_key: When non-None and pointing at a banner
                 row whose group is collapsed, highlight that banner
                 instead of the ChangeSpec row at ``current_idx``.
-            banner_jump_hints: Group key -> hint character for collapsed
+            banner_jump_hints: Group key -> adaptive hint for collapsed
                 banner rows (Phase 4 wires the producer side; the widget
                 only needs to render whatever it is given).
             now: Reference time for ``BY_DATE`` bucketing.  Defaults to

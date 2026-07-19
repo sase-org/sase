@@ -129,11 +129,11 @@ async def test_commits_fast_navigation_skips_day_banners_and_jumps_without_openi
         timeline = pane.query_one("#commits-timeline", OptionList)
         assert timeline.get_option_at_index(0).disabled is True
         assert "[" not in timeline.get_option_at_index(0).prompt.plain
-        assert timeline.get_option_at_index(1).prompt.plain.startswith("[1] ")
-        assert timeline.get_option_at_index(3).prompt.plain.startswith("[2] ")
+        assert timeline.get_option_at_index(1).prompt.plain.startswith("[0] ")
+        assert timeline.get_option_at_index(3).prompt.plain.startswith("[1] ")
         footer = page.query_one_widget("#keybinding-content", Static)
         assert "JUMP" in footer.content.plain
-        await page.press("2")
+        await page.press("1")
         assert pane.selected_entry_target() == pane.entry_targets()[1]
         assert page.state["modal"] is None
         assert "JUMP" not in footer.content.plain
@@ -175,10 +175,10 @@ async def test_bugs_fast_navigation_restores_issue_focus_and_ignores_links(
 
         await page.press("g", "apostrophe")
         issues = pane.query_one("#bugs-list", BugIssueList)
-        assert issues.get_option_at_index(0).prompt.plain.startswith("[1] ")
-        assert issues.get_option_at_index(1).prompt.plain.startswith("[2] ")
+        assert issues.get_option_at_index(0).prompt.plain.startswith("[0] ")
+        assert issues.get_option_at_index(1).prompt.plain.startswith("[1] ")
         assert links.option_count == 0
-        await page.press("2")
+        await page.press("1")
         assert pane.selected_issue is not None
         assert pane.selected_issue.number == 2
         assert page.state["modal"] is None
@@ -193,6 +193,38 @@ async def test_bugs_fast_navigation_restores_issue_focus_and_ignores_links(
         pane.accept_snapshot(replace(snapshot, issues=tuple(reversed(snapshot.issues))))
         assert pane.selected_issue is not None
         assert pane.selected_issue.number == 2
+
+
+async def test_bugs_two_character_jump_waits_for_complete_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _bugs_snapshot(tuple(_issue(number) for number in range(1, 64)))
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.bugs.collect_bug_snapshot",
+        lambda *_args, **_kwargs: snapshot,
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        page.app._set_artifacts_project_scope("alpha", picked=True)
+        page.app.current_artifacts_subtab = "bugs"
+        pane = page.query_one_widget("#artifacts-bugs-pane", ArtifactsBugsPane)
+        await page.wait_for(lambda _state: pane.issues == snapshot.issues)
+        origin = pane.selected_entry_target()
+
+        await page.press("apostrophe")
+        assert page.app._artifacts_jump_target_to_hint[pane.entry_targets()[0]] == "00"
+        assert page.app._artifacts_jump_target_to_hint[pane.entry_targets()[62]] == "10"
+
+        await page.press("1")
+        assert page.app._entry_jump_mode_active is True
+        assert page.app._artifacts_jump_pending_prefix == "1"
+        assert pane.selected_entry_target() == origin
+
+        await page.press("0")
+        assert pane.selected_issue is not None
+        assert pane.selected_issue.number == 63
+        assert page.app._entry_jump_mode_active is False
+        assert page.app._artifacts_jump_pending_prefix == ""
 
 
 async def test_plans_fast_navigation_skips_headings_and_includes_expanded_phases(
@@ -231,10 +263,10 @@ async def test_plans_fast_navigation_skips_headings_and_includes_expanded_phases
             for index in range(option_list.option_count)
             if option_list.get_option_at_index(index).disabled
         ]
-        assert selectable_prompts[0].startswith("[1] ")
-        assert selectable_prompts[1].startswith("[2] ")
+        assert selectable_prompts[0].startswith("[0] ")
+        assert selectable_prompts[1].startswith("[1] ")
         assert all(not prompt.startswith("[") for prompt in disabled_prompts)
-        await page.press("2")
+        await page.press("1")
         assert pane.selected_row() is not None
         assert pane.selected_row().kind == "epic"  # type: ignore[union-attr]
         assert page.state["modal"] is None
@@ -268,7 +300,7 @@ async def test_non_pr_jump_history_is_isolated_and_model_changes_cancel_hints(
         await page.press("]")
         commits_pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: commits_pane.result is commits)
-        await page.press("apostrophe", "2")
+        await page.press("apostrophe", "1")
         assert page.app._artifacts_jump_history["commits"] == (
             "commit",
             "alpha",
@@ -278,7 +310,7 @@ async def test_non_pr_jump_history_is_isolated_and_model_changes_cancel_hints(
         page.app.current_artifacts_subtab = "bugs"
         bugs_pane = page.query_one_widget("#artifacts-bugs-pane", ArtifactsBugsPane)
         await page.wait_for(lambda _state: bugs_pane.issues == bugs.issues)
-        await page.press("apostrophe", "2")
+        await page.press("apostrophe", "1")
         await page.press("apostrophe")
         footer = page.query_one_widget("#keybinding-content", Static)
         assert "' back" in footer.content.plain

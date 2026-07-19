@@ -15,7 +15,7 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
     """Mixin providing entry-jump mode setup and teardown."""
 
     def action_jump_to_entry(self) -> None:
-        """Enter one-key jump mode for the current tab's left-panel entries."""
+        """Enter adaptive jump mode for the current tab's left-panel entries."""
         begin_artifacts = getattr(self, "_begin_non_pr_artifacts_jump_mode", None)
         if callable(begin_artifacts) and begin_artifacts():
             return
@@ -43,6 +43,8 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._entry_jump_hint_to_index, self._entry_jump_index_to_hint = (
             build_jump_hint_maps(indices)
         )
+        self._entry_jump_hint_to_target = dict(self._entry_jump_hint_to_index)
+        self._entry_jump_pending_prefix = ""
         return bool(self._entry_jump_hint_to_index)
 
     def _prepare_changespec_jump_maps(self) -> bool:
@@ -53,6 +55,8 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         hint_to_target, _ = build_jump_hint_maps(targets)
         if not hint_to_target:
             return False
+        self._entry_jump_hint_to_target = dict(hint_to_target)
+        self._entry_jump_pending_prefix = ""
 
         cs_hint_to_idx: dict[str, int] = {}
         cs_idx_to_hint: dict[int, str] = {}
@@ -94,6 +98,8 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         hint_to_target, _ = build_jump_hint_maps(targets)
         if not hint_to_target:
             return False
+        self._entry_jump_hint_to_target = dict(hint_to_target)
+        self._entry_jump_pending_prefix = ""
 
         agent_hint_to_idx: dict[str, int] = {}
         agent_idx_to_hint: dict[int, str] = {}
@@ -199,6 +205,8 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
                 cancel_artifacts()
                 return
         self._entry_jump_mode_active = False
+        self._entry_jump_hint_to_target = {}
+        self._entry_jump_pending_prefix = ""
         self._entry_jump_hint_to_index = {}
         self._entry_jump_index_to_hint = {}
         self._entry_jump_hint_to_banner = {}

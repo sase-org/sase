@@ -404,8 +404,8 @@ async def test_logs_tab_apostrophe_enters_jump_mode_with_hints(
         await pilot.pause()
 
         assert pane._log_jump_mode_active is True
-        assert _option_plain(option_list, 0).startswith("[1] ● Launch")
-        assert _option_plain(option_list, 1).startswith("[2] ● TUI Diagnostics")
+        assert _option_plain(option_list, 0).startswith("[0] ● Launch")
+        assert _option_plain(option_list, 1).startswith("[1] ● TUI Diagnostics")
         assert "JUMP ' first" in _logs_hint_text(pane)
 
 
@@ -420,14 +420,14 @@ async def test_logs_tab_jump_hint_selects_source_and_loads_detail(
         option_list = pane.query_one("#log-source-list", OptionList)
 
         await pilot.press("apostrophe")
-        await pilot.press("2")
+        await pilot.press("1")
         await _wait_for_logs_loaded(pilot, pane)
 
         assert pane._log_jump_mode_active is False
         assert pane._log_jump_back_stack == [0]
         assert option_list.highlighted == 1
         assert "tui.log" in pane._last_detail_text.plain
-        assert not _option_plain(option_list, 1).startswith("[2]")
+        assert not _option_plain(option_list, 1).startswith("[1]")
 
 
 async def test_logs_tab_digit_hint_does_not_switch_admin_center_tabs(
@@ -440,7 +440,7 @@ async def test_logs_tab_digit_hint_does_not_switch_admin_center_tabs(
         assert len(pane._source_options) >= 3
 
         await pilot.press("apostrophe")
-        await pilot.press("3")
+        await pilot.press("2")
         await _wait_for_logs_loaded(pilot, pane)
 
         assert pane._log_jump_mode_active is False
@@ -460,7 +460,7 @@ async def test_logs_tab_apostrophe_in_jump_mode_returns_to_previous_source(
         option_list = pane.query_one("#log-source-list", OptionList)
 
         await pilot.press("apostrophe")
-        await pilot.press("2")
+        await pilot.press("1")
         await _wait_for_logs_loaded(pilot, pane)
         assert option_list.highlighted == 1
 
@@ -517,7 +517,7 @@ async def test_logs_tab_escape_cancels_jump_mode_without_closing_modal(
         assert isinstance(pilot.app.screen, ConfigCenterModal)
         assert pane._log_jump_mode_active is False
         assert option_list.highlighted == 0
-        assert not _option_plain(option_list, 0).startswith("[1]")
+        assert not _option_plain(option_list, 0).startswith("[0]")
         assert "': jump" in _logs_hint_text(pane)
 
 
@@ -540,7 +540,7 @@ async def test_logs_tab_jump_mode_reuses_cached_source_labels(
         await pilot.press("apostrophe")
         await pilot.pause()
 
-        assert _option_plain(option_list, 0) == f"[1] {cached_plain}"
+        assert _option_plain(option_list, 0) == f"[0] {cached_plain}"
 
 
 async def test_tab_switches_admin_center_tabs_and_brackets_do_not(

@@ -495,9 +495,11 @@ class AceApp(
         if old_tab == "agents" and getattr(self, "_panel_fold_hint_mode_active", False):
             self._teardown_panel_fold_hint_mode(refresh_titles=False)
 
-        # Tab changes always cancel one-key jump mode.
+        # Tab changes always cancel adaptive entry-jump mode.
         self._cancel_non_pr_artifacts_jump_mode()
         self._entry_jump_mode_active = False
+        self._entry_jump_hint_to_target = {}
+        self._entry_jump_pending_prefix = ""
         self._entry_jump_hint_to_index = {}
         self._entry_jump_index_to_hint = {}
         self._entry_jump_hint_to_banner = {}

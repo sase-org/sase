@@ -713,9 +713,9 @@ async def test_model_picker_jump_hints_follow_filtered_visible_order() -> None:
             "Gemini 3.5 Flash (High)",
             "Gemini 3.5 Flash (Low)",
         ]
-        assert modal._model_jump_hint_to_id["1"] == visible_ids[0]
-        assert modal._model_jump_hint_to_id["2"] == visible_ids[1]
-        assert modal._model_jump_id_to_hint[visible_ids[2]] == "3"
+        assert modal._model_jump_hint_to_id["0"] == visible_ids[0]
+        assert modal._model_jump_hint_to_id["1"] == visible_ids[1]
+        assert modal._model_jump_id_to_hint[visible_ids[2]] == "2"
 
 
 async def test_model_picker_jump_apostrophe_without_history_highlights_first() -> None:
@@ -789,6 +789,42 @@ async def test_model_picker_jump_accepts_uppercase_hint() -> None:
         assert modal._model_jump_mode_active is False
 
 
+async def test_model_picker_two_character_hint_accepts_uppercase_second_char() -> None:
+    async with _TestApp().run_test() as pilot:
+        modal = ModelPickerModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        rows = [
+            ModelPickerRow(
+                kind="model",
+                label=f"    synthetic-{index}",
+                option_id=f"synthetic-{index}",
+                provider="synthetic",
+                model_id=f"synthetic-{index}",
+            )
+            for index in range(63)
+        ]
+        option_list = modal.query_one("#model-picker-list", OptionList)
+        modal._visible_rows = rows
+        option_list.clear_options()
+        option_list.add_options(modal._render_options())
+        option_list.highlighted = option_list.get_option_index("synthetic-0")
+
+        modal.action_jump_to_entry()
+        assert modal._model_jump_hint_to_id["0Z"] == "synthetic-61"
+
+        assert modal._handle_model_jump_key("0") is True
+        assert modal._model_jump_mode_active is True
+        assert modal._model_jump_pending_prefix == "0"
+        assert _highlighted_id(option_list) == "synthetic-0"
+
+        assert modal._handle_model_jump_key("Z") is True
+        assert modal._model_jump_mode_active is False
+        assert modal._model_jump_pending_prefix == ""
+        assert _highlighted_id(option_list) == "synthetic-61"
+
+
 async def test_model_picker_filter_change_clears_jump_hints() -> None:
     """Refiltering should leave no stale hint markers on hidden rows."""
     async with _TestApp().run_test() as pilot:
@@ -805,6 +841,7 @@ async def test_model_picker_filter_change_clears_jump_hints() -> None:
 
         option_list = modal.query_one("#model-picker-list", OptionList)
         assert modal._model_jump_mode_active is False
+        assert modal._model_jump_pending_prefix == ""
         assert modal._model_jump_hint_to_id == {}
         assert all(
             not str(option.prompt).startswith("[")

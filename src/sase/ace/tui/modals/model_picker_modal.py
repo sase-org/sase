@@ -8,7 +8,9 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets._option_list import Option
 
 from sase.ace.tui.actions.navigation.jump_hints import (
+    JumpHintMatchOutcome,
     build_jump_hint_maps,
+    match_jump_hint,
     normalize_jump_key,
 )
 
@@ -141,6 +143,7 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
         )
         self._visible_rows = self._all_rows
         self._model_jump_mode_active = False
+        self._model_jump_pending_prefix = ""
         self._model_jump_hint_to_id: dict[str, str] = {}
         self._model_jump_id_to_hint: dict[str, str] = {}
         self._model_jump_last_id: str | None = None
@@ -227,6 +230,7 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
         if not self._model_jump_hint_to_id:
             return
 
+        self._model_jump_pending_prefix = ""
         self._model_jump_mode_active = True
         option_list = self.query_one("#model-picker-list", OptionList)
         preferred_id = self._highlighted_option_id()
@@ -237,6 +241,7 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
 
     def _clear_model_jump_hints(self) -> None:
         self._model_jump_mode_active = False
+        self._model_jump_pending_prefix = ""
         self._model_jump_hint_to_id = {}
         self._model_jump_id_to_hint = {}
 
@@ -271,10 +276,19 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
                 self._model_jump_last_id = current_id
             return self._jump_to_option_id(target_id)
 
-        target_id = self._model_jump_hint_to_id.get(key)
-        if target_id is None:
+        match = match_jump_hint(
+            self._model_jump_hint_to_id,
+            self._model_jump_pending_prefix,
+            key,
+        )
+        if match.outcome is JumpHintMatchOutcome.PENDING:
+            self._model_jump_pending_prefix = match.prefix
+            return True
+        if match.outcome is JumpHintMatchOutcome.INVALID or match.target is None:
             self._exit_model_jump_mode()
             return True
+        target_id = match.target
+        self._model_jump_pending_prefix = ""
 
         current_id = self._highlighted_option_id()
         if current_id is not None:

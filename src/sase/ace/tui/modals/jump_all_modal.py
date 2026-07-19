@@ -1,9 +1,8 @@
 """Cross-tab jump-to-entry modal for the ace TUI.
 
 Opens a modal showing all entries across Artifacts, Agents, and AXE tabs.
-Each entry has a single-keypress hint character; pressing a hint
-immediately switches to the target tab, focuses that entry, and
-dismisses the modal.
+Each entry has an adaptive one- or two-character hint; completing a hint
+switches to the target tab, focuses that entry, and dismisses the modal.
 """
 
 from __future__ import annotations
@@ -20,7 +19,12 @@ from textual.widgets import Static
 
 from sase.project_display_names import humanize_cl_name
 
-from ..actions.navigation.jump_hints import JUMP_HINT_CHARS, normalize_jump_key
+from ..actions.navigation.jump_hints import (
+    JumpHintMatchOutcome,
+    build_jump_hint_maps,
+    match_jump_hint,
+    normalize_jump_key,
+)
 from ..bgcmd import get_slot_info
 from ..models.agent_status import STOPPED_COLOR, STOPPED_STATUS
 from ..widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem
@@ -89,7 +93,7 @@ class _Entry:
 
 
 class JumpAllModal(ModalScreen[JumpAllResult | None]):
-    """Modal showing all entries across tabs with single-keypress hints."""
+    """Modal showing all entries across tabs with adaptive jump hints."""
 
     BINDINGS = [
         ("escape", "close", "Close"),
@@ -105,6 +109,8 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         super().__init__()
         self._entries: list[_Entry] = []
         self._hint_to_entry: dict[str, _Entry] = {}
+        self._entry_to_hint: dict[_Entry, str] = {}
+        self._pending_hint_prefix = ""
         self._last_position = last_position
         self._build_entries(changespecs, agents, axe_items)
 
@@ -182,9 +188,7 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
 
         self._entries = entries
 
-        # Assign hints
-        for hint, entry in zip(JUMP_HINT_CHARS, entries, strict=False):
-            self._hint_to_entry[hint] = entry
+        self._hint_to_entry, self._entry_to_hint = build_jump_hint_maps(entries)
 
     def compose(self) -> ComposeResult:
         with Container(id="jump-all-container"):
@@ -210,10 +214,9 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         return text
 
     def _build_display(self) -> Text:
-        """Build the Rich Text content with tabbed sections and hint chars."""
+        """Build the Rich Text content with tabbed sections and allocated hints."""
         text = Text()
-        hint_idx = 0
-        hints = list(JUMP_HINT_CHARS)
+        hint_width = len(next(iter(self._hint_to_entry), "0"))
 
         current_tab: TabName | None = None
         for entry in self._entries:
@@ -230,12 +233,7 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
                 text.append("─" * fill_width, style=f"dim {color}")
                 text.append("\n\n")
 
-            # Hint character
-            if hint_idx < len(hints):
-                hint = hints[hint_idx]
-                hint_idx += 1
-            else:
-                hint = " "
+            hint = self._entry_to_hint.get(entry, " " * hint_width)
 
             # Build entry line
             indent = "  " * entry.indent
@@ -273,20 +271,15 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         if key == "escape":
             event.prevent_default()
             event.stop()
+            self._pending_hint_prefix = ""
             self.dismiss(None)
             return
 
-        entry = self._hint_to_entry.get(key)
-        if entry is not None:
-            event.prevent_default()
-            event.stop()
-            self.dismiss(JumpAllResult(tab=entry.tab, index=entry.index))
-            return
-
-        # Hidden backtick hint: jump back to previous position
+        # Hidden backtick hint: jump back to previous position.
         if key == "grave_accent" and self._last_position is not None:
             event.prevent_default()
             event.stop()
+            self._pending_hint_prefix = ""
             self.dismiss(self._last_position)
             return
 
@@ -296,9 +289,28 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
             self._scroll_entries(direction=1 if key == "ctrl+d" else -1)
             return
 
+        match = match_jump_hint(
+            self._hint_to_entry,
+            self._pending_hint_prefix,
+            key,
+        )
+        if match.outcome is JumpHintMatchOutcome.PENDING:
+            event.prevent_default()
+            event.stop()
+            self._pending_hint_prefix = match.prefix
+            return
+        if match.outcome is JumpHintMatchOutcome.COMPLETE and match.target is not None:
+            entry = match.target
+            event.prevent_default()
+            event.stop()
+            self._pending_hint_prefix = ""
+            self.dismiss(JumpAllResult(tab=entry.tab, index=entry.index))
+            return
+
         # Any other key dismisses without action
         event.prevent_default()
         event.stop()
+        self._pending_hint_prefix = ""
         self.dismiss(None)
 
     def _scroll_entries(self, *, direction: int) -> None:
@@ -308,4 +320,5 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         scroll.scroll_relative(y=direction * (height // 2), animate=False)
 
     def action_close(self) -> None:
+        self._pending_hint_prefix = ""
         self.dismiss(None)

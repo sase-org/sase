@@ -16,7 +16,9 @@ from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.actions.navigation.jump_hints import (
+    JumpHintMatchOutcome,
     build_jump_hint_maps,
+    match_jump_hint,
     normalize_jump_key,
 )
 from sase.core.agent_group_archive_wire import (
@@ -94,6 +96,7 @@ class SavedAgentGroupRevivalModal(
         self._delete_callback = delete_callback
         self._loaded_groups: dict[str, SavedAgentGroupWire | None] = {}
         self._entry_jump_mode_active = False
+        self._entry_jump_pending_prefix = ""
         self._entry_jump_hint_to_option_id: dict[str, str] = {}
         self._entry_jump_option_id_to_hint: dict[str, str] = {}
         self._entry_jump_last_option_id: str | None = None
@@ -486,7 +489,7 @@ class SavedAgentGroupRevivalModal(
         return ids
 
     def action_jump_to_entry(self) -> None:
-        """Enter one-key jump mode for the modal's selectable rows."""
+        """Enter adaptive jump mode for the modal's selectable rows."""
 
         option_ids = self._selectable_option_ids()
         if not option_ids:
@@ -498,6 +501,7 @@ class SavedAgentGroupRevivalModal(
             return
 
         highlighted_id = self._current_highlighted_option_id()
+        self._entry_jump_pending_prefix = ""
         self._entry_jump_mode_active = True
         self._update_hints()
         self._rebuild_options(
@@ -509,6 +513,7 @@ class SavedAgentGroupRevivalModal(
         """Clear transient jump-mode hint maps and deactivate jump mode."""
 
         self._entry_jump_mode_active = False
+        self._entry_jump_pending_prefix = ""
         self._entry_jump_hint_to_option_id = {}
         self._entry_jump_option_id_to_hint = {}
 
@@ -536,10 +541,25 @@ class SavedAgentGroupRevivalModal(
                 if current is not None:
                     self._entry_jump_last_option_id = current
                 return self._jump_to_option_id(last_target)
-            # No previous row: fall through to the first hinted row.
-            key = "1"
+            target_option_id = next(
+                iter(self._entry_jump_hint_to_option_id.values()),
+                None,
+            )
+        else:
+            match = match_jump_hint(
+                self._entry_jump_hint_to_option_id,
+                self._entry_jump_pending_prefix,
+                key,
+            )
+            if match.outcome is JumpHintMatchOutcome.PENDING:
+                self._entry_jump_pending_prefix = match.prefix
+                return True
+            if match.outcome is JumpHintMatchOutcome.INVALID:
+                self._exit_entry_jump_mode()
+                return True
+            target_option_id = match.target
+            self._entry_jump_pending_prefix = ""
 
-        target_option_id = self._entry_jump_hint_to_option_id.get(key)
         if target_option_id is None:
             self._exit_entry_jump_mode()
             return True
