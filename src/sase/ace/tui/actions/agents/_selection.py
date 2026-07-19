@@ -211,7 +211,7 @@ class AgentSelectionMixin:
         return None
 
     def _agents_in_focused_panel(self) -> list[Agent]:
-        """Return the agents in the currently focused tag panel.
+        """Return the agents in the currently focused tribe panel.
 
         Falls back to the full agent list when ``_panel_group`` has not
         been built yet (early lifecycle window before the first refresh).

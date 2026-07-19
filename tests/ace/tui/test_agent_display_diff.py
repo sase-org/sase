@@ -65,7 +65,7 @@ class _DisplayDiffApp(AgentDisplayMixin):
         agents: list[Agent],
         monkeypatch: Any,
         *,
-        merge_tag_panels: bool = False,
+        merge_tribe_panels: bool = False,
         collapsed_panel_keys: set[str | None] | None = None,
     ) -> None:
         self._agents = list(agents)
@@ -86,11 +86,11 @@ class _DisplayDiffApp(AgentDisplayMixin):
         self._group_fold_registry = AgentGroupFoldRegistry()
         self._grouping_mode = GroupingMode.STANDARD
         self._current_group_key = None
-        self._agent_panels_grouped = merge_tag_panels
+        self._agent_panels_grouped = merge_tribe_panels
         self._collapsed_panel_keys = set(collapsed_panel_keys or ())
         self._panel_group = AgentPanelGroup.from_agents(
             self._agents,
-            merge_tag_panels=merge_tag_panels,
+            merge_tribe_panels=merge_tribe_panels,
             collapsed_panel_keys=self._collapsed_panel_keys,
         )
         self._agents_first_load_done = True
@@ -163,7 +163,7 @@ class _DisplayDiffApp(AgentDisplayMixin):
 def _agent(
     name: str,
     *,
-    tag: str | None,
+    tribe: str | None,
     suffix: str,
     status: str = "RUNNING",
 ) -> Agent:
@@ -175,7 +175,7 @@ def _agent(
         start_time=datetime(2026, 6, 8, 12, 0, 0),
         agent_name=name,
         raw_suffix=suffix,
-        tribe=tag,
+        tribe=tribe,
     )
 
 
@@ -266,7 +266,7 @@ def test_workflow_same_position_structural_change_touches_tree() -> None:
 
 def test_added_removed_and_moved_workflow_rows_touch_tree() -> None:
     workflow = _workflow_agent("flow", suffix="wf1")
-    ordinary = _agent("ordinary", tag=None, suffix="run1")
+    ordinary = _agent("ordinary", tribe=None, suffix="run1")
 
     assert _touches_workflow_tree([], [workflow]) is True
     assert _touches_workflow_tree([workflow], []) is True
@@ -321,7 +321,7 @@ def test_workflow_structural_row_change_falls_back_to_full_rebuild(
 def test_same_position_row_change_patches_without_panel_rebuild(
     monkeypatch: Any,
 ) -> None:
-    old_agent = _agent("alpha", tag="apple", suffix="a1", status="RUNNING")
+    old_agent = _agent("alpha", tribe="apple", suffix="a1", status="RUNNING")
     new_agent = replace(old_agent, status="DONE")
     app = _DisplayDiffApp([old_agent], monkeypatch)
     widget = app._widgets["#agent-list-panel"]
@@ -343,9 +343,9 @@ def test_same_position_row_change_patches_without_panel_rebuild(
 def test_collapsed_last_panel_order_still_allows_incremental_row_patch(
     monkeypatch: Any,
 ) -> None:
-    apple = _agent("apple", tag="apple", suffix="a1", status="RUNNING")
-    banana = _agent("banana", tag="banana", suffix="b1")
-    cherry = _agent("cherry", tag="cherry", suffix="c1")
+    apple = _agent("apple", tribe="apple", suffix="a1", status="RUNNING")
+    banana = _agent("banana", tribe="banana", suffix="b1")
+    cherry = _agent("cherry", tribe="cherry", suffix="c1")
     updated_apple = replace(apple, status="DONE")
     app = _DisplayDiffApp(
         [apple, banana, cherry],
@@ -368,9 +368,9 @@ def test_collapsed_last_panel_order_still_allows_incremental_row_patch(
 
 
 def test_single_panel_addition_rebuilds_only_affected_panel(monkeypatch: Any) -> None:
-    apple = _agent("apple-one", tag="apple", suffix="a1")
-    banana = _agent("banana-one", tag="banana", suffix="b1")
-    added = _agent("apple-two", tag="apple", suffix="a2")
+    apple = _agent("apple-one", tribe="apple", suffix="a1")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
+    added = _agent("apple-two", tribe="apple", suffix="a2")
     app = _DisplayDiffApp([apple, banana], monkeypatch)
     apple_widget = app._widgets["#agent-list-panel"]
     banana_widget = app._widgets["#agent-list-panel-1"]
@@ -395,9 +395,9 @@ def test_single_panel_addition_rebuilds_only_affected_panel(monkeypatch: Any) ->
 def test_single_panel_removal_removes_then_rebuilds_affected_panel(
     monkeypatch: Any,
 ) -> None:
-    apple_one = _agent("apple-one", tag="apple", suffix="a1")
-    apple_two = _agent("apple-two", tag="apple", suffix="a2")
-    banana = _agent("banana-one", tag="banana", suffix="b1")
+    apple_one = _agent("apple-one", tribe="apple", suffix="a1")
+    apple_two = _agent("apple-two", tribe="apple", suffix="a2")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
     app = _DisplayDiffApp([apple_one, apple_two, banana], monkeypatch)
     apple_widget = app._widgets["#agent-list-panel"]
     banana_widget = app._widgets["#agent-list-panel-1"]
@@ -416,12 +416,12 @@ def test_single_panel_removal_removes_then_rebuilds_affected_panel(
     assert "display_panel_rebuild" in _display_costs(app)
 
 
-def test_tag_move_between_existing_panels_rebuilds_source_and_target(
+def test_tribe_move_between_existing_panels_rebuilds_source_and_target(
     monkeypatch: Any,
 ) -> None:
-    apple_one = _agent("apple-one", tag="apple", suffix="a1")
-    apple_two = _agent("apple-two", tag="apple", suffix="a2")
-    banana = _agent("banana-one", tag="banana", suffix="b1")
+    apple_one = _agent("apple-one", tribe="apple", suffix="a1")
+    apple_two = _agent("apple-two", tribe="apple", suffix="a2")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
     moved = replace(apple_one, tribe="banana")
     app = _DisplayDiffApp([apple_one, apple_two, banana], monkeypatch)
     apple_widget = app._widgets["#agent-list-panel"]
@@ -445,10 +445,10 @@ def test_tag_move_between_existing_panels_rebuilds_source_and_target(
     assert "display_full_rebuild" not in _display_costs(app)
 
 
-def test_merged_panel_tag_label_change_rebuilds_panel(monkeypatch: Any) -> None:
-    old_agent = _agent("alpha", tag="apple", suffix="a1")
+def test_merged_panel_tribe_label_change_rebuilds_panel(monkeypatch: Any) -> None:
+    old_agent = _agent("alpha", tribe="apple", suffix="a1")
     new_agent = replace(old_agent, tribe="banana")
-    app = _DisplayDiffApp([old_agent], monkeypatch, merge_tag_panels=True)
+    app = _DisplayDiffApp([old_agent], monkeypatch, merge_tribe_panels=True)
     widget = app._widgets["#agent-list-panel"]
 
     app._agents = [new_agent]
@@ -465,8 +465,8 @@ def test_merged_panel_tag_label_change_rebuilds_panel(monkeypatch: Any) -> None:
 
 
 def test_panel_collection_change_falls_back_to_full_rebuild(monkeypatch: Any) -> None:
-    apple = _agent("apple-one", tag="apple", suffix="a1")
-    banana = _agent("banana-one", tag="banana", suffix="b1")
+    apple = _agent("apple-one", tribe="apple", suffix="a1")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
     app = _DisplayDiffApp([apple], monkeypatch)
 
     app._agents = [apple, banana]
@@ -485,7 +485,7 @@ def test_panel_collection_change_falls_back_to_full_rebuild(monkeypatch: Any) ->
 def test_same_list_falls_back_when_previous_rows_were_not_rendered(
     monkeypatch: Any,
 ) -> None:
-    agent = _agent("alpha", tag=None, suffix="a1")
+    agent = _agent("alpha", tribe=None, suffix="a1")
     app = _DisplayDiffApp([agent], monkeypatch)
     widget = app._widgets["#agent-list-panel"]
     widget.clear_options()
@@ -511,7 +511,7 @@ def _by_status_app(agents: list[Agent], monkeypatch: Any) -> _DisplayDiffApp:
 
 
 def _clan_projection(status: str) -> list[Agent]:
-    member = _agent("research.member", tag=None, suffix="member", status=status)
+    member = _agent("research.member", tribe=None, suffix="member", status=status)
     member.agent_clan = "research"
     member.agent_clan_generation = "20260718120000"
     return project_clan_tree([member])
@@ -556,7 +556,7 @@ def test_standard_clan_badge_only_change_patches_in_place(monkeypatch: Any) -> N
 def test_by_status_badge_only_change_patches_in_place(monkeypatch: Any) -> None:
     # Regression: a deferred live-hint pencil on a redirected Plan row used to
     # wait for the next full rebuild because BY_STATUS vetoed every row patch.
-    agent = _agent("alpha", tag=None, suffix="a1", status="RUNNING")
+    agent = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
     app = _by_status_app([agent], monkeypatch)
     app._agents_refresh_trace_records.clear()
 
@@ -572,7 +572,7 @@ def test_by_status_badge_only_change_patches_in_place(monkeypatch: Any) -> None:
 
 
 def test_by_status_status_bucket_move_refuses_row_patch(monkeypatch: Any) -> None:
-    old_agent = _agent("alpha", tag=None, suffix="a1", status="RUNNING")
+    old_agent = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
     app = _by_status_app([old_agent], monkeypatch)
     app._agents_refresh_trace_records.clear()
 
@@ -588,7 +588,7 @@ def test_by_status_status_bucket_move_refuses_row_patch(monkeypatch: Any) -> Non
 
 
 def test_by_status_launch_anchor_change_refuses_row_patch(monkeypatch: Any) -> None:
-    old_agent = _agent("alpha", tag=None, suffix="a1", status="RUNNING")
+    old_agent = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
     app = _by_status_app([old_agent], monkeypatch)
     app._agents_refresh_trace_records.clear()
 
@@ -612,7 +612,7 @@ def test_stale_widget_grouping_mode_falls_back_to_full_rebuild(
     # mode's status-bucket tree. Patching those rows in place would leave the
     # stale banners on screen, so the incremental path must defer to a full
     # rebuild instead.
-    agent = _agent("alpha", tag=None, suffix="a1", status="RUNNING")
+    agent = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
     app = _DisplayDiffApp([agent], monkeypatch)
     for widget in app._container.children:
         widget._grouping_mode = GroupingMode.BY_STATUS

@@ -1,4 +1,4 @@
-"""Tag and custom-selection flows for agent cleanup actions."""
+"""Tribe and custom-selection flows for agent cleanup actions."""
 
 from __future__ import annotations
 
@@ -11,26 +11,26 @@ if TYPE_CHECKING:
 
 
 class AgentCleanupSelectionMixin:
-    """Mixin providing tag and custom agent cleanup selection."""
+    """Mixin providing tribe and custom agent cleanup selection."""
 
     _agents_with_children: list[Agent]
 
-    def _open_tag_cleanup_selector(self) -> None:
-        from ...modals import AgentCleanupTagModal, AgentCleanupTagResult
+    def _open_tribe_cleanup_selector(self) -> None:
+        from ...modals import AgentCleanupTribeModal, AgentCleanupTribeResult
 
-        tags = self._known_agent_cleanup_tags()  # type: ignore[attr-defined]
-        if not tags:
-            self.notify("No agent tags found", severity="warning")  # type: ignore[attr-defined]
+        tribes = self._known_agent_cleanup_tribes()  # type: ignore[attr-defined]
+        if not tribes:
+            self.notify("No agent tribes found", severity="warning")  # type: ignore[attr-defined]
             return
 
-        def on_dismiss(result: AgentCleanupTagResult | None) -> None:
+        def on_dismiss(result: AgentCleanupTribeResult | None) -> None:
             if result is None:
                 return
-            self._present_tag_cleanup_for_tags(result.tags)
+            self._present_tribe_cleanup_for_tribes(result.tribes)
 
         self.push_screen(  # type: ignore[attr-defined]
-            AgentCleanupTagModal(
-                tags=tags,
+            AgentCleanupTribeModal(
+                tribes=tribes,
                 targets=self._agent_cleanup_current_scope_targets(),  # type: ignore[attr-defined]
             ),
             on_dismiss,
@@ -58,40 +58,40 @@ class AgentCleanupSelectionMixin:
             on_dismiss,
         )
 
-    def _present_tag_cleanup(self, tag: str) -> None:
-        self._present_tag_cleanup_for_tags((tag,))
+    def _present_tribe_cleanup(self, tribe: str) -> None:
+        self._present_tribe_cleanup_for_tribes((tribe,))
 
-    def _present_tag_cleanup_for_tags(self, tags: tuple[str, ...]) -> None:
-        if not tags:
-            self.notify("No tags selected", severity="warning")  # type: ignore[attr-defined]
+    def _present_tribe_cleanup_for_tribes(self, tribes: tuple[str, ...]) -> None:
+        if not tribes:
+            self.notify("No tribes selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        if len(tags) > 1:
-            self._present_multi_tag_cleanup(tags)
+        if len(tribes) > 1:
+            self._present_multi_tribe_cleanup(tribes)
             return
 
-        tag = tags[0]
+        tribe = tribes[0]
         from sase.core.agent_cleanup_wire import (
             AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
             CLEANUP_MODE_KILL_AND_DISMISS,
-            CLEANUP_SCOPE_TAG,
+            CLEANUP_SCOPE_TRIBE,
             AgentCleanupRequestWire,
         )
 
         request = AgentCleanupRequestWire(
             schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
-            scope=CLEANUP_SCOPE_TAG,
+            scope=CLEANUP_SCOPE_TRIBE,
             mode=CLEANUP_MODE_KILL_AND_DISMISS,
-            tag=tag,
+            tribe=tribe,
             include_pidless_as_dismissable=True,
         )
         self._present_planned_cleanup(  # type: ignore[attr-defined]
             request,
-            header=f"Tag: @{tag}",
+            header=f"Tribe: @{tribe}",
             targets=self._agent_cleanup_current_scope_targets(),  # type: ignore[attr-defined]
         )
 
-    def _present_multi_tag_cleanup(self, tags: tuple[str, ...]) -> None:
+    def _present_multi_tribe_cleanup(self, tribes: tuple[str, ...]) -> None:
         from sase.core.agent_cleanup_facade import (
             agents_to_cleanup_targets,
             plan_agent_cleanup,
@@ -100,7 +100,7 @@ class AgentCleanupSelectionMixin:
             AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
             CLEANUP_MODE_KILL_AND_DISMISS,
             CLEANUP_SCOPE_CUSTOM_SELECTION,
-            CLEANUP_SCOPE_TAG,
+            CLEANUP_SCOPE_TRIBE,
             AgentCleanupIdentityWire,
             AgentCleanupRequestWire,
         )
@@ -109,12 +109,12 @@ class AgentCleanupSelectionMixin:
         target_wires = agents_to_cleanup_targets(cleanup_targets)
         seen: set[AgentCleanupIdentityWire] = set()
         identities: list[AgentCleanupIdentityWire] = []
-        for tag in tags:
+        for tribe in tribes:
             request = AgentCleanupRequestWire(
                 schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
-                scope=CLEANUP_SCOPE_TAG,
+                scope=CLEANUP_SCOPE_TRIBE,
                 mode=CLEANUP_MODE_KILL_AND_DISMISS,
-                tag=tag,
+                tribe=tribe,
                 include_pidless_as_dismissable=True,
             )
             plan = plan_agent_cleanup(target_wires, request)
@@ -131,10 +131,10 @@ class AgentCleanupSelectionMixin:
             identities=tuple(identities),
             include_pidless_as_dismissable=True,
         )
-        tag_label = ", ".join(f"@{tag}" for tag in tags)
+        tribe_label = ", ".join(f"@{tribe}" for tribe in tribes)
         self._present_planned_cleanup(  # type: ignore[attr-defined]
             request,
-            header=f"Tags: {tag_label}",
+            header=f"Tribes: {tribe_label}",
             targets=cleanup_targets,
         )
 

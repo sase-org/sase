@@ -16,7 +16,7 @@ from sase.ace.tui.models.agent_panels import AgentPanelGroup
 def _agent(
     *,
     suffix: str,
-    tag: str | None = None,
+    tribe: str | None = None,
     status: str = "RUNNING",
     parent_timestamp: str | None = None,
     agent_family_parallel: bool = False,
@@ -28,7 +28,7 @@ def _agent(
         status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name="alpha",
-        tribe=tag,
+        tribe=tribe,
         raw_suffix=suffix,
         parent_timestamp=parent_timestamp,
         agent_family_parallel=agent_family_parallel,
@@ -84,7 +84,7 @@ class _Bare(AgentDisplayMixin):
 
 
 def test_panel_index_is_cached_per_agents_ref() -> None:
-    agents = [_agent(suffix="a"), _agent(suffix="b", tag="x")]
+    agents = [_agent(suffix="a"), _agent(suffix="b", tribe="x")]
     bare = _Bare(agents)
     index1 = bare._agent_panel_index()
     index2 = bare._agent_panel_index()
@@ -98,15 +98,15 @@ def test_panel_index_is_cached_per_agents_ref() -> None:
 def test_panel_index_exposes_per_panel_slices_and_counts() -> None:
     agents = [
         _agent(suffix="a", status="DONE"),
-        _agent(suffix="b", tag="alpha"),
-        _agent(suffix="c", tag="alpha", status="FAILED"),
+        _agent(suffix="b", tribe="alpha"),
+        _agent(suffix="c", tribe="alpha", status="FAILED"),
     ]
     bare = _Bare(agents)
     index = bare._agent_panel_index()
     assert isinstance(index, AgentPanelIndex)
     assert index.keys_per_agent == [None, "alpha", "alpha"]
-    untagged = index.slice_for(None)
-    assert untagged.global_indices == [0]
+    no_tribe = index.slice_for(None)
+    assert no_tribe.global_indices == [0]
     alpha = index.slice_for("alpha")
     assert alpha.global_indices == [1, 2]
     assert alpha.global_to_local == {1: 0, 2: 1}

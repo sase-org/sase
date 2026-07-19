@@ -57,7 +57,7 @@ class AgentNeighborMixin:
         panel_keys = tuple(getattr(panel_group, "panel_keys", (None,)))
         fold_version = panel_fold_version_signature(self, panel_keys)
         grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
         dismiss_epoch = getattr(self, "_dismiss_revive_epoch", 0)
 
         cached = getattr(self, "_agent_neighbor_index_cache", None)
@@ -65,7 +65,7 @@ class AgentNeighborMixin:
             cached is not None
             and cached[0] is self._agents
             and cached[1] == panel_keys
-            and cached[2] == merge_tag_panels
+            and cached[2] == merge_tribe_panels
             and cached[3] == grouping_mode
             and cached[4] == fold_version
             and cached[5] == dismiss_epoch
@@ -76,7 +76,7 @@ class AgentNeighborMixin:
         self._agent_neighbor_index_cache = (
             self._agents,
             panel_keys,
-            merge_tag_panels,
+            merge_tribe_panels,
             grouping_mode,
             fold_version,
             dismiss_epoch,
@@ -539,7 +539,7 @@ class AgentNeighborMixin:
         }
 
     def _agent_neighbor_panel_label(self, panel_idx: int | None) -> str:
-        """Return a compact label for the tag panel containing a neighbor."""
+        """Return a compact label for the tribe panel containing a neighbor."""
         if getattr(self, "_agent_panels_grouped", False):
             return "all"
         panel_group = getattr(self, "_panel_group", None)
@@ -550,14 +550,14 @@ class AgentNeighborMixin:
         ):
             return "panel"
         key = panel_group.panel_keys[panel_idx]
-        return "(untagged)" if key is None else f"@{key}"
+        return "(no tribe)" if key is None else f"@{key}"
 
     def _agent_neighbor_dismissed_panel_label(self, agent: Agent) -> str:
-        """Return a compact tag label for a dismissed descendant row."""
+        """Return a compact tribe label for a dismissed descendant row."""
         if getattr(self, "_agent_panels_grouped", False):
             return "all"
         tribe = agent.tribe
-        return f"@{tribe}" if tribe else "(untagged)"
+        return f"@{tribe}" if tribe else "(no tribe)"
 
     def _agent_neighbor_time_hint(self, agent: Agent) -> str:
         """Return a compact timestamp/runtime hint for a neighbor row."""

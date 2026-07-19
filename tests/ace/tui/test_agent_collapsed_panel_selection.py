@@ -10,7 +10,7 @@ from sase.ace.tui.models.agent_panel_index import build_agent_panel_index
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 
 
-def _agent(name: str, tag: str | None) -> Agent:
+def _agent(name: str, tribe: str | None) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=name,
@@ -18,7 +18,7 @@ def _agent(name: str, tag: str | None) -> Agent:
         status="RUNNING",
         start_time=datetime(2026, 7, 17, 12, 0, 0),
         raw_suffix=name,
-        tribe=tag,
+        tribe=tribe,
     )
 
 
@@ -71,8 +71,8 @@ def test_collapsed_nonfocused_panel_does_not_hide_expanded_selection() -> None:
     assert app._get_selected_agent() is agents[1]
 
 
-def test_untagged_collapsed_focus_is_not_confused_with_missing_focus() -> None:
-    agents = [_agent("untagged", None), _agent("beta", "beta")]
+def test_no_tribe_collapsed_focus_is_not_confused_with_missing_focus() -> None:
+    agents = [_agent("no_tribe", None), _agent("beta", "beta")]
     app = _SelectionApp(agents, focused_key=None, collapsed={None})
     app.current_idx = 0
 

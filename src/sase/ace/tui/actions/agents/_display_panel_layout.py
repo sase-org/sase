@@ -17,7 +17,7 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
     """Dynamic panel sizing, highlight, and focus helpers."""
 
     def _apply_panel_heights(self, container: object, widgets: list[AgentList]) -> None:
-        """Size each tag panel based on its content."""
+        """Size each tribe panel based on its content."""
         if not widgets:
             return
 
@@ -177,7 +177,7 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
                 self._agent_panel_title(
                     key,
                     panel_agents,
-                    merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+                    merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
                 ),
             )
             if idx == focused_idx:

@@ -33,8 +33,8 @@ if TYPE_CHECKING:
     from ...models.agent_panels import PanelKey
 
 _PANEL_SELECTED_CHROME_STYLE = "#FFD75F"
-_PANEL_TAG_STYLE = f"bold {_PANEL_SELECTED_CHROME_STYLE}"
-_PANEL_UNTAGGED_STYLE = "dim #AFAFAF"
+_PANEL_TRIBE_STYLE = f"bold {_PANEL_SELECTED_CHROME_STYLE}"
+_PANEL_NO_TRIBE_STYLE = "dim #AFAFAF"
 _PANEL_COUNT_STYLE = AGENT_COUNT_CHIP_NEUTRAL_STYLE
 _PANEL_ISOLATION_RESTORE_STYLE = "bold #D7AF5F"
 _PANEL_METRIC_STYLES: dict[str, str] = {
@@ -122,7 +122,7 @@ def agent_panel_border_title(
     key: PanelKey,
     agent_count: int,
     *,
-    merge_tag_panels: bool = False,
+    merge_tribe_panels: bool = False,
     counts: AgentPanelCounts | None = None,
     collapsed: bool = False,
     selected: bool = False,
@@ -136,15 +136,15 @@ def agent_panel_border_title(
     if hint is not None:
         title.append(f"[{hint}] ", style="bold #FFFF00")
     if selected:
-        title.append("❖ ", style=_PANEL_TAG_STYLE)
+        title.append("❖ ", style=_PANEL_TRIBE_STYLE)
     if collapsed:
         title.append("▸ ", style=_PANEL_COUNT_STYLE)
-    if merge_tag_panels:
+    if merge_tribe_panels:
         title.append("All agents", style="bold #AFFFFF")
     elif key is None:
-        title.append("(untagged)", style=_PANEL_UNTAGGED_STYLE)
+        title.append("(no tribe)", style=_PANEL_NO_TRIBE_STYLE)
     else:
-        title.append(f"@{key}", style=_PANEL_TAG_STYLE)
+        title.append(f"@{key}", style=_PANEL_TRIBE_STYLE)
     if isolation_restore_marked:
         title.append(" ", style=_PANEL_COUNT_STYLE)
         title.append("↺", style=_PANEL_ISOLATION_RESTORE_STYLE)

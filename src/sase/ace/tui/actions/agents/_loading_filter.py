@@ -75,7 +75,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             selected_identity = getattr(self, "_agents_last_identity", None)
 
         # Rebuild the pure synthetic clan projection so optimistic status,
-        # tag, kill, and dismiss mutations cannot leave a stale container.
+        # tribe, kill, and dismiss mutations cannot leave a stale container.
         from ...models._agent_tree import project_clan_tree
 
         self._agents_with_children = project_clan_tree(self._agents_with_children)

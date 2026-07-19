@@ -27,17 +27,17 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         from ...models.agent_panels import AgentPanelGroup
 
         prev_focused = self._panel_group.focused_key
-        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
         collapsed_keys = getattr(self, "_collapsed_panel_keys", None)
         self._panel_group = AgentPanelGroup.from_agents(
             self._agents,
             prev_focused,
-            merge_tag_panels=merge_tag_panels,
+            merge_tribe_panels=merge_tribe_panels,
             collapsed_panel_keys=collapsed_keys or (),
         )
         known_keys = set(self._panel_group.panel_keys)
         if (
-            merge_tag_panels
+            merge_tribe_panels
             or prev_focused not in known_keys
             or not self._panel_group.panel_keys
         ):
@@ -91,7 +91,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         key: PanelKey,
         panel_agents: list[Agent],
         *,
-        merge_tag_panels: bool,
+        merge_tribe_panels: bool,
         panel_jump_hints: dict[PanelJumpTarget, str] | None = None,
         isolation_restore_marked: bool = False,
     ) -> Text:
@@ -117,7 +117,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         return agent_panel_border_title(
             key,
             counts.total,
-            merge_tag_panels=merge_tag_panels,
+            merge_tribe_panels=merge_tribe_panels,
             counts=counts,
             collapsed=panel_collapsed,
             selected=selected_expanded,
@@ -148,7 +148,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         except NoMatches:
             return
         panel_index = self._agent_panel_index()
-        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
         marked_keys_fn = getattr(self, "_panel_isolation_marked_keys", None)
         isolation_marked_keys = marked_keys_fn() if callable(marked_keys_fn) else set()
         for idx, key in enumerate(self._panel_group.panel_keys):
@@ -161,7 +161,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             title = self._agent_panel_title(
                 key,
                 panel_index.slice_for(key).agents,
-                merge_tag_panels=merge_tag_panels,
+                merge_tribe_panels=merge_tribe_panels,
                 isolation_restore_marked=key in isolation_marked_keys,
             )
             self._set_agent_panel_title(widget, title)

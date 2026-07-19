@@ -15,7 +15,7 @@ def _agent(
     *,
     cl_name: str = "demo",
     project_file: str = "/repo/proj.sase",
-    tag: str | None = None,
+    tribe: str | None = None,
     agent_name: str | None = None,
     raw_suffix: str | None = None,
     parent_workflow: str | None = None,
@@ -39,7 +39,7 @@ def _agent(
         stop_time=stop_time,
         raw_suffix=raw_suffix,
         agent_name=agent_name,
-        tribe=tag,
+        tribe=tribe,
         parent_workflow=parent_workflow,
         parent_timestamp=parent_timestamp,
         wait_until=wait_until,
@@ -78,7 +78,7 @@ def _anchored_clan_agents() -> list[Agent]:
     phase = _agent(
         cl_name="phase-changespec",
         project_file="/r/root/root.sase",
-        tag="epic",
+        tribe="epic",
         agent_name="sase-6r.phase-plan",
         raw_suffix="phase",
         status="DONE",
@@ -89,7 +89,7 @@ def _anchored_clan_agents() -> list[Agent]:
     ordinary = _agent(
         cl_name="descendant-changespec",
         project_file="/r/other/other.sase",
-        tag="review",
+        tribe="review",
         agent_name="detached.family.step",
         raw_suffix="ordinary",
         parent_workflow="phase",
@@ -100,7 +100,7 @@ def _anchored_clan_agents() -> list[Agent]:
     hidden = _agent(
         cl_name="hidden-changespec",
         project_file="/r/hidden/hidden.sase",
-        tag="hidden",
+        tribe="hidden",
         agent_name="hidden.family.step",
         raw_suffix="hidden",
         parent_workflow="phase",
@@ -112,7 +112,7 @@ def _anchored_clan_agents() -> list[Agent]:
     peer = _agent(
         cl_name="peer-changespec",
         project_file="/r/root/root.sase",
-        tag="review",
+        tribe="review",
         agent_name="sase-6r.phase-review",
         raw_suffix="peer",
         status="RUNNING",

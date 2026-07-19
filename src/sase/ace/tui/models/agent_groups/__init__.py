@@ -28,9 +28,9 @@ top-level display units sort newest-launch-first using the outer/root agent's
 ``start_time``. ``BY_DATE`` replaces the tree with date bucket → time subgroup
 and intentionally suppresses name-root/name-prefix grouping.
 
-Tag-level grouping is not part of this tree — tags drive the dynamic
+Tribe-level grouping is not part of this tree — tribes drive the dynamic
 side panels (see :mod:`sase.ace.tui.models.agent_panels`), so each panel
-already represents a single tag bucket.
+already represents a single tribe bucket.
 
 Structural descendants inherit grouping identity from their outer rendered
 root so banners are never emitted inside a clan or agent-family subtree.

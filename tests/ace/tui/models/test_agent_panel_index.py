@@ -25,7 +25,7 @@ def _agent(
     *,
     cl_name: str = "demo",
     project_file: str = "/repo/proj.sase",
-    tag: str | None = None,
+    tribe: str | None = None,
     agent_name: str | None = None,
     status: str = "RUNNING",
     raw_suffix: str | None = "20260425143000",
@@ -38,7 +38,7 @@ def _agent(
         status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=agent_name,
-        tribe=tag,
+        tribe=tribe,
         raw_suffix=raw_suffix,
         parent_timestamp=parent_timestamp,
     )
@@ -56,19 +56,19 @@ def test_empty_agents_yields_empty_index() -> None:
     assert index.non_child_position(0) == 0
 
 
-def test_groups_agents_into_panels_by_tag() -> None:
-    a0 = _agent(raw_suffix="A", tag=None)
-    a1 = _agent(raw_suffix="B", tag="alpha")
-    a2 = _agent(raw_suffix="C", tag="alpha")
-    a3 = _agent(raw_suffix="D", tag="beta")
+def test_groups_agents_into_panels_by_tribe() -> None:
+    a0 = _agent(raw_suffix="A", tribe=None)
+    a1 = _agent(raw_suffix="B", tribe="alpha")
+    a2 = _agent(raw_suffix="C", tribe="alpha")
+    a3 = _agent(raw_suffix="D", tribe="beta")
     index = build_agent_panel_index([a0, a1, a2, a3], dismissable_statuses=_DISMISSABLE)
 
     assert index.keys_per_agent == [None, "alpha", "alpha", "beta"]
     assert set(index.panels.keys()) == {None, "alpha", "beta"}
-    untagged = index.slice_for(None)
-    assert untagged.agents == [a0]
-    assert untagged.global_indices == [0]
-    assert untagged.global_to_local == {0: 0}
+    no_tribe = index.slice_for(None)
+    assert no_tribe.agents == [a0]
+    assert no_tribe.global_indices == [0]
+    assert no_tribe.global_to_local == {0: 0}
 
     alpha = index.slice_for("alpha")
     assert alpha.agents == [a1, a2]
@@ -77,10 +77,10 @@ def test_groups_agents_into_panels_by_tag() -> None:
 
 
 def test_starting_agents_keep_keys_but_are_hidden_from_panel_slices() -> None:
-    a0 = _agent(raw_suffix="A", tag=None, status="STARTING")
-    a1 = _agent(raw_suffix="B", tag="alpha")
-    a2 = _agent(raw_suffix="C", tag="alpha", status="STARTING")
-    a3 = _agent(raw_suffix="D", tag="beta")
+    a0 = _agent(raw_suffix="A", tribe=None, status="STARTING")
+    a1 = _agent(raw_suffix="B", tribe="alpha")
+    a2 = _agent(raw_suffix="C", tribe="alpha", status="STARTING")
+    a3 = _agent(raw_suffix="D", tribe="beta")
     index = build_agent_panel_index([a0, a1, a2, a3], dismissable_statuses=_DISMISSABLE)
 
     assert index.keys_per_agent == [None, "alpha", "alpha", "beta"]
@@ -119,21 +119,21 @@ def test_top_level_total_includes_hidden_starting_but_not_children() -> None:
 
 def test_top_level_total_matches_non_child_total_without_starting() -> None:
     """With no hidden STARTING rows the inclusive total equals the rendered one."""
-    agents = [_agent(raw_suffix="a"), _agent(raw_suffix="b", tag="alpha")]
+    agents = [_agent(raw_suffix="a"), _agent(raw_suffix="b", tribe="alpha")]
     index = build_agent_panel_index(agents, dismissable_statuses=_DISMISSABLE)
     assert index.hidden_starting_indices == []
     assert index.top_level_total == index.non_child_total == 2
 
 
 def test_merged_index_places_every_agent_in_single_panel() -> None:
-    a0 = _agent(raw_suffix="A", tag=None)
-    a1 = _agent(raw_suffix="B", tag="alpha")
-    a2 = _agent(raw_suffix="C", tag="beta")
+    a0 = _agent(raw_suffix="A", tribe=None)
+    a1 = _agent(raw_suffix="B", tribe="alpha")
+    a2 = _agent(raw_suffix="C", tribe="beta")
 
     index = build_agent_panel_index(
         [a0, a1, a2],
         dismissable_statuses=_DISMISSABLE,
-        merge_tag_panels=True,
+        merge_tribe_panels=True,
     )
 
     assert index.keys_per_agent == [None, None, None]
@@ -145,8 +145,8 @@ def test_merged_index_places_every_agent_in_single_panel() -> None:
 
 
 def test_local_idx_for_returns_minus_one_for_other_panels() -> None:
-    a0 = _agent(raw_suffix="A", tag=None)
-    a1 = _agent(raw_suffix="B", tag="alpha")
+    a0 = _agent(raw_suffix="A", tribe=None)
+    a1 = _agent(raw_suffix="B", tribe="alpha")
     index = build_agent_panel_index([a0, a1], dismissable_statuses=_DISMISSABLE)
     assert index.local_idx_for("alpha", 0) == -1
     assert index.local_idx_for(None, 1) == -1

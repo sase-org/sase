@@ -2,8 +2,8 @@
 
 Both ``_dismiss_all_done_agents`` and ``_kill_and_dismiss_all_agents`` must
 narrow their candidate sets to the agents in ``self._panel_group.focused_key``
-so that bulk actions on the Agents tab don't blow away unrelated tagged work in
-other panels.
+so that bulk actions on the Agents tab don't affect work in unrelated tribe
+panels.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from sase.ace.tui.actions.agents import AgentsMixin
 from sase.ace.tui.modals import (
     AgentCleanupClanModal,
     AgentCleanupClanResult,
-    AgentCleanupTagModal,
+    AgentCleanupTribeModal,
 )
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -30,7 +30,7 @@ def _agent(
     name: str,
     suffix: str,
     agent_type: AgentType | None = None,
-    tag: str | None = None,
+    tribe: str | None = None,
     status: str = "DONE",
     pid: int | None = None,
     parent_workflow: str | None = None,
@@ -50,7 +50,7 @@ def _agent(
         status=status,
         start_time=None,
         agent_name=name,
-        tribe=tag,
+        tribe=tribe,
         raw_suffix=suffix,
         pid=pid,
         parent_workflow=parent_workflow,
@@ -108,10 +108,10 @@ def _names_in_modal(app: _FakeApp) -> list[str]:
 
 
 def test_dismiss_all_is_scoped_to_focused_panel() -> None:
-    untagged = _agent(name="u1", suffix="t1")
-    fix = _agent(name="f1", suffix="t2", tag="fix")
-    review = _agent(name="r1", suffix="t3", tag="review")
-    app = _FakeApp([untagged, fix, review], focused_key="fix")
+    no_tribe = _agent(name="u1", suffix="t1")
+    fix = _agent(name="f1", suffix="t2", tribe="fix")
+    review = _agent(name="r1", suffix="t3", tribe="review")
+    app = _FakeApp([no_tribe, fix, review], focused_key="fix")
 
     app._dismiss_all_done_agents()
 
@@ -120,13 +120,13 @@ def test_dismiss_all_is_scoped_to_focused_panel() -> None:
 
 
 def test_kill_and_dismiss_all_is_scoped_to_focused_panel() -> None:
-    untagged_done = _agent(name="u_done", suffix="t1")
-    untagged_run = _agent(name="u_run", suffix="t2", status="RUNNING", pid=10)
-    fix_done = _agent(name="f_done", suffix="t3", tag="fix")
-    fix_run = _agent(name="f_run", suffix="t4", status="RUNNING", pid=20, tag="fix")
-    review_done = _agent(name="r_done", suffix="t5", tag="review")
+    no_tribe_done = _agent(name="u_done", suffix="t1")
+    no_tribe_run = _agent(name="u_run", suffix="t2", status="RUNNING", pid=10)
+    fix_done = _agent(name="f_done", suffix="t3", tribe="fix")
+    fix_run = _agent(name="f_run", suffix="t4", status="RUNNING", pid=20, tribe="fix")
+    review_done = _agent(name="r_done", suffix="t5", tribe="review")
     app = _FakeApp(
-        [untagged_done, untagged_run, fix_done, fix_run, review_done],
+        [no_tribe_done, no_tribe_run, fix_done, fix_run, review_done],
         focused_key="fix",
     )
 
@@ -145,7 +145,7 @@ def test_workflow_child_inherits_parent_panel_for_bulk_dismiss() -> None:
     parent = _agent(
         name="parent",
         suffix="20240101120000",
-        tag="fix",
+        tribe="fix",
         status="DONE",
         workflow="wf",
     )
@@ -168,8 +168,8 @@ def test_workflow_child_inherits_parent_panel_for_bulk_dismiss() -> None:
     assert set(_names_in_modal(app_default_focus)) == {"parent", "child"}
 
 
-def test_missing_focused_key_falls_back_to_first_tag_for_dismiss() -> None:
-    fix = _agent(name="f1", suffix="t1", tag="fix")
+def test_missing_focused_key_falls_back_to_first_tribe_for_dismiss() -> None:
+    fix = _agent(name="f1", suffix="t1", tribe="fix")
     app = _FakeApp([fix], focused_key=None)
 
     app._dismiss_all_done_agents()
@@ -179,8 +179,8 @@ def test_missing_focused_key_falls_back_to_first_tag_for_dismiss() -> None:
     assert app._notifications == []
 
 
-def test_missing_focused_key_falls_back_to_first_tag_for_kill_and_dismiss() -> None:
-    fix_run = _agent(name="f_run", suffix="t1", status="RUNNING", pid=42, tag="fix")
+def test_missing_focused_key_falls_back_to_first_tribe_for_kill_and_dismiss() -> None:
+    fix_run = _agent(name="f_run", suffix="t1", status="RUNNING", pid=42, tribe="fix")
     app = _FakeApp([fix_run], focused_key=None)
 
     app._kill_and_dismiss_all_agents()
@@ -191,10 +191,10 @@ def test_missing_focused_key_falls_back_to_first_tag_for_kill_and_dismiss() -> N
 
 
 def test_panel_group_none_falls_back_to_all_agents() -> None:
-    untagged = _agent(name="u1", suffix="t1")
-    fix = _agent(name="f1", suffix="t2", tag="fix")
-    review = _agent(name="r1", suffix="t3", tag="review")
-    app = _FakeApp([untagged, fix, review], with_panel_group=False)
+    no_tribe = _agent(name="u1", suffix="t1")
+    fix = _agent(name="f1", suffix="t2", tribe="fix")
+    review = _agent(name="r1", suffix="t3", tribe="review")
+    app = _FakeApp([no_tribe, fix, review], with_panel_group=False)
 
     app._dismiss_all_done_agents()
 
@@ -202,77 +202,77 @@ def test_panel_group_none_falls_back_to_all_agents() -> None:
     assert set(_names_in_modal(app)) == {"u1", "f1", "r1"}
 
 
-def test_tag_cleanup_uses_tag_scope_plan() -> None:
-    fix_done = _agent(name="f_done", suffix="t1", tag="fix")
-    fix_run = _agent(name="f_run", suffix="t2", status="RUNNING", pid=20, tag="fix")
-    review_done = _agent(name="r_done", suffix="t3", tag="review")
+def test_tribe_cleanup_uses_tribe_scope_plan() -> None:
+    fix_done = _agent(name="f_done", suffix="t1", tribe="fix")
+    fix_run = _agent(name="f_run", suffix="t2", status="RUNNING", pid=20, tribe="fix")
+    review_done = _agent(name="r_done", suffix="t3", tribe="review")
     app = _FakeApp([fix_done, fix_run, review_done], focused_key=None)
 
-    app._present_tag_cleanup("fix")
+    app._present_tribe_cleanup("fix")
 
     assert len(app._pushed) == 1
     names = set(_names_in_modal(app))
     assert names == {"f_done", "f_run"}
 
 
-def test_tag_cleanup_known_tags_are_current_agents_tab_tags(
+def test_tribe_cleanup_known_tribes_are_current_agents_tab_tribes(
     monkeypatch: Any,
 ) -> None:
-    fix = _agent(name="f1", suffix="t1", tag="fix")
-    stale_review = _agent(name="r1", suffix="t2", tag="review")
+    fix = _agent(name="f1", suffix="t1", tribe="fix")
+    stale_review = _agent(name="r1", suffix="t2", tribe="review")
     app = _FakeApp([fix], agents_with_children=[fix, stale_review])
     monkeypatch.setattr(
         "sase.ace.agent_tribes.load_agent_tribes",
         lambda: {(AgentType.RUNNING, "cl", "t3"): "persisted"},
     )
 
-    assert app._known_agent_cleanup_tags() == ("fix",)
+    assert app._known_agent_cleanup_tribes() == ("fix",)
 
 
-def test_tag_cleanup_modal_preview_ignores_out_of_scope_same_tag_agent() -> None:
-    visible = _agent(name="visible", suffix="t1", tag="fix", status="RUNNING", pid=10)
-    stale = _agent(name="stale", suffix="t2", tag="fix", status="RUNNING", pid=20)
+def test_tribe_cleanup_modal_preview_ignores_out_of_scope_same_tribe_agent() -> None:
+    visible = _agent(name="visible", suffix="t1", tribe="fix", status="RUNNING", pid=10)
+    stale = _agent(name="stale", suffix="t2", tribe="fix", status="RUNNING", pid=20)
     app = _FakeApp([visible], agents_with_children=[visible, stale])
 
-    app._open_tag_cleanup_selector()
+    app._open_tribe_cleanup_selector()
 
     screen, _callback = app._pushed[-1]
-    assert isinstance(screen, AgentCleanupTagModal)
-    rows = {row.tag: row for row in screen._rows}
+    assert isinstance(screen, AgentCleanupTribeModal)
+    rows = {row.tribe: row for row in screen._rows}
     assert rows["fix"].plan.counts.kill == 1
 
 
-def test_tag_cleanup_confirmation_ignores_out_of_scope_same_tag_agent() -> None:
-    visible = _agent(name="visible", suffix="t1", tag="fix", status="RUNNING", pid=10)
-    stale = _agent(name="stale", suffix="t2", tag="fix", status="RUNNING", pid=20)
+def test_tribe_cleanup_confirmation_ignores_out_of_scope_same_tribe_agent() -> None:
+    visible = _agent(name="visible", suffix="t1", tribe="fix", status="RUNNING", pid=10)
+    stale = _agent(name="stale", suffix="t2", tribe="fix", status="RUNNING", pid=20)
     app = _FakeApp([visible], agents_with_children=[visible, stale])
 
-    app._present_tag_cleanup("fix")
+    app._present_tribe_cleanup("fix")
 
     assert len(app._pushed) == 1
     assert _names_in_modal(app) == ["visible"]
 
 
-def test_multi_tag_cleanup_confirmation_includes_selected_tags() -> None:
-    fix = _agent(name="fix", suffix="t1", tag="fix", status="RUNNING", pid=10)
-    review = _agent(name="review", suffix="t2", tag="review")
-    other = _agent(name="other", suffix="t3", tag="other")
+def test_multi_tribe_cleanup_confirmation_includes_selected_tribes() -> None:
+    fix = _agent(name="fix", suffix="t1", tribe="fix", status="RUNNING", pid=10)
+    review = _agent(name="review", suffix="t2", tribe="review")
+    other = _agent(name="other", suffix="t3", tribe="other")
     app = _FakeApp([fix, review, other])
 
-    app._present_tag_cleanup_for_tags(("fix", "review"))
+    app._present_tribe_cleanup_for_tribes(("fix", "review"))
 
     assert len(app._pushed) == 1
     screen, _callback = app._pushed[-1]
-    assert "Tags: @fix, @review" in screen.agent_description
+    assert "Tribes: @fix, @review" in screen.agent_description
     assert set(_names_in_modal(app)) == {"fix", "review"}
 
 
-def test_multi_tag_cleanup_dedupes_workflow_cascade_identities() -> None:
+def test_multi_tribe_cleanup_dedupes_workflow_cascade_identities() -> None:
     parent = _agent(
         name="parent",
         suffix="parent-ts",
         agent_type=AgentType.WORKFLOW,
-        tag="fix",
+        tribe="fix",
         status="RUNNING",
         pid=10,
         workflow="wf",
@@ -285,43 +285,45 @@ def test_multi_tag_cleanup_dedupes_workflow_cascade_identities() -> None:
         parent_workflow="wf",
         parent_timestamp="parent-ts",
         workflow="step",
-        tag="review",
+        tribe="review",
     )
-    review = _agent(name="review", suffix="review-ts", tag="review")
+    review = _agent(name="review", suffix="review-ts", tribe="review")
     app = _FakeApp([parent, review], agents_with_children=[parent, child, review])
 
-    app._present_tag_cleanup_for_tags(("fix", "review"))
+    app._present_tribe_cleanup_for_tribes(("fix", "review"))
 
     assert len(app._pushed) == 1
     assert _names_in_modal(app).count("parent") == 1
     assert set(_names_in_modal(app)) == {"parent", "review"}
 
 
-def test_multi_tag_cleanup_confirmation_ignores_out_of_scope_same_tag_agent() -> None:
+def test_multi_tribe_cleanup_confirmation_ignores_out_of_scope_same_tribe_agent() -> (
+    None
+):
     visible_fix = _agent(
-        name="visible-fix", suffix="t1", tag="fix", status="RUNNING", pid=10
+        name="visible-fix", suffix="t1", tribe="fix", status="RUNNING", pid=10
     )
-    visible_review = _agent(name="visible-review", suffix="t2", tag="review")
+    visible_review = _agent(name="visible-review", suffix="t2", tribe="review")
     stale_fix = _agent(
-        name="stale-fix", suffix="t3", tag="fix", status="RUNNING", pid=20
+        name="stale-fix", suffix="t3", tribe="fix", status="RUNNING", pid=20
     )
     app = _FakeApp(
         [visible_fix, visible_review],
         agents_with_children=[visible_fix, visible_review, stale_fix],
     )
 
-    app._present_tag_cleanup_for_tags(("fix", "review"))
+    app._present_tribe_cleanup_for_tribes(("fix", "review"))
 
     assert len(app._pushed) == 1
     assert set(_names_in_modal(app)) == {"visible-fix", "visible-review"}
 
 
-def test_tag_cleanup_current_workflow_parent_keeps_hidden_child_cascade() -> None:
+def test_tribe_cleanup_current_workflow_parent_keeps_hidden_child_cascade() -> None:
     parent = _agent(
         name="parent",
         suffix="parent-ts",
         agent_type=AgentType.WORKFLOW,
-        tag="fix",
+        tribe="fix",
         status="RUNNING",
         pid=10,
         workflow="wf",
@@ -337,11 +339,11 @@ def test_tag_cleanup_current_workflow_parent_keeps_hidden_child_cascade() -> Non
     )
     app = _FakeApp([parent], agents_with_children=[parent, hidden_child])
 
-    app._open_tag_cleanup_selector()
+    app._open_tribe_cleanup_selector()
 
     screen, _callback = app._pushed[-1]
-    assert isinstance(screen, AgentCleanupTagModal)
-    rows = {row.tag: row for row in screen._rows}
+    assert isinstance(screen, AgentCleanupTribeModal)
+    rows = {row.tribe: row for row in screen._rows}
     assert rows["fix"].plan.counts.kill == 1
     assert rows["fix"].plan.counts.cascaded_workflow_children == 1
 
@@ -358,14 +360,14 @@ def test_clan_cleanup_panel_state_counts_cleanable_clans_and_focus(
         suffix="alpha-1",
         status="RUNNING",
         pid=10,
-        tag="epic",
+        tribe="epic",
         agent_clan="alpha",
         agent_clan_generation="g1",
     )
     beta = _agent(
         name="beta.1",
         suffix="beta-1",
-        tag="epic",
+        tribe="epic",
         agent_clan="beta",
         agent_clan_generation="g2",
     )
@@ -388,14 +390,14 @@ def test_open_clan_cleanup_selector_is_tribe_scoped_and_pre_highlighted(
         suffix="alpha-1",
         status="RUNNING",
         pid=10,
-        tag="epic",
+        tribe="epic",
         agent_clan="alpha",
         agent_clan_generation="g1",
     )
     review = _agent(
         name="review.1",
         suffix="review-1",
-        tag="review",
+        tribe="review",
         agent_clan="review",
         agent_clan_generation="g2",
     )
@@ -420,14 +422,14 @@ def test_single_clan_cleanup_uses_clan_scope_and_strips_containers(
         suffix="alpha-1",
         status="RUNNING",
         pid=10,
-        tag="epic",
+        tribe="epic",
         agent_clan="alpha",
         agent_clan_generation="g1",
     )
     done = _agent(
         name="alpha.2",
         suffix="alpha-2",
-        tag="epic",
+        tribe="epic",
         agent_clan="alpha",
         agent_clan_generation="g1",
     )
@@ -464,14 +466,14 @@ def test_mixed_clan_cleanup_unions_whole_clan_and_member_selection(
         suffix="alpha-1",
         status="RUNNING",
         pid=10,
-        tag="epic",
+        tribe="epic",
         agent_clan="alpha",
         agent_clan_generation="g1",
     )
     alpha_two = _agent(
         name="alpha.2",
         suffix="alpha-2",
-        tag="epic",
+        tribe="epic",
         agent_clan="alpha",
         agent_clan_generation="g1",
     )
@@ -480,7 +482,7 @@ def test_mixed_clan_cleanup_unions_whole_clan_and_member_selection(
         suffix="beta-1",
         status="RUNNING",
         pid=20,
-        tag="epic",
+        tribe="epic",
         agent_clan="beta",
         agent_clan_generation="g2",
     )
@@ -507,7 +509,7 @@ def test_mixed_clan_cleanup_unions_whole_clan_and_member_selection(
     assert captured["header"] == "Clans: 2 selected"
 
 
-def test_clan_cleanup_preserves_generation_and_untagged_panel_scope(
+def test_clan_cleanup_preserves_generation_and_no_tribe_panel_scope(
     monkeypatch: Any,
 ) -> None:
     old = _agent(
@@ -524,14 +526,14 @@ def test_clan_cleanup_preserves_generation_and_untagged_panel_scope(
         agent_clan="alpha",
         agent_clan_generation="current",
     )
-    tagged = _agent(
+    tribe_assigned = _agent(
         name="other.1",
         suffix="other-1",
-        tag="review",
+        tribe="review",
         agent_clan="other",
         agent_clan_generation="g2",
     )
-    rows = _projected_clans(old, current, tagged)
+    rows = _projected_clans(old, current, tribe_assigned)
     app = _FakeApp(rows, focused_key=None, agents_with_children=rows)
     captured: dict[str, Any] = {}
 

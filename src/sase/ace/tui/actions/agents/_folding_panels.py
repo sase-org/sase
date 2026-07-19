@@ -215,7 +215,7 @@ class AgentPanelFoldingMixin:
         return True
 
     def _collapse_focused_panel(self) -> None:
-        """Collapse the focused tag panel while retaining its detail context."""
+        """Collapse the focused tribe panel while retaining its detail context."""
         if self.current_tab != "agents":
             return
         panel_group = getattr(self, "_panel_group", None)
@@ -265,7 +265,7 @@ class AgentPanelFoldingMixin:
         return True
 
     def _expand_focused_panel(self) -> None:
-        """Expand the focused tag panel and select its first rendered row."""
+        """Expand the focused tribe panel and select its first rendered row."""
         if self.current_tab != "agents":
             return
         panel_group = getattr(self, "_panel_group", None)

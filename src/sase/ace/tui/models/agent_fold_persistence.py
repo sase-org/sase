@@ -24,7 +24,8 @@ from .group_fold import GroupKey
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+_LEGACY_SCHEMA_VERSION = 1
 FILENAME = "ace_agents_fold_state.json"
 MAX_FILE_BYTES = 256 * 1024
 MAX_COLLAPSED_PANELS = 256
@@ -86,23 +87,39 @@ def _agents_fold_state_path() -> Path:
     return sase_home() / FILENAME
 
 
-def _decode_panel_key(raw: Any) -> PanelKey:
+def _decode_panel_key(raw: Any, *, schema_version: int) -> PanelKey:
     if not isinstance(raw, dict):
         raise _AgentsFoldStateDecodeError("panel key must be an object")
     kind = raw.get("kind")
-    if kind == "untagged" and set(raw) == {"kind"}:
-        return None
-    if kind == "tag" and set(raw) == {"kind", "tag"}:
-        tag = raw.get("tag")
-        if isinstance(tag, str) and bool(tag) and len(tag) <= MAX_STRING_LENGTH:
-            return tag
+    if schema_version == _LEGACY_SCHEMA_VERSION:
+        if kind == "untagged" and set(raw) == {"kind"}:
+            return None
+        if kind == "tag" and set(raw) == {"kind", "tag"}:
+            legacy_tag = raw.get("tag")
+            if (
+                isinstance(legacy_tag, str)
+                and bool(legacy_tag)
+                and len(legacy_tag) <= MAX_STRING_LENGTH
+            ):
+                return legacy_tag
+    elif schema_version == SCHEMA_VERSION:
+        if kind == "no_tribe" and set(raw) == {"kind"}:
+            return None
+        if kind == "tribe" and set(raw) == {"kind", "tribe"}:
+            tribe = raw.get("tribe")
+            if (
+                isinstance(tribe, str)
+                and bool(tribe)
+                and len(tribe) <= MAX_STRING_LENGTH
+            ):
+                return tribe
     raise _AgentsFoldStateDecodeError("invalid panel key")
 
 
 def _encode_panel_key(panel_key: PanelKey) -> dict[str, str]:
     if panel_key is None:
-        return {"kind": "untagged"}
-    return {"kind": "tag", "tag": panel_key}
+        return {"kind": "no_tribe"}
+    return {"kind": "tribe", "tribe": panel_key}
 
 
 def _decode_group_key(raw: Any) -> GroupKey:
@@ -121,7 +138,10 @@ def _decode_agents_fold_state(raw: Any) -> AgentsFoldStateSnapshot:
     if not isinstance(raw, dict):
         raise _AgentsFoldStateDecodeError("root must be an object")
     schema_version = raw.get("schema_version")
-    if type(schema_version) is not int or schema_version != SCHEMA_VERSION:
+    if type(schema_version) is not int or schema_version not in {
+        _LEGACY_SCHEMA_VERSION,
+        SCHEMA_VERSION,
+    }:
         raise _AgentsFoldStateDecodeError("unknown schema version")
     if not set(raw).issubset({"schema_version", "collapsed_panels", "group_folds"}):
         raise _AgentsFoldStateDecodeError("unknown root field")
@@ -131,7 +151,7 @@ def _decode_agents_fold_state(raw: Any) -> AgentsFoldStateSnapshot:
         raise _AgentsFoldStateDecodeError("invalid collapsed-panels collection")
     collapsed_panels: set[PanelKey] = set()
     for raw_panel in raw_panels:
-        panel_key = _decode_panel_key(raw_panel)
+        panel_key = _decode_panel_key(raw_panel, schema_version=schema_version)
         if panel_key in collapsed_panels:
             raise _AgentsFoldStateDecodeError("duplicate collapsed panel")
         collapsed_panels.add(panel_key)
@@ -183,7 +203,9 @@ def _decode_agents_fold_state(raw: Any) -> AgentsFoldStateSnapshot:
             if not isinstance(merged, bool):
                 raise _AgentsFoldStateDecodeError("merged must be boolean")
             scope = AgentPanelFoldScope(
-                panel_key=_decode_panel_key(raw_scope.get("panel")),
+                panel_key=_decode_panel_key(
+                    raw_scope.get("panel"), schema_version=schema_version
+                ),
                 merged=merged,
             )
             if scope in seen_scopes:

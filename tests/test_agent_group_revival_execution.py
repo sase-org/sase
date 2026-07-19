@@ -16,12 +16,12 @@ from tests._agent_revive_helpers import FakeReviveApp, make_agent
 
 def test_revive_saved_group_restores_parent_child_and_marks_group() -> None:
     app = FakeReviveApp()
-    active = make_agent(cl_name="active", raw_suffix="active_suffix", tag="alpha")
+    active = make_agent(cl_name="active", raw_suffix="active_suffix", tribe="alpha")
     parent = make_agent(
         cl_name="feature",
         raw_suffix="parent_suffix",
         workflow="wf",
-        tag="beta",
+        tribe="beta",
     )
     child = make_agent(
         cl_name="feature-step",
@@ -29,7 +29,7 @@ def test_revive_saved_group_restores_parent_child_and_marks_group() -> None:
         parent_workflow="wf",
         parent_timestamp="parent_suffix",
         step_index=0,
-        tag="beta",
+        tribe="beta",
     )
     app._agents = [active]
     app.loaded_agents = [active, child, parent]

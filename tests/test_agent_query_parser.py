@@ -38,9 +38,9 @@ def test_parses_property_match() -> None:
     )
 
 
-def test_parses_dotted_tag_property_match() -> None:
-    assert parse_agent_query("tag:sase-42.3") == PropertyMatch(
-        key="tag", value="sase-42.3"
+def test_parses_dotted_tribe_property_match() -> None:
+    assert parse_agent_query("tribe:sase-42.3") == PropertyMatch(
+        key="tribe", value="sase-42.3"
     )
 
 

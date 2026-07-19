@@ -500,7 +500,7 @@ class StateInitMixin:
         self._grouping_mode_save_inflight: set[str] = set()
         self._grouping_mode_save_active: dict[str, object] = {}
 
-        # Tag-driven side-panel collection.  Initialized empty (untagged
+        # Tribe-driven side-panel collection. Initialized empty (no-tribe
         # main pane only); rebuilt by ``_load_agents`` whenever the
         # agent set changes.
         from ..models.agent_panels import AgentPanelGroup, PanelKey

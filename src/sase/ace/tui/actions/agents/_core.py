@@ -23,7 +23,7 @@ from ._panel_hint_folding import AgentPanelHintFoldingMixin
 from ._revert import AgentRevertMixin
 from ._revive import AgentRevivalMixin
 from ._selection import AgentSelectionMixin
-from ._tagging import AgentTaggingMixin
+from ._tribe_assignment import AgentTribeAssignmentMixin
 from ._unread import AgentUnreadMixin
 from ._wait_resume import AgentWaitResumeMixin
 from ._workflow_hitl import AgentWorkflowHITLMixin
@@ -61,7 +61,7 @@ class AgentsMixinCore(
     AgentGroupingMixin,
     AgentKillMixin,
     AgentMarkingMixin,
-    AgentTaggingMixin,
+    AgentTribeAssignmentMixin,
     AgentWaitResumeMixin,
     AgentPanelsMixin,
     AgentWorkflowHITLMixin,
@@ -99,7 +99,7 @@ class AgentsMixinCore(
     _fold_manager: FoldStateManager
     _fold_counts: dict[str, tuple[int, int]]
 
-    # Group fold + tag-driven panel collection (see startup.py for full
+    # Group fold + tribe-driven panel collection (see startup.py for full
     # documentation).
     _group_fold_registry: AgentGroupFoldRegistry
     _current_group_key: tuple[str, ...] | None

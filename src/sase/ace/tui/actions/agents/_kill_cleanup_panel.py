@@ -100,7 +100,7 @@ class AgentCleanupPanelMixin:
             all_failed_count=failed_count(all_agents),
             marked_count=len(self._marked_agents),
             group_count=group_count,
-            tag_count=len(self._known_agent_cleanup_tags()),
+            tribe_count=len(self._known_agent_cleanup_tribes()),
             clan_count=len(cleanable_clans),
             focused_clan_label=self._focused_cleanup_clan_label(clans),  # type: ignore[attr-defined]
         )
@@ -129,8 +129,8 @@ class AgentCleanupPanelMixin:
                 return
             self._bulk_kill_group_agents(group)  # type: ignore[attr-defined]
             return
-        if action == "tag":
-            self._open_tag_cleanup_selector()  # type: ignore[attr-defined]
+        if action == "tribe":
+            self._open_tribe_cleanup_selector()  # type: ignore[attr-defined]
             return
         if action == "clan":
             self._open_clan_cleanup_selector()  # type: ignore[attr-defined]
@@ -145,7 +145,7 @@ class AgentCleanupPanelMixin:
         if panel_group is None:
             return "all panels"
         focused_key = panel_group.focused_key
-        return "(untagged)" if focused_key is None else f"@{focused_key}"
+        return "(no tribe)" if focused_key is None else f"@{focused_key}"
 
     def _agent_cleanup_current_scope_targets(self) -> list[Agent]:
         """Return cleanup targets scoped to the current Agents-tab list."""
@@ -194,12 +194,12 @@ class AgentCleanupPanelMixin:
                 add(agent)
         return targets
 
-    def _known_agent_cleanup_tags(self) -> tuple[str, ...]:
-        """Return tag names present in the current Agents-tab list."""
-        from ...models.agent_panels import effective_tag_per_agent
+    def _known_agent_cleanup_tribes(self) -> tuple[str, ...]:
+        """Return tribe names present in the current Agents-tab list."""
+        from ...models.agent_panels import effective_tribe_per_agent
 
-        tags = {tag for tag in effective_tag_per_agent(self._agents) if tag}
-        return tuple(sorted(tags, key=str.lower))
+        tribes = {tribe for tribe in effective_tribe_per_agent(self._agents) if tribe}
+        return tuple(sorted(tribes, key=str.lower))
 
     def _present_planned_cleanup(
         self,

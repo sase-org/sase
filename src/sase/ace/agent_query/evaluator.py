@@ -111,16 +111,16 @@ def _match_substring_property(prop: PropertyMatch, agent: Agent) -> bool:
     return False  # pragma: no cover — keys policed by tokenizer
 
 
-def _match_tag(prop: PropertyMatch, agent: Agent) -> bool:
-    """Exact (case-insensitive) tag match.
+def _match_tribe(prop: PropertyMatch, agent: Agent) -> bool:
+    """Exact (case-insensitive) tribe match.
 
-    ``tag:foo`` ⇔ ``agent.tribe == "foo"``. Bare ``tag:`` (empty value) means
-    "any tagged agent" — match any non-empty tag.
+    ``tribe:foo`` ⇔ ``agent.tribe == "foo"``. Bare ``tribe:`` (empty value)
+    means "any agent in a tribe" — match any non-empty tribe.
     """
-    agent_tag = (agent.tribe or "").lower()
+    agent_tribe = (agent.tribe or "").lower()
     if not prop.value:
-        return bool(agent_tag)
-    return agent_tag == prop.value.lower()
+        return bool(agent_tribe)
+    return agent_tribe == prop.value.lower()
 
 
 def _match_bool_property(prop: PropertyMatch, agent: Agent) -> bool:
@@ -180,8 +180,8 @@ def _match_property(
     key = prop.key
     if key in ("status", "cl", "project", "name", "model", "provider"):
         return _match_substring_property(prop, agent)
-    if key == "tag":
-        return _match_tag(prop, agent)
+    if key == "tribe":
+        return _match_tribe(prop, agent)
     if key in ("pinned", "hidden", "attention"):
         return _match_bool_property(prop, agent)
     if key == "type":

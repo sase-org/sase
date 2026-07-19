@@ -100,7 +100,7 @@ class _StubApp(AgentKillingMixin, AgentDismissingMixin):
 
 def _agent(
     *,
-    tag: str = "",
+    tribe: str = "",
     project: str = "proj",
     cl: str = "demo",
     name: str = "alpha",
@@ -110,7 +110,7 @@ def _agent(
 ) -> Agent:
     """Build an Agent with controllable grouping keys.
 
-    Mirrors the helper in ``test_agent_jk_navigation`` so tag-based
+    Mirrors the helper in ``test_agent_jk_navigation`` so tribe-based
     visible-order assertions match the production grouping walk.
     """
     if raw_suffix is None:
@@ -122,7 +122,7 @@ def _agent(
         status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
-        tribe=tag or None,
+        tribe=tribe or None,
         pid=pid,
         raw_suffix=raw_suffix,
     )

@@ -245,10 +245,10 @@ def test_enumerate_group_keys_per_panel_mode() -> None:
     """Each panel decides its own mode; keys from both shapes coexist."""
     keys = enumerate_group_keys(
         [
-            # Panel A (tag=tag1) has a ChangeSpec → 3-level mode.
-            _agent(cl_name="cs", project_file="/r/proj/proj.sase", tag="tag1"),
-            # Panel B (tag=tag2) has no ChangeSpec → 2-level mode.
-            _agent(cl_name="", project_file="/r/proj/proj.sase", tag="tag2"),
+            # Panel A (tribe=tag1) has a ChangeSpec → 3-level mode.
+            _agent(cl_name="cs", project_file="/r/proj/proj.sase", tribe="tag1"),
+            # Panel B (tribe=tag2) has no ChangeSpec → 2-level mode.
+            _agent(cl_name="", project_file="/r/proj/proj.sase", tribe="tag2"),
         ]
     )
     # Panel A emits a ChangeSpec key.

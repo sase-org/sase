@@ -689,7 +689,7 @@ def test_tribe_scope_excludes_synthetic_rows_and_deduplicates_members() -> None:
 @pytest.mark.parametrize(
     ("panel_key", "panel_keys", "expected"),
     [
-        (None, [None], "The untagged panel cannot be forked"),
+        (None, [None], "The no-tribe panel cannot be forked"),
         ("stale", ["other"], "Tribe '@stale' has no agents"),
     ],
 )
@@ -712,7 +712,7 @@ def test_fork_agent_invalid_panel_warns_without_opening_prompt(
 @pytest.mark.parametrize(
     ("panel_key", "panel_keys", "expected"),
     [
-        (None, [None], "The untagged panel cannot be used as a wait target"),
+        (None, [None], "The no-tribe panel cannot be used as a wait target"),
         ("stale", ["other"], "Tribe '@stale' has no agents"),
     ],
 )

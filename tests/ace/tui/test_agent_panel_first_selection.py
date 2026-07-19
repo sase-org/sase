@@ -173,7 +173,7 @@ class _Debouncer:
 
 def _agent(
     *,
-    tag: str | None,
+    tribe: str | None,
     project: str,
     cl: str,
     name: str,
@@ -186,7 +186,7 @@ def _agent(
         status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
-        tribe=tag,
+        tribe=tribe,
         raw_suffix=name,
     )
 
@@ -220,11 +220,11 @@ def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
 
 def test_focus_next_agent_panel_selects_first_rendered_agent_not_first_raw() -> None:
     agents = [
-        _agent(tag=None, project="home", cl="home", name="untagged"),
-        _agent(tag="alpha", project="zeta", cl="z", name="raw-first"),
-        _agent(tag="alpha", project="alpha", cl="a", name="render-first"),
-        _agent(tag="alpha", project="beta", cl="b", name="render-second"),
-        _agent(tag="beta", project="omega", cl="o", name="other-panel"),
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
+        _agent(tribe="alpha", project="zeta", cl="z", name="raw-first"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="render-first"),
+        _agent(tribe="alpha", project="beta", cl="b", name="render-second"),
+        _agent(tribe="beta", project="omega", cl="o", name="other-panel"),
     ]
     app = _StubApp(agents, focused_key=None)
 
@@ -242,9 +242,9 @@ def test_focus_next_agent_panel_acknowledges_unread_agent_row(
     notification_dismiss: Mock,
 ) -> None:
     agents = [
-        _agent(tag=None, project="home", cl="home", name="untagged"),
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
         _agent(
-            tag="alpha",
+            tribe="alpha",
             project="alpha",
             cl="a",
             name="done-agent",
@@ -268,8 +268,8 @@ def test_focus_next_agent_panel_acknowledges_unread_agent_row(
 
 def test_focus_next_agent_panel_back_jump_restores_origin() -> None:
     agents = [
-        _agent(tag=None, project="home", cl="home", name="untagged"),
-        _agent(tag="alpha", project="alpha", cl="a", name="tagged"),
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="tribe_assigned"),
     ]
     app = _StubApp(agents, focused_key=None)
     app._current_group_key = None
@@ -289,8 +289,8 @@ def test_focus_next_agent_panel_back_jump_restores_origin() -> None:
 
 def test_focus_next_agent_panel_guard_keeps_panel_and_selection() -> None:
     agents = [
-        _agent(tag=None, project="home", cl="home", name="untagged"),
-        _agent(tag="alpha", project="alpha", cl="a", name="tagged"),
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="tribe_assigned"),
     ]
     app = _StubApp(agents, focused_key=None)
     app.artifact_file_viewer_guard_active = True
@@ -311,11 +311,11 @@ def test_focus_next_agent_panel_guard_keeps_panel_and_selection() -> None:
 
 def test_focus_prev_agent_panel_selects_last_rendered_agent_not_last_raw() -> None:
     agents = [
-        _agent(tag=None, project="home", cl="home", name="untagged"),
-        _agent(tag="alpha", project="zeta", cl="z", name="raw-first"),
-        _agent(tag="alpha", project="alpha", cl="a", name="render-first"),
-        _agent(tag="alpha", project="beta", cl="b", name="render-second"),
-        _agent(tag="beta", project="omega", cl="o", name="other-panel"),
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
+        _agent(tribe="alpha", project="zeta", cl="z", name="raw-first"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="render-first"),
+        _agent(tribe="alpha", project="beta", cl="b", name="render-second"),
+        _agent(tribe="beta", project="omega", cl="o", name="other-panel"),
     ]
     app = _StubApp(agents, focused_key="beta")
     app.current_idx = 4
@@ -334,13 +334,13 @@ def test_focus_prev_agent_panel_acknowledges_unread_agent_row(
 ) -> None:
     agents = [
         _agent(
-            tag=None,
+            tribe=None,
             project="home",
             cl="home",
             name="done-agent",
             status="DONE",
         ),
-        _agent(tag="alpha", project="alpha", cl="a", name="tagged"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="tribe_assigned"),
     ]
     app = _UnreadPanelSwitchApp(agents, focused_key="alpha")
     app.current_idx = 1
@@ -360,8 +360,8 @@ def test_focus_prev_agent_panel_acknowledges_unread_agent_row(
 
 def test_focus_prev_agent_panel_back_jump_restores_origin() -> None:
     agents = [
-        _agent(tag=None, project="home", cl="home", name="untagged"),
-        _agent(tag="alpha", project="alpha", cl="a", name="tagged"),
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="tribe_assigned"),
     ]
     app = _StubApp(agents, focused_key="alpha")
     app.current_idx = 1
@@ -382,10 +382,10 @@ def test_focus_prev_agent_panel_back_jump_restores_origin() -> None:
 
 def test_panel_switch_can_land_on_first_collapsed_banner() -> None:
     agents = [
-        _agent(tag=None, project="home", cl="home", name="untagged"),
-        _agent(tag="alpha", project="zeta", cl="z", name="raw-first"),
-        _agent(tag="alpha", project="alpha", cl="a", name="banner-agent"),
-        _agent(tag="alpha", project="beta", cl="b", name="render-second"),
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
+        _agent(tribe="alpha", project="zeta", cl="z", name="raw-first"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="banner-agent"),
+        _agent(tribe="alpha", project="beta", cl="b", name="render-second"),
     ]
     app = _StubApp(agents, focused_key=None)
     app._current_group_key = None
@@ -408,8 +408,8 @@ def test_panel_switch_can_land_on_first_collapsed_banner() -> None:
 
 def test_navigation_stop_cache_tracks_only_focused_panel_registry_version() -> None:
     agents = [
-        _agent(tag=None, project="same", cl="a", name="untagged"),
-        _agent(tag="alpha", project="same", cl="a", name="tagged"),
+        _agent(tribe=None, project="same", cl="a", name="no_tribe"),
+        _agent(tribe="alpha", project="same", cl="a", name="tribe_assigned"),
     ]
     app = _StubApp(agents, focused_key=None)
     app._current_group_key = None
@@ -432,16 +432,16 @@ def test_panel_switch_collapsed_banner_does_not_acknowledge_unread_agent(
     notification_dismiss: Mock,
 ) -> None:
     agents = [
-        _agent(tag=None, project="home", cl="home", name="untagged"),
-        _agent(tag="alpha", project="zeta", cl="z", name="raw-first"),
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
+        _agent(tribe="alpha", project="zeta", cl="z", name="raw-first"),
         _agent(
-            tag="alpha",
+            tribe="alpha",
             project="alpha",
             cl="a",
             name="banner-agent",
             status="DONE",
         ),
-        _agent(tag="alpha", project="beta", cl="b", name="render-second"),
+        _agent(tribe="alpha", project="beta", cl="b", name="render-second"),
     ]
     app = _UnreadPanelSwitchApp(agents, focused_key=None)
     app._group_fold_registry.for_panel("alpha").collapse(("alpha",))
@@ -460,11 +460,11 @@ def test_panel_switch_collapsed_banner_does_not_acknowledge_unread_agent(
 
 def test_prev_panel_switch_can_land_on_last_collapsed_banner() -> None:
     agents = [
-        _agent(tag=None, project="home", cl="home", name="untagged"),
-        _agent(tag="alpha", project="zeta", cl="z", name="banner-agent"),
-        _agent(tag="alpha", project="alpha", cl="a", name="render-first"),
-        _agent(tag="alpha", project="beta", cl="b", name="render-second"),
-        _agent(tag="beta", project="omega", cl="o", name="other-panel"),
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
+        _agent(tribe="alpha", project="zeta", cl="z", name="banner-agent"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="render-first"),
+        _agent(tribe="alpha", project="beta", cl="b", name="render-second"),
+        _agent(tribe="beta", project="omega", cl="o", name="other-panel"),
     ]
     app = _StubApp(agents, focused_key="beta")
     app.current_idx = 4
@@ -484,13 +484,13 @@ def test_panel_switch_arms_manual_unread_departure_before_return_selection(
 ) -> None:
     agents = [
         _agent(
-            tag=None,
+            tribe=None,
             project="home",
             cl="home",
             name="manual-unread",
             status="DONE",
         ),
-        _agent(tag="alpha", project="alpha", cl="a", name="tagged"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="tribe_assigned"),
     ]
     app = _UnreadPanelSwitchApp(agents, focused_key=None)
     app._current_group_key = None
@@ -514,7 +514,7 @@ def test_panel_switch_arms_manual_unread_departure_before_return_selection(
 
 def test_focus_next_agent_panel_single_panel_does_not_overwrite_anchor() -> None:
     agents = [
-        _agent(tag="alpha", project="alpha", cl="a", name="only"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="only"),
     ]
     app = _StubApp(agents, focused_key="alpha")
     app.current_idx = 0
@@ -530,9 +530,9 @@ def test_focus_next_agent_panel_single_panel_does_not_overwrite_anchor() -> None
 
 def test_optimized_panel_switch_clears_old_panel_highlight() -> None:
     agents = [
-        _agent(tag=None, project="home", cl="home", name="untagged"),
-        _agent(tag="alpha", project="alpha", cl="a", name="alpha-agent"),
-        _agent(tag="beta", project="beta", cl="b", name="beta-agent"),
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="alpha-agent"),
+        _agent(tribe="beta", project="beta", cl="b", name="beta-agent"),
     ]
     app = _OptimizedPanelSwitchApp(agents, focused_key="alpha")
     app.current_idx = 1
@@ -556,9 +556,9 @@ def test_optimized_panel_switch_clears_old_panel_highlight() -> None:
 
 def test_optimized_panel_switch_does_not_steal_focus_from_hint_bar() -> None:
     agents = [
-        _agent(tag=None, project="home", cl="home", name="untagged"),
-        _agent(tag="alpha", project="alpha", cl="a", name="alpha-agent"),
-        _agent(tag="beta", project="beta", cl="b", name="beta-agent"),
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="alpha-agent"),
+        _agent(tribe="beta", project="beta", cl="b", name="beta-agent"),
     ]
     app = _OptimizedPanelSwitchApp(agents, focused_key="alpha")
     app.current_idx = 1
@@ -581,8 +581,8 @@ def test_focused_panel_widget_focus_skips_all_hint_bar_modes(
     active_flag: str,
 ) -> None:
     agents = [
-        _agent(tag=None, project="home", cl="home", name="untagged"),
-        _agent(tag="alpha", project="alpha", cl="a", name="alpha-agent"),
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="alpha-agent"),
     ]
     app = _OptimizedPanelSwitchApp(agents, focused_key="alpha")
     setattr(app, active_flag, True)
@@ -594,9 +594,9 @@ def test_focused_panel_widget_focus_skips_all_hint_bar_modes(
 
 def test_refresh_panel_highlights_clears_every_nonfocused_panel() -> None:
     agents = [
-        _agent(tag=None, project="home", cl="home", name="untagged"),
-        _agent(tag="alpha", project="alpha", cl="a", name="alpha-agent"),
-        _agent(tag="beta", project="beta", cl="b", name="beta-agent"),
+        _agent(tribe=None, project="home", cl="home", name="no_tribe"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="alpha-agent"),
+        _agent(tribe="beta", project="beta", cl="b", name="beta-agent"),
     ]
     app = _OptimizedPanelSwitchApp(agents, focused_key="alpha")
     app.current_idx = 1
@@ -621,7 +621,7 @@ def test_refresh_panel_highlights_clears_every_nonfocused_panel() -> None:
 
 def test_refresh_panel_highlights_skips_descendant_scan_for_single_panel() -> None:
     agents = [
-        _agent(tag="alpha", project="alpha", cl="a", name="alpha-agent"),
+        _agent(tribe="alpha", project="alpha", cl="a", name="alpha-agent"),
     ]
     app = _OptimizedPanelSwitchApp(agents, focused_key="alpha")
 

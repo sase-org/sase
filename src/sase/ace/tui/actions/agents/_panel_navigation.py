@@ -1,4 +1,4 @@
-"""Tag-panel focus navigation actions for the ace TUI app."""
+"""Tribe-panel focus navigation actions for the ace TUI app."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class AgentPanelNavigationMixin:
-    """Mixin providing navigation between tag-driven agent side panels."""
+    """Mixin providing navigation between tribe-driven agent side panels."""
 
     current_tab: TabName
     current_idx: int
@@ -124,7 +124,7 @@ class AgentPanelNavigationMixin:
         return True
 
     def _change_focused_agent_panel(self, *, forward: bool) -> None:
-        """Cycle focus between tag-driven side panels with wrap.
+        """Cycle focus between tribe-driven side panels with wrap.
 
         Next-panel focus lands on the first selectable row in the new
         panel's rendered order; previous-panel focus lands on the last.
@@ -211,7 +211,7 @@ class AgentPanelNavigationMixin:
                 debouncer.schedule(fire_detail)
 
     def action_focus_next_agent_panel(self) -> None:
-        """Move focus to the next tag-driven side panel (with wrap)."""
+        """Move focus to the next tribe-driven side panel (with wrap)."""
         perf_begin = getattr(self, "_jk_perf_begin", None)
         if callable(perf_begin):
             perf_begin("next_agent_panel")
@@ -224,7 +224,7 @@ class AgentPanelNavigationMixin:
             self.call_after_refresh(jk_perf.mark_painted)  # type: ignore[attr-defined]
 
     def action_focus_prev_agent_panel(self) -> None:
-        """Move focus to the previous tag-driven side panel (with wrap)."""
+        """Move focus to the previous tribe-driven side panel (with wrap)."""
         perf_begin = getattr(self, "_jk_perf_begin", None)
         if callable(perf_begin):
             perf_begin("prev_agent_panel")
@@ -237,7 +237,7 @@ class AgentPanelNavigationMixin:
             self.call_after_refresh(jk_perf.mark_painted)  # type: ignore[attr-defined]
 
     def action_toggle_agent_panel_grouping(self) -> None:
-        """Toggle Agents tab panels between tag-split and merged layouts."""
+        """Toggle Agents tab panels between tribe-split and merged layouts."""
         if self.current_tab != "agents":
             return
         if getattr(self, "_panel_fold_hint_mode_active", False):

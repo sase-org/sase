@@ -117,8 +117,8 @@ def test_collapsed_agent_list_title_only_refresh_tracks_two_character_hint_width
     None
 ):
     widget = AgentList()
-    normal_title = Text("▸ @tag · 1 [R1]")
-    hinted_title = Text("[00] ▸ @tag · 1 [R1]")
+    normal_title = Text("▸ @oak · 1 [R1]")
+    hinted_title = Text("[00] ▸ @oak · 1 [R1]")
 
     widget.border_title = normal_title
     widget.render_collapsed()

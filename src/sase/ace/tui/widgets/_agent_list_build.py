@@ -212,8 +212,8 @@ def build_list(
     fold_registry: GroupFoldView | None = None,
     current_group_key: tuple[str, ...] | None = None,
     grouping_mode: GroupingMode = GroupingMode.STANDARD,
-    tag_labels: list[str | None] | None = None,
-    panel_tag: str | None = None,
+    tribe_labels: list[str | None] | None = None,
+    panel_tribe: str | None = None,
     parents_with_visible_children: set[str] | None = None,
     fully_expanded_parents: set[str] | None = None,
     now: datetime | None = None,
@@ -279,8 +279,10 @@ def build_list(
         )
         is_selected_agent = current_group_key is None and i == current_idx
         hint = (jump_hints or {}).get(i)
-        tag_label = (
-            tag_labels[i] if tag_labels is not None and i < len(tag_labels) else None
+        tribe_label = (
+            tribe_labels[i]
+            if tribe_labels is not None and i < len(tribe_labels)
+            else None
         )
         tier_styles = agent_tier_styles.get(i, ())
         wait_deps_done = wait_dependencies_satisfied(agent, status_buckets)
@@ -294,8 +296,8 @@ def build_list(
             is_marked=is_marked,
             is_unread=is_unread,
             hint_char=hint,
-            tag_label=tag_label,
-            panel_tag=panel_tag,
+            tribe_label=tribe_label,
+            panel_tribe=panel_tribe,
             now=now,
             tier_styles=tier_styles,
             wait_deps_satisfied=wait_deps_done,
@@ -308,8 +310,8 @@ def build_list(
             "is_marked": is_marked,
             "is_unread": is_unread,
             "hint_char": hint,
-            "tag_label": tag_label,
-            "panel_tag": panel_tag,
+            "tribe_label": tribe_label,
+            "panel_tribe": panel_tribe,
             "is_selected": is_selected_agent,
             "wait_deps_satisfied": wait_deps_done,
         }
@@ -593,8 +595,8 @@ def patch_row(
         is_marked=is_marked,
         is_unread=is_unread,
         hint_char=ctx["hint_char"],
-        tag_label=ctx.get("tag_label"),
-        panel_tag=ctx.get("panel_tag"),
+        tribe_label=ctx.get("tribe_label"),
+        panel_tribe=ctx.get("panel_tribe"),
         now=now,
         tier_styles=widget._row_tier_styles.get(agent_idx, ()),
         wait_deps_satisfied=ctx.get("wait_deps_satisfied"),

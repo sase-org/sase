@@ -18,7 +18,7 @@ def _agent(
     name: str,
     *,
     suffix: str,
-    tag: str | None = None,
+    tribe: str | None = None,
     status: str = "RUNNING",
 ) -> Agent:
     return Agent(
@@ -29,7 +29,7 @@ def _agent(
         start_time=datetime(2026, 5, 23, 12, 0, 0),
         raw_suffix=suffix,
         agent_name=name,
-        tribe=tag,
+        tribe=tribe,
     )
 
 
@@ -41,7 +41,7 @@ class _Bare(AgentDisplayMixin):
         self._agent_neighbor_index_cache = None
         self._dismiss_revive_epoch = 0
         self._panel_group = AgentPanelGroup.from_agents(
-            agents, merge_tag_panels=grouped
+            agents, merge_tribe_panels=grouped
         )
         self._group_fold_registry = AgentGroupFoldRegistry()
         self._grouping_mode = GroupingMode.STANDARD
@@ -120,9 +120,9 @@ def test_agent_neighbor_index_cache_tracks_fold_version() -> None:
 def test_agent_neighbor_index_walks_panels_in_render_order() -> None:
     app = _Bare(
         [
-            _agent("foo.zeta", suffix="z", tag="zeta"),
-            _agent("foo.alpha", suffix="a", tag="alpha"),
-            _agent("foo.untagged", suffix="u", tag=None),
+            _agent("foo.zeta", suffix="z", tribe="zeta"),
+            _agent("foo.alpha", suffix="a", tribe="alpha"),
+            _agent("foo.no_tribe", suffix="u", tribe=None),
         ]
     )
 
@@ -155,14 +155,14 @@ def test_agent_neighbor_index_omits_starting_rows_from_app_walk() -> None:
 def test_agent_neighbor_index_cache_tracks_panel_mode() -> None:
     app = _Bare(
         [
-            _agent("foo.alpha", suffix="a", tag="alpha"),
-            _agent("foo.beta", suffix="b", tag="beta"),
+            _agent("foo.alpha", suffix="a", tribe="alpha"),
+            _agent("foo.beta", suffix="b", tribe="beta"),
         ]
     )
     split = app._agent_neighbor_index()
 
     app._agent_panels_grouped = True
-    app._panel_group = AgentPanelGroup.from_agents(app._agents, merge_tag_panels=True)
+    app._panel_group = AgentPanelGroup.from_agents(app._agents, merge_tribe_panels=True)
 
     grouped = app._agent_neighbor_index()
 

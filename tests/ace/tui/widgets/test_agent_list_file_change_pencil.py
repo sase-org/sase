@@ -132,7 +132,7 @@ class TestAgentListFileChangePencil:
             0,
             is_selected=False,
             fold_annotation="×3",
-            tag_label="fix",
+            tribe_label="fix",
         )
 
         assert "test_cl @fix (RUNNING)×3 ◆ sase-x.3" in left.plain

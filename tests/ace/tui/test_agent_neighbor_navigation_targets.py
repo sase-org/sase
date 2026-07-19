@@ -70,7 +70,7 @@ def test_agent_neighbor_navigation_revives_dismissed_family_descendant() -> None
 def test_agent_neighbor_navigation_switches_focused_panel() -> None:
     agents = [
         make_agent("foo.plan"),
-        make_agent("foo.code", tag="review"),
+        make_agent("foo.code", tribe="review"),
     ]
     app = NeighborApp(agents)
     assert app._panel_group.panel_keys == [None, "review"]
@@ -123,8 +123,8 @@ def test_agent_neighbor_navigation_guard_blocks_row_change() -> None:
 
 def test_agent_neighbor_navigation_reveals_collapsed_target_panel_once() -> None:
     origin = make_agent("foo.plan")
-    target = make_agent("foo.code", tag="alpha", status="DONE")
-    unrelated = make_agent("unrelated.agent", tag="zeta")
+    target = make_agent("foo.code", tribe="alpha", status="DONE")
+    unrelated = make_agent("unrelated.agent", tribe="zeta")
     app = NeighborApp(
         [origin, target, unrelated],
         collapsed_panel_keys={"alpha"},
@@ -152,8 +152,8 @@ def test_agent_neighbor_navigation_reveals_collapsed_target_panel_once() -> None
 
 def test_agent_neighbor_modal_resolves_stale_numeric_index_by_identity() -> None:
     origin = make_agent("foo.plan")
-    target = make_agent("foo.code", tag="alpha")
-    other = make_agent("foo.review", tag="zeta")
+    target = make_agent("foo.code", tribe="alpha")
+    other = make_agent("foo.review", tribe="zeta")
     app = NeighborApp(
         [origin, target, other],
         collapsed_panel_keys={"alpha"},
@@ -192,8 +192,8 @@ def test_agent_neighbor_modal_resolves_stale_numeric_index_by_identity() -> None
 
 def test_agent_neighbor_modal_filtered_target_fails_without_mutation() -> None:
     origin = make_agent("foo.plan")
-    target = make_agent("foo.code", tag="alpha")
-    other = make_agent("foo.review", tag="zeta")
+    target = make_agent("foo.code", tribe="alpha")
+    other = make_agent("foo.review", tribe="zeta")
     app = NeighborApp(
         [origin, target, other],
         collapsed_panel_keys={"alpha"},

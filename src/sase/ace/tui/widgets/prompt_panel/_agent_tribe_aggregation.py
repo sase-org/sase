@@ -481,6 +481,9 @@ def _runtime_group_matches_panel(value: object, panel_key: str | None) -> bool:
         return label.removeprefix("@") == panel_key
     return label.casefold() in {
         "",
+        "(no tribe)",
+        "no tribe",
+        # Legacy renderer labels remain readable by cached runtime snapshots.
         "(untagged)",
         "untagged",
         "none",

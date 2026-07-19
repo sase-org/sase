@@ -12,7 +12,7 @@ AgentCleanupAction = Literal[
     "kill_all",
     "marked",
     "group",
-    "tag",
+    "tribe",
     "clan",
     "custom",
 ]
@@ -29,17 +29,10 @@ class AgentCleanupResult:
 
 
 @dataclass(frozen=True)
-class AgentCleanupTagResult:
-    """Selected tags for tag-scoped cleanup."""
+class AgentCleanupTribeResult:
+    """Selected tribes for tribe-scoped cleanup."""
 
-    tags: tuple[str, ...]
-
-    @property
-    def tag(self) -> str:
-        """Compatibility accessor for single-tag callers."""
-        if len(self.tags) != 1:
-            raise ValueError("AgentCleanupTagResult.tag requires exactly one tag")
-        return self.tags[0]
+    tribes: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -70,7 +63,7 @@ class AgentCleanupPanelState:
     all_failed_count: int
     marked_count: int
     group_count: int
-    tag_count: int
+    tribe_count: int
     clan_count: int = 0
     focused_clan_label: str | None = None
 
@@ -83,6 +76,6 @@ __all__ = [
     "AgentCleanupCustomResult",
     "AgentCleanupPanelState",
     "AgentCleanupResult",
-    "AgentCleanupTagResult",
+    "AgentCleanupTribeResult",
     "StatusFilter",
 ]

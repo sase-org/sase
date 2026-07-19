@@ -723,7 +723,7 @@ ChangeSpecList > .option-list--option-highlighted {
 }
 
 /* Modal styling */
-StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupClanModal, AgentCleanupCustomModal, StashedPromptsModal, UpdatePinnedStashModal, QuitConfirmModal, InputCollectionModal {
+StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, AgentCleanupModal, AgentCleanupTribeModal, AgentCleanupClanModal, AgentCleanupCustomModal, StashedPromptsModal, UpdatePinnedStashModal, QuitConfirmModal, InputCollectionModal {
     align: center middle;
 }
 
@@ -834,7 +834,7 @@ AgentCleanupModal #agent-cleanup-hints {
     margin-top: 1;
 }
 
-AgentCleanupTagModal > #agent-cleanup-tag-container {
+AgentCleanupTribeModal > #agent-cleanup-tribe-container {
     width: 74;
     max-width: 92%;
     height: auto;
@@ -844,7 +844,7 @@ AgentCleanupTagModal > #agent-cleanup-tag-container {
     padding: 1 2;
 }
 
-AgentCleanupTagModal #agent-cleanup-tag-list {
+AgentCleanupTribeModal #agent-cleanup-tribe-list {
     height: auto;
     max-height: 18;
     border: solid $secondary;

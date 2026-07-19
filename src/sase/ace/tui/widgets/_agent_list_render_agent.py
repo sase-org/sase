@@ -104,8 +104,8 @@ def format_agent_option(
     is_marked: bool = False,
     is_unread: bool = False,
     hint_char: str | None = None,
-    tag_label: str | None = None,
-    panel_tag: str | None = None,
+    tribe_label: str | None = None,
+    panel_tribe: str | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
@@ -211,8 +211,8 @@ def format_agent_option(
         # Agent display name (workflow name for top-level workflows,
         # ChangeSpec name otherwise).
         text.append(agent.display_name, style=name_style)
-        if tag_label:
-            text.append(f" @{tag_label}", style="bold #FFD75F")
+        if tribe_label:
+            text.append(f" @{tribe_label}", style="bold #FFD75F")
 
     # Status (wrapped in parentheses, parens are dim)
     display_status = agent.display_status
@@ -374,8 +374,8 @@ def format_agent_option(
         text.append(_BEAD_GLYPH, style=_BEAD_GLYPH_STYLE)
 
     # Shared trailing identity block. Grouping rows distinguish their name by
-    # color; bead context stays to the left and clan tags stay to the right.
-    # Kind, name, and tag inputs already participate in ``agent_render_key``;
+    # color; bead context stays to the left and clan tribes stay to the right.
+    # Kind, name, and tribe inputs already participate in ``agent_render_key``;
     # static style changes need no cache-key input.
     identity_name_style = _AGENT_NAME_ANNOTATION_STYLE
     presented_name: str | None
@@ -392,13 +392,13 @@ def format_agent_option(
         text.append(presented_name, style=identity_name_style)
 
     if agent.is_clan_container:
-        rendered_tags = tuple(
-            dict.fromkeys(tribe for tribe in agent.clan_tribes if tribe != panel_tag)
+        rendered_tribes = tuple(
+            dict.fromkeys(tribe for tribe in agent.clan_tribes if tribe != panel_tribe)
         )
-        for clan_tag in rendered_tags:
-            text.append(f" @{clan_tag}", style="bold #FFD75F")
-        if tag_label and tag_label not in rendered_tags:
-            text.append(f" @{tag_label}", style="bold #FFD75F")
+        for clan_tribe in rendered_tribes:
+            text.append(f" @{clan_tribe}", style="bold #FFD75F")
+        if tribe_label and tribe_label not in rendered_tribes:
+            text.append(f" @{tribe_label}", style="bold #FFD75F")
 
     # Embedded workflow annotation for child steps
     if agent.embedded_workflow_name:
@@ -441,8 +441,8 @@ def cached_format_agent_option(
     is_marked: bool = False,
     is_unread: bool = False,
     hint_char: str | None = None,
-    tag_label: str | None = None,
-    panel_tag: str | None = None,
+    tribe_label: str | None = None,
+    panel_tribe: str | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
@@ -469,8 +469,8 @@ def cached_format_agent_option(
         is_marked=is_marked,
         is_unread=is_unread,
         hint_char=hint_char,
-        tag_label=tag_label,
-        panel_tag=panel_tag,
+        tribe_label=tribe_label,
+        panel_tribe=panel_tribe,
         now=now,
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,
@@ -489,8 +489,8 @@ def cached_format_agent_option(
         is_marked=is_marked,
         is_unread=is_unread,
         hint_char=hint_char,
-        tag_label=tag_label,
-        panel_tag=panel_tag,
+        tribe_label=tribe_label,
+        panel_tribe=panel_tribe,
         now=now,
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,

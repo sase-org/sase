@@ -109,7 +109,7 @@ def _agent(
     project: str,
     cl: str,
     name: str,
-    tag: str | None = None,
+    tribe: str | None = None,
     status: str = "RUNNING",
     raw_suffix: str | None = None,
 ) -> Agent:
@@ -120,6 +120,6 @@ def _agent(
         status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
-        tribe=tag,
+        tribe=tribe,
         raw_suffix=raw_suffix,
     )

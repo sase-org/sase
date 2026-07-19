@@ -80,10 +80,10 @@ def build_agent_panel_index(
     agents: list[Agent],
     *,
     dismissable_statuses: Iterable[str],
-    merge_tag_panels: bool = False,
+    merge_tribe_panels: bool = False,
 ) -> AgentPanelIndex:
     """Build an :class:`AgentPanelIndex` for ``agents``."""
-    keys_per_agent = panel_key_per_agent(agents, merge_tag_panels=merge_tag_panels)
+    keys_per_agent = panel_key_per_agent(agents, merge_tribe_panels=merge_tribe_panels)
     panels: dict[PanelKey, _PanelSlice] = {}
     non_child_indices: list[int] = []
     hidden_starting_indices: list[int] = []

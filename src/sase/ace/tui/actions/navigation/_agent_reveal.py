@@ -228,7 +228,7 @@ def _target_panel_context(
 
         keys_per_agent = panel_key_per_agent(
             owner._agents,
-            merge_tag_panels=getattr(owner, "_agent_panels_grouped", False),
+            merge_tribe_panels=getattr(owner, "_agent_panels_grouped", False),
         )
     if not (0 <= target_idx < len(keys_per_agent)):
         return None

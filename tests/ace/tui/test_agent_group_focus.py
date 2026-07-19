@@ -22,16 +22,14 @@ def _make_agent(**overrides: object) -> Agent:
         "pid": 4242,
     }
     defaults.update(overrides)
-    if "tag" in defaults:
-        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
 def _two_panel_agents() -> list[Agent]:
     return [
-        _make_agent(raw_suffix="20260713100100", tag="epic"),
+        _make_agent(raw_suffix="20260713100100", tribe="epic"),
         _make_agent(raw_suffix="20260713100200"),
-        _make_agent(raw_suffix="20260713100300", tag="epic"),
+        _make_agent(raw_suffix="20260713100300", tribe="epic"),
         _make_agent(raw_suffix="20260713100400"),
     ]
 
@@ -51,7 +49,7 @@ def test_focused_group_is_panel_scoped_and_remapped_to_global_indices() -> None:
     assert group.agent_indices == (1, 3)
 
 
-def test_focused_group_uses_selected_tag_panel() -> None:
+def test_focused_group_uses_selected_tribe_panel() -> None:
     agents = _two_panel_agents()
     owner = SimpleNamespace(
         _agents=agents,
@@ -70,7 +68,7 @@ def test_focused_group_merged_panels_includes_all_rendered_agents() -> None:
     agents = _two_panel_agents()
     owner = SimpleNamespace(
         _agents=agents,
-        _panel_group=AgentPanelGroup.from_agents(agents, merge_tag_panels=True),
+        _panel_group=AgentPanelGroup.from_agents(agents, merge_tribe_panels=True),
         _agent_panels_grouped=True,
         _grouping_mode=GroupingMode.STANDARD,
         _current_group_key=("proj_a",),
@@ -95,7 +93,7 @@ def test_focused_group_stale_key_returns_none() -> None:
 
 
 def test_focused_group_without_panel_group_uses_rendered_full_list() -> None:
-    first = _make_agent(raw_suffix="20260713100100", tag="epic")
+    first = _make_agent(raw_suffix="20260713100100", tribe="epic")
     hidden_starting = _make_agent(raw_suffix="20260713100200", status="STARTING")
     last = _make_agent(raw_suffix="20260713100300")
     owner = SimpleNamespace(

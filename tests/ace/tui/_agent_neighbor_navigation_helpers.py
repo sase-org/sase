@@ -199,7 +199,7 @@ class NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMixi
 def make_agent(
     name: str,
     *,
-    tag: str | None = None,
+    tribe: str | None = None,
     status: str = "RUNNING",
     cl: str = "demo",
     project: str = "proj",
@@ -212,5 +212,5 @@ def make_agent(
         start_time=datetime(2026, 5, 23, 12, 0, 0),
         raw_suffix=name,
         agent_name=name,
-        tribe=tag,
+        tribe=tribe,
     )

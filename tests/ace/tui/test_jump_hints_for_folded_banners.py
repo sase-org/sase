@@ -48,9 +48,9 @@ def test_jump_targets_include_collapsed_panels_in_render_order() -> None:
     agents = [
         _agent(project="alpha", cl="a1", name="hidden-group"),
         _agent(project="beta", cl="b1", name="visible"),
-        _agent(project="chop", cl="c1", name="hidden-one", tag="chop"),
-        _agent(project="chop", cl="c2", name="hidden-two", tag="chop"),
-        _agent(project="zoom", cl="z1", name="hidden-zoom", tag="zoom"),
+        _agent(project="chop", cl="c1", name="hidden-one", tribe="chop"),
+        _agent(project="chop", cl="c2", name="hidden-two", tribe="chop"),
+        _agent(project="zoom", cl="z1", name="hidden-zoom", tribe="zoom"),
     ]
     app = _StubApp(
         agents,
@@ -68,11 +68,11 @@ def test_jump_targets_include_collapsed_panels_in_render_order() -> None:
     ]
 
 
-def test_all_panel_maps_use_stable_keys_including_untagged() -> None:
+def test_all_panel_maps_use_stable_keys_including_no_tribe() -> None:
     agents = [
-        _agent(project="home", cl="u1", name="untagged"),
-        _agent(project="apple", cl="a1", name="visible", tag="apple"),
-        _agent(project="chop", cl="c1", name="hidden", tag="chop"),
+        _agent(project="home", cl="u1", name="no_tribe"),
+        _agent(project="apple", cl="a1", name="visible", tribe="apple"),
+        _agent(project="chop", cl="c1", name="hidden", tribe="chop"),
     ]
     app = _StubApp(agents, collapsed_panels={None, "chop"})
 

@@ -13,8 +13,8 @@ from sase.ace.tui.modals import (
     AgentCleanupModal,
     AgentCleanupPanelState,
     AgentCleanupResult,
-    AgentCleanupTagModal,
-    AgentCleanupTagResult,
+    AgentCleanupTribeModal,
+    AgentCleanupTribeResult,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 
@@ -30,7 +30,7 @@ def _state(**overrides: Any) -> AgentCleanupPanelState:
         all_failed_count=1,
         marked_count=2,
         group_count=5,
-        tag_count=2,
+        tribe_count=2,
         clan_count=3,
         focused_clan_label="sase-72",
     )
@@ -61,7 +61,7 @@ def test_agent_cleanup_modal_action_availability() -> None:
     assert rows["group"].enabled is False
     assert rows["dismiss_all_done"].enabled is True
     assert rows["kill_all"].enabled is True
-    assert rows["tag"].enabled is True
+    assert rows["tribe"].enabled is True
     assert rows["clan"].enabled is True
     assert rows["custom"].enabled is False
 
@@ -88,7 +88,7 @@ async def test_agent_cleanup_modal_hints_include_final_clan_key_set() -> None:
         hints = modal.query_one("#agent-cleanup-hints", Static)
         assert str(hints.content) == (
             "d/D dismiss completed  k/K kill running + dismiss completed  "
-            "m marked  g group  t tag  C clan  c custom  q close"
+            "m marked  g group  t tribe  C clan  c custom  q close"
         )
 
 
@@ -123,47 +123,45 @@ def _agent(**overrides: object) -> Agent:
         "pid": 100,
     }
     defaults.update(overrides)
-    if "tag" in defaults:
-        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
-def test_agent_cleanup_tag_modal_previews_and_disables_empty_tags() -> None:
-    fix = _agent(cl_name="fix", raw_suffix="fix-ts", tag="fix", pid=10)
+def test_agent_cleanup_tribe_modal_previews_and_disables_empty_tribes() -> None:
+    fix = _agent(cl_name="fix", raw_suffix="fix-ts", tribe="fix", pid=10)
     review = _agent(
         cl_name="review",
         raw_suffix="review-ts",
-        tag="review",
+        tribe="review",
         status="DONE",
         pid=None,
     )
 
-    modal = AgentCleanupTagModal(
-        tags=("fix", "review", "empty"),
+    modal = AgentCleanupTribeModal(
+        tribes=("fix", "review", "empty"),
         targets=[fix, review],
     )
 
-    rows = {row.tag: row for row in modal._rows}
+    rows = {row.tribe: row for row in modal._rows}
     assert rows["fix"].plan.counts.kill == 1
     assert rows["review"].plan.counts.dismiss == 1
     assert rows["empty"].plan.counts.kill == 0
     assert rows["empty"].plan.counts.dismiss == 0
 
 
-async def test_agent_cleanup_tag_modal_supports_jk_navigation() -> None:
-    alpha = _agent(cl_name="alpha", raw_suffix="alpha-ts", tag="alpha", pid=10)
-    beta = _agent(cl_name="beta", raw_suffix="beta-ts", tag="beta", pid=11)
-    gamma = _agent(cl_name="gamma", raw_suffix="gamma-ts", tag="gamma", pid=12)
+async def test_agent_cleanup_tribe_modal_supports_jk_navigation() -> None:
+    alpha = _agent(cl_name="alpha", raw_suffix="alpha-ts", tribe="alpha", pid=10)
+    beta = _agent(cl_name="beta", raw_suffix="beta-ts", tribe="beta", pid=11)
+    gamma = _agent(cl_name="gamma", raw_suffix="gamma-ts", tribe="gamma", pid=12)
 
     async with _TestApp().run_test() as pilot:
-        modal = AgentCleanupTagModal(
-            tags=("alpha", "beta", "gamma"),
+        modal = AgentCleanupTribeModal(
+            tribes=("alpha", "beta", "gamma"),
             targets=[alpha, beta, gamma],
         )
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        option_list = modal.query_one("#agent-cleanup-tag-list", OptionList)
+        option_list = modal.query_one("#agent-cleanup-tribe-list", OptionList)
         assert option_list.highlighted == 0
 
         await pilot.press("j")
@@ -175,41 +173,41 @@ async def test_agent_cleanup_tag_modal_supports_jk_navigation() -> None:
         assert option_list.highlighted == 0
 
 
-async def test_agent_cleanup_tag_modal_toggle_marks_row_and_advances() -> None:
-    alpha = _agent(cl_name="alpha", raw_suffix="alpha-ts", tag="alpha", pid=10)
-    beta = _agent(cl_name="beta", raw_suffix="beta-ts", tag="beta", pid=11)
+async def test_agent_cleanup_tribe_modal_toggle_marks_row_and_advances() -> None:
+    alpha = _agent(cl_name="alpha", raw_suffix="alpha-ts", tribe="alpha", pid=10)
+    beta = _agent(cl_name="beta", raw_suffix="beta-ts", tribe="beta", pid=11)
 
     async with _TestApp().run_test() as pilot:
-        modal = AgentCleanupTagModal(
-            tags=("alpha", "beta"),
+        modal = AgentCleanupTribeModal(
+            tribes=("alpha", "beta"),
             targets=[alpha, beta],
         )
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        option_list = modal.query_one("#agent-cleanup-tag-list", OptionList)
+        option_list = modal.query_one("#agent-cleanup-tribe-list", OptionList)
         await pilot.press("space")
         await pilot.pause()
 
-        assert modal._marked_tags == {"alpha"}
+        assert modal._marked_tribes == {"alpha"}
         assert option_list.highlighted == 1
         assert "[x] @alpha" in option_list.get_option_at_index(0).prompt.plain
         assert "marked: 1" in modal._hint_text()
         assert "1 kill" in modal._hint_text()
 
 
-async def test_agent_cleanup_tag_modal_enter_returns_marked_tags(
+async def test_agent_cleanup_tribe_modal_enter_returns_marked_tribes(
     monkeypatch: Any,
 ) -> None:
-    alpha = _agent(cl_name="alpha", raw_suffix="alpha-ts", tag="alpha", pid=10)
-    beta = _agent(cl_name="beta", raw_suffix="beta-ts", tag="beta", pid=11)
+    alpha = _agent(cl_name="alpha", raw_suffix="alpha-ts", tribe="alpha", pid=10)
+    beta = _agent(cl_name="beta", raw_suffix="beta-ts", tribe="beta", pid=11)
 
     async with _TestApp().run_test() as pilot:
-        modal = AgentCleanupTagModal(
-            tags=("alpha", "beta"),
+        modal = AgentCleanupTribeModal(
+            tribes=("alpha", "beta"),
             targets=[alpha, beta],
         )
-        dismissed: list[AgentCleanupTagResult | None] = []
+        dismissed: list[AgentCleanupTribeResult | None] = []
         monkeypatch.setattr(modal, "dismiss", dismissed.append)
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -219,21 +217,21 @@ async def test_agent_cleanup_tag_modal_enter_returns_marked_tags(
         await pilot.press("enter")
         await pilot.pause()
 
-        assert dismissed == [AgentCleanupTagResult(tags=("alpha", "beta"))]
+        assert dismissed == [AgentCleanupTribeResult(tribes=("alpha", "beta"))]
 
 
-async def test_agent_cleanup_tag_modal_enter_without_marks_returns_highlighted_tag(
+async def test_agent_cleanup_tribe_modal_enter_without_marks_returns_highlighted_tribe(
     monkeypatch: Any,
 ) -> None:
-    alpha = _agent(cl_name="alpha", raw_suffix="alpha-ts", tag="alpha", pid=10)
-    beta = _agent(cl_name="beta", raw_suffix="beta-ts", tag="beta", pid=11)
+    alpha = _agent(cl_name="alpha", raw_suffix="alpha-ts", tribe="alpha", pid=10)
+    beta = _agent(cl_name="beta", raw_suffix="beta-ts", tribe="beta", pid=11)
 
     async with _TestApp().run_test() as pilot:
-        modal = AgentCleanupTagModal(
-            tags=("alpha", "beta"),
+        modal = AgentCleanupTribeModal(
+            tribes=("alpha", "beta"),
             targets=[alpha, beta],
         )
-        dismissed: list[AgentCleanupTagResult | None] = []
+        dismissed: list[AgentCleanupTribeResult | None] = []
         monkeypatch.setattr(modal, "dismiss", dismissed.append)
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -242,35 +240,35 @@ async def test_agent_cleanup_tag_modal_enter_without_marks_returns_highlighted_t
         await pilot.press("enter")
         await pilot.pause()
 
-        assert dismissed == [AgentCleanupTagResult(tags=("beta",))]
+        assert dismissed == [AgentCleanupTribeResult(tribes=("beta",))]
 
 
-async def test_agent_cleanup_tag_modal_disabled_tag_cannot_be_marked_or_confirmed(
+async def test_agent_cleanup_tribe_modal_disabled_tribe_cannot_be_marked_or_confirmed(
     monkeypatch: Any,
 ) -> None:
-    fix = _agent(cl_name="fix", raw_suffix="fix-ts", tag="fix", pid=10)
+    fix = _agent(cl_name="fix", raw_suffix="fix-ts", tribe="fix", pid=10)
 
     async with _TestApp().run_test() as pilot:
-        modal = AgentCleanupTagModal(
-            tags=("empty", "fix"),
+        modal = AgentCleanupTribeModal(
+            tribes=("empty", "fix"),
             targets=[fix],
         )
-        dismissed: list[AgentCleanupTagResult | None] = []
+        dismissed: list[AgentCleanupTribeResult | None] = []
         monkeypatch.setattr(modal, "dismiss", dismissed.append)
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        option_list = modal.query_one("#agent-cleanup-tag-list", OptionList)
+        option_list = modal.query_one("#agent-cleanup-tribe-list", OptionList)
         option_list.highlighted = 0
         await pilot.press("space")
         await pilot.press("enter")
         await pilot.pause()
 
-        assert modal._marked_tags == set()
+        assert modal._marked_tribes == set()
         assert dismissed == []
         assert (
             modal.query_one("#agent-cleanup-hints", Static).content
-            == "Tag has no cleanup targets"
+            == "Tribe has no cleanup targets"
         )
 
 
@@ -281,7 +279,7 @@ def test_agent_cleanup_custom_modal_filters_and_selects_done_agents() -> None:
     modal = AgentCleanupCustomModal(
         candidates=[running, done, waiting],
         targets=[running, done, waiting],
-        focused_panel_label="(untagged)",
+        focused_panel_label="(no tribe)",
     )
 
     modal.action_filter_done()
@@ -301,7 +299,7 @@ def test_agent_cleanup_custom_modal_workflow_parent_cascades_child() -> None:
         raw_suffix="parent-ts",
         status="RUNNING",
         pid=99,
-        tag="fix",
+        tribe="fix",
     )
     child = _agent(
         agent_type=AgentType.WORKFLOW,
@@ -319,7 +317,7 @@ def test_agent_cleanup_custom_modal_workflow_parent_cascades_child() -> None:
         focused_panel_label="@fix",
     )
 
-    modal.action_cycle_tag_filter()
+    modal.action_cycle_tribe_filter()
     assert modal._filtered_agents == [parent, child]
 
     modal._selected.add(parent.identity)

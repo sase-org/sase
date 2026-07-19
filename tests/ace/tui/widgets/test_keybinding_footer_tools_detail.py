@@ -62,7 +62,7 @@ def test_footer_without_selected_agent_omits_agent_only_actions() -> None:
 
     assert labels == {"cleanup (3 done)"}
     assert labels.isdisjoint(
-        {"retry", "dismiss", "kill", "edit chat", "tag/untag", "tmux"}
+        {"retry", "dismiss", "kill", "edit chat", "edit tribe", "tmux"}
     )
 
 

@@ -13,7 +13,7 @@ from sase.config.inventory import build_config_inventory, config_field_model
 
 _LONG_QUERY = (
     "status:running and (agent:planner or agent:coder) and "
-    "project:visual_demo and not tag:archived and updated_after:2026-01-01"
+    "project:visual_demo and not tribe:archived and updated_after:2026-01-01"
 )
 
 

@@ -13,8 +13,8 @@ Grammar (EBNF):
     duration     = "age", ("<" | "<=" | ">" | ">=" | "=" | ":"),
                    digit+, ("s" | "m" | "h" | "d") ;
 
-Property values use the bare-word character set plus ``.`` so dotted tags such
-as ``tag:sase-42.3`` do not require quotes.
+Property values use the bare-word character set plus ``.`` so dotted tribes
+such as ``tribe:sase-42.3`` do not require quotes.
 
 Precedence (tightest to loosest):
     1. NOT  (! or NOT)

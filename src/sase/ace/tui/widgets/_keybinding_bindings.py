@@ -264,8 +264,8 @@ class KeybindingBindingsMixin:
         if agent.status not in ("DONE", "FAILED"):
             bindings.append((self._kd("rename_cl"), "name"))
 
-        # Add/remove agent tag (always available on a focused agent)
-        bindings.append((self._kd("add_agent_tag"), "tag/untag"))
+        # Edit agent tribe (always available on a focused agent)
+        bindings.append((self._kd("edit_agent_tribe"), "edit tribe"))
 
         # Open tmux window (only if agent has a workspace). When opened-workspace
         # context is cached for the selection, ``t`` opens a chooser instead of

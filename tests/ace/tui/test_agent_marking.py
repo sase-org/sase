@@ -320,13 +320,13 @@ def test_toggle_mark_stale_group_key_falls_back_to_single_agent() -> None:
 
 
 def test_toggle_mark_focused_group_is_scoped_to_focused_panel() -> None:
-    """Same-hour agents in another tag panel stay unmarked."""
+    """Same-hour agents in another tribe panel stay unmarked."""
     now = datetime(2026, 7, 13, 12, 0, 0)
     epic_a = _make_agent(
         cl_name="epic-a",
         raw_suffix="20260713100500",
         start_time=datetime(2026, 7, 13, 10, 5, 0),
-        tag="epic",
+        tribe="epic",
     )
     untagged_a = _make_agent(
         cl_name="untagged-a",
@@ -337,7 +337,7 @@ def test_toggle_mark_focused_group_is_scoped_to_focused_panel() -> None:
         cl_name="epic-b",
         raw_suffix="20260713102000",
         start_time=datetime(2026, 7, 13, 10, 20, 0),
-        tag="epic",
+        tribe="epic",
     )
     untagged_b = _make_agent(
         cl_name="untagged-b",

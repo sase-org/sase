@@ -16,7 +16,7 @@ _MAIN_PANEL_ID = "agent-list-panel"
 def panel_widget_id(panel_idx: int) -> str:
     """Return the AgentList widget id for the panel at *panel_idx*.
 
-    Index 0 uses the stable main id even when it displays a tag panel.
+    Index 0 uses the stable main id even when it displays a tribe panel.
     """
     if panel_idx == 0:
         return _MAIN_PANEL_ID

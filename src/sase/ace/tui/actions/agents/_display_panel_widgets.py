@@ -59,12 +59,12 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
 
         panel_keys = self._panel_group.panel_keys
         panel_index = self._agent_panel_index()
-        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
-        effective_tags: list[PanelKey] = []
-        if merge_tag_panels:
-            from ...models.agent_panels import effective_tag_per_agent
+        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
+        effective_tribes: list[PanelKey] = []
+        if merge_tribe_panels:
+            from ...models.agent_panels import effective_tribe_per_agent
 
-            effective_tags = effective_tag_per_agent(self._agents)
+            effective_tribes = effective_tribe_per_agent(self._agents)
 
         existing_ids = {w.id for w in container.children if isinstance(w, AgentList)}
         for idx in range(len(panel_keys)):
@@ -125,7 +125,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                 self._agent_panel_title(
                     key,
                     panel_agents,
-                    merge_tag_panels=merge_tag_panels,
+                    merge_tribe_panels=merge_tribe_panels,
                     panel_jump_hints=panel_jump_hints,
                     isolation_restore_marked=key in isolation_marked_keys,
                 ),
@@ -164,11 +164,12 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                 if not local_banner_hints:
                     local_banner_hints = None
 
-            local_tag_labels: list[str | None] | None = None
-            if merge_tag_panels:
-                local_tag_labels = [
-                    effective_tags[gi]
-                    if 0 <= gi < len(effective_tags) and effective_tags[gi] is not None
+            local_tribe_labels: list[str | None] | None = None
+            if merge_tribe_panels:
+                local_tribe_labels = [
+                    effective_tribes[gi]
+                    if 0 <= gi < len(effective_tribes)
+                    and effective_tribes[gi] is not None
                     else None
                     for gi in global_indices
                 ]
@@ -196,8 +197,8 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                         else None
                     ),
                     grouping_mode=grouping_mode,
-                    tag_labels=local_tag_labels,
-                    panel_tag=key if not merge_tag_panels else None,
+                    tribe_labels=local_tribe_labels,
+                    panel_tribe=key if not merge_tribe_panels else None,
                     parents_with_visible_children=visible_parent_keys,
                     fully_expanded_parents=fully_expanded_parent_keys,
                 )
@@ -236,12 +237,12 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
 
         panel_keys = self._panel_group.panel_keys
         panel_index = self._agent_panel_index()
-        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
-        effective_tags: list[PanelKey] = []
-        if merge_tag_panels:
-            from ...models.agent_panels import effective_tag_per_agent
+        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
+        effective_tribes: list[PanelKey] = []
+        if merge_tribe_panels:
+            from ...models.agent_panels import effective_tribe_per_agent
 
-            effective_tags = effective_tag_per_agent(self._agents)
+            effective_tribes = effective_tribe_per_agent(self._agents)
 
         jump_hints = (
             dict(getattr(self, "_entry_jump_index_to_hint", {}))
@@ -338,7 +339,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                 self._agent_panel_title(
                     key,
                     panel_agents,
-                    merge_tag_panels=merge_tag_panels,
+                    merge_tribe_panels=merge_tribe_panels,
                     panel_jump_hints=panel_jump_hints,
                     isolation_restore_marked=key in isolation_marked_keys,
                 ),
@@ -373,11 +374,12 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                 if not local_banner_hints:
                     local_banner_hints = None
 
-            local_tag_labels: list[str | None] | None = None
-            if merge_tag_panels:
-                local_tag_labels = [
-                    effective_tags[gi]
-                    if 0 <= gi < len(effective_tags) and effective_tags[gi] is not None
+            local_tribe_labels: list[str | None] | None = None
+            if merge_tribe_panels:
+                local_tribe_labels = [
+                    effective_tribes[gi]
+                    if 0 <= gi < len(effective_tribes)
+                    and effective_tribes[gi] is not None
                     else None
                     for gi in global_indices
                 ]
@@ -403,8 +405,8 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                         else None
                     ),
                     grouping_mode=grouping_mode,
-                    tag_labels=local_tag_labels,
-                    panel_tag=key if not merge_tag_panels else None,
+                    tribe_labels=local_tribe_labels,
+                    panel_tribe=key if not merge_tribe_panels else None,
                     parents_with_visible_children=visible_parent_keys,
                     fully_expanded_parents=fully_expanded_parent_keys,
                 )

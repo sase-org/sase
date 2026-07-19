@@ -124,7 +124,7 @@ def test_build_agent_completion_candidates_enriches_visible_named_agents(
     assert candidate.member_count == 1
     assert candidate.label == "completion.plan"
     assert candidate.model == "codex / gpt-5@high"
-    assert candidate.tag == "@review"
+    assert candidate.tribe == "@review"
     assert candidate.prompt_snippet == "Redesign wait completion with rows"
     assert candidate.vcs_workflow is not None
     assert candidate.vcs_workflow.display == "#gh:sase"

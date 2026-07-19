@@ -22,8 +22,8 @@ from .agent_cleanup_modal import (
     AgentCleanupModal,
     AgentCleanupPanelState,
     AgentCleanupResult,
-    AgentCleanupTagModal,
-    AgentCleanupTagResult,
+    AgentCleanupTribeModal,
+    AgentCleanupTribeResult,
 )
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
@@ -91,7 +91,7 @@ from .runners_modal import (
     get_runner_count,
 )
 from .status_modal import StatusModal
-from .agent_tag_modal import AgentTagModal, AgentTagModalResult
+from .agent_tribe_modal import AgentTribeModal, AgentTribeModalResult
 from .tag_input_modal import TagInputModal
 from .approve_options_modal import (
     ApproveOptionsEditPrompt,
@@ -196,13 +196,13 @@ __all__ = [
     "AgentCleanupModal",
     "AgentCleanupPanelState",
     "AgentCleanupResult",
-    "AgentCleanupTagModal",
-    "AgentCleanupTagResult",
+    "AgentCleanupTribeModal",
+    "AgentCleanupTribeResult",
     "AgentRunLogModal",
     "LogsPane",
     "TasksPane",
-    "AgentTagModal",
-    "AgentTagModalResult",
+    "AgentTribeModal",
+    "AgentTribeModalResult",
     "CommandHistoryModal",
     "ConfirmActionModal",
     "CommandInputModal",

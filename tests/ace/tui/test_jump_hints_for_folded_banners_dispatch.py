@@ -44,9 +44,9 @@ def test_jump_dispatch_banner_switches_focused_panel() -> None:
     """Banner targets in a non-focused panel change ``focused_idx``."""
     agents = [
         _agent(project="alpha", cl="a1", name="a1"),
-        _agent(project="alpha", cl="a1", name="a2", tag="ws"),
+        _agent(project="alpha", cl="a1", name="a2", tribe="ws"),
     ]
-    # Two panels: untagged (idx 0) and @ws (idx 1).
+    # Two panels: no tribe (idx 0) and @ws (idx 1).
     app = _StubApp(agents, collapsed_by_panel={"ws": [("alpha",)]})
     assert app._panel_group.panel_keys == [None, "ws"]
     assert app._panel_group.focused_idx == 0
@@ -67,7 +67,7 @@ def test_jump_dispatch_agent_switches_focused_panel() -> None:
     """Agent targets in a non-focused panel move panel focus with the cursor."""
     agents = [
         _agent(project="alpha", cl="a1", name="a1"),
-        _agent(project="alpha", cl="a1", name="a2", tag="ws"),
+        _agent(project="alpha", cl="a1", name="a2", tribe="ws"),
     ]
     app = _StubApp(agents)
     app.current_idx = 0
@@ -245,7 +245,7 @@ def test_jump_dispatch_panel_reanchors_without_acknowledging_hidden_agent(
             project="chop",
             cl="hidden",
             name="hidden",
-            tag="chop",
+            tribe="chop",
             status="DONE",
             raw_suffix="hidden",
         ),
@@ -316,7 +316,7 @@ def test_jump_selection_guard_keeps_current_agent() -> None:
 def test_panel_jump_selection_guard_keeps_focus_and_backing_agent() -> None:
     agents = [
         _agent(project="home", cl="u1", name="source"),
-        _agent(project="chop", cl="c1", name="hidden", tag="chop"),
+        _agent(project="chop", cl="c1", name="hidden", tribe="chop"),
     ]
     app = _StubApp(agents, collapsed_panels={"chop"})
     app._begin_agents_jump_mode()

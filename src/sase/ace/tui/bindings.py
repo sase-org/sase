@@ -164,8 +164,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("a", "open_artifact_files", "Artifact Files", show=False),
     Binding("D", "toggle_attempt_view", "Attempt View", show=False),
     Binding("U", "toggle_agent_unread", "Toggle Agent Unread", show=False),
-    Binding("N", "add_agent_tag", "Add Agent Tag", show=False),
-    # Tag-driven side-panel focus cycling (agents tab)
+    Binding("N", "edit_agent_tribe", "Edit Agent Tribe", show=False),
+    # Tribe-driven side-panel focus cycling (agents tab)
     Binding("J", "focus_next_agent_panel", "Next Panel", show=False),
     Binding("K", "focus_prev_agent_panel", "Prev Panel", show=False),
     # Copy to clipboard (changespecs tab - % followed by key)

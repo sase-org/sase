@@ -27,8 +27,6 @@ def _make_agent(**overrides: object) -> Agent:
         "pid": 4242,
     }
     defaults.update(overrides)
-    if "tag" in defaults:
-        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
@@ -329,16 +327,16 @@ def test_group_kill_no_op_when_group_key_does_not_match() -> None:
 
 
 def test_group_kill_by_date_is_scoped_to_focused_panel() -> None:
-    """Same-hour agents in another tag panel are not killed."""
+    """Same-hour agents in another tribe panel are not killed."""
     now = datetime(2026, 7, 13, 12, 0, 0)
     epic_a = _make_agent(
         cl_name="epic-a",
         raw_suffix="20260713100500",
         start_time=datetime(2026, 7, 13, 10, 5, 0),
-        tag="epic",
+        tribe="epic",
     )
-    untagged_a = _make_agent(
-        cl_name="untagged-a",
+    no_tribe_a = _make_agent(
+        cl_name="no_tribe-a",
         raw_suffix="20260713101000",
         start_time=datetime(2026, 7, 13, 10, 10, 0),
     )
@@ -346,14 +344,14 @@ def test_group_kill_by_date_is_scoped_to_focused_panel() -> None:
         cl_name="epic-b",
         raw_suffix="20260713102000",
         start_time=datetime(2026, 7, 13, 10, 20, 0),
-        tag="epic",
+        tribe="epic",
     )
-    untagged_b = _make_agent(
-        cl_name="untagged-b",
+    no_tribe_b = _make_agent(
+        cl_name="no_tribe-b",
         raw_suffix="20260713103000",
         start_time=datetime(2026, 7, 13, 10, 30, 0),
     )
-    app = _FakeGroupKillApp([epic_a, untagged_a, epic_b, untagged_b])
+    app = _FakeGroupKillApp([epic_a, no_tribe_a, epic_b, no_tribe_b])
     app._panel_group = AgentPanelGroup.from_agents(app._agents, focused_key=None)
     app._grouping_mode = GroupingMode.BY_DATE
     app._current_group_key = ("Today", "10:00")
@@ -371,17 +369,17 @@ def test_group_kill_by_date_is_scoped_to_focused_panel() -> None:
 
 
 def test_group_kill_standard_mode_is_scoped_to_focused_panel() -> None:
-    """A project banner targets only its focused tag panel."""
+    """A project banner targets only its focused tribe panel."""
     epic = _make_agent(
         cl_name="epic-change",
         raw_suffix="20260713100500",
-        tag="epic",
+        tribe="epic",
     )
-    untagged = _make_agent(
-        cl_name="untagged-change",
+    no_tribe = _make_agent(
+        cl_name="no_tribe-change",
         raw_suffix="20260713101000",
     )
-    app = _FakeGroupKillApp([epic, untagged])
+    app = _FakeGroupKillApp([epic, no_tribe])
     app._panel_group = AgentPanelGroup.from_agents(app._agents, focused_key=None)
     app._grouping_mode = GroupingMode.STANDARD
     app._current_group_key = ("proj_a",)
@@ -398,22 +396,22 @@ def test_cleanup_group_count_is_scoped_to_focused_panel() -> None:
     epic_a = _make_agent(
         cl_name="epic-a",
         raw_suffix="20260713100500",
-        tag="epic",
+        tribe="epic",
     )
-    untagged_a = _make_agent(
-        cl_name="untagged-a",
+    no_tribe_a = _make_agent(
+        cl_name="no_tribe-a",
         raw_suffix="20260713101000",
     )
     epic_b = _make_agent(
         cl_name="epic-b",
         raw_suffix="20260713102000",
-        tag="epic",
+        tribe="epic",
     )
-    untagged_b = _make_agent(
-        cl_name="untagged-b",
+    no_tribe_b = _make_agent(
+        cl_name="no_tribe-b",
         raw_suffix="20260713103000",
     )
-    app = _FakeGroupKillApp([epic_a, untagged_a, epic_b, untagged_b])
+    app = _FakeGroupKillApp([epic_a, no_tribe_a, epic_b, no_tribe_b])
     app._panel_group = AgentPanelGroup.from_agents(app._agents, focused_key=None)
     app._grouping_mode = GroupingMode.STANDARD
     app._current_group_key = ("proj_a",)

@@ -166,7 +166,7 @@ def test_named_tribe_footer_advertises_fork_and_wait() -> None:
     assert ("W", "wait for tribe") in bindings
 
 
-def test_untagged_panel_footer_does_not_advertise_hidden_wait_target() -> None:
+def test_no_tribe_panel_footer_does_not_advertise_hidden_wait_target() -> None:
     footer = KeybindingFooter()
 
     bindings = set(

@@ -158,7 +158,7 @@ _REQUIRES_AGENT: frozenset[str] = frozenset(
         "app.edit_spec",
         "app.edit_hooks",
         "app.run_workflow",
-        "app.add_agent_tag",
+        "app.edit_agent_tribe",
         "app.rename_cl",
         "app.toggle_attempt_view",
         "app.toggle_agent_unread",

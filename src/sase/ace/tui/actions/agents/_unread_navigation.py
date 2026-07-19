@@ -242,7 +242,7 @@ class AgentUnreadNavigationMixin(
         if not fold_manager.expand(target.clan_fold_key):
             return False
 
-        # Expand an already-known collapsed tag panel before the structural
+        # Expand an already-known collapsed tribe panel before the structural
         # refilter so both fold changes land in one rebuilt projection.
         expand_panel = getattr(self, "_expand_agent_panel", None)
         if callable(expand_panel):

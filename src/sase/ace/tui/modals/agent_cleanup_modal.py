@@ -5,7 +5,7 @@ from __future__ import annotations
 from .agent_cleanup_custom_modal import AgentCleanupCustomModal
 from .agent_cleanup_clan_modal import AgentCleanupClanModal
 from .agent_cleanup_panel_modal import AgentCleanupModal
-from .agent_cleanup_tag_modal import AgentCleanupTagModal
+from .agent_cleanup_tribe_modal import AgentCleanupTribeModal
 from .agent_cleanup_types import (
     AgentCleanupAction,
     AgentCleanupAgentIdentity,
@@ -14,7 +14,7 @@ from .agent_cleanup_types import (
     AgentCleanupCustomResult,
     AgentCleanupPanelState,
     AgentCleanupResult,
-    AgentCleanupTagResult,
+    AgentCleanupTribeResult,
 )
 
 __all__ = [
@@ -28,6 +28,6 @@ __all__ = [
     "AgentCleanupModal",
     "AgentCleanupPanelState",
     "AgentCleanupResult",
-    "AgentCleanupTagModal",
-    "AgentCleanupTagResult",
+    "AgentCleanupTribeModal",
+    "AgentCleanupTribeResult",
 ]

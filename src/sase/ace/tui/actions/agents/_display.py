@@ -81,7 +81,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
     _entry_jump_banner_to_hint: dict[BannerJumpTarget, str]
     _entry_jump_panel_to_hint: dict[PanelJumpTarget, str]
 
-    # Group fold + tag-driven panel collection (see startup.py).
+    # Group fold + tribe-driven panel collection (see startup.py).
     _group_fold_registry: AgentGroupFoldRegistry
     _grouping_mode: GroupingMode
     _current_group_key: tuple[str, ...] | None
@@ -138,23 +138,27 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         from ...models.agent_panel_index import build_agent_panel_index
 
         cached = getattr(self, "_agent_panel_index_cache", None)
-        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
         if (
             cached is not None
             and cached[0] is self._agents
-            and cached[1] == merge_tag_panels
+            and cached[1] == merge_tribe_panels
         ):
             return cached[2]
         index = build_agent_panel_index(
             self._agents,
             dismissable_statuses=DISMISSABLE_STATUSES,
-            merge_tag_panels=merge_tag_panels,
+            merge_tribe_panels=merge_tribe_panels,
         )
-        self._agent_panel_index_cache = (self._agents, merge_tag_panels, index)
+        self._agent_panel_index_cache = (self._agents, merge_tribe_panels, index)
         # Keep the legacy ``_panel_keys_cache`` populated so callers that
         # still go through ``_panel_keys_per_agent`` (tree builder, banner
         # math) share the same per-agent key list as the panel index.
-        self._panel_keys_cache = (self._agents, merge_tag_panels, index.keys_per_agent)
+        self._panel_keys_cache = (
+            self._agents,
+            merge_tribe_panels,
+            index.keys_per_agent,
+        )
         return index
 
     def _panel_keys_per_agent(self) -> list:
@@ -250,7 +254,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             self._record_display_full_rebuild_fallback("stale_grouping_mode")
             return False
 
-        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
         collapsed_panel_keys = getattr(self, "_collapsed_panel_keys", ())
         if not self._agent_display_widgets_have_previous_rows(previous_agents):
             return False
@@ -259,7 +263,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         if (
             panel_keys_for_display(
                 previous_agents,
-                merge_tag_panels=merge_tag_panels,
+                merge_tribe_panels=merge_tribe_panels,
                 collapsed_panel_keys=collapsed_panel_keys,
             )
             != old_panel_keys
@@ -269,7 +273,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
 
         next_panel_keys = panel_keys_for_display(
             self._agents,
-            merge_tag_panels=merge_tag_panels,
+            merge_tribe_panels=merge_tribe_panels,
             collapsed_panel_keys=collapsed_panel_keys,
         )
         if next_panel_keys != old_panel_keys:
@@ -298,7 +302,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
                 previous_agents,
                 diff=diff,
                 defer_detail=defer_detail,
-                merge_tag_panels=merge_tag_panels,
+                merge_tribe_panels=merge_tribe_panels,
             )
 
     def _agent_display_widgets_match_grouping_mode(self) -> bool:
@@ -373,7 +377,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         *,
         diff: Any,
         defer_detail: bool,
-        merge_tag_panels: bool,
+        merge_tribe_panels: bool,
     ) -> bool:
         sync_artifact_layout = getattr(self, "_sync_artifact_file_viewer_layout", None)
         if callable(sync_artifact_layout):
@@ -401,7 +405,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             diff,
             previous_agents,
             self._agents,
-            merge_tag_panels=merge_tag_panels,
+            merge_tribe_panels=merge_tribe_panels,
         )
         panel_rebuild_keys: set[Any] = set()
         panel_rebuild_keys.update(
@@ -409,7 +413,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
                 diff,
                 previous_agents,
                 self._agents,
-                merge_tag_panels=merge_tag_panels,
+                merge_tribe_panels=merge_tribe_panels,
             )
         )
         if diff.has_collection_changes:
@@ -422,7 +426,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
 
         current_keys = rendered_panel_key_by_identity(
             self._agents,
-            merge_tag_panels=merge_tag_panels,
+            merge_tribe_panels=merge_tribe_panels,
         )
         for idx in diff.changed_same_position:
             agent = self._agents[idx]

@@ -45,7 +45,7 @@ def _agent(
     hidden: bool = False,
     clan: str | None = "research",
     generation: str | None = _GENERATION,
-    tag: str | None = None,
+    tribe: str | None = None,
     clan_tribe: str | None = None,
 ) -> Agent:
     return Agent(
@@ -63,22 +63,22 @@ def _agent(
         is_hidden_step=hidden,
         agent_clan=clan,
         agent_clan_generation=generation,
-        tribe=tag,
+        tribe=tribe,
         clan_tribe=clan_tribe,
     )
 
 
 def test_project_clan_tree_inserts_container_and_three_depths() -> None:
-    family = _agent("research.family", "family", tag="epic")
+    family = _agent("research.family", "family", tribe="epic")
     family_member = _agent(
         "research.family--code",
         "family-code",
         parent_timestamp=family.raw_suffix,
         clan=None,
         generation=None,
-        tag="review",
+        tribe="review",
     )
-    solo = _agent("research.solo", "solo", status="DONE", tag="review")
+    solo = _agent("research.solo", "solo", status="DONE", tribe="review")
 
     projected = project_clan_tree([family, family_member, solo])
 
@@ -225,19 +225,19 @@ def test_project_clan_tree_uses_latest_explicit_clan_tribe() -> None:
     first = _agent(
         "research.first",
         "20260717100001",
-        tag="legacy",
+        tribe="legacy",
         clan_tribe="alpha",
     )
     latest = _agent(
         "research.latest",
         "20260717100002",
-        tag="other-legacy",
+        tribe="other-legacy",
         clan_tribe="beta",
     )
     later_without_declaration = _agent(
         "research.later",
         "20260717100003",
-        tag="ignored-legacy",
+        tribe="ignored-legacy",
     )
 
     container = project_clan_tree([later_without_declaration, first, latest])[0]
@@ -247,9 +247,9 @@ def test_project_clan_tree_uses_latest_explicit_clan_tribe() -> None:
     assert container.clan_tribes == ("beta",)
 
 
-def test_project_clan_tree_retains_legacy_tag_fallback() -> None:
-    first = _agent("research.first", "one", tag="alpha")
-    second = _agent("research.second", "two", tag="beta")
+def test_project_clan_tree_retains_direct_tribe_fallback() -> None:
+    first = _agent("research.first", "one", tribe="alpha")
+    second = _agent("research.second", "two", tribe="beta")
 
     container = project_clan_tree([first, second])[0]
 
@@ -391,8 +391,8 @@ def test_clan_tree_query_retains_complete_immediate_parent_chain() -> None:
     assert filtered == projected
 
 
-def test_clan_and_member_rows_render_identity_colors_tags_and_depth_guides() -> None:
-    family = _agent("research.family", "family", tag="epic")
+def test_clan_and_member_rows_render_identity_colors_tribes_and_depth_guides() -> None:
+    family = _agent("research.family", "family", tribe="epic")
     family.agent_family = "research.family"
     family.agent_family_role = "root"
     family_member = _agent(

@@ -159,7 +159,7 @@ async def test_patch_clan_row_preserves_latest_panel_context() -> None:
         clan.agent_clan = "research"
         clan.clan_tribes = ("epic",)
 
-        widget.update_list([clan], current_idx=0, panel_tag="epic")
+        widget.update_list([clan], current_idx=0, panel_tribe="epic")
         await pilot.pause()
         row = _agent_row_index(widget, 0)
         assert "@epic" not in str(widget.get_option_at_index(row).prompt)
@@ -168,8 +168,8 @@ async def test_patch_clan_row_preserves_latest_panel_context() -> None:
             [clan],
             current_idx=0,
             grouping_mode=GroupingMode.BY_STATUS,
-            tag_labels=["epic"],
-            panel_tag=None,
+            tribe_labels=["epic"],
+            panel_tribe=None,
         )
         await pilot.pause()
         row = _agent_row_index(widget, 0)

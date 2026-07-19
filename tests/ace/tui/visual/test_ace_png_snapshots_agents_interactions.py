@@ -141,7 +141,7 @@ def _panel_auto_expand_agents() -> list[Agent]:
 
 
 def _neighbor_panel_reveal_agents() -> list[Agent]:
-    """Single neighbor target inside a collapsed, reorderable tag panel."""
+    """Single neighbor target inside a collapsed, reorderable tribe panel."""
     project_file = "/workspace/sase/visual_project.sase"
     started = datetime(2026, 7, 18, 16, 30, 0)
     return [
@@ -179,7 +179,7 @@ def _neighbor_panel_reveal_agents() -> list[Agent]:
 
 
 def _overflowing_panel_agents() -> list[Agent]:
-    """Large untagged panel followed by two compact tagged panels."""
+    """Large no-tribe panel followed by two compact tribe panels."""
     project_file = "/workspace/sase/visual_project.sase"
     started = datetime(2026, 7, 18, 15, 0, 0)
     rows = [
@@ -390,8 +390,8 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert page.app._get_selected_agent() is None
         snapshot = page.app._focused_tribe_summary()
         assert snapshot is not None
-        assert snapshot.label == "(untagged)"
-        assert "Name: (untagged)" in prompt.content.plain
+        assert snapshot.label == "(no tribe)"
+        assert "Name: (no tribe)" in prompt.content.plain
 
 
 async def test_agents_overflowing_panel_uses_full_height_png_snapshot(

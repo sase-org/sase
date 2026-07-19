@@ -1,4 +1,4 @@
-"""Tag-scoped agent cleanup chooser for the ace TUI."""
+"""Tribe-scoped agent cleanup chooser for the ace TUI."""
 
 from __future__ import annotations
 
@@ -17,13 +17,13 @@ from sase.core.agent_cleanup_wire import (
     AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
     CLEANUP_MODE_KILL_AND_DISMISS,
     CLEANUP_SCOPE_CUSTOM_SELECTION,
-    CLEANUP_SCOPE_TAG,
+    CLEANUP_SCOPE_TRIBE,
     AgentCleanupIdentityWire,
     AgentCleanupPlanWire,
     AgentCleanupRequestWire,
 )
 
-from .agent_cleanup_types import AgentCleanupTagResult
+from .agent_cleanup_types import AgentCleanupTribeResult
 from .base import OptionListNavigationMixin
 
 if TYPE_CHECKING:
@@ -31,17 +31,17 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class _TagRow:
-    tag: str
+class _TribeRow:
+    tribe: str
     plan: AgentCleanupPlanWire
 
 
-class AgentCleanupTagModal(
-    OptionListNavigationMixin, ModalScreen[AgentCleanupTagResult | None]
+class AgentCleanupTribeModal(
+    OptionListNavigationMixin, ModalScreen[AgentCleanupTribeResult | None]
 ):
-    """Choose one or more tags and preview cleanup plans."""
+    """Choose one or more tribes and preview cleanup plans."""
 
-    _option_list_id = "agent-cleanup-tag-list"
+    _option_list_id = "agent-cleanup-tribe-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("space", "toggle_mark", "Mark"),
@@ -49,25 +49,27 @@ class AgentCleanupTagModal(
         ("enter", "choose_highlighted", "Choose"),
     ]
 
-    def __init__(self, *, tags: tuple[str, ...], targets: list[Agent]) -> None:
+    def __init__(self, *, tribes: tuple[str, ...], targets: list[Agent]) -> None:
         super().__init__()
         self._targets = list(targets)
-        self._rows = [self._build_row(tag) for tag in sorted(set(tags), key=str.lower)]
-        self._marked_tags: set[str] = set()
+        self._rows = [
+            self._build_row(tribe) for tribe in sorted(set(tribes), key=str.lower)
+        ]
+        self._marked_tribes: set[str] = set()
 
     def compose(self) -> ComposeResult:
-        with Container(id="agent-cleanup-tag-container"):
-            yield Label("Cleanup by Tag", id="agent-cleanup-title")
+        with Container(id="agent-cleanup-tribe-container"):
+            yield Label("Cleanup by Tribe", id="agent-cleanup-title")
             yield OptionList(
                 *[
                     Option(
-                        self._tag_row_label(row),
-                        id=f"tag:{row.tag}",
+                        self._tribe_row_label(row),
+                        id=f"tribe:{row.tribe}",
                         disabled=not self._row_enabled(row),
                     )
                     for row in self._rows
                 ],
-                id="agent-cleanup-tag-list",
+                id="agent-cleanup-tribe-list",
             )
             yield Static(
                 self._hint_text(),
@@ -75,33 +77,35 @@ class AgentCleanupTagModal(
             )
 
     def action_choose_highlighted(self) -> None:
-        if self._marked_tags:
-            self.dismiss(AgentCleanupTagResult(tags=self._marked_tags_in_row_order()))
+        if self._marked_tribes:
+            self.dismiss(
+                AgentCleanupTribeResult(tribes=self._marked_tribes_in_row_order())
+            )
             return
 
-        option_list = self.query_one("#agent-cleanup-tag-list", OptionList)
+        option_list = self.query_one("#agent-cleanup-tribe-list", OptionList)
         highlighted = option_list.highlighted
         if highlighted is None or highlighted < 0:
             return
         option = option_list.get_option_at_index(highlighted)
         if option.disabled or option.id is None:
             return
-        tag = str(option.id).removeprefix("tag:")
-        self.dismiss(AgentCleanupTagResult(tags=(tag,)))
+        tribe = str(option.id).removeprefix("tribe:")
+        self.dismiss(AgentCleanupTribeResult(tribes=(tribe,)))
 
     def action_toggle_mark(self) -> None:
-        option_list = self.query_one("#agent-cleanup-tag-list", OptionList)
+        option_list = self.query_one("#agent-cleanup-tribe-list", OptionList)
         highlighted = option_list.highlighted
         if highlighted is None or highlighted < 0 or highlighted >= len(self._rows):
             return
         row = self._rows[highlighted]
         if not self._row_enabled(row):
-            self._set_hint("Tag has no cleanup targets")
+            self._set_hint("Tribe has no cleanup targets")
             return
-        if row.tag in self._marked_tags:
-            self._marked_tags.remove(row.tag)
+        if row.tribe in self._marked_tribes:
+            self._marked_tribes.remove(row.tribe)
         else:
-            self._marked_tags.add(row.tag)
+            self._marked_tribes.add(row.tribe)
         self._refresh_row(highlighted)
         if self._rows:
             option_list.highlighted = (highlighted + 1) % len(self._rows)
@@ -110,36 +114,38 @@ class AgentCleanupTagModal(
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         if event.option.disabled or event.option.id is None:
             return
-        if self._marked_tags:
-            self.dismiss(AgentCleanupTagResult(tags=self._marked_tags_in_row_order()))
+        if self._marked_tribes:
+            self.dismiss(
+                AgentCleanupTribeResult(tribes=self._marked_tribes_in_row_order())
+            )
             return
-        tag = str(event.option.id).removeprefix("tag:")
-        self.dismiss(AgentCleanupTagResult(tags=(tag,)))
+        tribe = str(event.option.id).removeprefix("tribe:")
+        self.dismiss(AgentCleanupTribeResult(tribes=(tribe,)))
 
-    def _build_row(self, tag: str) -> _TagRow:
+    def _build_row(self, tribe: str) -> _TribeRow:
         request = AgentCleanupRequestWire(
             schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
-            scope=CLEANUP_SCOPE_TAG,
+            scope=CLEANUP_SCOPE_TRIBE,
             mode=CLEANUP_MODE_KILL_AND_DISMISS,
-            tag=tag,
+            tribe=tribe,
             include_pidless_as_dismissable=True,
         )
         plan = plan_agent_cleanup(agents_to_cleanup_targets(self._targets), request)
-        return _TagRow(tag=tag, plan=plan)
+        return _TribeRow(tribe=tribe, plan=plan)
 
     @staticmethod
-    def _row_enabled(row: _TagRow) -> bool:
+    def _row_enabled(row: _TribeRow) -> bool:
         return bool(row.plan.kill_items or row.plan.dismiss_items)
 
-    def _tag_row_label(self, row: _TagRow) -> Text:
+    def _tribe_row_label(self, row: _TribeRow) -> Text:
         text = Text()
         enabled = self._row_enabled(row)
-        marked = row.tag in self._marked_tags
+        marked = row.tribe in self._marked_tribes
         marker_style = "bold green" if marked else "dim"
-        tag_style = "bold cyan" if enabled else "dim"
+        tribe_style = "bold cyan" if enabled else "dim"
         detail_style = "dim" if enabled else "dim italic"
         text.append("[x] " if marked else "[ ] ", style=marker_style)
-        text.append(f"@{row.tag}", style=tag_style)
+        text.append(f"@{row.tribe}", style=tribe_style)
         counts = row.plan.counts
         text.append(
             f"\n   {counts.kill} kill  {counts.dismiss} dismiss  "
@@ -148,8 +154,10 @@ class AgentCleanupTagModal(
         )
         return text
 
-    def _marked_tags_in_row_order(self) -> tuple[str, ...]:
-        return tuple(row.tag for row in self._rows if row.tag in self._marked_tags)
+    def _marked_tribes_in_row_order(self) -> tuple[str, ...]:
+        return tuple(
+            row.tribe for row in self._rows if row.tribe in self._marked_tribes
+        )
 
     def _marked_plan(self) -> AgentCleanupPlanWire | None:
         identities = self._marked_identities()
@@ -168,7 +176,7 @@ class AgentCleanupTagModal(
         seen: set[AgentCleanupIdentityWire] = set()
         identities: list[AgentCleanupIdentityWire] = []
         for row in self._rows:
-            if row.tag not in self._marked_tags:
+            if row.tribe not in self._marked_tribes:
                 continue
             for identity in row.plan.selected_identities:
                 if identity in seen:
@@ -179,7 +187,7 @@ class AgentCleanupTagModal(
 
     def _hint_text(self) -> str:
         base = "j/k move  space/m mark  enter preview  q close"
-        mark_count = len(self._marked_tags)
+        mark_count = len(self._marked_tribes)
         if not mark_count:
             return base
         plan = self._marked_plan()
@@ -192,10 +200,10 @@ class AgentCleanupTagModal(
         )
 
     def _refresh_row(self, index: int) -> None:
-        option_list = self.query_one("#agent-cleanup-tag-list", OptionList)
+        option_list = self.query_one("#agent-cleanup-tribe-list", OptionList)
         option_list.replace_option_prompt_at_index(
             index,
-            self._tag_row_label(self._rows[index]),
+            self._tribe_row_label(self._rows[index]),
         )
         option_list.highlighted = index
 
@@ -209,4 +217,4 @@ class AgentCleanupTagModal(
         self._set_hint(self._hint_text())
 
 
-__all__ = ["AgentCleanupTagModal"]
+__all__ = ["AgentCleanupTribeModal"]

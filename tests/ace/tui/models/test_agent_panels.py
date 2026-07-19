@@ -9,7 +9,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import (
     AgentPanelGroup,
     agents_for_panel,
-    effective_tag_per_agent,
+    effective_tribe_per_agent,
     panel_key_per_agent,
 )
 
@@ -17,7 +17,7 @@ from sase.ace.tui.models.agent_panels import (
 def _agent(
     *,
     suffix: str | None,
-    tag: str | None = None,
+    tribe: str | None = None,
     name: str = "agent",
     status: str = "RUNNING",
     parent_timestamp: str | None = None,
@@ -30,18 +30,18 @@ def _agent(
         status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
-        tribe=tag,
+        tribe=tribe,
         raw_suffix=suffix,
         parent_timestamp=parent_timestamp,
         parent_workflow=parent_workflow,
     )
 
 
-def test_all_tagged_agents_omit_untagged_panel() -> None:
+def test_all_tribe_assigned_agents_omit_no_tribe_panel() -> None:
     agents = [
-        _agent(suffix="z", tag="zulu"),
-        _agent(suffix="a", tag="alpha"),
-        _agent(suffix="m", tag="mike"),
+        _agent(suffix="z", tribe="zulu"),
+        _agent(suffix="a", tribe="alpha"),
+        _agent(suffix="m", tribe="mike"),
     ]
 
     group = AgentPanelGroup.from_agents(agents)
@@ -50,11 +50,11 @@ def test_all_tagged_agents_omit_untagged_panel() -> None:
     assert group.focused_key == "alpha"
 
 
-def test_mixed_agents_keep_untagged_panel_first() -> None:
+def test_mixed_agents_keep_no_tribe_panel_first() -> None:
     agents = [
         _agent(suffix="u"),
-        _agent(suffix="b", tag="beta"),
-        _agent(suffix="a", tag="alpha"),
+        _agent(suffix="b", tribe="beta"),
+        _agent(suffix="a", tribe="alpha"),
     ]
 
     group = AgentPanelGroup.from_agents(agents)
@@ -66,9 +66,9 @@ def test_mixed_agents_keep_untagged_panel_first() -> None:
 def test_collapsed_middle_panel_moves_after_expanded_panels() -> None:
     agents = [
         _agent(suffix="u"),
-        _agent(suffix="a", tag="alpha"),
-        _agent(suffix="b", tag="beta"),
-        _agent(suffix="g", tag="gamma"),
+        _agent(suffix="a", tribe="alpha"),
+        _agent(suffix="b", tribe="beta"),
+        _agent(suffix="g", tribe="gamma"),
     ]
 
     group = AgentPanelGroup.from_agents(
@@ -82,9 +82,9 @@ def test_collapsed_middle_panel_moves_after_expanded_panels() -> None:
 def test_multiple_collapsed_panels_keep_canonical_order() -> None:
     agents = [
         _agent(suffix="u"),
-        _agent(suffix="g", tag="gamma"),
-        _agent(suffix="a", tag="alpha"),
-        _agent(suffix="b", tag="beta"),
+        _agent(suffix="g", tribe="gamma"),
+        _agent(suffix="a", tribe="alpha"),
+        _agent(suffix="b", tribe="beta"),
     ]
 
     group = AgentPanelGroup.from_agents(
@@ -95,11 +95,11 @@ def test_multiple_collapsed_panels_keep_canonical_order() -> None:
     assert group.panel_keys == [None, "beta", "alpha", "gamma"]
 
 
-def test_collapsed_untagged_panel_moves_after_expanded_tag_panels() -> None:
+def test_collapsed_no_tribe_panel_moves_after_expanded_tribe_panels() -> None:
     agents = [
         _agent(suffix="u"),
-        _agent(suffix="b", tag="beta"),
-        _agent(suffix="a", tag="alpha"),
+        _agent(suffix="b", tribe="beta"),
+        _agent(suffix="a", tribe="alpha"),
     ]
 
     group = AgentPanelGroup.from_agents(
@@ -112,9 +112,9 @@ def test_collapsed_untagged_panel_moves_after_expanded_tag_panels() -> None:
 
 def test_collapsed_last_partition_preserves_focused_panel_key() -> None:
     agents = [
-        _agent(suffix="a", tag="alpha"),
-        _agent(suffix="b", tag="beta"),
-        _agent(suffix="g", tag="gamma"),
+        _agent(suffix="a", tribe="alpha"),
+        _agent(suffix="b", tribe="beta"),
+        _agent(suffix="g", tribe="gamma"),
     ]
 
     group = AgentPanelGroup.from_agents(
@@ -128,17 +128,17 @@ def test_collapsed_last_partition_preserves_focused_panel_key() -> None:
     assert group.focused_key == "beta"
 
 
-def test_empty_agents_keep_untagged_fallback_panel() -> None:
+def test_empty_agents_keep_no_tribe_fallback_panel() -> None:
     group = AgentPanelGroup.from_agents([])
 
     assert group.panel_keys == [None]
     assert group.focused_key is None
 
 
-def test_starting_only_tagged_agents_do_not_create_tag_panels() -> None:
+def test_starting_only_tribe_assigned_agents_do_not_create_tribe_panels() -> None:
     agents = [
-        _agent(suffix="a", tag="alpha", status="STARTING"),
-        _agent(suffix="b", tag="beta", status="STARTING"),
+        _agent(suffix="a", tribe="alpha", status="STARTING"),
+        _agent(suffix="b", tribe="beta", status="STARTING"),
     ]
 
     group = AgentPanelGroup.from_agents(agents)
@@ -147,10 +147,12 @@ def test_starting_only_tagged_agents_do_not_create_tag_panels() -> None:
     assert group.focused_key is None
 
 
-def test_tagged_rendered_row_with_starting_row_shows_only_tagged_panel() -> None:
+def test_tribe_assigned_rendered_row_with_starting_row_shows_only_tribe_assigned_panel() -> (
+    None
+):
     agents = [
-        _agent(suffix="a", tag="alpha", status="STARTING"),
-        _agent(suffix="b", tag="beta", status="RUNNING"),
+        _agent(suffix="a", tribe="alpha", status="STARTING"),
+        _agent(suffix="b", tribe="beta", status="RUNNING"),
     ]
 
     group = AgentPanelGroup.from_agents(agents)
@@ -159,9 +161,9 @@ def test_tagged_rendered_row_with_starting_row_shows_only_tagged_panel() -> None
     assert group.focused_key == "beta"
 
 
-def test_rendered_untagged_row_with_starting_row_shows_untagged_panel() -> None:
+def test_rendered_no_tribe_row_with_starting_row_shows_no_tribe_panel() -> None:
     agents = [
-        _agent(suffix="a", tag="alpha", status="STARTING"),
+        _agent(suffix="a", tribe="alpha", status="STARTING"),
         _agent(suffix="b", status="RUNNING"),
     ]
 
@@ -171,8 +173,8 @@ def test_rendered_untagged_row_with_starting_row_shows_untagged_panel() -> None:
     assert group.focused_key is None
 
 
-def test_workflow_child_inherits_parent_tag_without_empty_untagged_panel() -> None:
-    parent = _agent(suffix="parent", tag="fix", name="parent")
+def test_workflow_child_inherits_parent_tribe_without_empty_no_tribe_panel() -> None:
+    parent = _agent(suffix="parent", tribe="fix", name="parent")
     child = _agent(
         suffix="child",
         name="child",
@@ -190,8 +192,8 @@ def test_workflow_child_inherits_parent_tag_without_empty_untagged_panel() -> No
 
 def test_missing_focused_key_falls_back_to_first_available_panel() -> None:
     agents = [
-        _agent(suffix="b", tag="beta"),
-        _agent(suffix="a", tag="alpha"),
+        _agent(suffix="b", tribe="beta"),
+        _agent(suffix="a", tribe="alpha"),
     ]
 
     group = AgentPanelGroup.from_agents(agents, focused_key=None)
@@ -201,81 +203,81 @@ def test_missing_focused_key_falls_back_to_first_available_panel() -> None:
     assert group.focused_key == "alpha"
 
 
-def test_merged_panels_use_one_panel_but_preserve_effective_tags() -> None:
-    parent = _agent(suffix="parent", tag="fix", name="parent")
+def test_merged_panels_use_one_panel_but_preserve_effective_tribes() -> None:
+    parent = _agent(suffix="parent", tribe="fix", name="parent")
     child = _agent(
         suffix="child",
         name="child",
         parent_timestamp="parent",
         parent_workflow="wf",
     )
-    review = _agent(suffix="review", tag="review", name="review")
+    review = _agent(suffix="review", tribe="review", name="review")
     agents = [parent, child, review]
 
     group = AgentPanelGroup.from_agents(
         agents,
         focused_key="review",
-        merge_tag_panels=True,
+        merge_tribe_panels=True,
         collapsed_panel_keys={None, "fix"},
     )
 
     assert group.panel_keys == [None]
     assert group.focused_idx == 0
-    assert panel_key_per_agent(agents, merge_tag_panels=True) == [None, None, None]
-    assert effective_tag_per_agent(agents) == ["fix", "fix", "review"]
+    assert panel_key_per_agent(agents, merge_tribe_panels=True) == [None, None, None]
+    assert effective_tribe_per_agent(agents) == ["fix", "fix", "review"]
 
 
 def test_clan_subtree_uses_outer_root_panel_in_split_and_merged_modes() -> None:
-    phase = _agent(suffix="phase", tag="epic", name="sase-6r.phase")
+    phase = _agent(suffix="phase", tribe="epic", name="sase-6r.phase")
     phase.agent_clan = "sase-6r"
     phase.agent_clan_generation = "20260718080000"
     step = _agent(
         suffix="step",
-        tag="review",
+        tribe="review",
         name="sase-6r.phase.step",
         parent_timestamp="phase",
         parent_workflow="phase",
     )
-    peer = _agent(suffix="peer", tag="review", name="sase-6r.peer")
+    peer = _agent(suffix="peer", tribe="review", name="sase-6r.peer")
     peer.agent_clan = "sase-6r"
     peer.agent_clan_generation = phase.agent_clan_generation
     clan = project_clan_tree([phase, step, peer])
-    standalone = _agent(suffix="standalone", tag="fix", name="standalone")
+    standalone = _agent(suffix="standalone", tribe="fix", name="standalone")
     standalone_step = _agent(
         suffix="standalone-step",
         name="standalone.step",
         parent_timestamp="standalone",
         parent_workflow="standalone",
     )
-    unrelated = _agent(suffix="unrelated", tag="review", name="unrelated")
+    unrelated = _agent(suffix="unrelated", tribe="review", name="unrelated")
     agents = [*clan, standalone, standalone_step, unrelated]
 
-    expected_tags = [None] * len(clan) + ["fix", "fix", "review"]
+    expected_tribes = [None] * len(clan) + ["fix", "fix", "review"]
     assert clan[0].clan_tribes == ("epic", "review")
-    assert effective_tag_per_agent(agents) == expected_tags
-    assert panel_key_per_agent(agents) == expected_tags
+    assert effective_tribe_per_agent(agents) == expected_tribes
+    assert panel_key_per_agent(agents) == expected_tribes
     assert AgentPanelGroup.from_agents(agents).panel_keys == [None, "fix", "review"]
     assert agents_for_panel(agents, None) == clan
 
-    assert panel_key_per_agent(agents, merge_tag_panels=True) == [None] * len(agents)
-    assert agents_for_panel(agents, None, merge_tag_panels=True) == agents
+    assert panel_key_per_agent(agents, merge_tribe_panels=True) == [None] * len(agents)
+    assert agents_for_panel(agents, None, merge_tribe_panels=True) == agents
 
 
 def test_new_clan_tribe_keeps_entire_subtree_in_one_panel() -> None:
-    phase = _agent(suffix="20260718080001", tag="legacy", name="research.phase")
+    phase = _agent(suffix="20260718080001", tribe="legacy", name="research.phase")
     phase.agent_clan = "research"
     phase.agent_clan_generation = "20260718080000"
     phase.clan_tribe = "alpha"
     step = _agent(
         suffix="20260718080002",
-        tag="other-legacy",
+        tribe="other-legacy",
         name="research.phase.step",
         parent_timestamp="20260718080001",
         parent_workflow="phase",
     )
     peer = _agent(
         suffix="20260718080003",
-        tag="ignored-legacy",
+        tribe="ignored-legacy",
         name="research.peer",
     )
     peer.agent_clan = "research"
@@ -285,6 +287,6 @@ def test_new_clan_tribe_keeps_entire_subtree_in_one_panel() -> None:
     clan = project_clan_tree([phase, step, peer])
 
     assert clan[0].tribe == "quality"
-    assert effective_tag_per_agent(clan) == ["quality"] * len(clan)
+    assert effective_tribe_per_agent(clan) == ["quality"] * len(clan)
     assert AgentPanelGroup.from_agents(clan).panel_keys == ["quality"]
     assert agents_for_panel(clan, "quality") == clan

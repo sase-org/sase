@@ -212,9 +212,9 @@ ace:
       toggle_attempt_view: "D"
       # Manual unread marker (agents tab)
       toggle_agent_unread: "U"
-      # Agent tag modal (agents tab)
-      add_agent_tag: "N"
-      # Tag-driven side panels (agents tab)
+      # Agent tribe modal (agents tab)
+      edit_agent_tribe: "N"
+      # Tribe-driven side panels (agents tab)
       focus_next_agent_panel: "J"
       focus_prev_agent_panel: "K"
       # Grouping mode cycle (agents tab)

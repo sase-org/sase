@@ -70,13 +70,15 @@ def test_deterministic_round_trip_covers_modes_panels_and_layouts(
     first = path.read_text()
     save_agents_fold_state(snapshot, path)
     assert path.read_text() == first
-    assert '"kind":"untagged"' in first
+    assert '"kind":"no_tribe"' in first
+    assert '"kind":"tribe","tribe":"chop"' in first
+    assert '"tag"' not in first
     assert '"merged":true' in first
 
 
 def test_empty_state_omits_empty_collections() -> None:
     assert _serialize_agents_fold_state(EMPTY_AGENTS_FOLD_STATE) == (
-        '{"schema_version":1}\n'
+        '{"schema_version":2}\n'
     )
 
 
@@ -87,13 +89,13 @@ def test_empty_state_omits_empty_collections() -> None:
         json.dumps({"schema_version": 999}),
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "group_folds": [
                     {
                         "mode": "by_status",
                         "scopes": [
                             {
-                                "panel": {"kind": "untagged"},
+                                "panel": {"kind": "no_tribe"},
                                 "merged": False,
                                 "collapsed": [],
                             }
@@ -104,8 +106,8 @@ def test_empty_state_omits_empty_collections() -> None:
         ),
         json.dumps(
             {
-                "schema_version": 1,
-                "collapsed_panels": [{"kind": "tag", "tag": 7}],
+                "schema_version": 2,
+                "collapsed_panels": [{"kind": "tribe", "tribe": 7}],
             }
         ),
     ],
@@ -123,6 +125,48 @@ def test_missing_and_oversized_state_fail_open(tmp_path: Path) -> None:
 
     path.write_bytes(b" " * (persistence.MAX_FILE_BYTES + 1))
     assert load_agents_fold_state(path) == EMPTY_AGENTS_FOLD_STATE
+
+
+def test_legacy_v1_tag_panel_discriminators_load_and_rewrite_as_tribes(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "folds.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "collapsed_panels": [
+                    {"kind": "untagged"},
+                    {"kind": "tag", "tag": "chop"},
+                ],
+                "group_folds": [
+                    {
+                        "mode": "by_status",
+                        "scopes": [
+                            {
+                                "panel": {"kind": "tag", "tag": "chop"},
+                                "merged": False,
+                                "collapsed": [["Done"]],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = load_agents_fold_state(path)
+    assert loaded.collapsed_panels == frozenset({None, "chop"})
+    assert loaded.group_folds[0].scopes[0].scope.panel_key == "chop"
+
+    save_agents_fold_state(loaded, path)
+
+    rewritten = path.read_text(encoding="utf-8")
+    assert '"schema_version":2' in rewritten
+    assert '"kind":"no_tribe"' in rewritten
+    assert '"kind":"tribe","tribe":"chop"' in rewritten
+    assert '"tag"' not in rewritten
 
 
 def test_atomic_save_failure_removes_temporary_file(

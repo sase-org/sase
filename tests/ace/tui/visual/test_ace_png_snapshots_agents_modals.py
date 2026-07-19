@@ -227,7 +227,7 @@ async def test_wait_modal_png_snapshot(
                         model="claude / sonnet",
                         start_time="13:08",
                         duration="4m30s",
-                        tag="@review",
+                        tribe="@review",
                     ),
                     WaitAgentCandidate(
                         wait_name="visual.verify.performance.and.polish",
@@ -236,7 +236,7 @@ async def test_wait_modal_png_snapshot(
                         model="codex / gpt-5",
                         start_time="13:16",
                         duration="1m05s",
-                        tag="#verification",
+                        tribe="#verification",
                     ),
                 ],
             )

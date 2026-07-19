@@ -32,7 +32,7 @@ class WaitAgentCandidate:
     start_time: str | None = None
     duration: str | None = None
     role: str | None = None
-    tag: str | None = None
+    tribe: str | None = None
     vcs_workflow: AgentVcsWorkflow | None = None
     prompt_snippet: str = ""
 
@@ -232,7 +232,7 @@ def _candidate_option(candidate: WaitAgentCandidate, index: int) -> Option:
     model = _truncate(candidate.model or "-", 18)
     start = candidate.start_time or "--:--"
     duration = _truncate(candidate.duration or "-", 8)
-    role_parts = [part for part in (candidate.role, candidate.tag) if part]
+    role_parts = [part for part in (candidate.role, candidate.tribe) if part]
     role = _truncate("/".join(role_parts), 12) if role_parts else ""
 
     text = Text()

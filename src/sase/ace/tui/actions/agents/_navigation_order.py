@@ -27,7 +27,7 @@ def rendered_panel_slice(owner: Any, key: Any) -> tuple[list[int], list[Agent]]:
     agents = owner._agents
     keys = panel_key_per_agent(
         agents,
-        merge_tag_panels=getattr(owner, "_agent_panels_grouped", False),
+        merge_tribe_panels=getattr(owner, "_agent_panels_grouped", False),
     )
     global_indices = [
         i
@@ -37,7 +37,7 @@ def rendered_panel_slice(owner: Any, key: Any) -> tuple[list[int], list[Agent]]:
     return global_indices, agents_for_panel(
         agents,
         key,
-        merge_tag_panels=getattr(owner, "_agent_panels_grouped", False),
+        merge_tribe_panels=getattr(owner, "_agent_panels_grouped", False),
     )
 
 
@@ -56,7 +56,7 @@ class AgentNavigationOrderMixin:
         navigation steps through the same sequence the user sees.
         Agents inside collapsed groups are excluded - their indices
         never appear because the renderer hides them. Only agents in
-        the currently focused tag panel are returned; workflow children
+        the currently focused tribe panel are returned; workflow children
         inherit parent grouping (per ``_grouping_keys_for``) and so
         render contiguous with their parent.
         """
@@ -128,7 +128,7 @@ class AgentNavigationOrderMixin:
         from ...models.agent_panels import agent_is_rendered_in_agents_panel
 
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-        merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
         panel_group = getattr(self, "_panel_group", None)
         registry = focused_panel_fold_registry(self)
         focused_key = panel_group.focused_key if panel_group is not None else None
@@ -151,7 +151,7 @@ class AgentNavigationOrderMixin:
             == (panel_group.focused_idx if panel_group is not None else None)
             and cached[3] == fold_version
             and cached[4] is mode
-            and cached[5] == merge_tag_panels
+            and cached[5] == merge_tribe_panels
             and cached[6] == focused_panel_collapsed
             and cached[7] == suppress_panel_rows
             and cached[8] == include_panel_focus
@@ -195,7 +195,7 @@ class AgentNavigationOrderMixin:
             panel_group.focused_idx if panel_group is not None else None,
             fold_version,
             mode,
-            merge_tag_panels,
+            merge_tribe_panels,
             focused_panel_collapsed,
             suppress_panel_rows,
             include_panel_focus,

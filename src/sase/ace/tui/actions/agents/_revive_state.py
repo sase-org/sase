@@ -20,7 +20,7 @@ class AgentReviveStateMixin:
     _revived_agent_raw_suffixes: set[str]
 
     def _select_revived_agent(self, agent: Agent) -> bool:
-        """Select *agent* after a revive reload, including its tag panel."""
+        """Select *agent* after a revive reload, including its tribe panel."""
         target_idx: int | None = None
         for idx, candidate in enumerate(getattr(self, "_agents", [])):
             if candidate.identity == agent.identity or (
@@ -63,7 +63,7 @@ class AgentReviveStateMixin:
             self._panel_group = AgentPanelGroup.from_agents(  # type: ignore[attr-defined]
                 self._agents,
                 target_panel_key,
-                merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+                merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
                 collapsed_panel_keys=getattr(self, "_collapsed_panel_keys", ()),
             )
         except Exception:

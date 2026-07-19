@@ -421,7 +421,7 @@ def test_collapsed_panel_exposes_kill_but_hides_hidden_agent_commands() -> None:
         "app.edit_spec",
         "app.edit_hooks",
         "app.rename_cl",
-        "app.add_agent_tag",
+        "app.edit_agent_tribe",
         "app.open_tmux",
         "app.start_tmux_mode",
         "app.edit_panel",
@@ -584,7 +584,7 @@ def test_wait_command_allows_agent_family_clan_tribe_and_marks() -> None:
     )
 
 
-def test_wait_command_rejects_untagged_panel_group_banner_and_unnamed_agent() -> None:
+def test_wait_command_rejects_no_tribe_panel_group_banner_and_unnamed_agent() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.add_tag"]
     unnamed = _make_agent(status="RUNNING")

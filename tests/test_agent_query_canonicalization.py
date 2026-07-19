@@ -27,7 +27,7 @@ CORPUS = [
     "name:bar",
     "model:opus",
     "provider:anthropic",
-    "tag:pinned",
+    "tribe:pinned",
     "type:workflow",
     "source:axe",
     "source:manual",

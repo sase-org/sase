@@ -137,7 +137,7 @@ def test_restore_drops_vanished_panels_and_leaves_new_panels_expanded() -> None:
     assert app._panel_isolation_revert is not None
 
     app._agents = [agent for agent in app._agents if agent.tribe != "beta"]
-    app._agents.append(_agent(name="gamma", project="gamma", tag="gamma"))
+    app._agents.append(_agent(name="gamma", project="gamma", tribe="gamma"))
     app._invalidate_agent_panel_cache()
     app._sync_panel_group()
     assert "gamma" not in app._collapsed_panel_keys

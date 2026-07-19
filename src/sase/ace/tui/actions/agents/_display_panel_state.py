@@ -48,7 +48,7 @@ class PanelRefreshStateMixin:
         key: PanelKey,
         panel_agents: list[Agent],
         *,
-        merge_tag_panels: bool,
+        merge_tribe_panels: bool,
         panel_jump_hints: dict[PanelJumpTarget, str] | None = None,
         isolation_restore_marked: bool = False,
     ) -> Text:

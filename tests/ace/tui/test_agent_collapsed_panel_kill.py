@@ -28,7 +28,7 @@ def _agent(
     name: str,
     suffix: str,
     *,
-    tag: str | None = "chop",
+    tribe: str | None = "chop",
     status: str = "RUNNING",
     pid: int | None = 100,
     agent_type: AgentType = AgentType.RUNNING,
@@ -45,7 +45,7 @@ def _agent(
         status=status,
         start_time=datetime(2026, 7, 18, 9, 0, 0),
         raw_suffix=suffix,
-        tribe=tag,
+        tribe=tribe,
         pid=pid,
         workflow=workflow,
         parent_timestamp=parent_timestamp,
@@ -109,11 +109,13 @@ class _CollapsedPanelKillApp(
         del killable, dismissable
 
 
-def test_collapsed_tagged_panel_partitions_complete_scope_and_confirms_once() -> None:
+def test_collapsed_tribe_assigned_panel_partitions_complete_scope_and_confirms_once() -> (
+    None
+):
     running = _agent("running", "run", pid=101)
     done = _agent("done", "done", status="DONE", pid=None)
     pidless = _agent("pidless", "pidless", pid=None)
-    other = _agent("neighbor", "other", tag="keep", pid=202)
+    other = _agent("neighbor", "other", tribe="keep", pid=202)
     app = _CollapsedPanelKillApp([running, done, pidless, other])
 
     with patch.object(app, "_do_bulk_kill_agents") as bulk:
@@ -147,7 +149,7 @@ def test_collapsed_panel_cancel_has_no_mutation_boundary() -> None:
 
 def test_expanded_panel_focus_uses_the_same_bulk_cleanup_scope() -> None:
     running = _agent("running", "run")
-    neighbor = _agent("neighbor", "neighbor", tag="keep")
+    neighbor = _agent("neighbor", "neighbor", tribe="keep")
     app = _CollapsedPanelKillApp([running, neighbor])
     app._collapsed_panel_keys.clear()
     app._expanded_panel_focus = True
@@ -164,12 +166,12 @@ def test_expanded_panel_focus_uses_the_same_bulk_cleanup_scope() -> None:
     bulk.assert_called_once_with([running], [])
 
 
-def test_untagged_pidless_panel_uses_dismiss_confirmation() -> None:
-    done = _agent("done", "done", tag=None, status="DONE", pid=None)
-    pidless = _agent("pidless", "pidless", tag=None, pid=None)
-    tagged = _agent("tagged", "tagged", tag="keep")
+def test_no_tribe_pidless_panel_uses_dismiss_confirmation() -> None:
+    done = _agent("done", "done", tribe=None, status="DONE", pid=None)
+    pidless = _agent("pidless", "pidless", tribe=None, pid=None)
+    tribe_assigned = _agent("tribe_assigned", "tribe_assigned", tribe="keep")
     app = _CollapsedPanelKillApp(
-        [done, pidless, tagged],
+        [done, pidless, tribe_assigned],
         focused_key=None,
     )
 
@@ -177,15 +179,15 @@ def test_untagged_pidless_panel_uses_dismiss_confirmation() -> None:
         app.action_kill_agent()
         assert isinstance(app.pushed_modals[0], ConfirmDismissAllModal)
         description = app.pushed_modals[0].agent_description
-        assert "Panel: (untagged) (2 agents)" in description
-        assert "  tagged" not in description
+        assert "Panel: (no tribe) (2 agents)" in description
+        assert "  tribe_assigned" not in description
         app.pushed_callbacks[0](True)
 
     bulk.assert_called_once_with([], [done, pidless])
 
 
 def test_marks_take_priority_over_collapsed_panel_focus() -> None:
-    marked = _agent("marked", "marked", tag="keep")
+    marked = _agent("marked", "marked", tribe="keep")
     panel_agent = _agent("panel", "panel")
     app = _CollapsedPanelKillApp([marked, panel_agent])
     app._marked_agents = {marked.identity}
@@ -212,7 +214,7 @@ def test_collapsed_panel_expands_clan_members_without_duplicates() -> None:
         agent_clan="research",
         agent_clan_generation="g1",
     )
-    other = _agent("other", "other", tag="keep")
+    other = _agent("other", "other", tribe="keep")
     projected = project_clan_tree([running, done, other])
     app = _CollapsedPanelKillApp(projected)
 
@@ -238,15 +240,15 @@ def test_collapsed_panel_adds_loaded_workflow_children_but_not_neighbors() -> No
     child = _agent(
         "workflow-child",
         "child",
-        tag=None,
+        tribe=None,
         parent_timestamp="parent",
         parent_workflow="demo-flow",
     )
-    neighbor = _agent("neighbor", "neighbor", tag="keep")
+    neighbor = _agent("neighbor", "neighbor", tribe="keep")
     unrelated_child = _agent(
         "unrelated-child",
         "unrelated-child",
-        tag=None,
+        tribe=None,
         parent_timestamp="neighbor",
         parent_workflow="other-flow",
     )
@@ -296,9 +298,9 @@ def test_empty_or_stale_collapsed_focus_warns_without_modal() -> None:
 async def test_confirming_last_panel_member_preserves_neighbors_and_valid_focus(
     monkeypatch: Any,
 ) -> None:
-    home = _agent("home", "home", tag=None, status="DONE", pid=None)
+    home = _agent("home", "home", tribe=None, status="DONE", pid=None)
     chop = _agent("chop", "chop", status="DONE", pid=None)
-    keep = _agent("keep", "keep", tag="keep", status="DONE", pid=None)
+    keep = _agent("keep", "keep", tribe="keep", status="DONE", pid=None)
     patch_startup_loaders(monkeypatch, agents=[home, chop, keep])
     persistence_submissions: list[tuple[Any, ...]] = []
     monkeypatch.setattr(

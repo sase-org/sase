@@ -39,7 +39,7 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
         ("K", "kill_all", "Kill All"),
         ("m", "marked", "Marked"),
         ("g", "group", "Group"),
-        ("t", "tag", "Tag"),
+        ("t", "tribe", "Tribe"),
         ("C", "clan", "Clan"),
         ("c", "custom", "Custom"),
         ("enter", "choose_highlighted", "Choose"),
@@ -92,7 +92,7 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
                 )
             yield Static(
                 "d/D dismiss completed  k/K kill running + dismiss completed  "
-                "m marked  g group  t tag  C clan  c custom  q close",
+                "m marked  g group  t tribe  C clan  c custom  q close",
                 id="agent-cleanup-hints",
             )
 
@@ -117,8 +117,8 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
     def action_group(self) -> None:
         self._choose("group")
 
-    def action_tag(self) -> None:
-        self._choose("tag")
+    def action_tribe(self) -> None:
+        self._choose("tribe")
 
     def action_clan(self) -> None:
         self._choose("clan")
@@ -178,7 +178,7 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
         text.append("Context", style="bold")
         text.append(f"\n{self._state.marked_count} marked", style="cyan")
         text.append(f"  {self._state.group_count} in group", style="magenta")
-        text.append(f"\n{self._state.tag_count} tag panels", style="dim")
+        text.append(f"\n{self._state.tribe_count} tribe panels", style="dim")
         text.append(f" · {self._state.clan_count} clans", style="dim cyan")
         return text
 
@@ -241,11 +241,11 @@ class AgentCleanupModal(ModalScreen[AgentCleanupResult | None]):
                 state.group_count > 0,
             ),
             _ActionRow(
-                "tag",
+                "tribe",
                 "t",
-                "Choose tag",
-                f"{state.tag_count} known tag panels",
-                state.tag_count > 0,
+                "Choose tribe",
+                f"{state.tribe_count} known tribe panels",
+                state.tribe_count > 0,
             ),
             _ActionRow(
                 "clan",

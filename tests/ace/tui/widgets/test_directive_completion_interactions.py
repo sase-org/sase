@@ -365,7 +365,7 @@ async def test_wait_arg_completion_excludes_selected_keyword_to_cursor_right() -
 async def test_wait_arg_completion_inserts_tribe_target() -> None:
     app = CompletionTestApp()
     app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
-        agent_candidate("epic.builder", tag="@epic")
+        agent_candidate("epic.builder", tribe="@epic")
     ]
     async with app.run_test():
         ta = app.query_one(PromptTextArea)

@@ -121,14 +121,14 @@ def test_do_revive_agent_resolves_parent_artifact_dir_for_child_restore() -> Non
 
 
 def test_do_revive_agent_selects_revived_agent_panel_after_reload() -> None:
-    """Single revive moves focus to the revived agent's rendered tag panel."""
+    """Single revive moves focus to the revived agent's rendered tribe panel."""
     app = FakeReviveApp()
-    active = make_agent(cl_name="active", raw_suffix="active_suffix", tag="alpha")
-    dismissed = make_agent(cl_name="revived", raw_suffix="revived_suffix", tag="beta")
+    active = make_agent(cl_name="active", raw_suffix="active_suffix", tribe="alpha")
+    dismissed = make_agent(cl_name="revived", raw_suffix="revived_suffix", tribe="beta")
     reloaded = make_agent(
         cl_name="revived",
         raw_suffix="revived_suffix",
-        tag="beta",
+        tribe="beta",
         status="RUNNING",
     )
     app._agents = [active]
@@ -296,24 +296,24 @@ def test_do_revive_agent_missing_artifact_dir_falls_back_to_full_history() -> No
 def test_do_revive_agents_batch_selects_first_selected_parent() -> None:
     """Batch revive selects the first selected parent, not an implicit child."""
     app = FakeReviveApp()
-    active = make_agent(cl_name="active", raw_suffix="active_suffix", tag="alpha")
+    active = make_agent(cl_name="active", raw_suffix="active_suffix", tribe="alpha")
     parent_one = make_agent(
         cl_name="feature1",
         raw_suffix="parent_one_suffix",
-        tag="beta",
+        tribe="beta",
     )
     parent_two = make_agent(
         cl_name="feature2",
         raw_suffix="parent_two_suffix",
         workflow="wf_two",
-        tag="gamma",
+        tribe="gamma",
     )
     child_one = make_agent(
         cl_name="child1",
         raw_suffix="child_one_suffix",
         parent_workflow="wf",
         parent_timestamp="parent_one_suffix",
-        tag="beta",
+        tribe="beta",
     )
     app._agents = [active]
     app.loaded_agents = [active, child_one, parent_one, parent_two]

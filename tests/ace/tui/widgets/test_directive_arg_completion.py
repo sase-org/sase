@@ -88,9 +88,9 @@ def test_wait_arg_completion_offers_deduplicated_tribe_targets() -> None:
         "wait",
         "@e",
         agent_candidates=[
-            agent_candidate("epic.alpha", tag="@epic"),
-            agent_candidate("epic.beta", tag="@epic"),
-            agent_candidate("reviewer", tag="@review"),
+            agent_candidate("epic.alpha", tribe="@epic"),
+            agent_candidate("epic.beta", tribe="@epic"),
+            agent_candidate("reviewer", tribe="@review"),
         ],
     )
 

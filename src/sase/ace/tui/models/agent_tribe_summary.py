@@ -143,7 +143,7 @@ def _tribe_panel_identity(panel_key: PanelKey) -> TribePanelIdentity:
 
 
 def _panel_label(panel_key: PanelKey) -> str:
-    return "(untagged)" if panel_key is None else f"@{panel_key}"
+    return "(no tribe)" if panel_key is None else f"@{panel_key}"
 
 
 def _row_name(agent: Agent) -> str:

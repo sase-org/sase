@@ -79,14 +79,14 @@ def test_repeated_leader_j_walks_unread_done_agents_by_recency(
         name="oldest",
         status="DONE",
         raw_suffix="oldest",
-        tag="zeta",
+        tribe="zeta",
         stop_time=datetime(2026, 5, 7, 10, 0, 0),
     )
     newest = make_agent(
         name="newest",
         status="PLAN DONE",
         raw_suffix="newest",
-        tag="alpha",
+        tribe="alpha",
         stop_time=datetime(2026, 5, 7, 13, 0, 0),
     )
     running = make_agent(
@@ -99,7 +99,7 @@ def test_repeated_leader_j_walks_unread_done_agents_by_recency(
         name="middle",
         status="FAILED",
         raw_suffix="middle",
-        tag="beta",
+        tribe="beta",
         stop_time=datetime(2026, 5, 7, 12, 0, 0),
     )
     app = LeaderUnreadJumpApp(
@@ -159,14 +159,14 @@ def test_leader_j_descends_from_expanded_tribe_to_newest_unread() -> None:
         name="older",
         status="DONE",
         raw_suffix="older",
-        tag="alpha",
+        tribe="alpha",
         stop_time=datetime(2026, 7, 19, 10, 0, 0),
     )
     newest = make_agent(
         name="newest",
         status="DONE",
         raw_suffix="newest",
-        tag="alpha",
+        tribe="alpha",
         stop_time=datetime(2026, 7, 19, 12, 0, 0),
     )
     app = LeaderUnreadJumpApp(

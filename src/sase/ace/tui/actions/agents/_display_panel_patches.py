@@ -341,7 +341,7 @@ class PanelPatchMixin:
                 title_builder(
                     agent_panel_key,
                     slot.agents,
-                    merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+                    merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
                 ),
             )
         else:
@@ -349,7 +349,7 @@ class PanelPatchMixin:
             widget.border_title = agent_panel_border_title(
                 agent_panel_key,
                 counts.total,
-                merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+                merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
                 counts=counts,
             )
         self._update_agents_info_panel()  # type: ignore[attr-defined]

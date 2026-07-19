@@ -66,7 +66,7 @@ def test_render_key_stable_for_unchanged_inputs() -> None:
     assert k1 == k2
 
 
-def test_render_key_changes_when_tag_label_changes() -> None:
+def test_render_key_changes_when_tribe_label_changes() -> None:
     a = _agent()
     k1 = agent_render_key(
         a,
@@ -76,7 +76,7 @@ def test_render_key_changes_when_tag_label_changes() -> None:
         is_expanded=False,
         is_marked=False,
         hint_char=None,
-        tag_label="alpha",
+        tribe_label="alpha",
         now=None,
     )
     k2 = agent_render_key(
@@ -87,13 +87,13 @@ def test_render_key_changes_when_tag_label_changes() -> None:
         is_expanded=False,
         is_marked=False,
         hint_char=None,
-        tag_label="beta",
+        tribe_label="beta",
         now=None,
     )
     assert k1 != k2
 
 
-def test_render_key_changes_when_panel_tag_changes() -> None:
+def test_render_key_changes_when_panel_tribe_changes() -> None:
     a = _agent()
     k1 = agent_render_key(
         a,
@@ -103,7 +103,7 @@ def test_render_key_changes_when_panel_tag_changes() -> None:
         is_expanded=False,
         is_marked=False,
         hint_char=None,
-        panel_tag="epic",
+        panel_tribe="epic",
         now=None,
     )
     k2 = agent_render_key(
@@ -114,7 +114,7 @@ def test_render_key_changes_when_panel_tag_changes() -> None:
         is_expanded=False,
         is_marked=False,
         hint_char=None,
-        panel_tag=None,
+        panel_tribe=None,
         now=None,
     )
     assert k1 != k2

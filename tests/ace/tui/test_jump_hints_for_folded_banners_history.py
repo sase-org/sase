@@ -77,7 +77,7 @@ def test_fast_jump_restores_agent_banner_anchor_with_panel_focus() -> None:
     """Fast jump restores saved banner anchors with their owning panel."""
     agents = [
         _agent(project="alpha", cl="a1", name="a1"),
-        _agent(project="alpha", cl="a1", name="a2", tag="ws"),
+        _agent(project="alpha", cl="a1", name="a2", tribe="ws"),
     ]
     app = _StubApp(agents, collapsed_by_panel={"ws": [("alpha",)]})
     app.current_idx = 0
@@ -96,7 +96,7 @@ def test_agent_forward_jump_restores_panel_and_banner_anchors() -> None:
     """Ctrl+Shift+O walks forward and keeps agent/banner panel focus intact."""
     agents = [
         _agent(project="alpha", cl="a1", name="a1"),
-        _agent(project="alpha", cl="a1", name="a2", tag="ws"),
+        _agent(project="alpha", cl="a1", name="a2", tribe="ws"),
     ]
     app = _StubApp(agents, collapsed_by_panel={"ws": [("alpha",)]})
     app.current_idx = 0
@@ -119,10 +119,10 @@ def test_agent_forward_jump_restores_panel_and_banner_anchors() -> None:
 
 def test_banner_history_survives_whole_panel_repartition() -> None:
     agents = [
-        _agent(project="alpha", cl="a1", name="alpha", tag="alpha"),
-        _agent(project="beta", cl="b1", name="beta", tag="beta"),
-        _agent(project="gamma", cl="g1", name="gamma-one", tag="gamma"),
-        _agent(project="gamma", cl="g2", name="gamma-two", tag="gamma"),
+        _agent(project="alpha", cl="a1", name="alpha", tribe="alpha"),
+        _agent(project="beta", cl="b1", name="beta", tribe="beta"),
+        _agent(project="gamma", cl="g1", name="gamma-one", tribe="gamma"),
+        _agent(project="gamma", cl="g2", name="gamma-two", tribe="gamma"),
     ]
     app = _StubApp(
         agents,
@@ -155,7 +155,7 @@ def test_banner_history_survives_whole_panel_repartition() -> None:
 def test_panel_anchor_round_trips_through_back_and_forward_history() -> None:
     agents = [
         _agent(project="home", cl="u1", name="source"),
-        _agent(project="chop", cl="c1", name="hidden", tag="chop"),
+        _agent(project="chop", cl="c1", name="hidden", tribe="chop"),
     ]
     app = _StubApp(agents, collapsed_panels={"chop"})
 
@@ -199,7 +199,7 @@ def test_no_history_apostrophe_can_select_first_collapsed_panel(fast: bool) -> N
 def test_panel_anchor_restores_expanded_focus_but_discards_removed_panel() -> None:
     agents = [
         _agent(project="home", cl="u1", name="source"),
-        _agent(project="chop", cl="c1", name="hidden", tag="chop"),
+        _agent(project="chop", cl="c1", name="hidden", tribe="chop"),
     ]
     app = _StubApp(agents, collapsed_panels={"chop"})
     app._entry_jump_agents_anchor_stack = [("panel", "chop")]
@@ -294,7 +294,7 @@ def test_invalid_panel_back_anchor_does_not_change_focused_panel() -> None:
     """Missing panel keys are stale and must not be assigned during restore."""
     agents = [
         _agent(project="alpha", cl="a1", name="a1"),
-        _agent(project="alpha", cl="a1", name="a2", tag="ws"),
+        _agent(project="alpha", cl="a1", name="a2", tribe="ws"),
     ]
     app = _StubApp(agents)
     app.current_idx = 0

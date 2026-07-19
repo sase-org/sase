@@ -99,14 +99,14 @@ def test_leader_upper_j_descends_from_expanded_tribe_without_acknowledging() -> 
         name="older",
         status="PLAN",
         raw_suffix="older",
-        tag="alpha",
+        tribe="alpha",
     )
     older.plan_times = [datetime(2026, 7, 19, 10, 0, 0)]
     newest = make_agent(
         name="newest",
         status="QUESTION",
         raw_suffix="newest",
-        tag="alpha",
+        tribe="alpha",
     )
     newest.questions_times = [datetime(2026, 7, 19, 12, 0, 0)]
     app = LeaderUnreadJumpApp(
@@ -185,7 +185,7 @@ def test_jump_to_next_stopped_agent_finds_non_focused_panel_row() -> None:
         name="target",
         status="PLAN",
         raw_suffix="target",
-        tag="chop",
+        tribe="chop",
         start_time=datetime(2026, 5, 7, 12, 0, 0),
     )
     target.plan_times = [datetime(2026, 5, 7, 12, 0, 0)]
@@ -215,7 +215,7 @@ def test_jump_to_next_stopped_agent_back_jump_restores_without_acknowledging_unr
         name="target",
         status="PLAN",
         raw_suffix="target",
-        tag="chop",
+        tribe="chop",
         start_time=datetime(2026, 5, 7, 12, 0, 0),
     )
     target.plan_times = [datetime(2026, 5, 7, 12, 0, 0)]
@@ -248,7 +248,7 @@ def test_stopped_jump_expands_collapsed_panel_without_acknowledging_state() -> N
         name="older",
         status="PLAN",
         raw_suffix="older",
-        tag="alpha",
+        tribe="alpha",
         start_time=datetime(2026, 7, 16, 9, 0, 0),
     )
     older.plan_times = [datetime(2026, 7, 16, 10, 0, 0)]
@@ -256,7 +256,7 @@ def test_stopped_jump_expands_collapsed_panel_without_acknowledging_state() -> N
         name="target",
         status="QUESTION",
         raw_suffix="target",
-        tag="alpha",
+        tribe="alpha",
         start_time=datetime(2026, 7, 16, 8, 0, 0),
     )
     target.questions_times = [datetime(2026, 7, 16, 12, 0, 0)]
@@ -291,7 +291,7 @@ def test_stopped_jump_from_collapsed_header_starts_at_newest_backing_row() -> No
         name="newest",
         status="PLAN",
         raw_suffix="newest",
-        tag="alpha",
+        tribe="alpha",
         start_time=datetime(2026, 7, 16, 9, 0, 0),
     )
     newest.plan_times = [datetime(2026, 7, 16, 12, 0, 0)]
@@ -299,7 +299,7 @@ def test_stopped_jump_from_collapsed_header_starts_at_newest_backing_row() -> No
         name="older",
         status="QUESTION",
         raw_suffix="older",
-        tag="beta",
+        tribe="beta",
         start_time=datetime(2026, 7, 16, 8, 0, 0),
     )
     older.questions_times = [datetime(2026, 7, 16, 10, 0, 0)]
@@ -329,14 +329,14 @@ def test_stopped_jump_selects_newest_across_multiple_collapsed_panels() -> None:
         name="alpha",
         status="PLAN",
         raw_suffix="alpha",
-        tag="alpha",
+        tribe="alpha",
     )
     alpha.plan_times = [datetime(2026, 7, 16, 10, 0, 0)]
     beta = make_agent(
         name="beta",
         status="QUESTION",
         raw_suffix="beta",
-        tag="beta",
+        tribe="beta",
     )
     beta.questions_times = [datetime(2026, 7, 16, 12, 0, 0)]
     app = UnreadJumpApp(
@@ -357,14 +357,14 @@ def test_stopped_jump_no_match_preserves_collapsed_panel_and_group_fold() -> Non
         name="hidden",
         status="PLAN",
         raw_suffix="hidden",
-        tag="alpha",
+        tribe="alpha",
     )
     hidden.plan_times = [datetime(2026, 7, 16, 12, 0, 0)]
     sibling = make_agent(
         name="sibling",
         status="RUNNING",
         raw_suffix="sibling",
-        tag="alpha",
+        tribe="alpha",
     )
     app = UnreadJumpApp(
         [hidden, sibling],

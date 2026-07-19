@@ -25,7 +25,7 @@ from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
 from sase.ace.tui.widgets import HintInputBar
 
 
-def _agent(name: str, tag: str | None, **overrides: Any) -> Agent:
+def _agent(name: str, tribe: str | None, **overrides: Any) -> Agent:
     fields: dict[str, Any] = {
         "agent_type": AgentType.RUNNING,
         "cl_name": name,
@@ -34,7 +34,7 @@ def _agent(name: str, tag: str | None, **overrides: Any) -> Agent:
         "start_time": datetime(2026, 7, 16, 12, 0, 0),
         "raw_suffix": name,
         "agent_name": name,
-        "tribe": tag,
+        "tribe": tribe,
     }
     fields.update(overrides)
     return Agent(**fields)
@@ -42,7 +42,7 @@ def _agent(name: str, tag: str | None, **overrides: Any) -> Agent:
 
 def _agents() -> list[Agent]:
     return [
-        _agent("untagged", None),
+        _agent("no_tribe", None),
         _agent("alpha-first", "alpha"),
         _agent("alpha-second", "alpha"),
         _agent("beta", "beta"),
@@ -76,7 +76,7 @@ class _StubApp(
         self._panel_group = AgentPanelGroup.from_agents(
             self._agents,
             focused_key,
-            merge_tag_panels=merged,
+            merge_tribe_panels=merged,
             collapsed_panel_keys=self._collapsed_panel_keys,
         )
         self._grouping_mode = GroupingMode.STANDARD
@@ -126,7 +126,7 @@ class _StubApp(
         index = build_agent_panel_index(
             self._agents,
             dismissable_statuses=(),
-            merge_tag_panels=self._agent_panels_grouped,
+            merge_tribe_panels=self._agent_panels_grouped,
         )
         self._panel_index_cache = (self._agents, self._agent_panels_grouped, index)
         return index
@@ -134,7 +134,7 @@ class _StubApp(
     def _panel_keys_per_agent(self) -> list[PanelKey]:
         return panel_key_per_agent(
             self._agents,
-            merge_tag_panels=self._agent_panels_grouped,
+            merge_tribe_panels=self._agent_panels_grouped,
         )
 
     def _invalidate_agent_panel_cache(self) -> None:
@@ -147,7 +147,7 @@ class _StubApp(
         self._panel_group = AgentPanelGroup.from_agents(
             self._agents,
             self._panel_group.focused_key,
-            merge_tag_panels=self._agent_panels_grouped,
+            merge_tribe_panels=self._agent_panels_grouped,
             collapsed_panel_keys=self._collapsed_panel_keys,
         )
 

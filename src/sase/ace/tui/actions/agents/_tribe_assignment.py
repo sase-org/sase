@@ -1,6 +1,6 @@
-"""Agent tagging actions for the ace TUI Agents tab.
+"""Agent tribe-assignment actions for the ace TUI Agents tab.
 
-Wires the ``t`` keymap to a small modal that sets or unsets the tag on
+Wires the ``N`` keymap to a small modal that sets or clears the tribe on
 the currently focused agent (or, if any agent marks exist, on every
 marked agent — same precedence rule used elsewhere on the Agents tab).
 """
@@ -16,22 +16,22 @@ from sase.xprompt.directive_edit import (
     set_prompt_tribe,
 )
 
-from ...models.agent_pin import DEFAULT_PINNED_TAG
+from ...models.agent_pin import DEFAULT_PINNED_TRIBE
 from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
 from ._directive_persistence import (
     AgentDirectivePersistenceResult,
     AgentDirectivePersistenceSpec,
     AgentMetaPatch,
-    AgentTagStorePatch,
+    AgentTribeStorePatch,
     persist_agent_directive_update,
 )
 
 TabName = Literal["changespecs", "agents", "axe"]
 
-__all__ = ["AgentTaggingMixin", "DEFAULT_PINNED_TAG"]
+__all__ = ["AgentTribeAssignmentMixin", "DEFAULT_PINNED_TRIBE"]
 
 if TYPE_CHECKING:
-    from ...modals.agent_tag_modal import AgentTagModalResult
+    from ...modals.agent_tribe_modal import AgentTribeModalResult
     from ...models import Agent
     from ...models.agent import AgentType
 
@@ -50,8 +50,8 @@ def _prompt_clan_tribe_mutator(tribe: str | None) -> Callable[[str], str]:
     return _mutate
 
 
-class AgentTaggingMixin:
-    """Mixin providing the agent-tagging modal action (``t`` keymap)."""
+class AgentTribeAssignmentMixin:
+    """Mixin providing the agent-tribe modal action (``N`` keymap)."""
 
     current_tab: TabName
     _agents: list[Agent]
@@ -59,15 +59,15 @@ class AgentTaggingMixin:
     _marked_agents: set[tuple[AgentType, str, str | None]]
     _marked_agent_order: list[tuple[AgentType, str, str | None]]
 
-    def action_add_agent_tag(self) -> None:
-        """Open the agent-tag modal for the focused agent or marked set."""
+    def action_edit_agent_tribe(self) -> None:
+        """Open the agent-tribe modal for the focused agent or marked set."""
         if self.current_tab != "agents":
             return
 
         from sase.ace.agent_tribes import load_agent_tribes
 
         store = load_agent_tribes()
-        known_tags = sorted(set(store.values()))
+        known_tribes = sorted(set(store.values()))
 
         # Bulk path: if marks exist, the modal targets every marked agent.
         if self._marked_agents:
@@ -82,10 +82,10 @@ class AgentTaggingMixin:
                     severity="warning",
                 )
                 return
-            self._open_agent_tag_modal(
+            self._open_agent_tribe_modal(
                 target_label=f"{len(marked)} marked agent(s)",
-                current_tag=None,
-                known_tags=tuple(known_tags),
+                current_tribe=None,
+                known_tribes=tuple(known_tribes),
                 affected=marked,
             )
             return
@@ -94,61 +94,61 @@ class AgentTaggingMixin:
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
-        self._open_agent_tag_modal(
+        self._open_agent_tribe_modal(
             target_label=agent.display_name,
-            current_tag=agent.tribe,
-            known_tags=tuple(known_tags),
+            current_tribe=agent.tribe,
+            known_tribes=tuple(known_tribes),
             affected=[agent],
-            default_tag=DEFAULT_PINNED_TAG,
+            default_tribe=DEFAULT_PINNED_TRIBE,
         )
 
-    def _open_agent_tag_modal(
+    def _open_agent_tribe_modal(
         self,
         *,
         target_label: str,
-        current_tag: str | None,
-        known_tags: tuple[str, ...],
+        current_tribe: str | None,
+        known_tribes: tuple[str, ...],
         affected: list[Agent],
-        default_tag: str | None = None,
+        default_tribe: str | None = None,
     ) -> None:
-        from ...modals import AgentTagModal
+        from ...modals import AgentTribeModal
 
-        def on_dismiss(result: AgentTagModalResult | None) -> None:
+        def on_dismiss(result: AgentTribeModalResult | None) -> None:
             if result is None:
                 return
-            self._apply_agent_tag_change(result, affected)
+            self._apply_agent_tribe_change(result, affected)
 
         self.push_screen(  # type: ignore[attr-defined]
-            AgentTagModal(
+            AgentTribeModal(
                 target_label=target_label,
-                current_tag=current_tag,
-                known_tags=known_tags,
-                default_tag=default_tag,
+                current_tribe=current_tribe,
+                known_tribes=known_tribes,
+                default_tribe=default_tribe,
             ),
             on_dismiss,
         )
 
-    def _apply_agent_tag_change(
+    def _apply_agent_tribe_change(
         self,
-        result: AgentTagModalResult,
+        result: AgentTribeModalResult,
         affected: list[Agent],
     ) -> None:
-        """Persist the requested tag change for every agent in *affected*."""
+        """Persist the requested tribe change for every agent in *affected*."""
         snapshot_agents = getattr(self, "_snapshot_agents_for_local_display", None)
         previous_agents = (
             snapshot_agents() if callable(snapshot_agents) else list(self._agents)
         )
         changed = 0
         affected_identities = {agent.identity for agent in affected}
-        prior_tags = {agent.identity: agent.tribe for agent in affected}
+        prior_tribes = {agent.identity: agent.tribe for agent in affected}
         prior_clan_tribes = {agent.identity: agent.clan_tribe for agent in affected}
         specs: list[AgentDirectivePersistenceSpec] = []
         for agent in affected:
             clan_bound = bool(agent.agent_clan)
             visible_before = agent.clan_tribe if clan_bound else agent.tribe
             if result.action == "set":
-                assert result.tag is not None
-                after: str | None = result.tag
+                assert result.tribe is not None
+                after: str | None = result.tribe
             else:
                 after = None
 
@@ -203,12 +203,12 @@ class AgentTaggingMixin:
                         if artifacts_dir
                         else None
                     ),
-                    tag_patch=(
+                    tribe_patch=(
                         None
                         if clan_bound
-                        else AgentTagStorePatch(
+                        else AgentTribeStorePatch(
                             identity=agent.identity,
-                            tag=after,
+                            tribe=after,
                         )
                     ),
                 )
@@ -217,7 +217,7 @@ class AgentTaggingMixin:
         if changed == 0:
             verb = "set" if result.action == "set" else "unset"
             self.notify(  # type: ignore[attr-defined]
-                f"No tag {verb} (already in target state)",
+                f"No tribe {verb} (already in target state)",
                 severity="information",
             )
             return
@@ -226,17 +226,17 @@ class AgentTaggingMixin:
             payload = [persist_agent_directive_update(spec) for spec in specs]
             suffix = "agent" if changed == 1 else "agents"
             if result.action == "set":
-                assert result.tag is not None
-                message = f"Set @{result.tag} on {changed} {suffix}"
+                assert result.tribe is not None
+                message = f"Set @{result.tribe} on {changed} {suffix}"
             else:
-                message = f"Cleared tag on {changed} {suffix}"
+                message = f"Cleared tribe on {changed} {suffix}"
             return TrackedTaskResult(success=True, message=message, payload=payload)
 
-        def _rollback_visible_tags() -> None:
+        def _rollback_visible_tribes() -> None:
             for candidates in (self._agents, self._agents_with_children):
                 for candidate in candidates:
-                    if candidate.identity in prior_tags:
-                        candidate.tribe = prior_tags[candidate.identity]
+                    if candidate.identity in prior_tribes:
+                        candidate.tribe = prior_tribes[candidate.identity]
                         candidate.clan_tribe = prior_clan_tribes[candidate.identity]
 
         def _on_complete(
@@ -244,23 +244,23 @@ class AgentTaggingMixin:
         ) -> None:
             if completion.success:
                 return
-            _rollback_visible_tags()
+            _rollback_visible_tribes()
             self.notify(  # type: ignore[attr-defined]
-                f"Agent tag persist failed: {completion.message}",
+                f"Agent tribe persist failed: {completion.message}",
                 severity="error",
             )
             refresh = getattr(self, "_schedule_agents_async_refresh", None)
             if callable(refresh):
-                refresh(source="agent-tag-persist-failed")
+                refresh(source="agent-tribe-persist-failed")
 
         task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
             "agent-directive",
-            "agent-tags",
-            "agent-tags",
+            "agent-tribes",
+            "agent-tribes",
             _task,
-            display_name=f"Persist tags: {changed}",
-            dedup_key="agent-directive-persist:tags",
-            duplicate_message="A tag persistence task is already running",
+            display_name=f"Persist tribes: {changed}",
+            dedup_key="agent-directive-persist:tribes",
+            duplicate_message="A tribe persistence task is already running",
             on_complete=_on_complete,
             reload_on_complete=False,
             notify_on_complete=False,
@@ -269,7 +269,7 @@ class AgentTaggingMixin:
             return
 
         for agent in affected:
-            after = result.tag if result.action == "set" else None
+            after = result.tribe if result.action == "set" else None
             for candidates in (self._agents, self._agents_with_children):
                 for candidate in candidates:
                     if candidate.identity == agent.identity:
@@ -280,13 +280,13 @@ class AgentTaggingMixin:
 
         suffix = "agent" if changed == 1 else "agents"
         if result.action == "set":
-            assert result.tag is not None
+            assert result.tribe is not None
             self.notify(  # type: ignore[attr-defined]
-                f"Set @{result.tag} on {changed} {suffix}",
+                f"Set @{result.tribe} on {changed} {suffix}",
             )
         else:
             self.notify(  # type: ignore[attr-defined]
-                f"Cleared tag on {changed} {suffix}",
+                f"Cleared tribe on {changed} {suffix}",
             )
         self._marked_agents -= affected_identities
         order = getattr(self, "_marked_agent_order", None)

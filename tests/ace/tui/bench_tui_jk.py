@@ -72,10 +72,10 @@ def _make_changespec(name: str, file_path: Path) -> ChangeSpec:
 
 
 def _make_agent(i: int) -> Agent:
-    tags = [None, "alpha", "beta", "gamma"]
+    tribes = [None, "alpha", "beta", "gamma"]
     statuses = ["RUNNING", "WAITING", "STARTING", "PLAN", "DONE", "FAILED"]
     project = f"proj{i % 18:02d}"
-    tag = tags[i % len(tags)]
+    tribe = tribes[i % len(tribes)]
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=f"cl_{i % 40:03d}",
@@ -84,7 +84,7 @@ def _make_agent(i: int) -> Agent:
         start_time=None,
         agent_name=f"agent_{i:04d}",
         raw_suffix=f"20260513{i:06d}",
-        tribe=tag,
+        tribe=tribe,
     )
 
 
@@ -261,7 +261,7 @@ async def test_bench_axe_jk(_perf_jsonl: Path) -> None:
 
 
 async def test_bench_agents_jk_and_panel_navigation(_perf_jsonl: Path) -> None:
-    """Measure Agents-tab row and tag-panel navigation on a large synthetic list."""
+    """Measure Agents-tab row and tribe-panel navigation on a large synthetic list."""
     app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
     async with app.run_test() as pilot:
         await _wait_for_startup(app, pilot)

@@ -40,8 +40,6 @@ def _make_agent(**overrides: Any) -> Agent:
         "start_time": _NOW - timedelta(hours=1),
     }
     defaults.update(overrides)
-    if "tag" in defaults:
-        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)
 
 
@@ -205,39 +203,39 @@ def test_needs_input_excludes_pending_plan_reviews(status: str) -> None:
     assert not _eval("needs:input", _make_agent(status=status))
 
 
-# --- tag / pinned / hidden / attention (bool / exact) ------------------------
+# --- tribe / pinned / hidden / attention (bool / exact) ------------------------
 
 
-def test_tag_exact_match() -> None:
-    agent = _make_agent(tag="reviewed")
-    assert _eval("tag:reviewed", agent)
+def test_tribe_exact_match() -> None:
+    agent = _make_agent(tribe="reviewed")
+    assert _eval("tribe:reviewed", agent)
     # Substring must NOT match (exact-match semantics).
-    assert not _eval("tag:revi", agent)
+    assert not _eval("tribe:revi", agent)
 
 
-def test_tag_match_is_case_insensitive() -> None:
-    agent = _make_agent(tag="Reviewed")
-    assert _eval("tag:reviewed", agent)
+def test_tribe_match_is_case_insensitive() -> None:
+    agent = _make_agent(tribe="Reviewed")
+    assert _eval("tribe:reviewed", agent)
 
 
-def test_bare_tag_matches_any_tag() -> None:
-    agent = _make_agent(tag="anything")
-    assert _eval("tag:", agent)
+def test_bare_tribe_matches_any_tribe() -> None:
+    agent = _make_agent(tribe="anything")
+    assert _eval("tribe:", agent)
 
 
-def test_bare_tag_no_match_when_untagged() -> None:
-    agent = _make_agent(tag=None)
-    assert not _eval("tag:", agent)
+def test_bare_tribe_no_match_when_without_tribe() -> None:
+    agent = _make_agent(tribe=None)
+    assert not _eval("tribe:", agent)
 
 
 def test_pinned_true() -> None:
-    agent = _make_agent(tag="pinned")
+    agent = _make_agent(tribe="pinned")
     assert _eval("pinned:true", agent)
     assert not _eval("pinned:false", agent)
 
 
 def test_pinned_false() -> None:
-    agent = _make_agent(tag=None)
+    agent = _make_agent(tribe=None)
     assert _eval("pinned:false", agent)
     assert not _eval("pinned:true", agent)
 

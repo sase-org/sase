@@ -98,7 +98,7 @@ def _agent(
     raw_suffix: str | None = None,
     agent_type: AgentType = AgentType.RUNNING,
     status: str = "RUNNING",
-    tag: str | None = None,
+    tribe: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=agent_type,
@@ -108,7 +108,7 @@ def _agent(
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         raw_suffix=raw_suffix,
         agent_name=agent_name,
-        tribe=tag,
+        tribe=tribe,
     )
 
 
@@ -388,24 +388,24 @@ def test_capital_h_then_l_round_trip_clears_group_focus() -> None:
 
 
 def test_equal_status_group_keys_fold_independently_between_panels() -> None:
-    untagged = _agent(status="DONE")
-    tagged = _agent(status="DONE", tag="research")
-    app = _StubApp([untagged, tagged], current_idx=0)
+    no_tribe = _agent(status="DONE")
+    tribe_assigned = _agent(status="DONE", tribe="research")
+    app = _StubApp([no_tribe, tribe_assigned], current_idx=0)
     app._grouping_mode = GroupingMode.BY_STATUS
 
     app.action_hooks_or_collapse_all()
 
     split_done = app._group_fold_registry.for_panel(None)
-    tagged_done = app._group_fold_registry.for_panel("research")
+    tribe_assigned_done = app._group_fold_registry.for_panel("research")
     assert split_done.is_collapsed(("Done",)) is True
-    assert tagged_done.is_collapsed(("Done",)) is False
+    assert tribe_assigned_done.is_collapsed(("Done",)) is False
 
     app._panel_group.focused_idx = 1
     app.current_idx = 1
     app._current_group_key = None
     app.action_hooks_or_collapse_all()
-    assert tagged_done.is_collapsed(("Done",)) is True
+    assert tribe_assigned_done.is_collapsed(("Done",)) is True
 
     app.action_expand_or_layout()
-    assert tagged_done.is_collapsed(("Done",)) is False
+    assert tribe_assigned_done.is_collapsed(("Done",)) is False
     assert split_done.is_collapsed(("Done",)) is True

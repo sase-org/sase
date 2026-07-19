@@ -52,7 +52,7 @@ def test_restore_agent_meta_writes_loader_relevant_fields(tmp_path: Path) -> Non
         question_session_id="session-1",
         retry_times=retry_times,
         epic_time=epic_time,
-        tag="backend",
+        tribe="backend",
     )
 
     AgentRevivalMixin._restore_agent_meta(agent, tmp_path)

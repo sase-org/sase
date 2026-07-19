@@ -62,7 +62,7 @@ def test_tag_badge_omitted_for_tagged_agent_row() -> None:
     assert "@release-blockers" not in plain
 
 
-def test_plain_untagged_agent_omits_at_annotation() -> None:
+def test_plain_agent_without_tribe_omits_at_annotation() -> None:
     agent = _make_plain_agent()
     widget = AgentList()
     option = widget._format_agent_option(agent, 0, is_selected=False)

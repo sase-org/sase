@@ -239,7 +239,7 @@ def build_agent_arg_completion_candidates(
 
     partial_lower = partial.lower()
     source_entries = list(agent_candidates or ())
-    source_entries = [*_legacy_tribe_entries(source_entries), *source_entries]
+    source_entries = [*_derived_tribe_entries(source_entries), *source_entries]
     excluded = {name.casefold() for name in excluded_names}
     matching = [
         entry
@@ -279,30 +279,30 @@ def build_agent_arg_completion_candidates(
     return candidates, shared_extension
 
 
-def _legacy_tribe_entries(
+def _derived_tribe_entries(
     entries: Sequence[AgentCompletionCandidate],
 ) -> list[AgentCompletionCandidate]:
-    """Adapt older flat providers that expose tribes only through ``tag``."""
+    """Derive aggregate tribe rows from flat agent completion candidates."""
     explicit = {entry.name for entry in entries if entry.kind == "tribe"}
-    members_by_tag: dict[str, list[AgentCompletionCandidate]] = {}
+    members_by_tribe: dict[str, list[AgentCompletionCandidate]] = {}
     for entry in entries:
-        if entry.kind != "agent" or not entry.tag:
+        if entry.kind != "agent" or not entry.tribe:
             continue
-        tag = entry.tag if entry.tag.startswith("@") else f"@{entry.tag}"
-        if tag in explicit:
+        tribe = entry.tribe if entry.tribe.startswith("@") else f"@{entry.tribe}"
+        if tribe in explicit:
             continue
-        members_by_tag.setdefault(tag, []).append(entry)
+        members_by_tribe.setdefault(tribe, []).append(entry)
 
     legacy: list[AgentCompletionCandidate] = []
-    for tag, members in members_by_tag.items():
+    for tribe, members in members_by_tribe.items():
         statuses = [member.status for member in members]
         from sase.ace.tui.models._agent_clan import aggregate_clan_status
 
         status = aggregate_clan_status(statuses) or "RUNNING"
         legacy.append(
             AgentCompletionCandidate(
-                name=tag,
-                label=tag.removeprefix("@"),
+                name=tribe,
+                label=tribe.removeprefix("@"),
                 status=status,
                 kind="tribe",
                 member_count=len(members),
@@ -310,7 +310,7 @@ def _legacy_tribe_entries(
                 member_names=tuple(member.name for member in members),
                 agent_count=len(members),
                 clan_count=0,
-                search_aliases=(tag.removeprefix("@"),),
+                search_aliases=(tribe.removeprefix("@"),),
             )
         )
     return legacy

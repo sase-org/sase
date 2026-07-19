@@ -19,7 +19,7 @@ def _agent(
     name: str | None,
     *,
     status: str = "RUNNING",
-    tag: str | None = None,
+    tribe: str | None = None,
     suffix: str | None = None,
 ) -> Agent:
     return Agent(
@@ -30,7 +30,7 @@ def _agent(
         start_time=datetime(2026, 5, 23, 12, 0, 0),
         raw_suffix=suffix or name,
         agent_name=name,
-        tribe=tag,
+        tribe=tribe,
     )
 
 
@@ -383,7 +383,7 @@ def test_index_excludes_agents_hidden_by_collapsed_groups() -> None:
 
 def test_index_preserves_visible_render_order_across_panels() -> None:
     rows = [
-        AgentNeighborRow(2, 0, _agent("foo.untagged")),
+        AgentNeighborRow(2, 0, _agent("foo.no_tribe")),
         AgentNeighborRow(0, 1, _agent("foo.alpha")),
         AgentNeighborRow(1, 2, _agent("foo.zeta")),
     ]

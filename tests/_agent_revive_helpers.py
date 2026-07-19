@@ -25,8 +25,6 @@ def make_agent(**overrides: object) -> Agent:
         "artifacts_dir": "/tmp/projects/myproj/artifacts/workflow-wf/20240101120000",
     }
     defaults.update(overrides)
-    if "tag" in defaults:
-        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
@@ -100,7 +98,7 @@ class FakeReviveApp(AgentRevivalMixin):
     def _panel_keys_per_agent(self) -> list[str | None]:
         return panel_key_per_agent(
             self._agents,
-            merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+            merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
         )
 
     def _restore_agent_artifacts(

@@ -1,4 +1,4 @@
-"""Per-panel dynamic height regimes for the Agents-tab tag stack.
+"""Per-panel dynamic height regimes for the Agents-tab tribe stack.
 
 When the sum of natural panel heights fits the agent-list container,
 the first panel fills leftover space while later panels are sized to
@@ -39,8 +39,8 @@ class _ListWidget:
         self.update_list_calls = 0
         self.last_agents: list[Agent] = []
         self.last_local_idx: int | None = None
-        self.last_tag_labels: list[str | None] | None = None
-        self.last_panel_tag: str | None = None
+        self.last_tribe_labels: list[str | None] | None = None
+        self.last_panel_tribe: str | None = None
         self.last_fold_registry: object | None = None
         self.render_collapsed_calls = 0
         self._panel_collapsed = False
@@ -51,8 +51,8 @@ class _ListWidget:
         self.update_list_calls += 1
         self.last_agents = agents
         self.last_local_idx = local_idx
-        self.last_tag_labels = kwargs.get("tag_labels")
-        self.last_panel_tag = kwargs.get("panel_tag")
+        self.last_tribe_labels = kwargs.get("tribe_labels")
+        self.last_panel_tribe = kwargs.get("panel_tribe")
         self.last_fold_registry = kwargs.get("fold_registry")
         self._panel_collapsed = False
 
@@ -121,7 +121,7 @@ class _FakeApp(AgentDisplayMixin):
         self._panel_group = AgentPanelGroup.from_agents(
             agents,
             focused_key,
-            merge_tag_panels=agent_panels_grouped,
+            merge_tribe_panels=agent_panels_grouped,
         )
         self._collapsed_panel_keys: set[str | None] = set()
         self._expanded_panel_focus = False
@@ -166,7 +166,7 @@ class _InteractiveFakeApp(
         return
 
 
-def _agent(*, name: str, tag: str | None, suffix: str) -> Agent:
+def _agent(*, name: str, tribe: str | None, suffix: str) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="cl",
@@ -174,25 +174,25 @@ def _agent(*, name: str, tag: str | None, suffix: str) -> Agent:
         status="RUNNING",
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
-        tribe=tag,
+        tribe=tribe,
         raw_suffix=suffix,
     )
 
 
 def _three_panel_agents() -> list[Agent]:
-    """3 panels: untagged, @apple, @banana."""
+    """3 panels: no_tribe, @apple, @banana."""
     return [
-        _agent(name="u1", tag=None, suffix="t1"),
-        _agent(name="a1", tag="apple", suffix="t2"),
-        _agent(name="b1", tag="banana", suffix="t3"),
+        _agent(name="u1", tribe=None, suffix="t1"),
+        _agent(name="a1", tribe="apple", suffix="t2"),
+        _agent(name="b1", tribe="banana", suffix="t3"),
     ]
 
 
-def _two_tagged_panel_agents() -> list[Agent]:
+def _two_tribe_assigned_panel_agents() -> list[Agent]:
     """2 panels: @apple, @banana."""
     return [
-        _agent(name="a1", tag="apple", suffix="t1"),
-        _agent(name="b1", tag="banana", suffix="t2"),
+        _agent(name="a1", tribe="apple", suffix="t1"),
+        _agent(name="b1", tribe="banana", suffix="t2"),
     ]
 
 
@@ -236,7 +236,7 @@ def test_panel_separator_class_tracks_panel_position() -> None:
     assert "agent-panel-separated" in banana._classes
 
 
-def test_collapsed_untagged_panel_moves_last_and_stays_fixed() -> None:
+def test_collapsed_no_tribe_panel_moves_last_and_stays_fixed() -> None:
     agents = _three_panel_agents()
     app = _FakeApp(agents, option_counts=[8, 4, 6], container_height=30)
     app._collapsed_panel_keys.add(None)
@@ -246,16 +246,16 @@ def test_collapsed_untagged_panel_moves_last_and_stays_fixed() -> None:
 
     apple = app._panel_widgets["agent-list-panel"]
     banana = app._panel_widgets["agent-list-panel-1"]
-    untagged = app._panel_widgets["agent-list-panel-2"]
+    no_tribe = app._panel_widgets["agent-list-panel-2"]
     assert app._panel_group.panel_keys == ["apple", "banana", None]
     assert apple.styles.height.unit is Unit.FRACTION
     assert apple.styles.height.value == 1.0
     assert banana.styles.height.unit is Unit.CELLS
     assert banana.styles.height.value == 6.0
-    assert untagged.render_collapsed_calls == 1
-    assert untagged.styles.height.unit is Unit.CELLS
-    assert untagged.styles.height.value == 2.0
-    assert "-collapsed-panel" in untagged._classes
+    assert no_tribe.render_collapsed_calls == 1
+    assert no_tribe.styles.height.unit is Unit.CELLS
+    assert no_tribe.styles.height.value == 2.0
+    assert "-collapsed-panel" in no_tribe._classes
 
 
 def test_collapsed_panel_hint_routes_by_key_in_full_and_selective_refreshes() -> None:
@@ -407,10 +407,10 @@ def test_separator_rows_are_included_in_fit_boundary() -> None:
     assert banana.styles.height.value == 7.0
 
 
-def test_overflow_regime_protects_small_tag_panel_before_large_panel() -> None:
+def test_overflow_regime_protects_small_tribe_panel_before_large_panel() -> None:
     # @apple has only a banner + agent row, so it should stay at natural
     # height while the larger @banana panel absorbs the cropping pressure.
-    agents = _two_tagged_panel_agents()
+    agents = _two_tribe_assigned_panel_agents()
     app = _FakeApp(agents, option_counts=[2, 25], container_height=12)
 
     app._refresh_panel_widgets(jump_hints=None)
@@ -424,9 +424,9 @@ def test_overflow_regime_protects_small_tag_panel_before_large_panel() -> None:
     assert banana.styles.height.value == 26.0  # option_count 25 + 1
 
 
-def test_overflow_regime_keeps_small_untagged_panel_natural() -> None:
-    # The ascending-height protection pass keeps the untagged panel's natural
-    # height (8) fixed while the larger tag panels absorb cropping pressure.
+def test_overflow_regime_keeps_small_no_tribe_panel_natural() -> None:
+    # The ascending-height protection pass keeps the no_tribe panel's natural
+    # height (8) fixed while the larger tribe panels absorb cropping pressure.
     agents = _three_panel_agents()
     app = _FakeApp(agents, option_counts=[6, 20, 20], container_height=20)
 
@@ -444,10 +444,10 @@ def test_overflow_regime_keeps_small_untagged_panel_natural() -> None:
     assert banana.styles.height.value == 21.0
 
 
-def test_overflow_regime_leaves_large_untagged_panel_fractional() -> None:
+def test_overflow_regime_leaves_large_no_tribe_panel_fractional() -> None:
     # Naturals are 24 / 3 / 3 plus two separators, so the 32-row stack barely
-    # overflows its 30-row container. The compact tag panels stay fully visible
-    # while the large untagged panel absorbs all remaining rows.
+    # overflows its 30-row container. The compact tribe panels stay fully visible
+    # while the large no_tribe panel absorbs all remaining rows.
     agents = _three_panel_agents()
     app = _FakeApp(agents, option_counts=[22, 1, 1], container_height=30)
 
@@ -484,10 +484,10 @@ def test_overflow_regime_shares_multiple_large_panels_proportionally() -> None:
 
 
 def test_single_panel_fills_container() -> None:
-    # A single untagged panel absorbs the full column height via a fractional
+    # A single no_tribe panel absorbs the full column height via a fractional
     # unit, so it extends to the bottom even when its natural height (5) is
     # smaller than the container.
-    agents = [_agent(name="u1", tag=None, suffix="t1")]
+    agents = [_agent(name="u1", tribe=None, suffix="t1")]
     app = _FakeApp(agents, option_counts=[3], container_height=40)
 
     app._refresh_panel_widgets(jump_hints=None)
@@ -497,7 +497,7 @@ def test_single_panel_fills_container() -> None:
     assert main.styles.height.value == 1.0
 
 
-def test_grouped_mode_renders_one_panel_with_effective_tag_labels() -> None:
+def test_grouped_mode_renders_one_panel_with_effective_tribe_labels() -> None:
     agents = _three_panel_agents()
     app = _FakeApp(
         agents,
@@ -514,11 +514,11 @@ def test_grouped_mode_renders_one_panel_with_effective_tag_labels() -> None:
     assert main.border_title is not None
     assert getattr(main.border_title, "plain", "") == "All agents · 3 [R3]"
     assert main.last_agents == agents
-    assert main.last_tag_labels == [None, "apple", "banana"]
-    assert main.last_panel_tag is None
+    assert main.last_tribe_labels == [None, "apple", "banana"]
+    assert main.last_panel_tribe is None
 
 
-def test_split_panel_refreshes_thread_enclosing_tag_context() -> None:
+def test_split_panel_refreshes_thread_enclosing_tribe_context() -> None:
     agents = _three_panel_agents()
     app = _FakeApp(agents, option_counts=[2, 2, 2], container_height=30)
 
@@ -528,14 +528,14 @@ def test_split_panel_refreshes_thread_enclosing_tag_context() -> None:
     apple = app._panel_widgets["agent-list-panel-1"]
     banana = app._panel_widgets["agent-list-panel-2"]
     assert [
-        main.last_panel_tag,
-        apple.last_panel_tag,
-        banana.last_panel_tag,
+        main.last_panel_tribe,
+        apple.last_panel_tribe,
+        banana.last_panel_tribe,
     ] == [None, "apple", "banana"]
 
-    banana.last_panel_tag = None
+    banana.last_panel_tribe = None
     assert app._refresh_affected_panel_widgets({"banana"}) is True
-    assert banana.last_panel_tag == "banana"
+    assert banana.last_panel_tribe == "banana"
 
 
 def test_each_panel_widget_receives_its_scoped_fold_registry() -> None:

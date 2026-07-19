@@ -9,7 +9,7 @@ from unittest.mock import patch
 from sase.ace.tui.actions.agents._directive_persistence import (
     AgentDirectivePersistenceSpec,
     AgentMetaPatch,
-    AgentTagStorePatch,
+    AgentTribeStorePatch,
     persist_agent_directive_update,
     waiting_marker_patch_for_token,
 )
@@ -183,16 +183,16 @@ def test_persist_agent_directive_update_sets_and_unsets_tribe_store(
         set_result = persist_agent_directive_update(
             AgentDirectivePersistenceSpec(
                 artifacts_dir=tmp_path / "artifacts",
-                tag_patch=AgentTagStorePatch(identity=identity, tag="review"),
+                tribe_patch=AgentTribeStorePatch(identity=identity, tribe="review"),
             )
         )
         unset_result = persist_agent_directive_update(
             AgentDirectivePersistenceSpec(
                 artifacts_dir=tmp_path / "artifacts",
-                tag_patch=AgentTagStorePatch(identity=identity, tag=None),
+                tribe_patch=AgentTribeStorePatch(identity=identity, tribe=None),
             )
         )
 
-    assert set_result.tag_updated is True
-    assert unset_result.tag_updated is True
+    assert set_result.tribe_updated is True
+    assert unset_result.tribe_updated is True
     assert json.loads(tribes_file.read_text()) == []

@@ -468,7 +468,7 @@ def test_format_agent_option_no_start_has_empty_suffix() -> None:
     assert suffix.plain == ""
 
 
-def test_format_agent_option_renders_tag_label_only_when_passed() -> None:
+def test_format_agent_option_renders_tribe_label_only_when_passed() -> None:
     row_agent = agent(cl_name="demo", raw_suffix="20260425140000")
 
     left_without, _, _ = format_agent_option(row_agent, 0, is_selected=False)
@@ -476,7 +476,7 @@ def test_format_agent_option_renders_tag_label_only_when_passed() -> None:
         row_agent,
         0,
         is_selected=False,
-        tag_label="fix",
+        tribe_label="fix",
     )
 
     assert " @fix" not in left_without.plain
@@ -526,7 +526,9 @@ def test_format_agent_option_unread_without_runtime_uses_marker_only_suffix() ->
     assert suffix.plain == "✅"
 
 
-def test_format_agent_option_keeps_tag_badge_and_agent_name_prefixes_distinct() -> None:
+def test_format_agent_option_keeps_tribe_badge_and_agent_name_prefixes_distinct() -> (
+    None
+):
     row_agent = agent(cl_name="demo", raw_suffix="20260425140000")
     row_agent.agent_name = "coder"
 
@@ -534,7 +536,7 @@ def test_format_agent_option_keeps_tag_badge_and_agent_name_prefixes_distinct() 
         row_agent,
         0,
         is_selected=False,
-        tag_label="fix",
+        tribe_label="fix",
     )
 
     assert " @fix" in left.plain

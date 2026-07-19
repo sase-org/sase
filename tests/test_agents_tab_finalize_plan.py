@@ -242,15 +242,15 @@ def test_stale_plan_is_discarded_when_panel_layout_changes() -> None:
 
 
 def test_finalize_prunes_stale_fold_only_from_panel_where_group_vanished() -> None:
-    research = _make_agent(cl_name="r", status="DONE", tag="research")
+    research = _make_agent(cl_name="r", status="DONE", tribe="research")
     app = FakeAgentApp()
     app._group_fold_registry = AgentGroupFoldRegistry()
     app._grouping_mode = GroupingMode.BY_STATUS
     app._agent_panels_grouped = False
     app._agents = [research]
-    untagged_registry = app._group_fold_registry.for_panel(None)
+    no_tribe_registry = app._group_fold_registry.for_panel(None)
     research_registry = app._group_fold_registry.for_panel("research")
-    untagged_registry.collapse(("Done",))
+    no_tribe_registry.collapse(("Done",))
     research_registry.collapse(("Done",))
 
     app._finalize_agent_list(

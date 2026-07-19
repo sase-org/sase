@@ -27,7 +27,7 @@ def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
         name="target",
         status="PLAN DONE",
         raw_suffix="target",
-        tag="chop",
+        tribe="chop",
         stop_time=datetime(2026, 5, 7, 12, 0, 0),
     )
     app = UnreadJumpApp(
@@ -55,7 +55,7 @@ def test_jump_to_next_unread_done_agent_back_jump_restores_origin() -> None:
         name="target",
         status="DONE",
         raw_suffix="target",
-        tag="chop",
+        tribe="chop",
         stop_time=datetime(2026, 5, 7, 12, 0, 0),
     )
     app = UnreadJumpApp(
@@ -87,20 +87,20 @@ def test_unread_jump_expands_collapsed_panel_and_selects_exact_row(
         name="first-alpha",
         status="RUNNING",
         raw_suffix="first-alpha",
-        tag="alpha",
+        tribe="alpha",
     )
     target = make_agent(
         name="target",
         status="DONE",
         raw_suffix="target",
-        tag="alpha",
+        tribe="alpha",
         stop_time=datetime(2026, 7, 16, 15, 0, 0),
     )
     beta = make_agent(
         name="beta",
         status="RUNNING",
         raw_suffix="beta",
-        tag="beta",
+        tribe="beta",
     )
     app = UnreadJumpApp(
         [origin, first_alpha, target, beta],
@@ -141,7 +141,7 @@ def test_unread_jump_expands_manually_guarded_target_without_acknowledging(
         name="target",
         status="DONE",
         raw_suffix="target",
-        tag="alpha",
+        tribe="alpha",
         stop_time=datetime(2026, 7, 16, 15, 0, 0),
     )
     app = UnreadJumpApp(
@@ -169,20 +169,20 @@ def test_unread_jump_history_survives_panel_repartition_back_and_forward() -> No
         name="target",
         status="DONE",
         raw_suffix="target",
-        tag="alpha",
+        tribe="alpha",
         stop_time=datetime(2026, 7, 16, 15, 0, 0),
     )
     beta = make_agent(
         name="beta",
         status="RUNNING",
         raw_suffix="beta",
-        tag="beta",
+        tribe="beta",
     )
     origin = make_agent(
         name="origin",
         status="RUNNING",
         raw_suffix="origin",
-        tag="gamma",
+        tribe="gamma",
     )
     app = UnreadJumpApp(
         [target, beta, origin],
@@ -209,7 +209,7 @@ def test_unread_jump_history_survives_panel_repartition_back_and_forward() -> No
 
 def test_jump_to_next_unread_done_agent_returns_false_when_no_unread_panels() -> None:
     focused = make_agent(name="focused", status="RUNNING", raw_suffix="focused")
-    done = make_agent(name="done", status="DONE", raw_suffix="done", tag="chop")
+    done = make_agent(name="done", status="DONE", raw_suffix="done", tribe="chop")
     app = UnreadJumpApp(
         [focused, done],
         current_idx=0,

@@ -99,7 +99,7 @@ def _agent_candidate(
     status: str = "RUNNING",
     vcs_tag: str = "#gh:sase",
     snippet: str = "Fix prompt completion",
-    tag: str | None = None,
+    tribe: str | None = None,
     kind: Literal["agent", "family", "clan", "tribe"] = "agent",
     member_count: int | None = None,
     member_names: tuple[str, ...] = (),
@@ -112,7 +112,7 @@ def _agent_candidate(
         member_count=member_count,
         aggregate_status=status if kind != "agent" else None,
         member_names=member_names,
-        tag=tag,
+        tribe=tribe,
         vcs_workflow=AgentVcsWorkflow(
             tag=vcs_tag,
             workflow_type="gh",
@@ -201,7 +201,7 @@ async def test_fork_agent_arg_completion_replaces_value() -> None:
 async def test_fork_agent_arg_completion_inserts_tribe_target() -> None:
     app = CompletionTestApp()
     app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
-        _agent_candidate("epic.builder", tag="@epic")
+        _agent_candidate("epic.builder", tribe="@epic")
     ]
     async with app.run_test():
         ta = app.query_one(PromptTextArea)

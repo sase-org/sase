@@ -317,23 +317,23 @@ def _build_tribe_completion_candidates(
         add(agent.tribe, members, agent_carrier=agent.identity)
 
     candidates: list[AgentCompletionCandidate] = []
-    for tag in tribe_order:
-        members = _dedupe_real_member_rows(members_by_tribe[tag])
+    for tribe in tribe_order:
+        members = _dedupe_real_member_rows(members_by_tribe[tribe])
         if not members:
             continue
         status = _aggregate_completion_status(members)
         candidates.append(
             AgentCompletionCandidate(
-                name=f"@{tag}",
-                label=tag,
+                name=f"@{tribe}",
+                label=tribe,
                 status=status,
                 kind="tribe",
                 member_count=len(members),
                 aggregate_status=status,
                 member_names=_member_names(members),
-                agent_count=len(agent_carriers_by_tribe[tag]),
-                clan_count=len(clan_carriers_by_tribe[tag]),
-                search_aliases=(tag,),
+                agent_count=len(agent_carriers_by_tribe[tribe]),
+                clan_count=len(clan_carriers_by_tribe[tribe]),
+                search_aliases=(tribe,),
             )
         )
     return candidates
@@ -391,7 +391,7 @@ def _candidate_from_agent(
         start_time=agent.start_time_short,
         duration=agent.duration_display,
         role=role,
-        tag=f"@{agent.tribe}" if agent.tribe else None,
+        tribe=f"@{agent.tribe}" if agent.tribe else None,
         vcs_workflow=vcs_workflow_from_prompt(raw_prompt),
         prompt_snippet=prompt_snippet(raw_prompt),
         search_aliases=tuple(

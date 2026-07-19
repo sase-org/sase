@@ -91,16 +91,16 @@ def test_l1_and_l0_keys_coexist_independently() -> None:
 
 def test_equal_keys_are_isolated_between_split_panels() -> None:
     registry = AgentGroupFoldRegistry()
-    untagged = registry.for_panel(None)
+    no_tribe = registry.for_panel(None)
     research = registry.for_panel("research")
 
-    untagged.collapse(("Done",))
+    no_tribe.collapse(("Done",))
 
-    assert untagged.is_collapsed(("Done",)) is True
+    assert no_tribe.is_collapsed(("Done",)) is True
     assert research.is_collapsed(("Done",)) is False
 
 
-def test_split_untagged_and_merged_panel_scopes_are_independent() -> None:
+def test_split_no_tribe_and_merged_panel_scopes_are_independent() -> None:
     registry = AgentGroupFoldRegistry()
     split = registry.for_panel(None, merged=False)
     merged = registry.for_panel(None, merged=True)

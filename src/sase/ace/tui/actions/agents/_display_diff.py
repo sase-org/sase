@@ -94,14 +94,14 @@ def build_agent_display_diff(
 def panel_keys_for_display(
     agents: list[Agent],
     *,
-    merge_tag_panels: bool,
+    merge_tribe_panels: bool,
     collapsed_panel_keys: Collection[PanelKey] = (),
 ) -> tuple[PanelKey, ...]:
     """Return the rendered panel-key collection for *agents*."""
     return tuple(
         AgentPanelGroup.from_agents(
             agents,
-            merge_tag_panels=merge_tag_panels,
+            merge_tribe_panels=merge_tribe_panels,
             collapsed_panel_keys=collapsed_panel_keys,
         ).panel_keys
     )
@@ -110,10 +110,10 @@ def panel_keys_for_display(
 def rendered_panel_key_by_identity(
     agents: list[Agent],
     *,
-    merge_tag_panels: bool,
+    merge_tribe_panels: bool,
 ) -> dict[AgentIdentity, PanelKey]:
     """Map rendered agent identities to their effective panel key."""
-    keys = panel_key_per_agent(agents, merge_tag_panels=merge_tag_panels)
+    keys = panel_key_per_agent(agents, merge_tribe_panels=merge_tribe_panels)
     return {
         agent.identity: keys[idx]
         for idx, agent in enumerate(agents)
@@ -124,9 +124,9 @@ def rendered_panel_key_by_identity(
 def _rendered_panel_position_by_identity(
     agents: list[Agent],
     *,
-    merge_tag_panels: bool,
+    merge_tribe_panels: bool,
 ) -> dict[AgentIdentity, tuple[PanelKey, int]]:
-    keys = panel_key_per_agent(agents, merge_tag_panels=merge_tag_panels)
+    keys = panel_key_per_agent(agents, merge_tribe_panels=merge_tribe_panels)
     next_local_idx: dict[PanelKey, int] = {}
     positions: dict[AgentIdentity, tuple[PanelKey, int]] = {}
     for idx, agent in enumerate(agents):
@@ -144,24 +144,24 @@ def affected_panel_keys(
     previous_agents: list[Agent],
     next_agents: list[Agent],
     *,
-    merge_tag_panels: bool,
+    merge_tribe_panels: bool,
 ) -> set[PanelKey]:
     """Return panels whose rendered membership or content changed."""
     previous_keys = rendered_panel_key_by_identity(
         previous_agents,
-        merge_tag_panels=merge_tag_panels,
+        merge_tribe_panels=merge_tribe_panels,
     )
     next_keys = rendered_panel_key_by_identity(
         next_agents,
-        merge_tag_panels=merge_tag_panels,
+        merge_tribe_panels=merge_tribe_panels,
     )
     previous_positions = _rendered_panel_position_by_identity(
         previous_agents,
-        merge_tag_panels=merge_tag_panels,
+        merge_tribe_panels=merge_tribe_panels,
     )
     next_positions = _rendered_panel_position_by_identity(
         next_agents,
-        merge_tag_panels=merge_tag_panels,
+        merge_tribe_panels=merge_tribe_panels,
     )
     keys: set[PanelKey] = set()
 
@@ -197,19 +197,19 @@ def changed_same_position_panel_membership_keys(
     previous_agents: list[Agent],
     next_agents: list[Agent],
     *,
-    merge_tag_panels: bool,
+    merge_tribe_panels: bool,
 ) -> set[PanelKey]:
-    """Return panels needing rebuild for same-position panel/tag changes."""
+    """Return panels needing rebuild for same-position panel/tribe changes."""
     if not diff.changed_same_position:
         return set()
 
     previous_keys = rendered_panel_key_by_identity(
         previous_agents,
-        merge_tag_panels=merge_tag_panels,
+        merge_tribe_panels=merge_tribe_panels,
     )
     next_keys = rendered_panel_key_by_identity(
         next_agents,
-        merge_tag_panels=merge_tag_panels,
+        merge_tribe_panels=merge_tribe_panels,
     )
     missing = object()
     keys: set[PanelKey] = set()
@@ -226,7 +226,7 @@ def changed_same_position_panel_membership_keys(
                 keys.add(cast(PanelKey, next_key))
             continue
         if (
-            merge_tag_panels
+            merge_tribe_panels
             and previous.tribe != next_agent.tribe
             and next_key is not missing
         ):

@@ -33,7 +33,7 @@ class AgentCompletionCandidate:
     start_time: str | None = None
     duration: str | None = None
     role: str | None = None
-    tag: str | None = None
+    tribe: str | None = None
     vcs_workflow: AgentVcsWorkflow | None = None
     prompt_snippet: str = ""
     search_aliases: tuple[str, ...] = ()

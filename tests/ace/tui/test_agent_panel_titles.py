@@ -1,10 +1,10 @@
 """Per-panel border-title labels for vertically stacked Agents-tab panels.
 
-Each ``AgentList`` panel must show a ``border_title`` identifying its tag
-(``(untagged)`` / ``#<tag>``) plus a ``· N`` agent count, refreshed every
+Each ``AgentList`` panel must show a ``border_title`` identifying its tribe
+(``(no tribe)`` / ``#<tribe>``) plus a ``· N`` agent count, refreshed every
 time :meth:`AgentDisplayMixin._refresh_panel_widgets` runs (panel widget
-ids correspond to index slots, not fixed tags — alphabetic shifts can
-flip which tag a slot points at).
+ids correspond to index slots, not fixed tribes — alphabetic shifts can
+flip which tribe a slot points at).
 """
 
 from __future__ import annotations
@@ -61,7 +61,9 @@ class _Container:
 
 
 class _FakeApp(AgentDisplayMixin):
-    def __init__(self, agents: list[Agent], *, merge_tag_panels: bool = False) -> None:
+    def __init__(
+        self, agents: list[Agent], *, merge_tribe_panels: bool = False
+    ) -> None:
         self._agents = agents
         self._fold_counts: dict[str, tuple[int, int]] = {}
         self._agent_search_query = ""
@@ -77,10 +79,10 @@ class _FakeApp(AgentDisplayMixin):
         self._countdown_remaining = 0
         self._group_fold_registry = AgentGroupFoldRegistry()
         self._current_group_key = None
-        self._agent_panels_grouped = merge_tag_panels
+        self._agent_panels_grouped = merge_tribe_panels
         self._panel_group = AgentPanelGroup.from_agents(
             agents,
-            merge_tag_panels=merge_tag_panels,
+            merge_tribe_panels=merge_tribe_panels,
         )
 
         from sase.ace.tui.actions.agents._display import _panel_widget_id
@@ -104,7 +106,7 @@ class _FakeApp(AgentDisplayMixin):
 def _agent(
     *,
     name: str,
-    tag: str | None = None,
+    tribe: str | None = None,
     suffix: str,
     status: str = "RUNNING",
     parent_timestamp: str | None = None,
@@ -117,7 +119,7 @@ def _agent(
         status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         agent_name=name,
-        tribe=tag,
+        tribe=tribe,
         raw_suffix=suffix,
         parent_timestamp=parent_timestamp,
         agent_family_parallel=agent_family_parallel,
@@ -268,7 +270,7 @@ def test_panel_title_renders_multi_digit_numeric_selection_hint() -> None:
         selection_hint=12,
     )
 
-    assert title.plain == "[12] (untagged) · 2 [R2]"
+    assert title.plain == "[12] (no tribe) · 2 [R2]"
     _assert_title_span(
         title,
         start=0,
@@ -322,13 +324,13 @@ def _assert_title_metric_styles(
         )
 
 
-def test_panel_titles_label_untagged_and_tags_with_counts() -> None:
+def test_panel_titles_label_no_tribe_and_tribes_with_counts() -> None:
     agents = [
         _agent(name="u1", suffix="t1"),
         _agent(name="u2", suffix="t2"),
-        _agent(name="b1", tag="banana", suffix="t3"),
-        _agent(name="a1", tag="apple", suffix="t4"),
-        _agent(name="a2", tag="apple", suffix="t5"),
+        _agent(name="b1", tribe="banana", suffix="t3"),
+        _agent(name="a1", tribe="apple", suffix="t4"),
+        _agent(name="a2", tribe="apple", suffix="t5"),
     ]
     app = _FakeApp(agents)
 
@@ -336,12 +338,12 @@ def test_panel_titles_label_untagged_and_tags_with_counts() -> None:
 
     main = app._panel_widgets["agent-list-panel"]
     main_title = _title_text(main)
-    assert main_title.plain == "(untagged) · 2 [R2]"
+    assert main_title.plain == "(no tribe) · 2 [R2]"
     _assert_title_span(
-        main_title, start=0, end=10, style="dim #AFAFAF", text="(untagged)"
+        main_title, start=0, end=10, style="dim #AFAFAF", text="(no tribe)"
     )
 
-    # Tag panels follow in alphabetical order: apple (idx 1), banana (idx 2).
+    # Tribe panels follow in alphabetical order: apple (idx 1), banana (idx 2).
     apple = app._panel_widgets["agent-list-panel-1"]
     banana = app._panel_widgets["agent-list-panel-2"]
     apple_title = _title_text(apple)
@@ -357,13 +359,13 @@ def test_panel_titles_label_untagged_and_tags_with_counts() -> None:
 
 
 def test_panel_titles_track_alphabetical_slot_order() -> None:
-    """Slot identity is by index, not tag — titles follow alphabetic order
-    of the current tag set, not insertion order of the agents.
+    """Slot identity is by index, not tribe — titles follow alphabetic order
+    of the current tribe set, not insertion order of the agents.
     """
     agents = [
-        _agent(name="z1", tag="zulu", suffix="t1"),
-        _agent(name="a1", tag="alpha", suffix="t2"),
-        _agent(name="m1", tag="mike", suffix="t3"),
+        _agent(name="z1", tribe="zulu", suffix="t1"),
+        _agent(name="a1", tribe="alpha", suffix="t2"),
+        _agent(name="m1", tribe="mike", suffix="t3"),
     ]
     app = _FakeApp(agents)
     app._refresh_panel_widgets(jump_hints=None)
@@ -384,12 +386,12 @@ def test_panel_titles_track_alphabetical_slot_order() -> None:
 def test_panel_title_counts_are_scoped_to_each_panel() -> None:
     agents = [
         _agent(name="wait", suffix="u1", status="WAITING"),
-        _agent(name="ask", tag="apple", suffix="a1", status="QUESTION"),
-        _agent(name="starting", tag="apple", suffix="a3", status="STARTING"),
-        _agent(name="run", tag="apple", suffix="a2", status="RUNNING"),
-        _agent(name="fail", tag="banana", suffix="b1", status="FAILED"),
-        _agent(name="unread", tag="banana", suffix="b2", status="DONE"),
-        _agent(name="read", tag="banana", suffix="b3", status="DONE"),
+        _agent(name="ask", tribe="apple", suffix="a1", status="QUESTION"),
+        _agent(name="starting", tribe="apple", suffix="a3", status="STARTING"),
+        _agent(name="run", tribe="apple", suffix="a2", status="RUNNING"),
+        _agent(name="fail", tribe="banana", suffix="b1", status="FAILED"),
+        _agent(name="unread", tribe="banana", suffix="b2", status="DONE"),
+        _agent(name="read", tribe="banana", suffix="b3", status="DONE"),
     ]
     app = _FakeApp(agents)
     app._unread_completed_agent_ids.add(agents[5].identity)
@@ -397,7 +399,7 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
     app._refresh_panel_widgets(jump_hints=None)
 
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "(untagged) · 1 [W1]"
+        "(no tribe) · 1 [W1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
         "@apple · 2 [S1 R1]"
@@ -405,11 +407,11 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
     assert _title_text(app._panel_widgets["agent-list-panel-2"]).plain == (
         "@banana · 3 [F1 U1 D1]"
     )
-    untagged_title = _title_text(app._panel_widgets["agent-list-panel"])
+    no_tribe_title = _title_text(app._panel_widgets["agent-list-panel"])
     apple_title = _title_text(app._panel_widgets["agent-list-panel-1"])
     banana_title = _title_text(app._panel_widgets["agent-list-panel-2"])
     _assert_title_metric_styles(
-        untagged_title,
+        no_tribe_title,
         neutral_ranges=[(10, 17), (18, 19)],
         metric_digits=[(17, "waiting")],
     )
@@ -432,10 +434,10 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
 
 def test_panel_title_unread_and_read_counts_are_panel_scoped() -> None:
     agents = [
-        _agent(name="apple-unread", tag="apple", suffix="a1", status="DONE"),
-        _agent(name="apple-read", tag="apple", suffix="a2", status="DONE"),
-        _agent(name="banana-unread", tag="banana", suffix="b1", status="DONE"),
-        _agent(name="banana-read", tag="banana", suffix="b2", status="DONE"),
+        _agent(name="apple-unread", tribe="apple", suffix="a1", status="DONE"),
+        _agent(name="apple-read", tribe="apple", suffix="a2", status="DONE"),
+        _agent(name="banana-unread", tribe="banana", suffix="b1", status="DONE"),
+        _agent(name="banana-read", tribe="banana", suffix="b2", status="DONE"),
     ]
     app = _FakeApp(agents)
     app._unread_completed_agent_ids.update({agents[0].identity, agents[2].identity})
@@ -452,8 +454,8 @@ def test_panel_title_unread_and_read_counts_are_panel_scoped() -> None:
 
 def test_panel_titles_omit_starting_shorthand_for_hidden_starting_agents() -> None:
     agents = [
-        _agent(name="starting", tag="apple", suffix="a1", status="STARTING"),
-        _agent(name="running", tag="apple", suffix="a2", status="RUNNING"),
+        _agent(name="starting", tribe="apple", suffix="a1", status="STARTING"),
+        _agent(name="running", tribe="apple", suffix="a2", status="RUNNING"),
     ]
     app = _FakeApp(agents)
 
@@ -468,7 +470,7 @@ def test_panel_titles_omit_starting_shorthand_for_hidden_starting_agents() -> No
 
 def test_panel_title_shorthand_counts_only_top_level_agents() -> None:
     agents = [
-        _agent(name="parent", tag="apple", suffix="parent", status="RUNNING"),
+        _agent(name="parent", tribe="apple", suffix="parent", status="RUNNING"),
         _agent(
             name="child",
             suffix="child",
@@ -488,12 +490,12 @@ def test_panel_title_shorthand_counts_only_top_level_agents() -> None:
 def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> None:
     ordinary_running = _agent(
         name="ordinary-running",
-        tag="apple",
+        tribe="apple",
         suffix="ordinary-running",
     )
     apple_root = _agent(
         name="apple-family",
-        tag="apple",
+        tribe="apple",
         suffix="apple-root",
         status="WAITING",
         agent_family_parallel=True,
@@ -520,7 +522,7 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
 
     banana_root = _agent(
         name="banana-family",
-        tag="banana",
+        tribe="banana",
         suffix="banana-root",
         status="RUNNING",
         agent_family_parallel=True,
@@ -574,7 +576,7 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
 def test_panel_title_projects_sequential_family_members_concretely() -> None:
     planner = _agent(
         name="build--plan",
-        tag="apple",
+        tribe="apple",
         suffix="build-plan",
         status="TALE APPROVED",
     )
@@ -602,10 +604,10 @@ def test_panel_title_projects_sequential_family_members_concretely() -> None:
 
 def test_grouped_panel_title_uses_all_agents_label_with_counts() -> None:
     agents = [
-        _agent(name="untagged", suffix="u1", status="RUNNING"),
-        _agent(name="tagged", tag="apple", suffix="a1", status="WAITING"),
+        _agent(name="no_tribe", suffix="u1", status="RUNNING"),
+        _agent(name="tribe_assigned", tribe="apple", suffix="a1", status="WAITING"),
     ]
-    app = _FakeApp(agents, merge_tag_panels=True)
+    app = _FakeApp(agents, merge_tribe_panels=True)
 
     app._refresh_panel_widgets(jump_hints=None)
 

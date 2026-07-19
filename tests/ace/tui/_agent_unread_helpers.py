@@ -15,7 +15,7 @@ def make_agent(
     raw_suffix: str = "20260507090000",
     start_time: datetime | None = _DEFAULT_START_TIME,
     stop_time: datetime | None = None,
-    tag: str | None = None,
+    tribe: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -25,5 +25,5 @@ def make_agent(
         start_time=start_time,
         stop_time=stop_time,
         raw_suffix=raw_suffix,
-        tribe=tag,
+        tribe=tribe,
     )

@@ -149,7 +149,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("open_artifact_files", "Artifact Files", False),
     ("toggle_attempt_view", "Toggle Attempt View", False),
     ("toggle_agent_unread", "Toggle Agent Unread", False),
-    ("add_agent_tag", "Add Agent Tag", False),
+    ("edit_agent_tribe", "Edit Agent Tribe", False),
     ("focus_next_agent_panel", "Next Panel", False),
     ("focus_prev_agent_panel", "Prev Panel", False),
     ("cycle_grouping_mode", "Cycle Grouping", False),
@@ -418,7 +418,7 @@ class AppKeymaps:
     open_artifact_files: str
     toggle_attempt_view: str
     toggle_agent_unread: str
-    add_agent_tag: str
+    edit_agent_tribe: str
     focus_next_agent_panel: str
     focus_prev_agent_panel: str
     # Grouping mode cycle (agents tab)

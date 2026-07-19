@@ -46,7 +46,7 @@ class _StubApp(
         self._panel_group = AgentPanelGroup.from_agents(
             agents,
             focused_key,
-            merge_tag_panels=merged,
+            merge_tribe_panels=merged,
         )
         self._collapsed_panel_keys: set[str | None] = set()
         self._panel_isolation_revert = None
@@ -74,7 +74,7 @@ class _StubApp(
         index = build_agent_panel_index(
             self._agents,
             dismissable_statuses=(),
-            merge_tag_panels=self._agent_panels_grouped,
+            merge_tribe_panels=self._agent_panels_grouped,
         )
         self._panel_index_cache = (
             self._agents,
@@ -86,7 +86,7 @@ class _StubApp(
     def _panel_keys_per_agent(self) -> list[str | None]:
         return panel_key_per_agent(
             self._agents,
-            merge_tag_panels=self._agent_panels_grouped,
+            merge_tribe_panels=self._agent_panels_grouped,
         )
 
     def _invalidate_agent_panel_cache(self) -> None:
@@ -124,7 +124,7 @@ class _StubApp(
         self.panel_fold_changes.append((panel_key, collapsed))
 
 
-def _agent(*, name: str, project: str, tag: str | None) -> Agent:
+def _agent(*, name: str, project: str, tribe: str | None) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=name,
@@ -133,16 +133,16 @@ def _agent(*, name: str, project: str, tag: str | None) -> Agent:
         start_time=datetime(2026, 7, 15, 12, 0, 0),
         raw_suffix=name,
         agent_name=name,
-        tribe=tag,
+        tribe=tribe,
     )
 
 
 def _multi_panel_agents() -> list[Agent]:
     return [
-        _agent(name="untagged", project="home", tag=None),
-        _agent(name="raw-first", project="zeta", tag="alpha"),
-        _agent(name="render-first", project="alpha", tag="alpha"),
-        _agent(name="beta", project="beta", tag="beta"),
+        _agent(name="no_tribe", project="home", tribe=None),
+        _agent(name="raw-first", project="zeta", tribe="alpha"),
+        _agent(name="render-first", project="alpha", tribe="alpha"),
+        _agent(name="beta", project="beta", tribe="beta"),
     ]
 
 
@@ -195,7 +195,7 @@ def test_h_selects_then_collapses_panel_and_l_expands_then_descends() -> None:
 
 
 def test_panel_collapse_guards_single_merged_and_repeated_actions() -> None:
-    single = _StubApp([_agent(name="only", project="one", tag=None)])
+    single = _StubApp([_agent(name="only", project="one", tribe=None)])
     single.action_hooks_or_collapse()
     assert single._collapsed_panel_keys == set()
     assert single.refresh_calls == []
@@ -276,7 +276,7 @@ def test_capital_h_only_changes_expanded_siblings_then_restores() -> None:
     assert app.notifications == ["Restored 1 panel"]
 
 
-def test_capital_h_can_leave_untagged_panel_as_selected_survivor() -> None:
+def test_capital_h_can_leave_no_tribe_panel_as_selected_survivor() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key=None)
     app._collapsed_panel_keys.add(None)
     app._sync_panel_group()

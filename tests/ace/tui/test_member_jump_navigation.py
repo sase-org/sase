@@ -39,7 +39,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_tribe import (
 def _agent(
     name: str,
     *,
-    tag: str | None = None,
+    tribe: str | None = None,
     clan: str | None = None,
     family: str | None = None,
     role: str | None = None,
@@ -52,7 +52,7 @@ def _agent(
         start_time=datetime(2026, 7, 18, 12, 0, 0),
         raw_suffix=f"ts-{name}",
         agent_name=name,
-        tribe=tag,
+        tribe=tribe,
         agent_clan=clan,
         agent_family=family,
         agent_family_role=role,
@@ -131,7 +131,7 @@ class _JumpHarness(MemberJumpNavigationMixin, EntryJumpAgentHistoryMixin):
         self._panel_group = AgentPanelGroup.from_agents(
             self._agents,
             focused_key,
-            merge_tag_panels=self._agent_panels_grouped,
+            merge_tribe_panels=self._agent_panels_grouped,
         )
 
     def _get_selected_agent(self) -> Agent | None:
@@ -161,7 +161,7 @@ class _JumpHarness(MemberJumpNavigationMixin, EntryJumpAgentHistoryMixin):
     def _panel_keys_per_agent(self) -> list[str | None]:
         return panel_key_per_agent(
             self._agents,
-            merge_tag_panels=self._agent_panels_grouped,
+            merge_tribe_panels=self._agent_panels_grouped,
         )
 
     def _expand_agent_panel(self, panel_key: str | None) -> bool:
@@ -255,12 +255,12 @@ class _PendingKeyboardHarness(EventKeyboardMixin, MemberJumpNavigationMixin):
         self.footer_refreshes += 1
 
 
-def _clan(count: int, *, mixed_tags: bool = False) -> tuple[list[Agent], Agent]:
+def _clan(count: int, *, mixed_tribes: bool = False) -> tuple[list[Agent], Agent]:
     members = [
         _agent(
             f"member-{index}",
             clan="research",
-            tag=("alpha" if index % 2 == 0 else "beta") if mixed_tags else None,
+            tribe=("alpha" if index % 2 == 0 else "beta") if mixed_tribes else None,
         )
         for index in range(count)
     ]
@@ -422,7 +422,7 @@ def test_stale_map_and_missing_digit_cancel_without_moving() -> None:
 
 
 def test_jump_expands_target_group_and_different_collapsed_panel() -> None:
-    complete, container = _clan(2, mixed_tags=True)
+    complete, container = _clan(2, mixed_tribes=True)
     members = list(container.runtime_children)
     target = members[1]
     app = _JumpHarness(complete, container)
@@ -506,8 +506,8 @@ def test_visible_member_jump_skips_refilter_and_structural_refresh() -> None:
 
 
 def test_tribe_member_jump_expands_panel_and_selects_numbered_unit() -> None:
-    first = _agent("first", tag="epic")
-    second = _agent("second", tag="epic")
+    first = _agent("first", tribe="epic")
+    second = _agent("second", tribe="epic")
     app = _JumpHarness([first, second], first)
     app._collapsed_panel_keys.add("epic")
     app._whole_panel_focus = True

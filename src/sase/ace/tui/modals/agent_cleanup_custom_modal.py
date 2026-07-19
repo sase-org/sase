@@ -45,7 +45,7 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
         ("r", "filter_running", "Running"),
         ("f", "filter_failed", "Failed"),
         ("w", "filter_waiting", "Waiting"),
-        ("t", "cycle_tag_filter", "Tag"),
+        ("t", "cycle_tribe_filter", "Tribe"),
         ("/", "focus_text_filter", "Text"),
         ("space", "toggle_row", "Toggle"),
         ("a", "toggle_all_filtered", "All"),
@@ -63,16 +63,16 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
         self._candidates = list(candidates)
         self._targets = list(targets)
         self._focused_panel_label = focused_panel_label
-        self._parent_tags = {
+        self._parent_tribes = {
             agent.raw_suffix: agent.tribe
             for agent in self._targets
             if agent.raw_suffix and not agent.is_workflow_child
         }
         self._selected: set[AgentCleanupAgentIdentity] = set()
         self._status_filter: StatusFilter | None = None
-        self._tag_filter: str | None = None
+        self._tribe_filter: str | None = None
         self._text_filter = ""
-        self._known_tags = self._candidate_tags()
+        self._known_tribes = self._candidate_tribes()
         self._filtered_agents: list[Agent] = []
         self._plan = self._recompute_plan()
 
@@ -105,15 +105,17 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
     def action_filter_waiting(self) -> None:
         self._set_status_filter("waiting")
 
-    def action_cycle_tag_filter(self) -> None:
-        if not self._known_tags:
-            self._tag_filter = None
-        elif self._tag_filter is None:
-            self._tag_filter = self._known_tags[0]
+    def action_cycle_tribe_filter(self) -> None:
+        if not self._known_tribes:
+            self._tribe_filter = None
+        elif self._tribe_filter is None:
+            self._tribe_filter = self._known_tribes[0]
         else:
-            idx = self._known_tags.index(self._tag_filter)
-            self._tag_filter = (
-                None if idx == len(self._known_tags) - 1 else self._known_tags[idx + 1]
+            idx = self._known_tribes.index(self._tribe_filter)
+            self._tribe_filter = (
+                None
+                if idx == len(self._known_tribes) - 1
+                else self._known_tribes[idx + 1]
             )
         self._refresh_plan_and_rows()
 
@@ -224,8 +226,8 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
         if self._status_filter == "waiting" and agent.status != "WAITING":
             return False
         if (
-            self._tag_filter is not None
-            and self._effective_tag(agent) != self._tag_filter
+            self._tribe_filter is not None
+            and self._effective_tribe(agent) != self._tribe_filter
         ):
             return False
         if self._text_filter and self._text_filter not in self._search_text(agent):
@@ -239,25 +241,25 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
             agent.cl_name,
             agent.status,
             agent.workflow or "",
-            self._effective_tag(agent) or "",
+            self._effective_tribe(agent) or "",
         ]
         return " ".join(parts).lower()
 
-    def _candidate_tags(self) -> tuple[str, ...]:
+    def _candidate_tribes(self) -> tuple[str, ...]:
         return tuple(
             sorted(
                 {
-                    effective_tag
+                    effective_tribe
                     for agent in self._candidates
-                    if (effective_tag := self._effective_tag(agent))
+                    if (effective_tribe := self._effective_tribe(agent))
                 },
                 key=str.lower,
             )
         )
 
-    def _effective_tag(self, agent: Agent) -> str | None:
+    def _effective_tribe(self, agent: Agent) -> str | None:
         if agent.is_workflow_child and agent.parent_timestamp:
-            return self._parent_tags.get(agent.parent_timestamp, agent.tribe)
+            return self._parent_tribes.get(agent.parent_timestamp, agent.tribe)
         return agent.tribe
 
     def _summary_text(self) -> Text:
@@ -277,14 +279,14 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
         return text
 
     def _hint_text(self) -> str:
-        return "d/r/f/w filters  t tag  / text  space toggle  a all  enter preview"
+        return "d/r/f/w filters  t tribe  / text  space toggle  a all  enter preview"
 
     def _filter_label(self) -> str:
         parts: list[str] = []
         if self._status_filter:
             parts.append(self._status_filter)
-        if self._tag_filter:
-            parts.append(f"@{self._tag_filter}")
+        if self._tribe_filter:
+            parts.append(f"@{self._tribe_filter}")
         if self._text_filter:
             parts.append(f"/{self._text_filter}")
         return " ".join(parts)
@@ -296,9 +298,9 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
         text.append(agent.display_name, style="bold" if selected else "")
         if agent.agent_name:
             text.append(f" @{agent.agent_name}", style="cyan")
-        effective_tag = self._effective_tag(agent)
-        if effective_tag:
-            text.append(f"  @{effective_tag}", style="magenta")
+        effective_tribe = self._effective_tribe(agent)
+        if effective_tribe:
+            text.append(f"  @{effective_tribe}", style="magenta")
         text.append(f"\n   {agent.status}", style="dim")
         if agent.pid is not None:
             text.append(f"  pid {agent.pid}", style="dim")

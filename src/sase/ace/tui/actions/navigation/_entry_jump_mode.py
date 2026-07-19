@@ -164,7 +164,7 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
     def _jump_candidate_targets(self) -> list[JumpTarget]:
         """Return jump targets for the agents tab in render order.
 
-        Walks each tag panel's grouping tree (mirroring
+        Walks each tribe panel's grouping tree (mirroring
         :func:`_refresh_panel_widgets`) so hint characters march down the
         screen in the same order they're rendered. Every split-panel title
         contributes a ``("panel", panel_key)`` target; collapsed panels skip

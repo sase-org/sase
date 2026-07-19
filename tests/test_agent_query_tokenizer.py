@@ -96,16 +96,16 @@ def test_unknown_property_key_rejected() -> None:
     assert "Unknown property key" in str(exc.value)
 
 
-def test_bare_tag_means_any_tagged_agent() -> None:
-    tokens = list(tokenize("tag:"))
+def test_bare_tribe_means_any_tribe_assigned_agent() -> None:
+    tokens = list(tokenize("tribe:"))
     assert tokens[0].type == TokenType.PROPERTY
-    assert tokens[0].property_key == "tag"
+    assert tokens[0].property_key == "tribe"
     assert tokens[0].value == ""
 
     # Even with trailing whitespace.
-    tokens = list(tokenize("tag: "))
+    tokens = list(tokenize("tribe: "))
     assert tokens[0].type == TokenType.PROPERTY
-    assert tokens[0].property_key == "tag"
+    assert tokens[0].property_key == "tribe"
     assert tokens[0].value == ""
 
 
@@ -117,9 +117,9 @@ def test_property_value_can_be_quoted() -> None:
 
 
 def test_property_value_can_be_dotted() -> None:
-    tokens = list(tokenize("tag:sase-42.3"))
+    tokens = list(tokenize("tribe:sase-42.3"))
     assert tokens[0].type == TokenType.PROPERTY
-    assert tokens[0].property_key == "tag"
+    assert tokens[0].property_key == "tribe"
     assert tokens[0].value == "sase-42.3"
     assert tokens[1].type == TokenType.EOF
 

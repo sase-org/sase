@@ -148,8 +148,8 @@ class AgentList(OptionList, inherit_bindings=False):
         fold_registry: GroupFoldView | None = None,
         current_group_key: tuple[str, ...] | None = None,
         grouping_mode: GroupingMode = GroupingMode.STANDARD,
-        tag_labels: list[str | None] | None = None,
-        panel_tag: str | None = None,
+        tribe_labels: list[str | None] | None = None,
+        panel_tribe: str | None = None,
         parents_with_visible_children: set[str] | None = None,
         fully_expanded_parents: set[str] | None = None,
         now: datetime | None = None,
@@ -180,14 +180,14 @@ class AgentList(OptionList, inherit_bindings=False):
                 bucket and drop the ChangeSpec layer.  Phase 2 callers
                 hardcode ``STANDARD``; Phase 3 wires this to a cyclable
                 app-level setting.
-            tag_labels: Optional display-only effective tag labels aligned
+            tribe_labels: Optional display-only effective tribe labels aligned
                 to ``agents``. Used by merged-panel mode so rows retain their
-                tag context without mutating :attr:`Agent.tribe`.
-            panel_tag: Optional tag already communicated by the enclosing
+                tribe context without mutating :attr:`Agent.tribe`.
+            panel_tribe: Optional tribe already communicated by the enclosing
                 split panel. Clan rows omit only this matching badge; merged
-                and untagged panels pass ``None``.
+                and no-tribe panels pass ``None``.
             parents_with_visible_children: Optional global visible-parent keys
-                used when a parent and child render in different tag panels.
+                used when a parent and child render in different tribe panels.
             fully_expanded_parents: Optional global parent keys with visible
                 hidden children, paired with ``parents_with_visible_children``.
             now: Reference time for ``BY_DATE`` bucketing.  Defaults to
@@ -218,9 +218,9 @@ class AgentList(OptionList, inherit_bindings=False):
                     for source_idx, hint in jump_hints.items()
                     if source_idx in local_index_map
                 }
-            if tag_labels is not None:
-                tag_labels = [
-                    tag_labels[source_idx] if source_idx < len(tag_labels) else None
+            if tribe_labels is not None:
+                tribe_labels = [
+                    tribe_labels[source_idx] if source_idx < len(tribe_labels) else None
                     for source_idx, _agent in display_pairs
                 ]
         with tui_trace("widget.agent_list.update_list", count=len(agents)):
@@ -236,8 +236,8 @@ class AgentList(OptionList, inherit_bindings=False):
                 fold_registry=fold_registry,
                 current_group_key=current_group_key,
                 grouping_mode=grouping_mode,
-                tag_labels=tag_labels,
-                panel_tag=panel_tag,
+                tribe_labels=tribe_labels,
+                panel_tribe=panel_tribe,
                 parents_with_visible_children=parents_with_visible_children,
                 fully_expanded_parents=fully_expanded_parents,
                 now=now,

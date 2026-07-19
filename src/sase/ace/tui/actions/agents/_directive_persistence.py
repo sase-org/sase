@@ -30,11 +30,11 @@ class AgentMetaPatch:
 
 
 @dataclass(frozen=True)
-class AgentTagStorePatch:
-    """Patch to apply to the persistent Agents-tab tag store."""
+class AgentTribeStorePatch:
+    """Patch to apply to the persistent Agents-tab tribe store."""
 
     identity: tuple[Any, str, str | None]
-    tag: str | None
+    tribe: str | None
 
 
 @dataclass(frozen=True)
@@ -63,7 +63,7 @@ class AgentDirectivePersistenceSpec:
     artifacts_dir: str | Path | None
     prompt_mutator: Callable[[str], str] | None = None
     meta_patch: AgentMetaPatch | None = None
-    tag_patch: AgentTagStorePatch | None = None
+    tribe_patch: AgentTribeStorePatch | None = None
     waiting_marker: _WaitingMarkerPatch | None = None
     ready_marker: ReadyMarkerPatch | None = None
 
@@ -79,7 +79,7 @@ class AgentDirectivePersistenceResult:
     meta_updated: bool = False
     waiting_updated: bool = False
     ready_updated: bool = False
-    tag_updated: bool = False
+    tribe_updated: bool = False
 
 
 def persist_agent_directive_update(
@@ -107,9 +107,9 @@ def persist_agent_directive_update(
                 raise ValueError("artifacts_dir is required for agent_meta updates")
             meta_updated = _patch_agent_meta(artifacts_path, spec.meta_patch)
             result = replace(result, meta_updated=meta_updated)
-        if spec.tag_patch is not None:
-            tag_updated = _patch_agent_tag_store(spec.tag_patch)
-            result = replace(result, tag_updated=tag_updated)
+        if spec.tribe_patch is not None:
+            tribe_updated = _patch_agent_tribe_store(spec.tribe_patch)
+            result = replace(result, tribe_updated=tribe_updated)
         if spec.waiting_marker is not None:
             if artifacts_path is None:
                 raise ValueError("artifacts_dir is required for waiting marker updates")
@@ -227,10 +227,10 @@ def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
     return True
 
 
-def _patch_agent_tag_store(patch: AgentTagStorePatch) -> bool:
+def _patch_agent_tribe_store(patch: AgentTribeStorePatch) -> bool:
     from sase.ace.agent_tribes import update_agent_tribe_assignment
 
-    return update_agent_tribe_assignment(patch.identity, patch.tag)
+    return update_agent_tribe_assignment(patch.identity, patch.tribe)
 
 
 def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> None:
@@ -373,7 +373,7 @@ __all__ = [
     "AgentDirectivePersistenceResult",
     "AgentDirectivePersistenceSpec",
     "AgentMetaPatch",
-    "AgentTagStorePatch",
+    "AgentTribeStorePatch",
     "ReadyMarkerPatch",
     "persist_agent_directive_update",
     "wait_meta_patch_for_token",

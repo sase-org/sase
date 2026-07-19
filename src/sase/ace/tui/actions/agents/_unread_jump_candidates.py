@@ -257,17 +257,17 @@ class AgentUnreadJumpCandidatesMixin:
             )
 
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-        merge_tag_panels = bool(getattr(self, "_agent_panels_grouped", False))
+        merge_tribe_panels = bool(getattr(self, "_agent_panels_grouped", False))
         panel_group = AgentPanelGroup.from_agents(
             projected,
-            merge_tag_panels=merge_tag_panels,
+            merge_tribe_panels=merge_tribe_panels,
         )
         rendered: dict[tuple[AgentType, str, str | None], str | None] = {}
         for panel_key in panel_group.panel_keys:
             panel_agents = agents_for_panel(
                 projected,
                 panel_key,
-                merge_tag_panels=merge_tag_panels,
+                merge_tribe_panels=merge_tribe_panels,
             )
             tree = build_agent_tree(
                 panel_agents,

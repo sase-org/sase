@@ -29,7 +29,7 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
         patch_result: bool = True,
         with_panels: bool = False,
         focused_key: str | None = None,
-        merge_tag_panels: bool = False,
+        merge_tribe_panels: bool = False,
         collapsed_panels: set[str | None] | None = None,
     ) -> None:
         self._agents = agents
@@ -37,7 +37,7 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
         self.current_idx = current_idx
         self.current_attempt_number: int | None = 3
         self._current_group_key: tuple[str, ...] | None = None
-        self._agent_panels_grouped = merge_tag_panels
+        self._agent_panels_grouped = merge_tribe_panels
         self._collapsed_panel_keys = set(collapsed_panels or ())
         self._expanded_panel_focus = False
         self._panel_selection_memory: dict[
@@ -47,7 +47,7 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
             self._panel_group = AgentPanelGroup.from_agents(
                 agents,
                 focused_key,
-                merge_tag_panels=merge_tag_panels,
+                merge_tribe_panels=merge_tribe_panels,
                 collapsed_panel_keys=self._collapsed_panel_keys,
             )
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
@@ -74,7 +74,7 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
     def _panel_keys_per_agent(self) -> list[str | None]:
         return panel_key_per_agent(
             self._agents,
-            merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+            merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
         )
 
     def _try_patch_agent_row(self, agent: Agent) -> bool:
@@ -150,7 +150,7 @@ class LeaderUnreadJumpApp(
         self.current_tab_refresh_calls += 1
 
     def _panel_keys_per_agent(self) -> list[str | None]:
-        return panel_key_per_agent(self._agents, merge_tag_panels=False)
+        return panel_key_per_agent(self._agents, merge_tribe_panels=False)
 
     def _try_patch_agent_row(self, agent: Agent) -> bool:
         self.patch_calls.append(agent)

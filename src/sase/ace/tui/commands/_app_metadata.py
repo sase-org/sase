@@ -384,7 +384,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AGENTS_ONLY,
         ("unread", "read"),
     ),
-    ("add_agent_tag", "Add / remove agent tag", "Agents", AGENTS_ONLY, ()),
+    ("edit_agent_tribe", "Set, edit, or clear agent tribe", "Agents", AGENTS_ONLY, ()),
     (
         "focus_next_agent_panel",
         "Focus next agent panel",

@@ -165,13 +165,13 @@ def test_unread_jump_expands_exact_same_name_clan_generation() -> None:
     assert app._agents[app.current_idx].identity == new.identity
 
 
-def test_unread_jump_reveals_clan_and_collapsed_tag_panel() -> None:
+def test_unread_jump_reveals_clan_and_collapsed_tribe_panel() -> None:
     origin = make_agent(name="origin", status="RUNNING", raw_suffix="origin")
     target = make_agent(
         name="research.done",
         status="DONE",
         raw_suffix="target",
-        tag="alpha",
+        tribe="alpha",
         stop_time=datetime(2026, 7, 18, 12, 0, 0),
     )
     target.agent_clan = "research"
@@ -197,7 +197,7 @@ def test_unread_jump_reveals_clan_from_expanded_tribe_focus() -> None:
         name="research.done",
         status="DONE",
         raw_suffix="target",
-        tag="alpha",
+        tribe="alpha",
         stop_time=datetime(2026, 7, 19, 12, 0, 0),
     )
     target.agent_clan = "research"

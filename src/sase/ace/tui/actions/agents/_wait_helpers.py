@@ -98,7 +98,7 @@ def wait_candidate_from_completion(
         start_time=candidate.start_time,
         duration=candidate.duration,
         role=candidate.role,
-        tag=candidate.tag,
+        tribe=candidate.tribe,
         vcs_workflow=candidate.vcs_workflow,
         prompt_snippet=candidate.prompt_snippet,
     )
@@ -147,9 +147,9 @@ def fork_panel_keys(owner: Any) -> list[str | None]:
         except Exception:
             pass
 
-    from ...models.agent_panels import effective_tag_per_agent
+    from ...models.agent_panels import effective_tribe_per_agent
 
-    return effective_tag_per_agent(owner._agents)
+    return effective_tribe_per_agent(owner._agents)
 
 
 def resolve_agent_prompt_target_scope(
@@ -164,8 +164,8 @@ def resolve_agent_prompt_target_scope(
         panel_key = getattr(focus, "panel_key", None)
         if not panel_key:
             if action == "fork":
-                return None, "The untagged panel cannot be forked"
-            return None, "The untagged panel cannot be used as a wait target"
+                return None, "The no-tribe panel cannot be forked"
+            return None, "The no-tribe panel cannot be used as a wait target"
         scope = tribe_prompt_target_scope(
             panel_key,
             owner._agents,

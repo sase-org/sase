@@ -99,7 +99,7 @@ class AgentPanelHintFoldingMixin:
         live_panel_group = AgentPanelGroup.from_agents(
             self._agents,
             focused_key,
-            merge_tag_panels=bool(getattr(self, "_agent_panels_grouped", False)),
+            merge_tribe_panels=bool(getattr(self, "_agent_panels_grouped", False)),
             collapsed_panel_keys=getattr(self, "_collapsed_panel_keys", set()),
         )
         panel_keys = tuple(live_panel_group.panel_keys)

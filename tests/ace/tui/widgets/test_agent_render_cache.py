@@ -141,7 +141,7 @@ def test_cached_family_root_aggregates_members_once_per_render_attempt(
     assert calls == 1
 
 
-def test_cached_clan_row_invalidates_on_projection_and_tag_changes() -> None:
+def test_cached_clan_row_invalidates_on_projection_and_tribe_changes() -> None:
     cache = AgentRenderCache()
     clan = _agent(status="RUNNING")
     clan.is_clan_container = True
@@ -151,16 +151,18 @@ def test_cached_clan_row_invalidates_on_projection_and_tag_changes() -> None:
 
     before = cached_format_agent_option(cache, clan, 0, is_selected=False, now=None)
     clan.clan_tribes = ("epic", "review")
-    after_tag = cached_format_agent_option(cache, clan, 0, is_selected=False, now=None)
+    after_tribe = cached_format_agent_option(
+        cache, clan, 0, is_selected=False, now=None
+    )
     clan.tree_depth = 1
     after_depth = cached_format_agent_option(
         cache, clan, 0, is_selected=False, now=None
     )
 
-    assert before[0] is not after_tag[0]
-    assert after_tag[0] is not after_depth[0]
+    assert before[0] is not after_tribe[0]
+    assert after_tribe[0] is not after_depth[0]
     assert "@review" not in before[0].plain
-    assert "@review" in after_tag[0].plain
+    assert "@review" in after_tribe[0].plain
 
 
 def test_cached_clan_row_invalidates_across_done_unread_done_transition() -> None:
@@ -201,7 +203,7 @@ def test_cached_clan_row_invalidates_across_done_unread_done_transition() -> Non
     assert unread[0] is not read_after[0]
 
 
-def test_clan_row_omits_only_the_matching_split_panel_tag() -> None:
+def test_clan_row_omits_only_the_matching_split_panel_tribe() -> None:
     clan = _agent(cl_name="research", status="RUNNING")
     clan.is_clan_container = True
     clan.agent_clan = "research"
@@ -211,20 +213,20 @@ def test_clan_row_omits_only_the_matching_split_panel_tag() -> None:
         clan,
         0,
         is_selected=False,
-        panel_tag="epic",
+        panel_tribe="epic",
     )
     merged, _, _ = format_agent_option(
         clan,
         0,
         is_selected=False,
-        tag_label="epic",
+        tribe_label="epic",
     )
 
     assert "@epic" not in split.plain
     assert merged.plain.count("@epic") == 1
 
 
-def test_multitribe_clan_in_untagged_panel_keeps_distinct_ordered_tags() -> None:
+def test_multitribe_clan_in_no_tribe_panel_keeps_distinct_ordered_tribes() -> None:
     clan = _agent(cl_name="research", status="RUNNING")
     clan.is_clan_container = True
     clan.agent_clan = "research"
@@ -234,7 +236,7 @@ def test_multitribe_clan_in_untagged_panel_keeps_distinct_ordered_tags() -> None
         clan,
         0,
         is_selected=False,
-        panel_tag=None,
+        panel_tribe=None,
     )
 
     assert rendered.plain == "(RUNNING) research @epic @review"
@@ -253,14 +255,14 @@ def test_cached_clan_row_distinguishes_split_and_unsuppressed_contexts() -> None
         clan,
         0,
         is_selected=False,
-        panel_tag="epic",
+        panel_tribe="epic",
     )
     unsuppressed = cached_format_agent_option(
         cache,
         clan,
         0,
         is_selected=False,
-        panel_tag=None,
+        panel_tribe=None,
     )
 
     assert split[0] is not unsuppressed[0]
