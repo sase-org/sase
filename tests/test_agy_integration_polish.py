@@ -18,7 +18,7 @@ from unittest.mock import patch
 import pytest
 from rich.text import Text
 
-from sase.ace.tui.modals.model_picker_modal import _build_model_options
+from sase.ace.tui.modals.model_picker_options import build_model_options
 from sase.ace.tui.modals.plan_approval_modal import _provider_badge_markup
 from sase.ace.tui.provider_styles import provider_emoji_badge
 from sase.ace.tui.widgets.prompt_panel._helpers import append_model_field
@@ -75,7 +75,7 @@ def test_nested_agy_model_resolution_preserves_spaces_and_parens() -> None:
 
 
 def test_model_picker_includes_agy_model_with_spaces() -> None:
-    option_ids = {option.id for option in _build_model_options() if option is not None}
+    option_ids = {option.id for option in build_model_options() if option is not None}
 
     assert _AGY_LARGE in option_ids
     assert _AGY_SMALL in option_ids

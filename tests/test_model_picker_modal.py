@@ -14,12 +14,16 @@ from sase.ace.tui.modals.model_picker_modal import (
     DEFAULT_SENTINEL,
     AliasSelectionContext,
     ModelPickerModal,
-    _ModelPickerRow,
-    _alias_disabled_reason,
-    _build_model_options,
-    _build_model_rows,
-    _rows_to_options,
     alias_reference_rejection,
+)
+from sase.ace.tui.modals.model_picker_options import (
+    build_model_options,
+    rows_to_options,
+)
+from sase.ace.tui.modals.model_picker_rows import (
+    ModelPickerRow,
+    _alias_disabled_reason,
+    build_model_rows,
 )
 from tests._models_panel_helpers import make_alias_view, make_override
 
@@ -82,7 +86,7 @@ def _highlighted_id(option_list: OptionList) -> str | None:
 
 def test_build_model_options_has_default() -> None:
     """The option list should start with 'Follow-up default'."""
-    options = _build_model_options()
+    options = build_model_options()
     assert options[0] is not None
     assert options[0].id == "__default__"
     assert str(options[0].prompt) == "Follow-up default"
@@ -90,7 +94,7 @@ def test_build_model_options_has_default() -> None:
 
 def test_build_model_options_has_custom() -> None:
     """The option list should end with 'Custom...'."""
-    options = _build_model_options()
+    options = build_model_options()
     # Last non-None item
     non_none = [o for o in options if o is not None]
     assert non_none[-1].id == CUSTOM_SENTINEL
@@ -98,7 +102,7 @@ def test_build_model_options_has_custom() -> None:
 
 def test_build_model_options_has_known_models() -> None:
     """The option list should include known models from registry."""
-    options = _build_model_options()
+    options = build_model_options()
     ids = {o.id for o in options if o is not None}
     assert "opus" in ids
     assert "sonnet" in ids
@@ -111,7 +115,7 @@ def test_build_model_options_has_known_models() -> None:
 
 def test_build_model_options_has_separators() -> None:
     """The option list should include None separators."""
-    options = _build_model_options()
+    options = build_model_options()
     assert None in options
 
 
@@ -128,8 +132,8 @@ def test_provider_style_uses_plugin_primary_with_builtin_accents() -> None:
 
 def test_model_picker_provider_headers_include_count_and_style() -> None:
     """Provider header rows should render as styled Rich text with counts."""
-    rows = _build_model_rows()
-    options = [option for option in _rows_to_options(rows) if option is not None]
+    rows = build_model_rows()
+    options = [option for option in rows_to_options(rows) if option is not None]
     claude_header = next(
         option for option in options if option.id == "__header_claude__"
     )
@@ -142,7 +146,7 @@ def test_model_picker_provider_headers_include_count_and_style() -> None:
 
 def test_model_picker_model_rows_include_alias_as_dim_secondary_text() -> None:
     """Model rows should keep ids primary and aliases visually secondary."""
-    row = _ModelPickerRow(
+    row = ModelPickerRow(
         kind="model",
         label="    anthropic/claude-sonnet-4-5  (sonnet45)",
         option_id="anthropic/claude-sonnet-4-5",
@@ -150,7 +154,7 @@ def test_model_picker_model_rows_include_alias_as_dim_secondary_text() -> None:
         model_id="anthropic/claude-sonnet-4-5",
         alias="sonnet45",
     )
-    option = _rows_to_options([row])[0]
+    option = rows_to_options([row])[0]
 
     assert option is not None
     assert isinstance(option.prompt, Text)
@@ -161,9 +165,9 @@ def test_model_picker_model_rows_include_alias_as_dim_secondary_text() -> None:
 
 def test_model_picker_claude_fable_row_includes_alias() -> None:
     """Claude Fable 5 should appear in the claude group with its short alias."""
-    rows = _build_model_rows()
+    rows = build_model_rows()
     row = next(row for row in rows if row.option_id == "claude-fable-5")
-    option = _rows_to_options([row])[0]
+    option = rows_to_options([row])[0]
 
     assert row.provider == "claude"
     assert row.model_id == "claude-fable-5"
@@ -178,7 +182,7 @@ def test_model_picker_claude_fable_row_includes_alias() -> None:
 
 def test_alias_context_builds_ordered_styled_rows_before_models() -> None:
     context = _alias_context(target="phase_worker")
-    rows = _build_model_rows(
+    rows = build_model_rows(
         include_default_option=False,
         alias_context=context,
     )
@@ -196,7 +200,7 @@ def test_alias_context_builds_ordered_styled_rows_before_models() -> None:
     )
     alias_options = [
         option
-        for option in _rows_to_options(rows[:6])
+        for option in rows_to_options(rows[:6])
         if option is not None and str(option.id).startswith("@")
     ]
     assert all(isinstance(option.prompt, Text) for option in alias_options)
@@ -761,7 +765,7 @@ async def test_model_picker_jump_accepts_uppercase_hint() -> None:
         await pilot.pause()
 
         rows = [
-            _ModelPickerRow(
+            ModelPickerRow(
                 kind="model",
                 label=f"    synthetic-{index}",
                 option_id=f"synthetic-{index}",
