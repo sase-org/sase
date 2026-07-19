@@ -202,7 +202,6 @@ _lint-symvision *args: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-7i(release_chop_once_per_keys)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

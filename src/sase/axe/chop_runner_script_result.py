@@ -10,7 +10,11 @@ from typing import Any, Protocol
 
 from sase.core.axe_chop_facade import parse_chop_result
 
-from .chop_policy import ChopPreflight, apply_chop_once_per
+from .chop_policy import (
+    ChopPreflight,
+    apply_chop_once_per,
+    release_chop_once_per_keys,
+)
 from .chop_proposals import (
     launch_chop_proposals,
     prepare_chop_proposals,
@@ -30,6 +34,43 @@ from .state import append_chop_run_output
 class _ScriptResult(Protocol):
     returncode: int | None
     output_bytes: int
+
+
+def _release_unlaunched_once_per_keys(
+    *,
+    lumberjack_name: str,
+    chop_name: str,
+    run_id: str,
+    accepted_proposals: list[Any],
+    successful_launches: list[dict[str, Any]],
+) -> None:
+    launched_indices = {int(launch["index"]) for launch in successful_launches}
+    keys = list(
+        dict.fromkeys(
+            proposal.dedupe_key
+            for proposal in accepted_proposals
+            if proposal.index not in launched_indices and proposal.dedupe_key
+        )
+    )
+    if not keys:
+        return
+
+    try:
+        released = release_chop_once_per_keys(lumberjack_name, chop_name, keys)
+    except Exception as exc:
+        append_chop_run_output(
+            lumberjack_name,
+            chop_name,
+            run_id,
+            f"Failed to release once-per keys after launch failure: {exc}\n",
+        )
+        return
+    append_chop_run_output(
+        lumberjack_name,
+        chop_name,
+        run_id,
+        f"Released {released} once-per key(s) after launch failure\n",
+    )
 
 
 def process_script_chop_result(
@@ -269,6 +310,10 @@ def process_script_chop_result(
     accepted_proposals = [
         replace(
             proposal,
+            dedupe_key=(
+                once_per.decisions.get(proposal.index, {}).get("key")
+                or proposal.dedupe_key
+            ),
             wait_on=once_per.effective_waits[proposal.index],
         )
         for proposal in prepared_proposals
@@ -334,6 +379,7 @@ def process_script_chop_result(
         from sase.agent.launcher import launch_agent_from_cwd
 
         launch_agent_from_cwd_fn = launch_agent_from_cwd
+    successful_launches: list[dict[str, Any]] = []
     try:
         launches = launch_chop_proposals(
             lumberjack_name=lumberjack_name,
@@ -341,9 +387,17 @@ def process_script_chop_result(
             run_id=run_id,
             proposals=accepted_proposals,
             launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
+            launch_recorded_fn=successful_launches.append,
         )
     except Exception as exc:
         tb = capture_traceback()
+        _release_unlaunched_once_per_keys(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            accepted_proposals=accepted_proposals,
+            successful_launches=successful_launches,
+        )
         finalize_script_chop_run(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
@@ -356,6 +410,7 @@ def process_script_chop_result(
             result_file=result_path.name,
             structured_result=structured_result,
             proposals=proposals,
+            launches=successful_launches,
             dry_run=False,
             preflight=preflight,
         )
@@ -369,6 +424,7 @@ def process_script_chop_result(
             traceback=tb,
             result=structured_result,
             proposals=tuple(proposals),
+            launches=tuple(successful_launches),
             dry_run=False,
             chop_verbose=chop_verbose,
         )

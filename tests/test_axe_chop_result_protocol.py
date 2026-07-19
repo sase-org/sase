@@ -18,6 +18,7 @@ from sase.axe.config import AxeConfig, ChopConfig
 from sase.axe.state import (
     ChopRunEntry,
     chop_run_context_path,
+    chop_run_log_path,
     chop_run_result_path,
     finish_chop_run,
     read_chop_run,
@@ -275,6 +276,91 @@ def test_runner_launches_proposals_in_order_with_wait_directive(
     assert [launch["pid"] for launch in entry.launches] == [100, 101]
 
 
+def test_launch_failure_releases_only_unlaunched_once_per_keys(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    _result_script(
+        tmp_path,
+        "docs",
+        {
+            "schema_version": 1,
+            "status": "ok",
+            "proposed_launches": [
+                {
+                    "prompt": "Refresh.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "docs:refresh",
+                },
+                {
+                    "prompt": "Polish.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "docs:polish",
+                },
+            ],
+        },
+    )
+    calls = 0
+
+    def _launch(prompt: str, *, extra_env: dict[str, str]) -> SimpleNamespace:
+        nonlocal calls
+        del prompt, extra_env
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("launcher unavailable")
+        return SimpleNamespace(
+            pid=100,
+            agent_name="actual.refresh",
+            timestamp="260718_120000",
+        )
+
+    chop = ChopConfig(name="docs", description="")
+    with (
+        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.launch_agent_from_cwd", side_effect=_launch),
+    ):
+        outcome = run_configured_chop_once(
+            lumberjack_name="docs",
+            chop=chop,
+            axe_config=_config(tmp_path),
+        )
+
+    assert outcome.status == "action_failed"
+    assert outcome.run_id is not None
+    entry = read_chop_run("docs", "docs", outcome.run_id)
+    assert entry is not None
+    assert entry.launches == list(outcome.launches)
+    assert entry.launches[0]["dedupe_key"] == "docs:refresh"
+    assert entry.launches[0]["artifacts_timestamp"] == "20260718120000"
+
+    reproposed = prepare_chop_proposals(
+        "docs",
+        {
+            "proposed_launches": [
+                {
+                    "prompt": "Refresh.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "docs:refresh",
+                },
+                {
+                    "prompt": "Polish.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "docs:polish",
+                },
+            ]
+        },
+    )
+    once_per = apply_chop_once_per(
+        lumberjack_name="docs",
+        chop=chop,
+        proposals=reproposed,
+        persist=False,
+    )
+    assert once_per.accepted_indices == (1,)
+    assert once_per.decisions[0]["outcome"] == "duplicate"
+    assert once_per.decisions[1]["outcome"] == "accept"
+
+
 def test_runner_launches_with_wait_relinked_across_duplicate(
     temp_state_dir: Path,
     tmp_path: Path,
@@ -376,7 +462,12 @@ def test_verbose_flag_reaches_script_environment(
     assert entry.output_bytes == 1
 
 
-def _launched_entry(run_id: str, *, pid: int) -> ChopRunEntry:
+def _launched_entry(
+    run_id: str,
+    *,
+    pid: int,
+    launches: list[dict[str, object]] | None = None,
+) -> ChopRunEntry:
     entry = ChopRunEntry(
         run_id=run_id,
         lumberjack_name="docs",
@@ -396,12 +487,17 @@ def _launched_entry(run_id: str, *, pid: int) -> ChopRunEntry:
         duration_ms=1,
         exit_code=0,
         agent_pid=pid,
-        launches=[{"pid": pid}],
+        launches=launches or [{"pid": pid}],
     )
     return entry
 
 
-def _record_agent(run_id: str, *, pid: int) -> object:
+def _record_agent(
+    run_id: str,
+    *,
+    pid: int,
+    timestamp: str = "260718_120000",
+) -> object:
     return _record_chop_agent_launch(
         lumberjack_name="docs",
         chop_name="docs",
@@ -412,7 +508,7 @@ def _record_agent(run_id: str, *, pid: int) -> object:
         workspace_num=1,
         workflow_name="ace(run)-260718_120000",
         cl_name="sase",
-        timestamp="260718_120000",
+        timestamp=timestamp,
         prompt="refresh",
     )
 
@@ -440,6 +536,155 @@ def test_lifecycle_finalizes_completed_agents_and_clears_registry(
     assert entry.status == "action_succeeded"
 
 
+def test_lifecycle_releases_only_failed_agents_once_per_key(
+    temp_state_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    run_id = "20260718T120010_000000"
+    chop = ChopConfig(name="docs", description="")
+    proposed = prepare_chop_proposals(
+        "docs",
+        {
+            "proposed_launches": [
+                {
+                    "prompt": "Keep.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "docs:keep",
+                },
+                {
+                    "prompt": "Retry.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "docs:retry",
+                },
+            ]
+        },
+    )
+    seeded = apply_chop_once_per(
+        lumberjack_name="docs",
+        chop=chop,
+        proposals=proposed,
+        persist=True,
+    )
+    assert seeded.accepted_indices == (0, 1)
+    _launched_entry(
+        run_id,
+        pid=321,
+        launches=[
+            {
+                "pid": 999,
+                "artifacts_timestamp": "20260718120010",
+                "dedupe_key": "docs:keep",
+            },
+            {
+                "pid": 654,
+                "artifacts_timestamp": "20260718120011",
+                "dedupe_key": "docs:retry",
+            },
+        ],
+    )
+    _record_agent(run_id, pid=321, timestamp="260718_120010")
+    _record_agent(run_id, pid=654, timestamp="260718_120011")
+    succeeded_artifacts = resolve_agent_artifact_timestamp_path(
+        "sase", "ace-run", "20260718120010"
+    )
+    succeeded_artifacts.mkdir(parents=True)
+    (succeeded_artifacts / "done.json").write_text(
+        json.dumps({"outcome": "completed"}), encoding="utf-8"
+    )
+    failed_artifacts = resolve_agent_artifact_timestamp_path(
+        "sase", "ace-run", "20260718120011"
+    )
+    failed_artifacts.mkdir(parents=True)
+    (failed_artifacts / "done.json").write_text(
+        json.dumps({"outcome": "failed"}), encoding="utf-8"
+    )
+
+    assert finalize_launched_chop_runs("docs", ["docs"]) == 1
+    entry = read_chop_run("docs", "docs", run_id)
+    assert entry is not None
+    assert entry.status == "action_failed"
+
+    once_per = apply_chop_once_per(
+        lumberjack_name="docs",
+        chop=chop,
+        proposals=proposed,
+        persist=False,
+    )
+    assert once_per.accepted_indices == (1,)
+    assert once_per.decisions[0]["outcome"] == "duplicate"
+    assert once_per.decisions[1]["outcome"] == "accept"
+
+
+def test_lifecycle_logs_once_per_release_failure_and_still_finalizes(
+    temp_state_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    run_id = "20260718T120012_000000"
+    _launched_entry(
+        run_id,
+        pid=765,
+        launches=[
+            {
+                "pid": 765,
+                "artifacts_timestamp": "20260718120012",
+                "dedupe_key": "docs:retry",
+            }
+        ],
+    )
+    _record_agent(run_id, pid=765, timestamp="260718_120012")
+    artifacts = resolve_agent_artifact_timestamp_path(
+        "sase", "ace-run", "20260718120012"
+    )
+    artifacts.mkdir(parents=True)
+    (artifacts / "done.json").write_text(
+        json.dumps({"outcome": "failed"}), encoding="utf-8"
+    )
+
+    with patch(
+        "sase.axe.chop_lifecycle.release_chop_once_per_keys",
+        side_effect=OSError("seen store unavailable"),
+    ):
+        assert finalize_launched_chop_runs("docs", ["docs"]) == 1
+
+    entry = read_chop_run("docs", "docs", run_id)
+    assert entry is not None
+    assert entry.status == "action_failed"
+    output = chop_run_log_path("docs", "docs", run_id).read_text(encoding="utf-8")
+    assert "Failed to release once-per keys" in output
+    assert "seen store unavailable" in output
+
+
+def test_lifecycle_does_not_release_keys_for_incomplete_launch_linkage(
+    temp_state_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    run_id = "20260718T120013_000000"
+    _launched_entry(
+        run_id,
+        pid=321,
+        launches=[
+            {"pid": 321, "dedupe_key": "docs:first"},
+            {"pid": 654, "dedupe_key": "docs:missing"},
+        ],
+    )
+    _record_agent(run_id, pid=321)
+
+    with patch("sase.axe.chop_lifecycle.release_chop_once_per_keys") as release:
+        assert finalize_launched_chop_runs("docs", ["docs"]) == 1
+
+    release.assert_not_called()
+    entry = read_chop_run("docs", "docs", run_id)
+    assert entry is not None
+    assert entry.status == "action_failed"
+    assert entry.error is not None and "linkage incomplete" in entry.error
+
+
 def test_lifecycle_fails_dead_agent_without_done_marker(
     temp_state_dir: Path,
     tmp_path: Path,
@@ -450,8 +695,12 @@ def test_lifecycle_fails_dead_agent_without_done_marker(
     _launched_entry(run_id, pid=654)
     _record_agent(run_id, pid=654)
 
-    with patch("sase.axe.chop_lifecycle.is_process_running", return_value=False):
+    with (
+        patch("sase.axe.chop_lifecycle.is_process_running", return_value=False),
+        patch("sase.axe.chop_lifecycle.release_chop_once_per_keys") as release,
+    ):
         assert finalize_launched_chop_runs("docs", ["docs"]) == 1
+    release.assert_not_called()
     entry = read_chop_run("docs", "docs", run_id)
     assert entry is not None
     assert entry.status == "action_failed"

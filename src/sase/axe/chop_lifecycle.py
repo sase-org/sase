@@ -10,6 +10,7 @@ from typing import Literal
 
 from sase.ace.dismissed_agents import load_dismissed_bundle_summaries
 from sase.ace.hooks.processes import is_process_running
+from sase.artifacts import convert_timestamp_to_artifacts_format
 from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 from sase.core.time import get_timezone
 
@@ -17,7 +18,10 @@ from .chop_agents import (
     get_chop_agent_records,
     remove_chop_agent_records,
 )
-from .chop_policy import finalize_pending_chop_checkpoints
+from .chop_policy import (
+    finalize_pending_chop_checkpoints,
+    release_chop_once_per_keys,
+)
 from .state import (
     ChopRunEntry,
     ChopRunStatus,
@@ -155,6 +159,87 @@ def _duration_ms(entry: ChopRunEntry, finished_at: datetime) -> int:
     return max(0, int((finished - started_at).total_seconds() * 1000))
 
 
+def _launch_artifacts_timestamp(launch: dict[str, object]) -> str:
+    explicit = str(launch.get("artifacts_timestamp") or "").strip()
+    if explicit:
+        return explicit
+    artifacts_dir = str(launch.get("artifacts_dir") or "").strip()
+    if artifacts_dir:
+        return Path(artifacts_dir).name
+    timestamp = str(launch.get("timestamp") or "").strip()
+    if timestamp:
+        return convert_timestamp_to_artifacts_format(timestamp)
+    return ""
+
+
+def _launch_for_record(
+    record: object,
+    launches: list[dict[str, object]],
+) -> dict[str, object] | None:
+    artifacts_timestamp = str(getattr(record, "artifacts_timestamp", "") or "").strip()
+    if artifacts_timestamp:
+        launch = next(
+            (
+                candidate
+                for candidate in launches
+                if _launch_artifacts_timestamp(candidate) == artifacts_timestamp
+            ),
+            None,
+        )
+        if launch is not None:
+            return launch
+
+    pid = int(getattr(record, "pid", 0) or 0)
+    return next(
+        (
+            candidate
+            for candidate in launches
+            if int(str(candidate.get("pid") or "0")) == pid
+        ),
+        None,
+    )
+
+
+def _release_failed_launch_keys(
+    *,
+    lumberjack_name: str,
+    chop_name: str,
+    run_id: str,
+    records: list[object],
+    completions: list[_AgentCompletion],
+    launches: list[dict[str, object]],
+) -> None:
+    keys: list[str] = []
+    for record, completion in zip(records, completions, strict=True):
+        if completion.succeeded:
+            continue
+        launch = _launch_for_record(record, launches)
+        if launch is None:
+            continue
+        key = str(launch.get("dedupe_key") or "").strip()
+        if key and key not in keys:
+            keys.append(key)
+    if not keys:
+        return
+
+    try:
+        released = release_chop_once_per_keys(lumberjack_name, chop_name, keys)
+    except Exception as exc:
+        append_chop_run_output(
+            lumberjack_name,
+            chop_name,
+            run_id,
+            f"Failed to release once-per keys for failed launches: {exc}\n",
+        )
+        return
+    append_chop_run_output(
+        lumberjack_name,
+        chop_name,
+        run_id,
+        f"Released {released} once-per key(s) for failed launches\n",
+    )
+
+
 def finalize_launched_chop_runs(
     lumberjack_name: str,
     chop_names: list[str] | tuple[str, ...],
@@ -178,6 +263,7 @@ def finalize_launched_chop_runs(
                 run_id=run_id,
             )
             expected = len(entry.launches)
+            completion_records: list[object] = []
             if expected == 0 or len(records) < expected:
                 detail = (
                     f"launch registry linkage incomplete: expected {expected} "
@@ -185,10 +271,23 @@ def finalize_launched_chop_runs(
                 )
                 completions = [_AgentCompletion(True, False, detail)]
             else:
-                completions = [_agent_completion(record) for record in records]
+                completion_records = list(records)
+                completions = [
+                    _agent_completion(record) for record in completion_records
+                ]
 
             if any(not completion.terminal for completion in completions):
                 continue
+
+            if completion_records:
+                _release_failed_launch_keys(
+                    lumberjack_name=lumberjack_name,
+                    chop_name=chop_name,
+                    run_id=run_id,
+                    records=completion_records,
+                    completions=completions,
+                    launches=list(entry.launches),
+                )
 
             failures = [
                 completion.detail

@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from sase.artifacts import convert_timestamp_to_artifacts_format
 from sase.core.axe_chop_facade import (
     derive_chop_agent_name,
     validate_chop_proposal,
@@ -167,6 +168,7 @@ def launch_chop_proposals(
     run_id: str,
     proposals: list[_PreparedChopProposal],
     launch_agent_from_cwd_fn: Callable[..., Any],
+    launch_recorded_fn: Callable[[dict[str, Any]], None] | None = None,
 ) -> list[dict[str, Any]]:
     """Launch proposals in order and return durable launch descriptors."""
     names_by_index: dict[int, str] = {}
@@ -186,27 +188,34 @@ def launch_chop_proposals(
         )
         result = launch_agent_from_cwd_fn(prompt, extra_env=extra_env)
         actual_name = str(getattr(result, "agent_name", "") or proposal.agent_name)
+        timestamp = str(getattr(result, "timestamp", "") or "")
+        artifacts_timestamp = (
+            convert_timestamp_to_artifacts_format(timestamp) if timestamp else ""
+        )
         names_by_index[proposal.index] = actual_name
         if proposal.proposal_id is not None:
             names_by_id[proposal.proposal_id] = actual_name
-        launches.append(
-            {
-                "index": proposal.index,
-                "id": proposal.proposal_id,
-                "agent_name": actual_name,
-                "pid": int(result.pid),
-                "workspace": proposal.workspace,
-                "workspace_num": int(getattr(result, "workspace_num", 0) or 0),
-                "workspace_dir": str(getattr(result, "workspace_dir", "") or ""),
-                "project_name": str(getattr(result, "project_name", "") or ""),
-                "workflow_name": str(getattr(result, "workflow_name", "") or ""),
-                "cl_name": str(getattr(result, "cl_name", "") or ""),
-                "timestamp": str(getattr(result, "timestamp", "") or ""),
-                "artifacts_dir": str(getattr(result, "artifacts_dir", "") or ""),
-                "wait_on": proposal.wait_on,
-                "wait_name": wait_name,
-            }
-        )
+        launch = {
+            "index": proposal.index,
+            "id": proposal.proposal_id,
+            "agent_name": actual_name,
+            "pid": int(result.pid),
+            "workspace": proposal.workspace,
+            "workspace_num": int(getattr(result, "workspace_num", 0) or 0),
+            "workspace_dir": str(getattr(result, "workspace_dir", "") or ""),
+            "project_name": str(getattr(result, "project_name", "") or ""),
+            "workflow_name": str(getattr(result, "workflow_name", "") or ""),
+            "cl_name": str(getattr(result, "cl_name", "") or ""),
+            "timestamp": timestamp,
+            "artifacts_timestamp": artifacts_timestamp,
+            "artifacts_dir": str(getattr(result, "artifacts_dir", "") or ""),
+            "dedupe_key": proposal.dedupe_key,
+            "wait_on": proposal.wait_on,
+            "wait_name": wait_name,
+        }
+        launches.append(launch)
+        if launch_recorded_fn is not None:
+            launch_recorded_fn(launch)
     return launches
 
 
