@@ -225,20 +225,28 @@ Source: `src/sase/integrations/mobile_agents.py`, `src/sase/integrations/mobile_
 
 ## Editor Helper Bridge
 
-`sase.integrations.editor_helpers` exposes an editor-branded helper bridge over the same fixed JSON operations used by
-the mobile helper facade. The current ChangeSpecI surface is:
+`sase.integrations.editor_helpers` exposes an editor-branded helper bridge over fixed JSON catalog operations. The
+current surface is:
 
 ```bash
 printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge xprompt-catalog
 printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge snippet-catalog
+printf '{"schema_version":1}\n' | sase editor helper-bridge agent-catalog
+printf '{"schema_version":1,"workflow":"gh","namespace":"sase-org"}\n' \
+  | sase editor helper-bridge vcs-repo-catalog
 ```
 
 The `xprompt-catalog` operation returns the structured xprompt catalog, including insertion metadata, typed inputs,
 source display fields, and `definition_path` for entries backed by a resolvable file. The `snippet-catalog` operation
-returns the composed ACE snippet registry from xprompt snippets plus user snippets configured under `ace.snippets`.
-Editor integrations should use this bridge or `sase lsp` instead of importing private catalog modules directly.
+returns the composed ACE snippet registry from xprompt snippets plus user snippets configured under `ace.snippets`. The
+`agent-catalog` operation returns fresh, de-duplicated agent targets and additive `family`, `clan`, and `tribe` entries
+derived from the same artifact snapshot; grouped rows include member counts and clans include aggregate status. The
+`vcs-repo-catalog` operation returns provider-backed repository candidates for one VCS workflow and namespace, including
+structured failure and stale-cache metadata. Editor integrations should use this bridge or `sase lsp` instead of
+importing private catalog modules directly.
 
-Source: `src/sase/integrations/editor_helpers.py`, `src/sase/integrations/xprompt_lsp.py`
+Source: `src/sase/integrations/editor_helpers.py`, `src/sase/integrations/_editor_helper_agents.py`,
+`src/sase/integrations/xprompt_lsp.py`, `src/sase/xprompt/vcs_repo_completion.py`
 
 ## Chat Update Worker
 

@@ -380,7 +380,7 @@ jump-back history.
 | `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane             |
 | `+`                 | Run custom agent                                                                                           |
 | `A`                 | Open auto-approve menu / answer HITL                                                                       |
-| `f`                 | Fork agent (by name if running, by chat file if completed)                                                 |
+| `f`                 | Fork the selected agent, clan, or named whole-tribe panel                                                  |
 | `n`                 | Name agent                                                                                                 |
 | `r`                 | Edit prompt and relaunch agent (retry without killing)                                                     |
 | `v`                 | View files (hint mode)                                                                                     |
@@ -405,6 +405,20 @@ jump-back history.
 | `z`                 | Start metadata fold mode for clan, family, or selected whole-tribe detail panels                           |
 | `Z`                 | Open the zoom modal for the active detail panel                                                            |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                              |
+
+### Forking Agents and Groups
+
+Press `f` on a named agent or family root to open a prompt prefilled with its `#fork` reference. The same action works
+on a synthetic clan row, where it inserts `#fork:<clan>`, and on either an expanded or collapsed named whole-tribe
+panel, where it inserts `#fork:@<tribe>`. Untagged panels and grouping banners are not fork targets. Clan references use
+the newest generation at launch, while tribe references retain their normal next-completed-entity semantics; see
+[Agent Clans, Families, and Tribes](agent_families.md#tribe-wait-and-fork-targets).
+
+ACE carries VCS context into the prefilled prompt for an individual agent when it can resolve that agent's launch ref.
+For a clan or tribe, it adds a VCS ref only when every real member in the selected scope resolves to the same workflow
+and ref. Mixed or missing member context therefore produces a plain `#fork` prompt instead of guessing. Group metadata
+is resolved off the UI thread, and ACE revalidates the selected scope before opening the prompt; if membership or focus
+changed meanwhile, it cancels with a warning.
 
 ### Clan and Family Detail Panels
 

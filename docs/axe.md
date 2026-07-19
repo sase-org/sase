@@ -335,6 +335,12 @@ Policy is runner-owned and evaluated before the script:
 Manual CLI/TUI runs bypass configured triggers because the operator explicitly requested a run, but still honor guards.
 Pass `-f/--force` on the CLI to bypass both for that run.
 
+Once-per filtering preserves proposal chains. If a proposal named by a later `wait_on` is a duplicate, AXE follows that
+skipped proposal's own dependency until it reaches the nearest proposal that will still launch. When the duplicate was
+the head of the chain, the downstream proposal launches without an injected wait. Dry-run and recorded proposal previews
+show the effective dependency and a relink reason, so a duplicate intermediate step does not silently discard
+otherwise-new work.
+
 #### Builtin `refresh_docs`
 
 `sase_chop_refresh_docs` replaces the former scheduled xprompt workflow. It expects an expanded target with a
@@ -423,6 +429,10 @@ A run starts as `running`. Exit-code-only scripts end as `success`, `failure`, `
 rejections are `skipped`; structured healthy no-work and degraded probes are `no_op` and `check_error`. A result with
 accepted proposals moves to `launched`, then the housekeeping pass finalizes it as `action_succeeded` or `action_failed`
 from linked agent completion artifacts. `running` and `launched` are active states, so `finished_at` is `null` for both.
+
+If a linked agent was dismissed after it stopped and its live `done.json` is no longer present, finalization checks the
+top-level dismissed-bundle summary for that exact run. A `DONE` summary still completes the action successfully;
+`FAILED` and `KILLED` summaries fail it. Missing or ambiguous completion evidence remains fail-closed.
 
 History is pruned after every run write, retaining the newest `MAX_CHOP_RUN_HISTORY` (10) terminal runs per chop. Active
 `running` and `launched` entries are always kept regardless of position, so slow scripts and pending actions are never

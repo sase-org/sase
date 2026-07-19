@@ -281,6 +281,12 @@ fork, and ACE prompt completion offers visible `@tribe` values for both `%wait` 
 tribe waits and forks use neutral auto-names rather than derived `.w*` or `.f*` names because the eventual parent is
 unknown at launch planning time.
 
+ACE can prepare these group references directly. Select a clan row and press `f` for `#fork:<clan>`, or select a named
+whole-tribe panel (expanded or collapsed) and press `f` for `#fork:@<tribe>`. For a group fork, ACE inherits a VCS ref
+only when every real agent in the selected clan generation or loaded tribe panel resolves to the same workflow and ref;
+otherwise it leaves the prompt in home context for the user to choose. See
+[Forking Agents and Groups](ace.md#forking-agents-and-groups) for selection and revalidation behavior.
+
 ## Agent-Initiated Family Launches
 
 User-initiated launches are direct: prompts submitted through normal launch surfaces, including prompts containing

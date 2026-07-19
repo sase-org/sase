@@ -69,6 +69,9 @@ Editor integrations that do not need live LSP behavior can call fixed helper ope
 ```bash
 printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge xprompt-catalog
 printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge snippet-catalog
+printf '{"schema_version":1}\n' | sase editor helper-bridge agent-catalog
+printf '{"schema_version":1,"workflow":"gh","namespace":"sase-org"}\n' \
+  | sase editor helper-bridge vcs-repo-catalog
 ```
 
 `xprompt-catalog` returns the structured xprompt catalog used by mobile/editor clients, including insertion text,
@@ -82,7 +85,17 @@ file.
 - Valid trigger words only; user snippets override xprompt snippets on collision.
 - `#[trigger]` snippet references resolved after the xprompt/user merge.
 
-Both helper operations read one JSON object from stdin and write one compact JSON object to stdout. They are fixed
+`agent-catalog` returns a fresh, de-duplicated list of prompt-reference targets. Individual agents include their status
+and project. When the artifact snapshot contains group metadata, the response adds the newest generation of each family
+and clan plus effective `@tribe` targets. Every row has `name`, `kind`, `member_count`, and display-ready `detail`;
+clans also include their aggregate status. Group entries are additive, so malformed legacy group metadata does not hide
+the ordinary agent rows.
+
+`vcs-repo-catalog` asks the registered workspace provider for repositories in one `workflow` and `namespace`. Its
+response includes provider display metadata, cache freshness, structured error information, and repository refs suitable
+for insertion after a namespace such as `#gh:sase-org/`.
+
+All helper operations read one JSON object from stdin and write one compact JSON object to stdout. They are fixed
 catalog operations, not a general shell or filesystem bridge.
 
 ## Authoring Snippets
