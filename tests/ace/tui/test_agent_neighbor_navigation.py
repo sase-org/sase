@@ -10,10 +10,13 @@ from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
 from sase.ace.tui.actions.navigation._tree import TreeNavigationMixin
 from sase.ace.tui.modals import AgentNeighborModal
+from sase.ace.tui.models import filter_agents_by_fold_state
+from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
+from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
 
 
 class _Debouncer:
@@ -34,14 +37,23 @@ class _NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMix
         current_idx: int = 0,
         focused_key: str | None = None,
         collapsed: list[tuple[str, ...]] | None = None,
+        collapsed_panel_keys: set[str | None] | None = None,
     ) -> None:
         self.current_tab = "agents"
         self.changespecs = []
         self.current_idx = current_idx
         self.current_attempt_number: int | None = 7
-        self._agents = agents
+        self._agents_with_children = list(agents)
+        self._agents = list(agents)
+        self._fold_manager = FoldStateManager()
+        self._fold_counts: dict[str, tuple[int, int]] = {}
         self._agent_panels_grouped = False
-        self._panel_group = AgentPanelGroup.from_agents(agents, focused_key)
+        self._collapsed_panel_keys = set(collapsed_panel_keys or ())
+        self._panel_group = AgentPanelGroup.from_agents(
+            agents,
+            focused_key,
+            collapsed_panel_keys=self._collapsed_panel_keys,
+        )
         self._group_fold_registry = AgentGroupFoldRegistry()
         for key in collapsed or []:
             self._group_fold_registry.collapse(key)
@@ -63,6 +75,7 @@ class _NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMix
         self._entry_jump_changespec_banner_to_hint: dict[tuple[str, ...], str] = {}
         self._entry_jump_index_stack: dict[str, list[int]] = {}
         self._entry_jump_agents_anchor_stack: list[Any] = []
+        self._entry_jump_agents_forward_anchor_stack: list[Any] = []
         self._marked_agents = set()
         self._unread_completed_agent_ids = set()
         self._manual_unread_agent_ids = set()
@@ -82,6 +95,9 @@ class _NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMix
         self.current_tab_refreshes = 0
         self.jump_footer_updates = 0
         self.revived_agents: list[Agent] = []
+        self.refilter_calls = 0
+        self.group_fold_changes: list[tuple[tuple[str, ...], bool]] = []
+        self.panel_fold_changes: list[tuple[str | None, bool]] = []
         self._agent_detail_debouncer = _Debouncer()
         self.pushed_screens: list[Any] = []
         self.pushed_callbacks: list[Any] = []
@@ -113,6 +129,8 @@ class _NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMix
 
     def _refresh_agents_display(self, **kwargs: Any) -> None:
         self.display_refreshes.append(kwargs)
+        if kwargs.get("list_changed"):
+            self._sync_panel_group()
 
     def _refresh_current_tab(self) -> None:
         self.current_tab_refreshes += 1
@@ -134,6 +152,46 @@ class _NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMix
 
     def _do_revive_agent(self, agent: Agent) -> None:
         self.revived_agents.append(agent)
+
+    def _refilter_agents(self, **_kwargs: Any) -> None:
+        self.refilter_calls += 1
+        focused_key = self._panel_group.focused_key
+        self._agents, self._fold_counts = filter_agents_by_fold_state(
+            self._agents_with_children,
+            self._fold_manager,
+        )
+        self._invalidate_agent_panel_cache()
+        self._panel_group = AgentPanelGroup.from_agents(
+            self._agents,
+            focused_key,
+            collapsed_panel_keys=self._collapsed_panel_keys,
+        )
+
+    def _expand_agent_panel(self, panel_key: str | None) -> bool:
+        if panel_key not in self._collapsed_panel_keys:
+            return False
+        self._collapsed_panel_keys.remove(panel_key)
+        self._invalidate_agent_panel_cache()
+        self._persist_panel_fold_change(panel_key, collapsed=False)
+        return True
+
+    def _persist_group_fold_change(
+        self,
+        group_key: tuple[str, ...],
+        *,
+        collapsed: bool,
+        panel_key: str | None = None,
+    ) -> None:
+        del panel_key
+        self.group_fold_changes.append((group_key, collapsed))
+
+    def _persist_panel_fold_change(
+        self,
+        panel_key: str | None,
+        *,
+        collapsed: bool,
+    ) -> None:
+        self.panel_fold_changes.append((panel_key, collapsed))
 
     def push_screen(self, screen: Any, callback: Any = None) -> None:
         self.pushed_screens.append(screen)
@@ -213,6 +271,8 @@ def test_agent_neighbor_navigation_direct_jumps_to_single_neighbor() -> None:
     assert app.info_updates == 1
     assert app.detail_updates == 1
     assert app._agent_detail_debouncer.scheduled == 1
+    assert app.refilter_calls == 0
+    assert app.display_refreshes == []
 
 
 def test_agent_neighbor_navigation_back_jump_restores_origin() -> None:
@@ -545,3 +605,160 @@ def test_agent_neighbor_navigation_guard_blocks_row_change() -> None:
         "Close the artifact viewer before switching agents",
         severity="warning",
     )
+
+
+def test_agent_neighbor_navigation_reveals_collapsed_target_panel_once() -> None:
+    origin = _agent("foo.plan")
+    target = _agent("foo.code", tag="alpha", status="DONE")
+    unrelated = _agent("unrelated.agent", tag="zeta")
+    app = _NeighborApp(
+        [origin, target, unrelated],
+        collapsed_panel_keys={"alpha"},
+    )
+    assert app._panel_group.panel_keys == [None, "zeta", "alpha"]
+
+    app.action_start_sibling_mode()
+
+    assert app._agents[app.current_idx].identity == target.identity
+    assert app._panel_group.panel_keys == [None, "alpha", "zeta"]
+    assert app._panel_group.focused_key == "alpha"
+    assert "alpha" not in app._collapsed_panel_keys
+    assert app.panel_fold_changes == [("alpha", False)]
+    assert app.display_refreshes == [{"list_changed": True, "defer_detail": True}]
+    assert app.refilter_calls == 0
+    assert app.armed_departures == [origin]
+    assert app.acknowledged == [target]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None)]
+
+    assert app._restore_agents_jump_anchor() is True
+    assert app._agents[app.current_idx].identity == origin.identity
+    assert app._panel_group.focused_key is None
+    assert "alpha" not in app._collapsed_panel_keys
+
+
+def test_agent_neighbor_modal_resolves_stale_numeric_index_by_identity() -> None:
+    origin = _agent("foo.plan")
+    target = _agent("foo.code", tag="alpha")
+    other = _agent("foo.review", tag="zeta")
+    app = _NeighborApp(
+        [origin, target, other],
+        collapsed_panel_keys={"alpha"},
+    )
+
+    app.action_start_sibling_mode()
+    modal = app.pushed_screens[0]
+    assert isinstance(modal, AgentNeighborModal)
+    target_choice_idx = next(
+        idx
+        for idx, choice in enumerate(modal._choices)
+        if choice.agent_name == target.agent_name
+    )
+    assert modal._choices[target_choice_idx].global_idx == 1
+
+    # The selected identity survives, but the old index now names the origin.
+    app._agents = [other, origin, target]
+    app._agents_with_children = list(app._agents)
+    app.current_idx = 1
+    app._invalidate_agent_panel_cache()
+    app._panel_group = AgentPanelGroup.from_agents(
+        app._agents,
+        focused_key=None,
+        collapsed_panel_keys=app._collapsed_panel_keys,
+    )
+    assert app._agents[1].identity == origin.identity
+
+    app.pushed_callbacks[0](target_choice_idx)
+
+    assert app._agents[app.current_idx].identity == target.identity
+    assert app.acknowledged == [target]
+    assert app.armed_departures == [origin]
+    assert app._panel_group.focused_key == "alpha"
+    assert app.panel_fold_changes == [("alpha", False)]
+
+
+def test_agent_neighbor_modal_filtered_target_fails_without_mutation() -> None:
+    origin = _agent("foo.plan")
+    target = _agent("foo.code", tag="alpha")
+    other = _agent("foo.review", tag="zeta")
+    app = _NeighborApp(
+        [origin, target, other],
+        collapsed_panel_keys={"alpha"},
+    )
+
+    app.action_start_sibling_mode()
+    modal = app.pushed_screens[0]
+    target_choice_idx = next(
+        idx
+        for idx, choice in enumerate(modal._choices)
+        if choice.agent_name == target.agent_name
+    )
+    app._agents = [origin, other]
+    app.current_idx = 0
+    app._invalidate_agent_panel_cache()
+    app._panel_group = AgentPanelGroup.from_agents(
+        app._agents,
+        focused_key=None,
+        collapsed_panel_keys=app._collapsed_panel_keys,
+    )
+
+    app.pushed_callbacks[0](target_choice_idx)
+
+    assert app.current_idx == 0
+    assert app._agents[app.current_idx].identity == origin.identity
+    assert app._collapsed_panel_keys == {"alpha"}
+    assert app.panel_fold_changes == []
+    assert app.group_fold_changes == []
+    assert app.display_refreshes == []
+    assert app.armed_departures == []
+    assert app.acknowledged == []
+    assert app._entry_jump_agents_anchor_stack == []
+
+
+def test_agent_neighbor_reveals_only_target_tree_ancestry() -> None:
+    origin = _agent("foo.plan")
+    target_parent = _agent("target-container")
+    target_parent.agent_clan = "target-clan"
+    target = _agent("foo.code")
+    target.parent_timestamp = target_parent.raw_suffix
+
+    other_parent = _agent("other-container")
+    other_parent.agent_clan = "other-clan"
+    other_child = _agent("unrelated.child")
+    other_child.parent_timestamp = other_parent.raw_suffix
+    complete = project_clan_tree(
+        [other_parent, other_child, origin, target_parent, target]
+    )
+    origin_idx = next(
+        idx for idx, agent in enumerate(complete) if agent.identity == origin.identity
+    )
+    app = _NeighborApp(complete, current_idx=origin_idx)
+    target_clan = next(
+        agent
+        for agent in complete
+        if agent.is_clan_container and agent.agent_clan == "target-clan"
+    )
+    other_clan = next(
+        agent
+        for agent in complete
+        if agent.is_clan_container and agent.agent_clan == "other-clan"
+    )
+    target_clan_key = agent_fold_key(target_clan)
+    other_clan_key = agent_fold_key(other_clan)
+    assert target_clan_key is not None
+    assert other_clan_key is not None
+
+    app.action_start_sibling_mode()
+
+    assert app._agents[app.current_idx].identity == target.identity
+    assert app._fold_manager.get(target_clan_key) is FoldLevel.EXPANDED
+    assert app._fold_manager.get(target_parent.raw_suffix or "") is FoldLevel.EXPANDED
+    assert app._fold_manager.get(other_clan_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(other_parent.raw_suffix or "") is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(target.raw_suffix or "") is FoldLevel.COLLAPSED
+    assert app.refilter_calls == 1
+    assert app.display_refreshes == [{"list_changed": True, "defer_detail": True}]
+
+    assert app._restore_agents_jump_anchor() is True
+    assert app._agents[app.current_idx].identity == origin.identity
+    assert app._fold_manager.get(target_clan_key) is FoldLevel.EXPANDED
+    assert app._fold_manager.get(target_parent.raw_suffix or "") is FoldLevel.EXPANDED

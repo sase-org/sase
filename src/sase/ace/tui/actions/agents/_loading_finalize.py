@@ -153,6 +153,7 @@ def _apply_finalize_plan(
     *,
     prior_pos: int | None,
     previous_agents: list[Agent] | None,
+    refresh_display: bool,
 ) -> None:
     """UI-thread half of the precomputed-plan apply path."""
     _surface_query_parse_error_from_plan(app, plan)
@@ -200,7 +201,7 @@ def _apply_finalize_plan(
 
     reconcile_panel_fold_registries(app, plan.panel_group_keys)
 
-    if on_agents_tab:
+    if on_agents_tab and refresh_display:
         with tui_trace("agents.final_display_refresh", agents=len(app._agents)):
             incremental_refresh = getattr(
                 app,
@@ -229,6 +230,7 @@ def finalize_agent_list(
     prior_pos: int | None = None,
     precomputed_plan: PreparedFinalizePlan | None = None,
     previous_agents: list[Agent] | None = None,
+    refresh_display: bool = True,
 ) -> None:
     """Shared post-processing pipeline for agent list finalization.
 
@@ -285,6 +287,7 @@ def finalize_agent_list(
             precomputed_plan,
             prior_pos=prior_pos,
             previous_agents=previous_agents,
+            refresh_display=refresh_display,
         )
         return
 
@@ -414,7 +417,7 @@ def finalize_agent_list(
     )
 
     # Only refresh display if on agents tab
-    if on_agents_tab:
+    if on_agents_tab and refresh_display:
         with tui_trace("agents.final_display_refresh", agents=len(app._agents)):
             incremental_refresh = getattr(
                 app,

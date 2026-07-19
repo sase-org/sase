@@ -236,5 +236,6 @@ class AgentLoadingStateMixin:
         prior_pos: int | None = None,
         precomputed_plan: PreparedFinalizePlan | None = None,
         previous_agents: list[Agent] | None = None,
+        refresh_display: bool = True,
     ) -> None:
         raise NotImplementedError

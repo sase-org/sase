@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
+from ._agent_reveal import (
+    AgentRevealFailure,
+    prepare_agent_navigation_target,
+    reveal_agent_navigation_target,
+)
 from ._types import NavigationMixinBase
 
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
-    from ...models.agent_panels import PanelKey
     from ...widgets.prompt_panel._member_roster import MemberJumpMap
 
 type MemberIdentity = tuple["AgentType", str, str | None]
@@ -184,194 +188,16 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if callable(refresh):
             refresh()
 
-    def _expand_target_tree_ancestors(
-        self,
-        target_identity: MemberIdentity,
-    ) -> bool:
-        """Expand the bounded agent-tree ancestor chain for ``target_identity``."""
-        from ...models._agent_tree import (
-            agent_parent_fold_key,
-            tree_parent_lookup,
-        )
-        from ...models.fold_state import FoldLevel
-
-        complete = list(getattr(self, "_agents_with_children", None) or self._agents)
-        target = next(
-            (agent for agent in complete if agent.identity == target_identity),
-            None,
-        )
-        if target is None:
-            return False
-
-        parents = tree_parent_lookup(complete)
-        current = target
-        visited: set[int] = set()
-        for _ in range(len(complete) + 1):
-            current_id = id(current)
-            if current_id in visited:
-                return False
-            visited.add(current_id)
-            parent_key = agent_parent_fold_key(current)
-            if parent_key is None:
-                return True
-            parent = parents.get(parent_key)
-            if parent is None:
-                return False
-
-            required = (
-                FoldLevel.FULLY_EXPANDED
-                if current.is_hidden_step and not parent_key.startswith("clan:")
-                else FoldLevel.EXPANDED
-            )
-            while self._fold_manager.get(parent_key) != required:  # type: ignore[attr-defined]
-                if not self._fold_manager.expand(parent_key):  # type: ignore[attr-defined]
-                    break
-            if self._fold_manager.get(parent_key) == FoldLevel.COLLAPSED:  # type: ignore[attr-defined]
-                return False
-            if (
-                required == FoldLevel.FULLY_EXPANDED
-                and self._fold_manager.get(parent_key) != required  # type: ignore[attr-defined]
-            ):
-                return False
-            current = parent
-        return False
-
-    def _target_panel_context(
-        self,
-        target_idx: int,
-    ) -> tuple[int | None, PanelKey] | None:
-        """Resolve the target's panel index and stable key after refiltering."""
-        panel_group = getattr(self, "_panel_group", None)
-        if panel_group is None:
-            return (None, None)
-        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
-        if not (0 <= target_idx < len(keys_per_agent)):
-            return None
-        panel_key = keys_per_agent[target_idx]
-        try:
-            return (panel_group.panel_keys.index(panel_key), panel_key)
-        except ValueError:
-            return None
-
-    def _expand_target_groups(
-        self,
-        target_idx: int,
-        panel_key: PanelKey,
-    ) -> bool:
-        """Expand only the rendered grouping banners enclosing the target."""
-        from ...models.agent_groups import GroupingMode, build_agent_tree
-        from ...models.group_fold import GroupFoldRegistry
-        from ..agents._fold_scope import panel_fold_registry
-        from ..agents._navigation_order import rendered_panel_slice
-
-        global_indices, panel_agents = rendered_panel_slice(self, panel_key)
-        try:
-            local_idx = global_indices.index(target_idx)
-        except ValueError:
-            return False
-
-        mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-        complete_tree = build_agent_tree(
-            panel_agents,
-            fold_registry=GroupFoldRegistry(),
-            mode=mode,
-        )
-        enclosing_keys = [
-            entry.group.group_key
-            for entry in complete_tree
-            if entry.kind == "group"
-            and entry.group is not None
-            and local_idx in entry.group.agent_indices
-        ]
-        registry = panel_fold_registry(self, panel_key)
-        changed = False
-        for group_key in enclosing_keys:
-            if registry is not None and registry.expand(group_key):
-                changed = True
-                persist = getattr(self, "_persist_group_fold_change", None)
-                if callable(persist):
-                    persist(group_key, collapsed=False)
-        return changed
-
-    def _target_is_visible_in_panel(
-        self,
-        target_idx: int,
-        panel_key: PanelKey,
-    ) -> bool:
-        """Confirm the expanded in-panel tree now renders the target row."""
-        from ...models.agent_groups import GroupingMode, build_agent_tree
-        from ..agents._fold_scope import panel_fold_registry
-        from ..agents._navigation_order import rendered_panel_slice
-
-        global_indices, panel_agents = rendered_panel_slice(self, panel_key)
-        try:
-            local_idx = global_indices.index(target_idx)
-        except ValueError:
-            return False
-        mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-        tree = build_agent_tree(
-            panel_agents,
-            fold_registry=panel_fold_registry(self, panel_key),
-            mode=mode,
-        )
-        return any(
-            entry.kind == "agent" and entry.agent_idx == local_idx for entry in tree
-        )
-
     def _reveal_agent_row(self, target_identity: MemberIdentity) -> bool:
         """Reveal a roster target through folds, then select it by identity."""
-        complete = list(getattr(self, "_agents_with_children", None) or self._agents)
-        if not any(agent.identity == target_identity for agent in complete):
-            self._notify_member_jump("Member roster changed; jump cancelled")
-            return False
-
-        save_anchor = getattr(self, "_save_agents_jump_anchor", None)
-        if callable(save_anchor):
-            save_anchor()
-        if not self._expand_target_tree_ancestors(target_identity):
-            self._notify_member_jump("Member is no longer available")
-            return False
-
-        invalidate = getattr(self, "_invalidate_agent_panel_cache", None)
-        if callable(invalidate):
-            invalidate()
-        refilter = getattr(self, "_refilter_agents", None)
-        if not callable(refilter):
-            self._notify_member_jump("Member is no longer available")
-            return False
-        try:
-            refilter(refresh_content_index=False)
-        except TypeError:
-            refilter()
-
-        target_idx = next(
-            (
-                idx
-                for idx, agent in enumerate(self._agents)
-                if agent.identity == target_identity
-            ),
-            None,
+        plan, failure = prepare_agent_navigation_target(
+            self,
+            target_identity,
+            require_current=False,
         )
-        if target_idx is None:
-            self._notify_member_jump("Member roster changed; jump cancelled")
+        if plan is None:
+            self._notify_member_reveal_failure(failure)
             return False
-        panel_context = self._target_panel_context(target_idx)
-        if panel_context is None:
-            self._notify_member_jump("Member is no longer visible")
-            return False
-        target_panel_idx, panel_key = panel_context
-
-        groups_changed = self._expand_target_groups(target_idx, panel_key)
-        if not self._target_is_visible_in_panel(target_idx, panel_key):
-            self._notify_member_jump("Member is no longer visible")
-            return False
-        expand_panel = getattr(self, "_expand_agent_panel", None)
-        panel_changed = bool(callable(expand_panel) and expand_panel(panel_key))
-        panel_group = getattr(self, "_panel_group", None)
-        focus_changed = False
-        if panel_group is not None and target_panel_idx is not None:
-            focus_changed = target_panel_idx != panel_group.focused_idx
-            panel_group.focused_idx = target_panel_idx
 
         old_idx = self.current_idx
         old_group_key = getattr(self, "_current_group_key", None)
@@ -380,25 +206,48 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             if old_group_key is None and 0 <= old_idx < len(self._agents)
             else None
         )
-        if old_agent is not None and old_idx != target_idx:
+        back_stack = list(getattr(self, "_entry_jump_agents_anchor_stack", ()))
+        forward_stack = list(
+            getattr(self, "_entry_jump_agents_forward_anchor_stack", ())
+        )
+        save_anchor = getattr(self, "_save_agents_jump_anchor", None)
+        if callable(save_anchor):
+            save_anchor()
+
+        outcome = reveal_agent_navigation_target(self, plan)
+        reveal = outcome.result
+        if reveal is None:
+            self._restore_member_jump_history(back_stack, forward_stack)
+            self._notify_member_reveal_failure(outcome.failure)
+            return False
+        if old_agent is not None and reveal.tree_changed:
+            rebase_anchor = getattr(self, "_rebase_latest_agents_jump_anchor", None)
+            if callable(rebase_anchor):
+                rebase_anchor(old_agent.identity)
+
+        panel_group = getattr(self, "_panel_group", None)
+        focus_changed = False
+        if panel_group is not None:
+            focus_changed = reveal.panel_idx != panel_group.focused_idx
+            panel_group.focused_idx = reveal.panel_idx
+
+        if old_agent is not None and old_agent.identity != target_identity:
             arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
             if callable(arm_manual):
                 arm_manual(old_agent)
 
         self._current_group_key = None  # type: ignore[attr-defined]
-        self.current_idx = target_idx
+        self.current_idx = reveal.target_idx
         if hasattr(self, "current_attempt_number"):
             self.current_attempt_number = None
-        target_agent = self._agents[target_idx]
         acknowledge = getattr(self, "_acknowledge_agent_unread", None)
         if callable(acknowledge):
-            acknowledge(target_agent)
+            acknowledge(reveal.target_agent)
 
         if (
-            old_idx == target_idx
+            (old_agent is not None and old_agent.identity == target_identity)
             or old_group_key is not None
-            or panel_changed
-            or groups_changed
+            or reveal.structural_changed
             or focus_changed
         ):
             refresh = getattr(self, "_refresh_agents_display", None)
@@ -408,6 +257,42 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
                 except TypeError:
                     refresh(list_changed=True)
         return True
+
+    def _restore_member_jump_history(
+        self,
+        back_stack: list[object],
+        forward_stack: list[object],
+    ) -> None:
+        """Undo the tentative history save when reveal application fails."""
+        current_back = getattr(self, "_entry_jump_agents_anchor_stack", None)
+        if isinstance(current_back, list):
+            current_back[:] = back_stack
+        current_forward = getattr(
+            self,
+            "_entry_jump_agents_forward_anchor_stack",
+            None,
+        )
+        if isinstance(current_forward, list):
+            current_forward[:] = forward_stack
+
+    def _notify_member_reveal_failure(
+        self,
+        failure: AgentRevealFailure | None,
+    ) -> None:
+        """Preserve the member-jump notification contract after extraction."""
+        if failure in {
+            AgentRevealFailure.TARGET_MISSING,
+            AgentRevealFailure.TARGET_AMBIGUOUS,
+            AgentRevealFailure.TARGET_FILTERED,
+        }:
+            self._notify_member_jump("Member roster changed; jump cancelled")
+        elif failure in {
+            AgentRevealFailure.PANEL_MISSING,
+            AgentRevealFailure.TARGET_NOT_VISIBLE,
+        }:
+            self._notify_member_jump("Member is no longer visible")
+        else:
+            self._notify_member_jump("Member is no longer available")
 
 
 __all__ = ["MemberJumpNavigationMixin"]

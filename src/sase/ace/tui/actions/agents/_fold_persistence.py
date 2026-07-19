@@ -20,6 +20,7 @@ log = logging.getLogger(__name__)
 
 _MAX_INTENT_JOURNAL_ENTRIES = 4352
 _FLUSH_TIMEOUT_SECONDS = 2.0
+_FOCUSED_PANEL = object()
 
 
 @dataclass(frozen=True)
@@ -106,16 +107,22 @@ class AgentFoldPersistenceMixin:
         group_key: GroupKey,
         *,
         collapsed: bool,
+        panel_key: PanelKey | object = _FOCUSED_PANEL,
     ) -> None:
         """Journal and schedule persistence for one successful group mutation."""
         from ...models.agent_group_fold import AgentPanelFoldScope
         from ...models.agent_groups import GroupingMode
 
         mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-        panel_group = getattr(self, "_panel_group", None)
-        panel_key = panel_group.focused_key if panel_group is not None else None
+        if panel_key is _FOCUSED_PANEL:
+            panel_group = getattr(self, "_panel_group", None)
+            resolved_panel_key = (
+                panel_group.focused_key if panel_group is not None else None
+            )
+        else:
+            resolved_panel_key = cast("PanelKey", panel_key)
         scope = AgentPanelFoldScope(
-            panel_key=panel_key,
+            panel_key=resolved_panel_key,
             merged=bool(getattr(self, "_agent_panels_grouped", False)),
         )
         self._agents_fold_state_changed(

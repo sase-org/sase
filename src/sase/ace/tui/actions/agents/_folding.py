@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from ._fold_scope import focused_panel_fold_registry, panel_fold_registry
 from ._navigation_order import rendered_panel_slice
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
+_FOCUSED_PANEL = object()
 
 
 class AgentFoldingMixin:
@@ -41,10 +42,18 @@ class AgentFoldingMixin:
         group_key: GroupKey,
         *,
         collapsed: bool,
+        panel_key: PanelKey | object = _FOCUSED_PANEL,
     ) -> None:
         record = getattr(self, "_record_agents_group_fold_change", None)
         if callable(record):
-            record(group_key, collapsed=collapsed)
+            if panel_key is _FOCUSED_PANEL:
+                record(group_key, collapsed=collapsed)
+            else:
+                record(
+                    group_key,
+                    collapsed=collapsed,
+                    panel_key=cast("PanelKey", panel_key),
+                )
 
     def _persist_panel_fold_change(
         self,

@@ -98,8 +98,11 @@ class _JumpHarness(MemberJumpNavigationMixin, EntryJumpAgentHistoryMixin):
         self.footer_digits: list[str] = []
         self.footer_refreshes = 0
         self.display_refreshes: list[bool] = []
-        self.group_fold_changes: list[tuple[tuple[str, ...], bool]] = []
+        self.group_fold_changes: list[tuple[str | None, tuple[str, ...], bool]] = []
+        self.panel_fold_changes: list[tuple[str | None, bool]] = []
+        self.refilter_calls = 0
         self._refilter_agents()
+        self.refilter_calls = 0
         self.current_idx = next(
             index
             for index, agent in enumerate(self._agents)
@@ -107,6 +110,7 @@ class _JumpHarness(MemberJumpNavigationMixin, EntryJumpAgentHistoryMixin):
         )
 
     def _refilter_agents(self, **_kwargs: Any) -> None:
+        self.refilter_calls += 1
         focused_key = (
             self._panel_group.focused_key
             if getattr(self._panel_group, "panel_keys", None)
@@ -139,6 +143,7 @@ class _JumpHarness(MemberJumpNavigationMixin, EntryJumpAgentHistoryMixin):
         if panel_key not in self._collapsed_panel_keys:
             return False
         self._collapsed_panel_keys.discard(panel_key)
+        self._persist_panel_fold_change(panel_key, collapsed=False)
         return True
 
     def _invalidate_agent_panel_cache(self) -> None:
@@ -164,8 +169,17 @@ class _JumpHarness(MemberJumpNavigationMixin, EntryJumpAgentHistoryMixin):
         group_key: tuple[str, ...],
         *,
         collapsed: bool,
+        panel_key: str | None = None,
     ) -> None:
-        self.group_fold_changes.append((group_key, collapsed))
+        self.group_fold_changes.append((panel_key, group_key, collapsed))
+
+    def _persist_panel_fold_change(
+        self,
+        panel_key: str | None,
+        *,
+        collapsed: bool,
+    ) -> None:
+        self.panel_fold_changes.append((panel_key, collapsed))
 
     def _guard_agent_navigation_for_artifact_file_viewer(self) -> bool:
         return False
@@ -272,6 +286,8 @@ def test_single_digit_reveals_collapsed_clan_and_back_restores_container() -> No
     assert app._agents[app.current_idx].identity == members[1].identity
     assert app._fold_manager.get(clan_key) is FoldLevel.EXPANDED
     assert len(app._entry_jump_agents_anchor_stack) == 1
+    assert app.refilter_calls == 1
+    assert app.display_refreshes == [True]
 
     assert app._restore_agents_jump_anchor() is True
     assert app._agents[app.current_idx].identity == container.identity
@@ -411,4 +427,32 @@ def test_jump_expands_target_group_and_different_collapsed_panel() -> None:
     assert app._agents[app.current_idx].identity == target.identity
     assert target_panel_key not in app._collapsed_panel_keys
     assert all(not registry.is_collapsed(key) for key in target_groups)
-    assert app.group_fold_changes == [(key, False) for key in target_groups]
+    assert app.group_fold_changes == [
+        (target_panel_key, key, False) for key in target_groups
+    ]
+    assert app.panel_fold_changes == [(target_panel_key, False)]
+    assert app.display_refreshes == [True]
+
+
+def test_visible_member_jump_skips_refilter_and_structural_refresh() -> None:
+    complete, container = _clan(2)
+    members = list(container.runtime_children)
+    app = _JumpHarness(complete, container)
+    app._member_jump_maps[container.identity] = _jump_map(container, members)
+    clan_key = agent_fold_key(container)
+    assert clan_key is not None
+    app._fold_manager.expand(clan_key)
+    app._refilter_agents()
+    app.refilter_calls = 0
+    app.display_refreshes.clear()
+    app.current_idx = next(
+        idx
+        for idx, agent in enumerate(app._agents)
+        if agent.identity == container.identity
+    )
+
+    assert app._handle_member_jump_key("1") is True
+
+    assert app._agents[app.current_idx].identity == members[1].identity
+    assert app.refilter_calls == 0
+    assert app.display_refreshes == []

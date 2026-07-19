@@ -99,6 +99,27 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
             self._push_agents_jump_anchor(self._entry_jump_agents_anchor_stack, anchor)
             self._clear_agents_jump_forward_stack()
 
+    def _rebase_latest_agents_jump_anchor(
+        self,
+        origin_identity: tuple[object, str, str | None],
+    ) -> None:
+        """Re-resolve a just-saved row anchor after a structural refilter."""
+        stack = getattr(self, "_entry_jump_agents_anchor_stack", None)
+        if not isinstance(stack, list) or not stack or stack[-1][0] != "agent":
+            return
+        matches = [
+            idx
+            for idx, agent in enumerate(self._agents)
+            if agent.identity == origin_identity
+        ]
+        if len(matches) != 1:
+            return
+        origin_idx = matches[0]
+        keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
+        if not (0 <= origin_idx < len(keys_per_agent)):
+            return
+        stack[-1] = ("agent", origin_idx, keys_per_agent[origin_idx])
+
     def _remember_agents_jump_origin_if_changed(
         self,
         *,

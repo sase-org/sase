@@ -6,6 +6,11 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from ..navigation._agent_reveal import (
+    AgentIdentity,
+    prepare_agent_navigation_target,
+    reveal_agent_navigation_target,
+)
 from ._fold_scope import panel_fold_registry, panel_fold_version_signature
 from ._navigation_order import rendered_panel_slice
 
@@ -22,6 +27,7 @@ if TYPE_CHECKING:
 class _AgentNeighborPayload:
     """Action payload parallel to one modal choice row."""
 
+    target_identity: AgentIdentity | None = None
     global_idx: int | None = None
     dismissed_agent: Agent | None = None
 
@@ -191,10 +197,11 @@ class AgentNeighborMixin:
                 if descendants
                 else neighbors[0]
             )
-            self._focus_agent_neighbor_by_global_index(
-                target_idx,
-                neighbor_index=index,
-            )
+            if 0 <= target_idx < len(self._agents):
+                self._focus_agent_neighbor_by_identity(
+                    self._agents[target_idx].identity,
+                    display_global_idx=target_idx,
+                )
             return
 
         choices, payloads = self._agent_neighbor_choices(
@@ -214,8 +221,11 @@ class AgentNeighborMixin:
             if choice_idx is None or not 0 <= choice_idx < len(payloads):
                 return
             payload = payloads[choice_idx]
-            if payload.global_idx is not None:
-                self._focus_agent_neighbor_by_global_index(payload.global_idx)
+            if payload.target_identity is not None:
+                self._focus_agent_neighbor_by_identity(
+                    payload.target_identity,
+                    display_global_idx=payload.global_idx,
+                )
                 return
             if payload.dismissed_agent is not None:
                 revive = getattr(self, "_do_revive_agent", None)
@@ -230,39 +240,29 @@ class AgentNeighborMixin:
             _on_neighbor_selected,
         )
 
-    def _focus_agent_neighbor_by_global_index(
+    def _focus_agent_neighbor_by_identity(
         self,
-        target_idx: int,
+        target_identity: AgentIdentity,
         *,
-        neighbor_index: AgentNeighborIndex | None = None,
+        display_global_idx: int | None = None,
     ) -> bool:
-        """Focus the visible neighbor row identified by its global agent index."""
+        """Reveal and focus a visible neighbor by stable agent identity."""
         if getattr(self, "current_tab", None) != "agents":
-            return False
-        if not (0 <= target_idx < len(self._agents)):
-            return False
-
-        index = (
-            neighbor_index
-            if neighbor_index is not None
-            else self._agent_neighbor_index()
-        )
-        target_panel_idx = index.panel_idx_for(target_idx)
-        if target_panel_idx is None:
             return False
 
         guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
         if callable(guard) and guard():
             return False
 
-        panel_group = getattr(self, "_panel_group", None)
-        if panel_group is not None and not (
-            0 <= target_panel_idx < len(panel_group.panel_keys)
-        ):
-            return False
-        if panel_group is None and target_panel_idx != 0:
+        plan, _failure = prepare_agent_navigation_target(
+            self,
+            target_identity,
+            require_current=True,
+        )
+        if plan is None:
             return False
 
+        panel_group = getattr(self, "_panel_group", None)
         old_focused_idx = panel_group.focused_idx if panel_group is not None else None
         old_idx = self.current_idx
         old_group_key = getattr(self, "_current_group_key", None)
@@ -271,23 +271,38 @@ class AgentNeighborMixin:
             if old_group_key is None and 0 <= old_idx < len(self._agents)
             else None
         )
-        focus_will_change = (
-            old_idx != target_idx
-            or old_group_key is not None
-            or (old_focused_idx is not None and target_panel_idx != old_focused_idx)
+        back_stack = list(getattr(self, "_entry_jump_agents_anchor_stack", ()))
+        forward_stack = list(
+            getattr(self, "_entry_jump_agents_forward_anchor_stack", ())
         )
         save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
-        if focus_will_change and callable(save_jump_anchor):
+        if callable(save_jump_anchor):
             save_jump_anchor()
 
+        outcome = reveal_agent_navigation_target(self, plan)
+        reveal = outcome.result
+        if reveal is None:
+            self._restore_agent_neighbor_jump_history(back_stack, forward_stack)
+            return False
+        if old_agent is not None and reveal.tree_changed:
+            rebase_anchor = getattr(self, "_rebase_latest_agents_jump_anchor", None)
+            if callable(rebase_anchor):
+                rebase_anchor(old_agent.identity)
+
+        # ``display_global_idx`` is deliberately not used for selection. It is
+        # retained in the payload solely as display-time metadata so a modal
+        # callback can never drift to whichever row later occupies that slot.
+        del display_global_idx
+
+        panel_group = getattr(self, "_panel_group", None)
         if (
             panel_group is not None
-            and 0 <= target_panel_idx < len(panel_group.panel_keys)
-            and target_panel_idx != panel_group.focused_idx
+            and 0 <= reveal.panel_idx < len(panel_group.panel_keys)
+            and reveal.panel_idx != panel_group.focused_idx
         ):
-            panel_group.focused_idx = target_panel_idx
+            panel_group.focused_idx = reveal.panel_idx
 
-        if old_agent is not None and old_idx != target_idx:
+        if old_agent is not None and old_agent.identity != target_identity:
             arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
             if callable(arm_manual):
                 arm_manual(old_agent)
@@ -295,20 +310,51 @@ class AgentNeighborMixin:
         self._current_group_key = None  # type: ignore[attr-defined]
         if hasattr(self, "current_attempt_number"):
             self.current_attempt_number = None  # type: ignore[attr-defined]
-        self.current_idx = target_idx
+        self.current_idx = reveal.target_idx
 
-        target_agent = self._agents[target_idx]
         ack_unread = getattr(self, "_acknowledge_agent_unread", None)
         if callable(ack_unread):
-            ack_unread(target_agent)
+            ack_unread(reveal.target_agent)
 
-        self._refresh_agent_neighbor_jump_views(old_focused_idx=old_focused_idx)
+        self._refresh_agent_neighbor_jump_views(
+            old_focused_idx=old_focused_idx,
+            structural_changed=reveal.structural_changed,
+        )
         return True
 
-    def _refresh_agent_neighbor_jump_views(
-        self, *, old_focused_idx: int | None
+    def _restore_agent_neighbor_jump_history(
+        self,
+        back_stack: list[object],
+        forward_stack: list[object],
     ) -> None:
-        """Refresh selection chrome after a neighbor jump without rebuilding rows."""
+        """Undo a tentative anchor save when a stable target cannot resolve."""
+        current_back = getattr(self, "_entry_jump_agents_anchor_stack", None)
+        if isinstance(current_back, list):
+            current_back[:] = back_stack
+        current_forward = getattr(
+            self,
+            "_entry_jump_agents_forward_anchor_stack",
+            None,
+        )
+        if isinstance(current_forward, list):
+            current_forward[:] = forward_stack
+
+    def _refresh_agent_neighbor_jump_views(
+        self,
+        *,
+        old_focused_idx: int | None,
+        structural_changed: bool,
+    ) -> None:
+        """Rebuild only for a reveal; otherwise retain selective repainting."""
+        if structural_changed:
+            refresh_display = getattr(self, "_refresh_agents_display", None)
+            if callable(refresh_display):
+                try:
+                    refresh_display(list_changed=True, defer_detail=True)
+                except TypeError:
+                    refresh_display(list_changed=True)
+            return
+
         panel_group = getattr(self, "_panel_group", None)
         focused_changed = (
             panel_group is not None
@@ -372,7 +418,12 @@ class AgentNeighborMixin:
                     global_idx=global_idx,
                 )
             )
-            payloads.append(_AgentNeighborPayload(global_idx=global_idx))
+            payloads.append(
+                _AgentNeighborPayload(
+                    target_identity=agent.identity,
+                    global_idx=global_idx,
+                )
+            )
 
         descendant_items: list[tuple[str, bool, Agent, int | None]] = []
         for global_idx in descendants:
@@ -419,6 +470,7 @@ class AgentNeighborMixin:
             )
             payloads.append(
                 _AgentNeighborPayload(
+                    target_identity=(agent.identity if not dismissed else None),
                     global_idx=descendant_global_idx,
                     dismissed_agent=agent if dismissed else None,
                 )
@@ -446,7 +498,12 @@ class AgentNeighborMixin:
                         global_idx=global_idx,
                     )
                 )
-                payloads.append(_AgentNeighborPayload(global_idx=global_idx))
+                payloads.append(
+                    _AgentNeighborPayload(
+                        target_identity=agent.identity,
+                        global_idx=global_idx,
+                    )
+                )
         return choices, payloads
 
     def _dismissed_descendant_agents(self, selected: Agent) -> tuple[Agent, ...]:

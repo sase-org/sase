@@ -528,6 +528,27 @@ def test_on_tab_finalizer_defers_selected_agent_file_refresh() -> None:
     assert refresh_file_calls == 0
 
 
+def test_refilter_can_defer_structural_display_refresh() -> None:
+    """Navigation reveal can refilter in memory and paint exactly once later."""
+    agent = _make_agent(status="RUNNING", cl_name="active")
+    app = FakeAgentApp(query="")
+    app.current_tab = "agents"
+    app._agents_with_children = [agent]
+    app._agents = [agent]
+    refresh_calls: list[dict[str, object]] = []
+    app._refresh_agents_display = (  # type: ignore[method-assign]
+        lambda **kwargs: refresh_calls.append(kwargs)
+    )
+
+    app._refilter_agents(
+        refresh_content_index=False,
+        refresh_display=False,
+    )
+
+    assert app._agents == [agent]
+    assert refresh_calls == []
+
+
 @pytest.mark.asyncio
 async def test_refilter_schedules_background_content_index_refresh(
     tmp_path: Any,

@@ -140,6 +140,44 @@ def _panel_auto_expand_agents() -> list[Agent]:
     return agents
 
 
+def _neighbor_panel_reveal_agents() -> list[Agent]:
+    """Single neighbor target inside a collapsed, reorderable tag panel."""
+    project_file = "/workspace/sase/visual_project.sase"
+    started = datetime(2026, 7, 18, 16, 30, 0)
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-neighbor-origin",
+            project_file=project_file,
+            status="RUNNING",
+            start_time=started,
+            raw_suffix="20260718-163000-neighbor-origin",
+            agent_name="visual.jump.plan",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-neighbor-target",
+            project_file=project_file,
+            status="DONE",
+            start_time=started,
+            stop_time=datetime(2026, 7, 18, 16, 36, 0),
+            raw_suffix="20260718-163100-neighbor-target",
+            agent_name="visual.jump.code",
+            tag="alpha",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-neighbor-unrelated",
+            project_file=project_file,
+            status="WAITING",
+            start_time=started,
+            raw_suffix="20260718-163200-neighbor-unrelated",
+            agent_name="unrelated.agent",
+            tag="zeta",
+        ),
+    ]
+
+
 def _overflowing_panel_agents() -> list[Agent]:
     """Large untagged panel followed by two compact tagged panels."""
     project_file = "/workspace/sase/visual_project.sase"
@@ -472,6 +510,48 @@ async def test_agents_neighbor_badge_png_snapshot(
             page,
             "agents_neighbor_badge_120x40",
             title="ACE agents neighbor badge",
+        )
+
+
+async def test_agents_neighbor_jump_expands_target_panel_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents = _neighbor_panel_reveal_agents()
+    target = agents[1]
+    patch_startup_loaders(monkeypatch, agents=agents)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+
+        await page.press("J")
+        assert page.app._panel_group.focused_key == "alpha"
+        await page.press("H")
+        await page.wait_for(lambda _screen: "alpha" in page.app._collapsed_panel_keys)
+        assert page.app._panel_group.panel_keys == [None, "zeta", "alpha"]
+        await page.press("J")
+        assert page.app._panel_group.focused_key is None
+        assert page.app._agents[page.app.current_idx].identity == agents[0].identity
+
+        page.app.action_start_sibling_mode()
+        await page.wait_for(
+            lambda _screen: "alpha" not in page.app._collapsed_panel_keys
+        )
+        await wait_for_visual_idle(page)
+
+        assert page.app._panel_group.panel_keys == [None, "alpha", "zeta"]
+        assert page.app._panel_group.focused_key == "alpha"
+        assert page.app._agents[page.app.current_idx].identity == target.identity
+        target_widget = page.app.query_one("#agent-list-panel-1", AgentList)
+        assert target_widget.highlighted is not None
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_neighbor_jump_expanded_panel_120x40",
+            title="ACE agents neighbor jump expanded panel",
         )
 
 

@@ -36,6 +36,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         prior_pos: int | None = None,
         refresh_content_index: bool = True,
         previous_agents: list[Agent] | None = None,
+        refresh_display: bool = True,
     ) -> None:
         """Lightweight agent refresh that skips disk I/O.
 
@@ -92,6 +93,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             save_unfiltered=False,
             prior_pos=prior_pos,
             previous_agents=previous_agents,
+            refresh_display=refresh_display,
         )
         if refresh_content_index:
             self._schedule_agent_content_search_index_refresh()
@@ -200,6 +202,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         prior_pos: int | None = None,
         precomputed_plan: PreparedFinalizePlan | None = None,
         previous_agents: list[Agent] | None = None,
+        refresh_display: bool = True,
     ) -> None:
         """Shared post-processing pipeline for agent list finalization.
 
@@ -220,4 +223,5 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             prior_pos=prior_pos,
             precomputed_plan=precomputed_plan,
             previous_agents=previous_agents,
+            refresh_display=refresh_display,
         )
