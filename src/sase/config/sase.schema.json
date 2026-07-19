@@ -710,6 +710,12 @@
           "default": 52428800,
           "minimum": 1
         },
+        "lumberjack_log_temp_max_age_seconds": {
+          "type": "integer",
+          "description": "Minimum age in seconds before orphaned bounded-log rotation temp files are removed.",
+          "default": 300,
+          "minimum": 1
+        },
         "verbose_lumberjack_diagnostics": {
           "type": "boolean",
           "description": "Include verbose lumberjack diagnostics in chop script contexts.",

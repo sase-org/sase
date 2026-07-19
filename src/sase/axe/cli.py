@@ -257,6 +257,9 @@ def handle_axe_lumberjack_run(args: argparse.Namespace) -> None:
         max_agent_runners=max_agent_runners,
         zombie_timeout_seconds=zombie_timeout,
         lumberjack_log_max_bytes=config.lumberjack_log_max_bytes,
+        lumberjack_log_temp_max_age_seconds=(
+            config.lumberjack_log_temp_max_age_seconds
+        ),
         verbose_lumberjack_diagnostics=config.verbose_lumberjack_diagnostics,
         query=query,
         chop_script_dirs=config.chop_script_dirs,

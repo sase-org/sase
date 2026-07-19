@@ -10,6 +10,7 @@ propagate to every reader.
 
 import os
 import tempfile
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -17,6 +18,7 @@ from typing import Literal
 import sase.axe.state as _state
 
 DEFAULT_LUMBERJACK_LOG_MAX_BYTES = 50 * 1024 * 1024
+DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS = 5 * 60
 _TRUNCATION_MARKER = b"[sase] lumberjack log truncated to most recent output\n"
 
 
@@ -221,6 +223,7 @@ def append_bounded_log(
     text: str | bytes,
     *,
     max_bytes: int = DEFAULT_LUMBERJACK_LOG_MAX_BYTES,
+    temp_max_age_seconds: int = DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS,
 ) -> None:
     """Append to a log file while keeping it below ``max_bytes``.
 
@@ -250,10 +253,15 @@ def append_bounded_log(
             pass
         return
 
-    tail_budget = max(0, cap - len(_TRUNCATION_MARKER) - len(data))
+    retained_cap = max(1, cap // 2)
+    tail_budget = max(0, retained_cap - len(_TRUNCATION_MARKER) - len(data))
     tail = _read_tail_bytes(path, tail_budget)
-    payload = (_TRUNCATION_MARKER + tail + data)[-cap:]
-    _atomic_replace_bytes(path, payload)
+    payload = (_TRUNCATION_MARKER + tail + data)[-retained_cap:]
+    _atomic_replace_bytes(
+        path,
+        payload,
+        temp_max_age_seconds=temp_max_age_seconds,
+    )
 
 
 def append_lumberjack_log(
@@ -261,9 +269,15 @@ def append_lumberjack_log(
     text: str | bytes,
     *,
     max_bytes: int = DEFAULT_LUMBERJACK_LOG_MAX_BYTES,
+    temp_max_age_seconds: int = DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS,
 ) -> None:
     """Append to a lumberjack's aggregate output log with a byte cap."""
-    append_bounded_log(lumberjack_log_path(name), text, max_bytes=max_bytes)
+    append_bounded_log(
+        lumberjack_log_path(name),
+        text,
+        max_bytes=max_bytes,
+        temp_max_age_seconds=temp_max_age_seconds,
+    )
 
 
 def _read_tail_bytes(path: Path, max_bytes: int) -> bytes:
@@ -279,8 +293,74 @@ def _read_tail_bytes(path: Path, max_bytes: int) -> bytes:
         return b""
 
 
-def _atomic_replace_bytes(path: Path, data: bytes) -> None:
+def reap_stale_log_rotation_temps(
+    root: Path,
+    *,
+    max_age_seconds: int = DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS,
+) -> int:
+    """Best-effort remove stale bounded-log rotation temps below ``root``."""
+    cutoff = time.time() - max(0, max_age_seconds)
+    reaped = 0
+
+    def ignore_walk_error(_error: OSError) -> None:
+        return
+
+    for directory, _subdirs, filenames in os.walk(root, onerror=ignore_walk_error):
+        for filename in filenames:
+            if not _is_log_rotation_temp_name(filename):
+                continue
+            candidate = Path(directory) / filename
+            try:
+                if candidate.stat().st_mtime > cutoff:
+                    continue
+                candidate.unlink()
+                reaped += 1
+            except OSError:
+                pass
+    return reaped
+
+
+def _is_log_rotation_temp_name(
+    filename: str, *, target_name: str | None = None
+) -> bool:
+    if target_name is not None:
+        return filename.startswith(f".{target_name}.") and filename.endswith(".tmp")
+    return (
+        filename.startswith(".") and ".log." in filename and filename.endswith(".tmp")
+    )
+
+
+def _reap_stale_rotation_temps_for_path(
+    path: Path,
+    *,
+    max_age_seconds: int,
+) -> None:
+    cutoff = time.time() - max(0, max_age_seconds)
+    try:
+        siblings = path.parent.iterdir()
+        for candidate in siblings:
+            if not _is_log_rotation_temp_name(candidate.name, target_name=path.name):
+                continue
+            try:
+                if candidate.stat().st_mtime <= cutoff:
+                    candidate.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
+def _atomic_replace_bytes(
+    path: Path,
+    data: bytes,
+    *,
+    temp_max_age_seconds: int = DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS,
+) -> None:
     temp_name: str | None = None
+    _reap_stale_rotation_temps_for_path(
+        path,
+        max_age_seconds=temp_max_age_seconds,
+    )
     try:
         with tempfile.NamedTemporaryFile(
             "wb",

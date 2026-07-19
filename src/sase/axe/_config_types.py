@@ -8,6 +8,7 @@ from typing import Any
 from .chop_env import ChopEnvValue
 
 DEFAULT_LUMBERJACK_LOG_MAX_BYTES = 50 * 1024 * 1024
+DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS = 5 * 60
 
 
 @dataclass(frozen=True)
@@ -103,6 +104,9 @@ class AxeConfig:
     max_agent_runners: int = 3
     zombie_timeout_seconds: int = 7200
     lumberjack_log_max_bytes: int = DEFAULT_LUMBERJACK_LOG_MAX_BYTES
+    lumberjack_log_temp_max_age_seconds: int = (
+        DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS
+    )
     verbose_lumberjack_diagnostics: bool = False
     query: str = ""
     chop_script_dirs: list[str] = field(default_factory=list)

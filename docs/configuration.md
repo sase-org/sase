@@ -924,16 +924,17 @@ axe:
 
 **Top-level fields:**
 
-| Field                            | Type         | Default    | Description                                                                   |
-| -------------------------------- | ------------ | ---------- | ----------------------------------------------------------------------------- |
-| `max_hook_runners`               | int          | `3`        | Maximum concurrent hook runners (non-`$` hooks) across all ChangeSpecs.       |
-| `max_agent_runners`              | int          | `3`        | Maximum concurrent agent runners (agents and mentors) across all ChangeSpecs. |
-| `zombie_timeout_seconds`         | int          | `7200`     | Seconds after which a running hook or workflow is flagged as a zombie.        |
-| `query`                          | string       | `""`       | Query string for filtering ChangeSpecs (empty = all).                         |
-| `chop_script_dirs`               | list[string] | `[]`       | Additional directories to search for external chop scripts.                   |
-| `lumberjack_log_max_bytes`       | int          | `52428800` | Maximum bytes retained for each bounded lumberjack log.                       |
-| `verbose_lumberjack_diagnostics` | bool         | `false`    | Include verbose diagnostics in chop script context JSON.                      |
-| `lumberjacks`                    | dict         | -          | Mapping of lumberjack name → config (see below).                              |
+| Field                                 | Type         | Default    | Description                                                                   |
+| ------------------------------------- | ------------ | ---------- | ----------------------------------------------------------------------------- |
+| `max_hook_runners`                    | int          | `3`        | Maximum concurrent hook runners (non-`$` hooks) across all ChangeSpecs.       |
+| `max_agent_runners`                   | int          | `3`        | Maximum concurrent agent runners (agents and mentors) across all ChangeSpecs. |
+| `zombie_timeout_seconds`              | int          | `7200`     | Seconds after which a running hook or workflow is flagged as a zombie.        |
+| `query`                               | string       | `""`       | Query string for filtering ChangeSpecs (empty = all).                         |
+| `chop_script_dirs`                    | list[string] | `[]`       | Additional directories to search for external chop scripts.                   |
+| `lumberjack_log_max_bytes`            | int          | `52428800` | Maximum bytes retained for each bounded lumberjack log.                       |
+| `lumberjack_log_temp_max_age_seconds` | int          | `300`      | Minimum age before orphaned log-rotation temp files are removed.              |
+| `verbose_lumberjack_diagnostics`      | bool         | `false`    | Include verbose diagnostics in chop script context JSON.                      |
+| `lumberjacks`                         | dict         | -          | Mapping of lumberjack name → config (see below).                              |
 
 **Lumberjack fields** (per entry under `lumberjacks`):
 

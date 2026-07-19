@@ -47,6 +47,7 @@ def test_axe_config_defaults() -> None:
     assert cfg.max_agent_runners == 3
     assert cfg.zombie_timeout_seconds == 7200
     assert cfg.lumberjack_log_max_bytes == 50 * 1024 * 1024
+    assert cfg.lumberjack_log_temp_max_age_seconds == 300
     assert cfg.verbose_lumberjack_diagnostics is False
     assert cfg.query == ""
     assert cfg.lumberjacks == {}
@@ -471,12 +472,14 @@ def test_load_axe_config_lumberjack_log_knobs() -> None:
     data = yaml.safe_load("""
 axe:
   lumberjack_log_max_bytes: 12345
+  lumberjack_log_temp_max_age_seconds: 60
   verbose_lumberjack_diagnostics: true
 """)
     with patch("sase.axe.config.load_merged_config", return_value=data):
         config = load_axe_config()
 
     assert config.lumberjack_log_max_bytes == 12345
+    assert config.lumberjack_log_temp_max_age_seconds == 60
     assert config.verbose_lumberjack_diagnostics is True
 
 
@@ -490,6 +493,18 @@ axe:
             load_axe_config()
 
     assert "axe.lumberjack_log_max_bytes" in str(exc_info.value)
+
+
+def test_load_axe_config_invalid_log_temp_max_age_fails_closed() -> None:
+    data = yaml.safe_load("""
+axe:
+  lumberjack_log_temp_max_age_seconds: 0
+""")
+    with patch("sase.axe.config.load_merged_config", return_value=data):
+        with pytest.raises(AxeConfigError) as exc_info:
+            load_axe_config()
+
+    assert "axe.lumberjack_log_temp_max_age_seconds" in str(exc_info.value)
 
 
 def test_load_axe_config_rejects_agent_chops_with_source_provenance() -> None:

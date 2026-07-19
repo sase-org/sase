@@ -130,6 +130,7 @@ class Lumberjack:
             self.name,
             text,
             max_bytes=self.axe_config.lumberjack_log_max_bytes,
+            temp_max_age_seconds=(self.axe_config.lumberjack_log_temp_max_age_seconds),
         )
 
     def _run_tick(self) -> None:

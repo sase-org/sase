@@ -142,6 +142,7 @@ from sase.axe._state_chops import (  # noqa: E402
 )
 from sase.axe._state_lumberjack import (  # noqa: E402
     DEFAULT_LUMBERJACK_LOG_MAX_BYTES,
+    DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS,
     LumberjackMetrics,
     LumberjackStatus,
     append_bounded_log,
@@ -157,6 +158,7 @@ from sase.axe._state_lumberjack import (  # noqa: E402
     read_lumberjack_metrics,
     read_lumberjack_pid,
     read_lumberjack_status,
+    reap_stale_log_rotation_temps,
     remove_lumberjack_pid,
     write_chop_timestamps,
     write_lumberjack_metrics,
@@ -191,6 +193,7 @@ __all__ = [
     "ChopRunStatus",
     "CycleResult",
     "DEFAULT_LUMBERJACK_LOG_MAX_BYTES",
+    "DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS",
     "JACK_STATE_DIR",
     "LumberjackMetrics",
     "LumberjackStatus",
@@ -235,6 +238,7 @@ __all__ = [
     "read_pid_file",
     "read_status",
     "read_tail_seek",
+    "reap_stale_log_rotation_temps",
     "remove_lumberjack_pid",
     "remove_pid_file",
     "start_chop_run",

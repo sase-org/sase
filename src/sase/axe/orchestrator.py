@@ -25,7 +25,11 @@ from sase.telemetry.metrics import (
 
 from .config import AxeConfig
 from .lock import acquire_axe_lifetime_lock, read_lock_holder_pid
-from .state import AXE_STATE_DIR, append_bounded_log
+from .state import (
+    AXE_STATE_DIR,
+    append_bounded_log,
+    reap_stale_log_rotation_temps,
+)
 
 # Orchestrator PID file (separate from per-lumberjack PIDs)
 ORCHESTRATOR_PID_FILE = AXE_STATE_DIR / "orchestrator.pid"
@@ -79,6 +83,7 @@ class Orchestrator:
             log_file,
             f"[sase] orchestrator starting lumberjack '{name}'\n",
             max_bytes=self.config.lumberjack_log_max_bytes,
+            temp_max_age_seconds=self.config.lumberjack_log_temp_max_age_seconds,
         )
         proc = subprocess.Popen(
             cmd,
@@ -106,6 +111,9 @@ class Orchestrator:
                     log_file,
                     chunk,
                     max_bytes=self.config.lumberjack_log_max_bytes,
+                    temp_max_age_seconds=(
+                        self.config.lumberjack_log_temp_max_age_seconds
+                    ),
                 )
         finally:
             stream.close()
@@ -186,6 +194,10 @@ class Orchestrator:
 
             signal.signal(signal.SIGTERM, self._handle_shutdown)
             self._write_pid()
+            reap_stale_log_rotation_temps(
+                AXE_STATE_DIR,
+                max_age_seconds=self.config.lumberjack_log_temp_max_age_seconds,
+            )
 
             # Long-lived orchestrator metrics flush to the local store in batches.
             init_telemetry(start_flusher=True, source="orchestrator")

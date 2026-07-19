@@ -28,6 +28,7 @@ from ._config_targets import (
 )
 from ._config_types import (
     DEFAULT_LUMBERJACK_LOG_MAX_BYTES,
+    DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS,
     AxeConfig,
     AxeConfigDiagnostic as _AxeConfigDiagnostic,
     AxeConfigError,
@@ -137,6 +138,12 @@ def load_axe_config() -> AxeConfig:
             axe_data.get(
                 "lumberjack_log_max_bytes",
                 DEFAULT_LUMBERJACK_LOG_MAX_BYTES,
+            )
+        ),
+        lumberjack_log_temp_max_age_seconds=int(
+            axe_data.get(
+                "lumberjack_log_temp_max_age_seconds",
+                DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS,
             )
         ),
         verbose_lumberjack_diagnostics=bool(

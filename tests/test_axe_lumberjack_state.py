@@ -1,5 +1,6 @@
 """Tests for per-lumberjack state management in the axe state module."""
 
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import patch
@@ -12,6 +13,7 @@ from sase.axe.state import (
     ChopRunEntry,
     LumberjackMetrics,
     LumberjackStatus,
+    append_bounded_log,
     append_lumberjack_log,
     append_chop_run_output,
     chop_index_path,
@@ -31,6 +33,7 @@ from sase.axe.state import (
     read_lumberjack_metrics,
     read_lumberjack_pid,
     read_lumberjack_status,
+    reap_stale_log_rotation_temps,
     remove_lumberjack_pid,
     start_chop_run,
     update_chop_run_pid,
@@ -156,6 +159,74 @@ def test_append_lumberjack_log_caps_existing_large_file(
     assert len(data) <= 96
     assert b"newest\n" in data
     assert b"truncated" in data
+
+
+def test_append_bounded_log_rotation_leaves_half_cap_headroom(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "lumberjack-hooks.log"
+    log_path.write_bytes(b"old\n" * 100)
+
+    append_bounded_log(log_path, b"newest\n", max_bytes=256)
+
+    data = log_path.read_bytes()
+    assert len(data) <= 128
+    assert b"newest\n" in data
+    assert b"truncated" in data
+
+
+def test_append_bounded_log_below_cap_does_not_replace(tmp_path: Path) -> None:
+    log_path = tmp_path / "lumberjack-hooks.log"
+    log_path.write_bytes(b"existing\n")
+
+    with patch("sase.axe._state_lumberjack._atomic_replace_bytes") as replace:
+        append_bounded_log(log_path, b"appended\n", max_bytes=256)
+
+    replace.assert_not_called()
+    assert log_path.read_bytes() == b"existing\nappended\n"
+
+
+def test_log_rotation_reaps_only_stale_sibling_temps(tmp_path: Path) -> None:
+    log_path = tmp_path / "lumberjack-hooks.log"
+    log_path.write_bytes(b"old\n" * 100)
+    stale = tmp_path / ".lumberjack-hooks.log.stale.tmp"
+    recent = tmp_path / ".lumberjack-hooks.log.recent.tmp"
+    unrelated = tmp_path / ".registry.json.stale.tmp"
+    stale.write_bytes(b"stale")
+    recent.write_bytes(b"recent")
+    unrelated.write_bytes(b"unrelated")
+    os.utime(stale, (1, 1))
+    os.utime(unrelated, (1, 1))
+
+    append_bounded_log(
+        log_path,
+        b"newest\n",
+        max_bytes=256,
+        temp_max_age_seconds=300,
+    )
+
+    assert not stale.exists()
+    assert recent.exists()
+    assert unrelated.exists()
+
+
+def test_reap_stale_log_rotation_temps_recurses(tmp_path: Path) -> None:
+    nested = tmp_path / "lumberjacks" / "hooks" / "logs"
+    nested.mkdir(parents=True)
+    aggregate = tmp_path / ".lumberjack-hooks.log.stale.tmp"
+    per_jack = nested / ".output.log.stale.tmp"
+    recent = nested / ".output.log.recent.tmp"
+    for candidate in (aggregate, per_jack, recent):
+        candidate.write_bytes(b"temp")
+    os.utime(aggregate, (1, 1))
+    os.utime(per_jack, (1, 1))
+
+    reaped = reap_stale_log_rotation_temps(tmp_path, max_age_seconds=300)
+
+    assert reaped == 2
+    assert not aggregate.exists()
+    assert not per_jack.exists()
+    assert recent.exists()
 
 
 def test_default_lumberjack_log_cap_is_50_mib() -> None:

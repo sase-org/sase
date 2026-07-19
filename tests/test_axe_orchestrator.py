@@ -217,10 +217,15 @@ def test_run_writes_pid_and_releases_lifetime_lock(
 
     with (
         patch("sase.axe.orchestrator.init_telemetry"),
+        patch("sase.axe.orchestrator.reap_stale_log_rotation_temps") as mock_reap,
         patch("sase.axe.orchestrator.time.sleep", side_effect=interrupt_sleep),
     ):
         assert orch.run() is True
 
+    mock_reap.assert_called_once_with(
+        temp_state_dir,
+        max_age_seconds=axe_config.lumberjack_log_temp_max_age_seconds,
+    )
     assert not (temp_state_dir / "orchestrator.pid").exists()
     from sase.axe.lock import AxeLifecycleLock
 
