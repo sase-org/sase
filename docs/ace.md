@@ -388,7 +388,7 @@ jump-back history.
 | `U`                 | Toggle the focused agent's unread marker                                                                   |
 | `u`                 | Clear all agent marks                                                                                      |
 | `x`                 | Kill / dismiss agent, every marked agent, or every agent in the focused group                              |
-| `X`                 | Open the cleanup panel for panel, global, tribe, marked, group, or custom cleanup                          |
+| `X`                 | Open the cleanup panel for panel, global, tribe, clan, marked, group, or custom cleanup                    |
 | `Enter` / `L`       | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                   |
 | `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation             |
 | `E`                 | Edit panel content in editor                                                                               |
@@ -614,7 +614,9 @@ even a lone expanded panel, as well as collapsed titles, and support the normal 
 Per-panel actions (kill, dismiss, expand, etc.) operate on whichever panel currently holds focus. Press `X` to open the
 cleanup panel: `d` dismisses completed agents in the focused panel, `D` dismisses completed agents across loaded panels,
 `k` cleans the focused panel, `K` cleans all loaded panels, `m` cleans marked agents, `g` cleans the focused group, `t`
-chooses a tribe, and `c` opens the custom selector.
+opens the tribe/tag chooser, `C` opens the clan/member chooser scoped to the focused tribe, and lowercase `c` opens the
+custom selector. Whole-clan selections are planned by clan name and generation; member subsets and mixed selections use
+explicit agent identities. Both paths continue through the shared bulk-cleanup confirmation and execution flow.
 
 The `TRIBE` summary has four metadata detail levels, controlled by the same `zz`, `zZ`, `za`, and `zA` chords used for
 clan and family detail:
@@ -1647,8 +1649,8 @@ feedback on cold-start latency. A safety timeout forcibly retires the stopwatch 
 | **FAILED**       | Red   | Agent exited with an error                                                     |
 
 Completed agents can be dismissed with `x` on a single row, or through the `X` cleanup panel for focused-panel, global,
-tag, marked, group, and custom selections. `DONE`, `PLAN DONE`, and `TALE DONE` rows with a saved response path are
-resumable from the Agents tab.
+tag, clan, marked, group, and custom planner-backed selections. `DONE`, `PLAN DONE`, and `TALE DONE` rows with a saved
+response path are resumable from the Agents tab.
 
 When a terminal agent becomes unread, ACE marks it with the completed-agent indicator and includes it in the Agents
 header unread count. Selecting that row, jumping to it with `,j`, or toggling it back to read with `U` acknowledges the
