@@ -179,9 +179,10 @@ requirements = [
     )
 
     assert code == 1
-    assert "plugin 'sase-acme'" in _text(err)
-    assert str(missing) in _text(err)
-    assert "sase plugin uninstall sase-acme" in _text(err)
+    err_text = " ".join(_text(err).split())
+    assert "plugin 'sase-acme'" in err_text
+    assert str(missing) in err_text
+    assert "sase plugin uninstall sase-acme" in err_text
 
 
 def test_upgrade_tolerates_missing_receipt(tmp_path: Path) -> None:
