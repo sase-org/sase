@@ -161,8 +161,9 @@ class AgentNeighborMixin:
 
         index = self._agent_neighbor_index()
         ancestors = index.ancestors_for(self.current_idx)
-        neighbors = index.neighbors_for(self.current_idx)
         descendants = index.descendants_for(self.current_idx)
+        hood_neighbor_groups = index.hood_neighbor_groups_for(self.current_idx)
+        neighbors = index.neighbors_for(self.current_idx)
         dismissed_descendants = self._dismissed_descendant_agents(selected)
         if (
             not ancestors
@@ -200,8 +201,9 @@ class AgentNeighborMixin:
             ancestors,
             descendants,
             dismissed_descendants,
-            neighbors,
+            hood_neighbor_groups,
             index,
+            selected,
         )
         if not choices:
             return
@@ -224,7 +226,6 @@ class AgentNeighborMixin:
             AgentNeighborModal(
                 selected.agent_name or selected.display_name,
                 choices,
-                hood_label=self._agent_neighbor_hood_label(selected),
             ),
             _on_neighbor_selected,
         )
@@ -342,8 +343,9 @@ class AgentNeighborMixin:
         ancestors: tuple[int, ...],
         descendants: tuple[int, ...],
         dismissed_descendants: tuple[Agent, ...],
-        neighbors: tuple[int, ...],
+        hood_neighbor_groups: tuple[tuple[str, tuple[int, ...]], ...],
         index: AgentNeighborIndex,
+        selected: Agent,
     ) -> tuple[list[AgentNeighborChoice], list[_AgentNeighborPayload]]:
         """Build modal choices and action payloads for related rows."""
         from ...models.agent_hoods import agent_name_key
@@ -422,25 +424,29 @@ class AgentNeighborMixin:
                 )
             )
 
-        for global_idx in neighbors:
-            if not (0 <= global_idx < len(self._agents)):
-                continue
-            agent = self._agents[global_idx]
-            choices.append(
-                AgentNeighborChoice(
-                    agent_name=agent.agent_name or agent.display_name,
-                    display_name=agent.display_name,
-                    status=agent.status,
-                    panel_label=self._agent_neighbor_panel_label(
-                        index.panel_idx_for(global_idx)
-                    ),
-                    time_hint=self._agent_neighbor_time_hint(agent),
-                    group="neighbor",
-                    dismissed=False,
-                    global_idx=global_idx,
+        raw_hood_by_key = self._agent_neighbor_display_hoods(selected)
+        for hood, neighbor_indices in hood_neighbor_groups:
+            hood_label = raw_hood_by_key.get(hood, hood)
+            for global_idx in neighbor_indices:
+                if not (0 <= global_idx < len(self._agents)):
+                    continue
+                agent = self._agents[global_idx]
+                choices.append(
+                    AgentNeighborChoice(
+                        agent_name=agent.agent_name or agent.display_name,
+                        display_name=agent.display_name,
+                        status=agent.status,
+                        panel_label=self._agent_neighbor_panel_label(
+                            index.panel_idx_for(global_idx)
+                        ),
+                        time_hint=self._agent_neighbor_time_hint(agent),
+                        group="neighbor",
+                        hood=hood_label,
+                        dismissed=False,
+                        global_idx=global_idx,
+                    )
                 )
-            )
-            payloads.append(_AgentNeighborPayload(global_idx=global_idx))
+                payloads.append(_AgentNeighborPayload(global_idx=global_idx))
         return choices, payloads
 
     def _dismissed_descendant_agents(self, selected: Agent) -> tuple[Agent, ...]:
@@ -466,11 +472,14 @@ class AgentNeighborMixin:
             )
         )
 
-    def _agent_neighbor_hood_label(self, agent: Agent) -> str:
-        """Return the display hood label used by the chooser title."""
-        name = agent.agent_name or ""
-        hood, _, last = name.rpartition(".")
-        return hood if hood and last else "agent"
+    def _agent_neighbor_display_hoods(self, agent: Agent) -> dict[str, str]:
+        """Map selected-agent hood keys to labels preserving displayed case."""
+        parts = (agent.agent_name or "").split(".")
+        return {
+            ".".join(parts[:depth]).casefold(): ".".join(parts[:depth])
+            for depth in range(1, len(parts) + 1)
+            if all(parts[:depth])
+        }
 
     def _agent_neighbor_panel_label(self, panel_idx: int | None) -> str:
         """Return a compact label for the tag panel containing a neighbor."""

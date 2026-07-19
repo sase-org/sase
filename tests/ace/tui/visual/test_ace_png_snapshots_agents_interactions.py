@@ -461,11 +461,11 @@ async def test_agents_neighbor_badge_png_snapshot(
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 3)
+        await page.expect_state("agent_count", 4)
         await wait_for_svg_contains(page, "neighbors: ")
         await wait_for_visual_idle(page)
         neighbor_index = page.app._agent_neighbor_index()
-        assert neighbor_index.neighbor_count(page.app.current_idx) == 2
+        assert neighbor_index.neighbor_count(page.app.current_idx) == 3
         assert_page_svg_contains(page, "neighbors: ")
 
         ace_png_visual.assert_page_png(
@@ -487,7 +487,7 @@ async def test_agent_neighbor_modal_narrow_png_snapshot(
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 3)
+        await page.expect_state("agent_count", 4)
         page.app.action_start_sibling_mode()
         await page.expect_modal("AgentNeighborModal")
         await wait_for_svg_contains(page, "Neighbors of visual.code.plan")
@@ -495,7 +495,12 @@ async def test_agent_neighbor_modal_narrow_png_snapshot(
         modal = page.app.screen_stack[-1]
         assert modal.__class__.__name__ == "AgentNeighborModal"
         choices = vars(modal)["_choices"]
-        assert [choice.global_idx for choice in choices] == [1, 2]
+        assert [choice.global_idx for choice in choices] == [1, 2, 3]
+        assert [choice.hood for choice in choices] == [
+            "visual.code",
+            "visual.code",
+            "visual",
+        ]
         assert_page_svg_contains(page, "Neighbors of visual.code.plan")
         assert_page_svg_contains(page, "visual.code.implementation")
 

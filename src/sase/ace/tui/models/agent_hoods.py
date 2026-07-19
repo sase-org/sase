@@ -1,4 +1,4 @@
-"""Visible neighbor index for Agents-tab rows (dotted-name hoods)."""
+"""Visible kinship index for Agents-tab rows."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def agent_name_key(agent: Agent) -> str | None:
 
 
 def is_agent_descendant(name: str | None, ancestor: str | None) -> bool:
-    """Return True when ``name`` is nested under ``ancestor`` by dotted name."""
+    """Return True when ``name`` follows ``ancestor`` at a name boundary."""
     if not name or not ancestor:
         return False
     candidate_parts = name.split(".")
@@ -31,7 +31,7 @@ def is_agent_descendant(name: str | None, ancestor: str | None) -> bool:
         return False
     candidate = name.casefold()
     parent = ancestor.casefold()
-    return candidate.startswith(f"{parent}.")
+    return candidate.startswith((f"{parent}.", f"{parent}--"))
 
 
 def agent_hood(agent: Agent) -> str | None:
@@ -43,10 +43,10 @@ def agent_hood(agent: Agent) -> str | None:
     lives in the ``foo.bar`` hood, regardless of whether an agent named
     ``foo.bar`` exists.
 
-    Dotless names (e.g. ``foo``) have no named hood in this V1, so they do
-    not participate in hood-neighbor navigation.  Names with any empty
-    dotted segment (``.bar``, ``foo.``, ``foo..bar``) are malformed and
-    likewise produce no hood.
+    Dotless names (e.g. ``foo``) have no immediate parent hood, so this helper
+    returns ``None`` for them; :class:`AgentNeighborIndex` still includes their
+    full name as an own-name hood.  Names with any empty dotted segment
+    (``.bar``, ``foo.``, ``foo..bar``) are malformed and produce no hood.
     """
     name = agent_name_key(agent)
     if name is None:
@@ -72,6 +72,9 @@ class AgentNeighborIndex:
     """Render-order neighbor lookup for currently visible Agents-tab rows."""
 
     _neighbors_by_global_idx: dict[int, tuple[int, ...]] = field(default_factory=dict)
+    _hood_neighbor_groups_by_global_idx: dict[
+        int, tuple[tuple[str, tuple[int, ...]], ...]
+    ] = field(default_factory=dict)
     _ancestors_by_global_idx: dict[int, tuple[int, ...]] = field(default_factory=dict)
     _descendants_by_global_idx: dict[int, tuple[int, ...]] = field(default_factory=dict)
     _descendant_count_by_global_idx: dict[int, int] = field(default_factory=dict)
@@ -87,7 +90,7 @@ class AgentNeighborIndex:
         panel_idx_by_global_idx: dict[int, int] = {}
         name_by_global_idx: dict[int, str] = {}
         visible_indices_by_name: dict[str, list[int]] = {}
-        hood_by_global_idx: dict[int, str] = {}
+        hood_chain_by_global_idx: dict[int, tuple[str, ...]] = {}
         members_by_hood: dict[str, list[int]] = {}
 
         for row in rows:
@@ -99,17 +102,10 @@ class AgentNeighborIndex:
                 continue
             name_by_global_idx[row.global_idx] = name
             visible_indices_by_name.setdefault(name, []).append(row.global_idx)
-            hood = row.hood if row.hood is not None else agent_hood(row.agent)
-            if hood is None:
-                continue
-            hood_by_global_idx[row.global_idx] = hood
-            members_by_hood.setdefault(hood, []).append(row.global_idx)
-
-        neighbors_by_global_idx: dict[int, tuple[int, ...]] = {}
-        for global_idx, hood in hood_by_global_idx.items():
-            neighbors_by_global_idx[global_idx] = tuple(
-                idx for idx in members_by_hood[hood] if idx != global_idx
-            )
+            hood_chain = _agent_hood_chain(name)
+            hood_chain_by_global_idx[row.global_idx] = hood_chain
+            for hood in hood_chain:
+                members_by_hood.setdefault(hood, []).append(row.global_idx)
 
         visible_name_records = sorted(
             (name, global_idx) for global_idx, name in name_by_global_idx.items()
@@ -125,31 +121,61 @@ class AgentNeighborIndex:
         descendants_by_global_idx: dict[int, tuple[int, ...]] = {}
         descendant_count_by_global_idx: dict[int, int] = {}
         for global_idx, name in name_by_global_idx.items():
-            prefix = f"{name}."
-            all_start, all_end = _prefix_range(all_names, prefix)
-            descendant_count_by_global_idx[global_idx] = all_end - all_start
-
-            visible_start, visible_end = _prefix_range(visible_names, prefix)
-            descendants = tuple(
-                idx for _name, idx in visible_name_records[visible_start:visible_end]
+            all_ranges = _descendant_ranges(all_names, name)
+            descendant_count_by_global_idx[global_idx] = sum(
+                end - start for start, end in all_ranges
             )
+
+            visible_ranges = _descendant_ranges(visible_names, name)
+            descendant_records = sorted(
+                record
+                for start, end in visible_ranges
+                for record in visible_name_records[start:end]
+            )
+            descendants = tuple(idx for _name, idx in descendant_records)
             if descendants:
                 descendants_by_global_idx[global_idx] = descendants
 
         ancestors_by_global_idx: dict[int, tuple[int, ...]] = {}
         for global_idx, name in name_by_global_idx.items():
-            parts = name.split(".")
             ancestors: list[int] = []
-            for depth in range(len(parts) - 1, 0, -1):
-                prefix = ".".join(parts[:depth])
+            for prefix in _agent_boundary_prefixes(name):
                 ancestors.extend(visible_indices_by_name.get(prefix, ()))
             if ancestors:
                 ancestors_by_global_idx[global_idx] = tuple(
                     idx for idx in ancestors if idx != global_idx
                 )
 
+        hood_neighbor_groups_by_global_idx: dict[
+            int, tuple[tuple[str, tuple[int, ...]], ...]
+        ] = {}
+        neighbors_by_global_idx: dict[int, tuple[int, ...]] = {}
+        for global_idx, hood_chain in hood_chain_by_global_idx.items():
+            assigned = {
+                global_idx,
+                *ancestors_by_global_idx.get(global_idx, ()),
+                *descendants_by_global_idx.get(global_idx, ()),
+            }
+            groups: list[tuple[str, tuple[int, ...]]] = []
+            for hood in reversed(hood_chain):
+                members = tuple(
+                    idx for idx in members_by_hood[hood] if idx not in assigned
+                )
+                if not members:
+                    continue
+                groups.append((hood, members))
+                assigned.update(members)
+            if not groups:
+                continue
+            grouped = tuple(groups)
+            hood_neighbor_groups_by_global_idx[global_idx] = grouped
+            neighbors_by_global_idx[global_idx] = tuple(
+                idx for _hood, members in grouped for idx in members
+            )
+
         return cls(
             _neighbors_by_global_idx=neighbors_by_global_idx,
+            _hood_neighbor_groups_by_global_idx=(hood_neighbor_groups_by_global_idx),
             _ancestors_by_global_idx=ancestors_by_global_idx,
             _descendants_by_global_idx=descendants_by_global_idx,
             _descendant_count_by_global_idx=descendant_count_by_global_idx,
@@ -159,6 +185,12 @@ class AgentNeighborIndex:
     def neighbors_for(self, global_idx: int) -> tuple[int, ...]:
         """Return visible neighbor global indices for ``global_idx``."""
         return self._neighbors_by_global_idx.get(global_idx, ())
+
+    def hood_neighbor_groups_for(
+        self, global_idx: int
+    ) -> tuple[tuple[str, tuple[int, ...]], ...]:
+        """Return deepest-first shared-hood groups in visible render order."""
+        return self._hood_neighbor_groups_by_global_idx.get(global_idx, ())
 
     def ancestors_for(self, global_idx: int) -> tuple[int, ...]:
         """Return visible ancestor global indices for ``global_idx``."""
@@ -190,3 +222,27 @@ def _prefix_range(names: list[str], prefix: str) -> tuple[int, int]:
     start = bisect_left(names, prefix)
     end = bisect_left(names, prefix + chr(0x10FFFF))
     return start, end
+
+
+def _descendant_ranges(names: list[str], ancestor: str) -> tuple[tuple[int, int], ...]:
+    """Return sorted-name ranges following either supported name boundary."""
+    return tuple(
+        _prefix_range(names, f"{ancestor}{separator}") for separator in ("--", ".")
+    )
+
+
+def _agent_boundary_prefixes(name: str) -> tuple[str, ...]:
+    """Return proper name-boundary prefixes, nearest first."""
+    boundary_offsets = {index for index, char in enumerate(name) if char == "."}
+    boundary_offsets.update(
+        index for index in range(len(name) - 1) if name[index : index + 2] == "--"
+    )
+    return tuple(
+        name[:offset] for offset in sorted(boundary_offsets, reverse=True) if offset > 0
+    )
+
+
+def _agent_hood_chain(name: str) -> tuple[str, ...]:
+    """Return every dotted hood containing ``name``, root to own-name hood."""
+    parts = name.split(".")
+    return tuple(".".join(parts[:depth]) for depth in range(1, len(parts) + 1))

@@ -33,6 +33,7 @@ class AgentNeighborChoice:
     panel_label: str
     time_hint: str = ""
     group: str = "neighbor"
+    hood: str = ""
     dismissed: bool = False
     global_idx: int | None = None
 
@@ -138,12 +139,9 @@ class AgentNeighborModal(
         self,
         agent_label: str,
         choices: list[AgentNeighborChoice],
-        *,
-        hood_label: str | None = None,
     ) -> None:
         super().__init__()
         self._agent_label = agent_label
-        self._hood_label = hood_label
         self._choices = choices
         selectors = _agent_neighbor_selector_keys(len(choices))
         self._selector_by_index = selectors
@@ -203,7 +201,7 @@ class AgentNeighborModal(
         if ancestor_choices:
             options.append(
                 Option(
-                    _agent_neighbor_header_text("Ancestors"),
+                    _agent_neighbor_header_text(f"Ancestors ({len(ancestor_choices)})"),
                     id="header-ancestors",
                     disabled=True,
                 )
@@ -212,26 +210,35 @@ class AgentNeighborModal(
         if descendant_choices:
             options.append(
                 Option(
-                    _agent_neighbor_header_text("Descendants"),
+                    _agent_neighbor_header_text(
+                        f"Descendants ({len(descendant_choices)})"
+                    ),
                     id="header-descendants",
                     disabled=True,
                 )
             )
             self._append_choice_options(options, descendant_choices)
         if neighbor_choices:
-            header = (
-                f"Neighbors - {self._hood_label} hood"
-                if self._hood_label
-                else "Neighbors"
-            )
-            options.append(
-                Option(
-                    _agent_neighbor_header_text(header),
-                    id="header-neighbors",
-                    disabled=True,
+            sections: list[list[tuple[int, AgentNeighborChoice]]] = []
+            for indexed_choice in neighbor_choices:
+                if not sections or sections[-1][-1][1].hood != indexed_choice[1].hood:
+                    sections.append([])
+                sections[-1].append(indexed_choice)
+            for section_idx, section in enumerate(sections):
+                hood = section[0][1].hood
+                header = (
+                    f"Neighbors - {hood} hood ({len(section)})"
+                    if hood
+                    else f"Neighbors ({len(section)})"
                 )
-            )
-            self._append_choice_options(options, neighbor_choices)
+                options.append(
+                    Option(
+                        _agent_neighbor_header_text(header),
+                        id=f"header-neighbors-{section_idx}",
+                        disabled=True,
+                    )
+                )
+                self._append_choice_options(options, section)
         return options
 
     def _append_choice_options(

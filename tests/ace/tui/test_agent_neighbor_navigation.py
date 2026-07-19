@@ -319,7 +319,7 @@ def test_agent_neighbor_navigation_opens_modal_with_ancestors_first() -> None:
     ] == [
         "header-ancestors",
         "header-descendants",
-        "header-neighbors",
+        "header-neighbors-0",
     ]
 
     app.pushed_callbacks[0](0)
@@ -362,7 +362,7 @@ def test_agent_neighbor_navigation_opens_modal_for_multiple_neighbors() -> None:
         "foo.code",
         "foo.review",
     ]
-    assert modal._hood_label == "foo"
+    assert [choice.hood for choice in modal._choices] == ["foo", "foo"]
 
     app.pushed_callbacks[0](None)
 
@@ -375,6 +375,65 @@ def test_agent_neighbor_navigation_opens_modal_for_multiple_neighbors() -> None:
     assert app.current_idx == 2
     assert app._entry_jump_agents_anchor_stack == [("agent", 0, None)]
     assert app.acknowledged == [agents[2]]
+
+
+def test_agent_neighbor_navigation_groups_nephews_and_cousins() -> None:
+    agents = [
+        _agent("A.B.C"),
+        _agent("a.b.d.e"),
+        _agent("a.z.1"),
+        _agent("unrelated.agent"),
+    ]
+    app = _NeighborApp(agents)
+
+    app.action_start_sibling_mode()
+
+    assert len(app.pushed_screens) == 1
+    modal = app.pushed_screens[0]
+    assert isinstance(modal, AgentNeighborModal)
+    assert [choice.agent_name for choice in modal._choices] == [
+        "a.b.d.e",
+        "a.z.1",
+    ]
+    assert [choice.hood for choice in modal._choices] == ["A.B", "A"]
+    assert [
+        option.prompt.plain for option in modal._create_options() if option.disabled
+    ] == [
+        "-- Neighbors - A.B hood (1) --------------------",
+        "-- Neighbors - A hood (1) --------------------",
+    ]
+
+
+def test_agent_neighbor_navigation_direct_jumps_to_single_nephew() -> None:
+    agents = [_agent("foo.bar"), _agent("foo.baz.qux")]
+    app = _NeighborApp(agents)
+
+    app.action_start_sibling_mode()
+
+    assert app.current_idx == 1
+    assert app.pushed_screens == []
+    assert app.acknowledged == [agents[1]]
+
+
+def test_agent_neighbor_navigation_top_level_family_mates_are_unrelated() -> None:
+    app = _NeighborApp([_agent("fam--plan"), _agent("fam--fix")])
+
+    app.action_start_sibling_mode()
+
+    assert app.current_idx == 0
+    assert app.pushed_screens == []
+    assert app.acknowledged == []
+
+
+def test_agent_neighbor_navigation_direct_jumps_down_family_chain() -> None:
+    agents = [_agent("fam--plan"), _agent("fam--plan--check")]
+    app = _NeighborApp(agents)
+
+    app.action_start_sibling_mode()
+
+    assert app.current_idx == 1
+    assert app.pushed_screens == []
+    assert app.acknowledged == [agents[1]]
 
 
 def test_agent_neighbor_navigation_selecting_visible_descendant_jumps() -> None:
@@ -411,6 +470,27 @@ def test_agent_neighbor_navigation_selecting_dismissed_descendant_revives() -> N
 
     assert app.revived_agents == [dismissed]
     assert app.current_idx == 0
+
+
+def test_agent_neighbor_navigation_revives_dismissed_family_descendant() -> None:
+    visible = [_agent("fam--plan")]
+    dismissed = _agent("fam--plan--dismissed", status="DONE")
+    app = _NeighborApp(visible)
+    app._dismissed_agent_objects = [dismissed]
+    app._dismissed_agents = {dismissed.identity}
+    app._dismiss_revive_epoch += 1
+
+    app.action_start_sibling_mode()
+
+    modal = app.pushed_screens[0]
+    assert isinstance(modal, AgentNeighborModal)
+    assert [(choice.agent_name, choice.dismissed) for choice in modal._choices] == [
+        ("fam--plan--dismissed", True)
+    ]
+
+    app.pushed_callbacks[0](0)
+
+    assert app.revived_agents == [dismissed]
 
 
 def test_agent_neighbor_navigation_switches_focused_panel() -> None:

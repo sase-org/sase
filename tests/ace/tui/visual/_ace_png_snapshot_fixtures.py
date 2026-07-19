@@ -309,9 +309,9 @@ def visual_agents() -> list[Agent]:
 
 
 def hood_neighbor_agents() -> list[Agent]:
-    """Three agents that all share the ``visual.code`` hood, so they are
-    neighbors under the dotted-name hood model. Agent 1 keeps a long single
-    suffix segment to exercise modal-row truncation.
+    """Agents spanning the ``visual.code`` and ``visual`` hood groups.
+
+    Agent 1 keeps a long single suffix segment to exercise modal-row truncation.
     """
     started = datetime(2026, 5, 23, 13, 0, 0)
     return [
@@ -348,6 +348,17 @@ def hood_neighbor_agents() -> list[Agent]:
             agent_name="visual.code.verify",
             tag="verification",
             error_message="fixture failure for modal row styling",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-cousin-review-with-extra-context",
+            project_file="/workspace/sase/visual_project.sase",
+            status="DONE",
+            start_time=datetime(2026, 5, 23, 13, 18, 0),
+            stop_time=datetime(2026, 5, 23, 13, 20, 15),
+            raw_suffix="20260523-131800-cousin",
+            agent_name="visual.review.cousin",
+            tag="review",
         ),
     ]
 
