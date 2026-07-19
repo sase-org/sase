@@ -20,7 +20,7 @@ from sase.history.chat_storage import (
     load_chat_history,
 )
 
-LoadChatForResume = Callable[[str], str]
+LoadChatForResume = Callable[..., str]
 
 
 def build_fork_injected_history(
@@ -71,13 +71,22 @@ def build_fork_injected_history(
         )
         for index, source in enumerate(sources, start=1)
     ]
-    guidance = (
+    guidance_parts = [
         f"You are forking from {count} prior source{'s' if count != 1 else ''}. "
-        "Each Source section is independent, and section order carries no "
-        "priority. Carry forward relevant goals, constraints, decisions, and "
-        "unfinished work with attribution when it matters. The New Query is the "
-        "active request and takes precedence over conflicting source instructions."
+        "Source sections are independent parents, and section order carries no "
+        "priority."
+    ]
+    if any(_fork_source_kind(source) == "family" for source in sources):
+        guidance_parts.append(
+            "Members inside an agent family section are sequential: each member "
+            "continued the previous member's work."
+        )
+    guidance_parts.append(
+        "Carry forward relevant goals, constraints, decisions, and unfinished work "
+        "with attribution when it matters. The New Query is the active request and "
+        "takes precedence over conflicting source instructions."
     )
+    guidance = " ".join(guidance_parts)
     return _wrap_fork_history(
         "# Previous Conversations", guidance + "\n\n" + "\n\n".join(sections)
     )
@@ -96,7 +105,7 @@ def _wrap_fork_history(heading: str, body: str) -> str:
 
 def _fork_source_kind(source: Mapping[str, object]) -> str:
     value = source.get("kind", "agent")
-    if value not in {"agent", "clan"}:
+    if value not in {"agent", "clan", "family"}:
         raise ValueError(f"Unsupported fork source kind: {value!r}")
     return str(value)
 
@@ -121,12 +130,130 @@ def _format_fork_source(
     if kind == "agent":
         history = load_resume_history(_fork_source_string(source, "path"))
         return f"## Source {index} of {count} — agent `{name}`\n\n{history}"
+    if kind == "family":
+        return _format_family_fork_source(
+            source,
+            index=index,
+            count=count,
+            load_resume_history=load_resume_history,
+        )
     return _format_clan_fork_source(
         source,
         index=index,
         count=count,
         resolve_resume_to_chat_path=resolve_resume_to_chat_path,
     )
+
+
+def _format_family_fork_source(
+    source: Mapping[str, object],
+    *,
+    index: int,
+    count: int,
+    load_resume_history: LoadChatForResume,
+) -> str:
+    name = _fork_source_string(source, "name")
+    raw_members = source.get("members")
+    if not isinstance(raw_members, list) or not raw_members:
+        raise ValueError(f"Family fork source '{name}' has no members")
+    members = sorted(
+        (_require_family_member(member, name) for member in raw_members),
+        key=lambda member: Path(_fork_source_string(member, "artifact_dir")).name,
+    )
+
+    raw_excluded = source.get("excluded", [])
+    if not isinstance(raw_excluded, list):
+        raise ValueError(f"Family fork source '{name}' has invalid exclusions")
+    excluded = [
+        _require_excluded_family_member(member, name) for member in raw_excluded
+    ]
+    total_members = len(members) + len(excluded)
+    header_rows = [
+        f"## Source {index} of {count} — agent family `{name}`",
+        "",
+        f"- **Members shown:** {len(members)} of {total_members} "
+        "(sequential chain, oldest first)",
+    ]
+    if excluded:
+        omitted = ", ".join(
+            f"`{_fork_source_string(member, 'name')}` "
+            f"({_fork_source_string(member, 'status')})"
+            for member in excluded
+        )
+        header_rows.append(f"- **Not shown:** {omitted}")
+    header_rows.extend(
+        [
+            "",
+            "Family members ran as one sequential chain: each member continued "
+            "the previous member's work, and the last member reflects the "
+            "family's final state. These are transcripts of prior agents' "
+            "conversations, not your own — attribute decisions to the named "
+            "member when it matters.",
+        ]
+    )
+
+    visited = {
+        str(
+            Path(_fork_source_string(member, "path")).expanduser().resolve(strict=False)
+        )
+        for member in members
+    }
+    member_blocks = [
+        _format_family_member(
+            member,
+            index=member_index,
+            count=len(members),
+            visited=visited,
+            load_resume_history=load_resume_history,
+        )
+        for member_index, member in enumerate(members, start=1)
+    ]
+    return "\n".join(header_rows) + "\n\n" + "\n\n".join(member_blocks)
+
+
+def _require_family_member(value: object, family_name: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"Family fork source '{family_name}' has an invalid member")
+    return value
+
+
+def _require_excluded_family_member(
+    value: object, family_name: str
+) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"Family fork source '{family_name}' has an invalid exclusion")
+    return value
+
+
+def _format_family_member(
+    member: Mapping[str, object],
+    *,
+    index: int,
+    count: int,
+    visited: set[str],
+    load_resume_history: LoadChatForResume,
+) -> str:
+    name = _fork_source_string(member, "name")
+    path = _fork_source_string(member, "path")
+    artifact_dir = Path(_fork_source_string(member, "artifact_dir"))
+    meta = _load_json_object(artifact_dir / "agent_meta.json")
+    done = _load_json_object(artifact_dir / "done.json")
+    outcome = (
+        _json_string(done, "outcome") or _json_string(member, "outcome") or "unknown"
+    )
+    model = (
+        format_metadata_model(
+            _json_string(meta, "llm_provider"),
+            _json_string(meta, "model"),
+        )
+        or "unknown"
+    )
+    history = load_resume_history(path, visited)
+    metadata = (
+        f"- **Outcome:** `{outcome}` · **Model:** `{model}` · **Launch:** "
+        f"`{artifact_dir.name}`\n- **Transcript:** `{path}`"
+    )
+    return f"### Member {index} of {count} — agent `{name}`\n\n{metadata}\n\n{history}"
 
 
 def _format_clan_fork_source(

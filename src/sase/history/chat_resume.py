@@ -212,8 +212,10 @@ def load_chat_for_resume(
     _visited: set[str] | None = None,
     *,
     resolve_resume_to_chat_path: ResolveResumeReference = resolve_resume_to_chat_path,
+    _share_visited: bool | None = None,
 ) -> str:
     """Load a chat and flatten recursively referenced conversation turns."""
+    share_visited = _visited is not None if _share_visited is None else _share_visited
     visited = set() if _visited is None else _visited
     content = load_chat_history(file_ref)
 
@@ -242,10 +244,12 @@ def load_chat_for_resume(
                     else None
                 )
                 if normalized_path and normalized_path not in visited:
+                    nested_visited = visited if share_visited else set(visited)
                     nested_text = load_chat_for_resume(
                         normalized_path,
-                        set(visited),
+                        nested_visited,
                         resolve_resume_to_chat_path=resolve_resume_to_chat_path,
+                        _share_visited=share_visited,
                     )
                     expanded_turns.extend(parse_flat_turns(nested_text))
                 elif resolved_path is None:

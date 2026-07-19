@@ -141,3 +141,154 @@ def test_mixed_agent_and_clan_sources_keep_agent_reply_only(
     assert "AGENT_FULL_REPLY" in rendered
     assert "Clan prompt" in rendered
     assert "CLAN_SECRET_REPLY" not in rendered
+
+
+def test_family_block_renders_full_ordered_transcripts_without_ancestor_duplication(
+    tmp_path: Path,
+) -> None:
+    outside_chat = tmp_path / "outside.md"
+    outside_chat.write_text(
+        "## Prompt\n\nOutside context\n\n## Response\n\nOUTSIDE_REPLY\n",
+        encoding="utf-8",
+    )
+    planner_chat = tmp_path / "planner.md"
+    planner_chat.write_text(
+        "## Prompt\n\n"
+        f"#fork_by_chat:{outside_chat} Plan the change\n\n"
+        "## Response\n\nPLANNER_FULL_REPLY\n",
+        encoding="utf-8",
+    )
+    coder_chat = tmp_path / "coder.md"
+    coder_chat.write_text(
+        "## Prompt\n\n"
+        f"#fork_by_chat:{planner_chat} #fork_by_chat:{outside_chat} "
+        "Implement the change\n\n"
+        "## Response\n\nCODER_FULL_REPLY\n",
+        encoding="utf-8",
+    )
+    planner_dir = _write_member_artifacts(
+        tmp_path / "artifacts", "20260718010101", model="gpt-5", provider="openai"
+    )
+    coder_dir = _write_member_artifacts(
+        tmp_path / "artifacts",
+        "20260718010202",
+        model="claude-fable-5",
+        provider="anthropic",
+    )
+    source = {
+        "kind": "family",
+        "name": "cx",
+        # Intentionally reverse the wire order; rendering is chain-ordered.
+        "members": [
+            {
+                "name": "cx--code",
+                "path": str(coder_chat),
+                "artifact_dir": str(coder_dir),
+                "outcome": "completed",
+            },
+            {
+                "name": "cx--plan",
+                "path": str(planner_chat),
+                "artifact_dir": str(planner_dir),
+                "outcome": "completed",
+            },
+        ],
+        "excluded": [{"name": "cx--fix", "status": "running"}],
+    }
+
+    rendered = build_fork_injected_history([source])
+
+    assert "# Previous Conversations" in rendered
+    assert "agent family `cx`" in rendered
+    assert "**Members shown:** 2 of 3 (sequential chain, oldest first)" in rendered
+    assert "**Not shown:** `cx--fix` (running)" in rendered
+    assert "Family members ran as one sequential chain" in rendered
+    assert "transcripts of prior agents' conversations, not your own" in rendered
+    assert rendered.index("cx--plan") < rendered.index("cx--code")
+    assert "**Outcome:** `completed`" in rendered
+    assert "**Model:** `openai/gpt-5`" in rendered
+    assert "**Model:** `anthropic/claude-fable-5`" in rendered
+    assert f"**Transcript:** `{planner_chat}`" in rendered
+    assert f"**Transcript:** `{coder_chat}`" in rendered
+    assert rendered.count("OUTSIDE_REPLY") == 1
+    assert rendered.count("PLANNER_FULL_REPLY") == 1
+    assert rendered.count("CODER_FULL_REPLY") == 1
+    assert "Plan the change" in rendered
+    assert "Implement the change" in rendered
+    assert "#fork_by_chat" not in rendered
+
+
+def test_family_mixed_with_agent_and_clan_uses_correct_source_guidance(
+    tmp_path: Path,
+) -> None:
+    family_chat = tmp_path / "family.md"
+    agent_chat = tmp_path / "agent.md"
+    clan_chat = tmp_path / "clan.md"
+    family_chat.write_text(
+        "## Prompt\n\nFamily prompt\n\n## Response\n\nFAMILY_REPLY\n",
+        encoding="utf-8",
+    )
+    agent_chat.write_text(
+        "## Prompt\n\nAgent prompt\n\n## Response\n\nAGENT_REPLY\n",
+        encoding="utf-8",
+    )
+    clan_chat.write_text(
+        "## Prompt\n\nClan prompt\n\n## Response\n\nCLAN_REPLY\n",
+        encoding="utf-8",
+    )
+    family_dir = _write_member_artifacts(
+        tmp_path / "family-artifacts",
+        "20260718010101",
+        model="gpt-5",
+        provider="openai",
+    )
+    clan_dir = _write_member_artifacts(
+        tmp_path / "clan-artifacts",
+        "20260718010202",
+        model="opus",
+        provider="claude",
+    )
+    family_source = {
+        "kind": "family",
+        "name": "cx",
+        "members": [
+            {
+                "name": "cx--code",
+                "path": str(family_chat),
+                "artifact_dir": str(family_dir),
+                "outcome": "completed",
+            }
+        ],
+        "excluded": [],
+    }
+    clan_source = {
+        "kind": "clan",
+        "name": "review",
+        "generation": "20260718010000",
+        "tribe": None,
+        "members": [
+            {
+                "name": "review.alpha",
+                "path": str(clan_chat),
+                "artifact_dir": str(clan_dir),
+            }
+        ],
+    }
+
+    family_agent = build_fork_injected_history(
+        [
+            family_source,
+            {"kind": "agent", "name": "builder", "path": str(agent_chat)},
+        ]
+    )
+    family_clan = build_fork_injected_history([family_source, clan_source])
+
+    for rendered in (family_agent, family_clan):
+        assert "Source sections are independent parents" in rendered
+        assert "Members inside an agent family section are sequential" in rendered
+        assert "## Source 1 of 2 — agent family `cx`" in rendered
+    assert "## Source 2 of 2 — agent `builder`" in family_agent
+    assert "AGENT_REPLY" in family_agent
+    assert "## Source 2 of 2 — agent clan `review`" in family_clan
+    assert "Clan prompt" in family_clan
+    assert "CLAN_REPLY" not in family_clan

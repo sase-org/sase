@@ -265,6 +265,72 @@ def test_embedded_clan_fork_injects_prompts_without_member_replies(
     assert expanded_prompt.endswith("# New Query\nContinue")
 
 
+def test_embedded_family_fork_injects_each_completed_member_reply_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    planner_chat = tmp_path / "planner.md"
+    planner_chat.write_text(
+        "## Prompt\n\nPlan the change\n\n## Response\n\nPLANNER_REPLY\n",
+        encoding="utf-8",
+    )
+    coder_chat = tmp_path / "coder.md"
+    coder_chat.write_text(
+        "## Prompt\n\n"
+        f"#fork_by_chat:{planner_chat} Implement the change\n\n"
+        "## Response\n\nCODER_REPLY\n",
+        encoding="utf-8",
+    )
+    _write_completed_agent(
+        tmp_path,
+        "20260718010101",
+        "cx--plan",
+        response_path=planner_chat,
+        meta={
+            "agent_family": "cx",
+            "model": "gpt-5",
+            "llm_provider": "openai",
+        },
+    )
+    _write_completed_agent(
+        tmp_path,
+        "20260718010202",
+        "cx--code",
+        response_path=coder_chat,
+        meta={
+            "agent_family": "cx",
+            "parent_timestamp": "20260718010101",
+            "model": "gpt-5",
+            "llm_provider": "openai",
+        },
+    )
+
+    fork_workflow = _load_fork_workflow()
+    parent_workflow = Workflow(
+        name="parent",
+        steps=[WorkflowStep(name="review", agent="#fork:cx\nContinue")],
+    )
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    executor = WorkflowExecutor(parent_workflow, {}, str(artifacts_dir))
+
+    with patch(
+        "sase.xprompt.loader.get_all_workflows",
+        return_value={"fork": fork_workflow},
+    ):
+        expanded_prompt, _, _ = executor._expand_embedded_workflows_in_prompt(
+            "#fork:cx\nContinue"
+        )
+
+    assert "agent family `cx`" in expanded_prompt
+    assert "sequential chain" in expanded_prompt
+    assert expanded_prompt.index("cx--plan") < expanded_prompt.index("cx--code")
+    assert expanded_prompt.count("PLANNER_REPLY") == 1
+    assert expanded_prompt.count("CODER_REPLY") == 1
+    assert expanded_prompt.endswith("# New Query\nContinue")
+
+
 def test_embedded_tribe_fork_dispatches_to_clan_context_builder(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

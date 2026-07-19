@@ -13,6 +13,7 @@ from typing import Any
 from sase.agent.names import (
     AgentClan,
     find_agent_clan,
+    find_agent_family,
     find_named_agent,
     get_most_recent_agent_name,
     get_reserved_agent_name_map,
@@ -21,6 +22,7 @@ from sase.agent.names import (
     resolve_agent_name_template_reference,
     resolve_resume_agent_name,
 )
+from sase.agent.names._lookup_artifacts import SUCCESS_OUTCOME
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.agent_tribe import parse_tribe_reference
 from sase.core.paths import sase_projects_dir
@@ -41,20 +43,58 @@ class _ForkClanMemberSource:
 
 
 @dataclass(frozen=True)
+class _ForkFamilyMemberSource:
+    """One completed family member included in a family fork source."""
+
+    name: str
+    path: str
+    artifact_dir: str
+    outcome: str
+
+
+@dataclass(frozen=True)
+class _ForkExcludedFamilyMember:
+    """One family member omitted from a family fork source."""
+
+    name: str
+    status: str
+
+
+@dataclass(frozen=True)
 class _ForkSource:
-    """One agent conversation or completed clan used by ``#fork``."""
+    """One agent conversation, family, or completed clan used by ``#fork``."""
 
     kind: str
     name: str
     path: str
     generation: str | None = None
     tribe: str | None = None
-    members: tuple[_ForkClanMemberSource, ...] = ()
+    members: tuple[_ForkClanMemberSource | _ForkFamilyMemberSource, ...] = ()
+    excluded: tuple[_ForkExcludedFamilyMember, ...] = ()
 
     def to_json_data(self) -> dict[str, object]:
         """Return the stable wire shape consumed by the fork history builder."""
         if self.kind == "agent":
             return {"kind": self.kind, "name": self.name, "path": self.path}
+        if self.kind == "family":
+            return {
+                "kind": self.kind,
+                "name": self.name,
+                "members": [
+                    {
+                        "name": member.name,
+                        "path": member.path,
+                        "artifact_dir": member.artifact_dir,
+                        "outcome": member.outcome,
+                    }
+                    for member in self.members
+                    if isinstance(member, _ForkFamilyMemberSource)
+                ],
+                "excluded": [
+                    {"name": member.name, "status": member.status}
+                    for member in self.excluded
+                ],
+            }
         return {
             "kind": self.kind,
             "name": self.name,
@@ -193,51 +233,108 @@ def _resolve_default_agent_name() -> str:
 
 
 def _resolve_fork_source(name: str) -> _ForkSource:
-    """Resolve *name* to an agent transcript or a complete clan generation."""
+    """Resolve *name* to an agent, family, or complete clan source."""
     tribe = parse_tribe_reference(name)
     if tribe is not None:
         return _resolve_tribe_fork_source(name, tribe)
 
     clan = find_agent_clan(name)
-    if clan is None:
-        source = _ForkSource(
-            kind="agent",
-            name=name,
-            path=_resolve_agent_chat_path(name),
-        )
-        _validate_readable_transcript(source.name, source.path)
-        return source
+    if clan is not None:
+        if not clan.is_complete:
+            raise RuntimeError(f"No agent with chat history found for: {name}")
 
-    if not clan.is_complete:
-        raise RuntimeError(f"No agent with chat history found for: {name}")
-
-    members: list[_ForkClanMemberSource] = []
-    for member in clan.members:
-        path = _read_json_string_field(
-            member.artifacts_dir / "done.json", "response_path"
-        )
-        if path is None:
-            raise RuntimeError(
-                f"No agent with chat history found for clan member: {member.name}"
+        clan_members: list[_ForkClanMemberSource] = []
+        for member in clan.members:
+            path = _read_json_string_field(
+                member.artifacts_dir / "done.json", "response_path"
             )
-        _validate_readable_transcript(member.name, path)
-        members.append(
-            _ForkClanMemberSource(
-                name=member.name,
-                path=path,
-                artifact_dir=str(member.artifacts_dir),
+            if path is None:
+                raise RuntimeError(
+                    f"No agent with chat history found for clan member: {member.name}"
+                )
+            _validate_readable_transcript(member.name, path)
+            clan_members.append(
+                _ForkClanMemberSource(
+                    name=member.name,
+                    path=path,
+                    artifact_dir=str(member.artifacts_dir),
+                )
             )
+
+        newest_member = max(
+            clan_members, key=lambda member: Path(member.artifact_dir).name
+        )
+        return _ForkSource(
+            kind="clan",
+            name=clan.name,
+            path=newest_member.path,
+            generation=clan.generation,
+            tribe=_resolve_clan_tribe(clan),
+            members=tuple(clan_members),
         )
 
-    newest_member = max(members, key=lambda member: Path(member.artifact_dir).name)
-    return _ForkSource(
-        kind="clan",
-        name=clan.name,
-        path=newest_member.path,
-        generation=clan.generation,
-        tribe=_resolve_clan_tribe(clan),
-        members=tuple(members),
+    family = find_agent_family(name)
+    if family is not None:
+        family_members: list[_ForkFamilyMemberSource] = []
+        excluded: list[_ForkExcludedFamilyMember] = []
+        for family_member in family.members:
+            if family_member.outcome != SUCCESS_OUTCOME:
+                excluded.append(
+                    _ForkExcludedFamilyMember(
+                        name=family_member.name,
+                        status=family_member.outcome or "running",
+                    )
+                )
+                continue
+
+            path = _read_json_string_field(
+                family_member.artifacts_dir / "done.json", "response_path"
+            )
+            if path is None:
+                excluded.append(
+                    _ForkExcludedFamilyMember(
+                        name=family_member.name,
+                        status="missing transcript",
+                    )
+                )
+                continue
+            try:
+                _validate_readable_transcript(family_member.name, path)
+            except OSError:
+                excluded.append(
+                    _ForkExcludedFamilyMember(
+                        name=family_member.name,
+                        status="unreadable transcript",
+                    )
+                )
+                continue
+            family_members.append(
+                _ForkFamilyMemberSource(
+                    name=family_member.name,
+                    path=path,
+                    artifact_dir=str(family_member.artifacts_dir),
+                    outcome=family_member.outcome,
+                )
+            )
+
+        if not family_members:
+            raise RuntimeError(f"No agent with chat history found for: {name}")
+
+        return _ForkSource(
+            kind="family",
+            name=family.base_name,
+            path=family_members[-1].path,
+            members=tuple(family_members),
+            excluded=tuple(excluded),
+        )
+
+    source = _ForkSource(
+        kind="agent",
+        name=name,
+        path=_resolve_agent_chat_path(name),
     )
+    _validate_readable_transcript(source.name, source.path)
+    return source
 
 
 def _resolve_tribe_fork_source(reference: str, tribe: str) -> _ForkSource:

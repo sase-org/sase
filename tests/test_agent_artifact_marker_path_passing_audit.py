@@ -53,6 +53,12 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "are inspected only to report member model and outcome metadata."
         ),
     ),
+    "src/sase/history/chat_fork.py:_format_family_member": PathPassingReview(
+        exemption=(
+            "Read-only family fork context assembly: agent_meta.json and done.json "
+            "are inspected only to report member model and outcome metadata."
+        ),
+    ),
 }
 
 
