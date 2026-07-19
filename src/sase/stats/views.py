@@ -173,10 +173,15 @@ def build_statistics_views(
 ) -> StatisticsViews:
     """Build every Statistics view without performing I/O."""
     totals = _mapping(run_payload.get("totals"))
+    activity = _build_activity_view(run_payload, activity_payload)
+    plans_questions = _build_plans_questions_view(run_payload, activity_payload)
     return StatisticsViews(
         start_ts=_integer(run_payload.get("start_ts")),
         end_ts=_integer(run_payload.get("end_ts")),
-        empty=_integer(totals.get("runs")) == 0,
+        empty=(
+            _integer(totals.get("runs")) == 0
+            and not _has_durable_activity(activity, plans_questions)
+        ),
         overview=_build_overview_view(
             run_payload,
             activity_payload,
@@ -186,8 +191,8 @@ def build_statistics_views(
         runs=_build_runs_view(run_payload),
         providers=_build_providers_view(run_payload),
         runtime=_build_runtime_view(run_payload),
-        activity=_build_activity_view(run_payload, activity_payload),
-        plans_questions=_build_plans_questions_view(run_payload, activity_payload),
+        activity=activity,
+        plans_questions=plans_questions,
     )
 
 
@@ -380,6 +385,27 @@ def _build_plans_questions_view(
             _rows(questions, "questions_per_session")
         ),
         mean_questions_per_session=_number(questions.get("mean_questions_per_session")),
+    )
+
+
+def _has_durable_activity(
+    activity: _ActivityView,
+    plans_questions: _PlansQuestionsView,
+) -> bool:
+    return bool(
+        activity.skills
+        or activity.memories
+        or activity.workspaces
+        or plans_questions.plans_proposed
+        or plans_questions.plan_tiers
+        or plans_questions.plans_approved
+        or plans_questions.plans_rejected
+        or plans_questions.plans_pending
+        or plans_questions.phases_per_epic
+        or plans_questions.question_sessions
+        or plans_questions.asking_agents
+        or plans_questions.questions
+        or plans_questions.questions_per_session
     )
 
 

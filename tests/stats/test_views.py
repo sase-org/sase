@@ -179,3 +179,20 @@ def test_empty_and_partial_payloads_are_safe() -> None:
     assert views.runtime.group_by == "agent"
     assert views.activity.skills == ()
     assert views.plans_questions.questions == 0
+
+
+@pytest.mark.parametrize(
+    "activity_payload",
+    [
+        {"skills": [{"name": "review", "count": 1, "distinct_agents": 1}]},
+        {"memories": [{"name": "tui_perf.md", "count": 1, "distinct_agents": 1}]},
+        {"plans": {"proposed": 1}},
+        {"questions": {"sessions": 1, "questions": 1}},
+    ],
+)
+def test_durable_activity_keeps_zero_run_payload_nonempty(
+    activity_payload: dict[str, object],
+) -> None:
+    views = build_statistics_views({"totals": {"runs": 0}}, activity_payload)
+
+    assert views.empty is False
