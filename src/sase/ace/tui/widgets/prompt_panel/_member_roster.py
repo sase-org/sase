@@ -17,6 +17,11 @@ from sase.agent.status_buckets import (
 from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import AgentType
 from ...models.fold_state import FoldLevel
+from ...models.fold_scale import (
+    CLAN_FOLD_SCALE,
+    FoldScale,
+    effective_fold_level,
+)
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ._helpers import append_section_heading
 
@@ -41,11 +46,13 @@ _FOLD_CHARS: dict[FoldLevel, str] = {
     FoldLevel.COLLAPSED: "▸",
     FoldLevel.EXPANDED: "▾",
     FoldLevel.FULLY_EXPANDED: "▼",
+    FoldLevel.EXHAUSTIVE: "◆",
 }
 _FOLD_STYLES: dict[FoldLevel, str] = {
     FoldLevel.COLLAPSED: "#5F5F5F",
     FoldLevel.EXPANDED: "#00D7AF",
     FoldLevel.FULLY_EXPANDED: "bold #87FFD7",
+    FoldLevel.EXHAUSTIVE: "bold #FFFFFF",
 }
 
 
@@ -135,6 +142,7 @@ def append_member_roster(
     accent: str,
     panel_level: FoldLevel,
     section_fold_overrides: Mapping[str, FoldLevel] | None = None,
+    fold_scale: FoldScale = CLAN_FOLD_SCALE,
 ) -> MemberJumpMap:
     """Append a numbered roster and return the jump map rendered from it."""
     ordered_entries = tuple(entries)
@@ -142,7 +150,10 @@ def append_member_roster(
         return MemberJumpMap(container_identity=container_identity, targets=())
 
     overrides = section_fold_overrides or {}
-    roster_level = overrides.get(MEMBER_ROSTER_SECTION_ID, panel_level)
+    roster_level = effective_fold_level(
+        overrides.get(MEMBER_ROSTER_SECTION_ID, panel_level),
+        fold_scale,
+    )
     _append_roster_heading(
         text,
         title=title,
@@ -156,7 +167,10 @@ def append_member_roster(
     for index, entry in enumerate(ordered_entries[:MEMBER_ROSTER_LIMIT]):
         number = f"{index:0{number_width}d}"
         anchor_id = _member_roster_anchor_id(entry.presented_name)
-        entry_level = overrides.get(anchor_id, roster_level)
+        entry_level = effective_fold_level(
+            overrides.get(anchor_id, roster_level),
+            fold_scale,
+        )
         _append_numbered_entry(
             text,
             number=number,
@@ -307,7 +321,7 @@ def _member_annotations(
         annotations.append("wait " + "; ".join(digest.waiting))
     if digest.retry:
         annotations.append("retry " + "; ".join(digest.retry))
-    if level == FoldLevel.FULLY_EXPANDED:
+    if level in {FoldLevel.FULLY_EXPANDED, FoldLevel.EXHAUSTIVE}:
         if digest.workspace_num is not None:
             annotations.append(f"ws {digest.workspace_num}")
         if digest.start_time is not None:

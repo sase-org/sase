@@ -33,6 +33,7 @@ from ...models._agent_clan_sections import (
 )
 from ...models.agent import Agent, AgentType, compute_row_runtime
 from ...models.fold_state import FoldLevel
+from ...models.fold_scale import CLAN_FOLD_SCALE, effective_fold_level
 from ...tools.slow import format_long_duration
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
@@ -64,16 +65,19 @@ _FOLD_CHARS: dict[FoldLevel, str] = {
     FoldLevel.COLLAPSED: "▸",
     FoldLevel.EXPANDED: "▾",
     FoldLevel.FULLY_EXPANDED: "▼",
+    FoldLevel.EXHAUSTIVE: "◆",
 }
 _FOLD_STYLES: dict[FoldLevel, str] = {
     FoldLevel.COLLAPSED: "#5F5F5F",
     FoldLevel.EXPANDED: "#00D7AF",
     FoldLevel.FULLY_EXPANDED: "bold #87FFD7",
+    FoldLevel.EXHAUSTIVE: "bold #FFFFFF",
 }
 _FOLD_NUMBERS: dict[FoldLevel, int] = {
     FoldLevel.COLLAPSED: 1,
     FoldLevel.EXPANDED: 2,
     FoldLevel.FULLY_EXPANDED: 3,
+    FoldLevel.EXHAUSTIVE: 4,
 }
 _DISK_SECTION_IDS: dict[str, ClanDiskSection] = {
     "replies": "replies",
@@ -93,7 +97,10 @@ def _effective_fold_level(
     panel_level: FoldLevel,
     overrides: Mapping[str, FoldLevel],
 ) -> FoldLevel:
-    return overrides.get(section_id, panel_level)
+    return effective_fold_level(
+        overrides.get(section_id, panel_level),
+        CLAN_FOLD_SCALE,
+    )
 
 
 def clan_disk_sections_for_fold_state(
@@ -700,6 +707,7 @@ def build_clan_detail_text(
     member_jump_map_publisher: Callable[[MemberJumpMap], None] | None = None,
 ) -> Text:
     """Build a fold-aware clan detail document without filesystem access."""
+    fold_level = effective_fold_level(fold_level, CLAN_FOLD_SCALE)
     snapshot = snapshot or ClanSectionSnapshot(
         in_memory=aggregate_clan_in_memory(agent)
     )
@@ -776,6 +784,7 @@ def build_clan_detail_text(
         accent=_CLAN_IDENTITY_COLOR,
         panel_level=fold_level,
         section_fold_overrides=overrides,
+        fold_scale=CLAN_FOLD_SCALE,
     )
     if member_jump_map_publisher is not None:
         member_jump_map_publisher(jump_map)

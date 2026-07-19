@@ -152,7 +152,7 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         )
 
         await page.press("z", "z")
-        assert page.app.panel_fold_level is FoldLevel.EXPANDED
+        assert page.app.panel_fold_level is FoldLevel.FULLY_EXPANDED
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
@@ -161,16 +161,7 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         )
 
         await page.press("z", "z")
-        assert page.app.panel_fold_level is FoldLevel.FULLY_EXPANDED
-        await wait_for_visual_idle(page)
-        ace_png_visual.assert_page_png(
-            page,
-            "agents_family_panel_level_3_120x40",
-            title="ACE family panel fold level 3",
-        )
-
-        await page.press("z", "Z", "z", "Z")
-        assert page.app.panel_fold_level is FoldLevel.COLLAPSED
+        assert page.app.panel_fold_level is FoldLevel.EXPANDED
         await wait_for_visual_idle(page)
         panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
         await page.press("ctrl+j")
@@ -182,7 +173,7 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         await page.press("z", "a")
         assert (
             page.app._panel_fold_overrides.get_override(f"member:{_FAMILY_NAME}--code")
-            is FoldLevel.EXPANDED
+            is FoldLevel.FULLY_EXPANDED
         )
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(

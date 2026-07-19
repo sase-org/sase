@@ -9,7 +9,6 @@ import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.widgets.prompt_panel import _agent_display_render
 from sase.ace.tui.widgets.prompt_panel._agent_display_family import (
     FAMILY_PROMPT_SECTION_ID,
     FAMILY_REPLY_SECTION_ID,
@@ -109,7 +108,8 @@ def test_family_roster_numbers_real_chain_rows_in_order(
     assert [entry.identity for entry in entries] == [root.identity, child.identity]
     assert [entry.label for entry in entries] == ["--plan", "--code"]
     assert [entry.kind for entry in entries] == ["PLANNER", "CODER"]
-    assert "▸ ❖ FAMILY MEMBERS · 2\n" in header.plain
+    assert "Fold: 1/2\n" in header.plain
+    assert "▾ ❖ FAMILY MEMBERS · 2\n" in header.plain
     assert header.plain.index("FAMILY MEMBERS") < header.plain.index("OUTPUT VARIABLES")
     assert [target.member_identity for target in published[0].targets] == [
         root.identity,
@@ -117,23 +117,10 @@ def test_family_roster_numbers_real_chain_rows_in_order(
     ]
 
 
-def test_collapsed_family_sections_do_not_read_prompt_or_reply_files(
+def test_shared_collapsed_level_maps_family_to_bounded_previews(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root, child = _family(tmp_path)
-
-    def fail(*_args: object, **_kwargs: object) -> object:
-        raise AssertionError("collapsed family detail performed a content read")
-
-    monkeypatch.setattr(root, "get_raw_xprompt_content", fail)
-    monkeypatch.setattr(_agent_display_render, "get_prompt_content", fail)
-    for phase in (root, child):
-        monkeypatch.setattr(phase, "get_timestamped_reply_chunks", fail)
-        monkeypatch.setattr(phase, "get_live_reply_content", fail)
-        monkeypatch.setattr(phase, "get_response_content", fail)
-        monkeypatch.setattr(phase, "get_chat_response_content", fail)
-
+    root, _child = _family(tmp_path)
     panel = FakePromptPanel()
     header, error = build_header_text(
         root,
@@ -149,11 +136,15 @@ def test_collapsed_family_sections_do_not_read_prompt_or_reply_files(
     )
     plain = plain_of(panel.captured[-1])
 
-    assert "▸ AGENT XPROMPT\ncontent deferred" in plain
-    assert "▸ AGENT PROMPT\ncontent deferred" in plain
-    assert "▸ AGENT REPLY · 2\n" in plain
-    assert "PLANNER · ✓ DONE · 12:00:00" in plain
-    assert "CODER · ✓ DONE · 12:02:00" in plain
+    assert "▾ AGENT XPROMPT\n" in plain
+    assert "plan xprompt line 12" in plain
+    assert "plan xprompt line 15" not in plain
+    assert "▾ AGENT PROMPT\n" in plain
+    assert "plan prompt line 12" in plain
+    assert "plan prompt line 15" not in plain
+    assert "▾ AGENT REPLY · 2\n" in plain
+    assert "plan reply line 1" not in plain
+    assert "plan reply line 6" in plain
 
 
 def test_expanded_family_sections_render_bounded_previews(tmp_path: Path) -> None:
@@ -185,52 +176,36 @@ def test_expanded_family_sections_render_bounded_previews(tmp_path: Path) -> Non
     assert "… +2 earlier lines" in plain
 
 
-def test_collapsing_after_preview_reuses_one_line_content_digests(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    root, child = _family(tmp_path)
-    panel = FakePromptPanel()
-    expanded, error = build_header_text(
+def test_exhaustive_shared_level_clamps_to_full_family_view(tmp_path: Path) -> None:
+    root, _child = _family(tmp_path)
+    full_panel = FakePromptPanel()
+    full_header, error = build_header_text(
         root,
         cheap=True,
-        family_fold_level=FoldLevel.EXPANDED,
+        family_fold_level=FoldLevel.FULLY_EXPANDED,
     )
-    panel._update_family_display(
+    full_panel._update_family_display(
         root,
-        expanded,
+        full_header,
         error,
-        panel_level=FoldLevel.EXPANDED,
+        panel_level=FoldLevel.FULLY_EXPANDED,
+        section_fold_overrides={},
+    )
+    exhaustive_panel = FakePromptPanel()
+    exhaustive_header, error = build_header_text(
+        root,
+        cheap=True,
+        family_fold_level=FoldLevel.EXHAUSTIVE,
+    )
+    exhaustive_panel._update_family_display(
+        root,
+        exhaustive_header,
+        error,
+        panel_level=FoldLevel.EXHAUSTIVE,
         section_fold_overrides={},
     )
 
-    def fail(*_args: object, **_kwargs: object) -> object:
-        raise AssertionError("cached collapsed digest performed a content read")
-
-    monkeypatch.setattr(root, "get_raw_xprompt_content", fail)
-    monkeypatch.setattr(_agent_display_render, "get_prompt_content", fail)
-    for phase in (root, child):
-        monkeypatch.setattr(phase, "get_timestamped_reply_chunks", fail)
-        monkeypatch.setattr(phase, "get_live_reply_content", fail)
-        monkeypatch.setattr(phase, "get_response_content", fail)
-        monkeypatch.setattr(phase, "get_chat_response_content", fail)
-
-    collapsed, error = build_header_text(
-        root,
-        cheap=True,
-        family_fold_level=FoldLevel.COLLAPSED,
-    )
-    panel._update_family_display(
-        root,
-        collapsed,
-        error,
-        panel_level=FoldLevel.COLLAPSED,
-        section_fold_overrides={},
-    )
-    plain = plain_of(panel.captured[-1])
-
-    assert "plan xprompt line 1 · 15 lines" in plain
-    assert "plan prompt line 1 · 15 lines" in plain
+    assert plain_of(exhaustive_panel.captured[-1]) == plain_of(full_panel.captured[-1])
 
 
 def test_fully_expanded_family_sections_preserve_full_content(tmp_path: Path) -> None:
@@ -260,19 +235,8 @@ def test_fully_expanded_family_sections_preserve_full_content(tmp_path: Path) ->
 
 def test_family_section_override_wins_over_collapsed_panel(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root, child = _family(tmp_path)
-
-    def fail(*_args: object, **_kwargs: object) -> object:
-        raise AssertionError("a collapsed section performed a content read")
-
-    monkeypatch.setattr(root, "get_raw_xprompt_content", fail)
-    for phase in (root, child):
-        monkeypatch.setattr(phase, "get_timestamped_reply_chunks", fail)
-        monkeypatch.setattr(phase, "get_live_reply_content", fail)
-        monkeypatch.setattr(phase, "get_response_content", fail)
-        monkeypatch.setattr(phase, "get_chat_response_content", fail)
+    root, _child = _family(tmp_path)
 
     overrides = {FAMILY_PROMPT_SECTION_ID: FoldLevel.FULLY_EXPANDED}
     panel = FakePromptPanel()
@@ -291,13 +255,15 @@ def test_family_section_override_wins_over_collapsed_panel(
     )
     plain = plain_of(panel.captured[-1])
 
-    assert "▸ AGENT XPROMPT\ncontent deferred" in plain
+    assert "▾ AGENT XPROMPT\n" in plain
+    assert "plan xprompt line 12" in plain
+    assert "plan xprompt line 15" not in plain
     assert "▼ AGENT PROMPT\n" in plain
     assert "plan prompt line 15" in plain
-    assert "▸ AGENT REPLY · 2\n" in plain
+    assert "▾ AGENT REPLY · 2\n" in plain
 
 
-def test_family_header_summary_sections_fold_shallowly(tmp_path: Path) -> None:
+def test_family_header_maps_shared_shallow_levels_to_preview(tmp_path: Path) -> None:
     root, _child = _family(tmp_path)
 
     collapsed, _ = build_header_text(
@@ -311,8 +277,9 @@ def test_family_header_summary_sections_fold_shallowly(tmp_path: Path) -> None:
         family_fold_level=FoldLevel.EXPANDED,
     )
 
-    assert "▸ OUTPUT VARIABLES · 2\n" in collapsed.plain
-    assert "plan_path: /tmp/plan.md" not in collapsed.plain
+    assert "Fold: 1/2\n" in collapsed.plain
+    assert "▾ OUTPUT VARIABLES · 2\n" in collapsed.plain
+    assert "plan_path: /tmp/plan.md" in collapsed.plain
     assert "▾ OUTPUT VARIABLES · 2\n" in expanded.plain
     assert "plan_path: /tmp/plan.md" in expanded.plain
     assert "code_path: /tmp/code.md" in expanded.plain

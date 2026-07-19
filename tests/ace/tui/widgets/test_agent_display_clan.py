@@ -346,6 +346,24 @@ def test_clan_sections_honor_all_three_fold_contracts() -> None:
     assert "Prompt full detail" in full
 
 
+def test_exhaustive_shared_level_clamps_to_fully_expanded_clan() -> None:
+    container, snapshot = _rich_clan_snapshot()
+
+    full = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        fold_level=FoldLevel.FULLY_EXPANDED,
+    )
+    exhaustive = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        fold_level=FoldLevel.EXHAUSTIVE,
+    )
+
+    assert exhaustive == full
+    assert "Fold: 3/3\n" in exhaustive.plain
+
+
 def test_clan_section_override_and_loading_placeholders() -> None:
     container, snapshot = _rich_clan_snapshot()
     overrides = {

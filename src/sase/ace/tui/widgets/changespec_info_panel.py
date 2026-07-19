@@ -13,6 +13,7 @@ _FOLD_CHARS: dict[FoldLevel, str] = {
     FoldLevel.COLLAPSED: "▸",
     FoldLevel.EXPANDED: "▾",
     FoldLevel.FULLY_EXPANDED: "▼",
+    FoldLevel.EXHAUSTIVE: "◆",
 }
 
 # Fold indicator styles per level
@@ -20,6 +21,7 @@ _FOLD_STYLES: dict[FoldLevel, str] = {
     FoldLevel.COLLAPSED: "#5f5f5f",
     FoldLevel.EXPANDED: "#00D7AF",
     FoldLevel.FULLY_EXPANDED: "bold #87FFD7",
+    FoldLevel.EXHAUSTIVE: "bold #FFFFFF",
 }
 
 # Label style (dimmed letter before each indicator)

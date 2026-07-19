@@ -4,9 +4,16 @@ from __future__ import annotations
 
 from ...models.fold_state import (
     FoldLevel,
-    cycle_backward,
     cycle_deltas_fold_level,
     cycle_forward,
+)
+from ...models.fold_scale import (
+    CLAN_FOLD_SCALE,
+    FAMILY_FOLD_SCALE,
+    TRIBE_FOLD_SCALE,
+    FoldScale,
+    cycle_fold_level_backward,
+    cycle_fold_level_forward,
 )
 from ._types import NavigationMixinBase
 
@@ -126,13 +133,20 @@ class FoldNavigationMixin(NavigationMixinBase):
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        scale = self._selected_summary_fold_scale()
         changed = False
         if key == agent_keys["cycle_level"]:
-            self.panel_fold_level = cycle_forward(self.panel_fold_level)
+            self.panel_fold_level = cycle_fold_level_forward(
+                self.panel_fold_level,
+                scale,
+            )
             self._panel_fold_overrides.clear()
             changed = True
         elif key == agent_keys["cycle_level_back"]:
-            self.panel_fold_level = cycle_backward(self.panel_fold_level)
+            self.panel_fold_level = cycle_fold_level_backward(
+                self.panel_fold_level,
+                scale,
+            )
             self._panel_fold_overrides.clear()
             changed = True
         elif key in {
@@ -145,11 +159,13 @@ class FoldNavigationMixin(NavigationMixinBase):
                     self._panel_fold_overrides.cycle(
                         section_id,
                         self.panel_fold_level,
+                        scale=scale,
                     )
                 else:
                     self._panel_fold_overrides.toggle(
                         section_id,
                         self.panel_fold_level,
+                        scale=scale,
                     )
                 changed = True
         else:
@@ -160,6 +176,25 @@ class FoldNavigationMixin(NavigationMixinBase):
         if changed:
             self._notify_regular_agent_fold_scope()
         return True
+
+    def _selected_summary_fold_scale(self) -> FoldScale:
+        """Return the fold scale owned by the selected Agents-tab summary."""
+        for resolver_name in (
+            "_resolve_focused_panel",
+            "_resolve_focused_collapsed_panel",
+        ):
+            resolver = getattr(self, resolver_name, None)
+            if callable(resolver) and resolver() is not None:
+                return TRIBE_FOLD_SCALE
+
+        get_selected = getattr(self, "_get_selected_agent", None)
+        agent = get_selected() if callable(get_selected) else None
+        if agent is not None and getattr(agent, "is_family_container_row", False):
+            return FAMILY_FOLD_SCALE
+        if agent is not None and getattr(agent, "is_clan_container", False):
+            return CLAN_FOLD_SCALE
+        # Plain-agent selections retain the legacy three-level behavior.
+        return CLAN_FOLD_SCALE
 
     def _current_agent_metadata_section_id(self) -> str | None:
         """Return the section occupying the metadata viewport's top row."""

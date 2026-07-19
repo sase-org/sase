@@ -38,6 +38,7 @@ from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.fold_state import FoldLevel
+from sase.ace.tui.models.fold_scale import CLAN_FOLD_SCALE
 
 pytestmark = pytest.mark.slow
 
@@ -297,7 +298,7 @@ async def test_bench_clan_jk_at_each_panel_fold_level(_perf_jsonl: Path) -> None
         assert app._agents
         assert all(agent.is_clan_container for agent in app._agents)
 
-        for index, level in enumerate(FoldLevel):
+        for index, level in enumerate(CLAN_FOLD_SCALE):
             assert app.panel_fold_level is level
             before = len(_read_samples(_perf_jsonl))
             for _ in range(_KEYS_PER_SCENARIO):
@@ -318,7 +319,7 @@ async def test_bench_clan_jk_at_each_panel_fold_level(_perf_jsonl: Path) -> None
                 await pilot.press("z", "z")
                 await pilot.pause(0.2)
 
-    assert set(level_summaries) == set(FoldLevel)
+    assert set(level_summaries) == set(CLAN_FOLD_SCALE)
     stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
     assert not stall_path.exists() or not stall_path.read_text().strip()
 

@@ -37,6 +37,7 @@ class _FoldApp(FoldNavigationMixin):
         tab: str = "agents",
         clan: bool = True,
         family: bool = False,
+        panel_focused: bool = False,
     ) -> None:
         self.current_tab = tab
         self._fold_mode_active = False
@@ -55,6 +56,7 @@ class _FoldApp(FoldNavigationMixin):
         )
         self.refresh_count = 0
         self.notifications: list[str] = []
+        self.panel_focused = panel_focused
 
     def _refresh_current_tab(self) -> None:
         self.refresh_count += 1
@@ -64,6 +66,9 @@ class _FoldApp(FoldNavigationMixin):
 
     def _get_selected_agent(self) -> object:
         return self.selected_agent
+
+    def _resolve_focused_collapsed_panel(self) -> object | None:
+        return object() if self.panel_focused else None
 
     def notify(self, message: str) -> None:
         self.notifications.append(message)
@@ -96,6 +101,40 @@ def test_agents_panel_level_cycles_forward_backward_and_clears_overrides() -> No
     assert app.panel_fold_level is FoldLevel.COLLAPSED
 
 
+def test_family_panel_level_cycles_within_two_level_scale() -> None:
+    app = _FoldApp(clan=False, family=True)
+
+    _press(app, "z")
+    assert app.panel_fold_level is FoldLevel.FULLY_EXPANDED
+    _press(app, "z")
+    assert app.panel_fold_level is FoldLevel.EXPANDED
+    _press(app, "Z")
+    assert app.panel_fold_level is FoldLevel.FULLY_EXPANDED
+
+
+def test_whole_panel_focus_cycles_within_four_level_tribe_scale() -> None:
+    app = _FoldApp(panel_focused=True)
+
+    for expected in (
+        FoldLevel.EXPANDED,
+        FoldLevel.FULLY_EXPANDED,
+        FoldLevel.EXHAUSTIVE,
+        FoldLevel.COLLAPSED,
+    ):
+        _press(app, "z")
+        assert app.panel_fold_level is expected
+
+    _press(app, "Z")
+    assert app.panel_fold_level is FoldLevel.EXHAUSTIVE
+
+    _press(app, "Z")
+    assert app.panel_fold_level is FoldLevel.FULLY_EXPANDED
+    _press(app, "Z")
+    assert app.panel_fold_level is FoldLevel.EXPANDED
+    _press(app, "Z")
+    assert app.panel_fold_level is FoldLevel.COLLAPSED
+
+
 def test_agents_section_cycle_and_toggle_use_effective_panel_level() -> None:
     app = _FoldApp()
 
@@ -108,6 +147,17 @@ def test_agents_section_cycle_and_toggle_use_effective_panel_level() -> None:
     assert app._panel_fold_overrides.get_override("errors") is (
         FoldLevel.FULLY_EXPANDED
     )
+
+
+def test_family_section_cycle_and_toggle_use_family_scale() -> None:
+    app = _FoldApp(clan=False, family=True)
+
+    _press(app, "a")
+    assert app._panel_fold_overrides.get_override("errors") is (
+        FoldLevel.FULLY_EXPANDED
+    )
+    _press(app, "A")
+    assert app._panel_fold_overrides.get_override("errors") is FoldLevel.EXPANDED
 
 
 def test_agents_section_fold_noops_without_a_current_cached_section() -> None:
@@ -136,6 +186,20 @@ def test_changespec_fold_dispatch_remains_unchanged() -> None:
 
     assert app.commits_collapsed is FoldLevel.EXPANDED
     assert app.panel_fold_level is FoldLevel.COLLAPSED
+
+
+def test_exhaustive_panel_state_does_not_enter_changespec_cyclers() -> None:
+    app = _FoldApp(panel_focused=True)
+    _press(app, "z")
+    _press(app, "z")
+    _press(app, "z")
+    assert app.panel_fold_level is FoldLevel.EXHAUSTIVE
+
+    app.current_tab = "changespecs"
+    _press(app, "c")
+
+    assert app.commits_collapsed is FoldLevel.EXPANDED
+    assert app.panel_fold_level is FoldLevel.EXHAUSTIVE
 
 
 def test_regular_agent_fold_change_shows_scope_toast_but_containers_do_not() -> None:

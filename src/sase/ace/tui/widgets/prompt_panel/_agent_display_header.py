@@ -279,7 +279,14 @@ def build_header_text(
     family_fold_enabled = (
         agent.is_family_container_row and family_fold_level is not None
     )
-    resolved_family_fold_level = family_fold_level or FoldLevel.COLLAPSED
+    resolved_family_fold_level = (
+        effective_family_fold_level(
+            "",
+            family_fold_level or FoldLevel.COLLAPSED,
+        )
+        if family_fold_enabled
+        else FoldLevel.COLLAPSED
+    )
 
     # Agent name is always the first metadata row in the details panel.
     header_text.append("Name: ", style="bold #87D7FF")
@@ -571,7 +578,7 @@ def build_header_text(
     if family_fold_enabled:
         header_text.append("Fold: ", style="bold #87D7FF")
         header_text.append(
-            f"{fold_number(resolved_family_fold_level)}/3\n",
+            f"{fold_number(resolved_family_fold_level)}/2\n",
             style=f"dim {FAMILY_IDENTITY_COLOR}",
         )
         append_family_member_roster(

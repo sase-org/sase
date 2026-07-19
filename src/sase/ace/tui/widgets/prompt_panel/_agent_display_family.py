@@ -10,12 +10,15 @@ from typing import Any
 
 from rich.text import Text
 
-from sase.core.time import get_timezone, to_local
-
 from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import Agent
 from ...models.agent_time import compute_row_runtime
 from ...models.fold_state import FoldLevel
+from ...models.fold_scale import (
+    FAMILY_FOLD_SCALE,
+    effective_fold_level,
+    fold_scale_position,
+)
 from ._agent_display_content import get_phase_label
 from ._helpers import append_section_heading
 from ._member_roster import (
@@ -38,11 +41,13 @@ _FOLD_CHARS: dict[FoldLevel, str] = {
     FoldLevel.COLLAPSED: "▸",
     FoldLevel.EXPANDED: "▾",
     FoldLevel.FULLY_EXPANDED: "▼",
+    FoldLevel.EXHAUSTIVE: "◆",
 }
 _FOLD_STYLES: dict[FoldLevel, str] = {
     FoldLevel.COLLAPSED: "#5F5F5F",
     FoldLevel.EXPANDED: "#00D7AF",
     FoldLevel.FULLY_EXPANDED: "bold #87FFD7",
+    FoldLevel.EXHAUSTIVE: "bold #FFFFFF",
 }
 
 
@@ -66,7 +71,8 @@ def effective_family_fold_level(
     overrides: Mapping[str, FoldLevel] | None = None,
 ) -> FoldLevel:
     """Resolve a family section override against the shared panel level."""
-    return (overrides or {}).get(section_id, panel_level)
+    level = (overrides or {}).get(section_id, panel_level)
+    return effective_fold_level(level, FAMILY_FOLD_SCALE)
 
 
 def append_family_fold_heading(
@@ -79,6 +85,7 @@ def append_family_fold_heading(
     style: str = "bold #D7AF5F underline",
 ) -> None:
     """Append one family-section heading carrying its effective fold glyph."""
+    level = effective_fold_level(level, FAMILY_FOLD_SCALE)
     heading = Text()
     heading.append(f"{_FOLD_CHARS[level]} ", style=_FOLD_STYLES[level])
     heading.append(title, style=style)
@@ -88,16 +95,14 @@ def append_family_fold_heading(
 
 
 def fold_number(level: FoldLevel) -> int:
-    """Return the one-based display number for a fold level."""
-    return {
-        FoldLevel.COLLAPSED: 1,
-        FoldLevel.EXPANDED: 2,
-        FoldLevel.FULLY_EXPANDED: 3,
-    }[level]
+    """Return the one-based family-scale position for a shared fold level."""
+    position, _size = fold_scale_position(level, FAMILY_FOLD_SCALE)
+    return position
 
 
 def family_fold_indicator(level: FoldLevel) -> tuple[str, str]:
     """Return the visible glyph and style for one family fold level."""
+    level = effective_fold_level(level, FAMILY_FOLD_SCALE)
     return _FOLD_CHARS[level], _FOLD_STYLES[level]
 
 
@@ -178,6 +183,7 @@ def append_family_member_roster(
         accent=FAMILY_IDENTITY_COLOR,
         panel_level=panel_level,
         section_fold_overrides=section_fold_overrides,
+        fold_scale=FAMILY_FOLD_SCALE,
     )
     if member_jump_map_publisher is not None:
         member_jump_map_publisher(jump_map)
@@ -204,23 +210,6 @@ def bounded_content_preview(
     return preview
 
 
-def collapsed_content_digest(content: str) -> Text:
-    """Return the first meaningful line and total line count for cached content."""
-    lines = content.splitlines()
-    first = first_meaningful_line(content, max_chars=96) or "—"
-    digest = Text(first, style="dim")
-    digest.append(
-        f" · {len(lines)} line{'s' if len(lines) != 1 else ''}\n",
-        style="dim italic",
-    )
-    return digest
-
-
-def deferred_content_digest() -> Text:
-    """Describe a collapsed disk-backed section without touching its files."""
-    return Text("content deferred · expand for preview\n", style="dim italic")
-
-
 def reply_tail_preview(
     content: str,
     *,
@@ -241,20 +230,6 @@ def reply_tail_preview(
     else:
         preview.append("No response content yet.\n", style="dim italic")
     return preview
-
-
-def family_phase_time(member: Agent) -> str:
-    """Return the compact local start time used by collapsed reply rows."""
-    started = member.run_start_time or member.start_time
-    if started is None:
-        return "??:??:??"
-    try:
-        return to_local(started).strftime("%H:%M:%S")
-    except (ValueError, OSError):
-        try:
-            return started.astimezone(get_timezone()).strftime("%H:%M:%S")
-        except (ValueError, OSError):
-            return "??:??:??"
 
 
 def _family_member_label(member: Agent, family_name: str) -> str:
@@ -320,11 +295,8 @@ __all__ = [
     "append_family_fold_heading",
     "append_family_member_roster",
     "bounded_content_preview",
-    "collapsed_content_digest",
-    "deferred_content_digest",
     "effective_family_fold_level",
     "family_member_rows",
-    "family_phase_time",
     "family_fold_indicator",
     "fold_number",
     "reply_tail_preview",

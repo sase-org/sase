@@ -1,6 +1,12 @@
 """Fold state management for collapsible sections in the TUI."""
 
+from __future__ import annotations
+
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .fold_scale import FoldScale
 
 
 class FoldLevel(Enum):
@@ -9,10 +15,11 @@ class FoldLevel(Enum):
     COLLAPSED = "collapsed"
     EXPANDED = "expanded"
     FULLY_EXPANDED = "fully_expanded"
+    EXHAUSTIVE = "exhaustive"
 
 
 def cycle_forward(level: FoldLevel) -> FoldLevel:
-    """Cycle fold level forward: COLLAPSED -> EXPANDED -> FULLY_EXPANDED -> COLLAPSED."""
+    """Cycle the legacy three-level ChangeSpec/axe fold ladder forward."""
     if level == FoldLevel.COLLAPSED:
         return FoldLevel.EXPANDED
     if level == FoldLevel.EXPANDED:
@@ -21,7 +28,7 @@ def cycle_forward(level: FoldLevel) -> FoldLevel:
 
 
 def cycle_backward(level: FoldLevel) -> FoldLevel:
-    """Cycle fold level backward: COLLAPSED -> FULLY_EXPANDED -> EXPANDED."""
+    """Cycle the legacy three-level ChangeSpec/axe fold ladder backward."""
     if level == FoldLevel.COLLAPSED:
         return FoldLevel.FULLY_EXPANDED
     if level == FoldLevel.FULLY_EXPANDED:
@@ -61,19 +68,43 @@ class SectionFoldStateManager:
         """Store an explicit fold level for ``section_id``."""
         self._overrides[section_id] = level
 
-    def cycle(self, section_id: str, panel_level: FoldLevel) -> FoldLevel:
+    def cycle(
+        self,
+        section_id: str,
+        panel_level: FoldLevel,
+        *,
+        scale: FoldScale | None = None,
+    ) -> FoldLevel:
         """Cycle one section forward from its current effective level."""
-        level = cycle_forward(self.effective_level(section_id, panel_level))
+        current = self.effective_level(section_id, panel_level)
+        if scale is None:
+            level = cycle_forward(current)
+        else:
+            from .fold_scale import cycle_fold_level_forward
+
+            level = cycle_fold_level_forward(current, scale)
         self.set(section_id, level)
         return level
 
-    def toggle(self, section_id: str, panel_level: FoldLevel) -> FoldLevel:
-        """Toggle one section between collapsed and fully expanded."""
-        level = (
-            FoldLevel.FULLY_EXPANDED
-            if self.effective_level(section_id, panel_level) == FoldLevel.COLLAPSED
-            else FoldLevel.COLLAPSED
-        )
+    def toggle(
+        self,
+        section_id: str,
+        panel_level: FoldLevel,
+        *,
+        scale: FoldScale | None = None,
+    ) -> FoldLevel:
+        """Toggle one section between its scale's first and last levels."""
+        current = self.effective_level(section_id, panel_level)
+        if scale is None:
+            level = (
+                FoldLevel.FULLY_EXPANDED
+                if current == FoldLevel.COLLAPSED
+                else FoldLevel.COLLAPSED
+            )
+        else:
+            from .fold_scale import toggle_fold_level
+
+            level = toggle_fold_level(current, scale)
         self.set(section_id, level)
         return level
 

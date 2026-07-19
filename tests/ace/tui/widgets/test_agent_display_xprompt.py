@@ -260,7 +260,7 @@ class TestAgentXPromptRendering:
         panel.update_display(root)
         plain = plain_of(panel.captured[-1])
 
-        assert "▸ AGENT REPLY · 2" in plain
+        assert "▾ AGENT REPLY · 2" in plain
         assert "AGENT (0) · ✓ DONE" in plain
         assert "AGENT (bar) · ✓ DONE" in plain
         assert "QUESTIONS" not in plain
@@ -286,7 +286,7 @@ class TestAgentXPromptRendering:
         panel.update_display_with_hints(root)
         plain = plain_of(panel.captured[-1])
 
-        assert "▸ AGENT REPLY · 2" in plain
+        assert "▾ AGENT REPLY · 2" in plain
         assert "AGENT (0) · ✓ DONE" in plain
         assert "AGENT (bar) · ✓ DONE" in plain
         assert "QUESTIONS" not in plain
