@@ -8,16 +8,30 @@ StartStatus = Literal["started", "already_running", "failed", "blocked"]
 
 
 @dataclass(frozen=True)
+class AxeStartAttempt:
+    """One start-and-verification attempt within an axe restart."""
+
+    number: int
+    status: StartStatus
+    pid: int | None = None
+    message: str = ""
+    verified: bool = False
+    verification_error: str | None = None
+
+
+@dataclass(frozen=True)
 class AxeStartResult:
     """Result of an axe daemon start request."""
 
     status: StartStatus
     pid: int | None = None
     message: str = ""
+    attempts: tuple[AxeStartAttempt, ...] = ()
+    verified: bool = False
 
     @property
     def succeeded(self) -> bool:
-        return self.pid is not None
+        return self.status in {"started", "already_running"} and self.pid is not None
 
 
 @dataclass(frozen=True)

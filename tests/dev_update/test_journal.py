@@ -18,6 +18,8 @@ from sase.dev_update.models import (
     DevUpdateResult,
     DevUpdateRootPlan,
 )
+from sase.axe.process import AxeStartAttempt
+from sase.main.update_types import RestartInfo
 from sase.version._models import VersionPackageRecord
 
 
@@ -135,10 +137,35 @@ def test_append_dev_update_journal_writes_jsonl(tmp_path: Path) -> None:
     plan = _plan()
     path = tmp_path / "logs" / "dev_update.jsonl"
 
-    written = append_dev_update_journal(plan, _result(plan), path=path)
+    restart = RestartInfo(
+        attempted=True,
+        status="restarted",
+        pid=2468,
+        message="Axe restarted (pid 2468)",
+        verified=True,
+        attempts=(
+            AxeStartAttempt(
+                number=1,
+                status="started",
+                pid=2468,
+                message="started",
+                verified=True,
+            ),
+        ),
+    )
+
+    written = append_dev_update_journal(
+        plan,
+        _result(plan),
+        restart=restart,
+        path=path,
+    )
 
     assert written == path
     lines = path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 1
     payload = json.loads(lines[0])
     assert payload["result"]["outcomes"][0]["name"] == "sase"
+    assert payload["restart"]["status"] == "restarted"
+    assert payload["restart"]["verified"] is True
+    assert payload["restart"]["attempts"][0]["pid"] == 2468

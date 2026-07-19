@@ -113,7 +113,9 @@ def _handle_maintenance(args: argparse.Namespace) -> None:
 def _handle_start(args: argparse.Namespace) -> None:
     """Handle 'sase axe start' — orchestrator mode."""
     from sase.axe.config import AxeConfig, AxeConfigError, load_axe_config
+    from sase.axe.desired_state import write_desired_state
     from sase.axe.orchestrator import Orchestrator
+    from sase.axe._process_start import AXE_START_SOURCE_ENV
     from sase.axe.process import (
         canonical_axe_start_command,
         should_reexec_axe_start_from_canonical,
@@ -129,6 +131,10 @@ def _handle_start(args: argparse.Namespace) -> None:
             except OSError:
                 pass
 
+    write_desired_state(
+        "running",
+        source=os.environ.get(AXE_START_SOURCE_ENV, "axe start"),
+    )
     os.chdir(os.path.expanduser("~"))
 
     try:

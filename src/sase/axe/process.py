@@ -5,6 +5,7 @@ the implementation lives in smaller focused modules.
 """
 
 from ._process_probe import get_axe_pid, is_axe_running
+from ._process_restart import restart_axe_daemon, restart_axe_daemon_result
 from ._process_start import (
     canonical_axe_start_command,
     should_reexec_axe_start_from_canonical,
@@ -16,24 +17,17 @@ from ._process_stop import (
     stop_axe_daemon,
     stop_axe_daemon_result,
 )
-from ._process_types import AxeStartResult, AxeStopResult, StartStatus
-from .config import AxeConfig
-
-
-def restart_axe_daemon(config: AxeConfig | None = None) -> int | None:
-    """Restart the axe orchestrator and return the new/live PID."""
-    stop_axe_daemon()
-    return start_axe_daemon(config)
-
-
-def restart_axe_daemon_result(config: AxeConfig | None = None) -> AxeStartResult:
-    """Restart axe and return detailed startup status."""
-    stop_axe_daemon_result()
-    return start_axe_daemon_result(config)
+from ._process_types import (
+    AxeStartAttempt,
+    AxeStartResult,
+    AxeStopResult,
+    StartStatus,
+)
 
 
 __all__ = [
     "AxeStartResult",
+    "AxeStartAttempt",
     "AxeStopResult",
     "StartStatus",
     "canonical_axe_start_command",

@@ -50,17 +50,21 @@ def restart_after_update(
             status="failed",
             message=f"axe restart failed: {exc}",
         )
-    if result.pid is not None:
+    if result.succeeded and result.pid is not None:
         return RestartInfo(
             attempted=True,
             status="restarted",
             pid=result.pid,
             message=f"Axe restarted (pid {result.pid})",
+            attempts=result.attempts,
+            verified=result.verified,
         )
     return RestartInfo(
         attempted=True,
         status="failed",
         message=result.message or "Failed to restart axe",
+        attempts=result.attempts,
+        verified=result.verified,
     )
 
 

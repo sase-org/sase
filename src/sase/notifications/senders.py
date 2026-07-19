@@ -168,6 +168,23 @@ def notify_axe_error_digest(
     append_notification(n)
 
 
+def notify_axe_restart_failed(message: str, attempts: list[str]) -> str:
+    """Send a durable notification for an exhausted axe restart."""
+    notification_id = str(uuid4())
+    notes = ["Axe restart failed", message]
+    notes.extend(attempts)
+    n = Notification(
+        id=notification_id,
+        timestamp=datetime.now(get_timezone()).isoformat(),
+        sender="axe",
+        icon="⚠",
+        notes=notes,
+        tags=normalize_notification_tags(["axe", "restart", "error"]),
+    )
+    append_notification(n)
+    return notification_id
+
+
 def notify_hitl_request(
     step_name: str,
     workflow_name: str,

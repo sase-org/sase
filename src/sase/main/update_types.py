@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-from sase.axe.process import AxeStartResult
+from sase.axe.process import AxeStartAttempt, AxeStartResult
 from sase.dev_update import DevUpdatePlan, DevUpdateResult
 from sase.dev_update.models import DevCommandRunner
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
@@ -60,6 +60,8 @@ class RestartInfo:
     pid: int | None = None
     message: str = ""
     reason: str | None = None
+    attempts: tuple[AxeStartAttempt, ...] = ()
+    verified: bool = False
 
 
 @dataclass(frozen=True)

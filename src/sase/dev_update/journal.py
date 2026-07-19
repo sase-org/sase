@@ -30,11 +30,12 @@ def append_dev_update_journal(
     plan: DevUpdatePlan,
     result: DevUpdateResult,
     *,
+    restart: Any | None = None,
     path: Path | None = None,
 ) -> Path | None:
     """Append one best-effort dev-update execution record."""
     target = path or dev_update_journal_path()
-    record = _dev_update_journal_record(plan, result)
+    record = _dev_update_journal_record(plan, result, restart=restart)
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
         with target.open("a", encoding="utf-8") as file:
@@ -51,6 +52,8 @@ def append_dev_update_journal(
 def _dev_update_journal_record(
     plan: DevUpdatePlan,
     result: DevUpdateResult,
+    *,
+    restart: Any | None = None,
 ) -> dict[str, Any]:
     """Build the serializable journal record for a dev-update run."""
     return {
@@ -103,6 +106,31 @@ def _dev_update_journal_record(
             ],
         },
         "commands": [_command_record(command) for command in result.commands],
+        "restart": _restart_record(restart),
+    }
+
+
+def _restart_record(restart: Any | None) -> dict[str, Any] | None:
+    if restart is None:
+        return None
+    return {
+        "attempted": bool(restart.attempted),
+        "status": str(restart.status),
+        "pid": restart.pid,
+        "message": str(restart.message),
+        "reason": restart.reason,
+        "verified": bool(restart.verified),
+        "attempts": [
+            {
+                "number": attempt.number,
+                "status": attempt.status,
+                "pid": attempt.pid,
+                "message": attempt.message,
+                "verified": attempt.verified,
+                "verification_error": attempt.verification_error,
+            }
+            for attempt in restart.attempts
+        ],
     }
 
 

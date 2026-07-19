@@ -100,6 +100,8 @@ def test_dev_update_runs_backend_and_restarts_axe(
     journal_payload = json.loads(journal_path.read_text(encoding="utf-8"))
     assert journal_payload["result"]["status"] == "updated"
     assert journal_payload["plan"]["packages"][0]["name"] == "sase"
+    assert journal_payload["restart"]["status"] == "restarted"
+    assert journal_payload["restart"]["pid"] == 2468
 
 
 def test_dev_update_json_includes_dev_outcomes_and_restart(

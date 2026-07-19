@@ -65,6 +65,7 @@ from sase.main.update_types import (
     PlanDevFn,
     ProbeFn,
     RestartAxeFn,
+    RestartInfo,
     RunUvFn,
     VersionFn,
 )
@@ -335,8 +336,16 @@ def _handle_live_update(
                 err=err,
             )
         dev_result = execute_dev_update_fn(dev_plan, run=run_dev_update_fn)
-        append_dev_update_journal(dev_plan, dev_result)
         if not dev_update_succeeded(dev_result):
+            append_dev_update_journal(
+                dev_plan,
+                dev_result,
+                restart=RestartInfo(
+                    attempted=False,
+                    status="skipped_no_change",
+                    reason="update failed before axe restart",
+                ),
+            )
             elapsed = max(0.0, clock() - start)
             if as_json:
                 print(
@@ -376,6 +385,16 @@ def _handle_live_update(
             else:
                 change_set = run_fn(argv)
         except UvToolError as exc:
+            if dev_plan is not None and dev_result is not None:
+                append_dev_update_journal(
+                    dev_plan,
+                    dev_result,
+                    restart=RestartInfo(
+                        attempted=False,
+                        status="skipped_no_change",
+                        reason="managed update failed before axe restart",
+                    ),
+                )
             return _fail(exc, as_json=as_json, err=err)
         if route is not None:
             managed_summary = summarize_planned_update(change_set, managed_packages)
@@ -393,6 +412,12 @@ def _handle_live_update(
         axe_running_fn=axe_running_fn,
         restart_axe_fn=restart_axe_fn,
     )
+    if dev_plan is not None and dev_result is not None:
+        append_dev_update_journal(
+            dev_plan,
+            dev_result,
+            restart=restart,
+        )
 
     if as_json:
         print(

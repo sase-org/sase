@@ -15,21 +15,35 @@ from sase.agent.env_hygiene import (
 )
 
 from .config import AxeConfig, AxeConfigError, load_axe_config
+from .desired_state import write_desired_state
 from .lock import AXE_LOCK_FD_ENV, AxeLifecycleLock
 from .state import AXE_STATE_DIR
 from ._process_probe import get_axe_pid, get_pid_from_pid_files, probe_orchestrator
 from ._process_types import AxeStartResult
 
 
-def _compose_axe_daemon_env(environ: Mapping[str, str]) -> dict[str, str]:
+AXE_START_SOURCE_ENV = "SASE_AXE_START_SOURCE"
+
+
+def _compose_axe_daemon_env(
+    environ: Mapping[str, str],
+    *,
+    desired_state_source: str = "start",
+) -> dict[str, str]:
     """Return a system-service environment without agent or chop context."""
     env = dict(environ)
     scrub_agent_identity_env(env)
     scrub_chop_context_env(env)
+    env[AXE_START_SOURCE_ENV] = desired_state_source
     return env
 
 
-def start_axe_daemon(config: AxeConfig | None = None) -> int | None:
+def start_axe_daemon(
+    config: AxeConfig | None = None,
+    *,
+    desired_state_source: str = "start",
+    record_desired_state: bool = True,
+) -> int | None:
     """Start axe as a background daemon process.
 
     Launches ``sase axe`` (orchestrator mode) as a detached subprocess.
@@ -40,11 +54,23 @@ def start_axe_daemon(config: AxeConfig | None = None) -> int | None:
     Returns:
         PID of the running process, or None if startup failed.
     """
-    return start_axe_daemon_result(config).pid
+    return start_axe_daemon_result(
+        config,
+        desired_state_source=desired_state_source,
+        record_desired_state=record_desired_state,
+    ).pid
 
 
-def start_axe_daemon_result(config: AxeConfig | None = None) -> AxeStartResult:
+def start_axe_daemon_result(
+    config: AxeConfig | None = None,
+    *,
+    desired_state_source: str = "start",
+    record_desired_state: bool = True,
+) -> AxeStartResult:
     """Start axe as a background daemon process and return a detailed result."""
+    if record_desired_state:
+        write_desired_state("running", source=desired_state_source)
+
     existing_pid = get_axe_pid()
     if existing_pid is not None:
         return AxeStartResult(
@@ -110,7 +136,10 @@ def start_axe_daemon_result(config: AxeConfig | None = None) -> AxeStartResult:
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / "axe.log"
 
-        env = _compose_axe_daemon_env(os.environ)
+        env = _compose_axe_daemon_env(
+            os.environ,
+            desired_state_source=desired_state_source,
+        )
         env[AXE_LOCK_FD_ENV] = str(lifecycle_lock.fd)
         with open(log_file, "a") as log:
             process = subprocess.Popen(

@@ -6,6 +6,7 @@ import subprocess
 import time
 
 from . import _process_probe as process_probe
+from .desired_state import write_desired_state
 from .lock import clear_lock_holder_pid, is_lifecycle_lock_held
 from .state import (
     list_lumberjack_names,
@@ -21,6 +22,8 @@ def stop_axe_daemon(
     kill_timeout: float = 5.0,
     *,
     force: bool = False,
+    desired_state_source: str = "stop",
+    record_desired_state: bool = True,
 ) -> bool:
     """Stop the running axe orchestrator and wait for full shutdown.
 
@@ -40,6 +43,8 @@ def stop_axe_daemon(
         timeout=timeout,
         kill_timeout=kill_timeout,
         force=force,
+        desired_state_source=desired_state_source,
+        record_desired_state=record_desired_state,
     ).terminated_anything
 
 
@@ -48,8 +53,13 @@ def stop_axe_daemon_result(
     kill_timeout: float = 5.0,
     *,
     force: bool = False,
+    desired_state_source: str = "stop",
+    record_desired_state: bool = True,
 ) -> AxeStopResult:
     """Stop axe and return a detailed lifecycle result."""
+    if record_desired_state:
+        write_desired_state("stopped", source=desired_state_source)
+
     probe = probe_orchestrator()
     pid = probe.running_pid or probe.lock_holder_pid
     if pid == os.getpid():

@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from sase.axe.config import AxeConfig
+from sase.axe.desired_state import read_desired_state
 from sase.axe.lock import AxeLifecycleLock
 from sase.axe._process_probe import probe_orchestrator
 from sase.axe._process_start import (
@@ -20,6 +21,7 @@ from sase.axe._process_start import (
 from sase.axe._process_stop import _send_signal
 from sase.axe._process_types import AxeOrchestratorProbe
 from sase.axe.process import (
+    AxeStartResult,
     get_axe_status,
     restart_axe_daemon,
     start_axe_daemon,
@@ -77,7 +79,11 @@ def test_compose_axe_daemon_env_strips_agent_and_chop_context() -> None:
 
     result = _compose_axe_daemon_env(environ)
 
-    assert result == {"PATH": "/bin", "SASE_AXE_OTHER": "keep"}
+    assert result == {
+        "PATH": "/bin",
+        "SASE_AXE_OTHER": "keep",
+        "SASE_AXE_START_SOURCE": "start",
+    }
     assert environ["SASE_AGENT_NAME"] == "parent"
 
 
@@ -208,6 +214,7 @@ def test_build_start_command_prefers_canonical_sase_from_ephemeral_workspace(
 
 def test_start_axe_daemon_result_reports_held_lock_without_pid(
     axe_config: AxeConfig,
+    temp_state_dir: Path,
 ) -> None:
     """Start failure explains the held-lock/no-PID deadlock."""
     with (
@@ -232,6 +239,10 @@ def test_start_axe_daemon_result_reports_held_lock_without_pid(
     assert result.status == "blocked"
     assert result.pid is None
     assert "sase axe stop --force" in result.message
+    marker = read_desired_state()
+    assert marker is not None
+    assert marker.state == "running"
+    assert marker.source == "start"
 
 
 # --- stop_axe_daemon Tests ---
@@ -242,6 +253,10 @@ def test_stop_axe_daemon_returns_false_when_no_pid_file(
 ) -> None:
     """Test stop_axe_daemon returns False when no PID file exists."""
     assert stop_axe_daemon() is False
+    marker = read_desired_state()
+    assert marker is not None
+    assert marker.state == "stopped"
+    assert marker.source == "stop"
 
 
 @patch("sase.axe._process_stop.os.kill")
@@ -547,15 +562,15 @@ def test_stop_axe_daemon_sweeps_orphaned_lumberjacks(
     mock_kill.assert_called_once_with(22222, signal.SIGTERM)
 
 
-def test_restart_axe_daemon_stops_then_starts(axe_config: AxeConfig) -> None:
-    with (
-        patch("sase.axe.process.stop_axe_daemon") as mock_stop,
-        patch("sase.axe.process.start_axe_daemon", return_value=2468) as mock_start,
-    ):
+def test_restart_axe_daemon_returns_verified_result_pid(axe_config: AxeConfig) -> None:
+    result = AxeStartResult(status="started", pid=2468, verified=True)
+    with patch(
+        "sase.axe._process_restart.restart_axe_daemon_result",
+        return_value=result,
+    ) as mock_restart:
         assert restart_axe_daemon(axe_config) == 2468
 
-    mock_stop.assert_called_once_with()
-    mock_start.assert_called_once_with(axe_config)
+    mock_restart.assert_called_once_with(axe_config)
 
 
 # --- get_axe_status Tests ---
