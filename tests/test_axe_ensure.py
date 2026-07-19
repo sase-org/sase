@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 import subprocess
+import threading
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
-from sase.axe.desired_state import write_desired_state
+from sase.axe.desired_state import read_desired_state, write_desired_state
 from sase.axe.ensure import (
     DEFAULT_ENSURE_CADENCE_SECONDS,
     ensure_axe,
     install_ensure_timer,
     uninstall_ensure_timer,
 )
-from sase.axe.process import AxeStartResult
+from sase.axe.process import AxeStartResult, stop_axe_daemon_result
 from sase.notifications.store import load_notifications
 
 
@@ -122,6 +123,51 @@ def test_ensure_reports_start_failure(axe_state_dir: Path) -> None:
     assert result.status == "failed"
     assert result.succeeded is False
     assert result.message == "lock stayed held"
+
+
+def test_explicit_stop_waits_for_in_progress_ensure(axe_state_dir: Path) -> None:
+    """An in-flight heal cannot overwrite an operator's stopped marker."""
+    write_desired_state("running", source="restart")
+    start_entered = threading.Event()
+    allow_start = threading.Event()
+    stop_attempted = threading.Event()
+    stop_finished = threading.Event()
+
+    def start(**_kwargs: object) -> AxeStartResult:
+        start_entered.set()
+        assert allow_start.wait(timeout=2)
+        # Match start_axe_daemon_result's desired-state write after the ensure
+        # check. Without stop/ensure serialization this clobbers ``stopped``.
+        write_desired_state("running", source="waiting agent runner")
+        return AxeStartResult(status="started", pid=4321)
+
+    ensure_thread = threading.Thread(
+        target=lambda: ensure_axe(running_fn=lambda: False, start_fn=start)
+    )
+
+    def stop() -> None:
+        stop_attempted.set()
+        stop_axe_daemon_result(timeout=0, kill_timeout=0)
+        stop_finished.set()
+
+    stop_thread = threading.Thread(target=stop)
+    ensure_thread.start()
+    assert start_entered.wait(timeout=2)
+    stop_thread.start()
+    assert stop_attempted.wait(timeout=2)
+    try:
+        assert not stop_finished.wait(timeout=0.1)
+    finally:
+        allow_start.set()
+        ensure_thread.join(timeout=2)
+        stop_thread.join(timeout=2)
+
+    assert not ensure_thread.is_alive()
+    assert not stop_thread.is_alive()
+    desired = read_desired_state()
+    assert desired is not None
+    assert desired.state == "stopped"
+    assert desired.source == "stop"
 
 
 def test_heal_writes_notification_inbox_entry(axe_state_dir: Path) -> None:
