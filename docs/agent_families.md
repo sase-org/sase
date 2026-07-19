@@ -51,6 +51,10 @@ workflow steps, and sequential families whose names stay inside the same hood.
 Killing or dismissing the synthetic clan row cascades to its live members, while acting on one member leaves the rest of
 the clan alone.
 
+Retrying a clan member from ACE preserves its membership. ACE rewrites the retry prompt into the
+`%id(<retry-suffix>, clan=<clan>)` join form instead of repeating the create-only `%clan` declaration; template clan
+names such as `research.@` are resolved to the member's concrete clan first.
+
 ACE renders every grouping row with a trailing color-coded name and no kind icon. A clan is synthetic and ends with an
 orchid `<name>` after its rolled-up status counts; its `@tribe` labels follow the name. A real multi-member family root
 ends with an azure `<name>`, while plain agent annotations and a lone plan proposer with only its display-only planner
@@ -152,6 +156,12 @@ before spawning the member. Collision errors suggest `%i(@, family=parent)`. `%w
 the bare family name resolve through the family container; an exact `--<suffix>` name targets one member. A member
 attached to an agent already inside a clan inherits that clan membership.
 
+`#fork:<family>` contributes every readable, successfully completed member transcript in chain order, oldest first. The
+injected context labels each member and reports family members omitted because they are still running, failed, or have a
+missing or unreadable transcript. Shared inherited history is de-duplicated across the member transcripts. At least one
+completed readable transcript is required; use `#fork:<family>--<suffix>` when only one member should be a parent. A
+family container can also be combined with independent agent, family, clan, or tribe parents in one multi-parent fork.
+
 ### Family detail folding
 
 Selecting a real multi-member family root in ACE adds a numbered `FAMILY MEMBERS` roster in stable chain order. The
@@ -201,12 +211,12 @@ An agent tribe is a user-facing label for related agents across clans and famili
 
 ACE displays tribes with an `@` prefix and splits the Agents tab into panels such as `@review` and `@epic`. The clan's
 single declaration assigns one effective tribe to the whole generation; joiner prompts omit `tribe=`. Older clan
-generations without any `clan_tribe` value fall back to the distinct post-hoc member tags they carry.
+generations without any `clan_tribe` value fall back to the distinct post-hoc member tribe assignments they carry.
 
 Press `N` in ACE to set or clear the focused agent's tribe (or every marked agent). For the declaring clan member, ACE
 rewrites the stored `%clan(<clan>, tribe=<tribe>)` and its `clan_tribe` metadata. For a joiner, ACE updates only the
 metadata and never invents a second `%clan` declaration. The synthetic clan row itself is not an editable agent. The CLI
-manages post-hoc tags for named standalone agents:
+manages post-hoc tribe assignments for named standalone agents:
 
 ```bash
 sase agent tribe set -n <agent> -t <tribe>
@@ -214,9 +224,13 @@ sase agent tribe unset -n <agent>
 sase agent tribe list [-n <agent>]
 ```
 
-Standalone post-hoc assignments retain the internal `tag` field and `agent_tags.json` store for compatibility. Clan
-tribe assignments use the separate per-member `clan_tribe` field and are resolved generation-wide. The prompt language,
-CLI, and display terminology are all tribe.
+Pass a bare tribe name to `set`, without the display-only `@` prefix. Names may contain letters, digits, underscores,
+dots, and dashes. Standalone assignments are stored canonically in `~/.sase/agent_tribes.json` with a `tribe` field.
+When that file does not exist, SASE can read the legacy `~/.sase/agent_tags.json` scalar `tag` and list `tags` shapes;
+the first mutation writes the complete imported state to the canonical store, which is authoritative thereafter. Legacy
+artifact metadata remains readable at explicit migration boundaries, but new metadata, CLI output, editor projections,
+and saved bundles emit `tribe` only. Clan tribe assignments use the separate per-member `clan_tribe` field and are
+resolved generation-wide.
 
 ### Tribe panel focus and folding
 
@@ -228,7 +242,10 @@ expanded whole panel is selected, `j` / `k` cycle across panels without descendi
 remembered row. `J` / `K` always move to the first / last selectable row of the next / previous panel. Whole-panel focus
 is unavailable in the merged layout. Apostrophe jump can select any split-panel title, including a lone expanded panel,
 but a lone panel cannot be collapsed. With whole-panel focus active, uppercase `H` isolates the selected panel by
-keeping it expanded and collapsing every sibling without changing its remembered row.
+keeping it expanded and collapsing every sibling without changing its remembered row. When isolation changes the layout,
+ACE remembers the prior collapsed-panel set for the session: `↺` title markers and the `H restore panels` footer hint
+show that the next `H`, from any whole-panel focus, will restore it. A separate sibling-panel or layout mutation
+invalidates that one-step restore.
 
 Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four `zz` metadata detail levels are:
 
@@ -268,8 +285,8 @@ Use an `@<tribe>` reference where `%wait` or `#fork` normally accepts an agent n
 This is a next-entity target, not a request to wait for every historical member of the tribe. `%wait:@review` selects
 the earliest successfully completed `@review` entity launched after the waiting agent: either one standalone agent or
 one complete clan generation. Older entities, the waiting agent itself, failed agents, and incomplete clans do not
-satisfy the dependency. A tagged member of a clan enrolls the whole generation, so that candidate becomes eligible only
-after every member required by the normal clan wait succeeds.
+satisfy the dependency. A tribe-assigned member of a clan enrolls the whole generation, so that candidate becomes
+eligible only after every member required by the normal clan wait succeeds.
 
 `#fork:@review` implies the same wait, then resumes from the selected entity. A standalone match contributes its full
 conversation. A clan match contributes one launch-ordered clan summary containing each member's sanitized prompts,
@@ -280,12 +297,14 @@ tribe waits and forks use neutral auto-names rather than derived `.w*` or `.f*` 
 unknown at launch planning time.
 
 ACE can insert these group references directly. Select a clan's synthetic container row and press `f` for
-`#fork:<clan>`. For a tribe, give its named panel whole-panel focus—expanded or collapsed—and press `f` for
-`#fork:@<tribe>`. ACE prefixes the prompt with a VCS tag only when every real agent currently in the selected clan
-generation or loaded tribe panel resolves to the same workflow and ref. Otherwise it omits the VCS tag so you can add
-the intended `#git`, `#gh`, or other workflow reference yourself. The selected rows determine only that optional VCS
-prefix; they do not pin the eventual clan or tribe fork source. See
-[Forking Agents and Groups](ace.md#forking-agents-and-groups) for selection and revalidation behavior.
+`#fork:<clan>`, or press `W` for `%wait:<clan>`. For a tribe, give its named panel whole-panel focus—expanded or
+collapsed—and use the same keys for `#fork:@<tribe>` or `%wait:@<tribe>`. The `(untagged)` panel and grouping banners
+are not group targets, and marked agents take precedence over the focused clan or tribe for `W`. ACE prefixes either
+prompt with a VCS tag only when every real agent currently in the selected clan generation or loaded tribe panel
+resolves to the same workflow and ref. Otherwise it omits the VCS tag so you can add the intended `#git`, `#gh`, or
+other workflow reference yourself. The selected rows determine only that optional VCS prefix; they do not pin the
+eventual clan or tribe fork source. See [Forking Agents and Groups](ace.md#forking-agents-and-groups) for selection and
+revalidation behavior.
 
 ## Agent-Initiated Family Launches
 

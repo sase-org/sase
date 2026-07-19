@@ -311,6 +311,12 @@ document order. Standalone `#!workflow` references are forbidden in proposal pro
 references remain valid. The runner records every launched agent in `agent_chops.json` and finalizes the chop only when
 the linked agents reach terminal state.
 
+A launcher can still fail partway through an otherwise valid batch. When at least one proposal already started, the chop
+remains active as `launched` until those agents finish, then finalizes as `action_failed` with both the launch error and
+any agent failures. Once-per keys for accepted proposals that never started are released immediately; a started proposal
+keeps its key while it runs, then releases it only if that agent fails. Successful work remains de-duplicated. A
+key-release error is appended to the chop output and does not replace the original launch or agent outcome.
+
 Python chop packages should use the public `sase.chops` SDK (`load_chop_invocation`, `ChopLogger`, `ChopResultBuilder`,
 and `launch_proposal`) for argument parsing, summaries, validation, and atomic result writes.
 
@@ -327,7 +333,8 @@ Policy is runner-owned and evaluated before the script:
 - Checkpoint policy can be `on_observation`, `on_action_accepted`, or `on_action_success`. The last option advances only
   after every linked proposal agent succeeds.
 - `once_per` renders a bounded per-proposal key; a proposal's own `dedupe_key` takes precedence. Duplicate proposals are
-  skipped without relaunching work.
+  skipped without relaunching work. Accepted keys remain reserved for successful launches, but are released when their
+  proposal never starts or its launched agent reaches terminal failure, allowing a later run to retry that work.
 - `for_each` accepts literal target rows or `source: projects`. Expansion creates stable instances such as
   `refresh_docs[sase-core]`, each with independent cadence, history, checkpoints, and dedupe state. Target overrides can
   patch per-instance fields such as `run_every` and trigger thresholds.

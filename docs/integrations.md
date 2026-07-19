@@ -97,7 +97,7 @@ for entry in agent_list_entries(include_recent=True, project="sase"):
 By default the helper returns active agents. `include_recent=True` includes recently completed `DONE` and `FAILED` rows
 using the same cap as `sase agent list -a`; `project` filters by exact project key after projection. Each
 `AgentListEntry` includes the basic CLI fields plus status bucket/glyph, provider and VCS display labels, retry and wait
-metadata, family role, parent, tag, bead and ChangeSpec names, direct-child counts, output variables, artifact and
+metadata, family role, parent, tribe, bead and ChangeSpec names, direct-child counts, output variables, artifact and
 commit counts, and error text when available. The nested wait/retry/children objects are frozen dataclasses, not raw
 JSON; bridge commands should convert them into their own wire shape.
 

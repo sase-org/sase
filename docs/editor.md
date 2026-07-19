@@ -88,9 +88,9 @@ file.
 `agent-catalog` requires only `{"schema_version":1}` and reads across projects. It returns active and recent ordinary
 agent rows, de-duplicated by name, with `status` and `project`. When the same artifact snapshot contains usable group
 metadata, the response adds the latest identifiable generation of each family and clan plus `@tribe` references derived
-from stored tags and clan declarations. Every row has `name`, `kind`, `member_count`, and display-ready `detail`; clan
-rows also have aggregate `status`. Group entries are additive, so malformed legacy group metadata does not hide the
-ordinary agent rows.
+from stored tribe assignments and clan declarations. Every row has `name`, `kind`, `member_count`, and display-ready
+`detail`; clan rows also have aggregate `status`. Group entries are additive, so malformed legacy group metadata does
+not hide the ordinary agent rows.
 
 `vcs-repo-catalog` requires a `workflow` and `namespace`, then asks that workflow's registered workspace provider for
 repositories. The response reports `status`, `error_kind`, `message`, `provider_display`, and whether returned cache
