@@ -19,13 +19,24 @@ import importlib.resources
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
 import yaml  # type: ignore[import-untyped]
 
 from sase.content_layout import discover_project_root, resolve_project_layout
+from sase.config.layers import (
+    DEPRECATED_TOP_LEVEL_KEYS,
+    RETIRED_SDD_SELECTOR_KEYS,
+    UNSUPPORTED_TOP_LEVEL_KEYS,
+    ConfigLayer,
+    load_config_layers as _load_config_layers,
+    load_yaml_file_with_metadata,
+    without_retired_sdd_selectors,
+)
+from sase.config.xprompt_sources import (
+    load_xprompts_by_source as _load_xprompts_by_source,
+)
 
 
 log = logging.getLogger(__name__)
@@ -369,51 +380,14 @@ def load_xprompts_by_source() -> list[tuple[str, dict[str, Any]]]:
         - ``"config"`` — user ``sase.yml``
         - ``"config_overlay:{filename}"`` — ``sase_*.yml`` overlays
     """
-    results: list[tuple[str, dict[str, Any]]] = []
-
-    # 1. Built-in default config (lowest priority)
-    default = _load_default_config()
-    if isinstance(default.get("xprompts"), dict):
-        results.append(("default_config", default["xprompts"]))
-
-    # 2. Plugin configs
-    from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
-
-    if not is_plugin_disabled("CONFIG"):
-        for module in discover_plugin_resources("sase_config"):
-            try:
-                ref = importlib.resources.files(module).joinpath("default_config.yml")
-                text = ref.read_text(encoding="utf-8")
-                data = yaml.safe_load(text)
-                if isinstance(data, dict) and isinstance(data.get("xprompts"), dict):
-                    module_name = getattr(module, "__name__", str(module))
-                    results.append((f"plugin_config:{module_name}", data["xprompts"]))
-            except Exception:
-                log.debug(
-                    "Failed to load plugin xprompts from %s",
-                    getattr(module, "__name__", module),
-                    exc_info=True,
-                )
-
-    # 3. User config (sase.yml)
-    user_base = _load_yaml_file(CONFIG_DIR / "sase.yml")
-    if user_base and isinstance(user_base.get("xprompts"), dict):
-        results.append(("config", user_base["xprompts"]))
-
-    # 4. Overlay files
-    for overlay_path in _get_overlay_paths():
-        overlay = _load_yaml_file(overlay_path)
-        if overlay and isinstance(overlay.get("xprompts"), dict):
-            results.append((f"config_overlay:{overlay_path.name}", overlay["xprompts"]))
-
-    # 5. Local config (highest priority among config sources)
-    local_path = get_local_config_path()
-    if local_path:
-        local_config = _load_yaml_file(local_path)
-        if local_config and isinstance(local_config.get("xprompts"), dict):
-            results.append(("local_config", local_config["xprompts"]))
-
-    return results
+    return _load_xprompts_by_source(
+        config_dir=CONFIG_DIR,
+        default_loader=_load_default_config,
+        yaml_loader=_load_yaml_file,
+        overlay_paths=_get_overlay_paths(),
+        local_path=get_local_config_path(),
+        resource_files=importlib.resources.files,
+    )
 
 
 def load_merged_config() -> dict[str, Any]:
@@ -495,103 +469,6 @@ def load_merged_config() -> dict[str, Any]:
     return result
 
 
-# Top-level config keys that were once supported but have since been removed.
-# Surfaced via ``sase config layers`` so users see why their entries are ignored.
-UNSUPPORTED_TOP_LEVEL_KEYS: frozenset[str] = frozenset({"workflows"})
-
-# Top-level config keys that are still parsed for backward compatibility but have
-# a canonical replacement. Mapped to the key callers should migrate to. Surfaced
-# (non-fatally) via ``sase config layers`` and ``sase doctor`` so users get a
-# nudge to migrate without breaking launched agents with repeated warnings.
-DEPRECATED_TOP_LEVEL_KEYS: dict[str, str] = {
-    "linked_repos": "repos.linked",
-    "sibling_repos": "repos.linked",
-}
-
-# Placement is provider-owned. These nested keys are recognized only so old
-# configuration can be ignored with an actionable cleanup diagnostic.
-RETIRED_SDD_SELECTOR_KEYS: frozenset[str] = frozenset({"storage", "version_controlled"})
-
-
-def without_retired_sdd_selectors(data: dict[str, Any]) -> dict[str, Any]:
-    sdd = data.get("sdd")
-    if not isinstance(sdd, dict) or not RETIRED_SDD_SELECTOR_KEYS.intersection(sdd):
-        return data
-    cleaned = dict(data)
-    cleaned_sdd = dict(sdd)
-    for key in RETIRED_SDD_SELECTOR_KEYS:
-        cleaned_sdd.pop(key, None)
-    cleaned["sdd"] = cleaned_sdd
-    return cleaned
-
-
-def _collect_retired_keys(data: dict[str, Any] | None) -> list[str]:
-    if not data:
-        return []
-    sdd = data.get("sdd")
-    if not isinstance(sdd, dict):
-        return []
-    return [f"sdd.{key}" for key in sorted(RETIRED_SDD_SELECTOR_KEYS) if key in sdd]
-
-
-@dataclass
-class ConfigLayer:
-    """Describes a single layer in the config merge chain."""
-
-    name: str
-    path: str | None
-    exists: bool
-    list_strategy: str
-    keys: list[str] = field(default_factory=list)
-    data: dict[str, Any] = field(default_factory=dict)
-    unsupported_keys: list[str] = field(default_factory=list)
-    deprecated_keys: list[str] = field(default_factory=list)
-    retired_keys: list[str] = field(default_factory=list)
-    present: bool | None = None
-    error: str | None = None
-
-    @property
-    def loaded(self) -> bool:
-        """Return whether this layer contributed config data."""
-        return self.exists
-
-
-def _collect_unsupported_keys(data: dict[str, Any] | None) -> list[str]:
-    if not data:
-        return []
-    return sorted(key for key in data if key in UNSUPPORTED_TOP_LEVEL_KEYS)
-
-
-def _collect_deprecated_keys(data: dict[str, Any] | None) -> list[str]:
-    if not data:
-        return []
-    return sorted(key for key in data if key in DEPRECATED_TOP_LEVEL_KEYS)
-
-
-def load_yaml_file_with_metadata(
-    path: Path,
-) -> tuple[bool, dict[str, Any] | None, str | None]:
-    """Load a YAML mapping and keep missing/invalid metadata separate."""
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-    except FileNotFoundError:
-        return False, None, None
-    except Exception as exc:
-        log.debug("Failed to load YAML file: %s", path, exc_info=True)
-        return True, None, f"{type(exc).__name__}: {exc}"
-
-    if data is None:
-        return True, {}, None
-    if isinstance(data, dict):
-        return True, data, None
-    return (
-        True,
-        None,
-        f"top-level YAML value is {type(data).__name__}, expected mapping",
-    )
-
-
 def load_config_layers() -> list[ConfigLayer]:
     """Load all config layers with metadata, without merging.
 
@@ -599,134 +476,15 @@ def load_config_layers() -> list[ConfigLayer]:
     priority).  Each entry records the source path, whether the file existed,
     which top-level keys it contributed, and the raw data.
     """
-    from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
-
-    layers: list[ConfigLayer] = []
-
-    # 1. Built-in default
-    default_data = _load_default_config()
-    layers.append(
-        ConfigLayer(
-            name="default",
-            path=None,
-            exists=True,
-            list_strategy="concatenate",
-            keys=list(default_data.keys()),
-            data=default_data,
-            unsupported_keys=_collect_unsupported_keys(default_data),
-            deprecated_keys=_collect_deprecated_keys(default_data),
-            retired_keys=_collect_retired_keys(default_data),
-            present=True,
-        )
-    )
-
-    # 2. Plugin configs
-    if not is_plugin_disabled("CONFIG"):
-        for module in discover_plugin_resources("sase_config"):
-            module_name = getattr(module, "__name__", str(module))
-            try:
-                ref = importlib.resources.files(module).joinpath("default_config.yml")
-                text = ref.read_text(encoding="utf-8")
-                data = yaml.safe_load(text)
-                if isinstance(data, dict):
-                    layers.append(
-                        ConfigLayer(
-                            name=f"plugin:{module_name}",
-                            path=None,
-                            exists=True,
-                            list_strategy="concatenate",
-                            keys=list(data.keys()),
-                            data=data,
-                            unsupported_keys=_collect_unsupported_keys(data),
-                            deprecated_keys=_collect_deprecated_keys(data),
-                            retired_keys=_collect_retired_keys(data),
-                            present=True,
-                        )
-                    )
-            except Exception:
-                layers.append(
-                    ConfigLayer(
-                        name=f"plugin:{module_name}",
-                        path=None,
-                        exists=False,
-                        list_strategy="concatenate",
-                        present=True,
-                        error="failed to load plugin default_config.yml",
-                    )
-                )
-
-    # 3. User config
-    base_path = CONFIG_DIR / "sase.yml"
-    user_present, user_data, user_error = load_yaml_file_with_metadata(base_path)
-    layers.append(
-        ConfigLayer(
-            name="user",
-            path=str(base_path),
-            exists=user_data is not None,
-            list_strategy="replace",
-            keys=list(user_data.keys()) if user_data else [],
-            data=user_data or {},
-            unsupported_keys=_collect_unsupported_keys(user_data),
-            deprecated_keys=_collect_deprecated_keys(user_data),
-            retired_keys=_collect_retired_keys(user_data),
-            present=user_present,
-            error=user_error,
-        )
-    )
-
-    # 4. Overlay files
-    for overlay_path in _get_overlay_paths():
-        overlay_present, overlay_data, overlay_error = load_yaml_file_with_metadata(
-            overlay_path
-        )
-        layers.append(
-            ConfigLayer(
-                name=f"overlay:{overlay_path.name}",
-                path=str(overlay_path),
-                exists=overlay_data is not None,
-                list_strategy="concatenate",
-                keys=list(overlay_data.keys()) if overlay_data else [],
-                data=overlay_data or {},
-                unsupported_keys=_collect_unsupported_keys(overlay_data),
-                deprecated_keys=_collect_deprecated_keys(overlay_data),
-                retired_keys=_collect_retired_keys(overlay_data),
-                present=overlay_present,
-                error=overlay_error,
-            )
-        )
-
-    # 5. Local config
     local_path = get_local_config_path()
-    if local_path:
-        local_present, local_data, local_error = load_yaml_file_with_metadata(
-            local_path
-        )
-        layers.append(
-            ConfigLayer(
-                name="local",
-                path=str(local_path),
-                exists=local_data is not None,
-                list_strategy="concatenate",
-                keys=list(local_data.keys()) if local_data else [],
-                data=local_data or {},
-                unsupported_keys=_collect_unsupported_keys(local_data),
-                deprecated_keys=_collect_deprecated_keys(local_data),
-                retired_keys=_collect_retired_keys(local_data),
-                present=local_present,
-                error=local_error,
-            )
-        )
-    else:
-        layers.append(
-            ConfigLayer(
-                name="local",
-                path=str(
-                    _get_local_config_write_path() or Path.cwd() / "sase" / "sase.yml"
-                ),
-                exists=False,
-                list_strategy="concatenate",
-                present=False,
-            )
-        )
-
-    return layers
+    local_fallback_path = (
+        local_path or _get_local_config_write_path() or Path.cwd() / "sase" / "sase.yml"
+    )
+    return _load_config_layers(
+        config_dir=CONFIG_DIR,
+        default_loader=_load_default_config,
+        overlay_paths=_get_overlay_paths(),
+        local_path=local_path,
+        local_fallback_path=local_fallback_path,
+        resource_files=importlib.resources.files,
+    )
