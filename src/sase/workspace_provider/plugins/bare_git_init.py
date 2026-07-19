@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from sase.core.paths import sase_projects_dir, sase_subdir, validate_sase_project_name
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider.plugins.bare_git_ref import set_bare_repo_dir
 from sase.workspace_provider.utils import set_workspace_dir
 
@@ -123,12 +124,15 @@ def _run_git(
     cmd = ["git", *args]
     cwd_value = str(cwd) if cwd is not None else None
     try:
-        return subprocess.run(
-            cmd,
-            cwd=cwd_value,
-            capture_output=True,
-            text=True,
-            check=check,
+        result, _ = run_with_git_lock_retry(
+            lambda: subprocess.run(
+                cmd,
+                cwd=cwd_value,
+                capture_output=True,
+                text=True,
+                check=False,
+            ),
+            cwd=cwd_value or Path.cwd(),
         )
     except subprocess.CalledProcessError as exc:
         raise RuntimeError(
@@ -142,6 +146,17 @@ def _run_git(
         ) from exc
     except FileNotFoundError as exc:
         raise RuntimeError("git executable not found on PATH") from exc
+    if check and result.returncode != 0:
+        raise RuntimeError(
+            _format_git_error(
+                cmd,
+                cwd=cwd_value,
+                returncode=result.returncode,
+                stdout=result.stdout,
+                stderr=result.stderr,
+            )
+        )
+    return result
 
 
 def _format_git_error(

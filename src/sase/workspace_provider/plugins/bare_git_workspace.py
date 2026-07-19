@@ -10,6 +10,7 @@ import re
 import subprocess
 
 from sase.core.paths import is_valid_sase_project_name
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider._hookspec import ResolvedRef, WorkflowMetadata, hookimpl
 from sase.workspace_provider.plugins.bare_git_ref import (
     ResolvedGitRef,
@@ -43,6 +44,20 @@ def _valid_project_name_from_git_name(name: str) -> str | None:
     return project_name
 
 
+def _run_git(args: list[str], *, cwd: str) -> subprocess.CompletedProcess[str]:
+    result, _ = run_with_git_lock_retry(
+        lambda: subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+        ),
+        cwd=cwd,
+    )
+    return result
+
+
 class BareGitWorkspacePlugin:
     """Pluggy plugin for bare-git workspace management."""
 
@@ -57,12 +72,9 @@ class BareGitWorkspacePlugin:
 
         # Check origin remote URL — local path means bare git
         try:
-            result = subprocess.run(
-                ["git", "config", "--get", "remote.origin.url"],
+            result = _run_git(
+                ["config", "--get", "remote.origin.url"],
                 cwd=workspace_dir,
-                capture_output=True,
-                text=True,
-                check=False,
             )
             if result.returncode == 0:
                 url = result.stdout.strip()
@@ -181,12 +193,9 @@ class BareGitWorkspacePlugin:
         cwd = os.path.abspath(cwd)
         # Try git remote origin URL first
         try:
-            result = subprocess.run(
-                ["git", "config", "--get", "remote.origin.url"],
+            result = _run_git(
+                ["config", "--get", "remote.origin.url"],
                 cwd=cwd,
-                capture_output=True,
-                text=True,
-                check=False,
             )
             if result.returncode == 0:
                 url = result.stdout.strip()
@@ -203,12 +212,9 @@ class BareGitWorkspacePlugin:
 
         # Fall back to repo root basename
         try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--show-toplevel"],
+            result = _run_git(
+                ["rev-parse", "--show-toplevel"],
                 cwd=cwd,
-                capture_output=True,
-                text=True,
-                check=False,
             )
             if result.returncode == 0:
                 name = os.path.basename(result.stdout.strip())

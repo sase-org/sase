@@ -1,6 +1,7 @@
 """Tests for sase.workspace_provider.plugins.bare_git_* modules."""
 
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -377,6 +378,26 @@ class TestResolveGitRef:
 
 
 class TestInitBareGitProject:
+    def test_git_runner_removes_persistent_index_lock_after_retries(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from sase.git_lock_retry import ENV_GIT_LOCK_RETRY_DELAYS
+        from sase.workspace_provider.plugins.bare_git_init import _run_git
+
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+        tracked = tmp_path / "tracked.txt"
+        tracked.write_text("content\n", encoding="utf-8")
+        lock_path = tmp_path / ".git" / "index.lock"
+        lock_path.touch()
+        monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0.001")
+
+        result = _run_git(["add", "tracked.txt"], cwd=tmp_path)
+
+        assert result.returncode == 0
+        assert not lock_path.exists()
+
     @patch(f"{_INIT_MOD}.set_workspace_dir", return_value=True)
     @patch(f"{_INIT_MOD}.set_bare_repo_dir", return_value=True)
     @patch(f"{_INIT_MOD}.subprocess.run")

@@ -10,10 +10,14 @@ import subprocess
 import time
 from typing import Any
 
+from sase.git_lock_retry import (
+    DEFAULT_GIT_LOCK_RETRY_DELAYS as SHARED_GIT_LOCK_RETRY_DELAYS,
+    run_with_git_lock_retry,
+)
 from sase.sdd._git import run_sdd_git
 
 ENV_GIT_LOCK_RETRY_DELAYS = "SASE_SDD_GIT_LOCK_RETRY_DELAYS"
-DEFAULT_GIT_LOCK_RETRY_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6, 3.2)
+DEFAULT_GIT_LOCK_RETRY_DELAYS = SHARED_GIT_LOCK_RETRY_DELAYS
 ENV_STORE_WRITE_LOCK_TIMEOUT = "SASE_SDD_STORE_WRITE_LOCK_TIMEOUT"
 DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS = 10.0
 STORE_WRITE_LOCK_FILENAME = "sase-store-write.lock"
@@ -40,19 +44,6 @@ class SddGitCommandError(subprocess.CalledProcessError):
         return f"{message}: {detail}" if detail else message
 
 
-def _is_retryable_git_lock_error(
-    returncode: int,
-    stderr: str | bytes | None,
-) -> bool:
-    """Return whether git failed because another process holds a lock file."""
-    if returncode != 128:
-        return False
-    detail = _stream_text(stderr).lower()
-    return "index.lock" in detail or (
-        "unable to create" in detail and ".lock" in detail
-    )
-
-
 def run_sdd_git_write(
     args: list[str],
     *,
@@ -66,8 +57,10 @@ def run_sdd_git_write(
 ) -> subprocess.CompletedProcess[Any]:
     """Run a git write, retrying boundedly on transient lock contention."""
     delays = _git_lock_retry_delays()
-    retry_attempt = 0
-    while True:
+    attempts = 0
+
+    def attempt() -> subprocess.CompletedProcess[Any]:
+        nonlocal attempts
         result = run_sdd_git(
             args,
             cwd=cwd,
@@ -77,14 +70,13 @@ def run_sdd_git_write(
             capture_output=capture_output,
             text=text,
             env=env,
-            always_log=retry_attempt > 0,
+            always_log=attempts > 0,
         )
-        if not _is_retryable_git_lock_error(result.returncode, result.stderr):
-            return _checked_result(result, check=check)
-        if retry_attempt >= len(delays):
-            return _checked_result(result, check=check)
-        time.sleep(delays[retry_attempt])
-        retry_attempt += 1
+        attempts += 1
+        return result
+
+    result, _ = run_with_git_lock_retry(attempt, cwd=cwd, delays=delays)
+    return _checked_result(result, check=check)
 
 
 @contextmanager

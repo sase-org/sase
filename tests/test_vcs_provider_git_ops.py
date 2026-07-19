@@ -3,8 +3,13 @@
 Covers: commit, amend, rename_branch, rebase, archive, prune, stash_and_clean.
 """
 
+from pathlib import Path
+import subprocess
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from sase.git_lock_retry import ENV_GIT_LOCK_RETRY_DELAYS
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
 # === Tests for commit ===
@@ -25,6 +30,32 @@ from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 def _git_cmds(mock_run: MagicMock) -> list[list[str]]:
     """Return the git argv list of every subprocess.run call, in order."""
     return [call[0][0] for call in mock_run.call_args_list]
+
+
+def test_git_runner_removes_persistent_index_lock_after_retries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    tracked = tmp_path / "tracked.txt"
+    tracked.write_text("content\n", encoding="utf-8")
+    lock_path = tmp_path / ".git" / "index.lock"
+    lock_path.touch()
+    monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0.001")
+
+    success, error = BareGitPlugin().vcs_add_remove(str(tmp_path))
+
+    assert success is True
+    assert error is None
+    assert not lock_path.exists()
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert staged.stdout.splitlines() == ["tracked.txt"]
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")

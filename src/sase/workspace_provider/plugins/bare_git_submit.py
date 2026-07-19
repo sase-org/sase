@@ -7,10 +7,25 @@ prompting users before push (mail).
 import os
 import subprocess
 
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider.utils import (
     get_default_branch,
     parse_workspace_dir,
 )
+
+
+def _run_git(args: list[str], *, cwd: str) -> subprocess.CompletedProcess[str]:
+    result, _ = run_with_git_lock_retry(
+        lambda: subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+        ),
+        cwd=cwd,
+    )
+    return result
 
 
 def prepare_mail_git(
@@ -178,12 +193,9 @@ def submit_bare_git(
         # Fetch from remote and create a local branch so checkout can find it.
         # Using the refspec "src:dst" form ensures a local ref is created,
         # rather than just updating FETCH_HEAD.
-        subprocess.run(
-            ["git", "fetch", "origin", f"+{branch_name}:{branch_name}"],
+        _run_git(
+            ["fetch", "origin", f"+{branch_name}:{branch_name}"],
             cwd=ws_dir,
-            capture_output=True,
-            text=True,
-            check=False,
         )
 
         success, error = provider.checkout(branch_name, ws_dir)
@@ -247,29 +259,20 @@ def _submit_via_local_merge(
     )
 
     # Checkout the default branch, then merge the feature branch
-    subprocess.run(
-        ["git", "checkout", default_branch],
+    _run_git(
+        ["checkout", default_branch],
         cwd=ws_dir,
-        capture_output=True,
-        text=True,
-        check=False,
     )
 
-    result = subprocess.run(
-        ["git", "merge", branch_name],
+    result = _run_git(
+        ["merge", branch_name],
         cwd=ws_dir,
-        capture_output=True,
-        text=True,
-        check=False,
     )
     if result.returncode != 0:
         # Abort the merge on conflict
-        subprocess.run(
-            ["git", "merge", "--abort"],
+        _run_git(
+            ["merge", "--abort"],
             cwd=ws_dir,
-            capture_output=True,
-            text=True,
-            check=False,
         )
         return (False, f"Merge conflict merging {branch_name} into {default_branch}")
 
@@ -279,12 +282,9 @@ def _submit_via_local_merge(
         )
 
     # Push
-    result = subprocess.run(
-        ["git", "push"],
+    result = _run_git(
+        ["push"],
         cwd=ws_dir,
-        capture_output=True,
-        text=True,
-        check=False,
     )
     if result.returncode != 0:
         return (False, f"git push failed: {result.stderr.strip()}")
@@ -293,21 +293,15 @@ def _submit_via_local_merge(
         rich_console.print("[green]Pushed to remote[/green]")
 
     # Delete local branch
-    subprocess.run(
-        ["git", "branch", "-d", branch_name],
+    _run_git(
+        ["branch", "-d", branch_name],
         cwd=ws_dir,
-        capture_output=True,
-        text=True,
-        check=False,
     )
 
     # Delete remote branch
-    subprocess.run(
-        ["git", "push", "origin", "--delete", branch_name],
+    _run_git(
+        ["push", "origin", "--delete", branch_name],
         cwd=ws_dir,
-        capture_output=True,
-        text=True,
-        check=False,
     )
 
     if rich_console:

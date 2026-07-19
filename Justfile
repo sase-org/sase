@@ -205,7 +205,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-77(GitLockRetryOutcome)" \
         --epic-symbol "sase-77(git_lock_retry_delays)" \
         --epic-symbol "sase-77(is_retryable_git_lock_error)" \
-        --epic-symbol "sase-77(run_with_git_lock_retry)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -399,22 +399,19 @@ def test_commit_sdd_files_retries_transient_index_lock(
         lock_path.unlink(missing_ok=True)
 
 
-def test_commit_sdd_files_surfaces_stderr_when_index_lock_retry_exhausted(
+def test_commit_sdd_files_removes_persistent_index_lock_after_retry_exhausted(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo = tmp_path / "repo"
     init_test_git_repo(repo)
     (repo / "plan.md").write_text("plan\n", encoding="utf-8")
-    (repo / ".git/index.lock").touch()
+    lock_path = repo / ".git/index.lock"
+    lock_path.touch()
     monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0.001,0.001")
 
-    with pytest.raises(subprocess.CalledProcessError) as exc_info:
-        commit_sdd_files(repo, "Fail after contention")
-
-    message = str(exc_info.value)
-    assert "Unable to create" in message
-    assert "index.lock" in message
+    assert commit_sdd_files(repo, "Recover after contention") is True
+    assert not lock_path.exists()
 
 
 def test_commit_sdd_files_does_not_retry_non_lock_128(

@@ -295,12 +295,12 @@ def _format_lock_age(age_seconds: float | None) -> str:
     return "unknown" if age_seconds is None else f"{age_seconds:.3f}s"
 
 
-def _stream_text(value: str | bytes | None) -> str:
+def _stream_text(value: object) -> str:
     if value is None:
         return ""
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
-    return value
+    return value if isinstance(value, str) else ""
 
 
 __all__ = [

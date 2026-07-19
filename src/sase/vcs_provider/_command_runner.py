@@ -4,6 +4,7 @@ import subprocess
 import sys
 from typing import TextIO
 
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider.utils import non_interactive_git_env
 
 from ._types import CommandOutput
@@ -27,16 +28,23 @@ class CommandRunner:
         """Run a subprocess command and return a :class:`CommandOutput`."""
         git_env, git_stdin = _non_interactive_git_options(cmd)
         try:
-            result = subprocess.run(
-                cmd,
-                cwd=cwd,
-                capture_output=capture_output,
-                text=True,
-                check=False,
-                timeout=timeout,
-                env=git_env,
-                stdin=git_stdin,
-            )
+
+            def attempt() -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    cmd,
+                    cwd=cwd,
+                    capture_output=capture_output,
+                    text=True,
+                    check=False,
+                    timeout=timeout,
+                    env=git_env,
+                    stdin=git_stdin,
+                )
+
+            if git_env is None:
+                result = attempt()
+            else:
+                result, _ = run_with_git_lock_retry(attempt, cwd=cwd)
             return CommandOutput(result.returncode, result.stdout, result.stderr)
         except subprocess.TimeoutExpired:
             return CommandOutput(1, "", f"{cmd[0]} timed out")
