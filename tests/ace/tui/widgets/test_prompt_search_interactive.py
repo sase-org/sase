@@ -343,6 +343,136 @@ async def test_forward_search_register_is_shared_across_prompt_panes() -> None:
         assert bar.prompt_search_register() == ("alpha", "forward")
 
 
+async def test_forward_repeats_cross_panes_and_skip_panes_without_matches() -> None:
+    app = _PromptSearchApp(
+        "alpha alpha\n---\nno matching text\n---\nbottom alpha alpha"
+    )
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await pilot.press("escape", "g", "k", "g", "k")
+        await pilot.pause()
+
+        top = bar.active_text_area()
+        assert bar._stack.selected_index == 0
+        top.cursor_location = (0, 0)
+        await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
+        await pilot.press("n")
+        await pilot.pause()
+
+        assert bar._stack.selected_index == 0
+        assert top.cursor_location == (0, 6)
+        assert app.notifications == []
+
+        await pilot.press("n")
+        await pilot.pause()
+
+        bottom = bar.active_text_area()
+        assert bar._stack.selected_index == 2
+        assert bottom is not top
+        assert bottom.cursor_location == (0, 7)
+        assert bottom._vim_mode == "normal"
+        assert app.focused is bottom
+        assert top._search_match_spans == ()
+        assert not any(name.startswith("search.") for name in _highlight_names(top))
+        assert bottom._search_match_spans == ((7, 12), (13, 18))
+        assert bottom._search_current_match_index == 0
+        assert any(
+            name.startswith("search.current") for name in _highlight_names(bottom)
+        )
+        assert app.notifications == []
+
+
+async def test_reverse_repeats_cross_to_earlier_pane_and_shift_n_inverts() -> None:
+    app = _PromptSearchApp(
+        "alpha top alpha\n---\nno matching text\n---\nalpha lower alpha"
+    )
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bottom = bar.active_text_area()
+        await pilot.press("escape")
+        await pilot.press("question_mark", "a", "l", "p", "h", "a", "enter")
+        await pilot.press("n", "n")
+        await pilot.pause()
+
+        top = bar.active_text_area()
+        assert bar._stack.selected_index == 0
+        assert top is not bottom
+        assert top.cursor_location == (0, 10)
+        assert top._search_current_match_index == 1
+        assert app.notifications == []
+
+        await pilot.press("N")
+        await pilot.pause()
+
+        assert bar._stack.selected_index == 2
+        assert bar.active_text_area() is bottom
+        assert bottom.cursor_location == (0, 0)
+        assert bottom._search_current_match_index == 0
+        assert top._search_match_spans == ()
+        assert bar.prompt_search_register() == ("alpha", "reverse")
+        assert app.notifications == []
+
+
+async def test_counted_repeat_advances_across_multiple_prompt_panes() -> None:
+    app = _PromptSearchApp(
+        "alpha alpha\n---\nno matching text\n---\nbottom alpha alpha"
+    )
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await pilot.press("escape", "g", "k", "g", "k")
+        await pilot.pause()
+
+        top = bar.active_text_area()
+        top.cursor_location = (0, 0)
+        await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
+        await pilot.press("3", "n")
+        await pilot.pause()
+
+        bottom = bar.active_text_area()
+        assert bar._stack.selected_index == 2
+        assert bottom.cursor_location == (0, 13)
+        assert bottom._search_current_match_index == 1
+        assert top._search_match_spans == ()
+        assert app.notifications == []
+
+
+async def test_prompt_stack_wrap_feedback_only_reports_global_boundaries() -> None:
+    app = _PromptSearchApp("alpha top\n---\nbottom alpha")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await pilot.press("escape", "g", "k")
+        await pilot.pause()
+
+        top = bar.active_text_area()
+        top.cursor_location = (0, 0)
+        await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
+        await pilot.press("n")
+        await pilot.pause()
+
+        assert bar._stack.selected_index == 1
+        assert app.notifications == []
+
+        await pilot.press("n")
+        await pilot.pause()
+
+        assert bar._stack.selected_index == 0
+        assert app.notifications[-1] == "search hit BOTTOM, continuing at TOP"
+
+        await pilot.press("N")
+        await pilot.pause()
+
+        assert bar._stack.selected_index == 1
+        assert app.notifications[-1] == "search hit TOP, continuing at BOTTOM"
+
+
 async def test_reverse_search_register_direction_is_shared_across_panes() -> None:
     app = _PromptSearchApp("alpha one alpha two alpha\n---\nalpha lower alpha")
 
@@ -361,15 +491,20 @@ async def test_reverse_search_register_direction_is_shared_across_panes() -> Non
         await pilot.press("g", "k", "n")
         await pilot.pause()
 
-        top = bar.active_text_area()
-        assert top.cursor_location == (0, 20)
-        assert top._search_current_match_index == 2
+        assert bar._stack.selected_index == 1
+        assert bar.active_text_area() is bottom
+        assert bottom.cursor_location == (0, 12)
+        assert bottom._search_current_match_index == 1
+        assert app.notifications[-1] == "search hit TOP, continuing at BOTTOM"
 
         await pilot.press("N")
         await pilot.pause()
 
+        top = bar.active_text_area()
+        assert bar._stack.selected_index == 0
         assert top.cursor_location == (0, 0)
         assert top._search_current_match_index == 0
+        assert app.notifications[-1] == "search hit BOTTOM, continuing at TOP"
         assert bar.prompt_search_register() == ("alpha", "reverse")
 
 
@@ -397,8 +532,12 @@ async def test_search_register_survives_prompt_stack_rebuild() -> None:
         await pilot.press("n")
         await pilot.pause()
 
-        assert rebuilt.cursor_location == (0, 7)
-        assert rebuilt._search_current_match_index == 0
+        destination = bar.active_text_area()
+        assert destination is not rebuilt
+        assert destination.text == "top alpha"
+        assert destination.cursor_location == (0, 4)
+        assert destination._search_current_match_index == 0
+        assert rebuilt._search_match_spans == ()
         assert bar.prompt_search_register() == ("alpha", "forward")
 
 
@@ -427,10 +566,42 @@ async def test_cancel_failed_search_and_missing_pane_keep_search_register() -> N
         await pilot.press("g", "k", "n")
         await pilot.pause()
 
-        top = bar.active_text_area()
-        assert top._search_match_spans == ()
-        assert app.notifications[-1] == "pattern not found"
+        assert bar._stack.selected_index == 1
+        assert bar.active_text_area() is bottom
+        assert bottom.cursor_location == (0, 0)
+        assert bottom._search_current_match_index == 0
         assert bar.prompt_search_register() == ("alpha", "forward")
+
+
+async def test_repeat_absent_from_every_pane_keeps_focus_cursor_and_register() -> None:
+    app = _PromptSearchApp("top alpha\n---\nbottom alpha")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bottom = bar.active_text_area()
+        await pilot.press("escape")
+        await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
+        await pilot.pause()
+
+        assert bottom._search_match_spans
+        panes = list(bar.query(PromptTextArea))
+        panes[0].load_text("top without the query")
+        panes[1].load_text("bottom without the query")
+        bottom.cursor_location = (0, 3)
+        selected_index = bar._stack.selected_index
+        focused = app.focused
+
+        await pilot.press("n")
+        await pilot.pause()
+
+        assert bar._stack.selected_index == selected_index
+        assert bar.active_text_area() is bottom
+        assert app.focused is focused
+        assert bottom.cursor_location == (0, 3)
+        assert bar.prompt_search_register() == ("alpha", "forward")
+        assert all(pane._search_match_spans == () for pane in panes)
+        assert app.notifications[-1] == "pattern not found"
 
 
 async def test_large_buffer_search_jumps_even_when_overlay_is_skipped() -> None:
