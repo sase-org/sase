@@ -31,27 +31,32 @@ def format_agent_count_chip(
     failed: int = 0,
     unread: int = 0,
     done: int = 0,
+    chrome_style: str | None = None,
 ) -> Text:
     """Return a zero-suppressing ``[S1 R2 ...]`` Rich status chip."""
     counts = (stopped, running, waiting, failed, unread, done)
     if not any(counts):
         return Text()
 
-    chip = Text("[", style=AGENT_COUNT_CHIP_NEUTRAL_STYLE)
+    resolved_chrome_style = (
+        chrome_style if chrome_style is not None else AGENT_COUNT_CHIP_NEUTRAL_STYLE
+    )
+    chip = Text("[", style=resolved_chrome_style)
     has_prior_metric = False
     for (name, label), count in zip(AGENT_COUNT_CHIP_METRICS, counts, strict=True):
         if not count:
             continue
         if has_prior_metric:
-            chip.append(" ", style=AGENT_COUNT_CHIP_NEUTRAL_STYLE)
+            chip.append(" ", style=resolved_chrome_style)
         has_prior_metric = True
         metric_style = AGENT_COUNT_CHIP_METRIC_STYLES[name]
         # The unread token uses a visible background, so highlight its letter
-        # as well as its count. Other metric letters remain neutral.
-        letter_style = (
-            metric_style if name == "unread" else AGENT_COUNT_CHIP_NEUTRAL_STYLE
-        )
+        # as well as its count by default. An explicit chrome style keeps every
+        # letter aligned with the surrounding chip while preserving count styles.
+        letter_style = resolved_chrome_style
+        if chrome_style is None and name == "unread":
+            letter_style = metric_style
         chip.append(label, style=letter_style)
         chip.append(str(count), style=metric_style)
-    chip.append("]", style=AGENT_COUNT_CHIP_NEUTRAL_STYLE)
+    chip.append("]", style=resolved_chrome_style)
     return chip

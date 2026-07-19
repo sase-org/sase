@@ -65,6 +65,36 @@ def test_agent_count_chip_uses_canonical_order_and_status_styles() -> None:
             assert _style_at(chip, position) == AGENT_COUNT_CHIP_NEUTRAL_STYLE
 
 
+def test_agent_count_chip_can_override_chrome_and_letter_styles() -> None:
+    chrome_style = "bold #123456"
+    chip = format_agent_count_chip(
+        stopped=1,
+        running=2,
+        waiting=3,
+        failed=4,
+        unread=5,
+        done=6,
+        chrome_style=chrome_style,
+    )
+
+    assert chip.plain == "[S1 R2 W3 F4 U5 D6]"
+    for token, metric in (
+        ("S1", "stopped"),
+        ("R2", "running"),
+        ("W3", "waiting"),
+        ("F4", "failed"),
+        ("U5", "unread"),
+        ("D6", "done"),
+    ):
+        letter = chip.plain.index(token)
+        assert _style_at(chip, letter) == chrome_style
+        assert _style_at(chip, letter + 1) == AGENT_COUNT_CHIP_METRIC_STYLES[metric]
+
+    for position, character in enumerate(chip.plain):
+        if character in "[] ":
+            assert _style_at(chip, position) == chrome_style
+
+
 def test_agent_count_chip_suppresses_zero_metrics() -> None:
     chip = format_agent_count_chip(stopped=0, waiting=7, unread=0, done=8)
 

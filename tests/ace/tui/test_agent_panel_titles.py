@@ -143,12 +143,62 @@ def test_collapsed_panel_title_prepends_chevron_and_preserves_summary() -> None:
 def test_selected_expanded_panel_title_has_focus_marker() -> None:
     title = agent_panel_border_title(
         "chop",
-        3,
-        counts=AgentPanelCounts(running=1, waiting=2),
+        21,
+        counts=AgentPanelCounts(
+            asking=1,
+            running=2,
+            waiting=3,
+            failed=4,
+            unread=5,
+            read=6,
+        ),
         selected=True,
     )
 
-    assert title.plain == "❖ @chop · 3 [R1 W2]"
+    assert title.plain == "❖ @chop · 21 [S1 R2 W3 F4 U5 D6]"
+    selected_style = "#FFD75F"
+    total_start = title.plain.index("21")
+    _assert_title_span(
+        title,
+        start=total_start,
+        end=total_start + 2,
+        style=selected_style,
+        text="21",
+    )
+
+    for character in "[]SRWFUD":
+        position = title.plain.index(character, total_start + 2)
+        _assert_title_range_style(
+            title,
+            start=position,
+            end=position + 1,
+            style=selected_style,
+        )
+
+    for token, metric_name in (
+        ("S1", "asking"),
+        ("R2", "running"),
+        ("W3", "waiting"),
+        ("F4", "failed"),
+        ("U5", "unread"),
+        ("D6", "read"),
+    ):
+        digit_position = title.plain.index(token, total_start + 2) + 1
+        _assert_title_range_style(
+            title,
+            start=digit_position,
+            end=digit_position + 1,
+            style=_PANEL_METRIC_STYLES[metric_name],
+        )
+
+    separator_start = title.plain.index(" · ")
+    _assert_title_span(
+        title,
+        start=separator_start,
+        end=separator_start + 3,
+        style=_PANEL_COUNT_STYLE,
+        text=" · ",
+    )
 
 
 def test_collapsed_panel_title_prepends_yellow_jump_hint() -> None:
@@ -220,10 +270,18 @@ def _assert_title_span(
 def _assert_title_range_style(title: Text, *, start: int, end: int, style: str) -> None:
     assert title.plain[start:end]
     for position in range(start, end):
-        assert any(
-            span.start <= position < span.end and span.style == style
-            for span in title.spans
-        ), f"expected {title.plain[position]!r} at {position} to use {style}"
+        resolved_style = next(
+            (
+                str(span.style)
+                for span in reversed(title.spans)
+                if span.start <= position < span.end
+            ),
+            str(title.style) if title.style else None,
+        )
+        assert resolved_style == style, (
+            f"expected {title.plain[position]!r} at {position} to use {style}; "
+            f"got {resolved_style}"
+        )
 
 
 def _assert_title_metric_styles(
@@ -270,7 +328,8 @@ def test_panel_titles_label_untagged_and_tags_with_counts() -> None:
     assert apple_title.plain == "@apple · 2 [R2]"
     assert banana_title.plain == "@banana · 1 [R1]"
     _assert_title_span(apple_title, start=0, end=6, style="bold #FFD75F", text="@apple")
-    _assert_title_span(apple_title, start=6, end=10, style="#AFAFAF", text=" · 2")
+    _assert_title_span(apple_title, start=6, end=9, style="#AFAFAF", text=" · ")
+    _assert_title_span(apple_title, start=9, end=10, style="#AFAFAF", text="2")
     _assert_title_span(
         banana_title, start=0, end=7, style="bold #FFD75F", text="@banana"
     )

@@ -32,7 +32,8 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
     from ...models.agent_panels import PanelKey
 
-_PANEL_TAG_STYLE = "bold #FFD75F"
+_PANEL_SELECTED_CHROME_STYLE = "#FFD75F"
+_PANEL_TAG_STYLE = f"bold {_PANEL_SELECTED_CHROME_STYLE}"
 _PANEL_UNTAGGED_STYLE = "dim #AFAFAF"
 _PANEL_COUNT_STYLE = AGENT_COUNT_CHIP_NEUTRAL_STYLE
 _PANEL_METRIC_STYLES: dict[str, str] = {
@@ -142,7 +143,11 @@ def agent_panel_border_title(
         title.append("(untagged)", style=_PANEL_UNTAGGED_STYLE)
     else:
         title.append(f"@{key}", style=_PANEL_TAG_STYLE)
-    title.append(f" · {agent_count}", style=_PANEL_COUNT_STYLE)
+    title.append(" · ", style=_PANEL_COUNT_STYLE)
+    title.append(
+        str(agent_count),
+        style=_PANEL_SELECTED_CHROME_STYLE if selected else _PANEL_COUNT_STYLE,
+    )
     if counts is not None:
         chip = format_agent_count_chip(
             stopped=counts.asking,
@@ -151,6 +156,7 @@ def agent_panel_border_title(
             failed=counts.failed,
             unread=counts.unread,
             done=counts.read,
+            chrome_style=_PANEL_SELECTED_CHROME_STYLE if selected else None,
         )
         if chip:
             title.append(" ", style=_PANEL_COUNT_STYLE)
