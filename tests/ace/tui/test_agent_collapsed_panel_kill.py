@@ -15,7 +15,7 @@ from sase.ace.tui.modals import ConfirmDismissAllModal, ConfirmKillAllModal
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panel_index import build_agent_panel_index
-from sase.ace.tui.models.agent_panel_summary import CollapsedAgentPanelFocus
+from sase.ace.tui.models.agent_tribe_summary import CollapsedAgentPanelFocus
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,

@@ -64,7 +64,7 @@ def tree_parent_lookup(agents: Iterable[Agent]) -> dict[str, Agent]:
     return lookup
 
 
-def tree_parent(agent: Agent, lookup: dict[str, Agent]) -> Agent | None:
+def _tree_parent(agent: Agent, lookup: dict[str, Agent]) -> Agent | None:
     """Resolve *agent*'s immediate rendered parent from an existing index."""
     if agent.tree_parent_key:
         return lookup.get(agent.tree_parent_key)
@@ -122,7 +122,7 @@ def presentation_anchor_lookup(
 
             path_positions[current_id] = len(path)
             path.append(current)
-            parent = tree_parent(current, lookup)
+            parent = _tree_parent(current, lookup)
             if parent is None:
                 anchor = current
                 break
@@ -398,7 +398,7 @@ def filter_tree_rows(
             continue
         current = agent
         seen: set[int] = set()
-        while (parent := tree_parent(current, lookup)) is not None:
+        while (parent := _tree_parent(current, lookup)) is not None:
             parent_id = id(parent)
             if parent_id in seen:
                 break
@@ -411,7 +411,7 @@ def filter_tree_rows(
     # traversed in linear time.
     children_by_parent: dict[int, list[Agent]] = {}
     for agent in agents:
-        parent = tree_parent(agent, lookup)
+        parent = _tree_parent(agent, lookup)
         if parent is not None:
             children_by_parent.setdefault(id(parent), []).append(agent)
 
@@ -437,6 +437,5 @@ __all__ = [
     "presentation_anchor",
     "presentation_anchor_lookup",
     "project_clan_tree",
-    "tree_parent",
     "tree_parent_lookup",
 ]

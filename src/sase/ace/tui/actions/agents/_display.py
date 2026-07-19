@@ -451,7 +451,14 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
                 agent_detail=agent_detail, footer_widget=footer_widget
             ):
                 return True
-            if self._apply_collapsed_panel_summary(agent_detail, footer_widget):
+            if self._apply_tribe_summary(
+                agent_detail,
+                footer_widget,
+                cheap=True,
+            ):
+                self._agent_detail_debouncer.schedule(
+                    self._fire_debounced_detail_update
+                )
                 return True
             self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
             return True
@@ -525,9 +532,16 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
                     time.perf_counter() - started,
                 )
                 return
-            if self._apply_collapsed_panel_summary(agent_detail, footer_widget):
+            if self._apply_tribe_summary(
+                agent_detail,
+                footer_widget,
+                cheap=True,
+            ):
+                self._agent_detail_debouncer.schedule(
+                    self._fire_debounced_detail_update
+                )
                 log.debug(
-                    "agents display refresh collapsed-panel summary: elapsed=%.3fs",
+                    "agents display refresh tribe summary: elapsed=%.3fs",
                     time.perf_counter() - started,
                 )
                 return

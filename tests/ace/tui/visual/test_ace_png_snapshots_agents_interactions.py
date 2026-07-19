@@ -16,10 +16,10 @@ from sase.ace.tui.widgets import (
     AgentDetail,
     AgentInfoPanel,
     AgentList,
-    AgentPanelSummary,
     HintInputBar,
     KeybindingFooter,
 )
+from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
@@ -225,24 +225,26 @@ def _overflowing_panel_agents() -> list[Agent]:
 def _assert_collapsed_panel_summary(page: AcePage) -> None:
     """Assert the right pane represents ``@chop``, not its hidden first row."""
     detail = page.app.query_one("#agent-detail-panel", AgentDetail)
-    summary = page.app.query_one("#agent-panel-summary", AgentPanelSummary)
+    prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
     info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
 
-    assert detail.is_panel_summary_visible()
     assert detail._current_agent is None
+    assert detail._current_tribe_identity == ("panel", "chop")
     assert page.app._get_selected_agent() is None
-    assert summary.snapshot is not None
-    assert summary.snapshot.label == "@chop"
-    rendered = summary.render().plain
-    assert "COLLAPSED AGENT PANEL" in rendered
-    assert "@chop  COLLAPSED" in rendered
+    snapshot = page.app._focused_tribe_summary()
+    assert snapshot is not None
+    assert snapshot.label == "@chop"
+    rendered = prompt.content.plain
+    assert "TRIBE\n" in rendered
+    assert "Name: @chop" in rendered
+    assert "Panel: collapsed" in rendered
     assert "[R1 W1]" in rendered
-    assert "visual-collapse-primary-with-a-deliberately-wide-row" in rendered
-    assert "visual-collapse-secondary-with-another-wide-row" in rendered
-    assert info._view_mode == "summary"
-    assert "[view: summary]" in info._build_display_text().plain
+    assert "TRIBE MEMBERS · 2" in rendered
+    assert "visual-collapse-primary-with-a-deliberately-wide-row" not in rendered
+    assert info._view_mode == "tribe"
+    assert "[view: tribe]" in info._build_display_text().plain
     svg = page.export_svg(title="ACE collapsed summary assertion")
-    assert "Name:" not in svg
+    assert "Name:" in svg
     assert "ChangeSpec:" not in svg
 
 
@@ -373,10 +375,12 @@ async def test_agents_collapsed_panel_png_snapshot(
         await page.click("#agent-list-panel-2")
         await page.wait_for(lambda _screen: page.app._panel_group.focused_key is None)
         await wait_for_visual_idle(page)
-        summary = page.app.query_one("#agent-panel-summary", AgentPanelSummary)
+        prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
         assert page.app._get_selected_agent() is None
-        assert summary.snapshot is not None
-        assert summary.snapshot.label == "(untagged)"
+        snapshot = page.app._focused_tribe_summary()
+        assert snapshot is not None
+        assert snapshot.label == "(untagged)"
+        assert "Name: (untagged)" in prompt.content.plain
 
 
 async def test_agents_overflowing_panel_uses_full_height_png_snapshot(

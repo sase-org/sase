@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_groups import GroupRow
-    from ...models.agent_panel_summary import CollapsedAgentPanelFocus
+    from ...models.agent_tribe_summary import CollapsedAgentPanelFocus
     from ...modals import AgentCleanupAction, AgentCleanupPanelState
     from ...modals.agent_cleanup_modal import AgentCleanupAgentIdentity
     from sase.core.agent_cleanup_wire import AgentCleanupPlanWire

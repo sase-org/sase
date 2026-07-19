@@ -49,17 +49,31 @@ class AgentDetailRenderMixin:
             current_agent: Agent | None,
         ) -> None: ...
 
-    def _apply_collapsed_panel_summary(
+    def _focused_tribe_panel_context(self) -> object | None:
+        """Resolve whole-panel focus without constructing its document."""
+        for resolver_name in (
+            "_resolve_focused_panel",
+            "_resolve_focused_collapsed_panel",
+        ):
+            resolver = getattr(self, resolver_name, None)
+            focus = resolver() if callable(resolver) else None
+            if focus is not None:
+                return focus
+        return None
+
+    def _apply_tribe_summary(
         self,
         agent_detail: AgentDetail,
         footer_widget: KeybindingFooter | None = None,
+        *,
+        cheap: bool = False,
     ) -> bool:
-        """Render the live whole-panel snapshot when collapsed focus is active."""
-        resolver = getattr(self, "_focused_collapsed_panel_summary", None)
+        """Render the live tribe document when whole-panel focus is active."""
+        resolver = getattr(self, "_focused_tribe_summary", None)
         snapshot = resolver() if callable(resolver) else None
         if snapshot is None:
             return False
-        agent_detail.show_panel_summary(snapshot)
+        agent_detail.show_tribe_summary(snapshot, cheap=cheap)
         if footer_widget is not None:
             self._apply_agent_footer_update(agent_detail, footer_widget, None)
         return True
@@ -67,10 +81,10 @@ class AgentDetailRenderMixin:
     def _apply_agent_detail_immediate(self) -> bool:
         """Update the detail surface without spawning agent-detail workers.
 
-        Returns True when a collapsed-panel summary handled the update and no
-        debounced agent-detail phase should be scheduled. Clan summaries stay
-        on the debounced path because rebuilding their multi-section detail on
-        every j/k tick can delay the selection highlight's next paint.
+        Returns True only when no debounced agent-detail phase is required.
+        Tribe and clan documents stay on the debounced path because rebuilding
+        their multi-section detail on every j/k tick can delay the selection
+        highlight's next paint.
         """
         from textual.css.query import NoMatches
 
@@ -89,8 +103,12 @@ class AgentDetailRenderMixin:
             footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
         except NoMatches:
             pass
-        if self._apply_collapsed_panel_summary(agent_detail, footer_widget):
-            return True
+        if self._apply_tribe_summary(
+            agent_detail,
+            footer_widget,
+            cheap=True,
+        ):
+            return False
 
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if current_agent is None:
@@ -116,12 +134,22 @@ class AgentDetailRenderMixin:
             return
         self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
 
-    def _refresh_collapsed_panel_summary_only(self) -> bool:
-        """Rebuild only an active summary after mark/unread state changes."""
-        resolver = getattr(self, "_resolve_focused_collapsed_panel", None)
-        if not callable(resolver) or resolver() is None:
+    def _refresh_tribe_summary_only(self) -> bool:
+        """Rebuild only an active tribe after mark/unread state changes."""
+        resolver = getattr(self, "_focused_tribe_summary", None)
+        snapshot = resolver() if callable(resolver) else None
+        if snapshot is None:
             return False
-        return self._apply_agent_detail_immediate()
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentDetail
+
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        except NoMatches:
+            return False
+        agent_detail.show_tribe_summary(snapshot)
+        return True
 
     def _fire_debounced_detail_update(self) -> None:
         """Apply the debounced detail update once the j/k burst quiesces."""
@@ -154,7 +182,7 @@ class AgentDetailRenderMixin:
         ):
             return
 
-        if self._apply_collapsed_panel_summary(agent_detail, footer_widget):
+        if self._apply_tribe_summary(agent_detail, footer_widget):
             return
 
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
@@ -213,10 +241,7 @@ class AgentDetailRenderMixin:
 
         from ...widgets import AgentDetail
 
-        if (
-            getattr(self, "_resolve_focused_collapsed_panel", lambda: None)()
-            is not None
-        ):
+        if self._focused_tribe_panel_context() is not None:
             return
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if current_agent is None or current_agent.identity != message.agent_identity:

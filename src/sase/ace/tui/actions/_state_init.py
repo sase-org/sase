@@ -35,7 +35,10 @@ if TYPE_CHECKING:
     from ..models.agent_fold_persistence import AgentsFoldStateSnapshot
     from ..tools.report import SlowToolCallReportSpec
     from ..widgets.prompt_panel._agent_display_state import CommitViewSpec
-    from ..widgets.prompt_panel._member_roster import MemberJumpMap
+    from ..widgets.prompt_panel._member_roster import (
+        MemberJumpContainerIdentity,
+        MemberJumpMap,
+    )
     from .agents._fold_persistence import AgentFoldIntent
     from .navigation._types import JumpAllResult
     from sase.core.agent_group_archive_wire import SavedAgentGroupWire
@@ -424,12 +427,10 @@ class StateInitMixin:
         # Exact number-to-member maps emitted by rendered container rosters.
         # Digit navigation validates the selected container identity against
         # this in-memory registry before using a target.
-        self._member_jump_maps: dict[
-            tuple[AgentType, str, str | None], MemberJumpMap
-        ] = {}
+        self._member_jump_maps: dict[MemberJumpContainerIdentity, MemberJumpMap] = {}
         self._member_jump_pending_digit: str | None = None
         self._member_jump_pending_container_identity: (
-            tuple[AgentType, str, str | None] | None
+            MemberJumpContainerIdentity | None
         ) = None
 
         # Group fold: tracks per-group collapse state for the agents-tab

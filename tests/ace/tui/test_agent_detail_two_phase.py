@@ -59,7 +59,7 @@ class _FakeAgentDetail:
         self.full_calls: list[tuple[str | None, int | None]] = []
         self._agent_detail_generation: int = 0
         self.tools_detail_level = 0
-        self.summary_calls: list[object] = []
+        self.tribe_calls: list[tuple[object, bool]] = []
 
     def update_display(
         self,
@@ -80,9 +80,9 @@ class _FakeAgentDetail:
     def show_empty(self) -> None:
         return
 
-    def show_panel_summary(self, snapshot: object) -> None:
+    def show_tribe_summary(self, snapshot: object, *, cheap: bool = False) -> None:
         self._agent_detail_generation += 1
-        self.summary_calls.append(snapshot)
+        self.tribe_calls.append((snapshot, cheap))
 
     def is_file_visible(self) -> bool:
         return False
@@ -299,23 +299,25 @@ def test_jk_burst_only_full_updates_final_selection() -> None:
     assert app.detail_widget.full_calls[0] == ("agent_49", None)
 
 
-def test_collapsed_panel_summary_skips_debounced_agent_work() -> None:
+def test_collapsed_panel_tribe_uses_cheap_then_debounced_document() -> None:
     agents = [_make_agent("agent_0"), _make_agent("agent_1")]
     app = _SummaryApp(agents=agents)
 
     app._refresh_agents_display_debounced()
 
-    assert len(app.detail_widget.summary_calls) == 1
+    assert len(app.detail_widget.tribe_calls) == 1
+    assert app.detail_widget.tribe_calls[0][1] is True
     assert app.detail_widget.immediate_calls == []
     assert app.detail_widget.full_calls == []
-    assert not app._agent_detail_debouncer.is_pending
+    assert app._agent_detail_debouncer.is_pending
 
     agents[0].status = "WAITING"
     app._fire_debounced_detail_update()
 
-    assert len(app.detail_widget.summary_calls) == 2
+    assert len(app.detail_widget.tribe_calls) == 2
+    assert app.detail_widget.tribe_calls[-1][1] is False
     assert app.detail_widget.full_calls == []
-    refreshed = app.detail_widget.summary_calls[-1]
+    refreshed = app.detail_widget.tribe_calls[-1][0]
     assert refreshed.counts.running == 1
     assert refreshed.counts.waiting == 1
 

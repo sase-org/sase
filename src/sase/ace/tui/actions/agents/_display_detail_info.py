@@ -129,12 +129,8 @@ class AgentInfoDisplayMixin:
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         neighbor_count = self._selected_agent_neighbor_count(current_agent)
         view_mode = ""
-        resolve_collapsed = getattr(self, "_resolve_focused_collapsed_panel", None)
-        summary_visible = bool(
-            callable(resolve_collapsed) and resolve_collapsed() is not None
-        )
-        if summary_visible:
-            view_mode = "summary"
+        if self._focused_tribe_panel_context() is not None:  # type: ignore[attr-defined]
+            view_mode = "tribe"
         elif current_agent is not None:
             try:
                 agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]

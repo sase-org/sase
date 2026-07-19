@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ...models.agent import Agent, AgentType
+from ...models.agent_tribe_summary import CollapsedAgentPanelFocus
 from ._agent_reveal import (
     AgentRevealFailure,
     prepare_agent_navigation_target,
@@ -12,22 +14,33 @@ from ._agent_reveal import (
 from ._types import NavigationMixinBase
 
 if TYPE_CHECKING:
-    from ...models import Agent
-    from ...models.agent import AgentType
-    from ...widgets.prompt_panel._member_roster import MemberJumpMap
+    from ...widgets.prompt_panel._member_roster import (
+        MemberJumpContainerIdentity,
+        MemberJumpMap,
+    )
 
-type MemberIdentity = tuple["AgentType", str, str | None]
+type MemberIdentity = tuple[AgentType, str, str | None]
+type SelectedMemberJumpContainer = Agent | CollapsedAgentPanelFocus
 
 
 class MemberJumpNavigationMixin(NavigationMixinBase):
     """Handle the fixed digit hints rendered in container member rosters."""
 
-    def _selected_member_jump_container(self) -> Agent | None:
-        """Return the selected clan/family container, excluding banner focus."""
-        if (
-            self.current_tab != "agents"
-            or getattr(self, "_current_group_key", None) is not None
+    def _selected_member_jump_container(
+        self,
+    ) -> SelectedMemberJumpContainer | None:
+        """Return the selected tribe, clan, or family roster container."""
+        if self.current_tab != "agents":
+            return None
+        for resolver_name in (
+            "_resolve_focused_panel",
+            "_resolve_focused_collapsed_panel",
         ):
+            resolver = getattr(self, resolver_name, None)
+            focus = resolver() if callable(resolver) else None
+            if focus is not None:
+                return focus
+        if getattr(self, "_current_group_key", None) is not None:
             return None
         get_selected = getattr(self, "_get_selected_agent", None)
         if not callable(get_selected):
@@ -39,13 +52,23 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             return None
         return agent
 
+    def _member_jump_container_identity(
+        self,
+        container: SelectedMemberJumpContainer,
+    ) -> MemberJumpContainerIdentity:
+        """Return the registry key shared by a selected container and map."""
+        if isinstance(container, Agent):
+            return container.identity
+        return container.container_identity
+
     def _member_jump_map_for(
         self,
-        container: Agent,
+        container: SelectedMemberJumpContainer,
     ) -> MemberJumpMap | None:
         """Return only a map that belongs to the live selected container."""
-        jump_map = getattr(self, "_member_jump_maps", {}).get(container.identity)
-        if jump_map is None or jump_map.container_identity != container.identity:
+        identity = self._member_jump_container_identity(container)
+        jump_map = getattr(self, "_member_jump_maps", {}).get(identity)
+        if jump_map is None or jump_map.container_identity != identity:
             return None
         return jump_map
 
@@ -77,10 +100,22 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
 
     def _current_member_target_is_valid(
         self,
-        container: Agent,
+        container: SelectedMemberJumpContainer,
         target_identity: MemberIdentity,
     ) -> bool:
         """Reject maps whose target no longer belongs to the container."""
+        if not isinstance(container, Agent):
+            from ...models._agent_tree import agent_is_tree_child
+
+            panel_index = getattr(self, "_agent_panel_index", None)
+            if callable(panel_index):
+                agents = panel_index().slice_for(container.panel_key).agents
+            else:
+                agents = getattr(self, "_agents_in_focused_panel", lambda: [])()
+            return any(
+                agent.identity == target_identity and not agent_is_tree_child(agent)
+                for agent in agents
+            )
         if container.is_clan_container:
             return any(
                 member.identity == target_identity
@@ -97,7 +132,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
 
     def _member_jump_target(
         self,
-        container: Agent,
+        container: SelectedMemberJumpContainer,
         jump_map: MemberJumpMap,
         number: str,
     ) -> MemberIdentity | None:
@@ -139,7 +174,10 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             )
             self._cancel_member_jump_pending(refresh_footer=False)
             container = self._selected_member_jump_container()
-            if container is None or container.identity != pending_container:
+            if (
+                container is None
+                or self._member_jump_container_identity(container) != pending_container
+            ):
                 self._notify_member_jump("Member selection changed; jump cancelled")
                 self._refresh_member_jump_footer_after_action()
                 return True
@@ -173,7 +211,9 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             return True
         if len(jump_map.targets[0].number) == 2:
             self._member_jump_pending_digit = key  # type: ignore[attr-defined]
-            self._member_jump_pending_container_identity = container.identity  # type: ignore[attr-defined]
+            self._member_jump_pending_container_identity = (  # type: ignore[attr-defined]
+                self._member_jump_container_identity(container)
+            )
             self._update_member_jump_footer(key)
             return True
 

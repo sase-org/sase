@@ -203,13 +203,10 @@ class BasicNavigationMixin(NavigationMixinBase):
         from ...widgets import AgentDetail
 
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        if agent_detail.is_panel_summary_visible():
-            return "#agent-panel-summary-scroll"
         if agent_detail.is_info_mode():
             return "#agent-prompt-scroll"
         if agent_detail.is_tools_visible():
             return "#agent-tools-scroll"
-            return "#agent-prompt-scroll"
         if agent_detail._has_file_content:
             return "#agent-file-scroll"
         return "#agent-prompt-scroll"

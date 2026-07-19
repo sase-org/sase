@@ -240,16 +240,20 @@ def aggregate_clan_in_memory(agent: Agent) -> ClanInMemorySnapshot:
     rows = clan_section_member_rows(agent)
     clan_name = agent.agent_clan or agent.display_name
     members = tuple(
-        _member_digest(row, clan_name=clan_name, family_depth=_family_depth(row))
+        build_agent_member_digest(
+            row,
+            label=_clan_relative_label(row, clan_name),
+            family_depth=_family_depth(row),
+        )
         for row in rows
     )
     label_by_identity = {member.identity: member.label for member in members}
-    errors = _aggregate_clan_errors(rows, labels=label_by_identity)
-    output_variables = _aggregate_clan_output_variables(
+    errors = aggregate_agent_errors(rows, labels=label_by_identity)
+    output_variables = aggregate_agent_output_variables(
         rows,
         labels=label_by_identity,
     )
-    workflow_variables = _aggregate_clan_workflow_variables(
+    workflow_variables = aggregate_agent_workflow_variables(
         rows,
         labels=label_by_identity,
     )
@@ -293,12 +297,12 @@ def aggregate_clan_in_memory(agent: Agent) -> ClanInMemorySnapshot:
     )
 
 
-def _aggregate_clan_errors(
+def aggregate_agent_errors(
     rows: tuple[Agent, ...],
     *,
     labels: dict[ClanAgentIdentity, str] | None = None,
 ) -> tuple[ClanErrorEntry, ...]:
-    """Return deterministic error entries for failed or error-bearing rows."""
+    """Return deterministic error entries for arbitrary loaded agent rows."""
     entries: list[ClanErrorEntry] = []
     for row in rows:
         failed = status_bucket_for_values(row.status) == "Failed"
@@ -317,7 +321,7 @@ def _aggregate_clan_errors(
     return tuple(entries)
 
 
-def _aggregate_clan_output_variables(
+def aggregate_agent_output_variables(
     rows: tuple[Agent, ...],
     *,
     labels: dict[ClanAgentIdentity, str] | None = None,
@@ -338,7 +342,7 @@ def _aggregate_clan_output_variables(
     return tuple(entries)
 
 
-def _aggregate_clan_workflow_variables(
+def aggregate_agent_workflow_variables(
     rows: tuple[Agent, ...],
     *,
     labels: dict[ClanAgentIdentity, str] | None = None,
@@ -383,15 +387,16 @@ def first_meaningful_line(content: str, *, max_chars: int = 120) -> str:
     return ""
 
 
-def _member_digest(
+def build_agent_member_digest(
     row: Agent,
     *,
-    clan_name: str,
+    label: str,
     family_depth: int,
 ) -> ClanMemberDigest:
+    """Project one loaded row into the shared in-memory roster digest."""
     return ClanMemberDigest(
         identity=row.identity,
-        label=_clan_relative_label(row, clan_name),
+        label=label,
         status=row.display_status,
         model=row.model,
         family_depth=family_depth,
@@ -490,7 +495,11 @@ __all__ = [
     "ClanSlowToolEntry",
     "ClanTextEntry",
     "ClanVariableEntry",
+    "aggregate_agent_errors",
+    "aggregate_agent_output_variables",
+    "aggregate_agent_workflow_variables",
     "aggregate_clan_in_memory",
+    "build_agent_member_digest",
     "clan_section_member_rows",
     "first_meaningful_line",
 ]

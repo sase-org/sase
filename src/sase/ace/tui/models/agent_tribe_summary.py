@@ -1,0 +1,403 @@
+"""Pure, in-memory presentation snapshots for Agents-tab tribe panels."""
+
+from __future__ import annotations
+
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Literal
+
+from sase.agent.status_buckets import status_bucket_for_values
+from ._agent_clan import agent_summary_status_counts, aggregate_clan_status
+from ._agent_clan_sections import (
+    ClanErrorEntry,
+    ClanMemberDigest,
+    ClanVariableEntry,
+    aggregate_agent_errors,
+    aggregate_agent_output_variables,
+    aggregate_agent_workflow_variables,
+    build_agent_member_digest,
+    clan_section_member_rows,
+    first_meaningful_line,
+)
+from ._agent_tree import agent_is_tree_child
+from .agent import Agent, AgentType, compute_row_runtime
+from .agent_panels import PanelKey
+from . import agent_time
+
+
+type AgentIdentity = tuple[AgentType, str, str | None]
+type TribePanelIdentity = tuple[Literal["panel"], PanelKey]
+
+
+@dataclass(frozen=True, slots=True)
+class CollapsedAgentPanelFocus:
+    """Identity of the whole collapsed panel that currently owns focus."""
+
+    panel_key: PanelKey
+
+    @property
+    def container_identity(self) -> TribePanelIdentity:
+        """Return the roster registry identity for this tribe panel."""
+        return _tribe_panel_identity(self.panel_key)
+
+
+@dataclass(frozen=True, slots=True)
+class TribeStatusCounts:
+    """Status-count projection shared by tribe headers and unit chips."""
+
+    stopped: int = 0
+    running: int = 0
+    waiting: int = 0
+    failed: int = 0
+    unread: int = 0
+    done: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class _TribeUnitChild:
+    """One unnumbered real row nested beneath a tribe roster unit."""
+
+    identity: AgentIdentity
+    label: str
+    kind: str
+    status: str
+    model: str
+    duration: str
+    digest: ClanMemberDigest
+    is_marked: bool
+    is_unread: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _TribeUnitSnapshot:
+    """Immutable roster data for one top-level rendered tribe unit."""
+
+    identity: AgentIdentity
+    presented_name: str
+    label: str
+    kind: str
+    status: str
+    model: str
+    duration: str
+    status_counts: TribeStatusCounts | None
+    digest: ClanMemberDigest | None
+    children: tuple[_TribeUnitChild, ...]
+    is_marked: bool
+    is_unread: bool
+
+
+@dataclass(frozen=True, slots=True)
+class TribeAttentionEntry:
+    """A bounded operational triage row for one unit needing attention."""
+
+    unit_identity: AgentIdentity
+    unit_label: str
+    status: str
+    status_bucket: str
+    preview: str
+
+
+@dataclass(frozen=True, slots=True)
+class AgentTribeSummarySnapshot:
+    """Complete renderer-facing snapshot for one tribe metadata document."""
+
+    panel_key: PanelKey
+    container_identity: TribePanelIdentity
+    label: str
+    panel_collapsed: bool
+    status: str
+    counts: TribeStatusCounts
+    clan_count: int
+    family_count: int
+    agent_count: int
+    nested_count: int
+    runtime_span: str
+    units: tuple[_TribeUnitSnapshot, ...]
+    attention: tuple[TribeAttentionEntry, ...]
+    errors: tuple[ClanErrorEntry, ...]
+    output_variables: tuple[ClanVariableEntry, ...]
+    workflow_variables: tuple[ClanVariableEntry, ...]
+
+
+def _tribe_panel_identity(panel_key: PanelKey) -> TribePanelIdentity:
+    """Return a stable, hashable container identity for a tribe panel."""
+    return ("panel", panel_key)
+
+
+def _panel_label(panel_key: PanelKey) -> str:
+    return "(untagged)" if panel_key is None else f"@{panel_key}"
+
+
+def _row_name(agent: Agent) -> str:
+    return (
+        agent.presented_agent_name
+        or agent.agent_name
+        or agent.step_name
+        or agent.display_name
+    )
+
+
+def _unit_kind(agent: Agent) -> str:
+    if agent.is_clan_container:
+        return "clan"
+    if agent.is_family_container_row:
+        return "family"
+    if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
+        return "workflow"
+    return "agent"
+
+
+def _member_kind(agent: Agent) -> str:
+    if agent.is_family_container_row:
+        return "family"
+    if agent.is_workflow_step_child or agent.agent_type == AgentType.WORKFLOW:
+        return "step"
+    return "agent"
+
+
+def _family_member_rows(agent: Agent) -> tuple[Agent, ...]:
+    """Return real rows in a family without importing presentation widgets."""
+    family_name = agent.agent_family or agent.family_reference_name()
+    include_root = not bool(
+        agent.agent_name and family_name and agent.agent_name == family_name
+    )
+    candidates = ((agent,) if include_root else ()) + tuple(
+        child
+        for child in agent.followup_agents
+        if not child.is_synthetic_planner and not child.agent_family_parallel
+    )
+    return _dedupe_rows(candidates)
+
+
+def _descendant_rows(agent: Agent) -> tuple[Agent, ...]:
+    rows: list[Agent] = []
+    seen: set[AgentIdentity] = set()
+
+    def visit(row: Agent) -> None:
+        if row.is_clan_container or row.identity in seen:
+            return
+        seen.add(row.identity)
+        rows.append(row)
+        for child in (*row.runtime_children, *row.followup_agents):
+            visit(child)
+
+    for child in (*agent.runtime_children, *agent.followup_agents):
+        visit(child)
+    return tuple(rows)
+
+
+def _unit_real_rows(unit: Agent) -> tuple[Agent, ...]:
+    if unit.is_clan_container:
+        return clan_section_member_rows(unit)
+    if unit.is_family_container_row:
+        return _family_member_rows(unit)
+    return _dedupe_rows((unit, *_descendant_rows(unit)))
+
+
+def _dedupe_rows(rows: Sequence[Agent]) -> tuple[Agent, ...]:
+    ordered: list[Agent] = []
+    seen: set[AgentIdentity] = set()
+    for row in rows:
+        if row.identity in seen:
+            continue
+        seen.add(row.identity)
+        ordered.append(row)
+    return tuple(ordered)
+
+
+def _relative_child_label(unit: Agent, child: Agent) -> str:
+    name = _row_name(child)
+    if unit.is_clan_container:
+        prefix = f"{unit.agent_clan or unit.display_name}."
+        if name.startswith(prefix):
+            return name[len(prefix) - 1 :]
+    family_name = unit.agent_family or unit.family_reference_name()
+    if family_name and name.startswith(family_name) and len(name) > len(family_name):
+        return name[len(family_name) :]
+    return name
+
+
+def _duration(agent: Agent, *, now: datetime) -> str:
+    _timestamp, elapsed = compute_row_runtime(agent, now=now)
+    return elapsed or "—"
+
+
+def _model_label(rows: Sequence[Agent]) -> str:
+    models = tuple(dict.fromkeys(row.model for row in rows if row.model))
+    if not models:
+        return "default"
+    if len(models) == 1:
+        return models[0]
+    return "mixed"
+
+
+def _status_counts(
+    rows: Sequence[Agent],
+    unread_ids: Collection[AgentIdentity],
+) -> TribeStatusCounts:
+    counts = agent_summary_status_counts(rows, unread_ids)
+    return TribeStatusCounts(
+        stopped=counts.stopped,
+        running=counts.running,
+        waiting=counts.waiting,
+        failed=counts.failed,
+        unread=counts.unread,
+        done=counts.done,
+    )
+
+
+def _unit_snapshot(
+    unit: Agent,
+    *,
+    unread_ids: Collection[AgentIdentity],
+    marked_ids: Collection[AgentIdentity],
+    now: datetime,
+) -> _TribeUnitSnapshot:
+    rows = _unit_real_rows(unit)
+    nested_rows = tuple(row for row in rows if row.identity != unit.identity)
+    children = tuple(
+        _TribeUnitChild(
+            identity=row.identity,
+            label=_relative_child_label(unit, row),
+            kind=_member_kind(row),
+            status=row.display_status,
+            model=row.model or "default",
+            duration=_duration(row, now=now),
+            digest=build_agent_member_digest(
+                row,
+                label=_relative_child_label(unit, row),
+                family_depth=1,
+            ),
+            is_marked=row.identity in marked_ids,
+            is_unread=row.identity in unread_ids,
+        )
+        for row in nested_rows
+    )
+    root_digest = None
+    if not unit.is_clan_container:
+        root_digest = build_agent_member_digest(
+            unit,
+            label=_row_name(unit),
+            family_depth=0,
+        )
+    return _TribeUnitSnapshot(
+        identity=unit.identity,
+        presented_name=_row_name(unit),
+        label=_row_name(unit),
+        kind=_unit_kind(unit),
+        status=unit.display_status,
+        model=_model_label(rows or (unit,)),
+        duration=_duration(unit, now=now),
+        status_counts=(
+            _status_counts(rows, unread_ids)
+            if unit.is_clan_container or unit.is_family_container_row
+            else None
+        ),
+        digest=root_digest,
+        children=children,
+        is_marked=any(row.identity in marked_ids for row in rows)
+        or (unit.identity in marked_ids),
+        is_unread=any(row.identity in unread_ids for row in rows)
+        or (unit.identity in unread_ids),
+    )
+
+
+def _attention_preview(rows: Sequence[Agent], status: str) -> str:
+    for row in rows:
+        preview = first_meaningful_line(row.error_message or row.activity or "")
+        if preview:
+            return preview
+    for row in rows:
+        if row.waiting_for:
+            return "waiting for " + ", ".join(row.waiting_for)
+    return status
+
+
+def _runtime_span(rows: Sequence[Agent], *, now: datetime) -> str:
+    starts: list[datetime] = []
+    for row in rows:
+        start = row.run_start_time or row.start_time
+        if start is not None:
+            starts.append(start)
+    if not starts:
+        return "—"
+    ends = [row.stop_time or now for row in rows if row.start_time is not None]
+    if not ends:
+        return "—"
+    return agent_time.format_compact_duration((max(ends) - min(starts)).total_seconds())
+
+
+def build_agent_tribe_summary_snapshot(
+    panel_key: PanelKey,
+    agents: Sequence[Agent],
+    *,
+    panel_collapsed: bool,
+    unread_ids: Collection[AgentIdentity] = (),
+    marked_ids: Collection[AgentIdentity] = (),
+    now: datetime | None = None,
+) -> AgentTribeSummarySnapshot:
+    """Build a fold-independent tribe snapshot using loaded rows only."""
+    reference = now or agent_time.local_now()
+    roots = tuple(agent for agent in agents if not agent_is_tree_child(agent))
+    units = tuple(
+        _unit_snapshot(
+            agent,
+            unread_ids=unread_ids,
+            marked_ids=marked_ids,
+            now=reference,
+        )
+        for agent in roots
+    )
+    real_rows = _dedupe_rows(
+        tuple(row for root in roots for row in _unit_real_rows(root))
+    )
+    labels = {row.identity: _row_name(row) for row in real_rows}
+    attention = tuple(
+        TribeAttentionEntry(
+            unit_identity=unit.identity,
+            unit_label=unit.label,
+            status=unit.status,
+            status_bucket=status_bucket_for_values(unit.status),
+            preview=_attention_preview(_unit_real_rows(root) or (root,), unit.status),
+        )
+        for root, unit in zip(roots, units, strict=True)
+        if status_bucket_for_values(unit.status) in {"Failed", "Stopped", "Waiting"}
+    )
+    status = aggregate_clan_status(row.status for row in real_rows) or "EMPTY"
+    family_identities = {
+        row.identity for row in real_rows if row.is_family_container_row
+    }
+    family_identities.update(unit.identity for unit in units if unit.kind == "family")
+    nested_count = sum(len(unit.children) for unit in units)
+    return AgentTribeSummarySnapshot(
+        panel_key=panel_key,
+        container_identity=_tribe_panel_identity(panel_key),
+        label=_panel_label(panel_key),
+        panel_collapsed=panel_collapsed,
+        status=status,
+        counts=_status_counts(roots, unread_ids),
+        clan_count=sum(unit.kind == "clan" for unit in units),
+        family_count=len(family_identities),
+        agent_count=len(real_rows),
+        nested_count=nested_count,
+        runtime_span=_runtime_span(real_rows, now=reference),
+        units=units,
+        attention=attention,
+        errors=aggregate_agent_errors(real_rows, labels=labels),
+        output_variables=aggregate_agent_output_variables(real_rows, labels=labels),
+        workflow_variables=aggregate_agent_workflow_variables(
+            real_rows,
+            labels=labels,
+        ),
+    )
+
+
+__all__ = [
+    "AgentTribeSummarySnapshot",
+    "CollapsedAgentPanelFocus",
+    "TribeAttentionEntry",
+    "TribePanelIdentity",
+    "TribeStatusCounts",
+    "build_agent_tribe_summary_snapshot",
+]

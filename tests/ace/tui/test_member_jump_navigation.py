@@ -16,6 +16,10 @@ from sase.ace.tui.actions.navigation._member_jump import MemberJumpNavigationMix
 from sase.ace.tui.models import filter_agents_by_fold_state
 from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_tribe_summary import (
+    CollapsedAgentPanelFocus,
+    _tribe_panel_identity,
+)
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode, build_agent_tree
 from sase.ace.tui.models.agent_panels import (
@@ -90,6 +94,7 @@ class _JumpHarness(MemberJumpNavigationMixin, EntryJumpAgentHistoryMixin):
         self._collapsed_panel_keys: set[str | None] = set()
         self._current_group_key: tuple[str, ...] | None = None
         self._member_jump_maps: dict[tuple[Any, ...], MemberJumpMap] = {}
+        self._whole_panel_focus = False
         self._member_jump_pending_digit: str | None = None
         self._member_jump_pending_container_identity: tuple[Any, ...] | None = None
         self._entry_jump_agents_anchor_stack: list[Any] = []
@@ -132,6 +137,23 @@ class _JumpHarness(MemberJumpNavigationMixin, EntryJumpAgentHistoryMixin):
         if not (0 <= self.current_idx < len(self._agents)):
             return None
         return self._agents[self.current_idx]
+
+    def _resolve_focused_collapsed_panel(self) -> CollapsedAgentPanelFocus | None:
+        if not self._whole_panel_focus:
+            return None
+        panel_key = self._panel_group.focused_key
+        if panel_key not in self._collapsed_panel_keys:
+            return None
+        return CollapsedAgentPanelFocus(panel_key)
+
+    def _agents_in_focused_panel(self) -> list[Agent]:
+        focused_key = self._panel_group.focused_key
+        keys = self._panel_keys_per_agent()
+        return [
+            agent
+            for index, agent in enumerate(self._agents)
+            if keys[index] == focused_key
+        ]
 
     def _panel_keys_per_agent(self) -> list[str | None]:
         return panel_key_per_agent(
@@ -456,3 +478,43 @@ def test_visible_member_jump_skips_refilter_and_structural_refresh() -> None:
     assert app._agents[app.current_idx].identity == members[1].identity
     assert app.refilter_calls == 0
     assert app.display_refreshes == []
+
+
+def test_tribe_member_jump_expands_panel_and_selects_numbered_unit() -> None:
+    first = _agent("first", tag="epic")
+    second = _agent("second", tag="epic")
+    app = _JumpHarness([first, second], first)
+    app._collapsed_panel_keys.add("epic")
+    app._whole_panel_focus = True
+    app._panel_group = AgentPanelGroup.from_agents(
+        app._agents,
+        focused_key="epic",
+        collapsed_panel_keys=app._collapsed_panel_keys,
+    )
+    app._member_jump_maps[_tribe_panel_identity("epic")] = MemberJumpMap(
+        container_identity=_tribe_panel_identity("epic"),
+        targets=(
+            cast(
+                Any,
+                SimpleNamespace(
+                    number="0",
+                    member_identity=first.identity,
+                    kind="agent",
+                ),
+            ),
+            cast(
+                Any,
+                SimpleNamespace(
+                    number="1",
+                    member_identity=second.identity,
+                    kind="agent",
+                ),
+            ),
+        ),
+    )
+
+    assert app._handle_member_jump_key("1") is True
+
+    assert "epic" not in app._collapsed_panel_keys
+    assert app._agents[app.current_idx].identity == second.identity
+    assert app.panel_fold_changes == [("epic", False)]

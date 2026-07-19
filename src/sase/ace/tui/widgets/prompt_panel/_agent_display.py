@@ -6,6 +6,7 @@ from rich.console import Group
 
 from ...agent_completion import agent_status_buckets_for_app
 from ...models.agent import Agent
+from ...models.agent_tribe_summary import AgentTribeSummarySnapshot
 from ...tools.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.trace import tui_trace
 from ._agent_display_attempts import (
@@ -69,6 +70,58 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             )
             if callable(configure_slow_tick):
                 configure_slow_tick(agent)
+
+    def update_tribe_display(
+        self,
+        snapshot: AgentTribeSummarySnapshot,
+        *,
+        cheap: bool = False,
+    ) -> None:
+        """Render one pure tribe document on the regular prompt surface."""
+        with tui_trace("widget.prompt_panel.update_tribe_display", cheap=cheap):
+            self._agent_hint_mode_rendered = False  # type: ignore[attr-defined]
+            prepare_sections = getattr(self, "prepare_section_document", None)
+            if callable(prepare_sections):
+                prepare_sections((snapshot.container_identity, "tribe"))
+            if cheap:
+                preserve_section = getattr(
+                    self,
+                    "preserve_missing_section_on_next_update",
+                    None,
+                )
+                if callable(preserve_section):
+                    preserve_section()
+            cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
+            if callable(cancel_slow_tick):
+                cancel_slow_tick()
+            for worker_name in (
+                "_agent_bead_display_worker",
+                "_agent_linked_delta_worker",
+                "_agent_detail_header_worker",
+                "_clan_section_worker",
+            ):
+                worker = getattr(self, worker_name, None)
+                if worker is not None and getattr(worker, "is_running", False):
+                    worker.cancel()
+
+            fold_level, fold_overrides = panel_fold_state_from_widget(self)
+            try:
+                app = self.app  # type: ignore[attr-defined]
+            except Exception:
+                app = None
+            from ._agent_display_tribe import build_tribe_detail_text
+
+            self.update(  # type: ignore[attr-defined]
+                build_tribe_detail_text(
+                    snapshot,
+                    fold_level=fold_level,
+                    section_fold_overrides=fold_overrides,
+                    member_jump_map_publisher=(
+                        None if cheap else member_jump_map_publisher_for(app)
+                    ),
+                    cheap=cheap,
+                )
+            )
 
     def refresh_slow_tool_metadata_from_cache(self, agent: Agent) -> None:
         """Re-render from cached header/tool data for the slow-tool tick."""

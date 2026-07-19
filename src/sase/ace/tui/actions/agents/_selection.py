@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ...models import Agent
-    from ...models.agent_panel_summary import (
-        AgentPanelSummarySnapshot,
+    from ...models.agent_tribe_summary import (
+        AgentTribeSummarySnapshot,
         CollapsedAgentPanelFocus,
     )
 
@@ -35,25 +35,33 @@ class AgentSelectionMixin:
         if panel_key not in getattr(self, "_collapsed_panel_keys", set()):
             return None
 
-        from ...models.agent_panel_summary import CollapsedAgentPanelFocus
+        from ...models.agent_tribe_summary import CollapsedAgentPanelFocus
 
         return CollapsedAgentPanelFocus(panel_key=panel_key)
 
-    def _focused_collapsed_panel_summary(
+    def _focused_tribe_summary(
         self,
-    ) -> AgentPanelSummarySnapshot | None:
-        """Build the current collapsed-panel presentation from cached rows."""
-        focus = self._resolve_focused_collapsed_panel()
+    ) -> AgentTribeSummarySnapshot | None:
+        """Build the current whole-panel tribe snapshot from cached rows."""
+        resolver = getattr(self, "_resolve_focused_panel", None)
+        focus = resolver() if callable(resolver) else None
+        if focus is None:
+            focus = self._resolve_focused_collapsed_panel()
         if focus is None:
             return None
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
         agents = panel_index.slice_for(focus.panel_key).agents
 
-        from ...models.agent_panel_summary import build_agent_panel_summary_snapshot
+        from ...models.agent_tribe_summary import (
+            build_agent_tribe_summary_snapshot,
+        )
 
-        return build_agent_panel_summary_snapshot(
+        return build_agent_tribe_summary_snapshot(
             focus.panel_key,
             agents,
+            panel_collapsed=(
+                focus.panel_key in getattr(self, "_collapsed_panel_keys", set())
+            ),
             unread_ids=getattr(self, "_unread_completed_agent_ids", set()),
             marked_ids=getattr(self, "_marked_agents", set()),
         )

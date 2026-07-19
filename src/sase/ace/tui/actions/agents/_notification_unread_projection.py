@@ -106,7 +106,7 @@ class AgentNotificationUnreadMixin:
         update_info = getattr(self, "_update_agents_info_panel", None)
         if callable(getattr(self, "query_one", None)) and callable(update_info):
             update_info()
-        refresh_summary = getattr(self, "_refresh_collapsed_panel_summary_only", None)
+        refresh_summary = getattr(self, "_refresh_tribe_summary_only", None)
         if callable(refresh_summary):
             refresh_summary()
 

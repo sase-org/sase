@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Literal, Protocol
 
 from rich.text import Text
 
@@ -16,16 +16,20 @@ from sase.agent.status_buckets import (
 
 from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import AgentType
+from ...models.agent_panels import PanelKey
 from ...models.fold_state import FoldLevel
 from ...models.fold_scale import (
     CLAN_FOLD_SCALE,
     FoldScale,
+    TRIBE_FOLD_SCALE,
     effective_fold_level,
 )
+from ...agent_count_chip import format_agent_count_chip
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ._helpers import append_section_heading
 
 type MemberIdentity = tuple[AgentType, str, str | None]
+type MemberJumpContainerIdentity = MemberIdentity | tuple[Literal["panel"], PanelKey]
 
 MEMBER_ROSTER_SECTION_ID = "members"
 MEMBER_ROSTER_LIMIT = 100
@@ -94,6 +98,20 @@ class MemberRosterChild:
     model: str
     duration: str
     digest: _MemberRosterDigest | None = None
+    is_marked: bool = False
+    is_unread: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class MemberRosterStatusCounts:
+    """Optional aggregate count chip rendered beside a roster unit."""
+
+    stopped: int = 0
+    running: int = 0
+    waiting: int = 0
+    failed: int = 0
+    unread: int = 0
+    done: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +127,9 @@ class MemberRosterEntry:
     duration: str
     digest: _MemberRosterDigest | None = None
     children: tuple[MemberRosterChild, ...] = ()
+    status_counts: MemberRosterStatusCounts | None = None
+    is_marked: bool = False
+    is_unread: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,34 +145,34 @@ class _MemberJumpTarget:
 class MemberJumpMap:
     """The exact number-to-member mapping published by a rendered roster."""
 
-    container_identity: MemberIdentity
+    container_identity: MemberJumpContainerIdentity
     targets: tuple[_MemberJumpTarget, ...]
-
-
-def _member_roster_anchor_id(presented_name: str) -> str:
-    """Return the stable section anchor for one presented member row."""
-    return f"member:{presented_name}"
 
 
 def append_member_roster(
     text: Text,
     *,
-    container_identity: MemberIdentity,
+    container_identity: MemberJumpContainerIdentity,
     entries: Sequence[MemberRosterEntry],
     title: str,
     accent: str,
     panel_level: FoldLevel,
     section_fold_overrides: Mapping[str, FoldLevel] | None = None,
     fold_scale: FoldScale = CLAN_FOLD_SCALE,
+    section_id: str = MEMBER_ROSTER_SECTION_ID,
+    member_anchor_prefix: str = "member:",
+    heading_only_when_collapsed: bool = False,
+    show_empty_heading: bool = False,
+    children_from_level: FoldLevel | None = None,
+    full_annotations_from_level: FoldLevel = FoldLevel.FULLY_EXPANDED,
 ) -> MemberJumpMap:
     """Append a numbered roster and return the jump map rendered from it."""
     ordered_entries = tuple(entries)
-    if not ordered_entries:
+    if not ordered_entries and not show_empty_heading:
         return MemberJumpMap(container_identity=container_identity, targets=())
-
     overrides = section_fold_overrides or {}
     roster_level = effective_fold_level(
-        overrides.get(MEMBER_ROSTER_SECTION_ID, panel_level),
+        overrides.get(section_id, panel_level),
         fold_scale,
     )
     _append_roster_heading(
@@ -160,13 +181,18 @@ def append_member_roster(
         count=len(ordered_entries),
         level=roster_level,
         accent=accent,
+        section_id=section_id,
     )
+    if not ordered_entries or (
+        heading_only_when_collapsed and roster_level == FoldLevel.COLLAPSED
+    ):
+        return MemberJumpMap(container_identity=container_identity, targets=())
 
     number_width = 1 if len(ordered_entries) <= 10 else 2
     targets: list[_MemberJumpTarget] = []
     for index, entry in enumerate(ordered_entries[:MEMBER_ROSTER_LIMIT]):
         number = f"{index:0{number_width}d}"
-        anchor_id = _member_roster_anchor_id(entry.presented_name)
+        anchor_id = f"{member_anchor_prefix}{entry.presented_name}"
         entry_level = effective_fold_level(
             overrides.get(anchor_id, roster_level),
             fold_scale,
@@ -178,6 +204,8 @@ def append_member_roster(
             anchor_id=anchor_id,
             level=entry_level,
             accent=accent,
+            children_from_level=children_from_level,
+            full_annotations_from_level=full_annotations_from_level,
         )
         targets.append(
             _MemberJumpTarget(
@@ -228,6 +256,7 @@ def _append_roster_heading(
     count: int,
     level: FoldLevel,
     accent: str,
+    section_id: str,
 ) -> None:
     text.append("\n")
     text.append(_ROSTER_RULE + "\n", style=f"bold {accent}")
@@ -239,7 +268,7 @@ def _append_roster_heading(
     append_section_heading(
         text,
         heading,
-        section_id=MEMBER_ROSTER_SECTION_ID,
+        section_id=section_id,
     )
 
 
@@ -251,6 +280,8 @@ def _append_numbered_entry(
     anchor_id: str,
     level: FoldLevel,
     accent: str,
+    children_from_level: FoldLevel | None,
+    full_annotations_from_level: FoldLevel,
 ) -> None:
     line = Text()
     line.append(f" {number} ", style=f"bold black on {accent}")
@@ -262,10 +293,22 @@ def _append_numbered_entry(
         status=entry.status,
         model=entry.model,
         duration=entry.duration,
-        annotations=_member_annotations(entry.digest, level),
+        annotations=_member_annotations(
+            entry.digest,
+            level,
+            full_annotations_from_level=full_annotations_from_level,
+        ),
+        status_counts=entry.status_counts,
+        is_marked=entry.is_marked,
+        is_unread=entry.is_unread,
     )
     append_section_heading(text, line, section_id=anchor_id)
 
+    if children_from_level is not None and not _level_at_least(
+        level,
+        children_from_level,
+    ):
+        return
     for index, child in enumerate(entry.children):
         branch = "    └─ " if index == len(entry.children) - 1 else "    ├─ "
         text.append(branch, style="dim #808080")
@@ -276,7 +319,14 @@ def _append_numbered_entry(
             status=child.status,
             model=child.model,
             duration=child.duration,
-            annotations=_member_annotations(child.digest, level),
+            annotations=_member_annotations(
+                child.digest,
+                level,
+                full_annotations_from_level=full_annotations_from_level,
+            ),
+            status_counts=None,
+            is_marked=child.is_marked,
+            is_unread=child.is_unread,
         )
         text.append("\n")
 
@@ -290,9 +340,16 @@ def _append_member_fields(
     model: str,
     duration: str,
     annotations: Sequence[str],
+    status_counts: MemberRosterStatusCounts | None,
+    is_marked: bool,
+    is_unread: bool,
 ) -> None:
     bucket = status_bucket_for_values(status)
     glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
+    if is_marked:
+        text.append("[✓] ", style="bold #00D700")
+    if is_unread:
+        text.append("❌ " if bucket == "Failed" else "✅ ", style="#5FD7FF")
     text.append(label, style=_AGENT_NAME_ANNOTATION_STYLE)
     text.append(" · ", style="dim")
     text.append(kind, style=_MEMBER_KIND_STYLE)
@@ -302,6 +359,18 @@ def _append_member_fields(
     text.append(model, style=_MEMBER_MODEL_STYLE)
     text.append(" · ", style="dim")
     text.append(duration, style=_MEMBER_DURATION_STYLE)
+    if status_counts is not None:
+        chip = format_agent_count_chip(
+            stopped=status_counts.stopped,
+            running=status_counts.running,
+            waiting=status_counts.waiting,
+            failed=status_counts.failed,
+            unread=status_counts.unread,
+            done=status_counts.done,
+        )
+        if chip.cell_len:
+            text.append(" ")
+            text.append_text(chip)
     if annotations:
         text.append(" · ", style="dim")
         text.append(" · ".join(annotations), style="dim #BCAFD7")
@@ -310,6 +379,8 @@ def _append_member_fields(
 def _member_annotations(
     digest: _MemberRosterDigest | None,
     level: FoldLevel,
+    *,
+    full_annotations_from_level: FoldLevel,
 ) -> tuple[str, ...]:
     if digest is None or level == FoldLevel.COLLAPSED:
         return ()
@@ -321,7 +392,7 @@ def _member_annotations(
         annotations.append("wait " + "; ".join(digest.waiting))
     if digest.retry:
         annotations.append("retry " + "; ".join(digest.retry))
-    if level in {FoldLevel.FULLY_EXPANDED, FoldLevel.EXHAUSTIVE}:
+    if _level_at_least(level, full_annotations_from_level):
         if digest.workspace_num is not None:
             annotations.append(f"ws {digest.workspace_num}")
         if digest.start_time is not None:
@@ -336,6 +407,10 @@ def _member_annotations(
     return tuple(annotations)
 
 
+def _level_at_least(level: FoldLevel, threshold: FoldLevel) -> bool:
+    return TRIBE_FOLD_SCALE.index(level) >= TRIBE_FOLD_SCALE.index(threshold)
+
+
 def _format_timestamp(value: datetime) -> str:
     return value.astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -344,8 +419,10 @@ __all__ = [
     "MEMBER_ROSTER_LIMIT",
     "MEMBER_ROSTER_SECTION_ID",
     "MemberJumpMap",
+    "MemberJumpContainerIdentity",
     "MemberRosterChild",
     "MemberRosterEntry",
+    "MemberRosterStatusCounts",
     "append_member_roster",
     "member_jump_map_publisher_for",
 ]

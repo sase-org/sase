@@ -13,7 +13,7 @@ from sase.ace.tui.models._agent_tree import (
     presentation_anchor,
     presentation_anchor_lookup,
     project_clan_tree,
-    tree_parent,
+    _tree_parent,
     tree_parent_lookup,
 )
 from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
@@ -99,8 +99,8 @@ def test_project_clan_tree_inserts_container_and_three_depths() -> None:
     assert agent_parent_fold_key(family_member) == family.raw_suffix
 
     lookup = tree_parent_lookup(projected)
-    assert tree_parent(family_member, lookup) is family
-    assert tree_parent(family, lookup) is container
+    assert _tree_parent(family_member, lookup) is family
+    assert _tree_parent(family, lookup) is container
     anchors = presentation_anchor_lookup(projected, lookup)
     assert [anchors[id(row)] for row in projected] == [container] * 4
 

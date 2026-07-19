@@ -56,10 +56,11 @@ def test_focused_collapsed_panel_has_no_selected_agent() -> None:
 
     assert app._resolve_focused_collapsed_panel() is not None
     assert app._get_selected_agent() is None
-    snapshot = app._focused_collapsed_panel_summary()
+    snapshot = app._focused_tribe_summary()
     assert snapshot is not None
     assert snapshot.label == "@alpha"
-    assert [row.display_name for row in snapshot.rows] == ["alpha"]
+    assert snapshot.panel_collapsed is True
+    assert [unit.label for unit in snapshot.units] == ["alpha"]
 
 
 def test_collapsed_nonfocused_panel_does_not_hide_expanded_selection() -> None:
