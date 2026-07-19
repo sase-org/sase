@@ -129,7 +129,7 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
                 clan=clan,
                 clan_generation=generation,
                 clan_tribe=(meta.clan_tribe or "").strip() or None,
-                tag=persisted_tag or ((meta.tag or "").strip() or None),
+                tag=persisted_tag or ((meta.tribe or "").strip() or None),
                 status=statuses.get(record.artifact_dir) or _record_status(record),
             )
         )

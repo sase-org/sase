@@ -18,6 +18,7 @@ from sase.ace.dismissed_agents import (
     save_dismissed_agent_group,
 )
 from sase.core.agent_group_archive_wire import (
+    AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION,
     SavedAgentGroupRefWire,
     SavedAgentGroupWire,
     saved_agent_group_wire_to_json_dict,
@@ -49,7 +50,7 @@ def test_saved_agent_group_facade_round_trip(tmp_path: Path) -> None:
     assert loaded is not None
     assert loaded.name == "Backend batch"
     assert loaded.agent_refs[0].bundle_path == str(missing_bundle)
-    assert loaded.agent_refs[0].tag == "backend"
+    assert loaded.agent_refs[0].tribe == "backend"
     assert loaded.agent_refs[0].prompt_preview == "Restore this backend worker."
     assert not missing_bundle.exists()
 
@@ -110,7 +111,8 @@ def test_saved_agent_group_corrupt_missing_and_revived_marking(
     payload = json.loads((groups_dir / "valid.json").read_text(encoding="utf-8"))
     assert payload["title"] == "1 agent in cl"
     assert payload["agent_refs"][0]["raw_suffix"] == "ts-1"
-    assert payload["agent_refs"][0]["tag"] == "backend"
+    assert payload["agent_refs"][0]["tribe"] == "backend"
+    assert "tag" not in payload["agent_refs"][0]
 
 
 def test_delete_saved_agent_group_removes_group_record(tmp_path: Path) -> None:
@@ -201,6 +203,42 @@ def test_saved_agent_group_missing_optional_fields_load_as_none(
     assert loaded.name is None
     assert loaded.agent_refs[0].prompt_preview is None
     assert page.groups[0].name is None
+
+
+def test_version_one_tag_record_loads_and_rewrites_canonically(
+    tmp_path: Path,
+) -> None:
+    groups_dir = tmp_path / "groups"
+    groups_dir.mkdir()
+    payload = saved_agent_group_wire_to_json_dict(
+        _group("legacy-v1", "2026-05-27T12:00:00Z")
+    )
+    payload["schema_version"] = 1
+    ref = payload["agent_refs"][0]
+    ref["tag"] = ref.pop("tribe")
+    group_path = groups_dir / "legacy-v1.json"
+    group_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_AGENT_GROUPS_DIR", groups_dir),
+        patch(
+            "sase.ace.dismissed_agent_groups.require_rust_binding",
+            side_effect=AttributeError("exercise Python migration"),
+        ),
+    ):
+        loaded = load_dismissed_agent_group("legacy-v1")
+        rewritten = mark_dismissed_agent_group_revived(
+            "legacy-v1", revived_at="2026-05-27T13:00:00Z"
+        )
+
+    assert loaded is not None
+    assert loaded.schema_version == AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION
+    assert loaded.agent_refs[0].tribe == "backend"
+    assert rewritten is not None
+    persisted = json.loads(group_path.read_text())
+    assert persisted["schema_version"] == AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION
+    assert persisted["agent_refs"][0]["tribe"] == "backend"
+    assert "tag" not in persisted["agent_refs"][0]
 
 
 def test_recent_dismissed_agent_groups_are_capped_newest_first(
@@ -323,7 +361,7 @@ def _group(
                 start_time="2026-05-27T11:00:00Z",
                 model="gpt",
                 llm_provider="codex",
-                tag="backend",
+                tribe="backend",
                 prompt_preview=prompt_preview,
             ),
         ),

@@ -179,7 +179,7 @@ def test_save_atomic_replace_overwrites_existing_file(tmp_path: Path) -> None:
             {(AgentType.RUNNING, "x", "ts"): "fresh"},
         )
         assert json.loads(test_file.read_text()) == [
-            {"id": ["run", "x", "ts"], "tag": "fresh"}
+            {"id": ["run", "x", "ts"], "tribe": "fresh"}
         ]
 
 

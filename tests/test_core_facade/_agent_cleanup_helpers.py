@@ -16,7 +16,7 @@ from sase.core.agent_cleanup_wire import (
     CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
     CLEANUP_SCOPE_FOCUSED_GROUP,
     CLEANUP_SCOPE_FOCUSED_PANEL,
-    CLEANUP_SCOPE_TAG,
+    CLEANUP_SCOPE_TRIBE,
     AgentCleanupIdentityWire,
     AgentCleanupRequestWire,
 )
@@ -80,8 +80,8 @@ def _request(
     *,
     scope: str,
     mode: str,
-    focused_panel_tag: str | None = None,
-    tag: str | None = None,
+    focused_panel_tribe: str | None = None,
+    tribe: str | None = None,
     clan_name: str | None = None,
     clan_generation: str | None = None,
     identities: tuple[AgentCleanupIdentityWire, ...] = (),
@@ -91,8 +91,8 @@ def _request(
         schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
         scope=scope,
         mode=mode,
-        focused_panel_tag=focused_panel_tag,
-        tag=tag,
+        focused_panel_tribe=focused_panel_tribe,
+        tribe=tribe,
         clan_name=clan_name,
         clan_generation=clan_generation,
         identities=identities,
@@ -111,7 +111,7 @@ def _scenario_focused_panel_dismiss() -> tuple[list[Agent], AgentCleanupRequestW
     ], _request(
         scope=CLEANUP_SCOPE_FOCUSED_PANEL,
         mode=CLEANUP_MODE_DISMISS_COMPLETED,
-        focused_panel_tag="focus",
+        focused_panel_tribe="focus",
     )
 
 
@@ -128,7 +128,7 @@ def _scenario_focused_panel_kill_dismiss() -> tuple[
     ], _request(
         scope=CLEANUP_SCOPE_FOCUSED_PANEL,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
-        focused_panel_tag=None,
+        focused_panel_tribe=None,
     )
 
 
@@ -162,7 +162,7 @@ def _scenario_collapsed_group() -> tuple[list[Agent], AgentCleanupRequestWire]:
     )
 
 
-def _scenario_tag_scope() -> tuple[list[Agent], AgentCleanupRequestWire]:
+def _scenario_tribe_scope() -> tuple[list[Agent], AgentCleanupRequestWire]:
     alpha = _agent(
         cl_name="alpha",
         status="RUNNING",
@@ -193,9 +193,9 @@ def _scenario_tag_scope() -> tuple[list[Agent], AgentCleanupRequestWire]:
         child,
         beta,
     ], _request(
-        scope=CLEANUP_SCOPE_TAG,
+        scope=CLEANUP_SCOPE_TRIBE,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
-        tag="alpha",
+        tribe="alpha",
     )
 
 
@@ -466,7 +466,7 @@ _SCENARIOS = [
     ),
     pytest.param(_scenario_marked_set, id="marked-set"),
     pytest.param(_scenario_collapsed_group, id="collapsed-group"),
-    pytest.param(_scenario_tag_scope, id="tag-scope"),
+    pytest.param(_scenario_tribe_scope, id="tribe-scope"),
     pytest.param(_scenario_clan_scope, id="clan-scope"),
     pytest.param(
         _scenario_clan_scope_active_parallel_family,

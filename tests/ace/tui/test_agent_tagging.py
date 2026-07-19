@@ -202,7 +202,7 @@ def test_apply_set_persists_and_updates_agent(tmp_path: Path) -> None:
     assert agent.tag == "release-blockers"
     persisted = json.loads(tag_file.read_text())
     assert persisted == [
-        {"id": ["run", "fix-bug", "20240101120000"], "tag": "release-blockers"}
+        {"id": ["run", "fix-bug", "20240101120000"], "tribe": "release-blockers"}
     ]
     assert app.refresh_calls == 1
 
@@ -221,7 +221,7 @@ def test_apply_set_replaces_existing_tag(tmp_path: Path) -> None:
         callback(AgentTagModalResult(action="set", tag="new"))
     assert agent.tag == "new"
     persisted = json.loads(tag_file.read_text())
-    assert persisted == [{"id": ["run", "fix-bug", "20240101120000"], "tag": "new"}]
+    assert persisted == [{"id": ["run", "fix-bug", "20240101120000"], "tribe": "new"}]
 
 
 def test_apply_unset_drops_tag(tmp_path: Path) -> None:
@@ -370,7 +370,7 @@ def test_marked_bulk_path_targets_marked_agents(tmp_path: Path) -> None:
     assert a2.tag is None  # not marked → not changed
     assert a3.tag == "release-blockers"
     persisted = {
-        tuple(row["id"]): row["tag"] for row in json.loads(tag_file.read_text())
+        tuple(row["id"]): row["tribe"] for row in json.loads(tag_file.read_text())
     }
     assert persisted == {
         ("run", "fix-bug", "t1"): "release-blockers",

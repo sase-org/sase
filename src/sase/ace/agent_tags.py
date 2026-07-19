@@ -1,15 +1,8 @@
-"""Persistent storage of the user-managed tag on an agent identity.
+"""Persistent standalone agent-tribe assignments.
 
-Tags are stored under ``~/.sase/agent_tags.json`` as a JSON list of
-``{"id": [agent_type, cl_name, raw_suffix], "tag": "<tag>"}`` records.
-Each agent has at most one tag — the tag drives Agents-tab grouping and
-(in Phase 3) the dynamic side-panel split.
-
-Tag names match ``^[A-Za-z0-9_.-]+$`` and are stored *without* the ``@``
-prefix; the prefix is purely a display affordance added by the TUI.
-
-Legacy multi-tag entries (``"tags": [...]``) are silently migrated on
-read by collapsing to the first element.
+This module keeps temporary tag-named entry points for the staged runtime
+cutover.  Both the canonical and compatibility APIs read old state but write
+only ``agent_tribes.json`` records containing a scalar ``tribe`` field.
 """
 
 from __future__ import annotations
@@ -23,80 +16,76 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.core.agent_tribe import (
-    InvalidTagError,
+    InvalidTribeError,
+    canonical_agent_tribes_path,
+    legacy_agent_tags_path,
     load_raw_agent_tags,
-    validate_tag_name,
+    load_raw_agent_tribes,
+    validate_tribe_name,
 )
-from sase.core.paths import sase_home
 
 if TYPE_CHECKING:
     from .tui.models.agent import AgentType
 
+_AGENT_TRIBES_FILE: Path | None = None
+_LEGACY_AGENT_TAGS_FILE: Path | None = None
+# Compatibility test/caller override.  It now identifies the canonical output
+# path even though the variable name predates the storage migration.
 _AGENT_TAGS_FILE: Path | None = None
 
-REVIEW_AGENT_TAG = "review"
+REVIEW_AGENT_TRIBE = "review"
+PINNED_AGENT_TRIBE = "pinned"
 
 
-def _agent_tags_file() -> Path:
-    return _AGENT_TAGS_FILE or sase_home() / "agent_tags.json"
+def _agent_tribes_file() -> Path:
+    return _AGENT_TRIBES_FILE or _AGENT_TAGS_FILE or canonical_agent_tribes_path()
 
 
-def load_agent_tags() -> dict[tuple[AgentType, str, str | None], str]:
-    """Load tag assignments from disk.
+def _legacy_agent_tags_file() -> Path:
+    if _LEGACY_AGENT_TAGS_FILE is not None:
+        return _LEGACY_AGENT_TAGS_FILE
+    if _AGENT_TAGS_FILE is not None:
+        return _AGENT_TAGS_FILE
+    return legacy_agent_tags_path()
 
-    Returns:
-        A dict mapping ``(AgentType, cl_name, raw_suffix)`` to a single
-        tag name.  Untagged agents are simply absent from the dict.
-        Empty dict on missing/malformed file.
 
-    Migration: legacy entries with a list-shaped ``"tags"`` field are
-    accepted and reduced to their first valid element.
-    """
+def load_agent_tribes() -> dict[tuple[AgentType, str, str | None], str]:
+    """Load canonical assignments or importable legacy assignments."""
     from .tui.models.agent import AgentType
 
     result: dict[tuple[AgentType, str, str | None], str] = {}
-    for (agent_type_raw, cl_name, raw_suffix), tag in load_raw_agent_tags(
-        _agent_tags_file()
+    for (agent_type_raw, cl_name, raw_suffix), tribe in load_raw_agent_tribes(
+        _agent_tribes_file(), legacy_path=_legacy_agent_tags_file()
     ).items():
         try:
             agent_type = AgentType(agent_type_raw)
         except (ValueError, TypeError):
             continue
-        result[(agent_type, cl_name, raw_suffix)] = tag
+        result[(agent_type, cl_name, raw_suffix)] = tribe
     return result
 
 
-def save_agent_tags(
-    tags_by_identity: dict[tuple[AgentType, str, str | None], str],
+def save_agent_tribes(
+    tribes_by_identity: dict[tuple[AgentType, str, str | None], str],
 ) -> bool:
-    """Persist tag assignments to disk atomically.
-
-    Untagged identities (absent or empty) are dropped from the output so
-    the on-disk file never carries vestigial entries.
-
-    Returns:
-        True on success, False on I/O failure.
-    """
+    """Persist the complete canonical assignment store atomically."""
     try:
-        path = _agent_tags_file()
+        path = _agent_tribes_file()
         path.parent.mkdir(parents=True, exist_ok=True)
-        entries = []
-        for (agent_type, cl_name, raw_suffix), tag in tags_by_identity.items():
-            if not tag:
-                continue
-            entries.append(
-                {
-                    "id": [agent_type.value, cl_name, raw_suffix],
-                    "tag": tag,
-                }
-            )
-        # Atomic replace: write to a sibling tempfile, then rename.
+        entries = [
+            {
+                "id": [agent_type.value, cl_name, raw_suffix],
+                "tribe": tribe,
+            }
+            for (agent_type, cl_name, raw_suffix), tribe in tribes_by_identity.items()
+            if tribe
+        ]
         tmp_fd, tmp_path = tempfile.mkstemp(
-            prefix=".agent_tags.", suffix=".json", dir=path.parent
+            prefix=".agent_tribes.", suffix=".json", dir=path.parent
         )
         try:
-            with os.fdopen(tmp_fd, "w") as f:
-                json.dump(entries, f, indent=2)
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as store_file:
+                json.dump(entries, store_file, indent=2)
             os.replace(tmp_path, path)
         except OSError:
             try:
@@ -110,11 +99,11 @@ def save_agent_tags(
 
 
 @contextmanager
-def _agent_tags_file_lock() -> Iterator[None]:
-    """Hold an exclusive lock for the agent tag store read-modify-write cycle."""
+def _agent_tribes_file_lock() -> Iterator[None]:
+    """Lock the canonical read-modify-write cycle across processes."""
     import fcntl
 
-    path = _agent_tags_file()
+    path = _agent_tribes_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.parent / f"{path.name}.lock"
     with open(lock_path, "a+", encoding="utf-8") as lock_file:
@@ -125,22 +114,112 @@ def _agent_tags_file_lock() -> Iterator[None]:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
+def update_agent_tribe(
+    identity: tuple[AgentType, str, str | None],
+    tribe: str,
+) -> bool:
+    """Atomically set one assignment, importing legacy state if necessary."""
+    validate_tribe_name(tribe)
+    try:
+        with _agent_tribes_file_lock():
+            store = load_agent_tribes()
+            set_tribe(store, identity, tribe)
+            return save_agent_tribes(store)
+    except OSError:
+        return False
+
+
+def update_agent_tribe_assignment(
+    identity: tuple[AgentType, str, str | None],
+    tribe: str | None,
+) -> bool:
+    """Atomically set or clear one canonical tribe assignment."""
+    if tribe is not None:
+        validate_tribe_name(tribe)
+    try:
+        with _agent_tribes_file_lock():
+            store = load_agent_tribes()
+            before = store.get(identity)
+            if tribe is None:
+                unset_tribe(store, identity)
+            else:
+                set_tribe(store, identity, tribe)
+            if store.get(identity) == before:
+                return False
+            return save_agent_tribes(store)
+    except OSError:
+        return False
+
+
+def set_tribe(
+    tribes_by_identity: dict[tuple[AgentType, str, str | None], str],
+    identity: tuple[AgentType, str, str | None],
+    tribe: str,
+) -> str:
+    """Set *identity* to a validated tribe, replacing its prior value."""
+    validate_tribe_name(tribe)
+    tribes_by_identity[identity] = tribe
+    return tribe
+
+
+def unset_tribe(
+    tribes_by_identity: dict[tuple[AgentType, str, str | None], str],
+    identity: tuple[AgentType, str, str | None],
+) -> None:
+    """Remove *identity* from the assignment map when present."""
+    tribes_by_identity.pop(identity, None)
+
+
+# Temporary compatibility exports used until the runtime cutover lands.
+InvalidTagError = InvalidTribeError
+REVIEW_AGENT_TAG = REVIEW_AGENT_TRIBE
+
+
+def validate_tag_name(tag: str) -> str:
+    return validate_tribe_name(tag)
+
+
+def load_agent_tags() -> dict[tuple[AgentType, str, str | None], str]:
+    if _AGENT_TAGS_FILE is None or _AGENT_TRIBES_FILE is not None:
+        return load_agent_tribes()
+
+    # An explicit old-name override is a compatibility-only legacy reader.
+    # Once a mutation writes ``tribe`` records to that path, the canonical
+    # reader takes over on subsequent calls.
+    raw = load_raw_agent_tribes(
+        _AGENT_TAGS_FILE,
+        legacy_path=_AGENT_TAGS_FILE,
+    )
+    if not raw and _AGENT_TAGS_FILE.exists():
+        raw = load_raw_agent_tags(_AGENT_TAGS_FILE)
+    from .tui.models.agent import AgentType
+
+    result: dict[tuple[AgentType, str, str | None], str] = {}
+    for (agent_type_raw, cl_name, raw_suffix), tribe in raw.items():
+        try:
+            agent_type = AgentType(agent_type_raw)
+        except (ValueError, TypeError):
+            continue
+        result[(agent_type, cl_name, raw_suffix)] = tribe
+    return result
+
+
+def save_agent_tags(
+    tags_by_identity: dict[tuple[AgentType, str, str | None], str],
+) -> bool:
+    return save_agent_tribes(tags_by_identity)
+
+
 def update_agent_tag(
     identity: tuple[AgentType, str, str | None],
     tag: str,
 ) -> bool:
-    """Atomically set one identity's tag in the persistent tag store.
-
-    The whole load-modify-save cycle runs under an exclusive sibling lock,
-    preventing concurrent runner launches from clobbering each other's tag
-    assignments.
-    """
-    validate_tag_name(tag)
+    validate_tribe_name(tag)
     try:
-        with _agent_tags_file_lock():
+        with _agent_tribes_file_lock():
             store = load_agent_tags()
-            set_tag(store, identity, tag)
-            return save_agent_tags(store)
+            set_tribe(store, identity, tag)
+            return save_agent_tribes(store)
     except OSError:
         return False
 
@@ -149,22 +228,19 @@ def update_agent_tag_assignment(
     identity: tuple[AgentType, str, str | None],
     tag: str | None,
 ) -> bool:
-    """Atomically set or clear one identity's persistent tag assignment.
-
-    Returns True when the on-disk store changed and False when the identity was
-    already in the requested state or the save failed.
-    """
+    if tag is not None:
+        validate_tribe_name(tag)
     try:
-        with _agent_tags_file_lock():
+        with _agent_tribes_file_lock():
             store = load_agent_tags()
             before = store.get(identity)
             if tag is None:
-                unset_tag(store, identity)
+                unset_tribe(store, identity)
             else:
-                set_tag(store, identity, tag)
+                set_tribe(store, identity, tag)
             if store.get(identity) == before:
                 return False
-            return save_agent_tags(store)
+            return save_agent_tribes(store)
     except OSError:
         return False
 
@@ -174,24 +250,25 @@ def set_tag(
     identity: tuple[AgentType, str, str | None],
     tag: str,
 ) -> str:
-    """Set *identity*'s tag to *tag*, replacing any previous value.
-
-    Mutates *tags_by_identity* in place and returns the new tag.
-    The tag is validated via :func:`validate_tag_name`.
-    """
-    validate_tag_name(tag)
-    tags_by_identity[identity] = tag
-    return tag
+    return set_tribe(tags_by_identity, identity, tag)
 
 
 def unset_tag(
     tags_by_identity: dict[tuple[AgentType, str, str | None], str],
     identity: tuple[AgentType, str, str | None],
 ) -> None:
-    """Remove *identity*'s tag if present.
+    unset_tribe(tags_by_identity, identity)
 
-    Mutates *tags_by_identity* in place; no-op when the identity has no
-    tag.
-    """
-    if identity in tags_by_identity:
-        del tags_by_identity[identity]
+
+__all__ = [
+    "InvalidTribeError",
+    "PINNED_AGENT_TRIBE",
+    "REVIEW_AGENT_TRIBE",
+    "load_agent_tribes",
+    "save_agent_tribes",
+    "set_tribe",
+    "unset_tribe",
+    "update_agent_tribe",
+    "update_agent_tribe_assignment",
+    "validate_tribe_name",
+]

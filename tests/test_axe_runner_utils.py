@@ -183,7 +183,7 @@ def test_detect_write_and_persist_review_agent_meta(tmp_path: Path) -> None:
     assert tags == [
         {
             "id": ["run", "my_cl", "20260506120000"],
-            "tag": REVIEW_AGENT_TAG,
+            "tribe": REVIEW_AGENT_TAG,
         }
     ]
     assert calls == [str(artifacts_dir)]

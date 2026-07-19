@@ -95,6 +95,18 @@ def test_validate_sase_core_rs_requires_agent_stats_work_bindings() -> None:
         )
 
 
+def test_validate_sase_core_rs_requires_cleanup_wire_version_binding() -> None:
+    validator = _load_validate_sase_core_rs()
+
+    assert "agent_cleanup_wire_schema_version" in validator.REQUIRED_BINDINGS
+    assert not validator._validate_bindings(
+        _module_with_required_bindings(
+            validator,
+            missing={"agent_cleanup_wire_schema_version"},
+        )
+    )
+
+
 def test_validate_sase_core_rs_requires_agent_stats_schema_v2() -> None:
     validator = _load_validate_sase_core_rs()
 

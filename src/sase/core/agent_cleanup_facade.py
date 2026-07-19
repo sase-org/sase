@@ -23,6 +23,7 @@ from sase.core.agent_cleanup_targets import (
     is_workflow_child,
 )
 from sase.core.agent_cleanup_wire import (
+    AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
     AgentCleanupPlanWire,
     AgentCleanupRequestWire,
     AgentCleanupTargetWire,
@@ -34,6 +35,14 @@ from sase.core.rust import require_rust_binding
 _plan_agent_cleanup_python = plan_agent_cleanup_python
 
 
+def _current_rust_cleanup_binding() -> Any:
+    """Return the planner binding only when its wire version is current."""
+    version_binding = require_rust_binding("agent_cleanup_wire_schema_version")
+    if int(version_binding()) != AGENT_CLEANUP_WIRE_SCHEMA_VERSION:
+        raise AttributeError("sase_core_rs agent-cleanup wire is stale")
+    return require_rust_binding("plan_agent_cleanup")
+
+
 def plan_agent_cleanup(
     targets: Sequence[AgentCleanupTargetWire | dict[str, Any]],
     request: AgentCleanupRequestWire | dict[str, Any],
@@ -43,7 +52,7 @@ def plan_agent_cleanup(
     wire_targets = [coerce_cleanup_target(target) for target in targets]
     wire_request = coerce_cleanup_request(request)
     try:
-        binding = require_rust_binding("plan_agent_cleanup")
+        binding = _current_rust_cleanup_binding()
     except (ImportError, AttributeError):
         return plan_agent_cleanup_python(wire_targets, wire_request)
 

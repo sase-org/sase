@@ -18,7 +18,7 @@ from sase.core.agent_cleanup_wire import (
     CLEANUP_SCOPE_CLAN,
     CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
     CLEANUP_SCOPE_FOCUSED_PANEL,
-    CLEANUP_SCOPE_TAG,
+    CLEANUP_SCOPE_TRIBE,
     KILL_KIND_RUNNING,
     KILL_KIND_WORKFLOW,
     SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY,
@@ -41,7 +41,7 @@ from tests.test_core_facade._agent_cleanup_helpers import (
     _scenario_marked_set,
     _scenario_pidless_dismiss_fallback,
     _scenario_parallel_family_root,
-    _scenario_tag_scope,
+    _scenario_tribe_scope,
     _scenario_workflow_parent_with_children,
 )
 
@@ -64,7 +64,7 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
     elif scenario is _scenario_collapsed_group:
         assert [item.identity.cl_name for item in plan.kill_items] == ["group-running"]
         assert [item.identity.cl_name for item in plan.dismiss_items] == ["group-done"]
-    elif scenario is _scenario_tag_scope:
+    elif scenario is _scenario_tribe_scope:
         assert [item.identity.cl_name for item in plan.kill_items] == ["alpha"]
         assert [item.reason for item in plan.skipped_items].count(
             "workflow_child_cascade_only"
@@ -237,12 +237,12 @@ def test_python_cleanup_planner_broad_scopes_keep_children_cascade_only() -> Non
     focused_request = _request(
         scope=CLEANUP_SCOPE_FOCUSED_PANEL,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
-        focused_panel_tag="ops",
+        focused_panel_tribe="ops",
     )
-    tag_request = _request(
-        scope=CLEANUP_SCOPE_TAG,
+    tribe_request = _request(
+        scope=CLEANUP_SCOPE_TRIBE,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
-        tag="ops",
+        tribe="ops",
     )
 
     for request in (
@@ -251,7 +251,7 @@ def test_python_cleanup_planner_broad_scopes_keep_children_cascade_only() -> Non
             mode=CLEANUP_MODE_KILL_AND_DISMISS,
         ),
         focused_request,
-        tag_request,
+        tribe_request,
     ):
         plan = _plan_agent_cleanup_python(agents_to_cleanup_targets([child]), request)
 

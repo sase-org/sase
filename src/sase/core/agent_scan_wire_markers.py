@@ -129,7 +129,7 @@ class AgentMetaWire:
     agent_family_role: str | None = None
     agent_family_parallel: bool = False
     plan_chain_root: bool = False
-    tag: str | None = None
+    tribe: str | None = None
     output_variables: dict[str, str] = field(default_factory=dict)
     output_path: str | None = None
     pid: int | None = None

@@ -120,7 +120,7 @@ def build_agent_list_entry(
         reasoning_effort=_text(meta, "reasoning_effort"),
         vcs_provider=vcs_provider,
         vcs_provider_display=_vcs_provider_display_name(vcs_provider),
-        tag=_text(meta, "tag"),
+        tag=_text(meta, "tribe"),
         bead_id=_text(meta, "bead_id"),
         changespec_name=_first_text(
             _text(meta, "changespec_name"), _text(meta, "cl_name")

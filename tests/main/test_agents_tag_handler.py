@@ -157,7 +157,7 @@ def _tribe_args(**overrides: Any) -> argparse.Namespace:
     return argparse.Namespace(**defaults)
 
 
-def test_tribe_set_persists_tag(
+def test_tribe_set_persists_canonical_tribe(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     test_file = tmp_path / "agent_tags.json"
@@ -176,12 +176,12 @@ def test_tribe_set_persists_tag(
     assert persisted == [
         {
             "id": ["run", "fix-bug", "20260425120000"],
-            "tag": "release-blockers",
+            "tribe": "release-blockers",
         }
     ]
 
 
-def test_tribe_set_replaces_existing_tag(tmp_path: Path) -> None:
+def test_tribe_set_replaces_existing_legacy_tag(tmp_path: Path) -> None:
     test_file = tmp_path / "agent_tags.json"
     test_file.write_text(json.dumps([{"id": ["run", "fix-bug", "ts"], "tag": "alpha"}]))
     identity = (AgentType.RUNNING, "fix-bug", "ts")
@@ -194,7 +194,7 @@ def test_tribe_set_replaces_existing_tag(tmp_path: Path) -> None:
     ):
         handle_agents_tribe(_tribe_args(tribe="beta"))
     persisted = json.loads(test_file.read_text())
-    assert persisted == [{"id": ["run", "fix-bug", "ts"], "tag": "beta"}]
+    assert persisted == [{"id": ["run", "fix-bug", "ts"], "tribe": "beta"}]
 
 
 def test_tribe_set_rejects_at_prefix(capsys: pytest.CaptureFixture[str]) -> None:

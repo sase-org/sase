@@ -151,7 +151,7 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tag_real_loader
         group = dismissed_agents.list_dismissed_agent_groups().groups[0]
         loaded_group = dismissed_agents.load_dismissed_agent_group(group.group_id)
         assert loaded_group is not None
-        assert loaded_group.agent_refs[0].tag == "backend"
+        assert loaded_group.agent_refs[0].tribe == "backend"
         bundled = dismissed_agents.load_dismissed_bundles({"20260527123000"})
         assert [agent.tag for agent in bundled] == ["backend"]
 

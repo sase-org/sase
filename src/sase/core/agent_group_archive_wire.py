@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION = 1
+AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION = 2
+_LEGACY_AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -24,7 +25,7 @@ class SavedAgentGroupRefWire:
     start_time: str | None = None
     model: str | None = None
     llm_provider: str | None = None
-    tag: str | None = None
+    tribe: str | None = None
     prompt_preview: str | None = None
 
 
@@ -113,7 +114,11 @@ def _saved_agent_group_ref_from_dict(data: dict[str, Any]) -> SavedAgentGroupRef
         llm_provider=(
             None if data.get("llm_provider") is None else str(data["llm_provider"])
         ),
-        tag=None if data.get("tag") is None else str(data["tag"]),
+        tribe=(
+            None
+            if data.get("tribe", data.get("tag")) is None
+            else str(data.get("tribe", data.get("tag")))
+        ),
         prompt_preview=(
             None if data.get("prompt_preview") is None else str(data["prompt_preview"])
         ),
@@ -126,7 +131,7 @@ def saved_agent_group_from_dict(data: dict[str, Any]) -> SavedAgentGroupWire:
     schema = int(data.get("schema_version", AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION))
     _check_schema(schema)
     return SavedAgentGroupWire(
-        schema_version=schema,
+        schema_version=AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION,
         group_id=str(data["group_id"]),
         created_at=str(data["created_at"]),
         source=str(data["source"]),
@@ -154,7 +159,7 @@ def _saved_agent_group_summary_from_dict(
     schema = int(data.get("schema_version", AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION))
     _check_schema(schema)
     return SavedAgentGroupSummaryWire(
-        schema_version=schema,
+        schema_version=AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION,
         group_id=str(data["group_id"]),
         created_at=str(data["created_at"]),
         source=str(data["source"]),
@@ -218,7 +223,10 @@ def _optional_nonblank_str(value: Any) -> str | None:
 
 
 def _check_schema(schema: int) -> None:
-    if schema != AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION:
+    if schema not in {
+        _LEGACY_AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION,
+        AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION,
+    }:
         raise ValueError(
             f"saved agent group wire schema mismatch: got {schema}, "
             f"expected {AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION}"

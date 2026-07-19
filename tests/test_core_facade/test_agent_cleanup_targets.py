@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from sase.core.agent_cleanup_facade import agent_to_cleanup_target
-from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
+from sase.core.agent_cleanup_wire import (
+    AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+    CLEANUP_MODE_KILL_AND_DISMISS,
+    CLEANUP_SCOPE_TRIBE,
+    AgentCleanupIdentityWire,
+    AgentCleanupRequestWire,
+    agent_cleanup_wire_to_json_dict,
+)
 
 from tests.test_core_facade._agent_cleanup_helpers import _agent, _STOP
 
@@ -32,7 +39,7 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
     assert target.status == "FAILED"
     assert target.workspace == 7
     assert target.from_changespec is False
-    assert target.tag == "triage"
+    assert target.tribe == "triage"
     assert target.agent_name == "friendly"
     assert target.agent_family_parallel is True
     assert target.agent_clan == "research"
@@ -40,3 +47,24 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
     assert target.display_name == "convert"
     assert target.start_time == "2026-04-30T09:00:00"
     assert target.stop_time == "2026-04-30T09:05:00"
+
+
+def test_cleanup_wire_serializes_only_canonical_tribe_fields() -> None:
+    target = agent_to_cleanup_target(_agent(tag="triage"))
+    request = AgentCleanupRequestWire(
+        schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+        scope=CLEANUP_SCOPE_TRIBE,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        focused_panel_tribe="triage",
+        tribe="triage",
+    )
+
+    target_payload = agent_cleanup_wire_to_json_dict(target)
+    request_payload = agent_cleanup_wire_to_json_dict(request)
+
+    assert target_payload["tribe"] == "triage"
+    assert "tag" not in target_payload
+    assert request_payload["focused_panel_tribe"] == "triage"
+    assert request_payload["tribe"] == "triage"
+    assert "focused_panel_tag" not in request_payload
+    assert "tag" not in request_payload

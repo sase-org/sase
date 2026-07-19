@@ -493,6 +493,7 @@ def test_editor_helper_bridge_agent_catalog_derives_groups_from_one_snapshot(
 ) -> None:
     from sase.agent.running_listing import RunningAgentInfo, _RunningAgentListing
     from sase.core.agent_scan_wire import (
+        AGENT_SCAN_WIRE_SCHEMA_VERSION,
         AgentArtifactRecordWire,
         AgentArtifactScanOptionsWire,
         AgentArtifactScanStatsWire,
@@ -554,11 +555,11 @@ def test_editor_helper_bridge_agent_catalog_derives_groups_from_one_snapshot(
             agent_family="review",
             parent_timestamp="20260719030101",
         ),
-        record("20260719040101", "solo", tag="writers"),
+        record("20260719040101", "solo", tribe="writers"),
         record("20260719050101", None),
     ]
     snapshot = AgentArtifactScanWire(
-        schema_version=3,
+        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
         projects_root="/tmp/projects",
         options=AgentArtifactScanOptionsWire(),
         stats=AgentArtifactScanStatsWire(),
@@ -626,13 +627,14 @@ def test_editor_helper_bridge_agent_catalog_tolerates_group_derivation_failure(
 ) -> None:
     from sase.agent.running_listing import RunningAgentInfo, _RunningAgentListing
     from sase.core.agent_scan_wire import (
+        AGENT_SCAN_WIRE_SCHEMA_VERSION,
         AgentArtifactScanOptionsWire,
         AgentArtifactScanStatsWire,
         AgentArtifactScanWire,
     )
 
     snapshot = AgentArtifactScanWire(
-        schema_version=3,
+        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
         projects_root="/tmp/projects",
         options=AgentArtifactScanOptionsWire(),
         stats=AgentArtifactScanStatsWire(),

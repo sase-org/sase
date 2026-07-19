@@ -8,17 +8,20 @@ process, filesystem, or project-file side effects.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import InitVar, asdict, dataclass, field
 from typing import Any
 
 from sase.core.wire import known_field_kwargs
 
-AGENT_CLEANUP_WIRE_SCHEMA_VERSION = 2
+AGENT_CLEANUP_WIRE_SCHEMA_VERSION = 3
 
 CLEANUP_SCOPE_FOCUSED_PANEL = "focused_panel"
 CLEANUP_SCOPE_ALL_PANELS = "all_panels"
 CLEANUP_SCOPE_EXPLICIT_IDENTITIES = "explicit_identities"
-CLEANUP_SCOPE_TAG = "tag"
+CLEANUP_SCOPE_TRIBE = "tribe"
+# Temporary source-compatibility name for the staged ACE cutover.  Its value
+# is canonical, so it cannot emit the old wire scope.
+CLEANUP_SCOPE_TAG = CLEANUP_SCOPE_TRIBE
 CLEANUP_SCOPE_CLAN = "clan"
 CLEANUP_SCOPE_FOCUSED_GROUP = "focused_group"
 CLEANUP_SCOPE_CUSTOM_SELECTION = "custom_selection"
@@ -81,7 +84,8 @@ class AgentCleanupTargetWire:
     artifacts_dir: str | None = None
     from_changespec: bool = False
     workspace: int | None = None
-    tag: str | None = None
+    tribe: str | None = None
+    tag: InitVar[str | None] = None
     agent_clan: str | None = None
     agent_clan_generation: str | None = None
     agent_name: str | None = None
@@ -93,6 +97,10 @@ class AgentCleanupTargetWire:
     appears_as_agent: bool = False
     step_type: str | None = None
 
+    def __post_init__(self, tag: str | None) -> None:
+        if self.tribe is None and tag is not None:
+            object.__setattr__(self, "tribe", tag)
+
 
 @dataclass(frozen=True)
 class AgentCleanupRequestWire:
@@ -101,12 +109,24 @@ class AgentCleanupRequestWire:
     schema_version: int
     scope: str
     mode: str
-    focused_panel_tag: str | None = None
-    tag: str | None = None
+    focused_panel_tribe: str | None = None
+    tribe: str | None = None
+    focused_panel_tag: InitVar[str | None] = None
+    tag: InitVar[str | None] = None
     clan_name: str | None = None
     clan_generation: str | None = None
     identities: tuple[AgentCleanupIdentityWire, ...] = ()
     include_pidless_as_dismissable: bool = False
+
+    def __post_init__(
+        self,
+        focused_panel_tag: str | None,
+        tag: str | None,
+    ) -> None:
+        if self.focused_panel_tribe is None and focused_panel_tag is not None:
+            object.__setattr__(self, "focused_panel_tribe", focused_panel_tag)
+        if self.tribe is None and tag is not None:
+            object.__setattr__(self, "tribe", tag)
 
 
 @dataclass(frozen=True)
@@ -268,7 +288,11 @@ def cleanup_target_from_dict(data: dict[str, Any]) -> AgentCleanupTargetWire:
         ),
         from_changespec=bool(data.get("from_changespec", False)),
         workspace=None if data.get("workspace") is None else int(data["workspace"]),
-        tag=None if data.get("tag") is None else str(data["tag"]),
+        tribe=(
+            None
+            if data.get("tribe", data.get("tag")) is None
+            else str(data.get("tribe", data.get("tag")))
+        ),
         agent_clan=(
             None if data.get("agent_clan") is None else str(data["agent_clan"])
         ),
@@ -303,12 +327,16 @@ def cleanup_request_from_dict(data: dict[str, Any]) -> AgentCleanupRequestWire:
         schema_version=schema,
         scope=str(data["scope"]),
         mode=str(data["mode"]),
-        focused_panel_tag=(
+        focused_panel_tribe=(
             None
-            if data.get("focused_panel_tag") is None
-            else str(data["focused_panel_tag"])
+            if data.get("focused_panel_tribe", data.get("focused_panel_tag")) is None
+            else str(data.get("focused_panel_tribe", data.get("focused_panel_tag")))
         ),
-        tag=None if data.get("tag") is None else str(data["tag"]),
+        tribe=(
+            None
+            if data.get("tribe", data.get("tag")) is None
+            else str(data.get("tribe", data.get("tag")))
+        ),
         clan_name=(None if data.get("clan_name") is None else str(data["clan_name"])),
         clan_generation=(
             None
@@ -453,6 +481,7 @@ __all__ = [
     "CLEANUP_SCOPE_EXPLICIT_IDENTITIES",
     "CLEANUP_SCOPE_FOCUSED_GROUP",
     "CLEANUP_SCOPE_FOCUSED_PANEL",
+    "CLEANUP_SCOPE_TRIBE",
     "CLEANUP_SCOPE_TAG",
     "CONFIRMATION_SEVERITY_DESTRUCTIVE",
     "CONFIRMATION_SEVERITY_DISMISS",

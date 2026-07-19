@@ -205,6 +205,6 @@ def _saved_group_ref_for_agent(
         start_time=_agent_start_time_wire(agent),
         model=agent.model,
         llm_provider=agent.llm_provider,
-        tag=agent.tag,
+        tribe=agent.tag,
         prompt_preview=_prompt_preview_for_agent(agent),
     )

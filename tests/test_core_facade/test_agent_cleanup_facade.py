@@ -14,6 +14,7 @@ from sase.core.agent_cleanup_facade import (
     plan_agent_cleanup,
 )
 from sase.core.agent_cleanup_wire import (
+    AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
     KILL_KIND_RUNNING,
     agent_cleanup_wire_to_json_dict,
 )
@@ -42,6 +43,9 @@ def test_plan_agent_cleanup_uses_rust_binding_when_available(
         return payload
 
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    fake.agent_cleanup_wire_schema_version = (  # type: ignore[attr-defined]
+        lambda: AGENT_CLEANUP_WIRE_SCHEMA_VERSION
+    )
     fake.plan_agent_cleanup = fake_plan  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
 
@@ -71,10 +75,30 @@ def test_plan_agent_cleanup_falls_back_when_binding_is_missing(
     assert [item.identity.cl_name for item in plan.dismiss_items] == ["done"]
 
 
+def test_plan_agent_cleanup_falls_back_when_binding_schema_is_stale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    fake.agent_cleanup_wire_schema_version = lambda: 2  # type: ignore[attr-defined]
+    fake.plan_agent_cleanup = lambda *_: pytest.fail(  # type: ignore[attr-defined]
+        "stale planner must not receive a tribe-shaped payload"
+    )
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    agents, request = _scenario_marked_set()
+
+    plan = plan_agent_cleanup(agents_to_cleanup_targets(agents), request)
+
+    assert [item.identity.cl_name for item in plan.kill_items] == ["running"]
+    assert [item.identity.cl_name for item in plan.dismiss_items] == ["done"]
+
+
 @pytest.mark.parametrize("scenario", _SCENARIOS)
 def test_rust_cleanup_planner_matches_python_reference(scenario: Any) -> None:
     rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
-    if not hasattr(rust_module, "plan_agent_cleanup"):
+    if not all(
+        hasattr(rust_module, name)
+        for name in ("plan_agent_cleanup", "agent_cleanup_wire_schema_version")
+    ):
         pytest.skip("sase_core_rs is too old (no plan_agent_cleanup).")
 
     agents, request = scenario()

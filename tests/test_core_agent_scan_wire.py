@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import fields
 
+import pytest
+
 from sase.core.agent_scan_wire import (
     AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
@@ -25,8 +27,46 @@ from .agent_scan_golden import (
 
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
-    assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 3
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 12
+    assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 4
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 13
+
+
+def test_scan_wire_rejects_stale_binding_schema() -> None:
+    with pytest.raises(ValueError, match="schema mismatch"):
+        agent_scan_wire_from_dict(
+            {
+                "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION - 1,
+                "projects_root": "/tmp/projects",
+                "records": [],
+            }
+        )
+
+
+def test_legacy_metadata_tag_hydrates_canonical_tribe_only() -> None:
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "records": [
+                {
+                    "project_name": "proj",
+                    "project_dir": "/tmp/projects/proj",
+                    "project_file": "/tmp/projects/proj/proj.sase",
+                    "workflow_dir_name": "ace-run",
+                    "artifact_dir": "/tmp/projects/proj/artifacts/ace-run/1",
+                    "timestamp": "1",
+                    "agent_meta": {"tag": "legacy"},
+                }
+            ],
+        }
+    )
+
+    assert snapshot.records[0].agent_meta is not None
+    assert snapshot.records[0].agent_meta.tribe == "legacy"
+    serialized = agent_scan_wire_to_json_dict(snapshot)
+    metadata = serialized["records"][0]["agent_meta"]
+    assert metadata["tribe"] == "legacy"
+    assert "tag" not in metadata
 
 
 def test_artifact_index_wire_helpers() -> None:

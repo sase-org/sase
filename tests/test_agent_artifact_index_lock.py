@@ -16,6 +16,7 @@ from sase.core.agent_scan_facade import (
     read_agent_artifact_index_meta,
     write_agent_artifact_index_meta,
 )
+from sase.core.agent_scan_wire import AGENT_SCAN_WIRE_SCHEMA_VERSION
 
 
 def test_artifact_index_operation_lock_allows_nested_facade_call(
@@ -71,7 +72,7 @@ def test_artifact_index_facade_calls_serialize_before_entering_rust(
             del index_path, query, options
             entered_rust.set()
             return {
-                "schema_version": 1,
+                "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
                 "projects_root": projects_root,
                 "stats": {},
                 "options": {},

@@ -68,7 +68,7 @@ def test_entry_maps_metadata_and_pending_question_to_stopped_bucket() -> None:
             agent_meta=AgentMetaWire(
                 reasoning_effort="high",
                 vcs_provider="github",
-                tag="sase-26",
+                tribe="sase-26",
                 bead_id="sase-26.1",
                 changespec_name="sase-123",
                 agent_family="alpha",

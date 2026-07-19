@@ -22,6 +22,7 @@ from sase.core.agent_scan_wire_markers import (
     WorkflowStepStateWire,
 )
 from sase.core.agent_scan_wire_records import (
+    AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
     AgentArtifactRecordWire,
@@ -171,6 +172,9 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
 
 def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
     payload = dict(data)
+    if "tribe" not in payload and "tag" in payload:
+        payload["tribe"] = payload["tag"]
+    payload.pop("tag", None)
     if bool(payload.get("agent_family_parallel", False)):
         if not payload.get("agent_clan"):
             payload["agent_clan"] = payload.get("agent_family")
@@ -207,11 +211,17 @@ def agent_scan_wire_from_dict(data: dict[str, Any]) -> AgentArtifactScanWire:
     crashes an older reader; incompatible shape changes surface through
     the wire schema version, not constructor ``TypeError``.
     """
+    schema_version = int(data["schema_version"])
+    if schema_version != AGENT_SCAN_WIRE_SCHEMA_VERSION:
+        raise ValueError(
+            "agent scan wire schema mismatch: "
+            f"got {schema_version}, expected {AGENT_SCAN_WIRE_SCHEMA_VERSION}"
+        )
     options = _options_from_dict(data.get("options") or {})
     stats = _stats_from_dict(data.get("stats") or {})
     records = [_record_from_dict(r) for r in data.get("records") or []]
     return AgentArtifactScanWire(
-        schema_version=int(data["schema_version"]),
+        schema_version=schema_version,
         projects_root=data["projects_root"],
         options=options,
         stats=stats,

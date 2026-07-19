@@ -19,7 +19,7 @@ from sase.core.agent_cleanup_wire import (
     CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
     CLEANUP_SCOPE_FOCUSED_GROUP,
     CLEANUP_SCOPE_FOCUSED_PANEL,
-    CLEANUP_SCOPE_TAG,
+    CLEANUP_SCOPE_TRIBE,
     CONFIRMATION_SEVERITY_DESTRUCTIVE,
     CONFIRMATION_SEVERITY_DISMISS,
     CONFIRMATION_SEVERITY_NONE,
@@ -64,28 +64,28 @@ def coerce_cleanup_request(
     return cleanup_request_from_dict(request)
 
 
-def _effective_tag(
+def _effective_tribe(
     target: AgentCleanupTargetWire,
-    parent_tags: dict[str, str | None],
+    parent_tribes: dict[str, str | None],
 ) -> str | None:
     if is_workflow_child(target) and target.parent_timestamp is not None:
-        if target.parent_timestamp in parent_tags:
-            return parent_tags[target.parent_timestamp]
-    return target.tag
+        if target.parent_timestamp in parent_tribes:
+            return parent_tribes[target.parent_timestamp]
+    return target.tribe
 
 
 def _selected_by_scope(
     target: AgentCleanupTargetWire,
     request: AgentCleanupRequestWire,
     selected_ids: set[AgentCleanupIdentityWire],
-    parent_tags: dict[str, str | None],
+    parent_tribes: dict[str, str | None],
 ) -> bool:
     if request.scope == CLEANUP_SCOPE_ALL_PANELS:
         return True
     if request.scope == CLEANUP_SCOPE_FOCUSED_PANEL:
-        return _effective_tag(target, parent_tags) == request.focused_panel_tag
-    if request.scope == CLEANUP_SCOPE_TAG:
-        return _effective_tag(target, parent_tags) == request.tag
+        return _effective_tribe(target, parent_tribes) == request.focused_panel_tribe
+    if request.scope == CLEANUP_SCOPE_TRIBE:
+        return _effective_tribe(target, parent_tribes) == request.tribe
     if request.scope == CLEANUP_SCOPE_CLAN:
         return request.clan_name is not None and (
             target.agent_clan == request.clan_name
@@ -128,13 +128,13 @@ def _parent_selected_for_child(
     targets: Sequence[AgentCleanupTargetWire],
     request: AgentCleanupRequestWire,
     selected_ids: set[AgentCleanupIdentityWire],
-    parent_tags: dict[str, str | None],
+    parent_tribes: dict[str, str | None],
 ) -> bool:
     if child.parent_timestamp is None:
         return False
     return any(
         _parent_matches_child(candidate, child)
-        and _selected_by_scope(candidate, request, selected_ids, parent_tags)
+        and _selected_by_scope(candidate, request, selected_ids, parent_tribes)
         for candidate in targets
     )
 
@@ -144,7 +144,7 @@ def _is_direct_child_target(
     targets: Sequence[AgentCleanupTargetWire],
     request: AgentCleanupRequestWire,
     selected_ids: set[AgentCleanupIdentityWire],
-    parent_tags: dict[str, str | None],
+    parent_tribes: dict[str, str | None],
 ) -> bool:
     return (
         is_workflow_child(target)
@@ -155,7 +155,7 @@ def _is_direct_child_target(
             targets,
             request,
             selected_ids,
-            parent_tags,
+            parent_tribes,
         )
     )
 
@@ -262,8 +262,8 @@ def plan_agent_cleanup_python(
         raise ValueError(f"unknown agent cleanup mode: {wire_request.mode}")
 
     selected_ids = set(wire_request.identities)
-    parent_tags = {
-        target.raw_suffix: target.tag
+    parent_tribes = {
+        target.raw_suffix: target.tribe
         for target in wire_targets
         if not is_workflow_child(target) and target.raw_suffix is not None
     }
@@ -295,7 +295,7 @@ def plan_agent_cleanup_python(
         if target.pid is not None and not dismissable_status:
             running += 1
 
-        if not _selected_by_scope(target, wire_request, selected_ids, parent_tags):
+        if not _selected_by_scope(target, wire_request, selected_ids, parent_tribes):
             _add_skip(skipped_items, target, SKIPPED_NOT_IN_SCOPE)
             continue
 
@@ -304,7 +304,7 @@ def plan_agent_cleanup_python(
             wire_targets,
             wire_request,
             selected_ids,
-            parent_tags,
+            parent_tribes,
         )
         if is_workflow_child(target) and not direct_child_target:
             _add_skip(skipped_items, target, SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY)

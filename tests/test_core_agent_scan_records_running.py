@@ -309,7 +309,7 @@ def test_running_record_carries_auto_approve_plan_action(
     assert rec.agent_meta.auto_approve_plan_action == "epic"
 
 
-def test_running_record_carries_agent_meta_tag(fixture_root: Path) -> None:
+def test_running_record_prefers_canonical_agent_meta_tribe(fixture_root: Path) -> None:
     meta_path = (
         fixture_root
         / "myproj"
@@ -320,13 +320,14 @@ def test_running_record_carries_agent_meta_tag(fixture_root: Path) -> None:
     )
     data = json.loads(meta_path.read_text(encoding="utf-8"))
     data["tag"] = "sase-26"
+    data["tribe"] = "canonical"
     meta_path.write_text(json.dumps(data), encoding="utf-8")
 
     snapshot = scan_agent_artifacts(fixture_root)
     rec = record_by_timestamp(snapshot, TS_ACE_RUN_RUNNING)
 
     assert rec.agent_meta is not None
-    assert rec.agent_meta.tag == "sase-26"
+    assert rec.agent_meta.tribe == "canonical"
 
 
 def test_scalar_plan_submitted_at_is_preserved(fixture_root: Path) -> None:

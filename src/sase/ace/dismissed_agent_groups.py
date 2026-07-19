@@ -45,7 +45,7 @@ _WIRE_CAPABILITY_PROBE = {
             "agent_type": "run",
             "cl_name": "cl",
             "raw_suffix": "ts-1",
-            "tag": "backend",
+            "tribe": "backend",
             "prompt_preview": "Restore this backend worker.",
         }
     ],
@@ -89,7 +89,7 @@ def _rust_group_archive_supports_current_wire() -> bool:
         return False
     return (
         result.get("name") == "Probe group"
-        and first_ref.get("tag") == "backend"
+        and first_ref.get("tribe") == "backend"
         and first_ref.get("prompt_preview") == "Restore this backend worker."
     )
 

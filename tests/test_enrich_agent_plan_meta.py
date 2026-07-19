@@ -112,7 +112,7 @@ def test_tag_from_agent_meta_wire() -> None:
     """Snapshot metadata mirrors filesystem tag enrichment."""
     agent = make_agent()
 
-    enrich_agent_from_meta_wire(agent, AgentMetaWire(tag="sase-26"), None)
+    enrich_agent_from_meta_wire(agent, AgentMetaWire(tribe="sase-26"), None)
 
     assert agent.tag == "sase-26"
 

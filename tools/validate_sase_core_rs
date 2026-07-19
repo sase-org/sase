@@ -24,6 +24,7 @@ REQUIRED_BINDINGS = (
     "rebuild_agent_artifact_index",
     "agent_stats_query_runs",
     "agent_stats_query_activity",
+    "agent_cleanup_wire_schema_version",
     "plan_agent_cleanup",
     "save_dismissed_agents_index",
     "save_dismissed_bundle",
@@ -130,6 +131,12 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
     if not isinstance(snapshot, dict):
         _error("scan_agent_artifacts probe returned a non-dict payload")
         return False
+    if snapshot.get("schema_version") != 4:
+        _error(
+            "scan_agent_artifacts probe returned stale schema: "
+            f"got {snapshot.get('schema_version')!r}, expected 4"
+        )
+        return False
 
     records = snapshot.get("records")
     if not isinstance(records, list):
@@ -213,7 +220,7 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
 
 def _validate_saved_group_wire_fields(module: ModuleType) -> bool:
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "group_id": "wire-probe",
         "created_at": "2026-05-27T12:00:00Z",
         "source": "marked_agents",
@@ -229,7 +236,7 @@ def _validate_saved_group_wire_fields(module: ModuleType) -> bool:
                 "agent_type": "run",
                 "cl_name": "cl",
                 "raw_suffix": "ts-1",
-                "tag": "backend",
+                "tribe": "backend",
             }
         ],
     }
@@ -266,9 +273,13 @@ def _validate_saved_group_wire_fields(module: ModuleType) -> bool:
             return False
     refs = loaded.get("agent_refs") if isinstance(loaded, dict) else None
     first_ref = refs[0] if isinstance(refs, list) and refs else None
-    if not isinstance(first_ref, dict) or first_ref.get("tag") != "backend":
+    if (
+        not isinstance(first_ref, dict)
+        or first_ref.get("tribe") != "backend"
+        or "tag" in first_ref
+    ):
         _error(
-            "saved-group archive probe did not preserve agent ref tag: "
+            "saved-group archive probe did not preserve canonical agent ref tribe: "
             f"got {first_ref!r}"
         )
         return False
