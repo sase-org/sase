@@ -265,7 +265,11 @@ async def test_agents_collapsed_panel_png_snapshot(
         expanded_width = container.size.width
         await page.press("J")
         assert page.app._panel_group.focused_key == "chop"
-        await page.press("H")
+        await page.press("h")
+        await page.wait_for(
+            lambda _screen: page.app._resolve_focused_panel() is not None
+        )
+        await page.press("h")
         await page.wait_for(lambda _screen: "chop" in page.app._collapsed_panel_keys)
         await wait_for_svg_contains(page, "▸ ")
         await wait_for_visual_idle(page)
@@ -467,7 +471,11 @@ async def test_agents_leader_jump_auto_expands_panel_png_snapshot(
 
         await page.press("J")
         assert page.app._panel_group.focused_key == "chop"
-        await page.press("H")
+        await page.press("h")
+        await page.wait_for(
+            lambda _screen: page.app._resolve_focused_panel() is not None
+        )
+        await page.press("h")
         await page.wait_for(lambda _screen: "chop" in page.app._collapsed_panel_keys)
         assert page.app._panel_group.panel_keys == [None, "keep", "chop"]
 
@@ -533,7 +541,11 @@ async def test_agents_neighbor_jump_expands_target_panel_png_snapshot(
 
         await page.press("J")
         assert page.app._panel_group.focused_key == "alpha"
-        await page.press("H")
+        await page.press("h")
+        await page.wait_for(
+            lambda _screen: page.app._resolve_focused_panel() is not None
+        )
+        await page.press("h")
         await page.wait_for(lambda _screen: "alpha" in page.app._collapsed_panel_keys)
         assert page.app._panel_group.panel_keys == [None, "zeta", "alpha"]
         await page.press("J")

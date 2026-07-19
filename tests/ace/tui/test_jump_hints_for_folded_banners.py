@@ -720,7 +720,7 @@ def test_no_history_apostrophe_can_select_first_collapsed_panel(fast: bool) -> N
     assert app.jump_footer_updates == (0 if fast else 1)
 
 
-def test_stale_panel_anchor_is_discarded_after_expansion_or_removal() -> None:
+def test_panel_anchor_restores_expanded_focus_but_discards_removed_panel() -> None:
     agents = [
         _agent(project="home", cl="u1", name="source"),
         _agent(project="chop", cl="c1", name="hidden", tag="chop"),
@@ -729,9 +729,10 @@ def test_stale_panel_anchor_is_discarded_after_expansion_or_removal() -> None:
     app._entry_jump_agents_anchor_stack = [("panel", "chop")]
     app._collapsed_panel_keys.clear()
 
-    assert app._restore_agents_jump_anchor() is False
+    assert app._restore_agents_jump_anchor() is True
     assert app._entry_jump_agents_anchor_stack == []
-    assert app._panel_group.focused_key is None
+    assert app._panel_group.focused_key == "chop"
+    assert app._expanded_panel_focus is True
 
     app._collapsed_panel_keys.add("chop")
     app._entry_jump_agents_anchor_stack = [("panel", "chop")]

@@ -18,6 +18,7 @@ from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
+from sase.ace.tui.models.agent_tribe_summary import AgentPanelFocus
 
 
 class _Styles:
@@ -58,6 +59,9 @@ class _ListWidget:
         self._panel_collapsed = True
 
     def update_highlight(self, *_args: Any, **_kwargs: Any) -> None:
+        return
+
+    def clear_highlight(self) -> None:
         return
 
     def add_class(self, name: str) -> None:
@@ -117,6 +121,7 @@ class _FakeApp(AgentDisplayMixin):
             merge_tag_panels=agent_panels_grouped,
         )
         self._collapsed_panel_keys: set[str | None] = set()
+        self._expanded_panel_focus = False
 
         from sase.ace.tui.actions.agents._display import _panel_widget_id
 
@@ -139,6 +144,14 @@ class _FakeApp(AgentDisplayMixin):
 
     def _focus_focused_panel_widget(self) -> None:
         return
+
+    def _resolve_focused_panel(self) -> AgentPanelFocus | None:
+        if not self._expanded_panel_focus:
+            return None
+        return AgentPanelFocus(
+            panel_key=self._panel_group.focused_key,
+            collapsed=False,
+        )
 
 
 def _agent(*, name: str, tag: str | None, suffix: str) -> Agent:
@@ -286,6 +299,29 @@ def test_full_rebuild_focus_class_tracks_focused_panel_key() -> None:
     assert main.last_local_idx == -1
     assert apple.last_local_idx == -1
     assert banana.last_local_idx == 0
+
+
+def test_full_rebuild_selected_expanded_panel_uses_whole_panel_visuals() -> None:
+    agents = _three_panel_agents()
+    app = _FakeApp(
+        agents,
+        option_counts=[2, 4, 6],
+        container_height=30,
+        focused_key="banana",
+    )
+    app.current_idx = 2
+    app._expanded_panel_focus = True
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    main = app._panel_widgets["agent-list-panel"]
+    apple = app._panel_widgets["agent-list-panel-1"]
+    banana = app._panel_widgets["agent-list-panel-2"]
+    assert "-whole-panel-focus" not in main._classes
+    assert "-whole-panel-focus" not in apple._classes
+    assert "-whole-panel-focus" in banana._classes
+    assert banana.last_local_idx == -1
+    assert getattr(banana.border_title, "plain", "").startswith("❖ @banana")
 
 
 def test_separator_rows_are_included_in_fit_boundary() -> None:

@@ -191,6 +191,11 @@ class AceApp(
                 new=value,
             )
             self.watch_current_idx(old, value)
+            remember_panel_selection = getattr(
+                self, "_remember_focused_panel_selection", None
+            )
+            if callable(remember_panel_selection):
+                remember_panel_selection(("agent", value))
 
     @property
     def current_attempt_number(self) -> int | None:
@@ -458,6 +463,7 @@ class AceApp(
         # now-hidden view.
         if old_tab == "agents":
             self._agent_detail_debouncer.cancel()
+            self._expanded_panel_focus = False
         elif old_tab == "axe":
             self._axe_detail_debouncer.cancel()
         elif old_tab == ARTIFACTS_TAB and self.current_artifacts_subtab == "prs":

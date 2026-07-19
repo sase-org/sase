@@ -156,6 +156,8 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         # Switching panel via mouse click moves panel focus too.
         if panel_idx != self._panel_group.focused_idx:  # type: ignore[attr-defined]
             self._panel_group.focused_idx = panel_idx  # type: ignore[attr-defined]
+        # A row click always descends from explicit whole-panel focus.
+        self._expanded_panel_focus = False
 
         old_idx = self.current_idx
         old_group_key = getattr(self, "_current_group_key", None)
@@ -184,6 +186,13 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         # A banner row carries a ``group_key`` so banner-aware actions
         # can target the group; selecting an agent row clears it.
         self._current_group_key = event.group_key  # type: ignore[attr-defined]
+        remember = getattr(self, "_remember_focused_panel_selection", None)
+        if callable(remember):
+            remember(
+                ("banner", event.group_key)
+                if event.group_key is not None
+                else ("agent", target_global)
+            )
 
         if event.group_key is None and 0 <= target_global < len(self._agents):
             target_agent = self._agents[target_global]

@@ -208,6 +208,9 @@ class CommandContext:
     runner_count: int = 0
     can_jump_to_changespec: bool = False
     attempt_pinned: bool = False
+    panel_focused: bool = False
+    panel_collapsed: bool = False
+    # Compatibility for callers that still construct collapsed-only context.
     collapsed_panel_focused: bool = False
     group_focused: bool = False
     file_panel_visible: bool = False

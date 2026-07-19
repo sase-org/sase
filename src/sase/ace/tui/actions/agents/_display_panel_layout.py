@@ -152,6 +152,9 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
         focused_idx = self._panel_group.focused_idx
         panel_index = self._agent_panel_index()
         focused_key = self._panel_group.focused_key
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        panel_focus = resolve_panel() if callable(resolve_panel) else None
+        selected_expanded = bool(panel_focus is not None and not panel_focus.collapsed)
         target_indices = {focused_idx}
         if old_focused_idx is not None:
             target_indices.add(old_focused_idx)
@@ -167,20 +170,37 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
                 )
             except NoMatches:
                 continue
+            key = self._panel_group.panel_keys[idx]
+            panel_agents = panel_index.slice_for(key).agents
+            self._set_agent_panel_title(
+                widget,
+                self._agent_panel_title(
+                    key,
+                    panel_agents,
+                    merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+                ),
+            )
             if idx == focused_idx:
                 local_idx = -1
                 if 0 <= self.current_idx < len(self._agents):
                     local_idx = panel_index.local_idx_for(focused_key, self.current_idx)
-                if focused_key not in getattr(self, "_collapsed_panel_keys", set()):
+                if selected_expanded:
+                    widget.clear_highlight()
+                elif focused_key not in getattr(self, "_collapsed_panel_keys", set()):
                     widget.update_highlight(
                         local_idx,
                         self.current_attempt_number,
                         group_key=self._current_group_key,
                     )
                 widget.add_class("-focused-panel")
+                if selected_expanded:
+                    widget.add_class("-whole-panel-focus")
+                else:
+                    widget.remove_class("-whole-panel-focus")
                 focused_widget = widget
             else:
                 widget.remove_class("-focused-panel")
+                widget.remove_class("-whole-panel-focus")
                 widget.clear_highlight()
 
         hint_bar_active = getattr(self, "_hint_input_bar_active", None)
@@ -198,6 +218,9 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
         from ...widgets import AgentList
 
         focused_key = self._panel_group.focused_key
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        panel_focus = resolve_panel() if callable(resolve_panel) else None
+        selected_expanded = bool(panel_focus is not None and not panel_focus.collapsed)
         panel_index = self._agent_panel_index()
         wid = panel_widget_id(self._panel_group.focused_idx)
         try:
@@ -207,11 +230,16 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
         local_idx = -1
         if 0 <= self.current_idx < len(self._agents):
             local_idx = panel_index.local_idx_for(focused_key, self.current_idx)
-        widget.update_highlight(
-            local_idx,
-            self.current_attempt_number,
-            group_key=self._current_group_key,
-        )
+        if selected_expanded:
+            widget.clear_highlight()
+            widget.add_class("-whole-panel-focus")
+        else:
+            widget.remove_class("-whole-panel-focus")
+            widget.update_highlight(
+                local_idx,
+                self.current_attempt_number,
+                group_key=self._current_group_key,
+            )
 
         # The common single-panel case has no stale sibling highlight to
         # clear. Avoid a descendant query on every j/k tick; the panel class
@@ -227,8 +255,13 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
             ).results(AgentList):
                 if w.id == wid:
                     w.add_class("-focused-panel")
+                    if selected_expanded:
+                        w.add_class("-whole-panel-focus")
+                    else:
+                        w.remove_class("-whole-panel-focus")
                 else:
                     w.remove_class("-focused-panel")
+                    w.remove_class("-whole-panel-focus")
                     w.clear_highlight()
         except NoMatches:
             pass

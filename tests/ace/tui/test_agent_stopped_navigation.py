@@ -276,8 +276,9 @@ def test_stopped_jump_from_collapsed_header_starts_at_newest_backing_row() -> No
     assert app._panel_group.focused_key == "alpha"
     assert app._collapsed_panel_keys == set()
     assert app._entry_jump_agents_anchor_stack == [("panel", "alpha")]
-    assert app._restore_agents_jump_anchor() is False
+    assert app._restore_agents_jump_anchor() is True
     assert app._collapsed_panel_keys == set()
+    assert app._expanded_panel_focus is True
 
 
 def test_stopped_jump_selects_newest_across_multiple_collapsed_panels() -> None:

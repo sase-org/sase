@@ -291,6 +291,7 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 
 def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     agent = ctx.agent
+    panel_focused = ctx.panel_focused or ctx.collapsed_panel_focused
 
     # The cleanup panel is discoverable even when every row action inside it is
     # currently disabled.
@@ -303,15 +304,15 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.save_marked_agents":
         return ctx.mark_count > 0
 
-    # kill_agent: marks, a collapsed whole panel, and an in-panel group banner
+    # kill_agent: marks, a whole panel, and an in-panel group banner
     # are explicit scopes. Otherwise it needs a focused agent.
     if spec.id == "app.kill_agent":
-        if ctx.mark_count > 0 or ctx.collapsed_panel_focused or ctx.group_focused:
+        if ctx.mark_count > 0 or panel_focused or ctx.group_focused:
             return True
         return agent is not None
 
     if (
-        ctx.collapsed_panel_focused
+        panel_focused
         and agent is None
         and spec.id in _COLLAPSED_PANEL_HIDDEN_AGENT_COMMANDS
     ):

@@ -133,6 +133,8 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
             old_idx = self.current_idx
             old_group_key = getattr(self, "_current_group_key", None)
             panel_group = getattr(self, "_panel_group", None)
+            resolve_panel = getattr(self, "_resolve_focused_panel", None)
+            old_panel_focus = resolve_panel() if callable(resolve_panel) else None
             old_panel_collapsed = (
                 panel_group is not None
                 and panel_group.focused_key
@@ -143,6 +145,7 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                 if (
                     old_group_key is None
                     and not old_panel_collapsed
+                    and old_panel_focus is None
                     and 0 <= old_idx < len(self._agents)
                 )
                 else None
@@ -163,6 +166,7 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                         arm_manual(old_agent)
                 if target_panel_idx != self._panel_group.focused_idx:
                     self._panel_group.focused_idx = target_panel_idx
+                self._expanded_panel_focus = False
                 self._current_group_key = None
                 self.current_attempt_number = None
                 keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
@@ -187,6 +191,7 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                 if 0 <= panel_idx < len(self._panel_group.panel_keys):
                     if panel_idx != self._panel_group.focused_idx:
                         self._panel_group.focused_idx = panel_idx
+                self._expanded_panel_focus = False
                 self._current_group_key = group_key
             else:
                 assert agent_target is not None
@@ -206,6 +211,7 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                     and agent_panel_idx != self._panel_group.focused_idx
                 ):
                     self._panel_group.focused_idx = agent_panel_idx
+                self._expanded_panel_focus = False
                 if old_agent is not None and agent_target != old_idx:
                     arm_manual = getattr(
                         self, "_arm_manual_unread_after_departure", None

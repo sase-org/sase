@@ -140,6 +140,17 @@ def test_collapsed_panel_title_prepends_chevron_and_preserves_summary() -> None:
     assert title.plain == "▸ @chop · 3 [R1 W2]"
 
 
+def test_selected_expanded_panel_title_has_focus_marker() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1, waiting=2),
+        selected=True,
+    )
+
+    assert title.plain == "❖ @chop · 3 [R1 W2]"
+
+
 def test_collapsed_panel_title_prepends_yellow_jump_hint() -> None:
     title = agent_panel_border_title(
         "chop",

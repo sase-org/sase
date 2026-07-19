@@ -59,11 +59,59 @@ class AgentPanelNavigationMixin:
             anchor_idx = self._first_agent_idx_for_focused_group(payload)
             if anchor_idx is not None:
                 self.current_idx = anchor_idx  # type: ignore[attr-defined]
+            remember = getattr(self, "_remember_focused_panel_selection", None)
+            if callable(remember):
+                remember(stop)
             return
 
         assert isinstance(payload, int)
         self._current_group_key = None  # type: ignore[attr-defined]
         self.current_idx = payload  # type: ignore[attr-defined]
+        remember = getattr(self, "_remember_focused_panel_selection", None)
+        if callable(remember):
+            remember(stop)
+
+    def _change_whole_panel_focus(self, *, forward: bool) -> bool:
+        """Move selected-panel focus without descending into either panel."""
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        focus = resolve_panel() if callable(resolve_panel) else None
+        if focus is None:
+            return False
+        if len(self._panel_group.panel_keys) <= 1:
+            return True
+
+        old_focused_idx = self._panel_group.focused_idx
+        save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
+        if callable(save_jump_anchor):
+            save_jump_anchor()
+        changed = (
+            self._panel_group.focus_next()
+            if forward
+            else self._panel_group.focus_prev()
+        )
+        if not changed:
+            return True
+
+        self._expanded_panel_focus = True
+        self._current_group_key = None  # type: ignore[attr-defined]
+        self.current_attempt_number = None  # type: ignore[attr-defined]
+        focused_key = self._panel_group.focused_key
+        remembered = getattr(self, "_panel_selection_memory", {}).get(focused_key)
+        global_indices, _agents = rendered_panel_slice(self, focused_key)
+        if (
+            remembered is not None
+            and remembered[0] == "agent"
+            and isinstance(remembered[1], int)
+            and remembered[1] in global_indices
+        ):
+            self.current_idx = remembered[1]
+        elif global_indices:
+            self.current_idx = global_indices[0]
+
+        refresh = getattr(self, "_refresh_panel_focus_state", None)
+        if callable(refresh):
+            refresh(old_focused_idx=old_focused_idx)
+        return True
 
     def _change_focused_agent_panel(self, *, forward: bool) -> None:
         """Cycle focus between tag-driven side panels with wrap.
@@ -76,6 +124,11 @@ class AgentPanelNavigationMixin:
             return
         if self._guard_agent_navigation_for_artifact_file_viewer():  # type: ignore[attr-defined]
             return
+        # Uppercase J/K retain their row-jump meaning even when the origin is
+        # a selected panel, so clear explicit expanded focus before choosing
+        # the destination row. Collapsed destinations still imply panel focus.
+        if getattr(self, "_expanded_panel_focus", False):
+            self._expanded_panel_focus = False
         if len(self._panel_group.panel_keys) <= 1:
             return
         old_focused_idx = self._panel_group.focused_idx
@@ -182,6 +235,7 @@ class AgentPanelNavigationMixin:
                 refresh_titles=False
             )
         self._agent_panels_grouped = not getattr(self, "_agent_panels_grouped", False)
+        self._expanded_panel_focus = False
         collapsed_keys = getattr(self, "_collapsed_panel_keys", None)
         if collapsed_keys is not None:
             collapsed_keys.clear()

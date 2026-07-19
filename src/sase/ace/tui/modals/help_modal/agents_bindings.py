@@ -30,17 +30,17 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             [
                 (
                     f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
-                    "Move to next / previous agent",
+                    "Move row / selected panel",
                 ),
                 (
                     f"{d(a.focus_next_agent_panel)} / {d(a.focus_prev_agent_panel)}",
-                    "Cycle panels incl. collapsed",
+                    "Jump into next / previous panel",
                 ),
                 (d(a.jump_to_entry), "Jump entry/head (' first/back stack)"),
                 (d(a.jump_to_entry_fast), "Jump stack back / first hint"),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 ("0-9", "Jump to numbered member"),
-                ("Esc", "Cancel pending member jump"),
+                ("Esc", "Enter selected panel / cancel member jump"),
                 (d(a.start_sibling_mode), "Jump ancestor/neighbor/desc"),
                 (
                     f"{d(a.next_agent_metadata_section)} / "
@@ -106,11 +106,11 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             [
                 (
                     f"{d(a.expand_or_layout)} / {d(a.hooks_or_collapse)}",
-                    "Expand / collapse focused group or clan (Tools: detail level)",
+                    "Expand/enter panel · collapse/select panel",
                 ),
                 (
                     f"{d(a.expand_all_folds)} / {d(a.hooks_or_collapse_all)}",
-                    "Panel expand/collapse; Tools",
+                    "Expand panel / collapse group; Tools",
                 ),
             ],
         ),

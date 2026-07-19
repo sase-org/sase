@@ -99,6 +99,7 @@ def agent_panel_border_title(
     merge_tag_panels: bool = False,
     counts: AgentPanelCounts | None = None,
     collapsed: bool = False,
+    selected: bool = False,
     jump_hint: str | None = None,
     selection_hint: int | None = None,
 ) -> Text:
@@ -107,6 +108,8 @@ def agent_panel_border_title(
     hint = selection_hint if selection_hint is not None else jump_hint
     if hint is not None:
         title.append(f"[{hint}] ", style="bold #FFFF00")
+    if selected:
+        title.append("❖ ", style=_PANEL_TAG_STYLE)
     if collapsed:
         title.append("▸ ", style=_PANEL_COUNT_STYLE)
     if merge_tag_panels:

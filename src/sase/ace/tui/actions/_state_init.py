@@ -507,6 +507,14 @@ class StateInitMixin:
         # as they were. The fields below drive a one-shot post-first-paint load,
         # pre-load mutation journal, and latest-generation off-thread writer.
         self._collapsed_panel_keys: set[PanelKey] = set()
+        # Expanded panels use an explicit whole-panel focus bit; collapsed
+        # panels imply whole-panel focus from their persisted fold state.
+        self._expanded_panel_focus = False
+        # Last selectable row or collapsed banner per panel, restored by ``l``
+        # and Escape when descending from whole-panel focus.
+        self._panel_selection_memory: dict[
+            PanelKey, tuple[str, int | tuple[str, ...]]
+        ] = {}
         # Numeric, set-oriented panel folding mode (leader ``,H``).  Its maps
         # are deliberately separate from file hints and apostrophe jump hints.
         self._panel_fold_hint_mode_active = False

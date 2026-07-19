@@ -51,14 +51,24 @@ def _selected_agent(app: AceApp):  # type: ignore[no-untyped-def]
     return _safe_index(agents, app.current_idx)
 
 
-def _collapsed_panel_focused(app: AceApp) -> bool:
+def _focused_panel_state(app: AceApp) -> tuple[bool, bool]:
+    """Return ``(focused, collapsed)`` for whole-panel selection."""
+    resolver = getattr(app, "_resolve_focused_panel", None)
+    if callable(resolver):
+        try:
+            focus = resolver()
+            if focus is not None:
+                return (True, bool(getattr(focus, "collapsed", False)))
+        except Exception:
+            return (False, False)
     resolver = getattr(app, "_resolve_focused_collapsed_panel", None)
     if not callable(resolver):
-        return False
+        return (False, False)
     try:
-        return resolver() is not None
+        focused = resolver() is not None
+        return (focused, focused)
     except Exception:
-        return False
+        return (False, False)
 
 
 def _selected_axe_item(app: AceApp):  # type: ignore[no-untyped-def]
@@ -195,8 +205,8 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     attempt_pinned = (
         app.current_attempt_number is not None if tab == "agents" else False
     )
-    collapsed_panel_focused = (
-        _collapsed_panel_focused(app) if tab == "agents" else False
+    panel_focused, panel_collapsed = (
+        _focused_panel_state(app) if tab == "agents" else (False, False)
     )
     group_focused = (
         getattr(app, "_current_group_key", None) is not None
@@ -226,7 +236,9 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         runner_count=_runner_count(app),
         can_jump_to_changespec=can_jump,
         attempt_pinned=attempt_pinned,
-        collapsed_panel_focused=collapsed_panel_focused,
+        panel_focused=panel_focused,
+        panel_collapsed=panel_collapsed,
+        collapsed_panel_focused=panel_focused and panel_collapsed,
         group_focused=group_focused,
         file_panel_visible=file_panel,
         has_artifact_files=has_artifact_files,

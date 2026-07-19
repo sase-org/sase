@@ -177,7 +177,8 @@ ace:
       start_rewind: "R"
       sync: "Y"
       refresh: "y"
-      # Fold / collapse
+      # Fold / collapse (Agents: h folds then selects the panel; H folds
+      # grouping banners; l expands or enters a selected panel; L expands it)
       hooks_or_collapse: "h"
       hooks_or_collapse_all: "H"
       expand_or_layout: "l"

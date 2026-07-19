@@ -159,7 +159,32 @@ def test_extract_context_collapsed_panel_clears_hidden_backing_agent() -> None:
     ctx = extract_command_context(app)  # type: ignore[arg-type]
 
     assert ctx.agent is None
+    assert ctx.panel_focused is True
+    assert ctx.panel_collapsed is True
     assert ctx.collapsed_panel_focused is True
+    assert ctx.group_focused is False
+
+
+def test_extract_context_expanded_panel_clears_hidden_backing_agent() -> None:
+    backing = SimpleNamespace(
+        status="RUNNING",
+        attempt_history=[],
+        response_path=None,
+    )
+    app = _make_app_stub(
+        tab="agents",
+        agents=[backing],
+        current_idx=0,
+    )
+    app._get_selected_agent = lambda: None
+    app._resolve_focused_panel = lambda: SimpleNamespace(collapsed=False)
+
+    ctx = extract_command_context(app)  # type: ignore[arg-type]
+
+    assert ctx.agent is None
+    assert ctx.panel_focused is True
+    assert ctx.panel_collapsed is False
+    assert ctx.collapsed_panel_focused is False
     assert ctx.group_focused is False
 
 

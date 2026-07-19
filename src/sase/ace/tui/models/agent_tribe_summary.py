@@ -31,15 +31,23 @@ type TribePanelIdentity = tuple[Literal["panel"], PanelKey]
 
 
 @dataclass(frozen=True, slots=True)
-class CollapsedAgentPanelFocus:
-    """Identity of the whole collapsed panel that currently owns focus."""
+class AgentPanelFocus:
+    """Identity and rendered state of the whole panel that owns focus."""
 
     panel_key: PanelKey
+    collapsed: bool
 
     @property
     def container_identity(self) -> TribePanelIdentity:
         """Return the roster registry identity for this tribe panel."""
         return _tribe_panel_identity(self.panel_key)
+
+
+@dataclass(frozen=True, slots=True)
+class CollapsedAgentPanelFocus(AgentPanelFocus):
+    """Compatibility focus value for callers limited to collapsed panels."""
+
+    collapsed: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -402,6 +410,7 @@ def build_agent_tribe_summary_snapshot(
 
 
 __all__ = [
+    "AgentPanelFocus",
     "AgentTribeSummarySnapshot",
     "CollapsedAgentPanelFocus",
     "TribeAttentionEntry",

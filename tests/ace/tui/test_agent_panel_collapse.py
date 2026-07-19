@@ -9,6 +9,7 @@ from sase.ace.tui.actions.agents._display_panel_refresh import PanelRefreshMixin
 from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
 from sase.ace.tui.actions.agents._navigation_order import AgentNavigationOrderMixin
 from sase.ace.tui.actions.agents._panel_navigation import AgentPanelNavigationMixin
+from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.actions.navigation._entry_jump_mode import EntryJumpModeMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -21,6 +22,7 @@ from sase.ace.tui.models.fold_state import FoldStateManager
 
 class _StubApp(
     AgentFoldingMixin,
+    AgentSelectionMixin,
     AgentPanelNavigationMixin,
     AgentNavigationOrderMixin,
     PanelRefreshMixin,
@@ -47,6 +49,10 @@ class _StubApp(
             merge_tag_panels=merged,
         )
         self._collapsed_panel_keys: set[str | None] = set()
+        self._expanded_panel_focus = False
+        self._panel_selection_memory: dict[
+            str | None, tuple[str, int | tuple[str, ...]]
+        ] = {}
         self._current_group_key: tuple[str, ...] | None = None
         self._nav_stops_cache: tuple[Any, ...] | None = None
         self._panel_index_cache: tuple[Any, bool, Any] | None = None
@@ -130,14 +136,22 @@ def _multi_panel_agents() -> list[Agent]:
     ]
 
 
-def test_capital_h_and_l_collapse_and_expand_focused_panel() -> None:
+def test_h_selects_then_collapses_panel_and_l_expands_then_descends() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key="alpha")
     app.current_idx = 2
-    app._current_group_key = ("stale",)
     registry = app._group_fold_registry.for_panel("alpha")
     registry.collapse(("zeta",))
 
-    app.action_hooks_or_collapse_all()
+    app.action_hooks_or_collapse()
+
+    focus = app._resolve_focused_panel()
+    assert focus is not None
+    assert focus.panel_key == "alpha"
+    assert focus.collapsed is False
+    assert app._panel_selection_memory["alpha"] == ("agent", 2)
+    assert app._collapsed_panel_keys == set()
+
+    app.action_hooks_or_collapse()
 
     assert app._collapsed_panel_keys == {"alpha"}
     assert app.current_idx == 1
@@ -148,39 +162,93 @@ def test_capital_h_and_l_collapse_and_expand_focused_panel() -> None:
     assert app._panel_group.focused_idx == 2
     assert app._panel_navigation_stops() == []
     assert app._agents_visible_order() == []
-    assert app.refresh_calls == [True]
+    assert app.refresh_calls == [False, True]
 
-    app.action_expand_all_folds()
+    app.action_expand_or_layout()
 
     assert app._collapsed_panel_keys == set()
+    assert app._resolve_focused_panel() is not None
+    assert app.current_idx == 1
+    assert app._panel_navigation_stops() == []
+
+    app.action_expand_or_layout()
+
+    assert app._resolve_focused_panel() is None
     assert app.current_idx == 2
     assert app._agents[app.current_idx].agent_name == "render-first"
     assert app._panel_group.panel_keys == [None, "alpha", "beta"]
     assert app._panel_group.focused_key == "alpha"
     assert app._panel_group.focused_idx == 1
     assert registry.is_collapsed(("zeta",)) is True
-    assert app.refresh_calls == [True, True]
+    assert app.refresh_calls == [False, True, True, False]
     assert app.panel_fold_changes == [("alpha", True), ("alpha", False)]
 
 
 def test_panel_collapse_guards_single_merged_and_repeated_actions() -> None:
     single = _StubApp([_agent(name="only", project="one", tag=None)])
-    single.action_hooks_or_collapse_all()
+    single.action_hooks_or_collapse()
     assert single._collapsed_panel_keys == set()
     assert single.refresh_calls == []
 
     merged = _StubApp(_multi_panel_agents(), merged=True)
-    merged.action_hooks_or_collapse_all()
+    merged.action_hooks_or_collapse()
     assert merged._collapsed_panel_keys == set()
     assert merged.refresh_calls == []
 
     split = _StubApp(_multi_panel_agents(), focused_key="alpha")
-    split.action_hooks_or_collapse_all()
-    split.action_hooks_or_collapse_all()
-    assert split.refresh_calls == [True]
+    split.action_hooks_or_collapse()
+    split.action_hooks_or_collapse()
+    split.action_hooks_or_collapse()
+    assert split.refresh_calls == [False, True]
+    assert split.notifications == ["Panel is already collapsed"]
     split.action_expand_all_folds()
     split.action_expand_all_folds()
-    assert split.refresh_calls == [True, True]
+    assert split.refresh_calls == [False, True, True]
+
+
+def test_selected_panel_j_and_k_cycle_without_descending() -> None:
+    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app.current_idx = 2
+    app._panel_selection_memory["alpha"] = ("agent", 2)
+    app._collapsed_panel_keys.add("beta")
+    app._sync_panel_group()
+    app._expanded_panel_focus = True
+
+    BasicNavigationMixin._navigate_agents_panel(app, 1)
+
+    focus = app._resolve_focused_panel()
+    assert focus is not None
+    assert focus.panel_key == "beta"
+    assert focus.collapsed is True
+    assert app._panel_navigation_stops() == []
+
+    BasicNavigationMixin._navigate_agents_panel(app, 1)
+
+    focus = app._resolve_focused_panel()
+    assert focus is not None
+    assert focus.panel_key is None
+    assert focus.collapsed is False
+
+    BasicNavigationMixin._navigate_agents_panel(app, -1)
+
+    focus = app._resolve_focused_panel()
+    assert focus is not None
+    assert focus.panel_key == "beta"
+    assert focus.collapsed is True
+
+
+def test_escape_from_expanded_panel_restores_remembered_banner() -> None:
+    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    banner = ("zeta",)
+    app._group_fold_registry.for_panel("alpha").collapse(banner)
+    app._panel_selection_memory["alpha"] = ("banner", banner)
+    app._expanded_panel_focus = True
+
+    assert app._exit_expanded_panel_focus() is True
+
+    assert app._resolve_focused_panel() is None
+    assert app._current_group_key == banner
+    assert app.current_idx == 1
 
 
 def test_panel_switch_lands_on_collapsed_panel_and_l_reanchors() -> None:
@@ -209,7 +277,7 @@ def test_panel_switch_lands_on_collapsed_panel_and_l_reanchors() -> None:
     assert app.current_idx == 2
     assert app._collapsed_panel_keys == set()
     assert app._panel_group.panel_keys == [None, "alpha", "beta"]
-    assert app.refresh_calls == [False, False, True]
+    assert app.refresh_calls == [False, False, False, False, True]
 
 
 def test_restored_collapsed_panels_sort_on_panel_sync() -> None:

@@ -94,6 +94,8 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         global_idx = self.current_idx
         grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        panel_focus = resolve_panel() if callable(resolve_panel) else None
 
         ordered_widgets: list[AgentList] = []
         for idx, key in enumerate(panel_keys):
@@ -111,6 +113,11 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
             global_indices = slot.global_indices
             global_to_local = slot.global_to_local
             panel_collapsed = key in collapsed_keys
+            selected_expanded = bool(
+                panel_focus is not None
+                and not panel_focus.collapsed
+                and panel_focus.panel_key == key
+            )
             self._set_agent_panel_title(
                 widget,
                 self._agent_panel_title(
@@ -126,7 +133,11 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                 widget.add_class("agent-panel-separated")
 
             local_idx = -1
-            if idx == focused_idx and 0 <= global_idx < len(self._agents):
+            if (
+                idx == focused_idx
+                and not selected_expanded
+                and 0 <= global_idx < len(self._agents)
+            ):
                 local_idx = global_to_local.get(global_idx, -1)
 
             local_jump_hints: dict[int, str] | None = None
@@ -177,7 +188,9 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                     ),
                     fold_registry=panel_fold_registry(self, key),
                     current_group_key=(
-                        current_group_key if idx == focused_idx else None
+                        current_group_key
+                        if idx == focused_idx and not selected_expanded
+                        else None
                     ),
                     grouping_mode=grouping_mode,
                     tag_labels=local_tag_labels,
@@ -190,6 +203,11 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                 widget.add_class("-focused-panel")
             else:
                 widget.remove_class("-focused-panel")
+            if selected_expanded:
+                widget.add_class("-whole-panel-focus")
+                widget.clear_highlight()
+            else:
+                widget.remove_class("-whole-panel-focus")
 
         self._apply_panel_heights(container, ordered_widgets)
         self._focus_focused_panel_widget()
@@ -254,6 +272,8 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         global_idx = self.current_idx
         grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        panel_focus = resolve_panel() if callable(resolve_panel) else None
 
         ordered_widgets: list[AgentList] = []
         for idx, key in enumerate(panel_keys):
@@ -277,6 +297,16 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                 widget.remove_class("-focused-panel")
 
             panel_collapsed = key in collapsed_keys
+            selected_expanded = bool(
+                panel_focus is not None
+                and not panel_focus.collapsed
+                and panel_focus.panel_key == key
+            )
+            if selected_expanded:
+                widget.add_class("-whole-panel-focus")
+                widget.clear_highlight()
+            else:
+                widget.remove_class("-whole-panel-focus")
             if panel_collapsed:
                 widget.add_class("-collapsed-panel")
             else:
@@ -301,7 +331,11 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
             )
 
             local_idx = -1
-            if idx == focused_idx and 0 <= global_idx < len(self._agents):
+            if (
+                idx == focused_idx
+                and not selected_expanded
+                and 0 <= global_idx < len(self._agents)
+            ):
                 local_idx = global_to_local.get(global_idx, -1)
 
             local_jump_hints: dict[int, str] | None = None
@@ -350,7 +384,9 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                     ),
                     fold_registry=panel_fold_registry(self, key),
                     current_group_key=(
-                        current_group_key if idx == focused_idx else None
+                        current_group_key
+                        if idx == focused_idx and not selected_expanded
+                        else None
                     ),
                     grouping_mode=grouping_mode,
                     tag_labels=local_tag_labels,

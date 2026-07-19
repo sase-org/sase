@@ -145,6 +145,25 @@ def test_collapsed_panel_cancel_has_no_mutation_boundary() -> None:
     bulk.assert_not_called()
 
 
+def test_expanded_panel_focus_uses_the_same_bulk_cleanup_scope() -> None:
+    running = _agent("running", "run")
+    neighbor = _agent("neighbor", "neighbor", tag="keep")
+    app = _CollapsedPanelKillApp([running, neighbor])
+    app._collapsed_panel_keys.clear()
+    app._expanded_panel_focus = True
+
+    with patch.object(app, "_do_bulk_kill_agents") as bulk:
+        app.action_kill_agent()
+        assert isinstance(app.pushed_modals[0], ConfirmKillAllModal)
+        description = app.pushed_modals[0].agent_description
+        assert "Panel: @chop (1 agent)" in description
+        assert "running" in description
+        assert "neighbor" not in description
+        app.pushed_callbacks[0](True)
+
+    bulk.assert_called_once_with([running], [])
+
+
 def test_untagged_pidless_panel_uses_dismiss_confirmation() -> None:
     done = _agent("done", "done", tag=None, status="DONE", pid=None)
     pidless = _agent("pidless", "pidless", tag=None, pid=None)
@@ -294,7 +313,11 @@ async def test_confirming_last_panel_member_preserves_neighbors_and_valid_focus(
         await page.expect_state("tab", "agents")
         await page.press("J")
         assert page.app._panel_group.focused_key == "chop"
-        await page.press("H")
+        await page.press("h")
+        await page.wait_for(
+            lambda _screen: page.app._resolve_focused_panel() is not None
+        )
+        await page.press("h")
         await page.wait_for(lambda _screen: "chop" in page.app._collapsed_panel_keys)
 
         await page.press("x")

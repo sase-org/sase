@@ -3,9 +3,9 @@
 Covers the boundary between the per-group :class:`AgentGroupFoldRegistry`
 and the existing per-workflow :class:`FoldStateManager`: ``l`` expands
 the focused group (or runs per-workflow expansion when an agent is
-focused inside an already-expanded chain); ``h`` collapses the focused
-workflow first, then the focused group. Whole-panel ``L``/``H`` behavior
-is covered separately in ``test_agent_panel_collapse.py``.
+focused inside an already-expanded chain); ``h`` collapses structural
+agent/family/clan folds, while ``H`` collapses grouping-strategy folds.
+Whole-panel behavior is covered separately in ``test_agent_panel_collapse.py``.
 """
 
 from __future__ import annotations
@@ -136,33 +136,33 @@ def test_tools_panel_detail_clamp_does_not_fall_through_to_folds() -> None:
     assert app.footer_refresh_calls == 0
 
 
-def test_h_on_agent_collapses_only_its_group() -> None:
-    """Two projects A + B; pressing `h` while focused in A leaves B untouched."""
+def test_capital_h_on_agent_collapses_only_its_group() -> None:
+    """Two projects A + B; pressing ``H`` in A leaves B untouched."""
     a = _agent(cl_name="cl-a", project="projA")
     b = _agent(cl_name="cl-b", project="projB")
     app = _StubApp([a, b], current_idx=0)
 
-    app.action_hooks_or_collapse()  # focus is on agent in projA
+    app.action_hooks_or_collapse_all()  # focus is on agent in projA
     assert app._group_fold_registry.is_collapsed(("projA", "cl-a")) is True
     assert app._group_fold_registry.is_collapsed(("projB", "cl-b")) is False
     # Focus snapped onto the now-visible projA banner.
     assert app._current_group_key == ("projA", "cl-a")
 
 
-def test_h_inside_l1_collapses_l1_then_parent_l0() -> None:
-    """Focus inside an L1: first `h` collapses the L1, second collapses L0."""
+def test_capital_h_inside_l1_collapses_l1_then_parent_l0() -> None:
+    """Focus inside an L1: first ``H`` collapses L1, second collapses L0."""
     a = _agent(agent_name="coder.claude")
     b = _agent(agent_name="coder.codex")
     app = _StubApp([a, b], current_idx=0)
     l1 = ("proj", "demo", "coder")
     l0 = ("proj", "demo")
 
-    app.action_hooks_or_collapse()
+    app.action_hooks_or_collapse_all()
     assert app._group_fold_registry.is_collapsed(l1) is True
     assert app._group_fold_registry.is_collapsed(l0) is False
     assert app._current_group_key == l1
 
-    app.action_hooks_or_collapse()
+    app.action_hooks_or_collapse_all()
     assert app._group_fold_registry.is_collapsed(l0) is True
     assert app._current_group_key == l0
 
@@ -334,13 +334,13 @@ def test_per_workflow_h_runs_before_group_collapse() -> None:
     assert app._group_fold_registry.collapsed == set()
 
 
-def test_h_then_l_round_trip_clears_group_focus() -> None:
-    """After `h` snaps to the banner, `l` re-expands and clears banner focus."""
+def test_capital_h_then_l_round_trip_clears_group_focus() -> None:
+    """After ``H`` snaps to a banner, ``l`` expands and clears its focus."""
     a = _agent(cl_name="cl-a", project="projA")
     app = _StubApp([a], current_idx=0)
     key = ("projA", "cl-a")
 
-    app.action_hooks_or_collapse()
+    app.action_hooks_or_collapse_all()
     assert app._current_group_key == key
     assert app._group_fold_registry.is_collapsed(key) is True
 
@@ -356,7 +356,7 @@ def test_equal_status_group_keys_fold_independently_between_panels() -> None:
     app = _StubApp([untagged, tagged], current_idx=0)
     app._grouping_mode = GroupingMode.BY_STATUS
 
-    app.action_hooks_or_collapse()
+    app.action_hooks_or_collapse_all()
 
     split_done = app._group_fold_registry.for_panel(None)
     tagged_done = app._group_fold_registry.for_panel("research")
@@ -366,7 +366,7 @@ def test_equal_status_group_keys_fold_independently_between_panels() -> None:
     app._panel_group.focused_idx = 1
     app.current_idx = 1
     app._current_group_key = None
-    app.action_hooks_or_collapse()
+    app.action_hooks_or_collapse_all()
     assert tagged_done.is_collapsed(("Done",)) is True
 
     app.action_expand_or_layout()

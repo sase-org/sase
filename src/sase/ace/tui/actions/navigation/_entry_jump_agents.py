@@ -55,9 +55,12 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
             return None
         _panel_idx, panel_key = panel_context
 
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        panel_focus = resolve_panel() if callable(resolve_panel) else None
         panel_group = getattr(self, "_panel_group", None)
-        if panel_group is not None and panel_key in getattr(
-            self, "_collapsed_panel_keys", set()
+        if panel_focus is not None or (
+            panel_group is not None
+            and panel_key in getattr(self, "_collapsed_panel_keys", set())
         ):
             return ("panel", panel_key)
 
@@ -147,10 +150,11 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
             return None
 
     def _agents_jump_panel_anchor_is_valid(self, panel_key: str | None) -> bool:
-        """Return whether a whole-panel anchor still names a collapsed panel."""
-        return self._agents_jump_panel_idx_for_key(
-            panel_key
-        ) is not None and panel_key in getattr(self, "_collapsed_panel_keys", set())
+        """Return whether a whole-panel anchor still names a split panel."""
+        return (
+            not getattr(self, "_agent_panels_grouped", False)
+            and self._agents_jump_panel_idx_for_key(panel_key) is not None
+        )
 
     def _agents_jump_banner_anchor_is_valid(
         self,
@@ -253,17 +257,22 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
             _, agent_idx, panel_key = anchor
             if not self._focus_agents_jump_anchor_panel(panel_key):
                 return
+            self._expanded_panel_focus = False
             self._current_group_key = None
             self.current_idx = agent_idx
         elif anchor[0] == "banner":
             _, panel_key, group_key = anchor
             if not self._focus_agents_jump_anchor_panel(panel_key):
                 return
+            self._expanded_panel_focus = False
             self._current_group_key = group_key
         else:
             _, panel_key = anchor
             if not self._focus_agents_jump_anchor_panel(panel_key):
                 return
+            self._expanded_panel_focus = panel_key not in getattr(
+                self, "_collapsed_panel_keys", set()
+            )
             self._current_group_key = None
             self.current_attempt_number = None
             keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]

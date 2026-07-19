@@ -2406,6 +2406,11 @@ HintInputBar #hint-escape-hint {
     border: solid #FFD700;
 }
 
+#agent-list-container AgentList.-whole-panel-focus {
+    border: double #FFD75F;
+    border-title-color: #FFD75F;
+}
+
 #agent-detail-container {
     width: 1fr;
     height: 100%;

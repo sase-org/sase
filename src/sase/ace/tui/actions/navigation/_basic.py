@@ -82,6 +82,9 @@ class BasicNavigationMixin(NavigationMixinBase):
         Args:
             direction: +1 for next, -1 for previous.
         """
+        whole_panel_nav = getattr(self, "_change_whole_panel_focus", None)
+        if callable(whole_panel_nav) and whole_panel_nav(forward=direction > 0):
+            return
         stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
         if not stops:
             return
@@ -139,6 +142,9 @@ class BasicNavigationMixin(NavigationMixinBase):
         # whenever only ``_current_group_key`` changed.
         if self.current_idx == old_idx and self._current_group_key != old_key:
             self._refresh_agents_display_debounced()  # type: ignore[attr-defined]
+        remember = getattr(self, "_remember_focused_panel_selection", None)
+        if callable(remember):
+            remember((kind, payload))
 
     def _navigate_visible(self, direction: int) -> None:
         """Cycle ``current_idx`` through agents in rendered order.

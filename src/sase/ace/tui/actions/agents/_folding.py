@@ -235,6 +235,23 @@ class AgentFoldingMixin:
         * Other tabs preserve the original per-workflow behavior.
         """
         if self.current_tab == "agents":
+            resolve_panel = getattr(self, "_resolve_focused_panel", None)
+            panel_focus = resolve_panel() if callable(resolve_panel) else None
+            if panel_focus is not None:
+                if panel_focus.collapsed:
+                    # First ``l`` expands a collapsed selected panel but keeps
+                    # whole-panel focus; a second ``l`` descends into it.
+                    self._expanded_panel_focus = True
+                    if self._expand_agent_panel(panel_focus.panel_key):
+                        self._refresh_agents_display(  # type: ignore[attr-defined]
+                            list_changed=True
+                        )
+                    return
+                exit_focus = getattr(self, "_exit_expanded_panel_focus", None)
+                if callable(exit_focus):
+                    exit_focus()
+                return
+
             if self._current_group_key is not None:
                 group_key: GroupKey = tuple(self._current_group_key)
                 registry = focused_panel_fold_registry(self)
@@ -323,19 +340,25 @@ class AgentFoldingMixin:
     def _collapse_fold(self) -> None:
         """Collapse the fold for the focused row (one level).
 
-        Per-group rules:
-
-        * Per-workflow fold first (preserves today's "h collapses my
-          workflow" behaviour for an agent inside an expanded group).
-        * Banner focus → collapse that banner; if it's already collapsed
-          and the banner is an L1, walk up and collapse the parent L0.
-        * Agent focus with no per-workflow fold to step → collapse the
-          enclosing group (L1 if present, else L0) and snap focus to
-          its now-visible banner.
+        On Agents, ``h`` walks only structural agent/family/clan folds. Once
+        none remain (or a collapsed group banner is selected), it promotes
+        focus to the enclosing tribe panel. Grouping-strategy folds belong to
+        ``H`` and are handled by :meth:`_collapse_group_fold`.
         """
         if self.current_tab == "agents":
             from ...models._agent_tree import agent_parent_fold_key
             from ...models.fold_state import FoldLevel
+
+            resolve_panel = getattr(self, "_resolve_focused_panel", None)
+            panel_focus = resolve_panel() if callable(resolve_panel) else None
+            if panel_focus is not None:
+                if panel_focus.collapsed:
+                    self.notify(  # type: ignore[attr-defined]
+                        "Panel is already collapsed", timeout=1.5
+                    )
+                else:
+                    self._collapse_focused_panel()
+                return
 
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
             if agent is not None and self._current_group_key is None:
@@ -362,7 +385,7 @@ class AgentFoldingMixin:
                     )
                     if changed:
                         self._refilter_agents()  # type: ignore[attr-defined]
-                    return
+                        return
 
                 # Once a direct member's own fold is collapsed, walk up to
                 # the enclosing clan before falling through to group folds.
@@ -376,34 +399,11 @@ class AgentFoldingMixin:
                     self._reanchor_to_fold_owner(clan_parent_key)
                     if self._collapse_clan_fold(clan_parent_key):
                         self._refilter_agents()  # type: ignore[attr-defined]
-                    return
+                        return
 
-            # Banner focus → collapse it (or escalate to parent banner).
-            if self._current_group_key is not None:
-                cur_key: GroupKey = tuple(self._current_group_key)
-                registry = focused_panel_fold_registry(self)
-                if len(cur_key) > 1 and registry.is_collapsed(cur_key):
-                    parent_key: GroupKey = cur_key[:-1]
-                    if registry.collapse(parent_key):
-                        self._current_group_key = parent_key
-                        self._refilter_agents()  # type: ignore[attr-defined]
-                        self._persist_group_fold_change(parent_key, collapsed=True)
-                    return
-                if registry.collapse(cur_key):
-                    self._refilter_agents()  # type: ignore[attr-defined]
-                    self._persist_group_fold_change(cur_key, collapsed=True)
-                return
-
-            # Agent focus, no per-workflow step left → collapse the
-            # enclosing group and snap to its banner.
-            l1_key, l0_key = self._focused_group_keys()
-            target = l1_key or l0_key
-            registry = focused_panel_fold_registry(self)
-            if target is not None and registry.collapse(target):
-                self._current_group_key = target
-                self._snap_focus_after_group_fold_change()
-                self._refilter_agents()  # type: ignore[attr-defined]
-                self._persist_group_fold_change(target, collapsed=True)
+            activate_panel = getattr(self, "_activate_focused_panel", None)
+            if callable(activate_panel):
+                activate_panel()
             return
 
         # Non-agents tabs: preserve original per-workflow behavior.
@@ -428,6 +428,41 @@ class AgentFoldingMixin:
         if self._fold_manager.collapse(key):
             self._refilter_agents()  # type: ignore[attr-defined]
 
+    def _collapse_group_fold(self) -> None:
+        """Collapse the enclosing Agents grouping-strategy fold with ``H``."""
+        if self.current_tab != "agents":
+            return
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        if callable(resolve_panel) and resolve_panel() is not None:
+            return
+
+        if self._current_group_key is not None:
+            cur_key: GroupKey = tuple(self._current_group_key)
+            registry = focused_panel_fold_registry(self)
+            if len(cur_key) > 1 and registry.is_collapsed(cur_key):
+                parent_key: GroupKey = cur_key[:-1]
+                if registry.collapse(parent_key):
+                    self._current_group_key = parent_key
+                    self._refilter_agents()  # type: ignore[attr-defined]
+                    self._persist_group_fold_change(parent_key, collapsed=True)
+                return
+            if registry.collapse(cur_key):
+                self._refilter_agents()  # type: ignore[attr-defined]
+                self._persist_group_fold_change(cur_key, collapsed=True)
+            return
+
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
+            return
+        l1_key, l0_key = self._focused_group_keys()
+        target = l1_key or l0_key
+        registry = focused_panel_fold_registry(self)
+        if target is not None and registry.collapse(target):
+            self._current_group_key = target
+            self._snap_focus_after_group_fold_change()
+            self._refilter_agents()  # type: ignore[attr-defined]
+            self._persist_group_fold_change(target, collapsed=True)
+
     def _collapse_focused_panel(self) -> None:
         """Collapse the focused tag panel while retaining its detail context."""
         if self.current_tab != "agents":
@@ -451,6 +486,7 @@ class AgentFoldingMixin:
             return
 
         collapsed_keys.add(focused_key)
+        self._expanded_panel_focus = False
         self._current_group_key = None
         self.current_attempt_number = None
         global_indices, _panel_agents = rendered_panel_slice(self, focused_key)
@@ -488,6 +524,7 @@ class AgentFoldingMixin:
         focused_key = panel_group.focused_key
         if not self._expand_agent_panel(focused_key):
             return
+        self._expanded_panel_focus = False
         stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
         if stops:
             self._focus_panel_navigation_stop(stops[0])  # type: ignore[attr-defined]
@@ -655,11 +692,11 @@ class AgentFoldingMixin:
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_hooks_or_collapse_all(self) -> None:
-        """Collapse an agent panel or all folds/groups on the other tabs."""
+        """Collapse an Agents group or all folds/groups on the other tabs."""
         if self._route_tools_detail_level("min"):
             return
         if self.current_tab == "agents":
-            self._collapse_focused_panel()
+            self._collapse_group_fold()
         elif self.current_tab == "axe":
             self._collapse_all_axe_folds()
         elif self.current_tab == "changespecs":

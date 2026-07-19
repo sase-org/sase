@@ -58,7 +58,7 @@ def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
     assert ("za", "Cycle section/member forward") in agent_pairs
     assert ("zA", "Toggle section/member full") in agent_pairs
     assert ("0-9", "Jump to numbered member") in agent_pairs
-    assert ("Esc", "Cancel pending member jump") in agent_pairs
+    assert ("Esc", "Enter selected panel / cancel member jump") in agent_pairs
 
 
 def test_idle_keymap_defaults_are_removed() -> None:

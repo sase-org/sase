@@ -10,7 +10,10 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_groups import GroupRow
-    from ...models.agent_tribe_summary import CollapsedAgentPanelFocus
+    from ...models.agent_tribe_summary import (
+        AgentPanelFocus,
+        CollapsedAgentPanelFocus,
+    )
     from ...modals import AgentCleanupAction, AgentCleanupPanelState
     from ...modals.agent_cleanup_modal import AgentCleanupAgentIdentity
     from sase.core.agent_cleanup_wire import AgentCleanupPlanWire
@@ -456,17 +459,12 @@ class AgentKillMixin:
             self._bulk_kill_marked_agents()  # type: ignore[attr-defined]
             return
 
-        # A collapsed whole panel is an explicit bulk-cleanup selection. The
+        # A whole panel is an explicit bulk-cleanup selection. The
         # backing ``current_idx`` remains only an expansion anchor and must
         # never fall through to the single-agent path.
-        collapsed_panel_resolver = getattr(
-            self, "_resolve_focused_collapsed_panel", None
-        )
-        collapsed_panel = (
-            collapsed_panel_resolver() if callable(collapsed_panel_resolver) else None
-        )
-        if collapsed_panel is not None:
-            self._bulk_kill_collapsed_panel_agents(collapsed_panel)
+        panel_focus = self._resolve_panel_cleanup_focus()
+        if panel_focus is not None:
+            self._bulk_kill_panel_agents(panel_focus)
             return
 
         # Phase 5: focused group banner → bulk kill/dismiss every agent
@@ -529,14 +527,28 @@ class AgentKillMixin:
 
         self.push_screen(ConfirmKillModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
 
-    def _bulk_kill_collapsed_panel_agents(
-        self, focus: CollapsedAgentPanelFocus
-    ) -> None:
-        """Confirm cleanup of the complete cached collapsed-panel membership."""
-        live_focus = self._resolve_focused_collapsed_panel()  # type: ignore[attr-defined]
+    def _resolve_panel_cleanup_focus(self) -> AgentPanelFocus | None:
+        """Resolve panel focus while preserving collapsed-only test adapters."""
+        collapsed_resolver = getattr(self, "_resolve_focused_collapsed_panel", None)
+        collapsed_focus = collapsed_resolver() if callable(collapsed_resolver) else None
+        if collapsed_focus is not None:
+            return collapsed_focus
+
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is not None and panel_group.focused_key in getattr(
+            self, "_collapsed_panel_keys", set()
+        ):
+            return None
+        resolver = getattr(self, "_resolve_focused_panel", None)
+        return resolver() if callable(resolver) else None
+
+    def _bulk_kill_panel_agents(self, focus: AgentPanelFocus) -> None:
+        """Confirm cleanup of the complete cached selected-panel membership."""
+        live_focus = self._resolve_panel_cleanup_focus()
+        scope = "Collapsed panel" if focus.collapsed else "Panel"
         if live_focus != focus:
             self.notify(  # type: ignore[attr-defined]
-                "Collapsed panel focus changed; nothing cleaned up",
+                f"{scope} focus changed; nothing cleaned up",
                 severity="warning",
             )
             return
@@ -546,24 +558,22 @@ class AgentKillMixin:
         )
         if not panel_agents:
             self.notify(  # type: ignore[attr-defined]
-                "No agents remain in collapsed panel", severity="warning"
+                f"No agents remain in {scope.lower()}", severity="warning"
             )
             return
 
         live_identities = {agent.identity for agent in self._agents_with_children}
         if any(agent.identity not in live_identities for agent in panel_agents):
             self.notify(  # type: ignore[attr-defined]
-                "Collapsed panel membership changed; nothing cleaned up",
+                f"{scope} membership changed; nothing cleaned up",
                 severity="warning",
             )
             return
 
         targets = self._agent_cleanup_targets_from_candidates(panel_agents)
-        if (
-            not targets or self._resolve_focused_collapsed_panel() != focus  # type: ignore[attr-defined]
-        ):
+        if not targets or self._resolve_panel_cleanup_focus() != focus:
             self.notify(  # type: ignore[attr-defined]
-                "Collapsed panel membership changed; nothing cleaned up",
+                f"{scope} membership changed; nothing cleaned up",
                 severity="warning",
             )
             return
@@ -575,6 +585,12 @@ class AgentKillMixin:
             targets,
             header=f"Panel: {label} ({count} agent{plural})",
         )
+
+    def _bulk_kill_collapsed_panel_agents(
+        self, focus: CollapsedAgentPanelFocus
+    ) -> None:
+        """Compatibility wrapper for collapsed-panel-only callers."""
+        self._bulk_kill_panel_agents(focus)
 
     def _get_focused_group(self) -> GroupRow | None:
         """Return the ``GroupRow`` matching ``_current_group_key``, if any.

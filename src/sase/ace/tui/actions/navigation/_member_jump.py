@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...models.agent import Agent, AgentType
-from ...models.agent_tribe_summary import CollapsedAgentPanelFocus
+from ...models.agent_tribe_summary import AgentPanelFocus
 from ._agent_reveal import (
     AgentRevealFailure,
     prepare_agent_navigation_target,
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     )
 
 type MemberIdentity = tuple[AgentType, str, str | None]
-type SelectedMemberJumpContainer = Agent | CollapsedAgentPanelFocus
+type SelectedMemberJumpContainer = Agent | AgentPanelFocus
 
 
 class MemberJumpNavigationMixin(NavigationMixinBase):
@@ -270,6 +270,10 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if panel_group is not None:
             focus_changed = reveal.panel_idx != panel_group.focused_idx
             panel_group.focused_idx = reveal.panel_idx
+
+        # A member jump always descends into the target row, including from an
+        # explicitly selected expanded panel.
+        self._expanded_panel_focus = False  # type: ignore[attr-defined]
 
         if old_agent is not None and old_agent.identity != target_identity:
             arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)

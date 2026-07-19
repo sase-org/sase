@@ -108,6 +108,8 @@ class AgentNavigationOrderMixin:
 
     def _panel_navigation_stops(
         self,
+        *,
+        include_panel_focus: bool = False,
     ) -> list[tuple[str, int | tuple[str, ...]]]:
         """Return the focused panel's selectable rows in render order.
 
@@ -133,6 +135,11 @@ class AgentNavigationOrderMixin:
         focused_panel_collapsed = panel_group is not None and focused_key in getattr(
             self, "_collapsed_panel_keys", set()
         )
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        whole_panel_focused = focused_panel_collapsed or (
+            callable(resolve_panel) and resolve_panel() is not None
+        )
+        suppress_panel_rows = whole_panel_focused and not include_panel_focus
 
         fold_version = registry.version if registry is not None else 0
         cached = getattr(self, "_nav_stops_cache", None)
@@ -146,10 +153,12 @@ class AgentNavigationOrderMixin:
             and cached[4] is mode
             and cached[5] == merge_tag_panels
             and cached[6] == focused_panel_collapsed
+            and cached[7] == suppress_panel_rows
+            and cached[8] == include_panel_focus
         ):
-            return cached[7]
+            return cached[9]
 
-        if focused_panel_collapsed:
+        if suppress_panel_rows:
             stops: list[tuple[str, int | tuple[str, ...]]] = []
         elif panel_group is None:
             global_indices = [
@@ -188,6 +197,8 @@ class AgentNavigationOrderMixin:
             mode,
             merge_tag_panels,
             focused_panel_collapsed,
+            suppress_panel_rows,
+            include_panel_focus,
             stops,
             agent_positions,
             banner_positions,
@@ -200,8 +211,8 @@ class AgentNavigationOrderMixin:
         """Return reverse maps for the focused panel's selectable stops."""
         stops = self._panel_navigation_stops()
         cached = getattr(self, "_nav_stops_cache", None)
-        if cached is not None and len(cached) >= 10 and cached[7] is stops:
-            return cached[8], cached[9]
+        if cached is not None and len(cached) >= 12 and cached[9] is stops:
+            return cached[10], cached[11]
         return AgentNavigationOrderMixin._navigation_stop_maps(stops)
 
     def _capture_focused_visible_pos(self) -> int | None:

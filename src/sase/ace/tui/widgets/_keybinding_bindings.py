@@ -93,6 +93,8 @@ class KeybindingBindingsMixin:
         can_jump_to_changespec: bool = False,
         marked_count: int = 0,
         attempt_pinned: bool = False,
+        panel_focused: bool = False,
+        panel_collapsed: bool = False,
         collapsed_panel_focused: bool = False,
         group_focused: bool = False,
         has_artifact_files: bool = False,
@@ -109,6 +111,8 @@ class KeybindingBindingsMixin:
         """
         bindings: list[tuple[str, str]] = []
         x = self._kd("kill_agent")
+        panel_focused = panel_focused or collapsed_panel_focused
+        panel_collapsed = panel_collapsed or collapsed_panel_focused
 
         # When marks exist, x operates on the marked set and the label loses
         # its per-entry form. The unmark affordance is surfaced too.
@@ -124,9 +128,9 @@ class KeybindingBindingsMixin:
             bindings.append(
                 (self._kd("edit_spec"), f"edit chats ({marked_count} marked)")
             )
-        elif collapsed_panel_focused:
-            # Whole collapsed panels are first-class selections even though
-            # their hidden anchor row is intentionally not an agent selection.
+        elif panel_focused:
+            # Whole panels are first-class selections; their remembered row is
+            # intentionally not exposed as the selected agent.
             bindings.append((x, "kill/dismiss panel"))
         elif group_focused:
             # Phase 5: a focused group banner re-routes ``x`` to bulk-kill
@@ -150,6 +154,21 @@ class KeybindingBindingsMixin:
             if level > ToolDetailLevel.COMPACT:
                 bindings.append((self._kd("hooks_or_collapse"), "less detail"))
 
+        if panel_focused:
+            bindings.append(
+                (
+                    f"{self._kd('next_changespec')}/{self._kd('prev_changespec')}",
+                    "panel",
+                )
+            )
+            bindings.append(("0-9", "member"))
+            if panel_collapsed:
+                bindings.append((self._kd("expand_or_layout"), "expand panel"))
+            else:
+                bindings.append((self._kd("hooks_or_collapse"), "collapse panel"))
+                bindings.append((self._kd("expand_or_layout"), "enter panel"))
+                bindings.append(("Esc", "enter panel"))
+
         # When marks exist, A operates on the union of marked-agent artifacts.
         # Surface the affordance even if the focused agent has none of its own.
         if marked_count > 0:
@@ -169,14 +188,14 @@ class KeybindingBindingsMixin:
             return bindings
 
         if (
-            not collapsed_panel_focused
+            not panel_focused
             and not group_focused
             and (agent.is_clan_container or agent.is_family_container_row)
         ):
             bindings.append(("0-9", "member"))
 
         if agent.is_clan_container:
-            if marked_count == 0 and not collapsed_panel_focused and not group_focused:
+            if marked_count == 0 and not panel_focused and not group_focused:
                 bindings.append((x, "kill/dismiss clan"))
             if completed_count > 0:
                 bindings.append(

@@ -145,6 +145,38 @@ def test_keybinding_footer_collapsed_panel_focus_advertises_panel_cleanup() -> N
     assert not any(label == "kill/dismiss group" for _, label in bindings)
 
 
+def test_keybinding_footer_expanded_panel_focus_advertises_navigation() -> None:
+    footer = KeybindingFooter()
+
+    bindings = footer._compute_agent_bindings(
+        None,
+        panel_focused=True,
+        panel_collapsed=False,
+    )
+
+    labels = [label for _, label in bindings]
+    assert "kill/dismiss panel" in labels
+    assert "panel" in labels
+    assert "member" in labels
+    assert "collapse panel" in labels
+    assert labels.count("enter panel") == 2
+
+
+def test_keybinding_footer_canonical_collapsed_panel_focus_shows_expand() -> None:
+    footer = KeybindingFooter()
+
+    bindings = footer._compute_agent_bindings(
+        None,
+        panel_focused=True,
+        panel_collapsed=True,
+    )
+
+    labels = [label for _, label in bindings]
+    assert "expand panel" in labels
+    assert "collapse panel" not in labels
+    assert "enter panel" not in labels
+
+
 def test_keybinding_footer_marks_take_priority_over_collapsed_panel_label() -> None:
     footer = KeybindingFooter()
 

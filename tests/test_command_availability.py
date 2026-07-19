@@ -363,6 +363,26 @@ def test_collapsed_panel_exposes_kill_but_hides_hidden_agent_commands() -> None:
         assert not is_command_available(catalog[command_id], ctx), command_id
 
 
+def test_expanded_panel_exposes_kill_but_hides_remembered_agent_commands() -> None:
+    catalog = _catalog_by_id()
+    ctx = CommandContext(
+        tab="agents",
+        agent=None,
+        panel_focused=True,
+        panel_collapsed=False,
+    )
+
+    assert is_command_available(catalog["app.kill_agent"], ctx)
+    for command_id in {
+        "app.run_workflow",
+        "app.edit_spec",
+        "app.open_tmux",
+        "app.toggle_mark",
+        "copy.agents.name",
+    }:
+        assert not is_command_available(catalog[command_id], ctx), command_id
+
+
 def test_kill_agent_hidden_when_no_agent_no_group_no_marks() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.kill_agent"]

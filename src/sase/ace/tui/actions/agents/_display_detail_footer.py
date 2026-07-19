@@ -92,21 +92,18 @@ class AgentFooterDisplayMixin:
             artifact_file_viewer_active = (
                 bool(artifact_visible()) if callable(artifact_visible) else False
             )
-            resolve_collapsed_panel = getattr(
-                self, "_resolve_focused_collapsed_panel", None
-            )
-            collapsed_panel_focused = (
-                resolve_collapsed_panel() is not None
-                if callable(resolve_collapsed_panel)
-                else False
-            )
+            resolve_panel = getattr(self, "_resolve_focused_panel", None)
+            panel_focus = resolve_panel() if callable(resolve_panel) else None
+            panel_focused = panel_focus is not None
+            panel_collapsed = bool(panel_focus is not None and panel_focus.collapsed)
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
                 can_jump_to_changespec=can_jump,
                 marked_count=len(self._marked_agents),
                 attempt_pinned=self.current_attempt_number is not None,
-                collapsed_panel_focused=collapsed_panel_focused,
+                panel_focused=panel_focused,
+                panel_collapsed=panel_collapsed,
                 group_focused=self._current_group_key is not None,
                 has_artifact_files=has_artifact_files,
                 artifact_file_viewer_active=artifact_file_viewer_active,

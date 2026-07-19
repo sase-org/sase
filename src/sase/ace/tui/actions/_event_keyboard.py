@@ -71,6 +71,11 @@ class EventKeyboardMixin(EventHandlersBase):
             self._update_custom_mode_footer(self._custom_mode_active)  # type: ignore[attr-defined]
             event.prevent_default()
             event.stop()
+        elif event.key == "escape":
+            exit_panel_focus = getattr(self, "_exit_expanded_panel_focus", None)
+            if callable(exit_panel_focus) and exit_panel_focus():
+                event.prevent_default()
+                event.stop()
         elif callable(member_jump_handler) and member_jump_handler(key):
             event.prevent_default()
             event.stop()

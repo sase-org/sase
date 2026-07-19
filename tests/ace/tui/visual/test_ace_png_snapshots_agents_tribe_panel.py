@@ -108,7 +108,11 @@ async def test_tribe_panel_four_level_png_snapshots(
 
         await page.press("J")
         assert page.app._panel_group.focused_key == "epic"
-        await page.press("H")
+        await page.press("h")
+        await page.wait_for(
+            lambda _screen: page.app._resolve_focused_panel() is not None
+        )
+        await page.press("h")
         await page.wait_for(lambda _screen: "epic" in page.app._collapsed_panel_keys)
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "TRIBE")

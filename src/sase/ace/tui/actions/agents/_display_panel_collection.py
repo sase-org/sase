@@ -35,6 +35,17 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             merge_tag_panels=merge_tag_panels,
             collapsed_panel_keys=collapsed_keys or (),
         )
+        known_keys = set(self._panel_group.panel_keys)
+        if (
+            merge_tag_panels
+            or prev_focused not in known_keys
+            or not self._panel_group.panel_keys
+        ):
+            self._expanded_panel_focus = False
+        selection_memory = getattr(self, "_panel_selection_memory", None)
+        if selection_memory is not None:
+            for stale_key in set(selection_memory) - known_keys:
+                selection_memory.pop(stale_key, None)
         if collapsed_keys is not None:
             before = len(collapsed_keys)
             collapsed_keys.intersection_update(self._panel_group.panel_keys)
@@ -89,6 +100,13 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         )
         collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
         panel_collapsed = key in collapsed_keys
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        panel_focus = resolve_panel() if callable(resolve_panel) else None
+        selected_expanded = bool(
+            panel_focus is not None
+            and not panel_focus.collapsed
+            and panel_focus.panel_key == key
+        )
         selection_hint = None
         if getattr(self, "_panel_fold_hint_mode_active", False):
             selection_hint = getattr(self, "_panel_fold_key_to_hint", {}).get(key)
@@ -99,6 +117,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             merge_tag_panels=merge_tag_panels,
             counts=counts,
             collapsed=panel_collapsed,
+            selected=selected_expanded,
             jump_hint=(
                 panel_jump_hints.get(("panel", key))
                 if panel_collapsed and panel_jump_hints
