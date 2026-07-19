@@ -60,7 +60,7 @@ def _is_retryable_git_lock_error(
     return "index.lock" in detail or explicit_lock_failure
 
 
-def _git_lock_retry_delays() -> tuple[float, ...]:
+def git_lock_retry_delays() -> tuple[float, ...]:
     """Return the configured bounded backoff schedule for git lock failures."""
     raw = os.environ.get(ENV_GIT_LOCK_RETRY_DELAYS)
     if raw is None:
@@ -120,7 +120,7 @@ def run_with_git_lock_retry[ResultT](
     adapter automatically.
     """
     retry_delays = (
-        _git_lock_retry_delays() if delays is None else _validated_retry_delays(delays)
+        git_lock_retry_delays() if delays is None else _validated_retry_delays(delays)
     )
     adapter = result_adapter or _default_result_adapter
     repo_path = Path(cwd).expanduser().resolve(strict=False)

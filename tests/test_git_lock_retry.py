@@ -68,10 +68,10 @@ def test_git_lock_retry_delays_defaults_and_env_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv(ENV_GIT_LOCK_RETRY_DELAYS, raising=False)
-    assert _git_lock_retry_delays() == DEFAULT_GIT_LOCK_RETRY_DELAYS
+    assert git_lock_retry_delays() == DEFAULT_GIT_LOCK_RETRY_DELAYS
 
     monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0, 0.025,1.5")
-    assert _git_lock_retry_delays() == (0.0, 0.025, 1.5)
+    assert git_lock_retry_delays() == (0.0, 0.025, 1.5)
 
 
 @pytest.mark.parametrize("raw", ["", "wat", "0.1,,0.2", "-0.1,0.2"])
@@ -80,7 +80,7 @@ def test_git_lock_retry_delays_invalid_env_uses_default(
     raw: str,
 ) -> None:
     monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, raw)
-    assert _git_lock_retry_delays() == DEFAULT_GIT_LOCK_RETRY_DELAYS
+    assert git_lock_retry_delays() == DEFAULT_GIT_LOCK_RETRY_DELAYS
 
 
 def test_run_with_git_lock_retry_succeeds_mid_schedule(
