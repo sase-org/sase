@@ -6,10 +6,14 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.agent.names import (
     _wipe,
     find_named_agent,
     get_reserved_agent_names,
+    load_name_registry,
+    lookup_registered_name,
     rebuild_name_registry,
     wipe_agent_name_for_reuse,
 )
@@ -256,3 +260,63 @@ def test_wipe_retry_chain_and_bundle_descendants(tmp_path: Path) -> None:
         assert {str(root), str(retry)} <= set(result.artifact_dirs_removed)
         assert str(bundle_path) in result.bundle_paths_removed
         assert {"foo", "foo.retry", "foo.bundle"}.isdisjoint(get_reserved_agent_names())
+
+
+@pytest.mark.parametrize(
+    ("container_kind", "container_name", "member_names", "container_meta"),
+    [
+        pytest.param(
+            "clan",
+            "research",
+            ("research.worker", "research.finished"),
+            {"agent_clan": "research", "agent_clan_generation": "clan-gen"},
+            id="clan",
+        ),
+        pytest.param(
+            "family",
+            "review",
+            ("review--0", "review--code"),
+            {"agent_family": "review", "agent_family_parallel": False},
+            id="family",
+        ),
+    ],
+)
+def test_wipe_container_name_preserves_member_artifacts_and_registry(
+    tmp_path: Path,
+    container_kind: str,
+    container_name: str,
+    member_names: tuple[str, str],
+    container_meta: dict[str, object],
+) -> None:
+    artifacts_dir = _artifact(
+        tmp_path,
+        "member-ts",
+        member_names[0],
+        done=True,
+        meta=container_meta,
+    )
+    bundle_path = _bundle(
+        tmp_path,
+        "bundle-ts",
+        member_names[1],
+        **container_meta,
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        before = rebuild_name_registry()
+        owner = lookup_registered_name(container_name)
+        assert owner is not None
+        assert owner["container_kind"] == container_kind
+
+        # Exercise both accepted owner forms across the two container kinds.
+        wipe_target = container_name if container_kind == "clan" else owner
+        result = wipe_agent_name_for_reuse(wipe_target)
+
+        assert result.found is True
+        assert result.skipped_container_kind == container_kind
+        assert result.artifact_dirs_removed == ()
+        assert result.bundle_paths_removed == ()
+        assert artifacts_dir.exists()
+        assert bundle_path.exists()
+        assert load_name_registry() == before
+        assert {container_name, *member_names} <= get_reserved_agent_names()

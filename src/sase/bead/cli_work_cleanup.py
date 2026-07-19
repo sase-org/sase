@@ -120,7 +120,9 @@ def prepare_bead_work_force_reuse(
     *expected_names*, then wipes each owner (plus any *extra_cleanup_names* such
     as a legacy land owner that the new prompt no longer names). Old owners are
     replaced regardless of state — completed, dismissed, or still live (the wipe
-    terminates live owners).
+    terminates live owners). A container reservation for an extra cleanup name is
+    left intact because it is the epic's joinable clan container. A container
+    reservation for an expected phase or land name is an unresolvable conflict.
 
     Unlike a best-effort wipe, this fails *before* the caller performs any bead
     mutation: it raises :class:`ForcedReuseCleanupError` when a wipe raises, when
@@ -143,16 +145,15 @@ def prepare_bead_work_force_reuse(
             f"{sorted(expected_names)}; aborting forced reuse cleanup"
         )
 
-    cleanup_order = list(directive_names)
-    cleanup_order.extend(
-        name for name in sorted(extra_cleanup_names) if name not in directive_names
-    )
-    for name in cleanup_order:
-        _wipe_force_reuse_owner(name)
+    for name in directive_names:
+        _wipe_force_reuse_owner(name, allow_container_skip=False)
+    for name in sorted(extra_cleanup_names):
+        if name not in directive_names:
+            _wipe_force_reuse_owner(name, allow_container_skip=True)
     return rewrite_force_reuse_name_directives(query)
 
 
-def _wipe_force_reuse_owner(name: str) -> None:
+def _wipe_force_reuse_owner(name: str, *, allow_container_skip: bool) -> None:
     """Wipe a single deterministic owner, raising on any cleanup failure."""
     from sase.agent.names import wipe_agent_name_for_reuse
 
@@ -166,6 +167,14 @@ def _wipe_force_reuse_owner(name: str) -> None:
         raise ForcedReuseCleanupError(
             f"forced reuse cleanup for agent name '{name}' reported errors: "
             + "; ".join(result.errors)
+        )
+    if result.skipped_container_kind:
+        if allow_container_skip:
+            return
+        raise ForcedReuseCleanupError(
+            f"agent name '{name}' is reserved by a "
+            f"{result.skipped_container_kind} container and cannot be "
+            "force-reused; dismiss or clean up the container's members, then retry"
         )
     if result.found and name not in result.registry_names_removed:
         raise ForcedReuseCleanupError(

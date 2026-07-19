@@ -34,6 +34,7 @@ class AgentNameWipeResult:
     notifications_dismissed: int = 0
     killed_processes: int = 0
     errors: tuple[str, ...] = ()
+    skipped_container_kind: str | None = None
 
 
 @dataclass
@@ -72,7 +73,9 @@ def wipe_agent_name_for_reuse(
     The wipe is intentionally stronger than dismissal: artifact directories,
     dismissed bundles/index rows, notifications, workspace claims, and registry
     reservations tied to the owner and its descendants are removed so normal
-    name lookup cannot rediscover the old agent.
+    name lookup cannot rediscover the old agent. Clan and family container
+    reservations are never wiped because their owner paths belong to members and
+    the reservations are re-derived from those members during registry rebuilds.
     """
     owner: Mapping[str, Any] | None
     if isinstance(owner_or_name, str):
@@ -84,6 +87,14 @@ def wipe_agent_name_for_reuse(
 
     if owner is None:
         return AgentNameWipeResult(target_name=target_name, found=False)
+
+    container_kind = owner.get("container_kind")
+    if isinstance(container_kind, str) and container_kind:
+        return AgentNameWipeResult(
+            target_name=target_name,
+            found=True,
+            skipped_container_kind=container_kind,
+        )
 
     plan = _build_wipe_plan(owner, target_name)
     if not plan.names:

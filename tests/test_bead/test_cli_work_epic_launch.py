@@ -159,6 +159,109 @@ def test_work_stale_owner_round_trip_wipes_and_rewrites(
     assert set(wiped) == {*phase_ids, epic_id, f"{epic_id}.land"}
 
 
+def test_work_retry_allows_legacy_epic_clan_container_skip(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bare epic clan survives cleanup and the remaining phases relaunch."""
+    from sase.agent.names import AgentNameWipeResult
+
+    epic_id, phase_ids = seed_diamond(project_dir)
+    with BeadProject(project_dir) as proj:
+        proj.mark_ready_to_work(epic_id)
+        proj.close([phase_ids[0]])
+
+    wiped: list[str] = []
+
+    def fake_wipe(name: str) -> AgentNameWipeResult:
+        wiped.append(name)
+        if name == epic_id:
+            return AgentNameWipeResult(
+                target_name=name,
+                found=True,
+                skipped_container_kind="clan",
+            )
+        return AgentNameWipeResult(target_name=name, found=False)
+
+    monkeypatch.setattr("sase.agent.names.wipe_agent_name_for_reuse", fake_wipe)
+    launched: list[str] = []
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None, segment_extra_env=None: (
+            launched.append(query) or FakeLaunchResult()
+        ),
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+    assert epic_id in wiped
+    assert len(launched) == 1
+    assert "%name:!" not in launched[0]
+    assert f"#bd/work_phase_bead:{phase_ids[0]}" not in launched[0]
+    for phase_id in phase_ids[1:]:
+        assert f"#bd/work_phase_bead:{phase_id}" in launched[0]
+
+
+@pytest.mark.parametrize(
+    ("conflict_target", "container_kind"),
+    [
+        pytest.param("phase", "family", id="phase-family-container"),
+        pytest.param("land", "clan", id="land-clan-container"),
+    ],
+)
+def test_work_expected_name_container_conflict_aborts_before_mutation(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    conflict_target: str,
+    container_kind: str,
+) -> None:
+    from sase.agent.names import AgentNameWipeResult
+
+    epic_id, phase_ids = seed_diamond(project_dir)
+    conflict_name = phase_ids[0] if conflict_target == "phase" else f"{epic_id}.land"
+
+    def fake_wipe(name: str) -> AgentNameWipeResult:
+        if name == conflict_name:
+            return AgentNameWipeResult(
+                target_name=name,
+                found=True,
+                skipped_container_kind=container_kind,
+            )
+        return AgentNameWipeResult(target_name=name, found=False)
+
+    monkeypatch.setattr("sase.agent.names.wipe_agent_name_for_reuse", fake_wipe)
+    launched: list[str] = []
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None, segment_extra_env=None: (
+            launched.append(query) or FakeLaunchResult()
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_work_launch",
+        lambda *args, **kwargs: pytest.fail("aborted launch must not commit"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+    assert excinfo.value.code == 1
+
+    err = capsys.readouterr().err
+    assert (
+        f"agent name '{conflict_name}' is reserved by a {container_kind} container"
+        in err
+    )
+    assert "cannot be force-reused" in err
+    assert launched == []
+    with BeadProject(project_dir) as proj:
+        assert proj.show(epic_id).is_ready_to_work is False
+        for phase_id in phase_ids:
+            phase = proj.show(phase_id)
+            assert phase.status == Status.OPEN
+            assert phase.assignee == ""
+
+
 @pytest.mark.parametrize(
     "failure_mode",
     [

@@ -74,6 +74,10 @@ def test_collision_validation_suggests_clan_hood_name(tmp_path: Path) -> None:
             match=r"inside the clan hood.*research\.member",
         ):
             validate_launch_name_requests(["%name:research\nDo work"])
+        with pytest.raises(AgentNameClanCollisionError, match="reserved for clan"):
+            validate_launch_name_requests(
+                ["%name:!research\nDo work"], allow_force_reuse=True
+            )
 
 
 def test_collision_validation_preserves_family_container(tmp_path: Path) -> None:
@@ -92,6 +96,12 @@ def test_collision_validation_preserves_family_container(tmp_path: Path) -> None
             match=r"Attach a member with %n\(parent, suffix\)",
         ):
             validate_launch_name_requests(["%name:review\nDo work"])
+        with pytest.raises(
+            AgentNameFamilyCollisionError, match="reserved for agent family"
+        ):
+            validate_launch_name_requests(
+                ["%name:!review\nDo work"], allow_force_reuse=True
+            )
 
 
 def test_forced_reuse_requires_confirmation_on_non_tui_surfaces() -> None:

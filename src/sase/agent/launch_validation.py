@@ -206,6 +206,14 @@ def validate_launch_name_requests(
             if request.force_reuse and not allow_force_reuse:
                 raise AgentNameReuseConfirmationRequiredError(request.name)
             if request.force_reuse:
+                if reserved_names is None:
+                    reserved_names = get_reserved_agent_names()
+                    clan_names = get_reserved_clan_names()
+                    family_names = get_reserved_family_names()
+                if clan_names is not None and request.name in clan_names:
+                    raise _AgentNameClanCollisionError(request.name)
+                if family_names is not None and request.name in family_names:
+                    raise _AgentNameFamilyCollisionError(request.name)
                 continue
             if reserved_names is None:
                 reserved_names = get_reserved_agent_names()
