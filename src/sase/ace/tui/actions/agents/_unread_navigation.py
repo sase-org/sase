@@ -40,6 +40,7 @@ class AgentUnreadNavigationMixin(
     current_idx: int
     current_attempt_number: int | None
     _current_group_key: tuple[str, ...] | None
+    _expanded_panel_focus: bool
     _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
 
     def _has_unread_completed_agent(self) -> bool:
@@ -132,11 +133,16 @@ class AgentUnreadNavigationMixin(
             panel_group is not None
             and panel_group.focused_key in getattr(self, "_collapsed_panel_keys", set())
         )
+        resolve_focused_panel = getattr(self, "_resolve_focused_panel", None)
+        focused_panel = (
+            resolve_focused_panel() if callable(resolve_focused_panel) else None
+        )
+        origin_is_panel = focused_panel is not None or focused_panel_is_collapsed
         current_panel_idx = visible_panel_indices.get(self.current_idx)
         current_is_visible_agent = (
             getattr(self, "_current_group_key", None) is None
             and self.current_idx in visible_panel_indices
-            and not focused_panel_is_collapsed
+            and not origin_is_panel
             and (
                 panel_group is None
                 or current_panel_idx == getattr(panel_group, "focused_idx", None)
@@ -172,6 +178,7 @@ class AgentUnreadNavigationMixin(
             or old_group_key is not None
             or target_panel_key != old_panel_key
             or panel_was_collapsed
+            or origin_is_panel
         )
         save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
         if focus_will_change and callable(save_jump_anchor):
@@ -183,6 +190,7 @@ class AgentUnreadNavigationMixin(
             if callable(expand_panel):
                 panel_expanded = bool(expand_panel(target_panel_key))
 
+        self._expanded_panel_focus = False
         target_agent = self._agents[target_idx]
         panel_changed = target_panel_key != old_panel_key
         if panel_group is not None:
@@ -197,8 +205,10 @@ class AgentUnreadNavigationMixin(
         if hasattr(self, "current_attempt_number"):
             self.current_attempt_number = None  # type: ignore[attr-defined]
 
-        needs_full_refresh = panel_changed or (
-            old_idx == target_idx and old_group_key is not None
+        needs_full_refresh = (
+            origin_is_panel
+            or panel_changed
+            or (old_idx == target_idx and old_group_key is not None)
         )
         if after_select is not None:
             after_select(target_agent, needs_full_refresh, panel_expanded)
@@ -242,6 +252,7 @@ class AgentUnreadNavigationMixin(
         refilter = getattr(self, "_refilter_agents", None)
         if not callable(refilter):
             return False
+        self._expanded_panel_focus = False
         try:
             refilter(refresh_content_index=False)
         except TypeError:

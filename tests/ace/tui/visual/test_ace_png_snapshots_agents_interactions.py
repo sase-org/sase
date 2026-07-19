@@ -474,14 +474,35 @@ async def test_agents_leader_jump_auto_expands_panel_png_snapshot(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 4)
-        page.app._unread_completed_agent_ids.add(target.identity)
 
         await page.press("J")
         assert page.app._panel_group.focused_key == "chop"
+        await page.press("j")
+        assert page.app._agents[page.app.current_idx].identity == target.identity
         await page.press("h")
         await page.wait_for(
             lambda _screen: page.app._resolve_focused_panel() is not None
         )
+        page.app._unread_completed_agent_ids.add(target.identity)
+
+        await page.press("comma")
+        await page.press("j")
+        await page.wait_for(lambda _screen: page.app._resolve_focused_panel() is None)
+
+        assert page.app._agents[page.app.current_idx].identity == target.identity
+        assert target.identity not in page.app._unread_completed_agent_ids
+        focused_idx = page.app._panel_group.focused_idx
+        widget_id = (
+            "#agent-list-panel"
+            if focused_idx == 0
+            else f"#agent-list-panel-{focused_idx}"
+        )
+        target_widget = page.app.query_one(widget_id, AgentList)
+        assert "❖" not in Text.from_markup(target_widget.border_title).plain
+        assert target_widget.highlighted is not None
+
+        assert page.app._restore_agents_jump_anchor() is True
+        page.app._unread_completed_agent_ids.add(target.identity)
         await page.press("h")
         await page.wait_for(lambda _screen: "chop" in page.app._collapsed_panel_keys)
         assert page.app._panel_group.panel_keys == [None, "keep", "chop"]

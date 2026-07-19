@@ -6,8 +6,10 @@ from typing import Any
 
 from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
+from sase.ace.tui.actions.agents._display_panel_collection import PanelCollectionMixin
 from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
 from sase.ace.tui.actions.agents._navigation_order import AgentNavigationOrderMixin
+from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
 from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
 from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
@@ -37,6 +39,10 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
         self._current_group_key: tuple[str, ...] | None = None
         self._agent_panels_grouped = merge_tag_panels
         self._collapsed_panel_keys = set(collapsed_panels or ())
+        self._expanded_panel_focus = False
+        self._panel_selection_memory: dict[
+            str | None, tuple[str, int | tuple[str, ...]]
+        ] = {}
         if with_panels:
             self._panel_group = AgentPanelGroup.from_agents(
                 agents,
@@ -90,15 +96,21 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
 class LeaderUnreadJumpApp(
     LeaderModeMixin,
     AgentFoldingMixin,
-    AgentUnreadMixin,
     AgentNavigationOrderMixin,
+    AgentSelectionMixin,
+    AgentUnreadMixin,
     AdvancedNavigationMixin,
 ):
+    _snap_current_idx_to_focused_panel = (
+        PanelCollectionMixin._snap_current_idx_to_focused_panel
+    )
+
     def __init__(
         self,
         agents: list[Agent],
         *,
         current_idx: int = 0,
+        focused_key: str | None = None,
         collapsed_panels: set[str | None] | None = None,
     ) -> None:
         self._agents = agents
@@ -108,9 +120,13 @@ class LeaderUnreadJumpApp(
         self._current_group_key: tuple[str, ...] | None = None
         self._agent_panels_grouped = False
         self._collapsed_panel_keys = set(collapsed_panels or ())
+        self._expanded_panel_focus = False
+        self._panel_selection_memory: dict[
+            str | None, tuple[str, int | tuple[str, ...]]
+        ] = {}
         self._panel_group = AgentPanelGroup.from_agents(
             agents,
-            focused_key=None,
+            focused_key=focused_key,
             collapsed_panel_keys=self._collapsed_panel_keys,
         )
         self._nav_stops_cache: tuple[Any, ...] | None = None

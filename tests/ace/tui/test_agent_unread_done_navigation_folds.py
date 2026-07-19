@@ -33,6 +33,7 @@ class _CollapsedClanUnreadJumpApp(UnreadJumpApp):
         complete: list[Agent],
         *,
         current_identity: tuple[object, str, str | None] | None = None,
+        focused_key: str | None = None,
         collapsed_panels: set[str | None] | None = None,
     ) -> None:
         self._fold_manager = FoldStateManager()
@@ -52,6 +53,7 @@ class _CollapsedClanUnreadJumpApp(UnreadJumpApp):
             visible,
             current_idx=current_idx,
             with_panels=True,
+            focused_key=focused_key,
             collapsed_panels=collapsed_panels,
         )
         self._agents_with_children = complete
@@ -187,6 +189,39 @@ def test_unread_jump_reveals_clan_and_collapsed_tag_panel() -> None:
     assert app._panel_group.focused_key == "alpha"
     assert app._agents[app.current_idx].identity == target.identity
     assert app.refilter_calls == 1
+
+
+def test_unread_jump_reveals_clan_from_expanded_tribe_focus() -> None:
+    origin = make_agent(name="origin", status="RUNNING", raw_suffix="origin")
+    target = make_agent(
+        name="research.done",
+        status="DONE",
+        raw_suffix="target",
+        tag="alpha",
+        stop_time=datetime(2026, 7, 19, 12, 0, 0),
+    )
+    target.agent_clan = "research"
+    target.agent_clan_generation = "generation"
+    app = _CollapsedClanUnreadJumpApp(
+        project_clan_tree([origin, target]),
+        focused_key="alpha",
+    )
+    app._expanded_panel_focus = True
+    app._unread_completed_agent_ids.add(target.identity)
+
+    assert app._current_agents_jump_anchor() == ("panel", "alpha")
+    assert app._jump_to_next_unread_done_agent()
+
+    assert app._agents[app.current_idx].identity == target.identity
+    assert app._resolve_focused_panel() is None
+    assert app.current_attempt_number is None
+    assert app.refilter_calls == 1
+    assert app._entry_jump_agents_anchor_stack == [("panel", "alpha")]
+    assert target.identity not in app._unread_completed_agent_ids
+
+    assert app._restore_agents_jump_anchor() is True
+    assert app._resolve_focused_panel() is not None
+    assert app._panel_group.focused_key == "alpha"
 
 
 def test_unread_jump_lands_on_direct_family_row_but_not_inner_child() -> None:

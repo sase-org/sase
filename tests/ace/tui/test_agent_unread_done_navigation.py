@@ -153,6 +153,48 @@ def test_repeated_leader_j_walks_unread_done_agents_by_recency(
     assert app.notification_count_refresh_calls == 3
 
 
+def test_leader_j_descends_from_expanded_tribe_to_newest_unread() -> None:
+    running = make_agent(name="running", status="RUNNING", raw_suffix="running")
+    older = make_agent(
+        name="older",
+        status="DONE",
+        raw_suffix="older",
+        tag="alpha",
+        stop_time=datetime(2026, 7, 19, 10, 0, 0),
+    )
+    newest = make_agent(
+        name="newest",
+        status="DONE",
+        raw_suffix="newest",
+        tag="alpha",
+        stop_time=datetime(2026, 7, 19, 12, 0, 0),
+    )
+    app = LeaderUnreadJumpApp(
+        [running, older, newest],
+        current_idx=2,
+        focused_key="alpha",
+    )
+    app._expanded_panel_focus = True
+    app._unread_completed_agent_ids.update({older.identity, newest.identity})
+
+    assert app._current_agents_jump_anchor() == ("panel", "alpha")
+    assert app._handle_leader_key("j") is True
+
+    assert app.current_idx == 2
+    assert app._agents[app.current_idx] is newest
+    assert app._resolve_focused_panel() is None
+    assert app.current_attempt_number is None
+    assert app._entry_jump_agents_anchor_stack == [("panel", "alpha")]
+    assert newest.identity not in app._unread_completed_agent_ids
+    assert older.identity in app._unread_completed_agent_ids
+    assert app.patch_calls == [newest]
+    assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]
+
+    assert app._restore_agents_jump_anchor() is True
+    assert app._resolve_focused_panel() is not None
+    assert app._panel_group.focused_key == "alpha"
+
+
 def test_jump_to_next_unread_done_agent_wraps_from_oldest_to_newest() -> None:
     oldest = make_agent(
         name="oldest",

@@ -10,7 +10,7 @@ import pytest
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 
 from ._agent_unread_helpers import make_agent
-from ._agent_unread_navigation_helpers import UnreadJumpApp
+from ._agent_unread_navigation_helpers import LeaderUnreadJumpApp, UnreadJumpApp
 
 
 @pytest.fixture(autouse=True)
@@ -91,6 +91,48 @@ def test_jump_to_next_stopped_agent_uses_stopped_recency_and_wraps(
     assert app.patch_calls == []
     assert app.refresh_calls == []
     notification_dismiss.assert_not_called()
+
+
+def test_leader_upper_j_descends_from_expanded_tribe_without_acknowledging() -> None:
+    running = make_agent(name="running", status="RUNNING", raw_suffix="running")
+    older = make_agent(
+        name="older",
+        status="PLAN",
+        raw_suffix="older",
+        tag="alpha",
+    )
+    older.plan_times = [datetime(2026, 7, 19, 10, 0, 0)]
+    newest = make_agent(
+        name="newest",
+        status="QUESTION",
+        raw_suffix="newest",
+        tag="alpha",
+    )
+    newest.questions_times = [datetime(2026, 7, 19, 12, 0, 0)]
+    app = LeaderUnreadJumpApp(
+        [running, older, newest],
+        current_idx=2,
+        focused_key="alpha",
+    )
+    app._expanded_panel_focus = True
+    app._unread_completed_agent_ids.add(newest.identity)
+    unread_before = set(app._unread_completed_agent_ids)
+
+    assert app._current_agents_jump_anchor() == ("panel", "alpha")
+    assert app._handle_leader_key("J") is True
+
+    assert app.current_idx == 2
+    assert app._agents[app.current_idx] is newest
+    assert app._resolve_focused_panel() is None
+    assert app.current_attempt_number is None
+    assert app._entry_jump_agents_anchor_stack == [("panel", "alpha")]
+    assert app._unread_completed_agent_ids == unread_before
+    assert app.patch_calls == []
+    assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]
+
+    assert app._restore_agents_jump_anchor() is True
+    assert app._resolve_focused_panel() is not None
+    assert app._panel_group.focused_key == "alpha"
 
 
 def test_jump_to_next_stopped_agent_ignores_non_stopped_rows() -> None:
