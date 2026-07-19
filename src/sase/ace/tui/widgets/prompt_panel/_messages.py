@@ -17,3 +17,11 @@ class ClanSectionSnapshotLoaded(Message):
     def __init__(self, agent_identity: tuple[object, ...]) -> None:
         super().__init__()
         self.agent_identity = agent_identity
+
+
+class TribeSectionSnapshotLoaded(Message):
+    """Disk/statistics enrichment refreshed for one tribe panel."""
+
+    def __init__(self, panel_identity: tuple[object, ...]) -> None:
+        super().__init__()
+        self.panel_identity = panel_identity

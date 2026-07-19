@@ -187,12 +187,18 @@ def _descendant_rows(agent: Agent) -> tuple[Agent, ...]:
     return tuple(rows)
 
 
-def _unit_real_rows(unit: Agent) -> tuple[Agent, ...]:
+def tribe_unit_real_rows(unit: Agent) -> tuple[Agent, ...]:
+    """Return the real rows represented by one top-level tribe unit."""
     if unit.is_clan_container:
         return clan_section_member_rows(unit)
     if unit.is_family_container_row:
         return _family_member_rows(unit)
     return _dedupe_rows((unit, *_descendant_rows(unit)))
+
+
+def tribe_unit_roots(agents: Sequence[Agent]) -> tuple[Agent, ...]:
+    """Return top-level tribe units in their panel presentation order."""
+    return tuple(agent for agent in agents if not agent_is_tree_child(agent))
 
 
 def _dedupe_rows(rows: Sequence[Agent]) -> tuple[Agent, ...]:
@@ -254,7 +260,7 @@ def _unit_snapshot(
     marked_ids: Collection[AgentIdentity],
     now: datetime,
 ) -> _TribeUnitSnapshot:
-    rows = _unit_real_rows(unit)
+    rows = tribe_unit_real_rows(unit)
     nested_rows = tuple(row for row in rows if row.identity != unit.identity)
     children = tuple(
         _TribeUnitChild(
@@ -339,7 +345,7 @@ def build_agent_tribe_summary_snapshot(
 ) -> AgentTribeSummarySnapshot:
     """Build a fold-independent tribe snapshot using loaded rows only."""
     reference = now or agent_time.local_now()
-    roots = tuple(agent for agent in agents if not agent_is_tree_child(agent))
+    roots = tribe_unit_roots(agents)
     units = tuple(
         _unit_snapshot(
             agent,
@@ -350,7 +356,7 @@ def build_agent_tribe_summary_snapshot(
         for agent in roots
     )
     real_rows = _dedupe_rows(
-        tuple(row for root in roots for row in _unit_real_rows(root))
+        tuple(row for root in roots for row in tribe_unit_real_rows(root))
     )
     labels = {row.identity: _row_name(row) for row in real_rows}
     attention = tuple(
@@ -359,7 +365,9 @@ def build_agent_tribe_summary_snapshot(
             unit_label=unit.label,
             status=unit.status,
             status_bucket=status_bucket_for_values(unit.status),
-            preview=_attention_preview(_unit_real_rows(root) or (root,), unit.status),
+            preview=_attention_preview(
+                tribe_unit_real_rows(root) or (root,), unit.status
+            ),
         )
         for root, unit in zip(roots, units, strict=True)
         if status_bucket_for_values(unit.status) in {"Failed", "Stopped", "Waiting"}
@@ -400,4 +408,6 @@ __all__ = [
     "TribePanelIdentity",
     "TribeStatusCounts",
     "build_agent_tribe_summary_snapshot",
+    "tribe_unit_real_rows",
+    "tribe_unit_roots",
 ]

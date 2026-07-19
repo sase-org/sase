@@ -665,6 +665,11 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         current_worker = getattr(self, "_clan_section_worker", None)
         if current_worker is not None and getattr(current_worker, "is_running", False):
             current_worker.cancel()
+        cancel_tribe_worker = getattr(
+            self, "_cancel_tribe_section_worker_for_agent_selection", None
+        )
+        if callable(cancel_tribe_worker):
+            cancel_tribe_worker()
         clear_detail_header_summary_cache(self)
         text = Text("No agent selected", style="dim italic")
         self.update(text)  # type: ignore[attr-defined]

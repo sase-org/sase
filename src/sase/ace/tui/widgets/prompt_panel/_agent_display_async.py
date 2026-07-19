@@ -15,6 +15,7 @@ from ...models._agent_clan_sections import (
     ClanInMemorySnapshot,
 )
 from ...models.agent import Agent
+from ...models.agent_tribe_summary import TribePanelIdentity
 from ...models.agent_bead import (
     cached_bead_display,
     resolve_bead_display,
@@ -34,7 +35,22 @@ from ._agent_clan_aggregation import (
     mark_clan_snapshot_loading,
     should_refresh_clan_disk_snapshot,
 )
-from ._messages import AgentDetailHeaderEnriched, ClanSectionSnapshotLoaded
+from ._agent_tribe_aggregation import (
+    TribeEnrichmentResult,
+    TribeEnrichmentSection,
+    TribeUnitSource,
+    build_tribe_enrichment,
+    cache_tribe_enrichment,
+    clear_tribe_snapshot_loading,
+    get_cached_tribe_sources,
+    mark_tribe_snapshot_loading,
+    tribe_sections_to_refresh,
+)
+from ._messages import (
+    AgentDetailHeaderEnriched,
+    ClanSectionSnapshotLoaded,
+    TribeSectionSnapshotLoaded,
+)
 from ..file_panel._linked_deltas import (
     compute_linked_delta_groups,
     should_refresh_linked_delta_groups,
@@ -103,8 +119,20 @@ class _ClanSectionEnrichmentRequest:
     is_current: Callable[[tuple[Any, ...], int, str, int | None], bool]
 
 
+@dataclass(frozen=True)
+class _TribeSectionEnrichmentRequest:
+    """State captured when tribe disk/statistics enrichment starts."""
+
+    panel_identity: TribePanelIdentity
+    sources: tuple[TribeUnitSource, ...]
+    sections: frozenset[TribeEnrichmentSection]
+    slow_tool_threshold_ms: int
+
+
 class AgentDisplayWorkerMixin:
     """Async bead and linked-delta workers for AgentPromptPanel."""
+
+    _tribe_section_pending_request: _TribeSectionEnrichmentRequest | None = None
 
     def set_agent_detail_render_context(
         self,
@@ -251,6 +279,105 @@ class AgentDisplayWorkerMixin:
             None,
         )
         if current_request is None or current_request.agent_identity != agent.identity:
+            current_worker.cancel()
+
+    def start_tribe_section_enrichment(
+        self,
+        panel_identity: TribePanelIdentity,
+        *,
+        sections: Collection[TribeEnrichmentSection],
+        slow_tool_threshold_ms: int,
+    ) -> None:
+        """Load tribe sections in one coalesced, last-request-wins worker."""
+        requested = tribe_sections_to_refresh(self, panel_identity, sections)
+        run_worker = getattr(self, "run_worker", None)
+        if not requested or not callable(run_worker):
+            return
+        request = _TribeSectionEnrichmentRequest(
+            panel_identity=panel_identity,
+            sources=get_cached_tribe_sources(self, panel_identity),
+            sections=requested,
+            slow_tool_threshold_ms=slow_tool_threshold_ms,
+        )
+        current_worker = getattr(self, "_tribe_section_worker", None)
+        if current_worker is not None and getattr(current_worker, "is_running", False):
+            current_request: _TribeSectionEnrichmentRequest | None = getattr(
+                self, "_tribe_section_request", None
+            )
+            if (
+                current_request is not None
+                and current_request.panel_identity == request.panel_identity
+                and tuple(source.signature for source in current_request.sources)
+                == tuple(source.signature for source in request.sources)
+                and request.sections.issubset(current_request.sections)
+            ):
+                pending = self._tribe_section_pending_request
+                if pending is not None:
+                    clear_tribe_snapshot_loading(
+                        self,
+                        pending.panel_identity,
+                        pending.sections,
+                    )
+                    self._tribe_section_pending_request = None
+                return
+            pending = self._tribe_section_pending_request
+            if pending is not None:
+                clear_tribe_snapshot_loading(
+                    self,
+                    pending.panel_identity,
+                    pending.sections,
+                )
+            mark_tribe_snapshot_loading(self, panel_identity, requested)
+            self._tribe_section_pending_request = request
+            return
+        self._launch_tribe_section_enrichment(request)
+
+    def _launch_tribe_section_enrichment(
+        self,
+        request: _TribeSectionEnrichmentRequest,
+    ) -> None:
+        run_worker = getattr(self, "run_worker", None)
+        if not callable(run_worker):
+            return
+        mark_tribe_snapshot_loading(
+            self,
+            request.panel_identity,
+            request.sections,
+        )
+
+        def load_task() -> TribeEnrichmentResult:
+            return build_tribe_enrichment(
+                self,
+                request.panel_identity,
+                request.sources,
+                sections=request.sections,
+                slow_tool_threshold_ms=request.slow_tool_threshold_ms,
+            )
+
+        self._tribe_section_request = request  # type: ignore[attr-defined]
+        self._tribe_section_worker = run_worker(load_task, thread=True)  # type: ignore[attr-defined]
+
+    def _cancel_tribe_section_worker_for_agent_selection(self) -> None:
+        """Cancel tribe-only work after selection returns to a real row."""
+        pending = self._tribe_section_pending_request
+        if pending is not None:
+            clear_tribe_snapshot_loading(
+                self,
+                pending.panel_identity,
+                pending.sections,
+            )
+        self._tribe_section_pending_request = None
+        current_worker = getattr(self, "_tribe_section_worker", None)
+        current_request: _TribeSectionEnrichmentRequest | None = getattr(
+            self, "_tribe_section_request", None
+        )
+        if current_request is not None:
+            clear_tribe_snapshot_loading(
+                self,
+                current_request.panel_identity,
+                current_request.sections,
+            )
+        if current_worker is not None and getattr(current_worker, "is_running", False):
             current_worker.cancel()
 
     def _start_agent_bead_display_resolve_from_context(self, agent: Agent) -> None:
@@ -509,6 +636,49 @@ class AgentDisplayWorkerMixin:
             event.state,
         )
         self._apply_clan_section_enrichment_result(event.worker, event.state)
+        self._apply_tribe_section_enrichment_result(event.worker, event.state)
+
+    def _apply_tribe_section_enrichment_result(
+        self,
+        worker: Worker[Any],
+        state: WorkerState,
+    ) -> None:
+        current_worker = getattr(self, "_tribe_section_worker", None)
+        if worker != current_worker:
+            return
+        request: _TribeSectionEnrichmentRequest | None = getattr(
+            self, "_tribe_section_request", None
+        )
+        terminal = state in (
+            WorkerState.SUCCESS,
+            WorkerState.ERROR,
+            WorkerState.CANCELLED,
+        )
+        if not terminal:
+            return
+        self._tribe_section_worker = None  # type: ignore[attr-defined]
+        if request is not None:
+            clear_tribe_snapshot_loading(
+                self,
+                request.panel_identity,
+                request.sections,
+            )
+        if state is WorkerState.SUCCESS and request is not None:
+            result = cast(TribeEnrichmentResult, worker.result)
+            if cache_tribe_enrichment(self, result) is not None:
+                post_message = getattr(self, "post_message", None)
+                if callable(post_message):
+                    post_message(TribeSectionSnapshotLoaded(request.panel_identity))
+        pending: _TribeSectionEnrichmentRequest | None = getattr(
+            self, "_tribe_section_pending_request", None
+        )
+        self._tribe_section_pending_request = None
+        if pending is not None:
+            self.start_tribe_section_enrichment(
+                pending.panel_identity,
+                sections=pending.sections,
+                slow_tool_threshold_ms=pending.slow_tool_threshold_ms,
+            )
 
     def _apply_clan_section_enrichment_result(
         self,

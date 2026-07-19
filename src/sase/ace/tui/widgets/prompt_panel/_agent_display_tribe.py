@@ -9,6 +9,9 @@ from dataclasses import dataclass
 from rich.syntax import Syntax
 from rich.text import Text
 
+from sase.ace.tui.tools.slow import format_long_duration
+from sase.telemetry.render import format_duration
+
 from ...agent_count_chip import format_agent_count_chip
 from ...models._agent_clan_sections import (
     ClanErrorEntry,
@@ -23,6 +26,13 @@ from ...models.agent_tribe_summary import (
 from ...models.fold_scale import TRIBE_FOLD_SCALE, fold_scale_position
 from ...models.fold_state import FoldLevel
 from ._helpers import append_major_section_divider, append_section_heading
+from ._agent_tribe_aggregation import (
+    TribeEnrichmentSection,
+    TribeRuntimeStatistics,
+    TribeSectionSnapshot,
+    TribeSlowToolEntry,
+    TribeTextEntry,
+)
 from ._member_roster import (
     MemberJumpMap,
     MemberRosterChild,
@@ -67,6 +77,9 @@ class _TribeSectionIds:
     errors: str = "tribe:errors"
     output_variables: str = "tribe:output-variables"
     workflow_variables: str = "tribe:workflow-variables"
+    replies: str = "tribe:replies"
+    slow_tool_calls: str = "tribe:slow-tool-calls"
+    runtime_statistics: str = "tribe:runtime-statistics"
 
 
 _SECTIONS = _TribeSectionIds()
@@ -91,14 +104,47 @@ def _append_fold_heading(
     title: str,
     section_id: str,
     level: FoldLevel,
-    count: int,
+    count: int | None,
+    unknown_label: str | None = None,
 ) -> None:
     append_major_section_divider(text)
     heading = Text()
     heading.append(f"{_FOLD_CHARS[level]} ", style=_FOLD_STYLES[level])
     heading.append(title, style=_SECTION_HEADING_STYLE)
-    heading.append(f" · {count}", style="dim")
+    if count is not None:
+        heading.append(f" · {count}", style="dim")
+    elif unknown_label:
+        heading.append(f" · {unknown_label}", style="dim italic")
     append_section_heading(text, heading, section_id=section_id)
+
+
+def tribe_enrichment_sections_for_fold_state(
+    panel_level: FoldLevel,
+    overrides: Mapping[str, FoldLevel] | None = None,
+) -> frozenset[TribeEnrichmentSection]:
+    """Return off-thread sections needed by the effective tribe folds."""
+    fold_overrides = overrides or {}
+    required: set[TribeEnrichmentSection] = set()
+    if _effective_level(_SECTIONS.replies, panel_level, fold_overrides) in {
+        FoldLevel.FULLY_EXPANDED,
+        FoldLevel.EXHAUSTIVE,
+    }:
+        required.add("replies")
+    if _effective_level(_SECTIONS.slow_tool_calls, panel_level, fold_overrides) in {
+        FoldLevel.FULLY_EXPANDED,
+        FoldLevel.EXHAUSTIVE,
+    }:
+        required.add("slow-tool-calls")
+    if (
+        _effective_level(
+            _SECTIONS.runtime_statistics,
+            panel_level,
+            fold_overrides,
+        )
+        is FoldLevel.EXHAUSTIVE
+    ):
+        required.add("runtime-statistics")
+    return frozenset(required)
 
 
 def _append_count_chip(text: Text, counts: TribeStatusCounts) -> None:
@@ -299,6 +345,203 @@ def _append_variables(
             _append_full_body(text, entry.value, indent="    ")
 
 
+def _append_replies(
+    text: Text,
+    snapshot: TribeSectionSnapshot | None,
+    *,
+    level: FoldLevel,
+    required: frozenset[TribeEnrichmentSection],
+) -> None:
+    disk = snapshot.disk if snapshot is not None else None
+    loaded = disk is not None and "replies" in disk.loaded_sections
+    entries = disk.replies if loaded and disk is not None else ()
+    loading = (snapshot is not None and "replies" in snapshot.loading_sections) or (
+        "replies" in required and not loaded
+    )
+    _append_fold_heading(
+        text,
+        title="REPLIES",
+        section_id=_SECTIONS.replies,
+        level=level,
+        count=len(entries) if loaded else None,
+        unknown_label="loading…" if loading else "—",
+    )
+    if level in {FoldLevel.COLLAPSED, FoldLevel.EXPANDED}:
+        return
+    if not loaded:
+        _append_loading(text)
+        return
+    if not entries:
+        _append_empty(text)
+        return
+    if level is FoldLevel.FULLY_EXPANDED:
+        for item in entries[:_TRIAGE_LIMIT]:
+            _append_triage_line(
+                text,
+                _tribe_member_label(item.unit_label, item.entry.member_label),
+                item.entry.preview,
+            )
+        _append_more_tail(text, len(entries), _TRIAGE_LIMIT)
+        return
+    grouped: dict[str, list[TribeTextEntry]] = defaultdict(list)
+    for item in entries:
+        grouped[item.unit_label].append(item)
+    for unit_label, unit_entries in grouped.items():
+        text.append(f"{unit_label}\n", style=f"bold {TRIBE_IDENTITY_COLOR}")
+        by_member: dict[str, list[TribeTextEntry]] = defaultdict(list)
+        for item in unit_entries:
+            by_member[item.entry.member_label].append(item)
+        for member_label, member_entries in by_member.items():
+            text.append(f"  {member_label}\n", style="bold #D75FFF")
+            for item in member_entries:
+                text.append(f"    {item.entry.kind}\n", style="bold #87D7FF")
+                _append_full_body(text, item.entry.body, indent="      ")
+
+
+def _append_slow_tool_calls(
+    text: Text,
+    snapshot: TribeSectionSnapshot | None,
+    *,
+    level: FoldLevel,
+    required: frozenset[TribeEnrichmentSection],
+) -> None:
+    disk = snapshot.disk if snapshot is not None else None
+    loaded = disk is not None and "slow-tool-calls" in disk.loaded_sections
+    entries = disk.slow_tool_calls if loaded and disk is not None else ()
+    loading = (
+        snapshot is not None and "slow-tool-calls" in snapshot.loading_sections
+    ) or ("slow-tool-calls" in required and not loaded)
+    _append_fold_heading(
+        text,
+        title="SLOW TOOL CALLS",
+        section_id=_SECTIONS.slow_tool_calls,
+        level=level,
+        count=len(entries) if loaded else None,
+        unknown_label="loading…" if loading else "—",
+    )
+    if level in {FoldLevel.COLLAPSED, FoldLevel.EXPANDED}:
+        return
+    if not loaded:
+        _append_loading(text)
+        return
+    if not entries:
+        _append_empty(text)
+        return
+    if level is FoldLevel.FULLY_EXPANDED:
+        for item in entries[:_TRIAGE_LIMIT]:
+            _append_tribe_slow_tool_line(text, item)
+        _append_more_tail(text, len(entries), _TRIAGE_LIMIT)
+        return
+    grouped: dict[str, list[TribeSlowToolEntry]] = defaultdict(list)
+    for item in entries:
+        grouped[item.unit_label].append(item)
+    for unit_label, unit_entries in grouped.items():
+        text.append(f"{unit_label}\n", style=f"bold {TRIBE_IDENTITY_COLOR}")
+        for item in unit_entries:
+            _append_tribe_slow_tool_line(text, item, indent="  ")
+
+
+def _append_runtime_statistics(
+    text: Text,
+    snapshot: TribeSectionSnapshot | None,
+    *,
+    level: FoldLevel,
+    required: frozenset[TribeEnrichmentSection],
+) -> None:
+    if level is not FoldLevel.EXHAUSTIVE:
+        return
+    loaded = snapshot is not None and snapshot.runtime_statistics_loaded
+    loading = (
+        snapshot is not None and "runtime-statistics" in snapshot.loading_sections
+    ) or ("runtime-statistics" in required and not loaded)
+    _append_fold_heading(
+        text,
+        title="RUNTIME STATISTICS",
+        section_id=_SECTIONS.runtime_statistics,
+        level=level,
+        count=None,
+        unknown_label="loading…" if loading else None,
+    )
+    if not loaded:
+        _append_loading(text)
+        return
+    stats = snapshot.runtime_statistics if snapshot is not None else None
+    if stats is None:
+        _append_empty(text)
+        return
+    _append_runtime_statistics_body(text, stats)
+
+
+def _append_runtime_statistics_body(
+    text: Text,
+    stats: TribeRuntimeStatistics,
+) -> None:
+    text.append("Runs: ", style=_FIELD_LABEL_STYLE)
+    text.append(str(stats.runs), style="bold #87FFD7")
+    text.append(" · Share: ", style=_FIELD_LABEL_STYLE)
+    text.append(f"{stats.share:.1%}\n", style="bold #87FFD7")
+    text.append("Total: ", style=_FIELD_LABEL_STYLE)
+    text.append(format_duration(stats.total_seconds), style=_BODY_STYLE)
+    for label, value in (
+        ("Mean", stats.mean_seconds),
+        ("p50", stats.p50_seconds),
+        ("p95", stats.p95_seconds),
+        ("Max", stats.max_seconds),
+    ):
+        text.append(f" · {label}: ", style=_FIELD_LABEL_STYLE)
+        text.append(format_duration(value), style=_BODY_STYLE)
+    text.append("\n")
+
+
+def _append_tribe_slow_tool_line(
+    text: Text,
+    item: TribeSlowToolEntry,
+    *,
+    indent: str = "",
+) -> None:
+    entry = item.entry
+    call = entry.call
+    raw = call.entry
+    state = (
+        "running" if call.is_running else "incomplete" if call.did_not_complete else ""
+    )
+    text.append(f"{indent}• ", style="dim #D75FFF")
+    if not indent:
+        text.append(
+            _tribe_member_label(item.unit_label, entry.member_label),
+            style=f"bold {TRIBE_IDENTITY_COLOR}",
+        )
+        text.append(" · ", style="dim")
+    else:
+        text.append(entry.member_label, style="bold #D75FFF")
+        text.append(" · ", style="dim")
+    text.append(raw.display_tool_name, style="bold #87D7FF")
+    text.append(
+        " · " + format_long_duration(call.effective_duration_ms),
+        style="bold #FFAF5F",
+    )
+    if state:
+        text.append(f" · {state}", style="dim #FFAF87")
+    target = raw.compact_target or raw.detail
+    if target:
+        text.append(" · " + first_meaningful_line(target, max_chars=96), style="dim")
+    text.append("\n")
+
+
+def _tribe_member_label(unit_label: str, member_label: str) -> str:
+    if member_label == unit_label:
+        return unit_label
+    return f"{unit_label} › {member_label}"
+
+
+def _append_loading(text: Text) -> None:
+    text.append("  loading…\n", style="dim italic")
+
+
+def _append_empty(text: Text) -> None:
+    text.append("  —\n", style="dim")
+
+
 def _append_triage_line(
     text: Text,
     label: str,
@@ -348,6 +591,7 @@ def _append_more_tail(text: Text, total: int, shown: int) -> None:
 def build_tribe_detail_text(
     snapshot: AgentTribeSummarySnapshot,
     *,
+    section_snapshot: TribeSectionSnapshot | None = None,
     fold_level: FoldLevel = FoldLevel.COLLAPSED,
     section_fold_overrides: Mapping[str, FoldLevel] | None = None,
     member_jump_map_publisher: Callable[[MemberJumpMap], None] | None = None,
@@ -355,6 +599,7 @@ def build_tribe_detail_text(
 ) -> Text:
     """Build a fold-aware tribe document without filesystem access."""
     overrides = section_fold_overrides or {}
+    required = tribe_enrichment_sections_for_fold_state(fold_level, overrides)
     text = Text()
     _append_header(text, snapshot, fold_level)
     if cheap:
@@ -403,7 +648,33 @@ def build_tribe_detail_text(
         section_id=_SECTIONS.workflow_variables,
         level=_effective_level(_SECTIONS.workflow_variables, fold_level, overrides),
     )
+    _append_replies(
+        text,
+        section_snapshot,
+        level=_effective_level(_SECTIONS.replies, fold_level, overrides),
+        required=required,
+    )
+    _append_slow_tool_calls(
+        text,
+        section_snapshot,
+        level=_effective_level(_SECTIONS.slow_tool_calls, fold_level, overrides),
+        required=required,
+    )
+    _append_runtime_statistics(
+        text,
+        section_snapshot,
+        level=_effective_level(
+            _SECTIONS.runtime_statistics,
+            fold_level,
+            overrides,
+        ),
+        required=required,
+    )
     return text
 
 
-__all__ = ["TRIBE_IDENTITY_COLOR", "build_tribe_detail_text"]
+__all__ = [
+    "TRIBE_IDENTITY_COLOR",
+    "build_tribe_detail_text",
+    "tribe_enrichment_sections_for_fold_state",
+]

@@ -11,6 +11,11 @@ from sase.ace.tui.models.agent_tribe_summary import (
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._agent_display_tribe import (
     build_tribe_detail_text,
+    tribe_enrichment_sections_for_fold_state,
+)
+from sase.ace.tui.widgets.prompt_panel._agent_tribe_aggregation import (
+    TribeRuntimeStatistics,
+    TribeSectionSnapshot,
 )
 from sase.ace.tui.widgets.prompt_panel._member_roster import MemberJumpMap
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
@@ -166,6 +171,8 @@ def test_tribe_section_overrides_are_scoped_and_publish_anchors() -> None:
         "tribe:errors",
         "tribe:output-variables",
         "tribe:workflow-variables",
+        "tribe:replies",
+        "tribe:slow-tool-calls",
     ]
 
 
@@ -179,3 +186,79 @@ def test_cheap_tribe_paint_is_header_only() -> None:
     assert "Fold: 4/4" in detail
     assert "NEEDS ATTENTION" not in detail
     assert "TRIBE MEMBERS" not in detail
+
+
+def test_pulse_and_roster_do_not_request_disk_or_statistics() -> None:
+    assert tribe_enrichment_sections_for_fold_state(FoldLevel.COLLAPSED) == frozenset()
+    assert tribe_enrichment_sections_for_fold_state(FoldLevel.EXPANDED) == frozenset()
+    assert tribe_enrichment_sections_for_fold_state(
+        FoldLevel.FULLY_EXPANDED
+    ) == frozenset({"replies", "slow-tool-calls"})
+    assert tribe_enrichment_sections_for_fold_state(FoldLevel.EXHAUSTIVE) == frozenset(
+        {"replies", "slow-tool-calls", "runtime-statistics"}
+    )
+
+
+def test_members_render_loading_states_without_render_path_io() -> None:
+    snapshot = _snapshot()
+    sections = TribeSectionSnapshot(
+        panel_identity=snapshot.container_identity,
+        source_signature=(),
+        loading_sections=frozenset({"replies", "slow-tool-calls"}),
+    )
+
+    pulse = build_tribe_detail_text(
+        snapshot,
+        section_snapshot=sections,
+        fold_level=FoldLevel.COLLAPSED,
+    ).plain
+    members = build_tribe_detail_text(
+        snapshot,
+        section_snapshot=sections,
+        fold_level=FoldLevel.FULLY_EXPANDED,
+    ).plain
+
+    assert "▸ REPLIES · loading…" in pulse
+    assert "▸ SLOW TOOL CALLS · loading…" in pulse
+    assert "▼ REPLIES · loading…\n  loading…" in members
+    assert "▼ SLOW TOOL CALLS · loading…\n  loading…" in members
+
+
+def test_forensics_runtime_statistics_render_values_and_no_runs_dash() -> None:
+    snapshot = _snapshot()
+    populated = TribeSectionSnapshot(
+        panel_identity=snapshot.container_identity,
+        source_signature=(),
+        runtime_statistics_loaded=True,
+        runtime_statistics=TribeRuntimeStatistics(
+            runs=4,
+            total_seconds=600.0,
+            mean_seconds=150.0,
+            p50_seconds=120.0,
+            p95_seconds=260.0,
+            max_seconds=300.0,
+            share=0.25,
+        ),
+    )
+    empty = TribeSectionSnapshot(
+        panel_identity=snapshot.container_identity,
+        source_signature=(),
+        runtime_statistics_loaded=True,
+    )
+
+    rendered = build_tribe_detail_text(
+        snapshot,
+        section_snapshot=populated,
+        fold_level=FoldLevel.EXHAUSTIVE,
+    ).plain
+    no_runs = build_tribe_detail_text(
+        snapshot,
+        section_snapshot=empty,
+        fold_level=FoldLevel.EXHAUSTIVE,
+    ).plain
+
+    assert "◆ RUNTIME STATISTICS" in rendered
+    assert "Runs: 4 · Share: 25.0%" in rendered
+    assert "Total: 10m00s · Mean: 2m30s · p50: 2m00s" in rendered
+    assert "p95: 4m20s · Max: 5m00s" in rendered
+    assert "◆ RUNTIME STATISTICS\n  —" in no_runs

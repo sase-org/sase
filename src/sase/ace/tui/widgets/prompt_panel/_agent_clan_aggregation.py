@@ -255,14 +255,41 @@ def build_clan_disk_snapshot(
     slow_tool_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
 ) -> ClanDiskSnapshot:
     """Load and aggregate requested disk sections; call only off-thread."""
-    requested = frozenset(sections)
     rows = clan_section_member_rows(agent)
     label_by_identity = {member.identity: member.label for member in in_memory.members}
+    return build_agent_group_disk_snapshot(
+        widget,
+        rows,
+        labels=label_by_identity,
+        sections=sections,
+        in_memory=in_memory,
+        now=now,
+        slow_tool_threshold_ms=slow_tool_threshold_ms,
+    )
+
+
+def build_agent_group_disk_snapshot(
+    widget: object,
+    rows: Collection[Agent],
+    *,
+    labels: dict[ClanAgentIdentity, str],
+    sections: Collection[ClanDiskSection],
+    in_memory: ClanInMemorySnapshot | None = None,
+    now: datetime | None = None,
+    slow_tool_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
+) -> ClanDiskSnapshot:
+    """Load disk sections for an arbitrary ordered group of real rows.
+
+    This is the shared worker-only primitive used by clan and tribe
+    enrichment.  It deliberately retains the clan snapshot vocabulary so
+    every caller shares the same mtime-keyed per-member content cache.
+    """
+    requested = frozenset(sections)
     member_cache = _clan_disk_content_cache(widget)
     members = tuple(
         member_cache.load(
             row,
-            member_label=label_by_identity.get(row.identity, row.display_name),
+            member_label=labels.get(row.identity, row.display_name),
             sections=requested,
         )
         for row in rows
@@ -282,7 +309,7 @@ def build_clan_disk_snapshot(
     )
     context_lanes = (
         _aggregate_clan_context_lanes(in_memory, members)
-        if "context" in loaded_sections
+        if "context" in loaded_sections and in_memory is not None
         else ()
     )
     slow_tool_calls = (
@@ -769,6 +796,7 @@ def _path_key(path: str) -> str:
 
 
 __all__ = [
+    "build_agent_group_disk_snapshot",
     "build_clan_disk_snapshot",
     "cache_clan_disk_snapshot",
     "clear_clan_snapshot_loading",

@@ -24,9 +24,14 @@ from ._agent_display_clan import (
     clan_disk_sections_for_fold_state,
     panel_fold_state_from_widget,
 )
+from ._agent_display_tribe import tribe_enrichment_sections_for_fold_state
 from ._agent_display_header import build_header_text
 from ._agent_display_render import AgentDisplayRenderMixin
 from ._member_roster import member_jump_map_publisher_for
+from ._agent_tribe_aggregation import (
+    get_cached_tribe_section_snapshot,
+    prepare_tribe_section_snapshot,
+)
 
 _find_attempt = find_attempt
 _render_attempt_banner = render_attempt_banner
@@ -44,6 +49,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             agent: The Agent to display.
         """
         with tui_trace("widget.prompt_panel.update_display"):
+            self._cancel_tribe_section_worker_for_agent_selection()
             self._cancel_clan_section_worker_for_selection_change(agent)
             if agent.is_clan_container:
                 prepare_clan_section_snapshot(self, agent)
@@ -109,11 +115,22 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 app = self.app  # type: ignore[attr-defined]
             except Exception:
                 app = None
+            agents_resolver = getattr(app, "_agents_in_focused_panel", None)
+            if callable(agents_resolver):
+                prepare_tribe_section_snapshot(
+                    self,
+                    snapshot,
+                    agents_resolver(),
+                )
             from ._agent_display_tribe import build_tribe_detail_text
 
             self.update(  # type: ignore[attr-defined]
                 build_tribe_detail_text(
                     snapshot,
+                    section_snapshot=get_cached_tribe_section_snapshot(
+                        self,
+                        snapshot.container_identity,
+                    ),
                     fold_level=fold_level,
                     section_fold_overrides=fold_overrides,
                     member_jump_map_publisher=(
@@ -122,6 +139,19 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                     cheap=cheap,
                 )
             )
+            if not cheap:
+                required = tribe_enrichment_sections_for_fold_state(
+                    fold_level,
+                    fold_overrides,
+                )
+                if required:
+                    self.start_tribe_section_enrichment(
+                        snapshot.container_identity,
+                        sections=required,
+                        slow_tool_threshold_ms=slow_tool_call_threshold_ms_from_widget(
+                            self
+                        ),
+                    )
 
     def refresh_slow_tool_metadata_from_cache(self, agent: Agent) -> None:
         """Re-render from cached header/tool data for the slow-tool tick."""
@@ -152,6 +182,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
         prompt body, reply, tools, and file content shortly after.
         """
         with tui_trace("widget.prompt_panel.update_header_only"):
+            self._cancel_tribe_section_worker_for_agent_selection()
             self._cancel_clan_section_worker_for_selection_change(agent)
             if agent.is_clan_container:
                 prepare_clan_section_snapshot(self, agent)

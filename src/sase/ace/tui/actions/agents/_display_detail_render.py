@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from ...widgets.prompt_panel._messages import (
     AgentDetailHeaderEnriched,
     ClanSectionSnapshotLoaded,
+    TribeSectionSnapshotLoaded,
 )
 from ._display_helpers import TabName
 
@@ -273,6 +274,20 @@ class AgentDetailRenderMixin:
             current_agent is None
             or not current_agent.is_clan_container
             or current_agent.identity != message.agent_identity
+        ):
+            return
+        self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+        message.stop()
+
+    def on_tribe_section_snapshot_loaded(
+        self,
+        message: TribeSectionSnapshotLoaded,
+    ) -> None:
+        """Debounce repaint only while the enriched tribe remains focused."""
+        focus = self._focused_tribe_panel_context()
+        if (
+            focus is None
+            or getattr(focus, "container_identity", None) != message.panel_identity
         ):
             return
         self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
