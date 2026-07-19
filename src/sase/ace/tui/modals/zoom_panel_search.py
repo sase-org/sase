@@ -1,9 +1,8 @@
-"""Vim-style search overlay for the Agents-tab zoom panel modal."""
+"""Zoom-panel adapter for the shared Vim-style search controller."""
 
 from __future__ import annotations
 
-from bisect import bisect_right
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
 from textual.containers import VerticalScroll
@@ -14,12 +13,19 @@ from sase.ace.tui.widgets._vim_search import (
     SearchDirection,
     SearchSelection,
     SearchSpan,
-    find_search_matches,
-    select_search_match,
 )
-from sase.ace.tui.widgets.search_command_line import render_search_command_line
+from sase.ace.tui.widgets.renderable_text import renderable_to_text
+from sase.ace.tui.widgets.vim_search_controller import (
+    SearchViewport,
+    VimSearchController,
+    VimSearchMode,
+    invert_search_direction,
+    line_start_offsets as _line_start_offsets,
+    offset_for_row as _offset_for_row,
+    offset_to_row_col as _offset_to_row_col,
+    wrap_feedback_message,
+)
 
-from .zoom_panel_rendering import renderable_to_text
 from .zoom_panel_navigation import zoom_target_view_selector
 from .zoom_panel_types import _TARGET_ORDER, ZoomPanelTarget
 from .zoom_panel_widgets import ZoomFilePanel, ZoomToolsPanel
@@ -30,11 +36,8 @@ else:
     _MixinBase = object
 
 
-ZoomSearchMode = Literal["off", "typing", "committed"]
+ZoomSearchMode = VimSearchMode
 
-_MATCH_STYLE = "on #585858"
-_CURRENT_MATCH_STYLE = "bold black on #FFD787"
-_SCROLL_CONTEXT_ROWS = 3
 _STRUCTURAL_SEARCH_EXIT_KEYS = {
     "right_square_bracket",
     "left_square_bracket",
@@ -53,36 +56,8 @@ _STRUCTURAL_SEARCH_EXIT_KEYS = {
 }
 
 
-def _line_start_offsets(text: str) -> tuple[int, ...]:
-    """Return absolute offsets for the first character of every logical line."""
-    starts = [0]
-    starts.extend(index + 1 for index, char in enumerate(text) if char == "\n")
-    return tuple(starts)
-
-
-def _offset_to_row_col(
-    line_starts: tuple[int, ...],
-    offset: int,
-) -> tuple[int, int]:
-    """Map an absolute offset to ``(row, column)`` within ``line_starts``."""
-    if not line_starts:
-        return (0, 0)
-    clamped = max(0, offset)
-    row = max(0, bisect_right(line_starts, clamped) - 1)
-    row = min(row, len(line_starts) - 1)
-    return (row, clamped - line_starts[row])
-
-
-def _offset_for_row(line_starts: tuple[int, ...], row: int) -> int:
-    """Return the absolute offset for the start of ``row``."""
-    if not line_starts:
-        return 0
-    clamped_row = min(max(0, row), len(line_starts) - 1)
-    return line_starts[clamped_row]
-
-
 class ZoomSearchMixin(_MixinBase):
-    """Incremental Vim-style search for ``ZoomPanelModal``."""
+    """Re-host shared incremental Vim search inside ``ZoomPanelModal``."""
 
     if TYPE_CHECKING:
         _target: ZoomPanelTarget
@@ -93,23 +68,68 @@ class ZoomSearchMixin(_MixinBase):
         def _show_target(self, target: ZoomPanelTarget) -> None: ...
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        self._zoom_search_mode: ZoomSearchMode = "off"
-        self._zoom_search_direction: SearchDirection = "forward"
-        self._zoom_search_query = ""
-        self._zoom_search_corpus = ""
-        self._zoom_search_line_starts: tuple[int, ...] = (0,)
-        self._zoom_search_match_spans: tuple[SearchSpan, ...] = ()
-        self._zoom_search_current_selection: SearchSelection | None = None
-        self._zoom_search_origin_offset = 0
-        self._zoom_search_restore_scroll_x = 0
-        self._zoom_search_restore_scroll_y = 0
-        self._last_zoom_search: tuple[str, SearchDirection] | None = None
+        self._zoom_search = VimSearchController(self)
         self._zoom_search_refresh_paused = False
         super().__init__(*args, **kwargs)
 
+    @property
+    def _zoom_search_mode(self) -> VimSearchMode:
+        """Compatibility view of the controller's current mode."""
+        return self._zoom_search.mode
+
+    @property
+    def _zoom_search_direction(self) -> SearchDirection:
+        """Compatibility view of the controller's search direction."""
+        return self._zoom_search.direction
+
+    @property
+    def _zoom_search_query(self) -> str:
+        """Compatibility view of the controller's editable query."""
+        return self._zoom_search.query
+
+    @property
+    def _zoom_search_corpus(self) -> str:
+        """Compatibility view of the controller's immutable corpus."""
+        return self._zoom_search.corpus
+
+    @property
+    def _zoom_search_line_starts(self) -> tuple[int, ...]:
+        """Compatibility view of logical-line offsets in the corpus."""
+        return self._zoom_search.line_starts
+
+    @property
+    def _zoom_search_match_spans(self) -> tuple[SearchSpan, ...]:
+        """Compatibility view of all current match spans."""
+        return self._zoom_search.match_spans
+
+    @property
+    def _zoom_search_current_selection(self) -> SearchSelection | None:
+        """Compatibility view of the controller's current match."""
+        return self._zoom_search.current_selection
+
+    @property
+    def _zoom_search_origin_offset(self) -> int:
+        """Compatibility view of the incremental-search origin."""
+        return self._zoom_search.origin_offset
+
+    @property
+    def _zoom_search_restore_scroll_x(self) -> int:
+        """Compatibility view of the native horizontal restore offset."""
+        return self._zoom_search.restore_scroll_x
+
+    @property
+    def _zoom_search_restore_scroll_y(self) -> int:
+        """Compatibility view of the native vertical restore offset."""
+        return self._zoom_search.restore_scroll_y
+
+    @property
+    def _last_zoom_search(self) -> tuple[str, SearchDirection] | None:
+        """Compatibility view of the last committed search."""
+        return self._zoom_search.last_search
+
     def _is_zoom_search_active(self) -> bool:
         """Return whether the zoom search overlay currently owns the view."""
-        return self._zoom_search_mode != "off"
+        return self._zoom_search.is_active
 
     def _is_zoom_search_overlay_visible(self) -> bool:
         """Return whether the search scroll should be the active scroll."""
@@ -118,137 +138,19 @@ class ZoomSearchMixin(_MixinBase):
     def _handle_zoom_search_key(self, event: Key) -> bool:
         """Handle a key before modal bindings run.
 
-        Returns ``True`` when the key is consumed. Structural keys in committed
-        search return ``False`` after tearing down search so the normal binding
-        can still execute.
+        Structural keys in committed search tear down the controller and pass
+        through so the normal zoom-modal binding can still execute.
         """
-        if self._zoom_search_mode == "typing":
-            return self._handle_zoom_search_typing_key(event)
-
-        if self._zoom_search_mode == "committed":
-            if event.key == "escape":
-                self._exit_zoom_search(
-                    restore_scroll=True,
-                    restore_from_current_overlay=True,
-                    refresh=True,
-                )
-                return True
-            if event.key == "n":
-                self._repeat_zoom_search(reverse=False)
-                return True
-            if event.key == "N":
-                self._repeat_zoom_search(reverse=True)
-                return True
-            if event.key == "slash":
-                self._start_zoom_search("forward")
-                return True
-            if event.key == "question_mark":
-                self._start_zoom_search("reverse")
-                return True
-            if event.key in _STRUCTURAL_SEARCH_EXIT_KEYS:
-                self._exit_zoom_search(restore_scroll=False, refresh=False)
-                return False
-
-        if event.key == "slash":
-            self._start_zoom_search("forward")
-            return True
-        if event.key == "question_mark":
-            self._start_zoom_search("reverse")
-            return True
-        return False
+        disposition = self._zoom_search.handle_key(
+            event.key,
+            event.character,
+            passthrough_exit_keys=_STRUCTURAL_SEARCH_EXIT_KEYS,
+        )
+        return disposition == "consumed"
 
     def _start_zoom_search(self, direction: SearchDirection) -> None:
-        """Open an incremental search over the active panel's text."""
-        corpus = self._zoom_searchable_text()
-        if not corpus:
-            self.notify("Nothing to search", severity="information")
-            return
-
-        origin_scroll = self._active_scroll()
-        self._zoom_search_restore_scroll_x = int(origin_scroll.scroll_x)
-        self._zoom_search_restore_scroll_y = int(origin_scroll.scroll_y)
-        self._zoom_search_line_starts = _line_start_offsets(corpus)
-        self._zoom_search_origin_offset = _offset_for_row(
-            self._zoom_search_line_starts,
-            self._zoom_search_restore_scroll_y,
-        )
-        self._zoom_search_corpus = corpus
-        self._zoom_search_direction = direction
-        self._zoom_search_query = ""
-        self._zoom_search_match_spans = ()
-        self._zoom_search_current_selection = None
-        self._zoom_search_mode = "typing"
-
-        self._pause_zoom_search_refresh()
-        self._show_zoom_search_overlay()
-        self._render_zoom_search_overlay()
-        self._render_zoom_search_command_line()
-        self.call_after_refresh(self._focus_zoom_search_scroll)
-
-    def _handle_zoom_search_typing_key(self, event: Key) -> bool:
-        """Handle all keys while the search command line is being edited."""
-        if event.key in {"escape", "ctrl+c"}:
-            self._cancel_zoom_search()
-            return True
-        if event.key == "enter":
-            self._confirm_zoom_search()
-            return True
-        if event.key in {"backspace", "ctrl+h"}:
-            if self._zoom_search_query:
-                self._zoom_search_query = self._zoom_search_query[:-1]
-                self._update_zoom_search_preview()
-            return True
-
-        char = event.character
-        if char is not None and len(char) == 1 and event.key != "tab":
-            self._zoom_search_query += char
-            self._update_zoom_search_preview()
-            return True
-
-        return True
-
-    def _update_zoom_search_preview(self) -> None:
-        """Refresh matches, highlights, count display, and preview scroll."""
-        query = self._zoom_search_query
-        if not query:
-            self._zoom_search_match_spans = ()
-            self._zoom_search_current_selection = None
-            self._render_zoom_search_overlay()
-            self._render_zoom_search_command_line()
-            self._scroll_zoom_search_to_origin()
-            return
-
-        spans = find_search_matches(self._zoom_search_corpus, query)
-        selection = select_search_match(
-            spans,
-            self._zoom_search_origin_offset,
-            self._zoom_search_direction,
-            include_origin=True,
-        )
-        self._zoom_search_match_spans = spans
-        self._zoom_search_current_selection = selection
-        self._render_zoom_search_overlay()
-        self._render_zoom_search_command_line()
-        if selection is None:
-            self._scroll_zoom_search_to_origin()
-        else:
-            self._scroll_zoom_search_to_selection(selection)
-
-    def _confirm_zoom_search(self) -> None:
-        """Commit search highlights and keep the overlay open for ``n``/``N``."""
-        if not self._zoom_search_query or self._zoom_search_current_selection is None:
-            self._exit_zoom_search(restore_scroll=True, refresh=True)
-            return
-        self._last_zoom_search = (
-            self._zoom_search_query,
-            self._zoom_search_direction,
-        )
-        self._zoom_search_mode = "committed"
-        self._render_zoom_search_command_line()
-
-    def _cancel_zoom_search(self) -> None:
-        """Cancel incremental search and restore the pre-search native view."""
-        self._exit_zoom_search(restore_scroll=True, refresh=True)
+        """Open incremental search over the active zoom panel."""
+        self._zoom_search.start(direction)
 
     def _exit_zoom_search(
         self,
@@ -257,86 +159,23 @@ class ZoomSearchMixin(_MixinBase):
         refresh: bool,
         restore_from_current_overlay: bool = False,
     ) -> None:
-        """Tear down search and optionally restore a native-panel scroll offset."""
-        if not self._is_zoom_search_active():
-            return
-
-        restore_x = self._zoom_search_restore_scroll_x
-        restore_y = self._zoom_search_restore_scroll_y
-        if restore_from_current_overlay:
-            search_scroll = self.query_one("#zoom-search-scroll", VerticalScroll)
-            restore_x = int(search_scroll.scroll_x)
-            restore_y = int(search_scroll.scroll_y)
-
-        self._zoom_search_mode = "off"
-        self._zoom_search_query = ""
-        self._zoom_search_match_spans = ()
-        self._zoom_search_current_selection = None
-        self._hide_zoom_search_overlay()
-        self._resume_zoom_search_refresh(force_refresh=refresh)
-        if restore_scroll:
-            target = self._target
-
-            def restore() -> None:
-                self._restore_zoom_native_scroll(target, restore_x, restore_y)
-
-            self.call_after_refresh(restore)
-        else:
-            self.call_after_refresh(self._focus_native_zoom_scroll)
+        """Tear down zoom search and optionally restore the native scroll."""
+        self._zoom_search.exit(
+            restore_scroll=restore_scroll,
+            refresh=refresh,
+            restore_from_current_overlay=restore_from_current_overlay,
+        )
 
     def _repeat_zoom_search(self, *, reverse: bool = False) -> None:
         """Move to the next or previous committed match."""
-        if self._last_zoom_search is None:
-            self._show_zoom_search_feedback("no previous search")
-            return
-
-        query, recorded_direction = self._last_zoom_search
-        direction = (
-            self._invert_search_direction(recorded_direction)
-            if reverse
-            else recorded_direction
-        )
-        origin = self._current_zoom_search_origin()
-        spans = find_search_matches(self._zoom_search_corpus, query)
-        selection = select_search_match(
-            spans,
-            origin,
-            direction,
-            include_origin=False,
-        )
-        if selection is None:
-            self._zoom_search_match_spans = ()
-            self._zoom_search_current_selection = None
-            self._render_zoom_search_overlay()
-            self._render_zoom_search_command_line()
-            self._show_zoom_search_feedback("pattern not found")
-            return
-
-        self._zoom_search_query = query
-        self._zoom_search_direction = recorded_direction
-        self._zoom_search_match_spans = spans
-        self._zoom_search_current_selection = selection
-        self._render_zoom_search_overlay()
-        self._render_zoom_search_command_line()
-        self._scroll_zoom_search_to_selection(selection)
-        if selection.wrapped:
-            self._show_zoom_search_feedback(self._wrap_feedback_message(direction))
-
-    def _current_zoom_search_origin(self) -> int:
-        """Return the absolute offset of the current match or viewport top."""
-        selection = self._zoom_search_current_selection
-        if selection is not None and 0 <= selection.index < len(
-            self._zoom_search_match_spans
-        ):
-            start, _end = self._zoom_search_match_spans[selection.index]
-            return start
-        search_scroll = self.query_one("#zoom-search-scroll", VerticalScroll)
-        return _offset_for_row(
-            self._zoom_search_line_starts, int(search_scroll.scroll_y)
-        )
+        self._zoom_search.repeat(reverse=reverse)
 
     def _zoom_searchable_text(self) -> str:
         """Extract text that can be highlighted inside the search overlay."""
+        return self.vim_search_corpus()
+
+    def vim_search_corpus(self) -> str:
+        """Return searchable text for the active zoom target."""
         if self._target == ZoomPanelTarget.FILE:
             file_panel = self.query_one("#zoom-file-panel", ZoomFilePanel)
             content = file_panel.get_current_content()
@@ -353,8 +192,31 @@ class ZoomSearchMixin(_MixinBase):
         active_panel = self.query_one(f"#zoom-{self._target.value}-panel", Static)
         return renderable_to_text(getattr(active_panel, "content", None)) or ""
 
-    def _show_zoom_search_overlay(self) -> None:
-        """Hide native scrolls and reveal the search-owned scroll."""
+    def vim_search_origin_scroll(self) -> tuple[int, int]:
+        """Return the active zoom view's current scroll position."""
+        origin_scroll = self._active_scroll()
+        return (int(origin_scroll.scroll_x), int(origin_scroll.scroll_y))
+
+    def vim_search_overlay_viewport(self) -> SearchViewport:
+        """Return the zoom search overlay's scroll and viewport geometry."""
+        scroll = self.query_one("#zoom-search-scroll", VerticalScroll)
+        return SearchViewport(
+            scroll_x=int(scroll.scroll_x),
+            scroll_y=int(scroll.scroll_y),
+            width=scroll.scrollable_content_region.width,
+            height=scroll.scrollable_content_region.height,
+        )
+
+    def vim_search_started(self) -> None:
+        """Pause modal-local refresh while the frozen overlay is active."""
+        self._pause_zoom_search_refresh()
+
+    def vim_search_exited(self, *, refresh: bool) -> None:
+        """Resume modal-local refresh after the overlay is hidden."""
+        self._resume_zoom_search_refresh(force_refresh=refresh)
+
+    def vim_search_show_overlay(self) -> None:
+        """Hide native zoom scrolls and reveal the search-owned scroll."""
         subtitle = ""
         try:
             native_scroll = self.query_one(
@@ -373,10 +235,9 @@ class ZoomSearchMixin(_MixinBase):
         command.border_title = "search"
         command.remove_class("hidden")
 
-    def _hide_zoom_search_overlay(self) -> None:
+    def vim_search_hide_overlay(self) -> None:
         """Hide the search overlay and restore the native active panel."""
-        search_panel = self.query_one("#zoom-search-panel", Static)
-        search_panel.update("")
+        self.query_one("#zoom-search-panel", Static).update("")
         self.query_one("#zoom-search-scroll", VerticalScroll).add_class("hidden")
         command = self.query_one("#zoom-search-command", Static)
         command.update("")
@@ -385,74 +246,59 @@ class ZoomSearchMixin(_MixinBase):
         command.add_class("hidden")
         self._show_target(self._target)
 
-    def _render_zoom_search_overlay(self) -> None:
-        """Paint the search corpus with all-match and current-match highlights."""
-        body = Text(self._zoom_search_corpus, no_wrap=True, overflow="crop")
-        for start, end in self._zoom_search_match_spans:
-            if end > start:
-                body.stylize(_MATCH_STYLE, start, end)
-        selection = self._zoom_search_current_selection
-        if selection is not None and 0 <= selection.index < len(
-            self._zoom_search_match_spans
-        ):
-            start, end = self._zoom_search_match_spans[selection.index]
-            if end > start:
-                body.stylize(_CURRENT_MATCH_STYLE, start, end)
-        self.query_one("#zoom-search-panel", Static).update(body)
+    def vim_search_paint_overlay(self, content: Text) -> None:
+        """Paint controller-rendered content into the zoom overlay."""
+        self.query_one("#zoom-search-panel", Static).update(content)
 
-    def _render_zoom_search_command_line(self) -> None:
+    def vim_search_command_width(self) -> int:
+        """Return usable width inside the zoom search command border."""
+        command = self.query_one("#zoom-search-command", Static)
+        return max(0, int(getattr(command.size, "width", 0)) - 4)
+
+    def vim_search_paint_command_line(
+        self,
+        content: Text,
+        mode: VimSearchMode,
+    ) -> None:
+        """Paint controller-rendered command content with zoom-specific hints."""
         command = self.query_one("#zoom-search-command", Static)
         command.border_title = "search"
-        if self._zoom_search_mode == "typing":
+        if mode == "typing":
             command.border_subtitle = "[enter] accept  [esc/^c] cancel"
         else:
             command.border_subtitle = "[n/N] next/prev  [esc] close search"
-        selection = self._zoom_search_current_selection
-        width = max(0, int(getattr(command.size, "width", 0)) - 4)
-        command.update(
-            render_search_command_line(
-                direction=self._zoom_search_direction,
-                query=self._zoom_search_query,
-                current_index=selection.index if selection is not None else None,
-                total=len(self._zoom_search_match_spans),
-                width=width,
-            )
-        )
+        command.update(content)
         command.remove_class("hidden")
 
-    def _scroll_zoom_search_to_origin(self) -> None:
-        scroll = self.query_one("#zoom-search-scroll", VerticalScroll)
-        row, _col = _offset_to_row_col(
-            self._zoom_search_line_starts,
-            self._zoom_search_origin_offset,
-        )
-        scroll.scroll_to(
-            x=self._zoom_search_restore_scroll_x,
-            y=row,
+    def vim_search_scroll_overlay(self, *, x: int, y: int) -> None:
+        """Scroll the zoom search overlay immediately."""
+        self.query_one("#zoom-search-scroll", VerticalScroll).scroll_to(
+            x=x,
+            y=y,
             animate=False,
             immediate=True,
         )
 
-    def _scroll_zoom_search_to_selection(self, selection: SearchSelection) -> None:
-        if not (0 <= selection.index < len(self._zoom_search_match_spans)):
-            return
-        start, _end = self._zoom_search_match_spans[selection.index]
-        row, column = _offset_to_row_col(self._zoom_search_line_starts, start)
-        scroll = self.query_one("#zoom-search-scroll", VerticalScroll)
-        viewport_height = max(1, scroll.scrollable_content_region.height)
-        viewport_width = max(1, scroll.scrollable_content_region.width)
-        current_y = int(scroll.scroll_y)
-        current_x = int(scroll.scroll_x)
+    def vim_search_restore_scroll(self, *, x: int, y: int) -> None:
+        """Restore the current native zoom target after the next refresh."""
+        target = self._target
 
-        target_y = current_y
-        if row < current_y + 1 or row >= current_y + viewport_height - 1:
-            target_y = max(0, row - _SCROLL_CONTEXT_ROWS)
+        def restore() -> None:
+            self._restore_zoom_native_scroll(target, x, y)
 
-        target_x = current_x
-        if column < current_x or column >= current_x + viewport_width - 4:
-            target_x = max(0, column - 4)
+        self.call_after_refresh(restore)
 
-        scroll.scroll_to(x=target_x, y=target_y, animate=False, immediate=True)
+    def vim_search_focus_overlay(self) -> None:
+        """Focus the overlay after it becomes visible."""
+        self.call_after_refresh(self._focus_zoom_search_scroll)
+
+    def vim_search_focus_native(self) -> None:
+        """Focus the native zoom scroll after the overlay is hidden."""
+        self.call_after_refresh(self._focus_native_zoom_scroll)
+
+    def vim_search_notify(self, message: str) -> None:
+        """Surface non-blocking zoom-search feedback."""
+        self.notify(message, severity="information")
 
     def _restore_zoom_native_scroll(
         self,
@@ -502,15 +348,22 @@ class ZoomSearchMixin(_MixinBase):
     @staticmethod
     def _invert_search_direction(direction: SearchDirection) -> SearchDirection:
         """Return the opposite search direction."""
-        return "reverse" if direction == "forward" else "forward"
+        return invert_search_direction(direction)
 
     @staticmethod
     def _wrap_feedback_message(direction: SearchDirection) -> str:
-        """Return Vim-style wrap feedback for *direction*."""
-        if direction == "forward":
-            return "search hit BOTTOM, continuing at TOP"
-        return "search hit TOP, continuing at BOTTOM"
+        """Return Vim-style wrap feedback for ``direction``."""
+        return wrap_feedback_message(direction)
 
     def _show_zoom_search_feedback(self, message: str) -> None:
         """Surface non-blocking zoom-search feedback."""
-        self.notify(message, severity="information")
+        self.vim_search_notify(message)
+
+
+__all__ = [
+    "ZoomSearchMixin",
+    "ZoomSearchMode",
+    "_line_start_offsets",
+    "_offset_for_row",
+    "_offset_to_row_col",
+]

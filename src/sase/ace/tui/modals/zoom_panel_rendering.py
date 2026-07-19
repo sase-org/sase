@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from io import StringIO
 from typing import TYPE_CHECKING
 
-from rich.console import Console
 from rich.text import Text
 
 from sase.agent.status_buckets import (
@@ -21,6 +19,7 @@ from sase.agent.status_buckets import (
 )
 
 from ..models.agent_status import STOPPED_COLOR, STOPPED_GLYPH, STOPPED_STATUS
+from ..widgets.renderable_text import renderable_to_text
 
 if TYPE_CHECKING:
     from ..models import Agent
@@ -72,15 +71,6 @@ def status_text(status: str) -> Text:
     else:
         icon = "▶" if status in ACTIVE_STATUSES else "●"
     return Text(f"{icon} {status}", style=style)
-
-
-def renderable_to_text(renderable: object) -> str | None:
-    if renderable is None:
-        return None
-    console = Console(record=True, width=120, color_system=None, file=StringIO())
-    console.print(renderable)
-    text = console.export_text(clear=True).rstrip()
-    return text or None
 
 
 __all__ = [

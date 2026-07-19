@@ -14,7 +14,8 @@ from sase.core.paths import get_sase_tmpdir
 
 from ..actions.clipboard import copy_to_system_clipboard
 from ..widgets.prompt_panel import AgentPromptPanel
-from .zoom_panel_rendering import ACTIVE_STATUSES, renderable_to_text
+from ..widgets.renderable_text import renderable_to_text
+from .zoom_panel_rendering import ACTIVE_STATUSES
 from .zoom_panel_types import ZoomPanelTarget
 from .zoom_panel_widgets import ZoomFilePanel, ZoomToolsPanel
 

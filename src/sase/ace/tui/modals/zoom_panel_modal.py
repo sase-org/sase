@@ -20,6 +20,7 @@ from ..widgets.file_panel import (
     FileVisibilityChanged,
 )
 from ..widgets.prompt_panel import AgentPromptPanel
+from ..widgets.renderable_text import renderable_to_text
 from ..widgets.tools_panel import ToolsVisibilityChanged
 from .zoom_panel_content import (
     action_copy_zoom_content,
@@ -65,7 +66,7 @@ from .zoom_panel_navigation import (
     show_target,
     try_reveal_undo,
 )
-from .zoom_panel_rendering import agent_label, renderable_to_text, status_text
+from .zoom_panel_rendering import agent_label, status_text
 from .zoom_panel_search import ZoomSearchMixin
 from .zoom_panel_types import ZoomPanelSeed, ZoomPanelTarget
 from .zoom_panel_widgets import ZoomFilePanel, ZoomFileRail, ZoomToolsPanel
