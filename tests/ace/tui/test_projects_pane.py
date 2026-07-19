@@ -9,6 +9,8 @@ forwarding (``[`` / ``]`` cycle the project/repo/workspace sub-tabs while ``tab`
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 from textual.widgets import ContentSwitcher, OptionList
 
@@ -19,6 +21,8 @@ from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.project_inventory_panes import RepoInventoryPane
 from sase.ace.tui.modals.projects_pane import ProjectsPane
 from sase.ace.tui.modals.projects_pane import ProjectCountsLoadResult
+from sase.ace.tui.models._agent_tree import project_clan_tree
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from sase.repo_inventory import RepoInventory
 from sase.workspace_provider.inventory import WorkspaceInventory
@@ -102,6 +106,56 @@ async def test_admin_center_reaches_projects_tab_from_config(
         await page.wait_for(lambda _s: modal._active_tab == "statistics")
         assert switcher.current == "statistics"
         assert page.app.current_tab == "changespecs"
+
+
+@pytest.mark.parametrize("pending_digit", [None, "1"])
+async def test_admin_center_digit_owns_hidden_member_jump_state(
+    monkeypatch: pytest.MonkeyPatch,
+    pending_digit: str | None,
+) -> None:
+    _patch_panes(monkeypatch)
+    members = [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="jump-test",
+            project_file="/repos/demo/project.sase",
+            status="RUNNING",
+            start_time=datetime(2026, 7, 19, 12, 0, 0),
+            raw_suffix=f"ts-member-{index}",
+            agent_name=f"member-{index}",
+            agent_clan="research",
+        )
+        for index in range(2)
+    ]
+    projected = project_clan_tree(members)
+    container = projected[0]
+    assert container.is_clan_container
+
+    async with AcePage(initial_tab="agents") as page:
+        page.app._agents = projected
+        page.app.current_idx = 0
+        page.app._current_group_key = None
+        page.app._member_jump_pending_digit = pending_digit
+        page.app._member_jump_pending_container_identity = (
+            container.identity if pending_digit is not None else None
+        )
+        footer_refreshes: list[bool] = []
+        monkeypatch.setattr(
+            page.app,
+            "_refresh_agent_footer_bindings_only",
+            lambda: footer_refreshes.append(True),
+        )
+
+        modal = ConfigCenterModal(initial_tab="config")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+
+        await page.press("3")
+        await page.wait_for(lambda _s: modal._active_tab == "projects")
+
+        assert page.app._member_jump_pending_digit is None
+        assert page.app._member_jump_pending_container_identity is None
+        assert footer_refreshes == []
 
 
 async def test_admin_center_leaves_projects_tab_with_shift_tab(

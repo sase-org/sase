@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from textual.screen import ModalScreen
+
 from ...models.agent import Agent, AgentType
 from ...models.agent_tribe_summary import AgentPanelFocus
 from ._agent_reveal import (
@@ -158,6 +160,10 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         A non-digit key while pending clears the buffer and returns ``False``
         so Textual can process that key normally.
         """
+        if isinstance(getattr(self, "screen", None), ModalScreen):
+            self._cancel_member_jump_pending(refresh_footer=False)
+            return False
+
         pending_digit = getattr(self, "_member_jump_pending_digit", None)
         if pending_digit is not None:
             if key == "escape":
