@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from sase.ace.tui.models._loaders._meta_enrichment import (
     enrich_agent_from_meta,
     enrich_agent_from_meta_wire,
@@ -178,6 +180,39 @@ def test_manual_plan_after_submission_becomes_plan(tmp_path: Path) -> None:
 
     assert agent.status == "PLAN"
     assert len(agent.plan_times) == 1
+
+
+@pytest.mark.parametrize(("tier", "expected"), [("tale", "TALE"), ("epic", "EPIC")])
+def test_manual_plan_after_submission_uses_authored_tier(
+    tmp_path: Path,
+    tier: str,
+    expected: str,
+) -> None:
+    plan_path = tmp_path / f"{tier}.md"
+    plan_path.write_text(f"---\ntier: {tier}\n---\n# Plan\n", encoding="utf-8")
+    meta = {
+        "pid": 1234,
+        "plan": True,
+        "plan_path": str(plan_path),
+        "plan_submitted_at": "2026-04-27T15:05:00Z",
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    filesystem_agent = make_agent()
+    wire_agent = make_agent()
+    enrich_agent_from_meta(filesystem_agent, str(tmp_path))
+    enrich_agent_from_meta_wire(
+        wire_agent,
+        AgentMetaWire(
+            plan=True,
+            plan_path=str(plan_path),
+            plan_submitted_at=["2026-04-27T15:05:00Z"],
+        ),
+        None,
+    )
+
+    assert filesystem_agent.status == expected
+    assert wire_agent.status == expected
 
 
 def test_manual_plan_after_submission_overrides_starting(tmp_path: Path) -> None:

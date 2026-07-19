@@ -6,7 +6,10 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static
 
-from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
+from sase.agent.status_buckets import (
+    ACTIVE_PLAN_HANDOFF_STATUSES,
+    PENDING_PLAN_REVIEW_STATUSES,
+)
 
 from ..tools import supports_slow_tool_sources
 from ..models.agent import Agent, AgentType
@@ -31,7 +34,7 @@ _ACTIVE_STATUSES = frozenset(
         "RUNNING",
         "WAITING",
         "WAITING INPUT",
-        "PLAN",
+        *PENDING_PLAN_REVIEW_STATUSES,
         *ACTIVE_PLAN_HANDOFF_STATUSES,
         "QUESTION",
         "ANSWERED",

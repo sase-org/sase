@@ -9,6 +9,7 @@ from sase.agent.status_buckets import (
     TALE_APPROVED_STATUS,
     WORKING_PLAN_STATUS,
     WORKING_TALE_STATUS,
+    pending_plan_status_for_tier,
 )
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
@@ -17,6 +18,7 @@ from sase.plan_chain import (
     agent_family_role_for_suffix,
     canonical_plan_chain_suffix,
 )
+from sase.sdd.plan_tiers import cached_plan_tier
 
 from ._agent_status_roles import agent_family_role
 from .agent import Agent, AgentType
@@ -26,6 +28,12 @@ APPROVED_PLAN_ACTIONS = frozenset({"approve", "tale", "epic", "commit"})
 APPROVED_PLANNER_ACTIONS = frozenset({"approve", "tale"})
 PLANNER_FAMILY_ROLES = frozenset({"plan", "feedback"})
 EPIC_CREATED_STATUS = "EPIC CREATED"
+
+
+def pending_plan_status_for_agent(agent: Agent) -> str:
+    """Return an agent's tier-aware pending plan-review status."""
+    plan_path = agent.plan_path or agent.sdd_plan_path or agent.archived_plan_path
+    return pending_plan_status_for_tier(cached_plan_tier(plan_path))
 
 
 def append_unique_timestamps(target: list[datetime], source: list[datetime]) -> None:
@@ -451,7 +459,7 @@ def planner_child_status(
     if has_unanswered_completed_question(parent):
         return "QUESTION"
     if is_awaiting_plan_review(parent):
-        return "PLAN"
+        return pending_plan_status_for_agent(parent)
     return "DONE"
 
 

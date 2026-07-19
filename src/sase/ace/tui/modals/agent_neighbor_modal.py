@@ -12,6 +12,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.agent.status_buckets import PENDING_EPIC_STATUS, agent_is_asking
+
 from .base import OptionListNavigationMixin
 
 _SELECTOR_KEYS = "abcdefghijklmnopqrstuvwxyz"
@@ -61,7 +63,9 @@ def _status_style(status: str) -> str:
         return "bold #FF5F5F"
     if status == "WAITING":
         return "bold #AF87FF"
-    if status in {"PLAN", "QUESTION"}:
+    if status == PENDING_EPIC_STATUS:
+        return "bold #D787FF"
+    if agent_is_asking(status):
         return "bold #FFAF00"
     return "bold #87D7FF"
 

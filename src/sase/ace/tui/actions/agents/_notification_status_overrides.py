@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from sase.agent.status_buckets import PENDING_EPIC_STATUS, PENDING_TALE_STATUS
+
 from ._notification_utils import refresh_notification_agent_or_request
 
 if TYPE_CHECKING:
@@ -11,20 +13,21 @@ if TYPE_CHECKING:
 
 
 class AgentNotificationStatusMixin:
-    """Apply PLAN/QUESTION notification state to agent rows."""
+    """Apply pending-plan/question notification state to agent rows."""
 
     def _apply_notification_status_overrides(
         self: Any, unread: list[Notification]
     ) -> None:
-        """Scan unread notifications and set PLAN/QUESTION status overrides.
+        """Scan unread notifications and set plan/question status overrides.
 
-        For PlanApproval notifications, sets the first matching agent's
-        override to PLAN. For UserQuestion notifications, sets the override to
-        QUESTION on every matched row (a single notification can reference both
-        the asking child and the root/aggregate row) and conditionally saves
-        each row's pre-question status (only if not already saved, to preserve
-        the original status across multiple questions). The answer path clears
-        every matched row symmetrically.
+        For plan-approval notifications, sets the first matching agent's
+        override to its tier-aware pending status. For UserQuestion
+        notifications, sets the override to QUESTION on every matched row (a
+        single notification can reference both the asking child and the
+        root/aggregate row) and conditionally saves each row's pre-question
+        status (only if not already saved, to preserve the original status
+        across multiple questions). The answer path clears every matched row
+        symmetrically.
 
         Also auto-dismisses PlanApproval notifications that were responded to
         externally (e.g. user approved via Telegram), updating agent status
@@ -47,6 +50,20 @@ class AgentNotificationStatusMixin:
                     dismissed_any = True
                     continue
 
+            pending_plan_status: str | None = None
+            if notification.action in {"PlanApproval", "EpicApproval"}:
+                from sase.notification_gates.paths import (
+                    resolve_notification_bundle,
+                )
+
+                bundle = resolve_notification_bundle(notification)
+                if bundle is not None and not bundle.legacy:
+                    pending_plan_status = (
+                        PENDING_EPIC_STATUS
+                        if notification.action == "EpicApproval"
+                        else PENDING_TALE_STATUS
+                    )
+
             from ._notification_navigation import agent_matches_notification_identity
 
             is_question = notification.action == "UserQuestion"
@@ -63,8 +80,19 @@ class AgentNotificationStatusMixin:
                     break
 
                 if notification.action in {"PlanApproval", "EpicApproval"}:
-                    if self._agent_status_overrides.get(agent.identity) != "PLAN":  # type: ignore[attr-defined]
-                        self._agent_status_overrides[agent.identity] = "PLAN"  # type: ignore[attr-defined]
+                    if pending_plan_status is None:
+                        from ...models._agent_status_family import (
+                            pending_plan_status_for_agent,
+                        )
+
+                        pending_plan_status = pending_plan_status_for_agent(agent)
+                    if (  # type: ignore[attr-defined]
+                        self._agent_status_overrides.get(agent.identity)
+                        != pending_plan_status
+                    ):
+                        self._agent_status_overrides[agent.identity] = (
+                            pending_plan_status  # type: ignore[attr-defined]
+                        )
                         changed_agents.append(agent)
                     break
 

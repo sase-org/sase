@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
+from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
 from sase.xprompt.directive_edit import set_prompt_auto_mode
 
 from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
@@ -23,16 +23,7 @@ if TYPE_CHECKING:
 TabName = Literal["changespecs", "agents", "axe"]
 
 # Agent statuses for which auto-approval can be configured.
-_APPROVE_ELIGIBLE = frozenset(
-    {
-        "STARTING",
-        "RUNNING",
-        "PLAN",
-        *ACTIVE_PLAN_HANDOFF_STATUSES,
-        "WAITING",
-        "QUESTION",
-    }
-)
+_APPROVE_ELIGIBLE = AUTO_APPROVE_ELIGIBLE_STATUSES
 
 
 def _auto_approval_choice_for_agent(agent: Agent) -> AutoApproveChoice:

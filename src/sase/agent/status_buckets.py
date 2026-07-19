@@ -28,6 +28,17 @@ WORKING_PLAN_STATUS = "WORKING PLAN"
 WORKING_TALE_STATUS = "WORKING TALE"
 FEEDBACK_STATUS = "FEEDBACK"
 
+PENDING_PLAN_STATUS = "PLAN"
+PENDING_TALE_STATUS = "TALE"
+PENDING_EPIC_STATUS = "EPIC"
+#: Pending-review statuses in display-priority order (largest ask first).
+PENDING_PLAN_REVIEW_STATUSES: tuple[str, ...] = (
+    PENDING_EPIC_STATUS,
+    PENDING_TALE_STATUS,
+    PENDING_PLAN_STATUS,
+)
+PENDING_PLAN_REVIEW_STATUS_SET: frozenset[str] = frozenset(PENDING_PLAN_REVIEW_STATUSES)
+
 APPROVED_PLAN_STATUSES: frozenset[str] = frozenset(
     {PLAN_APPROVED_STATUS, TALE_APPROVED_STATUS}
 )
@@ -36,6 +47,16 @@ WORKING_PLAN_STATUSES: frozenset[str] = frozenset(
 )
 ACTIVE_PLAN_HANDOFF_STATUSES: frozenset[str] = (
     APPROVED_PLAN_STATUSES | WORKING_PLAN_STATUSES
+)
+AUTO_APPROVE_ELIGIBLE_STATUSES: frozenset[str] = frozenset(
+    {
+        "STARTING",
+        "RUNNING",
+        *PENDING_PLAN_REVIEW_STATUSES,
+        *ACTIVE_PLAN_HANDOFF_STATUSES,
+        "WAITING",
+        "QUESTION",
+    }
 )
 WORKING_PLAN_STATUS_TO_APPROVED: dict[str, str] = {
     WORKING_PLAN_STATUS: PLAN_APPROVED_STATUS,
@@ -62,7 +83,9 @@ ACTIVE_AGENT_STATUSES: frozenset[str] = frozenset(
 #: Statuses where an agent is paused for explicit human input.  This is
 #: intentionally narrower than ``needs:input`` query matching, which also
 #: includes execution states such as ``PLAN APPROVED``.
-AGENT_ASKING_STATUSES: frozenset[str] = frozenset({"PLAN", "QUESTION", "WAITING INPUT"})
+AGENT_ASKING_STATUSES: frozenset[str] = frozenset(
+    PENDING_PLAN_REVIEW_STATUS_SET | {"QUESTION", "WAITING INPUT"}
+)
 
 # Status mapping for status bucketing.  The semantic line is:
 # **Stopped** = the agent has stopped and is waiting for you to act;
@@ -70,7 +93,7 @@ AGENT_ASKING_STATUSES: frozenset[str] = frozenset({"PLAN", "QUESTION", "WAITING 
 # moving through on its own.
 #
 # Members of Stopped:
-#   * ``PLAN`` — a submitted plan is waiting for user review
+#   * ``PLAN`` / ``TALE`` / ``EPIC`` — a submitted plan is waiting for review
 #   * ``QUESTION`` — the agent has explicitly paused for an answer
 #
 # ``FAILED`` statuses are terminal failure states and always land in
@@ -87,7 +110,9 @@ AGENT_ASKING_STATUSES: frozenset[str] = frozenset({"PLAN", "QUESTION", "WAITING 
 # predecessor's ``STOP`` skipped.  It reads as **Done** (finished, not failed,
 # nothing for the user to act on) — it is intentionally *not* a member of
 # ``_STOPPED_STATUSES`` (those are actionable input pauses).
-_STOPPED_STATUSES: frozenset[str] = frozenset({"PLAN", "QUESTION"})
+_STOPPED_STATUSES: frozenset[str] = frozenset(
+    PENDING_PLAN_REVIEW_STATUS_SET | {"QUESTION"}
+)
 
 #: Terminal statuses — agents that have finished and have a meaningful
 #: ``stop_time``.  Shared by TUI date bucketing (which sorts these by
@@ -116,6 +141,21 @@ _NEEDS_INPUT_STATUSES: frozenset[str] = frozenset(
 def agent_is_asking(status: str | None) -> bool:
     """Return whether *status* represents a human-input pause."""
     return (status or "") in AGENT_ASKING_STATUSES
+
+
+def pending_plan_status_for_tier(tier: str | None) -> str:
+    """Return the pending-review status for an authored plan tier."""
+    normalized = tier.strip().lower() if isinstance(tier, str) else ""
+    if normalized == "tale":
+        return PENDING_TALE_STATUS
+    if normalized == "epic":
+        return PENDING_EPIC_STATUS
+    return PENDING_PLAN_STATUS
+
+
+def is_pending_plan_review_status(status: str | None) -> bool:
+    """Return whether *status* represents a pending plan review."""
+    return (status or "") in PENDING_PLAN_REVIEW_STATUS_SET
 
 
 def agent_is_active(status: str | None) -> bool:

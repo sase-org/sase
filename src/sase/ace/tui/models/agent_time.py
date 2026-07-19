@@ -11,6 +11,7 @@ from sase.agent.status_buckets import (
     ACTIVE_PLAN_HANDOFF_STATUSES,
     APPROVED_PLAN_STATUSES,
     FEEDBACK_STATUS,
+    is_pending_plan_review_status,
 )
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
@@ -172,7 +173,7 @@ def _row_runtime_terminal_time(agent: "Agent") -> datetime | None:
         return agent.stop_time
     if agent.status in _PLAN_RUNTIME_TERMINAL_STATUSES and agent.plan_times:
         return max(agent.plan_times)
-    if agent.status == "PLAN" and agent.plan_times:
+    if is_pending_plan_review_status(agent.status) and agent.plan_times:
         return max(agent.plan_times)
     if agent.status == "QUESTION" and agent.questions_times:
         return max(agent.questions_times)

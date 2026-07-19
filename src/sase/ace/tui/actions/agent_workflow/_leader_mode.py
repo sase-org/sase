@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sase.agent.status_buckets import agent_is_asking
+
 from ._types import TabName
 
 if TYPE_CHECKING:
@@ -333,7 +335,7 @@ class LeaderModeMixin:
 
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
             if agent is not None:
-                has_notification = agent.status in ("PLAN", "QUESTION")
+                has_notification = agent_is_asking(agent.status)
                 has_revertable_agent = is_revertable_agent_status(agent.status)
             has_unread_completed_agent = self._has_unread_completed_agent()  # type: ignore[attr-defined]
             has_stopped_agent = self._has_stopped_agent()  # type: ignore[attr-defined]

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
+from sase.agent.status_buckets import (
+    ACTIVE_PLAN_HANDOFF_STATUSES,
+    PENDING_PLAN_REVIEW_STATUSES,
+)
 
 # Slow sanity-refresh floor: even when the inotify watcher is active and
 # every dirty flag is clear we still reconcile every minute as a safety
@@ -35,7 +38,7 @@ _LIVE_FILE_REFRESH_STATUSES = frozenset(
         "RUNNING",
         "WAITING",
         "WAITING INPUT",
-        "PLAN",
+        *PENDING_PLAN_REVIEW_STATUSES,
         *ACTIVE_PLAN_HANDOFF_STATUSES,
         "QUESTION",
         "ANSWERED",

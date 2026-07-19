@@ -58,6 +58,7 @@ def _notification(
     agent_timestamp: str = "20260512094333",
     agent_root_timestamp: str = "20260512090000",
     response_dir: str = "/tmp/response",
+    request_id: str | None = None,
 ) -> Notification:
     action_data = {
         "agent_cl_name": cl_name,
@@ -68,6 +69,8 @@ def _notification(
     }
     if agent_name:
         action_data["agent_name"] = agent_name
+    if request_id:
+        action_data["request_id"] = request_id
     return Notification(
         id="n1",
         timestamp="2026-05-12T09:43:33",
@@ -105,6 +108,42 @@ def test_plan_approval_root_timestamp_sets_parent_planning_override() -> None:
     assert app._agent_status_overrides[parent.identity] == "PLAN"
     assert workflow_step.identity not in app._agent_status_overrides
     assert app.refilter_calls == 1
+
+
+@pytest.mark.parametrize(
+    ("action", "kind", "expected_status"),
+    [("PlanApproval", "plan", "TALE"), ("EpicApproval", "epic_plan", "EPIC")],
+)
+def test_neutral_plan_notification_sets_tiered_status_without_plan_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    action: str,
+    kind: str,
+    expected_status: str,
+) -> None:
+    from sase.notification_gates import paths
+
+    request_id = "request-1"
+    request_dir = tmp_path / kind / request_id
+    request_dir.mkdir(parents=True)
+    (request_dir / "request.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(paths, "INTERACTION_REQUESTS_DIR", tmp_path)
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="oo",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 12, 9, 0, 0),
+        raw_suffix="20260512090000",
+        role_suffix=".plan",
+    )
+    app = _NotificationApp([parent])
+
+    app._apply_notification_status_overrides(
+        [_notification(action=action, request_id=request_id)]
+    )
+
+    assert app._agent_status_overrides[parent.identity] == expected_status
 
 
 def test_find_agent_for_notification_matches_root_timestamp() -> None:

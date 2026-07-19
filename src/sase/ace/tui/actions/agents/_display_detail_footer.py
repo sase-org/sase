@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from sase.agent.status_buckets import agent_is_asking
+
 from ._display_helpers import TabName
 
 if TYPE_CHECKING:
@@ -55,7 +57,7 @@ class AgentFooterDisplayMixin:
             footer_widget.update_leader_bindings(
                 current_tab="agents",
                 has_notification=(
-                    current_agent.status in ("PLAN", "QUESTION")
+                    agent_is_asking(current_agent.status)
                     if current_agent is not None
                     else False
                 ),

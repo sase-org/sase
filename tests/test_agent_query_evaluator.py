@@ -91,6 +91,11 @@ def test_status_substring_no_match() -> None:
     assert not _eval("status:failed", agent)
 
 
+@pytest.mark.parametrize("status", ["TALE", "EPIC"])
+def test_status_substring_matches_tiered_pending_review(status: str) -> None:
+    assert _eval(f"status:{status.lower()}", _make_agent(status=status))
+
+
 def test_cl_substring() -> None:
     agent = _make_agent(cl_name="bar_feature")
     assert _eval("cl:bar", agent)
@@ -193,6 +198,11 @@ def test_needs_input_no_match_for_answered() -> None:
     assert not _eval("needs:input", agent)
 
 
+@pytest.mark.parametrize("status", ["PLAN", "TALE", "EPIC"])
+def test_needs_input_excludes_pending_plan_reviews(status: str) -> None:
+    assert not _eval("needs:input", _make_agent(status=status))
+
+
 # --- tag / pinned / hidden / attention (bool / exact) ------------------------
 
 
@@ -244,6 +254,11 @@ def test_hidden_false_default() -> None:
 def test_attention_true_for_question() -> None:
     agent = _make_agent(status="QUESTION")
     assert _eval("attention:true", agent)
+
+
+@pytest.mark.parametrize("status", ["PLAN", "TALE", "EPIC"])
+def test_attention_true_for_pending_plan_reviews(status: str) -> None:
+    assert _eval("attention:true", _make_agent(status=status))
 
 
 def test_attention_false_for_running() -> None:

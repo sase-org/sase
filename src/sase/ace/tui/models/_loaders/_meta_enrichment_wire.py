@@ -7,6 +7,7 @@ from sase.core.agent_scan_wire import (
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
 )
+from sase.sdd.plan_tiers import cached_plan_tier
 
 from ._meta_enrichment_common import (
     ACTIVE_ENRICHMENT_STATUSES,
@@ -208,11 +209,17 @@ def enrich_agent_from_meta_wire(
         )
 
     if meta.plan and agent.status in ACTIVE_ENRICHMENT_STATUSES:
+        plan_submitted = bool(meta.plan_submitted_at)
         plan_status = plan_enrichment_status(
             plan_approved=meta.plan_approved,
             plan_action=meta.plan_action,
-            plan_submitted=bool(meta.plan_submitted_at),
+            plan_submitted=plan_submitted,
             auto_approved=agent.approve,
+            plan_tier=(
+                cached_plan_tier(meta.plan_path)
+                if plan_submitted and not meta.plan_approved and not agent.approve
+                else None
+            ),
         )
         if plan_status is not None:
             agent.status = plan_status

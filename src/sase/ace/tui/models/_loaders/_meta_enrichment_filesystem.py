@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from sase.sdd.plan_tiers import cached_plan_tier
+
 from ._json_cache import load_json_cached
 from ._meta_enrichment_common import (
     ACTIVE_ENRICHMENT_STATUSES,
@@ -319,11 +321,18 @@ def enrich_agent_from_meta(
     # plan, or using an auto-approval path, keep their current active display
     # state until later markers take over.
     if data.get("plan") and agent.status in ACTIVE_ENRICHMENT_STATUSES:
+        plan_approved = bool(data.get("plan_approved"))
+        plan_submitted = has_plan_submission_marker(data.get("plan_submitted_at"))
         plan_status = plan_enrichment_status(
-            plan_approved=bool(data.get("plan_approved")),
+            plan_approved=plan_approved,
             plan_action=data.get("plan_action"),
-            plan_submitted=has_plan_submission_marker(data.get("plan_submitted_at")),
+            plan_submitted=plan_submitted,
             auto_approved=meta_auto_approved,
+            plan_tier=(
+                cached_plan_tier(data.get("plan_path"))
+                if plan_submitted and not plan_approved and not meta_auto_approved
+                else None
+            ),
         )
         if plan_status is not None:
             agent.status = plan_status

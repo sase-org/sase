@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.agent.status_buckets import pending_plan_status_for_tier
 from sase.core.time import to_local
 from sase.core.artifact_file_helpers import select_canonical_plan_path
 from sase.plan_chain import (
@@ -98,6 +99,7 @@ def plan_enrichment_status(
     plan_action: str | None,
     plan_submitted: bool,
     auto_approved: bool,
+    plan_tier: str | None = None,
 ) -> str | None:
     if plan_approved:
         if plan_action == "commit":
@@ -109,7 +111,7 @@ def plan_enrichment_status(
         return "PLAN APPROVED"
 
     if plan_submitted and not auto_approved:
-        return "PLAN"
+        return pending_plan_status_for_tier(plan_tier)
 
     return None
 

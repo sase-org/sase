@@ -15,6 +15,7 @@ from sase.agent.status_buckets import (
     EPIC_APPROVED_STATUS,
     PLAN_APPROVED_STATUS,
     TALE_APPROVED_STATUS,
+    pending_plan_status_for_tier,
     status_bucket_for_values,
 )
 from sase.core.agent_scan_wire import (
@@ -24,6 +25,7 @@ from sase.core.agent_scan_wire import (
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
 )
+from sase.sdd.plan_tiers import cached_plan_tier
 from sase.core.time import get_timezone
 
 from ._agent_list_entry_models import (
@@ -207,7 +209,7 @@ def _plan_status(meta: AgentMetaWire) -> str | None:
             return EPIC_APPROVED_STATUS
         return PLAN_APPROVED_STATUS
     if meta.plan_submitted_at and not (meta.approve or meta.auto_approve_plan_action):
-        return "PLAN"
+        return pending_plan_status_for_tier(cached_plan_tier(meta.plan_path))
     return None
 
 

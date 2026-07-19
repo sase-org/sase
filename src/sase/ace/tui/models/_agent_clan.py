@@ -6,7 +6,11 @@ from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from sase.agent.status_buckets import agent_is_asking, status_bucket_for_values
+from sase.agent.status_buckets import (
+    PENDING_PLAN_REVIEW_STATUSES,
+    agent_is_asking,
+    status_bucket_for_values,
+)
 
 if TYPE_CHECKING:
     from .agent import Agent
@@ -55,8 +59,9 @@ def aggregate_clan_status(statuses: Iterable[str]) -> str | None:
         return None
     if any(status in _QUESTION_STATUSES for status in values):
         return "QUESTION"
-    if "PLAN" in values:
-        return "PLAN"
+    for pending_status in PENDING_PLAN_REVIEW_STATUSES:
+        if pending_status in values:
+            return pending_status
     buckets = tuple(status_bucket_for_values(status) for status in values)
     if "Failed" in buckets or "KILLED" in values:
         return "FAILED"

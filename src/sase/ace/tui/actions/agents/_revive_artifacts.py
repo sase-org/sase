@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.agent.status_buckets import (
     ACTIVE_PLAN_HANDOFF_STATUSES,
+    PENDING_PLAN_REVIEW_STATUSES,
     TALE_APPROVED_STATUS,
     WORKING_TALE_STATUS,
 )
@@ -30,7 +31,7 @@ if TYPE_CHECKING:
 _PLAN_LIKE_STATUSES = (
     frozenset(
         {
-            "PLAN",
+            *PENDING_PLAN_REVIEW_STATUSES,
             "PLAN COMMITTED",
             "PLAN DONE",
             "TALE DONE",
@@ -206,7 +207,7 @@ class ArtifactRestorationMixin:
             return "waiting_hitl"
         if status in {
             "RUNNING",
-            "PLAN",
+            *PENDING_PLAN_REVIEW_STATUSES,
             *ACTIVE_PLAN_HANDOFF_STATUSES,
             "QUESTION",
             "ANSWERED",
@@ -235,7 +236,7 @@ class ArtifactRestorationMixin:
             return "waiting_hitl"
         if status in {
             "RUNNING",
-            "PLAN",
+            *PENDING_PLAN_REVIEW_STATUSES,
             *ACTIVE_PLAN_HANDOFF_STATUSES,
             "QUESTION",
             "ANSWERED",

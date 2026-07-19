@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from sase.agent.status_buckets import agent_is_asking
+
 
 _TERMINAL_BUCKETS = {"Done", "Failed"}
 
@@ -133,7 +135,7 @@ class AgentListEntry:
 
     @property
     def needs_user_action(self) -> bool:
-        return self.status in {"PLAN", "QUESTION"}
+        return agent_is_asking(self.status)
 
     @property
     def auto_badge(self) -> str | None:

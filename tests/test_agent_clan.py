@@ -43,6 +43,12 @@ def test_clan_aggregation_keys_members_on_agent_clan() -> None:
     ) == ("RUNNING")
 
 
+def test_clan_pending_plan_status_uses_review_priority() -> None:
+    assert aggregate_clan_status(["PLAN", "TALE"]) == "TALE"
+    assert aggregate_clan_status(["TALE", "EPIC"]) == "EPIC"
+    assert aggregate_clan_status(["EPIC", "QUESTION"]) == "QUESTION"
+
+
 def test_clan_unread_counts_deduplicate_and_replace_successful_done() -> None:
     container = _agent("research", "FAILED", suffix=None)
     container.is_clan_container = True

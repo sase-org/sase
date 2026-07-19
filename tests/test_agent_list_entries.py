@@ -199,6 +199,26 @@ def test_plan_marker_becomes_actionable_plan_ready() -> None:
     assert entry.needs_user_action is True
 
 
+def test_plan_marker_uses_authored_tier(tmp_path: Path) -> None:
+    for tier, expected in (("tale", "TALE"), ("epic", "EPIC")):
+        plan_path = tmp_path / f"{tier}.md"
+        plan_path.write_text(f"---\ntier: {tier}\n---\n# Plan\n", encoding="utf-8")
+        entry = _build_agent_list_entry(
+            _agent(),
+            record=_record(
+                agent_meta=AgentMetaWire(
+                    plan=True,
+                    plan_path=str(plan_path),
+                    plan_submitted_at=["2026-07-09T12:01:00Z"],
+                )
+            ),
+        )
+
+        assert entry.status == expected
+        assert entry.status_bucket == "Stopped"
+        assert entry.needs_user_action is True
+
+
 def test_children_summary_is_preserved() -> None:
     running = _build_agent_list_entry(
         _agent(name="run"),

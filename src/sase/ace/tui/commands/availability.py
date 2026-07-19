@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
+from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
 from sase.ace.tui.commands.types import CommandContext, CommandSpec
 from sase.ace.tui.models.agent_status import (
     DISMISSABLE_STATUSES,
@@ -353,15 +353,9 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.accept_proposal":
         if agent is None:
             return False
-        return agent.status in {
-            "WAITING INPUT",
-            "STARTING",
-            "RUNNING",
-            "PLAN",
-            *ACTIVE_PLAN_HANDOFF_STATUSES,
-            "WAITING",
-            "QUESTION",
-        }
+        return agent.status == "WAITING INPUT" or (
+            agent.status in AUTO_APPROVE_ELIGIBLE_STATUSES
+        )
 
     # edit_spec targets marks when any exist; the action validates the
     # marked set precisely and warns when no chat transcript is usable.

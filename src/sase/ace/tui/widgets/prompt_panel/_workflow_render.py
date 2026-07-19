@@ -8,6 +8,8 @@ from rich.text import Text
 
 from sase.agent.status_buckets import (
     FEEDBACK_STATUS,
+    PENDING_EPIC_STATUS,
+    PENDING_TALE_STATUS,
     PLAN_APPROVED_STATUS,
     TALE_APPROVED_STATUS,
     WORKING_PLAN_STATUS,
@@ -96,6 +98,8 @@ def build_workflow_detail_renderable(
         "DONE": "#5FD75F",
         "FAILED": "#FF5F5F",
         "PLAN": "#FF87AF",
+        PENDING_TALE_STATUS: "#FF87AF",
+        PENDING_EPIC_STATUS: "#D787FF",
         FEEDBACK_STATUS: "#FF5FD7",
         PLAN_APPROVED_STATUS: "#00D7AF",
         TALE_APPROVED_STATUS: "#00D7D7",

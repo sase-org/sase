@@ -6,6 +6,8 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from sase.agent.status_buckets import is_pending_plan_review_status
+
 from ...models.agent_status import (
     is_stopped_agent_status,
     is_unread_completed_status,
@@ -23,7 +25,7 @@ if TYPE_CHECKING:
 
 def _stopped_agent_jump_time(agent: Agent) -> datetime | None:
     """Return the best timestamp for ordering stopped-agent jumps."""
-    if agent.status == "PLAN" and agent.plan_times:
+    if is_pending_plan_review_status(agent.status) and agent.plan_times:
         return max(agent.plan_times)
     if agent.status == "QUESTION" and agent.questions_times:
         return max(agent.questions_times)

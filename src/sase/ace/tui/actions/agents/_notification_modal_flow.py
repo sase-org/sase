@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from sase.agent.status_buckets import agent_is_asking
+
 from ._notification_utils import refresh_notification_agent_from_cache
 
 if TYPE_CHECKING:
@@ -30,7 +32,7 @@ class AgentNotificationModalMixin:
         agent: Agent | None = None
         candidate = self._get_selected_agent()  # type: ignore[attr-defined]
         if candidate is not None:
-            if candidate.status in ("PLAN", "QUESTION"):
+            if agent_is_asking(candidate.status):
                 agent = candidate
 
         if (
@@ -45,7 +47,7 @@ class AgentNotificationModalMixin:
             self.hide_non_run_agents = False  # type: ignore[attr-defined]
             self._refilter_agents()  # type: ignore[attr-defined]
             for i, a in enumerate(self._agents):  # type: ignore[attr-defined]
-                if a.status in ("PLAN", "QUESTION"):
+                if agent_is_asking(a.status):
                     self.current_idx = i  # type: ignore[attr-defined]
                     agent = a
                     break

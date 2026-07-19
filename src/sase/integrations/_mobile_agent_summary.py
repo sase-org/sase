@@ -6,7 +6,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
+from sase.agent.status_buckets import (
+    ACTIVE_PLAN_HANDOFF_STATUSES,
+    PENDING_PLAN_REVIEW_STATUSES,
+)
 
 from ._mobile_agent_common import (
     MOBILE_AGENT_SCHEMA_VERSION,
@@ -35,7 +38,7 @@ _KILLABLE_ACTIVE_STATUSES = frozenset(
         "RUNNING",
         "WAITING",
         "QUESTION",
-        "PLAN",
+        *PENDING_PLAN_REVIEW_STATUSES,
         *ACTIVE_PLAN_HANDOFF_STATUSES,
         "WAITING INPUT",
     }

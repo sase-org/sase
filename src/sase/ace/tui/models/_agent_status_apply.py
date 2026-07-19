@@ -3,7 +3,11 @@
 from collections.abc import Callable
 from datetime import datetime
 
-from sase.agent.status_buckets import FEEDBACK_STATUS, agent_is_active
+from sase.agent.status_buckets import (
+    FEEDBACK_STATUS,
+    agent_is_active,
+    is_pending_plan_review_status,
+)
 from sase.plan_chain import canonical_plan_chain_suffix
 
 from ._agent_status_diff import classify_diff_badges as classify_persisted_diff_badges
@@ -31,6 +35,7 @@ from ._agent_status_family import (
     is_root_plan_workflow,
     latest_non_workflow_child_launch_by_parent,
     merge_feedback_plan_paths,
+    pending_plan_status_for_agent,
     root_child_suffix,
     superseded_by_feedback_round,
     sync_planner_child_from_parent,
@@ -138,7 +143,7 @@ def apply_status_overrides(
         if agent.is_workflow_step_child and agent.parent_timestamp:
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent and agent.status not in completed_statuses:
-                if parent.status == "PLAN":
+                if is_pending_plan_review_status(parent.status):
                     parent.status = "RUNNING"
 
     # Pre-compute which agents have follow-up children so unanswered questions
@@ -200,7 +205,7 @@ def apply_status_overrides(
                     children_by_parent,
                     latest_child_launch_by_parent,
                 )
-                else "PLAN"
+                else pending_plan_status_for_agent(agent)
             )
 
     for agent in all_agents:
@@ -277,7 +282,7 @@ def apply_status_overrides(
             children_by_parent,
             latest_child_launch_by_parent,
         ):
-            agent.status = "PLAN"
+            agent.status = pending_plan_status_for_agent(agent)
 
     # Active family code handoff rows display the coder-specific working state
     # while the implementation agent runs. Normalize before root mirroring so

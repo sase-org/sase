@@ -1,6 +1,9 @@
 """Tests for _apply_status_overrides plan-entry status decisions."""
 
 from datetime import datetime
+from pathlib import Path
+
+import pytest
 
 from sase.ace.tui.models import _agent_status_overrides as status_overrides
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -22,6 +25,7 @@ def _agent(
     agent_family: str | None = None,
     agent_family_role: str | None = None,
     plan_chain_root: bool = False,
+    plan_path: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=agent_type,
@@ -39,6 +43,7 @@ def _agent(
         agent_family=agent_family,
         agent_family_role=agent_family_role,
         plan_chain_root=plan_chain_root,
+        plan_path=plan_path,
     )
 
 
@@ -57,6 +62,28 @@ def test_apply_status_overrides_done_planner_entry_awaiting_review_becomes_plan(
     _apply_status_overrides([planner])
 
     assert planner.status == "PLAN"
+
+
+@pytest.mark.parametrize(("tier", "expected"), [("tale", "TALE"), ("epic", "EPIC")])
+def test_apply_status_overrides_uses_pending_plan_tier(
+    tmp_path: Path,
+    tier: str,
+    expected: str,
+) -> None:
+    plan_path = tmp_path / f"{tier}.md"
+    plan_path.write_text(f"---\ntier: {tier}\n---\n# Plan\n", encoding="utf-8")
+    planner = _agent(
+        start_time=datetime(2026, 5, 29, 9, 30, 0),
+        raw_suffix="20260529093000",
+        parent_timestamp="20260529090000",
+        role_suffix="-plan",
+        plan_times=[datetime(2026, 5, 29, 9, 35, 0)],
+        plan_path=str(plan_path),
+    )
+
+    _apply_status_overrides([planner])
+
+    assert planner.status == expected
 
 
 def test_apply_status_overrides_family_root_mirrors_plan_entry() -> None:

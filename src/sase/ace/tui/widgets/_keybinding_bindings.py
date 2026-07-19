@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from rich.cells import cell_len
 from rich.text import Text
 
-from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
+from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
 
 from ...changespec import ChangeSpec
 from ...hooks import get_failed_hooks_file_path
@@ -236,15 +236,7 @@ class KeybindingBindingsMixin:
                 bindings.append((self._kd("reword"), "edit wait"))
             if agent.agent_name:
                 bindings.append((self._kd("add_tag"), "new w/ wait"))
-            _APPROVE_ELIGIBLE = {
-                "STARTING",
-                "RUNNING",
-                "PLAN",
-                *ACTIVE_PLAN_HANDOFF_STATUSES,
-                "WAITING",
-                "QUESTION",
-            }
-            if agent.status in _APPROVE_ELIGIBLE:
+            if agent.status in AUTO_APPROVE_ELIGIBLE_STATUSES:
                 # ``accept_proposal`` now always opens the Auto-Approve menu on
                 # eligible agents (it replaced the old 3-state cycle), so the
                 # footer shows one stable ``auto-approve`` label regardless of

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
+from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
 from sase.project_display_names import humanize_cl_name
 
 from ...hooks.history import get_last_accepted_history_entry_id
@@ -351,15 +351,7 @@ class ProposalRebaseMixin:
                 if agent.status == "WAITING INPUT":
                     self._answer_workflow_hitl(agent)  # type: ignore[attr-defined]
                     return
-                _APPROVE_ELIGIBLE = {
-                    "STARTING",
-                    "RUNNING",
-                    "PLAN",
-                    *ACTIVE_PLAN_HANDOFF_STATUSES,
-                    "WAITING",
-                    "QUESTION",
-                }
-                if agent.status in _APPROVE_ELIGIBLE:
+                if agent.status in AUTO_APPROVE_ELIGIBLE_STATUSES:
                     self.action_open_auto_approve_menu()  # type: ignore[attr-defined]
                     return
             return
