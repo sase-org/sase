@@ -22,6 +22,11 @@ sase --help
 checkout is present and `cargo` is available, it also builds and installs the local `sase_core_rs` extension before
 resolving Python dependencies.
 
+The verification recipes cache their setup-validation verdicts inside the active virtual environment. The cache is
+fingerprinted from `pyproject.toml`, `uv.lock`, the validator implementations, the local `sase-core` version, and the
+installed environment metadata, so dependency or environment changes revalidate automatically. Set
+`SASE_TEST_SETUP_FORCE_REVALIDATE=1` on any `just` invocation to bypass the cache while diagnosing setup problems.
+
 ## Verification Commands
 
 ```bash

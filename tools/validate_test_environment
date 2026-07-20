@@ -1,0 +1,302 @@
+#!/usr/bin/env python3
+"""Cache the dependency and extension checks used by Justfile setup recipes."""
+
+from __future__ import annotations
+
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+import subprocess
+import sys
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CACHE_SCHEMA_VERSION = 1
+FORCE_ENV = "SASE_TEST_SETUP_FORCE_REVALIDATE"
+CORE_VERSION_ERROR = 1
+CORE_BINDINGS_ERROR = 2
+DEPENDENCY_GROUP_ERROR = 4
+EDITABLE_METADATA_ERROR = 8
+INTERNAL_ERROR = 64
+VALIDATOR_PATHS = {
+    "core-version": REPO_ROOT / "tools/validate_sase_core_rs_version",
+    "core-bindings": REPO_ROOT / "tools/validate_sase_core_rs",
+    "dependency-group": REPO_ROOT / "tools/validate_dependency_group",
+    "editable-metadata": REPO_ROOT / "tools/validate_editable_metadata",
+}
+_HASHED_ENVIRONMENT_PATTERNS = (
+    "*.dist-info/METADATA",
+    "*.dist-info/direct_url.json",
+    "*.dist-info/entry_points.txt",
+    "*.pth",
+)
+_STATED_EXTENSION_PATTERNS = (
+    "sase_core_rs*.dylib",
+    "sase_core_rs*.pyd",
+    "sase_core_rs*.so",
+)
+
+
+def _update_file_hash(digest: Any, label: str, path: Path) -> None:
+    digest.update(label.encode())
+    digest.update(b"\0")
+    try:
+        with path.open("rb") as stream:
+            while chunk := stream.read(1024 * 1024):
+                digest.update(chunk)
+    except FileNotFoundError:
+        digest.update(b"<missing>")
+    digest.update(b"\0")
+
+
+def _update_file_stat(digest: Any, label: str, path: Path) -> None:
+    digest.update(label.encode())
+    digest.update(b"\0")
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        digest.update(b"<missing>")
+    else:
+        digest.update(f"{stat.st_mtime_ns}:{stat.st_size}".encode())
+    digest.update(b"\0")
+
+
+def _site_packages_dirs(venv_dir: Path) -> list[Path]:
+    return sorted(venv_dir.glob("lib/python*/site-packages"))
+
+
+def _environment_metadata_files(venv_dir: Path) -> list[Path]:
+    files: set[Path] = set()
+    for site_packages in _site_packages_dirs(venv_dir):
+        for pattern in _HASHED_ENVIRONMENT_PATTERNS:
+            files.update(site_packages.glob(pattern))
+    return sorted(files)
+
+
+def _extension_files(venv_dir: Path) -> list[Path]:
+    files: set[Path] = set()
+    for site_packages in _site_packages_dirs(venv_dir):
+        for pattern in _STATED_EXTENSION_PATTERNS:
+            files.update(site_packages.glob(pattern))
+    return sorted(files)
+
+
+def _input_fingerprint(
+    *,
+    venv_dir: Path,
+    pyproject: Path,
+    uv_lock: Path,
+    sase_core_dir: Path,
+) -> str:
+    digest = hashlib.sha256()
+    content_inputs = [
+        ("pyproject", pyproject),
+        ("uv-lock", uv_lock),
+        ("venv-config", venv_dir / "pyvenv.cfg"),
+        ("core-cargo", sase_core_dir / "Cargo.toml"),
+        *(
+            (f"validator:{name}", path)
+            for name, path in sorted(VALIDATOR_PATHS.items())
+        ),
+    ]
+    for label, path in content_inputs:
+        _update_file_hash(digest, label, path)
+
+    for path in _environment_metadata_files(venv_dir):
+        _update_file_hash(
+            digest,
+            f"environment:{path.relative_to(venv_dir)}",
+            path,
+        )
+    for path in _extension_files(venv_dir):
+        _update_file_stat(
+            digest,
+            f"extension:{path.relative_to(venv_dir)}",
+            path,
+        )
+    _update_file_stat(digest, "python", venv_dir / "bin/python")
+    return digest.hexdigest()
+
+
+def _load_verdicts(cache_path: Path, fingerprint: str) -> dict[str, dict[str, Any]]:
+    try:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeError):
+        return {}
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != CACHE_SCHEMA_VERSION
+        or payload.get("fingerprint") != fingerprint
+    ):
+        return {}
+
+    raw_verdicts = payload.get("verdicts")
+    if not isinstance(raw_verdicts, dict):
+        return {}
+    verdicts: dict[str, dict[str, Any]] = {}
+    for name, verdict in raw_verdicts.items():
+        if (
+            isinstance(name, str)
+            and isinstance(verdict, dict)
+            and isinstance(verdict.get("code"), int)
+            and isinstance(verdict.get("stdout"), str)
+            and isinstance(verdict.get("stderr"), str)
+        ):
+            verdicts[name] = verdict
+    return verdicts
+
+
+def _write_verdicts(
+    cache_path: Path,
+    fingerprint: str,
+    verdicts: dict[str, dict[str, Any]],
+) -> None:
+    payload = {
+        "schema_version": CACHE_SCHEMA_VERSION,
+        "fingerprint": fingerprint,
+        "verdicts": dict(sorted(verdicts.items())),
+    }
+    temporary = cache_path.with_name(f".{cache_path.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_text(
+            json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        os.replace(temporary, cache_path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _run_validator(command: Sequence[str], error_code: int) -> dict[str, Any]:
+    completed = subprocess.run(
+        command,
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return {
+        "code": 0 if completed.returncode == 0 else error_code,
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
+    }
+
+
+def _emit_verdict(verdict: dict[str, Any]) -> None:
+    sys.stdout.write(verdict["stdout"])
+    sys.stderr.write(verdict["stderr"])
+
+
+def _requested_checks(
+    *,
+    check_core: bool,
+    check_editable: bool,
+    groups: Sequence[str],
+    sase_core_dir: Path,
+    pyproject: Path,
+) -> list[tuple[str, int, list[str]]]:
+    checks: list[tuple[str, int, list[str]]] = []
+    if check_core:
+        checks.extend(
+            [
+                (
+                    "core-version",
+                    CORE_VERSION_ERROR,
+                    [
+                        sys.executable,
+                        str(VALIDATOR_PATHS["core-version"]),
+                        "--sase-core-dir",
+                        str(sase_core_dir),
+                        "--pyproject",
+                        str(pyproject),
+                    ],
+                ),
+                (
+                    "core-bindings",
+                    CORE_BINDINGS_ERROR,
+                    [sys.executable, str(VALIDATOR_PATHS["core-bindings"])],
+                ),
+            ]
+        )
+    checks.extend(
+        (
+            f"dependency-group:{group}",
+            DEPENDENCY_GROUP_ERROR,
+            [sys.executable, str(VALIDATOR_PATHS["dependency-group"]), group],
+        )
+        for group in groups
+    )
+    if check_editable:
+        checks.append(
+            (
+                "editable-metadata",
+                EDITABLE_METADATA_ERROR,
+                [sys.executable, str(VALIDATOR_PATHS["editable-metadata"])],
+            )
+        )
+    return checks
+
+
+def _validate(namespace: argparse.Namespace) -> int:
+    cache_path = namespace.cache_file or (
+        namespace.venv_dir / ".sase-test-setup-validation.json"
+    )
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = cache_path.with_suffix(f"{cache_path.suffix}.lock")
+    force = os.environ.get(FORCE_ENV) == "1"
+    checks = _requested_checks(
+        check_core=namespace.check_core,
+        check_editable=namespace.check_editable,
+        groups=namespace.group,
+        sase_core_dir=namespace.sase_core_dir,
+        pyproject=namespace.pyproject,
+    )
+
+    with lock_path.open("a", encoding="utf-8") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        fingerprint = _input_fingerprint(
+            venv_dir=namespace.venv_dir,
+            pyproject=namespace.pyproject,
+            uv_lock=namespace.uv_lock,
+            sase_core_dir=namespace.sase_core_dir,
+        )
+        verdicts = _load_verdicts(cache_path, fingerprint)
+        result = 0
+        for name, error_code, command in checks:
+            verdict = None if force else verdicts.get(name)
+            if verdict is None or verdict.get("code") not in {0, error_code}:
+                verdict = _run_validator(command, error_code)
+                verdicts[name] = verdict
+            _emit_verdict(verdict)
+            result |= verdict["code"]
+        _write_verdicts(cache_path, fingerprint, verdicts)
+        return result
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--venv-dir", type=Path, required=True)
+    parser.add_argument("--pyproject", type=Path, required=True)
+    parser.add_argument("--uv-lock", type=Path, required=True)
+    parser.add_argument("--sase-core-dir", type=Path, required=True)
+    parser.add_argument("--cache-file", type=Path)
+    parser.add_argument("--check-core", action="store_true")
+    parser.add_argument("--check-editable", action="store_true")
+    parser.add_argument("--group", action="append", default=[])
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    try:
+        return _validate(_parse_args(argv))
+    except Exception as exc:
+        print(f"[validate_test_environment] {exc}", file=sys.stderr)
+        return INTERNAL_ERROR
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

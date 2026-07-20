@@ -61,20 +61,34 @@ _core-overrides-arg:
 # Bootstrap .venv and install editable dev dependencies. Build the local
 # Rust extension first when a source checkout and Rust toolchain are
 # available, because `sase[dev]` depends on the `sase-core-rs` distribution.
+# validate_test_environment caches and dispatches validate_sase_core_rs_version,
+# validate_sase_core_rs, validate_dependency_group, and validate_editable_metadata.
 _setup: _venv
-    @if [ -d "{{ sase_core_dir }}" ] && [ ! -f "{{ sase_core_dir }}/Cargo.toml" ]; then \
+    @validation_status=0; \
+    check_core=""; \
+    if [ -d "{{ sase_core_dir }}" ] && [ ! -f "{{ sase_core_dir }}/Cargo.toml" ]; then \
         printf "[setup] sase-core checkout at {{ sase_core_dir }} has no Cargo.toml; treating as absent and using the published sase-core-rs wheel.\n"; \
     elif [ -f "{{ sase_core_dir }}/Cargo.toml" ] && command -v cargo > /dev/null 2>&1; then \
-        {{ venv_bin }}/python tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || \
-            printf "[setup] WARNING: bump the published sase-core-rs window in pyproject.toml; dev installs build from {{ sase_core_dir }} regardless.\n"; \
-        if ! {{ venv_bin }}/python tools/validate_sase_core_rs; then \
-            printf "[setup] Rebuilding stale or missing sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \
-            just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
-            {{ venv_bin }}/python tools/validate_sase_core_rs; \
-        fi; \
-    fi
-    @if ! {{ venv_bin }}/python tools/validate_dependency_group dev || \
-        ! {{ venv_bin }}/python tools/validate_editable_metadata; then \
+        check_core="--check-core"; \
+    fi; \
+    {{ venv_bin }}/python tools/validate_test_environment \
+        --venv-dir "{{ venv_dir_abs }}" \
+        --pyproject pyproject.toml \
+        --uv-lock uv.lock \
+        --sase-core-dir "{{ sase_core_dir }}" \
+        $check_core --check-editable --group dev || validation_status=$?; \
+    if [ "$validation_status" -ge 64 ]; then \
+        exit "$validation_status"; \
+    fi; \
+    if [ $((validation_status & 1)) -ne 0 ]; then \
+        printf "[setup] WARNING: bump the published sase-core-rs window in pyproject.toml; dev installs build from {{ sase_core_dir }} regardless.\n"; \
+    fi; \
+    if [ $((validation_status & 2)) -ne 0 ]; then \
+        printf "[setup] Rebuilding stale or missing sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \
+        just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
+        {{ venv_bin }}/python tools/validate_sase_core_rs; \
+    fi; \
+    if [ $((validation_status & 12)) -ne 0 ]; then \
         uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) --reinstall-package mypy -e ".[dev]"; \
     fi
 
@@ -133,7 +147,17 @@ install-visual: _venv
 # Bootstrap visual-test dependencies without making them part of the default
 # development install.
 _setup-visual: _setup
-    @if ! {{ venv_bin }}/python tools/validate_dependency_group visual; then \
+    @validation_status=0; \
+    {{ venv_bin }}/python tools/validate_test_environment \
+        --venv-dir "{{ venv_dir_abs }}" \
+        --pyproject pyproject.toml \
+        --uv-lock uv.lock \
+        --sase-core-dir "{{ sase_core_dir }}" \
+        --group visual || validation_status=$?; \
+    if [ "$validation_status" -ge 64 ]; then \
+        exit "$validation_status"; \
+    fi; \
+    if [ $((validation_status & 4)) -ne 0 ]; then \
         uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,visual]"; \
     fi
 
@@ -168,7 +192,17 @@ install-terminal-smoke: _venv
 # Bootstrap real-terminal smoke-test dependencies without making them part of
 # the default development install.
 _setup-terminal-smoke: _setup
-    @if ! {{ venv_bin }}/python tools/validate_dependency_group terminal-smoke; then \
+    @validation_status=0; \
+    {{ venv_bin }}/python tools/validate_test_environment \
+        --venv-dir "{{ venv_dir_abs }}" \
+        --pyproject pyproject.toml \
+        --uv-lock uv.lock \
+        --sase-core-dir "{{ sase_core_dir }}" \
+        --group terminal-smoke || validation_status=$?; \
+    if [ "$validation_status" -ge 64 ]; then \
+        exit "$validation_status"; \
+    fi; \
+    if [ $((validation_status & 4)) -ne 0 ]; then \
         uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,terminal-smoke]"; \
     fi
 

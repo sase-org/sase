@@ -154,11 +154,13 @@ def test_just_test_rust_install_targets_active_venv() -> None:
         '--reinstall-package mypy -e ".[dev]"'
     ) in output
     assert (
-        "/tmp/sase-custom-venv/bin/python tools/validate_dependency_group dev"
-    ) in output
-    assert (
-        "/tmp/sase-custom-venv/bin/python tools/validate_dependency_group visual"
-    ) in output
+        output.count("/tmp/sase-custom-venv/bin/python tools/validate_test_environment")
+        == 2
+    )
+    assert '--venv-dir "/tmp/sase-custom-venv"' in output
+    assert 'check_core="--check-core"' in output
+    assert "$check_core --check-editable --group dev" in output
+    assert "--group visual" in output
     assert (
         "uv pip install --python /tmp/sase-custom-venv/bin/python "
         '--no-sources $(just _core-overrides-arg) -e ".[dev,visual]"'
