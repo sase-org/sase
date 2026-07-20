@@ -3,6 +3,8 @@
 from collections.abc import Callable
 
 from sase.agent.status_buckets import status_bucket_for_values
+from sase.core.agent_clan_context import clan_context_by_key, clan_context_for
+from sase.core.agent_scan_wire import AgentArtifactScanWire
 
 from ._agent_ordering import sort_and_reorder
 from ._agent_status_overrides import apply_status_overrides
@@ -17,6 +19,24 @@ from .agent import Agent
 
 
 _LIVE_PLAN_AGENT_BUCKETS = frozenset({"Stopped", "Starting", "Running", "Waiting"})
+
+
+def apply_snapshot_clan_context(
+    agents: list[Agent],
+    snapshot: AgentArtifactScanWire,
+) -> None:
+    """Attach snapshot-only clan context to matching loaded member rows."""
+    contexts = clan_context_by_key(snapshot.clan_context)
+    if not contexts:
+        return
+    for agent in agents:
+        context = clan_context_for(
+            contexts,
+            agent_clan=agent.agent_clan,
+            agent_clan_generation=agent.agent_clan_generation,
+        )
+        if context is not None:
+            agent.clan_context = context
 
 
 def _filter_dead_pids(

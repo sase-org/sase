@@ -31,6 +31,7 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
             "tree_parent_key",
             "tree_depth",
             "clan_tribes",
+            "clan_context",
             "project_display_name",
             "_loaded_from_dismissed_bundle",
             "_dismissed_bundle_path",

@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 
+from sase.core.agent_clan_context import (
+    clan_context_key,
+    effective_clan_attributes,
+)
+
 from ._agent_clan import aggregate_clan_status, clan_member_status_priority
 from .agent import Agent, AgentType
 
@@ -201,6 +206,20 @@ def _container_for_clan(
     explicit_clan_summary = any(row.clan_summary for row in rows)
     resolved_clan_tribe: str | None = None
     resolved_clan_summary: str | None = None
+    clan_key = clan_context_key(clan_name, generation)
+    context = next(
+        (
+            row.clan_context
+            for row in rows
+            if row.clan_context is not None
+            and clan_context_key(
+                row.clan_context.agent_clan,
+                row.clan_context.agent_clan_generation,
+            )
+            == clan_key
+        ),
+        None,
+    )
     tribes: tuple[str, ...]
     if explicit_clan_tribe or explicit_clan_summary:
         from sase.core.agent_clan_tribe import (
@@ -236,9 +255,15 @@ def _container_for_clan(
                 member_wires,
             ).summary
 
+    resolved_clan_tribe, resolved_clan_summary = effective_clan_attributes(
+        declared_tribe=resolved_clan_tribe,
+        declared_summary=resolved_clan_summary,
+        context=context,
+    )
+
     # A new-style declaration is authoritative. Only generations with no
     # declaration use standalone per-member tribe aggregation.
-    if explicit_clan_tribe:
+    if explicit_clan_tribe or resolved_clan_tribe:
         tribes = (resolved_clan_tribe,) if resolved_clan_tribe else ()
     else:
         tribes = tuple(sorted({row.tribe for row in rows if row.tribe}, key=str.lower))
@@ -264,6 +289,7 @@ def _container_for_clan(
         agent_clan_generation=generation,
         clan_tribe=resolved_clan_tribe,
         clan_summary=resolved_clan_summary,
+        clan_context=context,
         is_clan_container=True,
         clan_tribes=tribes,
         tribe=tribes[0] if len(tribes) == 1 else None,

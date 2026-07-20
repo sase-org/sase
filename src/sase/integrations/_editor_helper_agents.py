@@ -79,6 +79,11 @@ def _derive_group_entries(snapshot: Any, agents: Iterable[Any]) -> list[dict[str
 
 
 def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMember]:
+    from sase.core.agent_clan_context import (
+        clan_context_by_key,
+        clan_context_for,
+        effective_clan_attributes,
+    )
     from sase.core.agent_tribe import load_raw_agent_tribes
     from sase.plan_chain import agent_family_base
 
@@ -88,6 +93,7 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
         if getattr(agent, "artifacts_dir", None)
     }
     persisted_tribes = load_raw_agent_tribes()
+    clan_contexts = clan_context_by_key(getattr(snapshot, "clan_context", ()))
     members: list[_CatalogMember] = []
     for record in snapshot.records:
         meta = record.agent_meta
@@ -119,6 +125,16 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
             cl_name=cl_name,
             timestamp=record.timestamp,
         )
+        context = clan_context_for(
+            clan_contexts,
+            agent_clan=clan,
+            agent_clan_generation=meta.agent_clan_generation,
+        )
+        clan_tribe, _ = effective_clan_attributes(
+            declared_tribe=meta.clan_tribe,
+            declared_summary=meta.clan_summary,
+            context=context,
+        )
         members.append(
             _CatalogMember(
                 name=name,
@@ -128,7 +144,7 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
                 family=family,
                 clan=clan,
                 clan_generation=generation,
-                clan_tribe=(meta.clan_tribe or "").strip() or None,
+                clan_tribe=clan_tribe,
                 tribe=persisted_tribe or ((meta.tribe or "").strip() or None),
                 status=statuses.get(record.artifact_dir) or _record_status(record),
             )

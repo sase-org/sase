@@ -23,9 +23,19 @@ from sase.ace.tui.models.fold_state import FoldStateManager
 from sase.ace.tui.models._loaders._meta_enrichment_wire import (
     enrich_agent_from_meta_wire,
 )
+from sase.ace.tui.models._agent_loader_normalization import (
+    apply_snapshot_clan_context,
+)
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
-from sase.core.agent_scan_wire import AgentMetaWire
+from sase.core.agent_scan_wire import (
+    AGENT_SCAN_WIRE_SCHEMA_VERSION,
+    AgentArtifactScanOptionsWire,
+    AgentArtifactScanStatsWire,
+    AgentArtifactScanWire,
+    AgentClanContextWire,
+    AgentMetaWire,
+)
 
 _GENERATION = "20260717100000"
 
@@ -251,6 +261,46 @@ def test_project_clan_tree_uses_latest_explicit_clan_tribe() -> None:
     assert container.tribe == "beta"
     assert container.clan_tribe == "beta"
     assert container.clan_tribes == ("beta",)
+
+
+def test_project_clan_tree_uses_context_when_declarer_is_omitted() -> None:
+    context = AgentClanContextWire(
+        agent_clan="toobig-0",
+        agent_clan_generation="g1",
+        clan_tribe="chop",
+        clan_summary="Chop generation",
+        clan_tribe_source_launch_timestamp="20260701000000",
+        clan_tribe_source_identity="/tmp/declarer",
+    )
+    first = _agent(
+        "toobig-0.first",
+        "20260701000001",
+        clan="toobig-0",
+        generation="g1",
+    )
+    second = _agent(
+        "toobig-0.second",
+        "20260701000002",
+        clan="toobig-0",
+        generation="g1",
+    )
+    snapshot = AgentArtifactScanWire(
+        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
+        projects_root="/tmp/projects",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        clan_context=[context],
+    )
+    apply_snapshot_clan_context([first, second], snapshot)
+
+    container, *members = project_clan_tree([first, second])
+
+    assert members == [first, second]
+    assert container.runtime_children == [first, second]
+    assert container.clan_tribe == "chop"
+    assert container.clan_summary == "Chop generation"
+    assert container.clan_tribes == ("chop",)
+    assert container.tribe == "chop"
 
 
 def test_wire_enrichment_loads_clan_summary() -> None:

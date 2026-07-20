@@ -116,6 +116,7 @@ from sase.core.agent_scan_wire_records import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
+    AgentClanContextWire,
 )
 
 __all__ = [
@@ -133,6 +134,7 @@ __all__ = [
     "AgentArtifactScanOptionsWire",
     "AgentArtifactScanStatsWire",
     "AgentArtifactScanWire",
+    "AgentClanContextWire",
     "AgentMetaWire",
     "DoneMarkerWire",
     "PendingQuestionMarkerWire",

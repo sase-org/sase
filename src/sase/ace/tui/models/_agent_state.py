@@ -10,6 +10,8 @@ from .agent_attempt import AttemptRecord
 from .agent_types import AgentType, LinkedRepoMetadata
 
 if TYPE_CHECKING:
+    from sase.core.agent_scan_wire import AgentClanContextWire
+
     from .agent import Agent
 
 
@@ -274,6 +276,13 @@ class AgentState:
     agent_clan_generation: str | None = None
     clan_tribe: str | None = None
     clan_summary: str | None = None
+    # Snapshot-only semantic context. It is never persisted back to artifacts
+    # or dismissed bundles and may originate from an omitted declaration row.
+    clan_context: AgentClanContextWire | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
     # Agents-tab-only tree projection. Clan containers are synthetic rows;
     # ``tree_parent_key`` and ``tree_depth`` place their loaded members below
     # them without overloading artifact ``parent_timestamp`` relationships.

@@ -31,6 +31,7 @@ from ._agent_loader_artifacts import (
     update_artifact_index_from_delta as _update_artifact_index_from_delta,
 )
 from ._agent_loader_normalization import (
+    apply_snapshot_clan_context as _apply_snapshot_clan_context,
     mark_live_artifact_delta_runners as _mark_delta_runners_live,
     normalize_live_plan_agents as _normalize_plan_agents,
     normalize_loaded_agents as _normalize_agents,
@@ -223,6 +224,10 @@ def _load_agents_from_artifact_snapshot_sources(
             step_meta_by_parent=step_meta_by_parent,
         )
     )
+    _apply_snapshot_clan_context(
+        [*agents, *workflow_agent_steps],
+        artifact_snapshot,
+    )
     return agents, workflow_agent_steps
 
 
@@ -327,6 +332,10 @@ def _load_agents_from_all_sources(
         # COMMENTS - CRS agents
         agents.extend(load_agents_from_comments(cs, bug, cl_num))
 
+    _apply_snapshot_clan_context(
+        [*agents, *workflow_agent_steps],
+        artifact_snapshot,
+    )
     return agents, workflow_agent_steps
 
 

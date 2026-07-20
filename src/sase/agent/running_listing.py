@@ -3,13 +3,22 @@
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from collections.abc import Mapping
 
 from sase.agent.names import is_process_alive
 from sase.agent.status_buckets import EPIC_APPROVED_STATUS
+from sase.core.agent_clan_context import (
+    ClanContextKey,
+    clan_context_by_key,
+    clan_context_for,
+    effective_agent_tribe,
+    effective_clan_attributes,
+)
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
+    AgentClanContextWire,
 )
 from sase.core.paths import sase_projects_dir
 from sase.core.runner_slots import (
@@ -47,6 +56,11 @@ class RunningAgentInfo:
     # Canonical clan metadata from agent_meta.json. This is intentionally not
     # inferred from the agent's dotted name because ordinary hoods are not clans.
     agent_clan: str | None = None
+    agent_clan_generation: str | None = None
+    clan_tribe: str | None = None
+    # Effective presentation-neutral tribe. Clan declarations/context take
+    # precedence; standalone assignments remain unchanged for non-clan rows.
+    tribe: str | None = None
 
 
 class _RunningAgentListing(list[RunningAgentInfo]):
@@ -176,6 +190,7 @@ def _running_info_from_running_record(
     *,
     now: datetime,
     workspace_cache: dict[str, list],
+    clan_contexts: Mapping[ClanContextKey, AgentClanContextWire],
 ) -> RunningAgentInfo | None:
     """Adapt a snapshot record into RunningAgentInfo, or skip via current filters."""
     meta = record.agent_meta
@@ -210,6 +225,16 @@ def _running_info_from_running_record(
         timestamp=record.timestamp,
         cache=workspace_cache,
     )
+    context = clan_context_for(
+        clan_contexts,
+        agent_clan=meta.agent_clan,
+        agent_clan_generation=meta.agent_clan_generation,
+    )
+    clan_tribe, _ = effective_clan_attributes(
+        declared_tribe=meta.clan_tribe,
+        declared_summary=meta.clan_summary,
+        context=context,
+    )
 
     return RunningAgentInfo(
         name=meta.name,
@@ -227,6 +252,13 @@ def _running_info_from_running_record(
         artifacts_dir=record.artifact_dir,
         holds_runner_slot=bool(meta.run_started_at) and record.pending_question is None,
         agent_clan=meta.agent_clan,
+        agent_clan_generation=meta.agent_clan_generation,
+        clan_tribe=clan_tribe,
+        tribe=effective_agent_tribe(
+            standalone_tribe=meta.tribe,
+            declared_clan_tribe=meta.clan_tribe,
+            context=context,
+        ),
     )
 
 
@@ -236,6 +268,7 @@ def _running_from_snapshot(
     """Build the running-agent list from *snapshot* using current Python filters."""
     now = datetime.now(get_timezone())
     workspace_cache: dict[str, list] = {}
+    clan_contexts = clan_context_by_key(snapshot.clan_context)
     pairs: list[tuple[str, RunningAgentInfo]] = []
 
     for record in snapshot.records:
@@ -243,7 +276,10 @@ def _running_from_snapshot(
         if not is_root and not _is_visible_runner_slot_child(record):
             continue
         info = _running_info_from_running_record(
-            record, now=now, workspace_cache=workspace_cache
+            record,
+            now=now,
+            workspace_cache=workspace_cache,
+            clan_contexts=clan_contexts,
         )
         if info is None:
             continue
@@ -269,6 +305,8 @@ def _is_visible_runner_slot_child(record: AgentArtifactRecordWire) -> bool:
 
 def _done_info_from_record(
     record: AgentArtifactRecordWire,
+    *,
+    clan_contexts: Mapping[ClanContextKey, AgentClanContextWire],
 ) -> RunningAgentInfo | None:
     """Adapt a done-marker snapshot record into RunningAgentInfo, or skip."""
     if not record.has_done_marker:
@@ -312,6 +350,18 @@ def _done_info_from_record(
     model = (meta.model if meta is not None else None) or done.model
     provider = (meta.llm_provider if meta is not None else None) or done.llm_provider
     approve = bool((meta.approve if meta is not None else False) or done.approve)
+    context = clan_context_for(
+        clan_contexts,
+        agent_clan=meta.agent_clan if meta is not None else None,
+        agent_clan_generation=(
+            meta.agent_clan_generation if meta is not None else None
+        ),
+    )
+    clan_tribe, _ = effective_clan_attributes(
+        declared_tribe=meta.clan_tribe if meta is not None else None,
+        declared_summary=meta.clan_summary if meta is not None else None,
+        context=context,
+    )
 
     return RunningAgentInfo(
         name=name,
@@ -328,6 +378,15 @@ def _done_info_from_record(
         duration_seconds=duration_seconds,
         artifacts_dir=record.artifact_dir,
         agent_clan=meta.agent_clan if meta is not None else None,
+        agent_clan_generation=(
+            meta.agent_clan_generation if meta is not None else None
+        ),
+        clan_tribe=clan_tribe,
+        tribe=effective_agent_tribe(
+            standalone_tribe=meta.tribe if meta is not None else None,
+            declared_clan_tribe=(meta.clan_tribe if meta is not None else None),
+            context=context,
+        ),
     )
 
 
@@ -344,6 +403,7 @@ def _done_from_snapshot(
         by_project.setdefault(record.project_name, []).append(record)
 
     pairs: list[tuple[str, RunningAgentInfo]] = []
+    clan_contexts = clan_context_by_key(snapshot.clan_context)
     for project_records in by_project.values():
         # Newest first, matching the existing ``sorted(..., reverse=True)``
         # walk in the per-directory loop.
@@ -352,7 +412,10 @@ def _done_from_snapshot(
         for record in project_records:
             if kept >= cap_per_project:
                 break
-            info = _done_info_from_record(record)
+            info = _done_info_from_record(
+                record,
+                clan_contexts=clan_contexts,
+            )
             if info is None:
                 continue
             pairs.append((record.timestamp, info))
@@ -371,7 +434,10 @@ def list_running_agents() -> list[RunningAgentInfo]:
     returns most-recent-first.
     """
     snapshot = _scan_listing_snapshot()
-    return _running_from_snapshot(snapshot)
+    return _RunningAgentListing(
+        _running_from_snapshot(snapshot),
+        artifact_snapshot=snapshot,
+    )
 
 
 def list_all_agents(

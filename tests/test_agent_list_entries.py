@@ -10,9 +10,14 @@ from typing import Any
 from pytest import MonkeyPatch
 
 from sase.agent.running import RunningAgentInfo
+from sase.agent.running_listing import _running_from_snapshot
 from sase.agents.cli_list import _agent_to_json
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
+    AgentArtifactScanOptionsWire,
+    AgentArtifactScanStatsWire,
+    AgentArtifactScanWire,
+    AgentClanContextWire,
     AgentMetaWire,
     DoneMarkerWire,
     PendingQuestionMarkerWire,
@@ -306,6 +311,85 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
     assert payload["agent_family"] is None
     assert payload["tribe"] is None
     assert payload["runner_slot_holders"] == ["phase"]
+
+
+def test_agent_list_projects_hidden_clan_declaration_context(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    record = _record(
+        agent_meta=AgentMetaWire(
+            name="toobig-0.joiner",
+            pid=1234,
+            run_started_at="2026-07-19T12:00:00Z",
+            agent_clan="toobig-0",
+            agent_clan_generation="g1",
+        )
+    )
+    snapshot = AgentArtifactScanWire(
+        schema_version=4,
+        projects_root="/tmp/projects",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[record],
+        clan_context=[
+            AgentClanContextWire(
+                agent_clan="toobig-0",
+                agent_clan_generation="g1",
+                clan_tribe="chop",
+                clan_tribe_source_launch_timestamp="20260701000000",
+                clan_tribe_source_identity="/tmp/declarer",
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        "sase.agent.running_listing.is_process_alive",
+        lambda *_args: True,
+    )
+
+    (info,) = _running_from_snapshot(snapshot)
+    entry = _build_agent_list_entry(info, record=record)
+    payload = _agent_to_json(entry)
+
+    assert info.tribe == "chop"
+    assert entry.tribe == "chop"
+    assert entry.agent_clan == "toobig-0"
+    assert entry.agent_clan_generation == "g1"
+    assert entry.clan_tribe == "chop"
+    assert payload["tribe"] == "chop"
+    assert payload["agent_clan"] == "toobig-0"
+    assert payload["agent_clan_generation"] == "g1"
+    assert payload["clan_tribe"] == "chop"
+
+
+def test_agent_list_preserves_standalone_tribe_without_clan_context(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    record = _record(
+        agent_meta=AgentMetaWire(
+            name="standalone",
+            pid=1234,
+            run_started_at="2026-07-19T12:00:00Z",
+            tribe="ops",
+        )
+    )
+    snapshot = AgentArtifactScanWire(
+        schema_version=4,
+        projects_root="/tmp/projects",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[record],
+    )
+    monkeypatch.setattr(
+        "sase.agent.running_listing.is_process_alive",
+        lambda *_args: True,
+    )
+
+    (info,) = _running_from_snapshot(snapshot)
+    entry = _build_agent_list_entry(info, record=record)
+
+    assert info.tribe == "ops"
+    assert entry.tribe == "ops"
+    assert entry.clan_tribe is None
 
 
 def test_agent_list_entries_names_parallel_child_blocking_waiter(

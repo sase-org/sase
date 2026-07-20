@@ -7,8 +7,12 @@ module so the entry point in :mod:`._loading_compute` stays small.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from sase.core.agent_clan_context import clan_context_key
+from sase.core.agent_scan_wire import AgentClanContextWire
 
 from ._loading_compute_types import PreparedApplyData, PreparedApplySnapshot
 from ._loading_helpers import is_always_visible
@@ -18,6 +22,46 @@ if TYPE_CHECKING:
 
 
 _Tier1MergeKey = tuple[object, ...]
+
+
+def _merge_clan_context(
+    previous: AgentClanContextWire | None,
+    current: AgentClanContextWire | None,
+) -> AgentClanContextWire | None:
+    """Keep resolved Tier-2 attributes across a partial Tier-1 replacement."""
+    if previous is None:
+        return current
+    if current is None:
+        return previous
+    keep_tribe = not current.clan_tribe and bool(previous.clan_tribe)
+    keep_summary = not current.clan_summary and bool(previous.clan_summary)
+    if not keep_tribe and not keep_summary:
+        return current
+    return replace(
+        current,
+        clan_tribe=previous.clan_tribe if keep_tribe else current.clan_tribe,
+        clan_tribe_source_launch_timestamp=(
+            previous.clan_tribe_source_launch_timestamp
+            if keep_tribe
+            else current.clan_tribe_source_launch_timestamp
+        ),
+        clan_tribe_source_identity=(
+            previous.clan_tribe_source_identity
+            if keep_tribe
+            else current.clan_tribe_source_identity
+        ),
+        clan_summary=(previous.clan_summary if keep_summary else current.clan_summary),
+        clan_summary_source_launch_timestamp=(
+            previous.clan_summary_source_launch_timestamp
+            if keep_summary
+            else current.clan_summary_source_launch_timestamp
+        ),
+        clan_summary_source_identity=(
+            previous.clan_summary_source_identity
+            if keep_summary
+            else current.clan_summary_source_identity
+        ),
+    )
 
 
 def _identity_merge_key(agent: Agent) -> _Tier1MergeKey:
@@ -158,6 +202,32 @@ def merge_incomplete_load_after_complete_history(
     cached_agents = list(snapshot.cached_agents_with_children)
     if not cached_agents:
         return prep
+
+    cached_context_by_clan: dict[tuple[str, str | None], AgentClanContextWire] = {}
+    for cached in cached_agents:
+        key = clan_context_key(
+            cached.agent_clan,
+            cached.agent_clan_generation,
+        )
+        if key is None or cached.clan_context is None:
+            continue
+        merged_context = _merge_clan_context(
+            cached_context_by_clan.get(key),
+            cached.clan_context,
+        )
+        if merged_context is not None:
+            cached_context_by_clan[key] = merged_context
+    for incoming in prep.filtered_agents:
+        key = clan_context_key(
+            incoming.agent_clan,
+            incoming.agent_clan_generation,
+        )
+        if key is None:
+            continue
+        incoming.clan_context = _merge_clan_context(
+            cached_context_by_clan.get(key),
+            incoming.clan_context,
+        )
 
     from ...models._dedup import dedup_by_pid, dedup_running_vs_workflow
     from ...models.agent import AgentType

@@ -121,7 +121,12 @@ def build_agent_list_entry(
         reasoning_effort=_text(meta, "reasoning_effort"),
         vcs_provider=vcs_provider,
         vcs_provider_display=_vcs_provider_display_name(vcs_provider),
-        tribe=_text(meta, "tribe"),
+        tribe=agent.tribe or _text(meta, "tribe"),
+        agent_clan=agent.agent_clan or _text(meta, "agent_clan"),
+        agent_clan_generation=(
+            agent.agent_clan_generation or _text(meta, "agent_clan_generation")
+        ),
+        clan_tribe=agent.clan_tribe or _text(meta, "clan_tribe"),
         bead_id=_text(meta, "bead_id"),
         changespec_name=_first_text(
             _text(meta, "changespec_name"), _text(meta, "cl_name")

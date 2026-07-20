@@ -9,6 +9,7 @@ from pathlib import Path
 from sase.core.agent_scan_facade import (
     query_agent_artifact_index,
     rebuild_agent_artifact_index,
+    scan_agent_artifacts,
 )
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
@@ -126,3 +127,65 @@ def test_artifact_index_treats_workflow_state_hidden_as_hidden(
         ).fetchone()
 
     assert row == (1,)
+
+
+def test_bounded_source_clan_context_reconciles_through_index(
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    workflow = projects_root / "proj" / "artifacts" / "ace-run"
+    declarer = workflow / "20260701000000"
+    declarer.mkdir(parents=True)
+    (declarer / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "toobig-0.declarer",
+                "agent_clan": "toobig-0",
+                "agent_clan_generation": "g1",
+                "clan_tribe": "chop",
+                "clan_summary": "Chop generation",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (declarer / "done.json").write_text(
+        json.dumps({"outcome": "completed", "name": "toobig-0.declarer"}),
+        encoding="utf-8",
+    )
+    joiner = workflow / "20260701000001"
+    joiner.mkdir()
+    (joiner / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "toobig-0.joiner",
+                "agent_clan": "toobig-0",
+                "agent_clan_generation": "g1",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (joiner / "waiting.json").write_text("{}", encoding="utf-8")
+
+    bounded_source = scan_agent_artifacts(
+        projects_root,
+        AgentArtifactScanOptionsWire(max_records=0, newest_first=True),
+    )
+    assert [record.timestamp for record in bounded_source.records] == ["20260701000001"]
+    assert bounded_source.clan_context[0].clan_tribe is None
+    assert bounded_source.clan_context[0].clan_summary is None
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    rebuild_agent_artifact_index(index_path, projects_root)
+    reconciled = query_agent_artifact_index(
+        index_path,
+        projects_root,
+        AgentArtifactIndexQueryWire(
+            include_active=True,
+            include_recent_completed=False,
+            include_full_history=False,
+        ),
+    )
+
+    assert [record.timestamp for record in reconciled.records] == ["20260701000001"]
+    assert reconciled.clan_context[0].clan_tribe == "chop"
+    assert reconciled.clan_context[0].clan_summary == "Chop generation"

@@ -88,6 +88,9 @@ def _agent_to_json(agent: AgentListEntry) -> dict[str, object]:
         "parent_agent_name": agent.parent_agent_name,
         "agent_family": agent.agent_family,
         "tribe": agent.tribe,
+        "agent_clan": agent.agent_clan,
+        "agent_clan_generation": agent.agent_clan_generation,
+        "clan_tribe": agent.clan_tribe,
         "runner_slot_holders": list(agent.wait.runner_slot_holders),
     }
 

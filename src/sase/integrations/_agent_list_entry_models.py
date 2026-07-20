@@ -100,6 +100,9 @@ class AgentListEntry:
     vcs_provider: str | None = None
     vcs_provider_display: str | None = None
     tribe: str | None = None
+    agent_clan: str | None = None
+    agent_clan_generation: str | None = None
+    clan_tribe: str | None = None
     bead_id: str | None = None
     changespec_name: str | None = None
     cl_name: str | None = None

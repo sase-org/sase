@@ -28,7 +28,44 @@ from .agent_scan_golden import (
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
     assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 4
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 14
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 15
+
+
+def test_clan_context_round_trips_with_source_identity() -> None:
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "records": [],
+            "clan_context": [
+                {
+                    "agent_clan": "toobig-0",
+                    "agent_clan_generation": "g1",
+                    "clan_tribe": "chop",
+                    "clan_summary": "Chop generation",
+                    "clan_tribe_source_launch_timestamp": "20260701000000",
+                    "clan_tribe_source_identity": "/tmp/declarer",
+                    "clan_summary_source_launch_timestamp": "20260701000000",
+                    "clan_summary_source_identity": "/tmp/declarer",
+                }
+            ],
+        }
+    )
+
+    assert snapshot.clan_context[0].clan_tribe == "chop"
+    assert snapshot.clan_context[0].clan_summary == "Chop generation"
+    assert agent_scan_wire_to_json_dict(snapshot)["clan_context"] == [
+        {
+            "agent_clan": "toobig-0",
+            "agent_clan_generation": "g1",
+            "clan_tribe": "chop",
+            "clan_summary": "Chop generation",
+            "clan_tribe_source_launch_timestamp": "20260701000000",
+            "clan_tribe_source_identity": "/tmp/declarer",
+            "clan_summary_source_launch_timestamp": "20260701000000",
+            "clan_summary_source_identity": "/tmp/declarer",
+        }
+    ]
 
 
 def test_scan_wire_rejects_stale_binding_schema() -> None:

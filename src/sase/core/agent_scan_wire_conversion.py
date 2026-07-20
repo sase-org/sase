@@ -30,6 +30,7 @@ from sase.core.agent_scan_wire_records import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
+    AgentClanContextWire,
 )
 from sase.core.wire import known_field_kwargs
 
@@ -218,12 +219,18 @@ def agent_scan_wire_from_dict(data: dict[str, Any]) -> AgentArtifactScanWire:
     options = _options_from_dict(data.get("options") or {})
     stats = _stats_from_dict(data.get("stats") or {})
     records = [_record_from_dict(r) for r in data.get("records") or []]
+    clan_context = [
+        AgentClanContextWire(**known_field_kwargs(AgentClanContextWire, item))
+        for item in data.get("clan_context") or []
+        if isinstance(item, dict)
+    ]
     return AgentArtifactScanWire(
         schema_version=schema_version,
         projects_root=data["projects_root"],
         options=options,
         stats=stats,
         records=records,
+        clan_context=clan_context,
     )
 
 

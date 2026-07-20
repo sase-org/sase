@@ -59,6 +59,12 @@ def agent_list_entries(
     )
     runner_slots_in_use = sum(_holds_runner_slot(agent) for agent in agents)
     now = datetime.now(get_timezone())
+    snapshot = getattr(agents, "artifact_snapshot", None)
+    records_by_dir = (
+        {record.artifact_dir: record for record in snapshot.records}
+        if snapshot is not None
+        else {}
+    )
     child_summaries = _children_by_parent_timestamp(project=project) if agents else {}
     entries: list[AgentListEntry] = []
     for agent in agents:
@@ -68,7 +74,14 @@ def agent_list_entries(
             if timestamp is not None
             else None
         )
-        entries.append(_build_agent_list_entry(agent, now=now, children=children))
+        entries.append(
+            _build_agent_list_entry(
+                agent,
+                record=records_by_dir.get(agent.artifacts_dir or ""),
+                now=now,
+                children=children,
+            )
+        )
     entries = _attach_runner_slot_context(
         entries,
         runner_slots_in_use,

@@ -25,6 +25,8 @@ from sase.ace.tui.actions.agents._loading_compute import (
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_content_search import AgentContentSearchCache
 from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.ace.tui.models._agent_tree import project_clan_tree
+from sase.core.agent_scan_wire import AgentClanContextWire
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
 
@@ -407,6 +409,71 @@ def test_artifact_delta_deleted_dir_removes_cached_row() -> None:
     merge_incomplete_load_after_complete_history(prep, snapshot)
 
     assert prep.filtered_agents == []
+
+
+def test_artifact_delta_preserves_cached_clan_context() -> None:
+    """An exact joiner-only delta cannot erase reconciled clan context."""
+    context = AgentClanContextWire(
+        agent_clan="toobig-0",
+        agent_clan_generation="g1",
+        clan_tribe="chop",
+        clan_tribe_source_launch_timestamp="20260701000000",
+        clan_tribe_source_identity="/tmp/declarer",
+    )
+    cached = _make_agent(
+        cl_name="toobig-0.joiner",
+        raw_suffix="20260701000001",
+        status="WAITING",
+    )
+    cached.agent_clan = "toobig-0"
+    cached.agent_clan_generation = "g1"
+    cached.clan_context = context
+    refreshed = _make_agent(
+        cl_name="toobig-0.joiner",
+        raw_suffix="20260701000001",
+        status="WAITING",
+    )
+    refreshed.agent_clan = "toobig-0"
+    refreshed.agent_clan_generation = "g1"
+    refreshed.clan_context = AgentClanContextWire(
+        agent_clan="toobig-0",
+        agent_clan_generation="g1",
+    )
+    prep = PreparedApplyData(
+        filtered_agents=[refreshed],
+        has_always_visible=True,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+    snapshot = PreparedApplySnapshot(
+        cached_agents_with_children=[cached],
+        dismissed_agents=set(),
+        agents_seen_complete_history=True,
+        hide_non_run_agents=False,
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            artifact_source="artifact_delta",
+            used_artifact_index=False,
+        ),
+        fold_levels=None,
+        selection=PreparedApplySelectionInputs(
+            on_agents_tab=False,
+            selected_identity=None,
+            prior_visual_row=None,
+        ),
+    )
+
+    merge_incomplete_load_after_complete_history(prep, snapshot)
+
+    assert [agent for agent in prep.filtered_agents if not agent.is_clan_container] == [
+        refreshed
+    ]
+    assert refreshed.clan_context is not None
+    assert refreshed.clan_context.clan_tribe == "chop"
+    container = project_clan_tree(prep.filtered_agents)[0]
+    assert container.clan_tribes == ("chop",)
 
 
 def test_artifact_delta_retry_projection_survives_cached_family_reattach() -> None:

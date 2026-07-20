@@ -498,6 +498,7 @@ def test_editor_helper_bridge_agent_catalog_derives_groups_from_one_snapshot(
         AgentArtifactScanOptionsWire,
         AgentArtifactScanStatsWire,
         AgentArtifactScanWire,
+        AgentClanContextWire,
         AgentMetaWire,
         DoneMarkerWire,
     )
@@ -536,7 +537,6 @@ def test_editor_helper_bridge_agent_catalog_derives_groups_from_one_snapshot(
             "squad.alpha",
             agent_clan="squad",
             agent_clan_generation="g2",
-            clan_tribe="builders",
         ),
         record(
             "20260719020102",
@@ -564,6 +564,15 @@ def test_editor_helper_bridge_agent_catalog_derives_groups_from_one_snapshot(
         options=AgentArtifactScanOptionsWire(),
         stats=AgentArtifactScanStatsWire(),
         records=records,
+        clan_context=[
+            AgentClanContextWire(
+                agent_clan="squad",
+                agent_clan_generation="g2",
+                clan_tribe="builders",
+                clan_tribe_source_launch_timestamp="20260719020000",
+                clan_tribe_source_identity="/tmp/omitted-declarer",
+            )
+        ],
     )
 
     def info(record: AgentArtifactRecordWire, status: str) -> RunningAgentInfo:

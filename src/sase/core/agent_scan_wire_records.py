@@ -24,7 +24,7 @@ from sase.core.agent_scan_wire_markers import (
 )
 
 AGENT_SCAN_WIRE_SCHEMA_VERSION = 4
-AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 14
+AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 15
 
 # Workflow directory categories the Phase 3A scanner walks.
 #
@@ -254,6 +254,20 @@ class AgentArtifactRecordWire:
 
 
 @dataclass(frozen=True)
+class AgentClanContextWire:
+    """Resolved semantic attributes for one represented clan generation."""
+
+    agent_clan: str
+    agent_clan_generation: str | None = None
+    clan_tribe: str | None = None
+    clan_summary: str | None = None
+    clan_tribe_source_launch_timestamp: str | None = None
+    clan_tribe_source_identity: str | None = None
+    clan_summary_source_launch_timestamp: str | None = None
+    clan_summary_source_identity: str | None = None
+
+
+@dataclass(frozen=True)
 class AgentArtifactScanWire:
     """Top-level snapshot returned by :func:`scan_agent_artifacts`.
 
@@ -274,6 +288,7 @@ class AgentArtifactScanWire:
     options: AgentArtifactScanOptionsWire
     stats: AgentArtifactScanStatsWire
     records: list[AgentArtifactRecordWire] = field(default_factory=list)
+    clan_context: list[AgentClanContextWire] = field(default_factory=list)
 
 
 __all__ = [
@@ -287,6 +302,7 @@ __all__ = [
     "AgentArtifactScanOptionsWire",
     "AgentArtifactScanStatsWire",
     "AgentArtifactScanWire",
+    "AgentClanContextWire",
     "DONE_WORKFLOW_DIR_NAMES",
     "DONE_WORKFLOW_DIR_PREFIXES",
     "WORKFLOW_STATE_DIR_NAMES",
