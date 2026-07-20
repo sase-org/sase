@@ -40,9 +40,10 @@ work; the derived `research.@.cld` name flows through normal template allocation
 
 ### Launch-time clan summaries
 
-The declaring member can attach a short description to its clan generation. Use a literal for stable context, the
-double-colon shorthand for a larger text block, or an executable when the description depends on launch-time state. A
-literal keeps the work prompt immediately below the declaration:
+The declaring member can attach a short description to its clan generation. ACE displays this description near the top
+of the clan's `CLAN` panel; it is metadata and is not sent to the member as work instructions. Use a literal for stable
+context, the double-colon shorthand for a larger text block, or an executable when the description depends on state
+available as the runner starts. A literal keeps the work prompt immediately below the declaration:
 
 ```text
 %id:research.lead
@@ -66,22 +67,30 @@ For a computed description, name an executable instead:
 Triage the current failures.
 ```
 
-`summary=` accepts quoted text or an xprompt `[[...]]` text block. The `::` shorthand captures text until the next
-top-level directive or xprompt reference, so use `summary=` if ordinary prompt text follows the description directly.
-`summary=` and `summary_script=` are mutually exclusive, and both belong only on the create-only `%clan` declaration;
+`summary=` accepts the usual directive values: a bare token, a quoted string for text containing spaces or special
+characters, or a multiline `[[...]]` text block. The `::` shorthand requires a space after `::` and captures everything
+until the next top-level line that starts a directive (`%`) or xprompt reference (`#`). That captured text becomes only
+the summary, so use `summary=` when ordinary work instructions follow the declaration directly. `summary=` and
+`summary_script=` are mutually exclusive, and both belong only on the create-only `%clan` declaration;
 `%id(..., clan=...)` joiners cannot declare or replace a summary.
 
-A summary executable runs once, synchronously, in the declaring member's workspace. A bare executable name is resolved
-next to the running Python interpreter and then on `PATH`; a value containing `/` is resolved as an executable absolute
-path or a path relative to that workspace. The child receives `SASE_CLAN_NAME`, `SASE_CLAN_GENERATION`, and, when the
-declaration has one, `SASE_CLAN_TRIBE`. Its standard output becomes the summary and its standard error is appended to
-the agent log. Execution is capped at 10 seconds and output at 32 KiB. Missing executables, timeouts, nonzero exits, and
-empty output are logged and omit the optional summary without blocking the agent launch.
+A summary executable runs synchronously while SASE extracts launch directives, before dependency waits, runner-slot
+admission, and workspace preparation. Its working directory is the workspace path with which the runner started. For a
+deferred-workspace launch, that is the placeholder workspace, not the workspace claimed after the wait. If a waiting
+runner re-execs to load updated SASE code, directive extraction can run the executable again.
+
+A bare executable name is resolved next to the running Python interpreter and then on `PATH`; a value containing `/` is
+resolved as an executable absolute path or a path relative to that initial workspace. The child receives
+`SASE_CLAN_NAME`, `SASE_CLAN_GENERATION`, and, when the declaration has one, `SASE_CLAN_TRIBE`. Its standard output
+becomes the summary and its standard error is appended to the agent log. Execution is capped at 10 seconds, and the
+stored summary is truncated to 32 KiB. Missing executables, timeouts, nonzero exits, and empty output are logged and
+omit the optional summary without blocking the agent launch.
 
 SASE trims trailing whitespace and persists the result as `clan_summary` on the declaring agent's metadata. The scan
 contract resolves summaries within one clan generation deterministically, using the newest explicit declaration if it
-must read older or externally-authored artifacts with more than one. This launch-time description is metadata for the
-clan generation; it is distinct from the foldable `CLAN` document that ACE synthesizes from live member activity.
+must read older or externally-authored artifacts with more than one. Rich markup is rendered when valid and shown as
+literal text when invalid. The saved description is distinct from the foldable sections that ACE synthesizes below it
+from member artifacts and activity.
 
 Clan membership is execution-neutral. It does not add waits, change launch order, choose a workspace or model, or
 otherwise rewrite launch behavior. Use `%wait` explicitly wherever ordering is required. The `clan=`, `family=`, and

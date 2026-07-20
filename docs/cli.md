@@ -165,22 +165,22 @@ exits 0, a validation failure exits 1, and invalid command usage exits 2.
 
 ## Automation
 
-| Command                          | Purpose                                                        | Details                                            |
-| -------------------------------- | -------------------------------------------------------------- | -------------------------------------------------- |
-| `sase axe start`                 | Start the axe orchestrator and its lumberjacks.                | [Axe](axe.md)                                      |
-| `sase axe stop`                  | Stop the running orchestrator and record an intentional stop.  | [Axe](axe.md#cli-commands)                         |
-| `sase axe ensure`                | Heal unexpected daemon downtime while honoring explicit stops. | [Axe recovery](axe.md#watchdog-and-recovery)       |
-| `sase axe ensure install`        | Install and enable the optional user-systemd watchdog.         | [Axe recovery](axe.md#watchdog-and-recovery)       |
-| `sase axe ensure uninstall`      | Disable and remove the optional user-systemd watchdog.         | [Axe recovery](axe.md#watchdog-and-recovery)       |
-| `sase axe chop list`             | List configured chops with status; `-a` adds scripts.          | [Axe chops](axe.md#chop-fields)                    |
-| `sase axe chop doctor`           | Diagnose configured/available chops and Telegram setup.        | [Axe chops](axe.md#chop-fields)                    |
-| `sase axe chop run <name>`       | Run one chop in the foreground.                                | [Axe chops](axe.md#script-chops)                   |
-| `sase axe lumberjack list`       | List configured lumberjacks.                                   | [Axe lumberjacks](axe.md#default-lumberjacks)      |
-| `sase axe lumberjack run <name>` | Run one lumberjack in the foreground for debugging.            | [Axe lumberjacks](axe.md#lumberjack-configuration) |
-| `sase axe lumberjack status`     | Show lumberjack process status.                                | [Axe](axe.md)                                      |
-| `sase axe maintenance enter`     | Pause scheduled lumberjack ticks with a recorded reason.       | [Maintenance mode](axe.md#maintenance-mode)        |
-| `sase axe maintenance exit`      | Resume scheduled lumberjack ticks.                             | [Maintenance mode](axe.md#maintenance-mode)        |
-| `sase axe maintenance status`    | Inspect the maintenance marker.                                | [Maintenance mode](axe.md#maintenance-mode)        |
+| Command                          | Purpose                                                           | Details                                            |
+| -------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------- |
+| `sase axe start`                 | Request running state and start the orchestrator and lumberjacks. | [Axe](axe.md)                                      |
+| `sase axe stop`                  | Request stopped state and stop the orchestrator and lumberjacks.  | [Axe](axe.md#cli-commands)                         |
+| `sase axe ensure`                | Start a missing orchestrator unless axe was explicitly stopped.   | [Axe recovery](axe.md#watchdog-and-recovery)       |
+| `sase axe ensure install`        | Install and enable the optional user-systemd timer.               | [Axe recovery](axe.md#watchdog-and-recovery)       |
+| `sase axe ensure uninstall`      | Disable and remove the optional user-systemd timer.               | [Axe recovery](axe.md#watchdog-and-recovery)       |
+| `sase axe chop list`             | List configured chops with status; `-a` adds scripts.             | [Axe chops](axe.md#chop-fields)                    |
+| `sase axe chop doctor`           | Diagnose configured/available chops and Telegram setup.           | [Axe chops](axe.md#chop-fields)                    |
+| `sase axe chop run <name>`       | Run one chop in the foreground.                                   | [Axe chops](axe.md#script-chops)                   |
+| `sase axe lumberjack list`       | List configured lumberjacks.                                      | [Axe lumberjacks](axe.md#default-lumberjacks)      |
+| `sase axe lumberjack run <name>` | Run one lumberjack in the foreground for debugging.               | [Axe lumberjacks](axe.md#lumberjack-configuration) |
+| `sase axe lumberjack status`     | Show lumberjack process status.                                   | [Axe](axe.md)                                      |
+| `sase axe maintenance enter`     | Pause scheduled lumberjack ticks with a recorded reason.          | [Maintenance mode](axe.md#maintenance-mode)        |
+| `sase axe maintenance exit`      | Resume scheduled lumberjack ticks.                                | [Maintenance mode](axe.md#maintenance-mode)        |
+| `sase axe maintenance status`    | Inspect the maintenance marker.                                   | [Maintenance mode](axe.md#maintenance-mode)        |
 
 Axe runs scheduled hooks, mentors, comment polling, workflow checks, `%wait` dependency resolution, cleanup, and error
 digests. ACE starts axe automatically unless launched with `sase ace --no-axe`.

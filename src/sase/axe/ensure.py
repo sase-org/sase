@@ -72,7 +72,7 @@ def ensure_axe(
     """
     now = now_fn()
     try:
-        lock_file = _acquire_ensure_lock()
+        lock_file = acquire_axe_ensure_lock()
     except OSError as exc:
         return _AxeEnsureResult(
             status="failed",
@@ -153,7 +153,7 @@ def ensure_axe(
             notification_id=notification_id,
         )
     finally:
-        _release_ensure_lock(lock_file)
+        release_axe_ensure_lock(lock_file)
 
 
 def install_ensure_timer(
@@ -296,12 +296,16 @@ def _ensure_marker_path() -> Path:
     return _state.AXE_STATE_DIR / "ensure.json"
 
 
-def _acquire_ensure_lock() -> TextIO | None:
+def acquire_axe_ensure_lock(*, blocking: bool = False) -> TextIO | None:
+    """Acquire the host-wide lock that serializes axe ensure with stop."""
     path = _ensure_lock_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_file = path.open("a+", encoding="utf-8")
     try:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        flags = fcntl.LOCK_EX
+        if not blocking:
+            flags |= fcntl.LOCK_NB
+        fcntl.flock(lock_file.fileno(), flags)
     except BlockingIOError:
         lock_file.close()
         return None
@@ -311,7 +315,8 @@ def _acquire_ensure_lock() -> TextIO | None:
     return lock_file
 
 
-def _release_ensure_lock(lock_file: TextIO) -> None:
+def release_axe_ensure_lock(lock_file: TextIO) -> None:
+    """Release a lock returned by :func:`acquire_axe_ensure_lock`."""
     try:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
     finally:
@@ -452,7 +457,9 @@ def _run_systemctl(
 
 __all__ = [
     "DEFAULT_ENSURE_CADENCE_SECONDS",
+    "acquire_axe_ensure_lock",
     "ensure_axe",
     "install_ensure_timer",
+    "release_axe_ensure_lock",
     "uninstall_ensure_timer",
 ]

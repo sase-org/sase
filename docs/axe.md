@@ -552,28 +552,48 @@ is no longer running.
 
 ## Watchdog and Recovery
 
-`sase axe ensure` is an idempotent health check for the whole orchestrator. SASE records the operator's requested state
-separately from the current process state: starting axe records `running`, while `sase axe stop` records `stopped`. If
-the desired state is running and no orchestrator is alive, `ensure` starts one and makes a best-effort attempt to write
-an **Axe self-healed** entry to the notification inbox. If axe is healthy, or was explicitly stopped, the command
-reports that state and does nothing. A missing desired-state marker preserves the historical default that axe should be
-running. `sase doctor -C axe.health` reports this desired/live-state comparison and points a down requested-running
-daemon to `sase axe ensure`; deep doctor mode includes the same mismatch in its broader AXE runtime check.
+`sase axe ensure` is a single-shot, idempotent reconciliation of the requested axe state and the orchestrator process.
+It checks only orchestrator liveness; use `sase axe lumberjack status` or deep doctor mode to inspect individual
+lumberjacks. Start and restart requests write `running` before attempting startup, while `sase axe stop` writes
+`stopped` before shutdown. The marker therefore records intent, not proof that the process transition succeeded.
+
+| Desired-state marker | Live orchestrator | `sase axe ensure` result                                      |
+| -------------------- | ----------------- | ------------------------------------------------------------- |
+| `running`            | Yes               | Reports healthy; no process change                            |
+| `running`            | No                | Starts axe and reports healed, or exits 1 if startup fails    |
+| `stopped`            | Either            | Reports explicitly stopped; no process change                 |
+| Missing or invalid   | Yes               | Uses the historical running default and reports healthy       |
+| Missing or invalid   | No                | Uses the historical running default and attempts to start axe |
+
+After a successful heal, SASE makes a best-effort attempt to write an **Axe self-healed** entry to the notification
+inbox. Notification failure does not turn the heal into a failure. `sase doctor -C axe.health` reports the same
+desired/live fields, but warns only when a valid marker explicitly says `running` and the orchestrator is down. With no
+marker and no process, that doctor check reports OK even though a subsequent `sase axe ensure` would attempt startup.
+Deep doctor mode applies the same explicit-`running` mismatch rule in its broader AXE runtime check.
 
 This distinction prevents a watchdog from undoing an intentional stop. To resume healing after `sase axe stop`, start
 axe again with `sase axe start`; that both launches the daemon and restores the desired state to running. Installing or
-uninstalling the watchdog does not itself change the desired state, and uninstalling it does not stop a running daemon.
+uninstalling the watchdog does not directly rewrite an explicit desired state, and uninstalling it does not stop a
+running daemon. Once enabled, however, each due timer invocation behaves like bare `ensure`, including treating a
+missing marker as `running`.
+
+Agent runners blocked on dependency waits also make best-effort ensure calls. Those calls share a host-wide marker and
+are limited to at most one actual check every five minutes. The optional timer is useful when no waiting agent is alive
+to make those checks.
 
 On Linux hosts with user systemd, `sase axe ensure install` writes and enables `sase-axe-ensure.service` and
-`sase-axe-ensure.timer` under the user systemd directory. The timer first checks two minutes after boot, then every five
-minutes, and catches up after downtime. It invokes the stable SASE executable used at installation time and preserves
-`SASE_HOME` when that variable is set. `sase axe ensure uninstall` disables the timer and removes both units. On systems
-without `systemctl --user`, run bare `sase axe ensure` manually or from the host's scheduler instead.
+`sase-axe-ensure.timer` under the user systemd directory. Its first activation is scheduled for two minutes after boot
+(or promptly when enabled after that point), followed by an activation five minutes after the prior service activation.
+The monotonic timer does not replay missed intervals after downtime. It invokes the stable SASE executable selected at
+installation time and preserves `SASE_HOME` when that variable is set. `sase axe ensure uninstall` disables the timer
+and removes both units. On systems without `systemctl --user`, run bare `sase axe ensure` manually or from the host's
+scheduler instead.
 
-Managed restart paths, including ACE and update-triggered restarts, keep the desired state at running, retry startup,
-and require every configured lumberjack to publish a fresh running heartbeat before reporting success. If all attempts
-fail, SASE records the attempt summaries in `recent_errors.json` and sends a durable **Axe restart failed**
-notification; an installed watchdog can try a clean start on a later tick.
+Managed restart paths, including ACE and update-triggered restarts, record `running`, make up to three startup attempts,
+and report success only after the orchestrator is live and every configured lumberjack reports `running` with PID and
+heartbeat values changed from the pre-restart snapshot. If all attempts fail, SASE records the attempt summaries in
+`recent_errors.json` and sends a durable **Axe restart failed** notification; an installed watchdog can try a clean
+start on a later tick.
 
 ## State Directory
 
@@ -582,8 +602,8 @@ notification; an installed watchdog can try a clean start on a later tick.
 ├── orchestrator.pid                # Orchestrator PID
 ├── orchestrator.lock               # Exclusive lifecycle lock held by the live orchestrator
 ├── desired_state.json              # Last requested running/stopped state
-├── ensure.lock                     # Serializes concurrent health checks
-├── ensure.json                     # Timestamp/source of the latest health check
+├── ensure.lock                     # Serializes ensure checks with one another and explicit stops
+├── ensure.json                     # Timestamp/source of the latest non-rate-limited ensure check
 ├── maintenance.json                # Optional maintenance marker that pauses lumberjack ticks
 ├── logs/
 │   ├── axe.log                     # Orchestrator startup log

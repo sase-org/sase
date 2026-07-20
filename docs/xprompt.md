@@ -1052,7 +1052,7 @@ Directives use the same argument syntax as xprompt references:
 %clan(research, tribe=review) # Declare a new clan in tribe @review
 %clan(research, summary="Audit the authentication boundary") # Store a launch-time clan description
 %clan(research, summary_script=./describe-clan) # Generate that description with an executable
-%clan:research:: Audit the authentication boundary. # Text-block shorthand; ends at the next % or # item
+%clan:research:: Audit the authentication boundary. # Text block; ends at the next top-level % or # line
 %wait:agent1                 # Wait for agent1
 %w:agent2                    # Wait for agent2 (alias)
 %wait                        # Bare — waits for the most recently named agent
@@ -1099,11 +1099,12 @@ may fan out, and identical raw clan templates in one batch resolve to the same g
 
 The declaring `%clan` can also attach one launch-time description with `summary=`, `summary_script=`, or the
 `%clan...::` text-block shorthand. These forms are mutually exclusive, and clan joiners cannot replace the description.
-The `::` form captures through the next top-level `%` directive or `#` reference; use the explicit `summary=` form when
-ordinary prompt text follows immediately. A summary is metadata only and does not change the member prompt or launch
-behavior. Script-backed summaries run once in the declaring member's workspace with a bounded, non-fatal contract; see
-[Launch-time clan summaries](agent_families.md#launch-time-clan-summaries) for the complete execution and persistence
-details.
+The `::` form requires a following space and captures up to the next top-level line beginning with a `%` directive or
+`#` reference. The captured text becomes metadata rather than member instructions; use the explicit `summary=` form when
+the work prompt follows immediately. Script-backed summaries run synchronously during directive extraction, before waits
+and workspace preparation, with a bounded, non-fatal contract. See
+[Launch-time clan summaries](agent_families.md#launch-time-clan-summaries) for the complete ordering, execution, and
+persistence details.
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
 `qwen3.6-plus`) are automatically mapped to their provider. See
