@@ -326,7 +326,10 @@ def test_clan_tribe_reassignment_rewrites_only_declaring_prompt(tmp_path: Path) 
     for artifacts_dir, prompt, name in (
         (
             declarer_dir,
-            "%id:research.lead\n%clan(research, tribe=old)\nLead",
+            "%id:research.lead\n"
+            "%clan(research, tribe=old, "
+            "summary_script=sase_clan_summary_epic)\n"
+            "Lead",
             "research.lead",
         ),
         (
@@ -377,7 +380,10 @@ def test_clan_tribe_reassignment_rewrites_only_declaring_prompt(tmp_path: Path) 
         )
 
     assert (declarer_dir / "raw_xprompt.md").read_text(encoding="utf-8") == (
-        "%id:research.lead\n%clan(research, tribe=new)\nLead"
+        "%id:research.lead\n"
+        "%clan(research, tribe=new, "
+        "summary_script=sase_clan_summary_epic)\n"
+        "Lead"
     )
     assert (joiner_dir / "raw_xprompt.md").read_text(encoding="utf-8") == (
         "%id(worker, clan=research)\nWork"

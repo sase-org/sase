@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from sase.xprompt.directive_edit import (
     PromptWaitDirective,
     demote_prompt_clan_declaration,
@@ -52,6 +54,35 @@ def test_demote_prompt_clan_template_declaration_preserves_template() -> None:
     )
 
 
+def test_demote_prompt_clan_declaration_removes_shorthand_summary() -> None:
+    prompt = (
+        "%id:research.worker\n"
+        "%clan:research:: [bold]Research[/bold]\n"
+        "Second paragraph\n\n"
+        "%model:opus\n"
+        "Do work"
+    )
+
+    assert demote_prompt_clan_declaration(prompt) == (
+        "%id(worker, clan=research)\n%model:opus\nDo work"
+    )
+
+
+def test_demote_prompt_clan_declaration_removes_multiline_summary_arg() -> None:
+    prompt = (
+        "%id:research.worker\n"
+        "%clan(research, summary=[[\n"
+        "  [bold]Research[/bold]\n"
+        "  Second line\n"
+        "]])\n"
+        "Do work"
+    )
+
+    assert demote_prompt_clan_declaration(prompt) == (
+        "%id(worker, clan=research)\nDo work"
+    )
+
+
 def test_rewrite_prompt_clan_member_name_resolves_template() -> None:
     prompt = "%id(worker, clan=research.@)\nDo work"
 
@@ -62,6 +93,20 @@ def test_rewrite_prompt_clan_member_name_resolves_template() -> None:
             current_agent_name="research.2.worker",
         )
         == "%id(worker.r0, clan=research.2)\nDo work"
+    )
+
+
+def test_rewrite_prompt_clan_member_name_removes_shorthand_summary() -> None:
+    prompt = (
+        "%id:research.worker\n"
+        "%clan(research, tribe=study):: First line\n"
+        "Second line\n"
+        "#next\n"
+        "Do work"
+    )
+
+    assert rewrite_prompt_clan_member_name(prompt, "research.worker.r0") == (
+        "%id(worker.r0, clan=research)\n#next\nDo work"
     )
 
 
@@ -107,6 +152,87 @@ def test_set_prompt_clan_tribe_adds_replaces_and_removes_keyword() -> None:
         set_prompt_clan_tribe("%clan(review, tribe=quality)\nDo work", None)
         == "%clan(review)\nDo work"
     )
+
+
+@pytest.mark.parametrize(
+    "summary_arg",
+    [
+        'summary="[bold]Review, findings[/bold]"',
+        "summary=[[ [bold]Review[/bold] ]]",
+        "summary=[[\n    [bold]Review[/bold]\n      Nested detail\n]]",
+        "summary_script=sase_clan_summary_epic",
+    ],
+)
+def test_set_prompt_clan_tribe_preserves_summary_arguments_verbatim(
+    summary_arg: str,
+) -> None:
+    without_tribe = f"%clan(review, {summary_arg})\nDo work"
+    with_old_tribe = f"%clan(review, tribe=old, {summary_arg})\nDo work"
+
+    added = set_prompt_clan_tribe(without_tribe, "quality")
+    replaced = set_prompt_clan_tribe(with_old_tribe, "quality")
+    removed = set_prompt_clan_tribe(replaced, None)
+
+    assert added == f"%clan(review, tribe=quality, {summary_arg})\nDo work"
+    assert replaced == added
+    assert removed == without_tribe
+
+    _, original_directives = extract_prompt_directives(without_tribe)
+    for rewritten in (added, replaced, removed):
+        _, directives = extract_prompt_directives(rewritten)
+        assert directives.clan_summary == original_directives.clan_summary
+        assert directives.clan_summary_script == original_directives.clan_summary_script
+
+
+def test_set_prompt_clan_tribe_round_trips_epic_declaration() -> None:
+    prompt = (
+        "%clan(sase-7r, tribe=epic, summary_script=sase_clan_summary_epic)\nDo work"
+    )
+
+    assert set_prompt_clan_tribe(prompt, "landed") == (
+        "%clan(sase-7r, tribe=landed, summary_script=sase_clan_summary_epic)\nDo work"
+    )
+
+
+def test_set_prompt_clan_tribe_validates_summary_keyword_contract() -> None:
+    with pytest.raises(ValueError, match="unsupported keyword.*mystery="):
+        set_prompt_clan_tribe("%clan(review, mystery=value)", "quality")
+    with pytest.raises(ValueError, match="Duplicate keyword argument 'summary'"):
+        set_prompt_clan_tribe(
+            "%clan(review, summary=one, summary=two)",
+            "quality",
+        )
+    with pytest.raises(ValueError, match="summary= and summary_script=.*exclusive"):
+        set_prompt_clan_tribe(
+            "%clan(review, summary=one, summary_script=build)",
+            "quality",
+        )
+
+
+@pytest.mark.parametrize(
+    ("prompt", "expected"),
+    [
+        (
+            "%c:review:: [bold]Review[/bold]\nSecond line",
+            "%clan(review, tribe=quality):: [bold]Review[/bold]\nSecond line",
+        ),
+        (
+            "%c(review, tribe=old):: [bold]Review[/bold]\nSecond line",
+            "%clan(review, tribe=quality):: [bold]Review[/bold]\nSecond line",
+        ),
+    ],
+)
+def test_set_prompt_clan_tribe_preserves_shorthand_summary(
+    prompt: str,
+    expected: str,
+) -> None:
+    _, original_directives = extract_prompt_directives(prompt)
+
+    rewritten = set_prompt_clan_tribe(prompt, "quality")
+
+    assert rewritten == expected
+    _, directives = extract_prompt_directives(rewritten)
+    assert directives.clan_summary == original_directives.clan_summary
 
 
 def test_set_prompt_clan_tribe_preserves_ignored_regions() -> None:

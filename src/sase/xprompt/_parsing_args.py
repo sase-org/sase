@@ -1,5 +1,27 @@
 """Argument parsing helpers for xprompt and workflow references."""
 
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True, slots=True)
+class XPromptArgSpan:
+    """Raw source locations for one parsed xprompt argument.
+
+    ``start``/``end`` delimit the stripped token, while
+    ``segment_start``/``segment_end`` retain the surrounding whitespace up to
+    the neighboring top-level commas. ``separator`` is the following comma,
+    when present. Named arguments additionally expose the raw value span.
+    """
+
+    start: int
+    end: int
+    segment_start: int
+    segment_end: int
+    separator: int | None
+    name: str | None
+    value_start: int | None
+    value_end: int | None
+
 
 def decode_xprompt_arg_value(value: str) -> str:
     """Decode prompt-token substitutions in an xprompt argument value.
@@ -187,26 +209,23 @@ def find_matching_bracket_for_args(text: str, start: int) -> int | None:
     return _find_matching_delimiter_for_args(text, start, "[", "]")
 
 
-def _parse_named_arg(token: str) -> tuple[str | None, str]:
-    """Parse a single token to extract name=value if present.
-
-    Returns (name, value) if named arg, or (None, token) if positional.
-    Handles quoted strings and text blocks [[...]].
-    """
+def _top_level_delimiter_positions(text: str, delimiter: str) -> list[int]:
+    """Return delimiter positions outside quoted strings and ``[[...]]``."""
+    positions: list[int] = []
     in_quotes = False
     quote_char = ""
     in_text_block = False
     i = 0
 
-    while i < len(token):
-        char = token[i]
+    while i < len(text):
+        char = text[i]
         # Check for text block start
-        if not in_quotes and not in_text_block and token[i : i + 2] == "[[":
+        if not in_quotes and not in_text_block and text[i : i + 2] == "[[":
             in_text_block = True
             i += 2
             continue
         # Check for text block end
-        if in_text_block and token[i : i + 2] == "]]":
+        if in_text_block and text[i : i + 2] == "]]":
             in_text_block = False
             i += 2
             continue
@@ -216,16 +235,83 @@ def _parse_named_arg(token: str) -> tuple[str | None, str]:
         elif char == quote_char and in_quotes:
             in_quotes = False
             quote_char = ""
-        elif char == "=" and not in_quotes and not in_text_block:
-            name = token[:i].strip()
-            value = token[i + 1 :].strip()
-            # Strip quotes from value if present
-            if len(value) >= 2 and value[0] in ('"', "'") and value[-1] == value[0]:
-                value = value[1:-1]
-            # Process text blocks
-            value = process_text_block(value)
-            return name, value
+        elif char == delimiter and not in_quotes and not in_text_block:
+            positions.append(i)
         i += 1
+
+    return positions
+
+
+def parse_arg_spans(
+    args_str: str,
+    *,
+    preserve_empty_args: bool = False,
+) -> list[XPromptArgSpan]:
+    """Return raw token/value spans using the same grammar as :func:`parse_args`."""
+    spans: list[XPromptArgSpan] = []
+    segment_start = 0
+    separators = _top_level_delimiter_positions(args_str, ",")
+
+    for segment_end, separator in [
+        *((position, position) for position in separators),
+        (len(args_str), None),
+    ]:
+        start = segment_start
+        while start < segment_end and args_str[start].isspace():
+            start += 1
+        end = segment_end
+        while end > start and args_str[end - 1].isspace():
+            end -= 1
+
+        include_empty = preserve_empty_args and (
+            separator is not None or args_str.endswith(",")
+        )
+        if start < end or include_empty:
+            token = args_str[start:end]
+            equals_positions = _top_level_delimiter_positions(token, "=")
+            equals = equals_positions[0] if equals_positions else None
+            name = token[:equals].strip() if equals is not None else None
+            value_start = None
+            value_end = None
+            if equals is not None:
+                value_start = start + equals + 1
+                while value_start < end and args_str[value_start].isspace():
+                    value_start += 1
+                value_end = end
+            spans.append(
+                XPromptArgSpan(
+                    start=start,
+                    end=end,
+                    segment_start=segment_start,
+                    segment_end=segment_end,
+                    separator=separator,
+                    name=name,
+                    value_start=value_start,
+                    value_end=value_end,
+                )
+            )
+        segment_start = segment_end + 1
+
+    return spans
+
+
+def _parse_named_arg(token: str) -> tuple[str | None, str]:
+    """Parse a single token to extract name=value if present.
+
+    Returns (name, value) if named arg, or (None, token) if positional.
+    Handles quoted strings and text blocks [[...]].
+    """
+    equals_positions = _top_level_delimiter_positions(token, "=")
+    if equals_positions:
+        equals = equals_positions[0]
+        name = token[:equals].strip()
+        value = token[equals + 1 :].strip()
+        # Strip quotes from value if present
+        if len(value) >= 2 and value[0] in ('"', "'") and value[-1] == value[0]:
+            value = value[1:-1]
+        # Process text blocks
+        value = process_text_block(value)
+        return name, value
 
     return None, token
 
@@ -359,47 +445,13 @@ def parse_args(
     if not args_str.strip():
         return [], {}
 
-    # First tokenize by comma, respecting quotes and text blocks
-    tokens: list[str] = []
-    current_token = ""
-    in_quotes = False
-    quote_char = ""
-    in_text_block = False
-    i = 0
-
-    while i < len(args_str):
-        char = args_str[i]
-        # Check for text block start
-        if not in_quotes and not in_text_block and args_str[i : i + 2] == "[[":
-            in_text_block = True
-            current_token += "[["
-            i += 2
-            continue
-        # Check for text block end
-        if in_text_block and args_str[i : i + 2] == "]]":
-            in_text_block = False
-            current_token += "]]"
-            i += 2
-            continue
-        if char in ('"', "'") and not in_quotes and not in_text_block:
-            in_quotes = True
-            quote_char = char
-            current_token += char
-        elif char == quote_char and in_quotes:
-            in_quotes = False
-            quote_char = ""
-            current_token += char
-        elif char == "," and not in_quotes and not in_text_block:
-            if preserve_empty_args or current_token.strip():
-                tokens.append(current_token.strip())
-            current_token = ""
-        else:
-            current_token += char
-        i += 1
-
-    # Don't forget the last token
-    if current_token.strip() or (preserve_empty_args and args_str.endswith(",")):
-        tokens.append(current_token.strip())
+    tokens = [
+        args_str[span.start : span.end]
+        for span in parse_arg_spans(
+            args_str,
+            preserve_empty_args=preserve_empty_args,
+        )
+    ]
 
     # Now parse each token as positional or named
     positional: list[str] = []

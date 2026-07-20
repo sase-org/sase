@@ -8,11 +8,13 @@ from . import _parsing_shorthand as _shorthand
 from . import _parsing_vcs_refs as _vcs_refs
 from . import _parsing_vcs_tags as _vcs_tags
 from ._parsing_args import (
+    XPromptArgSpan,
     decode_xprompt_arg_value,
     decode_xprompt_args,
     escape_for_xprompt,
     find_matching_brace_for_args,
     find_matching_paren_for_args,
+    parse_arg_spans,
     parse_args,
     parse_workflow_reference,
     strip_hitl_suffix,
@@ -275,6 +277,7 @@ __all__ = [
     "XPROMPT_REFERENCE_MARKER_FRAGMENT",
     "XPROMPT_REFERENCE_NAME_FRAGMENT",
     "XPROMPT_REFERENCE_PATTERN",
+    "XPromptArgSpan",
     "XPromptReference",
     "XPromptReferenceArgKind",
     "XPromptReferenceMarker",
@@ -302,6 +305,7 @@ __all__ = [
     "normalize_vcs_underscore_refs",
     "normalize_default_vcs_workflow",
     "normalize_default_vcs_workflow_segment",
+    "parse_arg_spans",
     "parse_args",
     "parse_workflow_reference",
     "preprocess_shorthand_syntax",

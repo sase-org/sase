@@ -14,10 +14,12 @@ from ._directive_types import (
     _DIRECTIVE_PATTERN,
 )
 from ._disabled_regions import protect_disabled_regions, unprotect_disabled_regions
+from ._directive_shorthand import find_directive_double_colon_text_end
 from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from ._parsing import (
     find_matching_brace_for_args,
     find_matching_paren_for_args,
+    parse_arg_spans,
     parse_args,
 )
 
@@ -222,17 +224,28 @@ def set_prompt_clan_tribe(prompt: str, tribe: str | None) -> str:
                 raise ValueError(
                     "Cannot update clan tribe: malformed %clan(...) directive."
                 )
+            raw_args = protected[match.end() : paren_end]
             positional, named = parse_args(
-                protected[match.end() : paren_end],
+                raw_args,
                 reject_duplicate_named_args=True,
             )
             if len(positional) != 1 or not positional[0]:
                 raise ValueError(
                     "Cannot update clan tribe: %clan requires exactly one clan name."
                 )
-            if any(key != "tribe" for key in named):
+            supported_keys = {"summary", "summary_script", "tribe"}
+            unknown_keys = sorted(key for key in named if key not in supported_keys)
+            if unknown_keys:
+                keys = ", ".join(f"{key}=" for key in unknown_keys)
                 raise ValueError(
-                    "Cannot update clan tribe: only tribe= is supported on %clan."
+                    f"Cannot update clan tribe: unsupported keyword on %clan: "
+                    f"{keys}. Only summary=, summary_script=, and tribe= are "
+                    "supported."
+                )
+            if "summary" in named and "summary_script" in named:
+                raise ValueError(
+                    "Cannot update clan tribe: %clan summary= and summary_script= "
+                    "are mutually exclusive."
                 )
             clan_name = positional[0]
             end = paren_end + 1
@@ -252,10 +265,11 @@ def set_prompt_clan_tribe(prompt: str, tribe: str | None) -> str:
                     "Cannot update clan tribe: %clan requires a clan name."
                 )
 
-        if tribe:
+        if parenthesized:
+            edited_args = _edit_clan_tribe_arg(raw_args, tribe)
+            replacement = f"%clan({edited_args})"
+        elif tribe:
             replacement = f"%clan({clan_name}, tribe={tribe})"
-        elif parenthesized:
-            replacement = f"%clan({clan_name})"
         else:
             replacement = f"%clan:{clan_name}"
         rewritten = protected[: match.start()] + replacement + protected[end:]
@@ -266,6 +280,53 @@ def set_prompt_clan_tribe(prompt: str, tribe: str | None) -> str:
         "to the inherited clan and must be supplied by a clan member's "
         "%clan(<clan>, tribe=<tribe>) declaration."
     )
+
+
+def _edit_clan_tribe_arg(raw_args: str, tribe: str | None) -> str:
+    """Edit only the raw ``tribe=`` argument inside ``%clan(...)``."""
+    spans = parse_arg_spans(raw_args)
+    positional = next(span for span in spans if span.name is None)
+    tribe_index = next(
+        (index for index, span in enumerate(spans) if span.name == "tribe"),
+        None,
+    )
+
+    if tribe:
+        if tribe_index is not None:
+            tribe_span = spans[tribe_index]
+            assert tribe_span.value_start is not None
+            assert tribe_span.value_end is not None
+            return (
+                raw_args[: tribe_span.value_start]
+                + tribe
+                + raw_args[tribe_span.value_end :]
+            )
+
+        if positional.separator is not None:
+            insert_at = positional.separator + 1
+            return raw_args[:insert_at] + f" tribe={tribe}," + raw_args[insert_at:]
+        return (
+            raw_args[: positional.end] + f", tribe={tribe}" + raw_args[positional.end :]
+        )
+
+    if tribe_index is None:
+        return raw_args
+
+    tribe_span = spans[tribe_index]
+    if tribe_span.separator is not None:
+        remove_start = tribe_span.segment_start
+        remove_end = tribe_span.separator + 1
+    else:
+        previous_separator = (
+            spans[tribe_index - 1].separator if tribe_index > 0 else None
+        )
+        remove_start = (
+            previous_separator
+            if previous_separator is not None
+            else tribe_span.segment_start
+        )
+        remove_end = tribe_span.segment_end
+    return raw_args[:remove_start] + raw_args[remove_end:]
 
 
 def _prompt_has_effective_clan(prompt: str) -> bool:
@@ -424,6 +485,7 @@ def _rewrite_protected_prompt(
             prompt,
             directive_names,
             remove_deprecated=remove_deprecated,
+            remove_clan_shorthand=replacement is None,
         )
     )
     if remove_time_xprompts:
@@ -441,6 +503,7 @@ def _directive_spans(
     directive_names: set[str],
     *,
     remove_deprecated: bool,
+    remove_clan_shorthand: bool,
 ) -> Iterable[tuple[int, int]]:
     alt_inner_regions = _alt_inner_regions(prompt)
     for match in re.finditer(_DIRECTIVE_PATTERN, prompt, re.MULTILINE):
@@ -456,6 +519,24 @@ def _directive_spans(
             paren_end = find_matching_paren_for_args(prompt, match.end() - 1)
             if paren_end is not None:
                 match_end = paren_end + 1
+        if (
+            remove_clan_shorthand
+            and name == "clan"
+            and prompt.startswith(":: ", match_end)
+        ):
+            shorthand_end = find_directive_double_colon_text_end(
+                prompt,
+                match_end + 3,
+                ignored_ranges=alt_inner_regions,
+            )
+            line_start = prompt.rfind("\n", 0, match.start()) + 1
+            if (
+                shorthand_end < len(prompt)
+                and prompt[shorthand_end] == "\n"
+                and not prompt[line_start : match.start()].strip()
+            ):
+                shorthand_end += 1
+            match_end = shorthand_end
         yield match.start(), match_end
 
 

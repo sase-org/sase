@@ -88,7 +88,7 @@ def preprocess_directive_double_colon_shorthand(prompt: str) -> str:
             args = _colon_arg_as_positional(colon_arg)
 
         text_start = suffix_start + 3
-        text_end = _find_directive_double_colon_text_end(
+        text_end = find_directive_double_colon_text_end(
             prompt,
             text_start,
             ignored_ranges=ignored_ranges,
@@ -106,7 +106,7 @@ def preprocess_directive_double_colon_shorthand(prompt: str) -> str:
     return rewritten
 
 
-def _find_directive_double_colon_text_end(
+def find_directive_double_colon_text_end(
     prompt: str,
     start: int,
     *,
