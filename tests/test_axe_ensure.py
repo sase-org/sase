@@ -125,6 +125,59 @@ def test_ensure_reports_start_failure(axe_state_dir: Path) -> None:
     assert result.status == "failed"
     assert result.succeeded is False
     assert result.message == "lock stayed held"
+    assert result.notification_id is not None
+
+
+def test_ensure_failure_notification_is_rate_limited(axe_state_dir: Path) -> None:
+    notifications: list[tuple[str, str]] = []
+
+    def notify(message: str, source: str) -> str:
+        notifications.append((message, source))
+        return f"notification-{len(notifications)}"
+
+    first = ensure_axe(
+        now_fn=lambda: 100.0,
+        running_fn=lambda: False,
+        start_fn=lambda **_kwargs: AxeStartResult(
+            status="blocked",
+            message="wedged lock held",
+        ),
+        notify_failure_fn=notify,
+    )
+    second = ensure_axe(
+        now_fn=lambda: 101.0,
+        running_fn=lambda: False,
+        start_fn=lambda **_kwargs: AxeStartResult(
+            status="blocked",
+            message="wedged lock held",
+        ),
+        notify_failure_fn=notify,
+    )
+
+    assert first.notification_id == "notification-1"
+    assert second.notification_id is None
+    assert notifications == [("wedged lock held", "axe ensure")]
+    assert (axe_state_dir / "ensure_failure_notification.json").exists()
+
+
+def test_ensure_failure_writes_notification_inbox_entry(
+    axe_state_dir: Path,
+) -> None:
+    result = ensure_axe(
+        running_fn=lambda: False,
+        start_fn=lambda **_kwargs: AxeStartResult(
+            status="blocked",
+            message="lock holder never published a PID",
+        ),
+    )
+
+    notifications = load_notifications()
+    assert result.status == "failed"
+    assert result.notification_id is not None
+    assert notifications[-1].id == result.notification_id
+    assert notifications[-1].notes[0] == "Axe self-healing failed"
+    assert "never published" in notifications[-1].notes[1]
+    assert notifications[-1].tags == ["axe", "ensure", "error"]
 
 
 @pytest.mark.usefixtures("allow_axe_lifecycle_in_tests")

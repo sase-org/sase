@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sase.axe.config import AxeConfig
 from sase.axe.desired_state import read_desired_state
+from sase.axe.ensure import ensure_axe
 from sase.axe.lock import AxeLifecycleLock
 from sase.axe._process_probe import cleanup_pid_files, probe_orchestrator
 from sase.axe._process_start import (
@@ -90,11 +91,7 @@ def test_compose_axe_daemon_env_strips_agent_and_chop_context() -> None:
 
 @patch("sase.axe._process_start.subprocess.Popen")
 @patch("sase.axe._process_start._build_axe_start_command")
-@patch("sase.axe._process_start.get_pid_from_pid_files", return_value=None)
-@patch("sase.axe._process_start.get_axe_pid", return_value=None)
 def test_start_axe_daemon_rejects_missing_daemon_cwd(
-    _mock_get_pid: MagicMock,
-    _mock_get_pid_files: MagicMock,
     mock_build_command: MagicMock,
     mock_popen: MagicMock,
     tmp_path: Path,
@@ -173,7 +170,10 @@ def test_wait_for_daemon_start_waits_for_published_pid() -> None:
     mock_proc.poll.return_value = None
 
     with (
-        patch("sase.axe._process_start.get_axe_pid", side_effect=[None, 4321]),
+        patch(
+            "sase.axe._process_start.get_pid_from_pid_files",
+            side_effect=[None, 4321],
+        ),
         patch("sase.axe._process_start.time.sleep", return_value=None),
     ):
         assert _wait_for_daemon_start(mock_proc, timeout=1.0) == 4321
@@ -185,7 +185,7 @@ def test_wait_for_daemon_start_does_not_return_child_pid_on_timeout() -> None:
     mock_proc.pid = 99999
     mock_proc.poll.return_value = None
 
-    with patch("sase.axe._process_start.get_axe_pid", return_value=None):
+    with patch("sase.axe._process_start.get_pid_from_pid_files", return_value=None):
         assert _wait_for_daemon_start(mock_proc, timeout=0.0) is None
 
 
@@ -195,7 +195,10 @@ def test_wait_for_daemon_start_returns_none_when_child_exits() -> None:
     mock_proc.poll.return_value = 1
 
     with (
-        patch("sase.axe._process_start.get_axe_pid", return_value=None),
+        patch(
+            "sase.axe._process_start.get_pid_from_pid_files",
+            return_value=None,
+        ),
         patch("sase.axe._process_start.time.sleep", return_value=None),
     ):
         assert _wait_for_daemon_start(mock_proc, timeout=1.0) is None
@@ -245,7 +248,10 @@ def test_start_axe_daemon_result_reports_held_lock_without_pid(
 ) -> None:
     """Start failure explains the held-lock/no-PID deadlock."""
     with (
-        patch("sase.axe._process_start.get_axe_pid", return_value=None),
+        patch(
+            "sase.axe._process_start.get_pid_from_pid_files",
+            return_value=None,
+        ),
         patch(
             "sase.axe._process_start._acquire_lifecycle_lock_for_start",
             return_value=None,
@@ -270,6 +276,148 @@ def test_start_axe_daemon_result_reports_held_lock_without_pid(
     assert marker is not None
     assert marker.state == "running"
     assert marker.source == "start"
+    assert (temp_state_dir / "wedged_lifecycle_lock.json").exists()
+
+
+def _spawn_unpublished_lock_holder(lock_path: Path) -> subprocess.Popen[str]:
+    child_code = "\n".join(
+        [
+            "import fcntl",
+            "import os",
+            "import sys",
+            "import time",
+            "fd = os.open(sys.argv[1], os.O_CREAT | os.O_RDWR, 0o600)",
+            "fcntl.flock(fd, fcntl.LOCK_EX)",
+            "print(os.getpid(), flush=True)",
+            "time.sleep(30)",
+        ]
+    )
+    holder = subprocess.Popen(
+        [sys.executable, "-c", child_code, str(lock_path)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert holder.stdout is not None
+    line = holder.stdout.readline().strip()
+    assert line, holder.stderr.read() if holder.stderr is not None else ""
+    assert int(line) == holder.pid
+    return holder
+
+
+def test_ensure_recovers_unpublished_lock_holder_after_grace(
+    axe_config: AxeConfig,
+    temp_state_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure terminates an aged lock holder and retries startup once."""
+    holder = _spawn_unpublished_lock_holder(temp_state_dir / "orchestrator.lock")
+    spawned: list[subprocess.Popen[bytes]] = []
+    acquire_calls = 0
+    real_popen = subprocess.Popen
+
+    def acquire_for_start() -> AxeLifecycleLock | None:
+        nonlocal acquire_calls
+        acquire_calls += 1
+        if acquire_calls <= 2:
+            return None
+        return AxeLifecycleLock.acquire(blocking=False)
+
+    def spawn_for_start(
+        command: list[str],
+        *args: object,
+        **kwargs: object,
+    ) -> subprocess.Popen[bytes]:
+        if command == ["fake-sase"]:
+            command = [
+                sys.executable,
+                "-c",
+                "import time; time.sleep(30)",
+            ]
+        process = real_popen(command, *args, **kwargs)
+        if command[0] == sys.executable and "time.sleep(30)" in command[-1]:
+            spawned.append(process)
+        return process
+
+    monkeypatch.setenv("SASE_AXE_WEDGED_LOCK_GRACE_SECONDS", "60")
+    try:
+        with (
+            patch(
+                "sase.axe._process_start._acquire_lifecycle_lock_for_start",
+                side_effect=acquire_for_start,
+            ),
+            patch(
+                "sase.axe._process_start._build_axe_start_command",
+                return_value=["fake-sase"],
+            ),
+            patch(
+                "sase.axe._process_start.subprocess.Popen",
+                side_effect=spawn_for_start,
+            ),
+            patch(
+                "sase.axe._process_start._wait_for_daemon_start",
+                side_effect=lambda process: process.pid,
+            ),
+            patch(
+                "sase.axe._process_start.time.time",
+                side_effect=[100.0, 161.0],
+            ),
+            patch(
+                "sase.axe._process_start._notify_wedged_lock_recovery"
+            ) as notify_recovery,
+        ):
+            first = start_axe_daemon_result(axe_config)
+            result = ensure_axe(
+                running_fn=lambda: False,
+                start_fn=lambda **kwargs: start_axe_daemon_result(axe_config, **kwargs),
+                notify_fn=lambda _downtime, _pid: "healed-notification",
+            )
+
+        assert first.status == "blocked"
+        assert result.status == "healed"
+        assert result.pid == spawned[0].pid
+        assert holder.poll() is not None
+        assert not (temp_state_dir / "wedged_lifecycle_lock.json").exists()
+        notify_recovery.assert_called_once_with(holder.pid, spawned[0].pid)
+    finally:
+        if holder.poll() is None:
+            holder.terminate()
+            holder.wait(timeout=2)
+        for process in spawned:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=2)
+
+
+def test_unpublished_lock_holder_that_publishes_during_grace_is_preserved(
+    axe_config: AxeConfig,
+    temp_state_dir: Path,
+) -> None:
+    """A starter that publishes its PID during grace is never signaled."""
+    holder = _spawn_unpublished_lock_holder(temp_state_dir / "orchestrator.lock")
+    try:
+        with (
+            patch(
+                "sase.axe._process_start._acquire_lifecycle_lock_for_start",
+                return_value=None,
+            ),
+            patch("sase.axe._process_start.time.time", return_value=100.0),
+        ):
+            first = start_axe_daemon_result(axe_config)
+
+        (temp_state_dir / "orchestrator.pid").write_text(f"{holder.pid}\n")
+        with patch("sase.axe._process_stop.terminate_process") as terminate_process:
+            second = start_axe_daemon_result(axe_config)
+
+        assert first.status == "blocked"
+        assert second.status == "already_running"
+        assert second.pid == holder.pid
+        assert holder.poll() is None
+        assert not (temp_state_dir / "wedged_lifecycle_lock.json").exists()
+        terminate_process.assert_not_called()
+    finally:
+        holder.terminate()
+        holder.wait(timeout=2)
 
 
 # --- stop_axe_daemon Tests ---
@@ -489,7 +637,7 @@ def test_stop_cleanup_preserves_pid_published_by_concurrent_restart(
             side_effect=[running_probe, restarted_probe],
         ),
         patch(
-            "sase.axe._process_stop._terminate_process",
+            "sase.axe._process_stop.terminate_process",
             side_effect=stop_old_process,
         ),
         patch("sase.axe._process_probe.is_process_running", return_value=True),

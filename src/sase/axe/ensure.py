@@ -17,14 +17,17 @@ from typing import Literal, TextIO
 import sase.axe.state as _state
 
 from .desired_state import AxeDesiredState, read_desired_state
-from .process import canonical_axe_start_command, is_axe_running
+from .process import canonical_axe_start_command
+from ._process_probe import get_pid_from_pid_files
 from ._process_start import start_axe_daemon_result
 from ._process_types import AxeStartResult
 
 
 DEFAULT_ENSURE_CADENCE_SECONDS = 5 * 60
+DEFAULT_ENSURE_FAILURE_NOTIFICATION_CADENCE_SECONDS = 30 * 60
 _ENSURE_SERVICE = "sase-axe-ensure.service"
 _ENSURE_TIMER = "sase-axe-ensure.timer"
+_ENSURE_FAILURE_NOTIFICATION_MARKER = "ensure_failure_notification.json"
 
 EnsureStatus = Literal["failed", "healed", "healthy", "rate_limited", "stopped"]
 
@@ -53,15 +56,24 @@ class _EnsureTimerResult:
     message: str
 
 
+def _published_orchestrator_running() -> bool:
+    """Return whether axe has published a live orchestrator PID."""
+    return get_pid_from_pid_files() is not None
+
+
 def ensure_axe(
     *,
     rate_limit_seconds: float = 0,
     source: str = "axe ensure",
     now_fn: Callable[[], float] = time.time,
     desired_state_fn: Callable[[], AxeDesiredState | None] = read_desired_state,
-    running_fn: Callable[[], bool] = is_axe_running,
+    running_fn: Callable[[], bool] = _published_orchestrator_running,
     start_fn: Callable[..., AxeStartResult] = start_axe_daemon_result,
     notify_fn: Callable[[float | None, int], str] | None = None,
+    notify_failure_fn: Callable[[str, str], str] | None = None,
+    failure_notification_rate_limit_seconds: float = (
+        DEFAULT_ENSURE_FAILURE_NOTIFICATION_CADENCE_SECONDS
+    ),
 ) -> _AxeEnsureResult:
     """Ensure axe matches its desired running state.
 
@@ -94,6 +106,7 @@ def ensure_axe(
 
         desired_state = desired_state_fn()
         if desired_state is not None and desired_state.state == "stopped":
+            _clear_failure_notification_marker()
             return _AxeEnsureResult(
                 status="stopped",
                 message=(
@@ -102,6 +115,7 @@ def ensure_axe(
                 ),
             )
         if running_fn():
+            _clear_failure_notification_marker()
             return _AxeEnsureResult(
                 status="healthy",
                 message="Axe is already running; no healing needed.",
@@ -114,20 +128,31 @@ def ensure_axe(
                 record_desired_state=True,
             )
         except Exception as exc:  # noqa: BLE001 - healing must return an outcome.
-            return _AxeEnsureResult(
-                status="failed",
+            return _ensure_failure_result(
                 message=f"Axe healing failed before startup completed: {exc}",
                 downtime_seconds=downtime_seconds,
+                now=now,
+                source=source,
+                notify_failure_fn=notify_failure_fn,
+                notification_rate_limit_seconds=(
+                    failure_notification_rate_limit_seconds
+                ),
             )
 
         if not started.succeeded or started.pid is None:
-            return _AxeEnsureResult(
-                status="failed",
+            return _ensure_failure_result(
                 message=started.message
                 or "Axe healing failed to start the orchestrator.",
                 pid=started.pid,
                 downtime_seconds=downtime_seconds,
+                now=now,
+                source=source,
+                notify_failure_fn=notify_failure_fn,
+                notification_rate_limit_seconds=(
+                    failure_notification_rate_limit_seconds
+                ),
             )
+        _clear_failure_notification_marker()
         if started.status == "already_running":
             return _AxeEnsureResult(
                 status="healthy",
@@ -296,6 +321,10 @@ def _ensure_marker_path() -> Path:
     return _state.axe_state_dir() / "ensure.json"
 
 
+def _failure_notification_marker_path() -> Path:
+    return _state.axe_state_dir() / _ENSURE_FAILURE_NOTIFICATION_MARKER
+
+
 def acquire_axe_ensure_lock(*, blocking: bool = False) -> TextIO | None:
     """Acquire the host-wide lock that serializes axe ensure with stop."""
     path = _ensure_lock_path()
@@ -346,6 +375,92 @@ def _write_rate_limit_marker(now: float, *, source: str) -> None:
         _ensure_marker_path(),
         {"checked_at_epoch": now, "source": source},
     )
+
+
+def _ensure_failure_result(
+    *,
+    message: str,
+    downtime_seconds: float | None,
+    now: float,
+    source: str,
+    notify_failure_fn: Callable[[str, str], str] | None,
+    notification_rate_limit_seconds: float,
+    pid: int | None = None,
+) -> _AxeEnsureResult:
+    notification_id = _maybe_notify_ensure_failure(
+        message,
+        now=now,
+        source=source,
+        notify_failure_fn=notify_failure_fn,
+        rate_limit_seconds=notification_rate_limit_seconds,
+    )
+    return _AxeEnsureResult(
+        status="failed",
+        message=message,
+        pid=pid,
+        downtime_seconds=downtime_seconds,
+        notification_id=notification_id,
+    )
+
+
+def _maybe_notify_ensure_failure(
+    message: str,
+    *,
+    now: float,
+    source: str,
+    notify_failure_fn: Callable[[str, str], str] | None,
+    rate_limit_seconds: float,
+) -> str | None:
+    if _failure_notification_rate_limit_active(now, rate_limit_seconds):
+        return None
+    if notify_failure_fn is None:
+        from sase.notifications.senders import notify_axe_ensure_failed
+
+        notify_failure_fn = notify_axe_ensure_failed
+    try:
+        notification_id = notify_failure_fn(message, source)
+    except Exception:  # noqa: BLE001 - failure reporting must stay best-effort.
+        return None
+    _state.atomic_write_json(
+        _failure_notification_marker_path(),
+        {
+            "notified_at_epoch": now,
+            "source": source,
+            "message": message,
+            "notification_id": notification_id,
+        },
+    )
+    return notification_id
+
+
+def _failure_notification_rate_limit_active(
+    now: float,
+    rate_limit_seconds: float,
+) -> bool:
+    if rate_limit_seconds <= 0:
+        return False
+    try:
+        data = json.loads(
+            _failure_notification_marker_path().read_text(encoding="utf-8")
+        )
+        notified_at = float(data["notified_at_epoch"])
+    except (
+        FileNotFoundError,
+        KeyError,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+        OSError,
+    ):
+        return False
+    return 0 <= now - notified_at < rate_limit_seconds
+
+
+def _clear_failure_notification_marker() -> None:
+    try:
+        _failure_notification_marker_path().unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def _estimated_downtime_seconds(
@@ -457,6 +572,7 @@ def _run_systemctl(
 
 __all__ = [
     "DEFAULT_ENSURE_CADENCE_SECONDS",
+    "DEFAULT_ENSURE_FAILURE_NOTIFICATION_CADENCE_SECONDS",
     "acquire_axe_ensure_lock",
     "ensure_axe",
     "install_ensure_timer",

@@ -32,6 +32,7 @@ class AxeStartResult:
     status: StartStatus
     pid: int | None = None
     message: str = ""
+    recovered_lock_holder_pid: int | None = None
     attempts: tuple[AxeStartAttempt, ...] = ()
     verified: bool = False
 

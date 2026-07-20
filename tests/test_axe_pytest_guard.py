@@ -44,7 +44,7 @@ def test_start_is_blocked_before_any_side_effect(
     monkeypatch.delenv(AXE_LIFECYCLE_TEST_OVERRIDE_ENV, raising=False)
     with (
         patch("sase.axe._process_start.write_desired_state") as write_state,
-        patch("sase.axe._process_start.get_axe_pid") as get_pid,
+        patch("sase.axe._process_start.get_pid_from_pid_files") as get_pid,
         patch(
             "sase.axe._process_start._acquire_lifecycle_lock_for_start"
         ) as acquire_lock,
@@ -68,7 +68,7 @@ def test_stop_is_blocked_before_any_side_effect(
     with (
         patch("sase.axe._process_stop.write_desired_state") as write_state,
         patch("sase.axe._process_stop.probe_orchestrator") as probe,
-        patch("sase.axe._process_stop._terminate_process") as terminate,
+        patch("sase.axe._process_stop.terminate_process") as terminate,
     ):
         result = stop_axe_daemon_result()
 

@@ -86,7 +86,7 @@ def stop_axe_daemon_result(
         pid = None
     orchestrator_result = TerminateResult()
     if pid is not None:
-        orchestrator_result = _terminate_process(
+        orchestrator_result = terminate_process(
             pid,
             timeout=timeout,
             kill_timeout=kill_timeout,
@@ -187,7 +187,7 @@ def _send_signal(
     return True
 
 
-def _terminate_process(
+def terminate_process(
     pid: int,
     *,
     timeout: float,
