@@ -15,7 +15,7 @@ AXE_LOCK_FD_ENV = "SASE_AXE_LIFECYCLE_LOCK_FD"
 
 def _axe_lifecycle_lock_path() -> Path:
     """Return the axe lifecycle lock file path."""
-    return axe_state.AXE_STATE_DIR / "orchestrator.lock"
+    return axe_state.axe_state_dir() / "orchestrator.lock"
 
 
 def _read_recorded_lock_holder_pid() -> int | None:

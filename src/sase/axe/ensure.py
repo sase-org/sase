@@ -289,11 +289,11 @@ def uninstall_ensure_timer(
 
 
 def _ensure_lock_path() -> Path:
-    return _state.AXE_STATE_DIR / "ensure.lock"
+    return _state.axe_state_dir() / "ensure.lock"
 
 
 def _ensure_marker_path() -> Path:
-    return _state.AXE_STATE_DIR / "ensure.json"
+    return _state.axe_state_dir() / "ensure.json"
 
 
 def acquire_axe_ensure_lock(*, blocking: bool = False) -> TextIO | None:
@@ -359,7 +359,7 @@ def _estimated_downtime_seconds(
         if desired_epoch is not None:
             activity_epochs.append(desired_epoch)
 
-    jack_root = _state.JACK_STATE_DIR
+    jack_root = _state.jack_state_dir()
     try:
         status_paths = tuple(jack_root.glob("*/status.json"))
     except OSError:

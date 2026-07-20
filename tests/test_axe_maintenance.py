@@ -24,7 +24,7 @@ from sase.core.time import get_timezone
 @pytest.fixture
 def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
     state_dir = tmp_path / ".sase" / "axe"
-    with patch("sase.axe.state.AXE_STATE_DIR", state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=state_dir):
         yield state_dir
 
 

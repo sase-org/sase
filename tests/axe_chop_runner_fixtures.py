@@ -14,8 +14,8 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
     state_dir = tmp_path / ".sase" / "axe"
     lumberjack_dir = state_dir / "lumberjacks"
     with (
-        patch("sase.axe.state.AXE_STATE_DIR", state_dir),
-        patch("sase.axe.state.JACK_STATE_DIR", lumberjack_dir),
+        patch("sase.axe.state.axe_state_dir", return_value=state_dir),
+        patch("sase.axe.state.jack_state_dir", return_value=lumberjack_dir),
     ):
         yield state_dir
 

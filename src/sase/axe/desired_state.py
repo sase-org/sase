@@ -23,7 +23,7 @@ class AxeDesiredState:
 
 def _desired_state_path() -> Path:
     """Return the desired-state marker path."""
-    return _state.AXE_STATE_DIR / "desired_state.json"
+    return _state.axe_state_dir() / "desired_state.json"
 
 
 def write_desired_state(

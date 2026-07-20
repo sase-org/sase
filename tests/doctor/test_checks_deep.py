@@ -119,7 +119,7 @@ def test_axe_state_ok_when_no_lumberjack_status_files(monkeypatch) -> None:
         "sase.doctor.checks_deep_axe.probe_orchestrator",
         lambda **_kwargs: SimpleNamespace(running_pid=None),
     )
-    monkeypatch.setattr("sase.axe.state.AXE_STATE_DIR", state_dir)
+    monkeypatch.setattr("sase.axe.state.axe_state_dir", lambda: state_dir)
 
     check = check_axe_state()
 
@@ -168,7 +168,7 @@ def test_axe_state_warns_on_stale_heartbeat(monkeypatch, tmp_path: Path) -> None
         "sase.doctor.checks_deep_axe.probe_orchestrator",
         lambda **_kwargs: SimpleNamespace(running_pid=456),
     )
-    monkeypatch.setattr("sase.axe.state.AXE_STATE_DIR", tmp_path)
+    monkeypatch.setattr("sase.axe.state.axe_state_dir", lambda: tmp_path)
 
     check = check_axe_state()
 
@@ -207,7 +207,7 @@ def test_axe_state_warns_on_pinned_logs_and_orphan_temps(
         "sase.doctor.checks_deep_axe.probe_orchestrator",
         lambda **_kwargs: SimpleNamespace(running_pid=456),
     )
-    monkeypatch.setattr("sase.axe.state.AXE_STATE_DIR", tmp_path)
+    monkeypatch.setattr("sase.axe.state.axe_state_dir", lambda: tmp_path)
     monkeypatch.setattr("sase.doctor.checks_deep_axe._ORPHAN_TEMP_WARN_COUNT", 1)
 
     check = check_axe_state()

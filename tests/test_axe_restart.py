@@ -20,7 +20,7 @@ def _config() -> AxeConfig:
 
 def test_desired_state_round_trip(tmp_path: Path) -> None:
     state_dir = tmp_path / "axe"
-    with patch("sase.axe.state.AXE_STATE_DIR", state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=state_dir):
         running = write_desired_state(
             "running",
             source="test-start",
@@ -48,7 +48,7 @@ def test_restart_records_running_before_stop_and_retries_start(tmp_path: Path) -
         return object()
 
     with (
-        patch("sase.axe.state.AXE_STATE_DIR", state_dir),
+        patch("sase.axe.state.axe_state_dir", return_value=state_dir),
         patch(
             "sase.axe._process_restart.stop_axe_daemon_result",
             side_effect=_stop,
@@ -99,7 +99,7 @@ def test_restart_failure_is_journaled_and_notified(tmp_path: Path) -> None:
     delays: list[float] = []
 
     with (
-        patch("sase.axe.state.AXE_STATE_DIR", state_dir),
+        patch("sase.axe.state.axe_state_dir", return_value=state_dir),
         patch("sase.axe._process_restart.stop_axe_daemon_result"),
         patch(
             "sase.axe._process_restart.start_axe_daemon_result",

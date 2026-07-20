@@ -35,8 +35,8 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
     lumberjack_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
     with (
-        patch("sase.axe.state.AXE_STATE_DIR", state_dir),
-        patch("sase.axe.state.JACK_STATE_DIR", lumberjack_dir),
+        patch("sase.axe.state.axe_state_dir", return_value=state_dir),
+        patch("sase.axe.state.jack_state_dir", return_value=lumberjack_dir),
     ):
         yield state_dir
 

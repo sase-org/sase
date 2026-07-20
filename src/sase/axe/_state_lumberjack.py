@@ -4,8 +4,7 @@ Internal helper module — public API is re-exported through
 ``sase.axe.state``. Do not import from this module directly.
 
 Paths and shared helpers are looked up through ``sase.axe.state`` at call
-time so test patches like ``patch("sase.axe.state.JACK_STATE_DIR", ...)``
-propagate to every reader.
+time so home-directory redirection applies to every reader.
 """
 
 import os
@@ -57,7 +56,7 @@ def lumberjack_state_dir(name: str) -> Path:
     Returns:
         Path to ``~/.sase/axe/lumberjacks/{name}/``.
     """
-    return _state.JACK_STATE_DIR / name
+    return _state.jack_state_dir() / name
 
 
 def ensure_lumberjack_dirs(name: str) -> Path:
@@ -416,9 +415,10 @@ def list_lumberjack_names() -> list[str]:
     Returns:
         Sorted list of lumberjack names.
     """
-    if not _state.JACK_STATE_DIR.exists():
+    jack_root = _state.jack_state_dir()
+    if not jack_root.exists():
         return []
-    return sorted(d.name for d in _state.JACK_STATE_DIR.iterdir() if d.is_dir())
+    return sorted(d.name for d in jack_root.iterdir() if d.is_dir())
 
 
 def ensure_shared_dir() -> Path:
@@ -427,5 +427,6 @@ def ensure_shared_dir() -> Path:
     Returns:
         Path to ``~/.sase/axe/shared/``.
     """
-    _state.SHARED_STATE_DIR.mkdir(parents=True, exist_ok=True)
-    return _state.SHARED_STATE_DIR
+    shared_dir = _state.shared_state_dir()
+    shared_dir.mkdir(parents=True, exist_ok=True)
+    return shared_dir

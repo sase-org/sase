@@ -36,15 +36,10 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
     """Create a temporary state directory for testing."""
     state_dir = tmp_path / ".sase" / "axe"
     state_dir.mkdir(parents=True, exist_ok=True)
-    orch_pid_file = state_dir / "orchestrator.pid"
     lumberjack_dir = state_dir / "lumberjacks"
     with (
-        patch("sase.axe.state.AXE_STATE_DIR", state_dir),
-        patch("sase.axe.state.JACK_STATE_DIR", lumberjack_dir),
-        patch("sase.axe.orchestrator.AXE_STATE_DIR", state_dir),
-        patch("sase.axe.orchestrator.ORCHESTRATOR_PID_FILE", orch_pid_file),
-        patch("sase.axe._process_probe.ORCHESTRATOR_PID_FILE", orch_pid_file),
-        patch("sase.axe._process_start.AXE_STATE_DIR", state_dir),
+        patch("sase.axe.state.axe_state_dir", return_value=state_dir),
+        patch("sase.axe.state.jack_state_dir", return_value=lumberjack_dir),
     ):
         yield state_dir
 

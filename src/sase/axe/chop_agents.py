@@ -119,7 +119,7 @@ def agent_meta_from_chop_env(
 
 
 def _registry_path(lumberjack_name: str) -> Path:
-    return state.JACK_STATE_DIR / lumberjack_name / "agent_chops.json"
+    return state.jack_state_dir() / lumberjack_name / "agent_chops.json"
 
 
 def _process_registry_lock(lock_path: Path) -> threading.RLock:

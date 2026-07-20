@@ -26,18 +26,21 @@ from sase.telemetry.metrics import (
     AXE_LUMBERJACKS_ACTIVE,
 )
 
+from . import state as axe_state
 from .config import AxeConfig
 from .lock import acquire_axe_lifetime_lock, read_lock_holder_pid
 from .state import (
-    AXE_STATE_DIR,
     append_bounded_log,
     append_error,
     get_timestamp,
     reap_stale_log_rotation_temps,
 )
 
-# Orchestrator PID file (separate from per-lumberjack PIDs)
-ORCHESTRATOR_PID_FILE = AXE_STATE_DIR / "orchestrator.pid"
+
+def orchestrator_pid_file() -> Path:
+    """Return the current orchestrator PID file path."""
+    return axe_state.axe_state_dir() / "orchestrator.pid"
+
 
 _RESTART_BACKOFF_INITIAL_SECONDS = 1.0
 _RESTART_HEALTHY_RUN_SECONDS = 5 * 60.0
@@ -103,7 +106,7 @@ class Orchestrator:
         cmd.extend(["--zombie-timeout", str(self.config.zombie_timeout_seconds)])
 
         # Ensure log directory exists
-        log_dir = AXE_STATE_DIR / "logs"
+        log_dir = axe_state.axe_state_dir() / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / f"lumberjack-{name}.log"
 
@@ -129,7 +132,7 @@ class Orchestrator:
         return proc
 
     def _stream_child_output(self, name: str, stream: BinaryIO) -> None:
-        log_file = AXE_STATE_DIR / "logs" / f"lumberjack-{name}.log"
+        log_file = axe_state.axe_state_dir() / "logs" / f"lumberjack-{name}.log"
         # BufferedReader.read() waits for the requested byte count or EOF on a
         # pipe. read1() returns bytes already available from one raw read, so
         # quiet lumberjacks reach the aggregate log promptly.
@@ -240,7 +243,7 @@ class Orchestrator:
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=0.2)
 
-        log_file = AXE_STATE_DIR / "logs" / f"lumberjack-{name}.log"
+        log_file = axe_state.axe_state_dir() / "logs" / f"lumberjack-{name}.log"
         output_tail = self._read_recent_output_tail(log_file)
         if exit_code is not None:
             latest_failure = f"latest exit code {exit_code}"
@@ -334,13 +337,14 @@ class Orchestrator:
         AXE_LUMBERJACK_RESTARTS.inc()
 
     def _write_pid(self) -> None:
-        AXE_STATE_DIR.mkdir(parents=True, exist_ok=True)
+        pid_file = orchestrator_pid_file()
+        pid_file.parent.mkdir(parents=True, exist_ok=True)
         temp_path: Path | None = None
         try:
             with tempfile.NamedTemporaryFile(
                 mode="w",
-                dir=ORCHESTRATOR_PID_FILE.parent,
-                prefix=f".{ORCHESTRATOR_PID_FILE.name}.",
+                dir=pid_file.parent,
+                prefix=f".{pid_file.name}.",
                 suffix=".tmp",
                 delete=False,
             ) as temp_file:
@@ -348,7 +352,7 @@ class Orchestrator:
                 temp_file.write(f"{os.getpid()}\n")
                 temp_file.flush()
                 os.fsync(temp_file.fileno())
-            os.replace(temp_path, ORCHESTRATOR_PID_FILE)
+            os.replace(temp_path, pid_file)
         finally:
             if temp_path is not None:
                 try:
@@ -361,7 +365,7 @@ class Orchestrator:
         if not force and pid is not None and pid != os.getpid():
             return
         try:
-            ORCHESTRATOR_PID_FILE.unlink()
+            orchestrator_pid_file().unlink()
         except OSError:
             pass
 
@@ -370,11 +374,12 @@ class Orchestrator:
         self._terminate_children()
 
     def _read_orchestrator_pid(self) -> int | None:
-        if not ORCHESTRATOR_PID_FILE.exists():
+        pid_file = orchestrator_pid_file()
+        if not pid_file.exists():
             return None
 
         try:
-            return int(ORCHESTRATOR_PID_FILE.read_text().strip())
+            return int(pid_file.read_text().strip())
         except (ValueError, OSError):
             return None
 
@@ -391,7 +396,7 @@ class Orchestrator:
         """Remove stale PID files and return a live existing PID if present."""
         pid = self._read_orchestrator_pid()
         if pid is None:
-            if ORCHESTRATOR_PID_FILE.exists():
+            if orchestrator_pid_file().exists():
                 self._remove_pid(force=True)
             return None
 
@@ -429,7 +434,7 @@ class Orchestrator:
             signal.signal(signal.SIGTERM, self._handle_shutdown)
             self._write_pid()
             reap_stale_log_rotation_temps(
-                AXE_STATE_DIR,
+                axe_state.axe_state_dir(),
                 max_age_seconds=self.config.lumberjack_log_temp_max_age_seconds,
             )
 

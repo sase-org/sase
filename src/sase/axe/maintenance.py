@@ -19,7 +19,7 @@ DEFAULT_STALE_SECONDS = 24 * 60 * 60
 
 
 def _maintenance_path() -> Path:
-    return axe_state.AXE_STATE_DIR / MAINTENANCE_FILENAME
+    return axe_state.axe_state_dir() / MAINTENANCE_FILENAME
 
 
 def _now_iso() -> str:

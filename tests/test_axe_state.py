@@ -5,6 +5,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from sase.axe import lock as axe_lock
+from sase.axe import state as axe_state
 from sase.axe.state import (
     AxeMetrics,
     CycleResult,
@@ -24,7 +26,7 @@ from sase.axe.state import (
 def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
     """Create a temporary state directory for testing."""
     state_dir = tmp_path / ".sase" / "axe"
-    with patch("sase.axe.state.AXE_STATE_DIR", state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=state_dir):
         yield state_dir
 
 
@@ -33,7 +35,7 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
 
 def test_read_pid_file_returns_none_on_invalid_content(temp_state_dir: Path) -> None:
     """Test that read_pid_file returns None on invalid content."""
-    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=temp_state_dir):
         temp_state_dir.mkdir(parents=True, exist_ok=True)
         pid_file = temp_state_dir / "pid"
         pid_file.write_text("not_a_number")
@@ -45,7 +47,7 @@ def test_read_pid_file_returns_none_on_invalid_content(temp_state_dir: Path) -> 
 
 def test_read_status_returns_none_on_invalid_json(temp_state_dir: Path) -> None:
     """Test that read_status returns None on invalid JSON."""
-    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=temp_state_dir):
         temp_state_dir.mkdir(parents=True, exist_ok=True)
         status_file = temp_state_dir / "status.json"
         status_file.write_text("not valid json")
@@ -57,7 +59,7 @@ def test_read_status_returns_none_on_invalid_json(temp_state_dir: Path) -> None:
 
 def test_write_and_read_hook_cycle_result(temp_state_dir: Path) -> None:
     """Test writing and reading hook cycle result."""
-    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=temp_state_dir):
         result = CycleResult(
             timestamp="2025-01-15T10:00:05-05:00",
             cycle_type="hook",
@@ -76,7 +78,7 @@ def test_write_and_read_hook_cycle_result(temp_state_dir: Path) -> None:
 
 def test_read_cycle_result_returns_none_when_missing(temp_state_dir: Path) -> None:
     """Test that read_cycle_result returns None when file doesn't exist."""
-    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=temp_state_dir):
         assert read_cycle_result("full") is None
         assert read_cycle_result("hook") is None
 
@@ -86,7 +88,7 @@ def test_read_cycle_result_returns_none_when_missing(temp_state_dir: Path) -> No
 
 def test_read_metrics_returns_none_when_missing(temp_state_dir: Path) -> None:
     """Test that read_metrics returns None when file doesn't exist."""
-    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=temp_state_dir):
         assert read_metrics() is None
 
 
@@ -104,7 +106,7 @@ def test_axe_metrics_default_values() -> None:
 
 def test_append_and_read_errors(temp_state_dir: Path) -> None:
     """Test appending and reading errors."""
-    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=temp_state_dir):
         append_error({"timestamp": "t1", "job": "hooks", "error": "error 1"})
         append_error({"timestamp": "t2", "job": "mentors", "error": "error 2"})
 
@@ -116,7 +118,7 @@ def test_append_and_read_errors(temp_state_dir: Path) -> None:
 
 def test_read_errors_returns_empty_list_when_missing(temp_state_dir: Path) -> None:
     """Test that read_errors returns empty list when file doesn't exist."""
-    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=temp_state_dir):
         assert read_errors() == []
 
 
@@ -125,7 +127,7 @@ def test_read_errors_returns_empty_list_when_missing(temp_state_dir: Path) -> No
 
 def test_write_and_read_last_error_digest_ts(temp_state_dir: Path) -> None:
     """Test round-trip of the error digest high-water mark timestamp."""
-    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=temp_state_dir):
         ts = "2025-01-15T10:30:00-05:00"
         write_last_error_digest_ts(ts)
         assert read_last_error_digest_ts() == ts
@@ -135,7 +137,7 @@ def test_read_last_error_digest_ts_returns_none_when_missing(
     temp_state_dir: Path,
 ) -> None:
     """Test that read_last_error_digest_ts returns None when file doesn't exist."""
-    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=temp_state_dir):
         assert read_last_error_digest_ts() is None
 
 
@@ -143,10 +145,25 @@ def test_read_last_error_digest_ts_returns_none_on_empty_file(
     temp_state_dir: Path,
 ) -> None:
     """Test that read_last_error_digest_ts returns None for an empty file."""
-    with patch("sase.axe.state.AXE_STATE_DIR", temp_state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=temp_state_dir):
         temp_state_dir.mkdir(parents=True, exist_ok=True)
         (temp_state_dir / "last_error_digest_ts").write_text("")
         assert read_last_error_digest_ts() is None
+
+
+def test_axe_paths_follow_sase_home_redirect_after_import(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Axe state and lifecycle paths follow a post-import home redirect."""
+    redirected_home = tmp_path / "redirected-sase-home"
+    monkeypatch.setenv("SASE_HOME", str(redirected_home))
+
+    state_dir = redirected_home / "axe"
+    assert axe_state.axe_state_dir() == state_dir
+    assert axe_state.jack_state_dir() == state_dir / "lumberjacks"
+    assert axe_state.shared_state_dir() == state_dir / "shared"
+    assert axe_state.axe_output_log_path() == state_dir / "logs" / "output.log"
+    assert axe_lock._axe_lifecycle_lock_path() == state_dir / "orchestrator.lock"
 
 
 # --- Utility Tests ---

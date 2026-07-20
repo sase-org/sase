@@ -6,10 +6,11 @@ sase ace to monitor and control axe processes via the TUI.
 Includes both the flat scheduler state (legacy) and per-lumberjack state
 directories used by the new lumberjack architecture.
 
-Path constants and the shared low-level JSON / log helpers live in this
-module so tests can ``patch("sase.axe.state.AXE_STATE_DIR", ...)`` and have
-the patch apply to every caller. The dataclasses and higher-level read/write
-helpers live in sibling ``_state_*`` modules and are re-exported below.
+Live path accessors and the shared low-level JSON / log helpers live in this
+module. Axe paths are resolved at call time so changes to ``SASE_HOME`` or
+``HOME`` take effect even when this module was imported earlier. The
+dataclasses and higher-level read/write helpers live in sibling ``_state_*``
+modules and are re-exported below.
 """
 
 import json
@@ -19,22 +20,30 @@ from pathlib import Path
 from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
 
-# State directory location
-AXE_STATE_DIR = sase_subdir("axe")
 
-# Per-lumberjack state lives under this subdirectory
-JACK_STATE_DIR = AXE_STATE_DIR / "lumberjacks"
+def axe_state_dir() -> Path:
+    """Return the current axe state directory."""
+    return sase_subdir("axe")
 
-# Shared cross-process state
-SHARED_STATE_DIR = AXE_STATE_DIR / "shared"
 
-# Path to the output log file with ANSI codes
-AXE_OUTPUT_LOG = AXE_STATE_DIR / "logs" / "output.log"
+def jack_state_dir() -> Path:
+    """Return the current per-lumberjack state directory."""
+    return axe_state_dir() / "lumberjacks"
+
+
+def shared_state_dir() -> Path:
+    """Return the current shared cross-process state directory."""
+    return axe_state_dir() / "shared"
+
+
+def axe_output_log_path() -> Path:
+    """Return the current axe output log path."""
+    return axe_state_dir() / "logs" / "output.log"
 
 
 def ensure_state_dir() -> None:
     """Ensure state directory exists."""
-    AXE_STATE_DIR.mkdir(parents=True, exist_ok=True)
+    axe_state_dir().mkdir(parents=True, exist_ok=True)
 
 
 def atomic_write_json(path: Path, data: dict | list) -> None:
@@ -113,10 +122,10 @@ def get_timestamp() -> str:
     return datetime.now(get_timezone()).isoformat()
 
 
-# Section modules access the names above via ``import sase.axe.state as
-# _state`` and look them up at call time, which is why these re-export
-# imports go at the bottom: section modules are only loaded once the names
-# above are bound on this module.
+# Section modules access the functions above via ``import sase.axe.state as
+# _state`` and call them at runtime, which is why these re-export imports go at
+# the bottom: section modules are only loaded once the names above are bound on
+# this module.
 from sase.axe._state_chops import (  # noqa: E402
     ACTIVE_CHOP_RUN_STATUSES,
     MAX_CHOP_RUN_HISTORY,
@@ -184,8 +193,6 @@ from sase.axe._state_scheduler import (  # noqa: E402
 
 __all__ = [
     "ACTIVE_CHOP_RUN_STATUSES",
-    "AXE_OUTPUT_LOG",
-    "AXE_STATE_DIR",
     "AxeMetrics",
     "AxeStatus",
     "ChopRunEntry",
@@ -194,16 +201,16 @@ __all__ = [
     "CycleResult",
     "DEFAULT_LUMBERJACK_LOG_MAX_BYTES",
     "DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS",
-    "JACK_STATE_DIR",
     "LumberjackMetrics",
     "LumberjackStatus",
     "MAX_CHOP_RUN_HISTORY",
-    "SHARED_STATE_DIR",
     "append_bounded_log",
     "append_chop_run_output",
     "append_error",
     "append_lumberjack_log",
     "atomic_write_json",
+    "axe_output_log_path",
+    "axe_state_dir",
     "chop_index_path",
     "chop_run_context_path",
     "chop_run_log_path",
@@ -218,6 +225,7 @@ __all__ = [
     "finish_chop_run",
     "generate_chop_run_id",
     "get_timestamp",
+    "jack_state_dir",
     "list_lumberjack_names",
     "lumberjack_log_path",
     "lumberjack_state_dir",
@@ -241,6 +249,7 @@ __all__ = [
     "reap_stale_log_rotation_temps",
     "remove_lumberjack_pid",
     "remove_pid_file",
+    "shared_state_dir",
     "start_chop_run",
     "update_chop_run_pid",
     "write_chop_run",

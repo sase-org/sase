@@ -38,9 +38,6 @@ def _spawn_agent_for_env_test(
     tmp_dir.mkdir()
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
-    monkeypatch.setattr(
-        "sase.axe.state.JACK_STATE_DIR", sase_home / "axe" / "lumberjacks"
-    )
     mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
@@ -325,9 +322,6 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     tmp_dir.mkdir()
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
-    monkeypatch.setattr(
-        "sase.axe.state.JACK_STATE_DIR", sase_home / "axe" / "lumberjacks"
-    )
     mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
@@ -404,9 +398,6 @@ def test_spawn_agent_subprocess_ignores_post_spawn_chop_record_failure(
     tmp_dir.mkdir()
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
-    monkeypatch.setattr(
-        "sase.axe.state.JACK_STATE_DIR", sase_home / "axe" / "lumberjacks"
-    )
     mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
@@ -458,9 +449,6 @@ def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
     xprompts_file.write_text("{}")
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
-    monkeypatch.setattr(
-        "sase.axe.state.JACK_STATE_DIR", sase_home / "axe" / "lumberjacks"
-    )
     mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
@@ -513,9 +501,6 @@ def test_spawn_agent_subprocess_does_not_record_without_chop_env(
     tmp_dir.mkdir()
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
-    monkeypatch.setattr(
-        "sase.axe.state.JACK_STATE_DIR", sase_home / "axe" / "lumberjacks"
-    )
     mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))

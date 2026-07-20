@@ -15,12 +15,12 @@ from sase.axe.state import read_chop_run_index
 
 @pytest.fixture
 def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
-    """Patch AXE_STATE_DIR and JACK_STATE_DIR to use a temp directory."""
+    """Redirect axe and lumberjack state to a temporary directory."""
     state_dir = tmp_path / ".sase" / "axe"
     lumberjack_dir = state_dir / "lumberjacks"
     with (
-        patch("sase.axe.state.AXE_STATE_DIR", state_dir),
-        patch("sase.axe.state.JACK_STATE_DIR", lumberjack_dir),
+        patch("sase.axe.state.axe_state_dir", return_value=state_dir),
+        patch("sase.axe.state.jack_state_dir", return_value=lumberjack_dir),
     ):
         yield state_dir
 

@@ -4,8 +4,7 @@ Internal helper module — public API is re-exported through
 ``sase.axe.state``. Do not import from this module directly.
 
 Paths and shared helpers are looked up through ``sase.axe.state`` at call
-time so test patches like ``patch("sase.axe.state.JACK_STATE_DIR", ...)``
-propagate to every reader.
+time so home-directory redirection applies to every reader.
 """
 
 import sase.axe.state as _state  # noqa: I001

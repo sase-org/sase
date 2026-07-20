@@ -104,13 +104,14 @@ def check_axe_state() -> DiagnosticCheck:
     log_cap = int(
         getattr(config, "lumberjack_log_max_bytes", DEFAULT_LUMBERJACK_LOG_MAX_BYTES)
     )
-    pinned_logs = _pinned_log_paths(_state.AXE_STATE_DIR, max_bytes=log_cap)
+    state_dir = _state.axe_state_dir()
+    pinned_logs = _pinned_log_paths(state_dir, max_bytes=log_cap)
     if pinned_logs:
         problems.append(
             f"{len(pinned_logs)} axe log(s) are pinned at the {log_cap}-byte cap"
         )
 
-    orphan_temp_count, orphan_temp_bytes = _orphan_temp_litter(_state.AXE_STATE_DIR)
+    orphan_temp_count, orphan_temp_bytes = _orphan_temp_litter(state_dir)
     orphan_litter_excessive = (
         orphan_temp_count >= _ORPHAN_TEMP_WARN_COUNT
         or orphan_temp_bytes >= _ORPHAN_TEMP_WARN_BYTES

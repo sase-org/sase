@@ -19,15 +19,10 @@ from sase.axe.orchestrator import (
 
 @pytest.fixture
 def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
-    """Patch AXE_STATE_DIR and ORCHESTRATOR_PID_FILE to use a temp directory."""
+    """Redirect axe state to a temporary directory."""
     state_dir = tmp_path / ".sase" / "axe"
     state_dir.mkdir(parents=True, exist_ok=True)
-    pid_file = state_dir / "orchestrator.pid"
-    with (
-        patch("sase.axe.state.AXE_STATE_DIR", state_dir),
-        patch("sase.axe.orchestrator.AXE_STATE_DIR", state_dir),
-        patch("sase.axe.orchestrator.ORCHESTRATOR_PID_FILE", pid_file),
-    ):
+    with patch("sase.axe.state.axe_state_dir", return_value=state_dir):
         yield state_dir
 
 

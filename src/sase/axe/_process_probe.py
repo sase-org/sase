@@ -9,7 +9,7 @@ from .lock import (
     is_lifecycle_lock_held,
     read_lock_holder_pid,
 )
-from .orchestrator import ORCHESTRATOR_PID_FILE
+from .orchestrator import orchestrator_pid_file
 from ._process_types import AxeOrchestratorProbe
 
 
@@ -37,7 +37,7 @@ def get_axe_pid() -> int | None:
 
 def get_pid_from_pid_files() -> int | None:
     """Return a live PID from PID files without consulting the lifecycle lock."""
-    orchestrator_pid = _read_pid_path(ORCHESTRATOR_PID_FILE)
+    orchestrator_pid = _read_pid_path(orchestrator_pid_file())
 
     from .state import read_pid_file
 
@@ -53,7 +53,7 @@ def probe_orchestrator(*, cleanup: bool = True) -> AxeOrchestratorProbe:
     """Probe axe orchestrator liveness from lock and PID-file state."""
     lock_held = is_lifecycle_lock_held()
     lock_holder_pid = read_lock_holder_pid() if lock_held else None
-    orchestrator_pid = _read_pid_path(ORCHESTRATOR_PID_FILE)
+    orchestrator_pid = _read_pid_path(orchestrator_pid_file())
 
     from .state import read_pid_file, remove_pid_file
 
@@ -105,10 +105,11 @@ def _read_pid_path(path: Path) -> int | None:
 
 def _remove_orchestrator_pid_file(*, expected_pid: int) -> None:
     """Remove the orchestrator PID file if it still names *expected_pid*."""
-    if _read_pid_path(ORCHESTRATOR_PID_FILE) != expected_pid:
+    pid_file = orchestrator_pid_file()
+    if _read_pid_path(pid_file) != expected_pid:
         return
     try:
-        ORCHESTRATOR_PID_FILE.unlink()
+        pid_file.unlink()
     except OSError:
         pass
 
@@ -122,7 +123,7 @@ def cleanup_pid_files(*, stopped_pid: int | None = None) -> None:
     """
     from .state import remove_pid_file
 
-    current_pid = _read_pid_path(ORCHESTRATOR_PID_FILE)
+    current_pid = _read_pid_path(orchestrator_pid_file())
     if current_pid is not None and (
         current_pid == stopped_pid or not is_process_running(current_pid)
     ):

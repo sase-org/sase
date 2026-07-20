@@ -14,10 +14,10 @@ from sase.agent.env_hygiene import (
     scrub_chop_context_env,
 )
 
+from . import state as axe_state
 from .config import AxeConfig, AxeConfigError, load_axe_config
 from .desired_state import write_desired_state
 from .lock import AXE_LOCK_FD_ENV, AxeLifecycleLock
-from .state import AXE_STATE_DIR
 from ._process_probe import get_axe_pid, get_pid_from_pid_files, probe_orchestrator
 from ._process_types import AxeStartResult
 
@@ -132,7 +132,7 @@ def start_axe_daemon_result(
                 message="Could not find a `sase` executable to start axe.",
             )
 
-        log_dir = AXE_STATE_DIR / "logs"
+        log_dir = axe_state.axe_state_dir() / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / "axe.log"
 

@@ -23,8 +23,10 @@ from sase.notifications.store import load_notifications
 @pytest.fixture
 def axe_state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     state_dir = tmp_path / ".sase" / "axe"
-    monkeypatch.setattr("sase.axe.state.AXE_STATE_DIR", state_dir)
-    monkeypatch.setattr("sase.axe.state.JACK_STATE_DIR", state_dir / "lumberjacks")
+    monkeypatch.setattr("sase.axe.state.axe_state_dir", lambda: state_dir)
+    monkeypatch.setattr(
+        "sase.axe.state.jack_state_dir", lambda: state_dir / "lumberjacks"
+    )
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     yield state_dir
 

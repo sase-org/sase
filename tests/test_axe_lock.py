@@ -18,7 +18,7 @@ from sase.axe.lock import AxeLifecycleLock, clear_lock_holder_pid, read_lock_hol
 def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
     state_dir = tmp_path / ".sase" / "axe"
     state_dir.mkdir(parents=True, exist_ok=True)
-    with patch("sase.axe.state.AXE_STATE_DIR", state_dir):
+    with patch("sase.axe.state.axe_state_dir", return_value=state_dir):
         yield state_dir
 
 

@@ -4,8 +4,7 @@ Internal helper module — public API is re-exported through
 ``sase.axe.state``. Do not import from this module directly.
 
 Paths and shared helpers are looked up through ``sase.axe.state`` at call
-time so test patches like ``patch("sase.axe.state.AXE_STATE_DIR", ...)``
-propagate to every reader.
+time so home-directory redirection applies to every reader.
 """
 
 import sase.axe.state as _state  # noqa: I001
@@ -75,7 +74,7 @@ def read_pid_file() -> int | None:
     Returns:
         PID as integer, or None if file doesn't exist or is invalid.
     """
-    pid_file = _state.AXE_STATE_DIR / "pid"
+    pid_file = _state.axe_state_dir() / "pid"
     if not pid_file.exists():
         return None
     try:
@@ -86,7 +85,7 @@ def read_pid_file() -> int | None:
 
 def remove_pid_file() -> None:
     """Remove PID file on shutdown."""
-    pid_file = _state.AXE_STATE_DIR / "pid"
+    pid_file = _state.axe_state_dir() / "pid"
     try:
         pid_file.unlink()
     except OSError:
@@ -102,7 +101,7 @@ def read_status() -> AxeStatus | None:
     Returns:
         AxeStatus object, or None if file doesn't exist or is invalid.
     """
-    status_file = _state.AXE_STATE_DIR / "status.json"
+    status_file = _state.axe_state_dir() / "status.json"
     data = _state.read_json(status_file)
     if data is None:
         return None
@@ -122,7 +121,7 @@ def write_cycle_result(result: CycleResult) -> None:
         result: Result of the completed cycle.
     """
     filename = f"last_{result.cycle_type}_cycle.json"
-    result_file = _state.AXE_STATE_DIR / filename
+    result_file = _state.axe_state_dir() / filename
     _state.atomic_write_json(result_file, asdict(result))
 
 
@@ -138,7 +137,7 @@ def read_cycle_result(
         CycleResult object, or None if file doesn't exist or is invalid.
     """
     filename = f"last_{cycle_type}_cycle.json"
-    result_file = _state.AXE_STATE_DIR / filename
+    result_file = _state.axe_state_dir() / filename
     data = _state.read_json(result_file)
     if data is None:
         return None
@@ -157,7 +156,7 @@ def read_metrics() -> AxeMetrics | None:
     Returns:
         AxeMetrics object, or None if file doesn't exist or is invalid.
     """
-    metrics_file = _state.AXE_STATE_DIR / "metrics.json"
+    metrics_file = _state.axe_state_dir() / "metrics.json"
     data = _state.read_json(metrics_file)
     if data is None:
         return None
@@ -178,7 +177,7 @@ def append_error(error_info: dict) -> None:
     Args:
         error_info: Dictionary with error details (timestamp, job, error, traceback).
     """
-    errors_file = _state.AXE_STATE_DIR / "recent_errors.json"
+    errors_file = _state.axe_state_dir() / "recent_errors.json"
     errors: list[dict] = _state.read_json(errors_file) or []  # type: ignore[assignment]
     if not isinstance(errors, list):
         errors = []
@@ -196,7 +195,7 @@ def read_errors() -> list[dict]:
     Returns:
         List of error dictionaries, or empty list if none.
     """
-    errors_file = _state.AXE_STATE_DIR / "recent_errors.json"
+    errors_file = _state.axe_state_dir() / "recent_errors.json"
     errors = _state.read_json(errors_file)
     if errors is None or not isinstance(errors, list):
         return []
@@ -210,7 +209,7 @@ def write_last_error_digest_ts(ts: str) -> None:
         ts: ISO formatted timestamp string.
     """
     _state.ensure_state_dir()
-    ts_file = _state.AXE_STATE_DIR / "last_error_digest_ts"
+    ts_file = _state.axe_state_dir() / "last_error_digest_ts"
     ts_file.write_text(ts)
 
 
@@ -220,7 +219,7 @@ def read_last_error_digest_ts() -> str | None:
     Returns:
         ISO timestamp string, or None if file is missing or empty.
     """
-    ts_file = _state.AXE_STATE_DIR / "last_error_digest_ts"
+    ts_file = _state.axe_state_dir() / "last_error_digest_ts"
     if not ts_file.exists():
         return None
     try:
@@ -242,6 +241,7 @@ def read_output_log_tail(lines: int = 1000) -> str:
     Returns:
         String containing the last N lines with ANSI codes preserved.
     """
-    if not _state.AXE_OUTPUT_LOG.exists():
+    output_log = _state.axe_output_log_path()
+    if not output_log.exists():
         return ""
-    return _state.read_tail_seek(_state.AXE_OUTPUT_LOG, lines)
+    return _state.read_tail_seek(output_log, lines)
