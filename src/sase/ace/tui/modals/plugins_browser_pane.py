@@ -40,6 +40,10 @@ from sase.uv_tool.versions import CoreVersions, collect_installed_core_versions
 
 from .plugins_browser_constants import _DETAIL_PLACEHOLDER, _SUBTAB_NAV_HINT
 from .plugins_browser_agent_clis import AgentCliBrowserMixin
+from .plugins_browser_comprehensive_update import (
+    ComprehensiveUpdateActionsMixin,
+    ComprehensiveUpdateRequest,
+)
 from .plugins_browser_controls import PluginsBrowserControlsMixin
 from .plugins_browser_dev_update import (
     DevUpdatePreview,
@@ -172,6 +176,7 @@ _SUBTABS: tuple[PanelTab, ...] = (
 
 
 class PluginsBrowserPane(
+    ComprehensiveUpdateActionsMixin,
     AgentCliBrowserMixin,
     ModeSwitchActionsMixin,
     SaseUpdateActionsMixin,
@@ -219,11 +224,21 @@ class PluginsBrowserPane(
         *,
         auto_load: bool = True,
         auto_update_on_load: bool = False,
+        comprehensive_provider_names: tuple[str, ...] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._auto_load = auto_load
         self._auto_update_on_load = auto_update_on_load
+        self._comprehensive_update_request = (
+            ComprehensiveUpdateRequest(comprehensive_provider_names)
+            if auto_update_on_load
+            else None
+        )
+        # A synchronous bridge used only while invoking the historical
+        # ``_start_sase_update_preview`` hook after the load.  It keeps that
+        # compatibility surface while the one-shot request itself is consumed.
+        self._starting_comprehensive_request: ComprehensiveUpdateRequest | None = None
         self._active_subtab: UpdatesSubTab = _DEFAULT_SUBTAB
         self._catalog: PluginCatalog | None = None
         self._core_versions: CoreVersions = _collect_installed_core_versions()
@@ -254,6 +269,8 @@ class PluginsBrowserPane(
         self._mode_switch_plan_worker: Worker[Any] | None = None
         #: Worker computing the pane-wide agent-CLI update preview.
         self._agent_cli_plan_worker: Worker[Any] | None = None
+        #: Worker composing the snapshot-gated SASE + provider preview.
+        self._comprehensive_update_plan_worker: Worker[Any] | None = None
         #: One-shot uv-tool detection: gates whether mutations are possible.
         #: ``None`` until the first real load probes it.
         self._uv_tool: UvToolInstall | NotUvToolInstall | None = None
@@ -494,6 +511,20 @@ class PluginsBrowserPane(
                     severity="error",
                 )
             return
+        if event.worker is self._comprehensive_update_plan_worker:
+            if event.state == WorkerState.SUCCESS:
+                self._comprehensive_update_plan_worker = None
+                self._on_comprehensive_update_preview(event.worker.result)
+            elif event.state == WorkerState.ERROR:
+                self._comprehensive_update_plan_worker = None
+                self._notify(
+                    self._worker_error_text(
+                        event.worker,
+                        kind="comprehensive update",
+                    ),
+                    severity="error",
+                )
+            return
         if event.worker is self._mode_switch_plan_worker:
             if event.state == WorkerState.SUCCESS:
                 self._mode_switch_plan_worker = None
@@ -557,20 +588,33 @@ class PluginsBrowserPane(
                 refresh_indicator(update_status)
             if self._auto_update_on_load:
                 self._auto_update_on_load = False
-                if self._all_up_to_date():
+                request = self._comprehensive_update_request
+                self._comprehensive_update_request = None
+                provider_names = request.provider_names if request is not None else None
+                if self._all_up_to_date() and not provider_names:
                     self._notify(
                         "Everything is already up to date.",
                         severity="information",
                     )
                 else:
                     fresh_roots = frozenset(getattr(result, "fresh_editable_roots", ()))
-                    self.app.call_later(
-                        lambda: self._start_sase_update_preview(
-                            already_refreshed_roots=fresh_roots
-                        )
-                    )
+
+                    def _start_captured_request() -> None:
+                        # Consume before invoking the planning hook so closing,
+                        # cancellation, or a scheduling failure cannot replay it.
+                        self._starting_comprehensive_request = request
+                        try:
+                            self._start_sase_update_preview(
+                                already_refreshed_roots=fresh_roots
+                            )
+                        finally:
+                            self._starting_comprehensive_request = None
+
+                    self.app.call_later(_start_captured_request)
         elif event.state == WorkerState.ERROR:
             self._auto_update_on_load = False
+            self._comprehensive_update_request = None
+            self._starting_comprehensive_request = None
             self._loading = False
             self._error = (
                 str(event.worker.error) if event.worker.error else "load failed"

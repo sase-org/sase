@@ -298,7 +298,11 @@ async def test_updates_pane_auto_update_fires_once_after_initial_load(
     )
 
     async with AcePage() as page:
-        modal = ConfigCenterModal(initial_tab="updates", auto_update=True)
+        modal = ConfigCenterModal(
+            initial_tab="updates",
+            auto_update=True,
+            comprehensive_provider_names=("claude",),
+        )
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
         await page.wait_for(lambda _s: bool(modal.query("#updates")))
@@ -388,7 +392,11 @@ async def test_updates_pane_auto_update_clears_on_initial_load_error(
     )
 
     async with AcePage() as page:
-        modal = ConfigCenterModal(initial_tab="updates", auto_update=True)
+        modal = ConfigCenterModal(
+            initial_tab="updates",
+            auto_update=True,
+            comprehensive_provider_names=("claude",),
+        )
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
         await page.wait_for(lambda _s: bool(modal.query("#updates")))
@@ -398,6 +406,7 @@ async def test_updates_pane_auto_update_clears_on_initial_load_error(
 
         assert calls == []
         assert pane._auto_update_on_load is False
+        assert pane._comprehensive_update_request is None
         assert pane._error == "boom"
 
 

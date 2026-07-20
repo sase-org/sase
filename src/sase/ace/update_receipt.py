@@ -15,10 +15,12 @@ import os
 import tempfile
 import time
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
+from sase.ace.comprehensive_update import ComprehensiveUpdateResult
+from sase.agent_clis.models import AgentCliUpdateResult, UpdateResultStatus
 from sase.core.paths import sase_home
 from sase.dev_update.models import DevUpdateOutcome, DevUpdateResult, RepoDiffStat
 from sase.main.update_types import CombinedUpdateResult
@@ -36,8 +38,10 @@ from sase.version._utils import normalize_distribution_name
 
 log = logging.getLogger(__name__)
 
-_FORMAT_VERSION = 1
+_FORMAT_VERSION = 2
+_LEGACY_FORMAT_VERSION = 1
 _MAX_PLUGIN_LINES = 3
+_MAX_PROVIDER_LINES = 8
 _FRESHNESS_SECONDS = 30 * 60
 _PRIMARY_DIST_KEY = normalize_distribution_name("sase")
 
@@ -46,6 +50,12 @@ _PRIMARY_DIST_KEY = normalize_distribution_name("sase")
 _PENDING_UPDATE_TOAST_FILE: Path | None = None
 
 ReceiptKind = Literal["managed", "dev", "mode_switch_dev", "mode_switch_pypi"]
+ProviderReceiptStatus = Literal[
+    "updated",
+    "already_current",
+    "failed",
+    "skipped",
+]
 
 
 @dataclass(frozen=True)
@@ -59,6 +69,21 @@ class UpdateVersionTransition:
 
 
 @dataclass(frozen=True)
+class _ProviderUpdateReceiptResult:
+    """Bounded provider outcome retained across an ACE code restart."""
+
+    name: str
+    display_name: str
+    status: ProviderReceiptStatus
+    old_version: str | None = None
+    new_version: str | None = None
+    reason: str | None = None
+    docs_url: str | None = None
+    command: tuple[str, ...] | None = None
+    suggested_command: tuple[str, ...] | None = None
+
+
+@dataclass(frozen=True)
 class UpdateToastReceipt:
     """Serializable receipt consumed once by the restarted ACE process."""
 
@@ -69,6 +94,8 @@ class UpdateToastReceipt:
     plugin_overflow: int = 0
     plugin_overflow_diffstat: RepoDiffStat | None = None
     dependency_count: int = 0
+    provider_results: tuple[_ProviderUpdateReceiptResult, ...] = ()
+    provider_overflow: int = 0
     format: int = _FORMAT_VERSION
 
 
@@ -83,6 +110,8 @@ def build_update_receipt(
         return _build_dev_receipt(payload, created_at=timestamp)
     if isinstance(payload, CombinedUpdateResult):
         return _build_combined_receipt(payload, created_at=timestamp)
+    if isinstance(payload, ComprehensiveUpdateResult):
+        return _build_comprehensive_receipt(payload, created_at=timestamp)
     if isinstance(payload, ModeSwitchResult):
         return _build_mode_switch_receipt(payload, created_at=timestamp)
     if isinstance(payload, InstallOutcome):
@@ -300,6 +329,64 @@ def _build_combined_receipt(
         plugin_overflow=overflow,
         plugin_overflow_diffstat=overflow_diffstat,
         dependency_count=dependency_count,
+    )
+
+
+def _build_comprehensive_receipt(
+    result: ComprehensiveUpdateResult,
+    *,
+    created_at: float,
+) -> UpdateToastReceipt | None:
+    """Attach bounded provider outcomes to the changed SASE receipt."""
+    if not result.code_changed or result.sase.payload is None:
+        return None
+    base = build_update_receipt(result.sase.payload, created_at=created_at)
+    if base is None:
+        kind: ReceiptKind = (
+            "dev"
+            if isinstance(result.sase.payload, (DevUpdateResult, CombinedUpdateResult))
+            else "managed"
+        )
+        base = UpdateToastReceipt(
+            kind=kind,
+            created_at=created_at,
+            primary=None,
+        )
+
+    provider_results = [
+        _provider_receipt_result(provider) for provider in result.provider_results
+    ]
+    if result.provider_error:
+        provider_results.append(
+            _ProviderUpdateReceiptResult(
+                name="agent-clis",
+                display_name="Agent CLIs",
+                status="failed",
+                reason=result.provider_error,
+            )
+        )
+    capped = tuple(provider_results[:_MAX_PROVIDER_LINES])
+    return replace(
+        base,
+        provider_results=capped,
+        provider_overflow=max(0, len(provider_results) - len(capped)),
+    )
+
+
+def _provider_receipt_result(
+    result: AgentCliUpdateResult,
+) -> _ProviderUpdateReceiptResult:
+    status: ProviderReceiptStatus = result.status.value  # type: ignore[assignment]
+    return _ProviderUpdateReceiptResult(
+        name=result.name,
+        display_name=result.display_name,
+        status=status,
+        old_version=result.old_version,
+        new_version=result.new_version,
+        reason=result.reason,
+        docs_url=result.docs_url,
+        command=result.command,
+        suggested_command=result.suggested_command,
     )
 
 
@@ -528,6 +615,30 @@ def _receipt_to_json(receipt: UpdateToastReceipt) -> dict[str, Any]:
         "plugin_overflow": receipt.plugin_overflow,
         "plugin_overflow_diffstat": _diffstat_to_json(receipt.plugin_overflow_diffstat),
         "dependency_count": receipt.dependency_count,
+        "provider_results": [
+            _provider_result_to_json(result) for result in receipt.provider_results
+        ],
+        "provider_overflow": receipt.provider_overflow,
+    }
+
+
+def _provider_result_to_json(
+    result: _ProviderUpdateReceiptResult,
+) -> dict[str, object]:
+    return {
+        "name": result.name,
+        "display_name": result.display_name,
+        "status": result.status,
+        "old_version": result.old_version,
+        "new_version": result.new_version,
+        "reason": result.reason,
+        "docs_url": result.docs_url,
+        "command": list(result.command) if result.command is not None else None,
+        "suggested_command": (
+            list(result.suggested_command)
+            if result.suggested_command is not None
+            else None
+        ),
     }
 
 
@@ -547,7 +658,12 @@ def _transition_to_json(
 def _receipt_from_json(payload: object) -> UpdateToastReceipt | None:
     if not isinstance(payload, dict):
         return None
-    if payload.get("format") != _FORMAT_VERSION:
+    format_version = payload.get("format")
+    if (
+        isinstance(format_version, bool)
+        or not isinstance(format_version, int)
+        or format_version not in {_LEGACY_FORMAT_VERSION, _FORMAT_VERSION}
+    ):
         return None
     created_at = _float_value(payload.get("created_at"))
     kind = payload.get("kind")
@@ -578,6 +694,26 @@ def _receipt_from_json(payload: object) -> UpdateToastReceipt | None:
     plugin_overflow_diffstat = _diffstat_from_json(
         payload.get("plugin_overflow_diffstat")
     )
+    provider_results: tuple[_ProviderUpdateReceiptResult, ...] = ()
+    provider_overflow = 0
+    if format_version == _FORMAT_VERSION:
+        provider_payload = payload.get("provider_results")
+        if (
+            not isinstance(provider_payload, list)
+            or len(provider_payload) > _MAX_PROVIDER_LINES
+        ):
+            return None
+        decoded_provider_results: list[_ProviderUpdateReceiptResult] = []
+        for item in provider_payload:
+            provider_result = _provider_result_from_json(item)
+            if provider_result is None:
+                return None
+            decoded_provider_results.append(provider_result)
+        provider_results = tuple(decoded_provider_results)
+        decoded_overflow = _nonnegative_int(payload.get("provider_overflow"))
+        if decoded_overflow is None:
+            return None
+        provider_overflow = decoded_overflow
     return UpdateToastReceipt(
         kind=receipt_kind,
         created_at=created_at,
@@ -586,7 +722,58 @@ def _receipt_from_json(payload: object) -> UpdateToastReceipt | None:
         plugin_overflow=plugin_overflow,
         plugin_overflow_diffstat=plugin_overflow_diffstat,
         dependency_count=dependency_count,
+        provider_results=provider_results,
+        provider_overflow=provider_overflow,
+        format=format_version,
     )
+
+
+def _provider_result_from_json(
+    payload: object,
+) -> _ProviderUpdateReceiptResult | None:
+    if not isinstance(payload, dict):
+        return None
+    name = payload.get("name")
+    display_name = payload.get("display_name")
+    status = payload.get("status")
+    if (
+        not isinstance(name, str)
+        or not name
+        or not isinstance(display_name, str)
+        or not display_name
+        or status not in {item.value for item in UpdateResultStatus}
+    ):
+        return None
+    command = _command_from_json(payload.get("command"))
+    if payload.get("command") is not None and command is None:
+        return None
+    suggested = _command_from_json(payload.get("suggested_command"))
+    if payload.get("suggested_command") is not None and suggested is None:
+        return None
+    for key in ("old_version", "new_version", "reason", "docs_url"):
+        value = payload.get(key)
+        if value is not None and (not isinstance(value, str) or not value):
+            return None
+    typed_status: ProviderReceiptStatus = status  # type: ignore[assignment]
+    return _ProviderUpdateReceiptResult(
+        name=name,
+        display_name=display_name,
+        status=typed_status,
+        old_version=_optional_str(payload.get("old_version")),
+        new_version=_optional_str(payload.get("new_version")),
+        reason=_optional_str(payload.get("reason")),
+        docs_url=_optional_str(payload.get("docs_url")),
+        command=command,
+        suggested_command=suggested,
+    )
+
+
+def _command_from_json(payload: object) -> tuple[str, ...] | None:
+    if not isinstance(payload, list) or not payload:
+        return None
+    if any(not isinstance(part, str) or not part for part in payload):
+        return None
+    return tuple(payload)
 
 
 def _transition_from_json(payload: object) -> UpdateVersionTransition | None:

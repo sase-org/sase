@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from inspect import Parameter, signature
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -128,6 +128,7 @@ class TaskActionsMixin:
         *,
         display_name: str | None = None,
         dedup_key: str | None = None,
+        exclusive_scopes: Collection[str] = (),
         duplicate_message: str | None = None,
         on_complete: Callable[[TrackedTaskCompletion[T]], None] | None = None,
         reload_on_complete: bool = True,
@@ -150,6 +151,8 @@ class TaskActionsMixin:
             if dedup_key is not None
             else self._task_queue.get_running_for_cl(cl_name)
         )
+        if existing is None:
+            existing = self._task_queue.get_running_for_scopes(exclusive_scopes)
         if existing is not None:
             msg = duplicate_message or (
                 f"A {existing.task_type} task is already running for "
@@ -164,6 +167,7 @@ class TaskActionsMixin:
             project_file,
             display_name=display_name,
             dedup_key=dedup_key,
+            exclusive_scopes=exclusive_scopes,
         )
         task_id = task_info.task_id
 

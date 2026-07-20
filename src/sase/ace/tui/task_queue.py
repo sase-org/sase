@@ -13,7 +13,7 @@ import subprocess
 import threading
 import time
 import uuid
-from collections.abc import Generator
+from collections.abc import Collection, Generator
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -148,6 +148,7 @@ class TaskInfo:
     started_at: datetime
     display_name: str | None = None
     dedup_key: str | None = None
+    exclusive_scopes: frozenset[str] = frozenset()
     finished_at: datetime | None = None
     output: str = ""
     error: str | None = None
@@ -234,6 +235,7 @@ class TaskQueue:
         *,
         display_name: str | None = None,
         dedup_key: str | None = None,
+        exclusive_scopes: Collection[str] = (),
     ) -> TaskInfo:
         """Create and register a new running task.
 
@@ -252,6 +254,7 @@ class TaskQueue:
             started_at=datetime.now(),
             display_name=display_name,
             dedup_key=dedup_key if dedup_key is not None else cl_name,
+            exclusive_scopes=frozenset(exclusive_scopes),
         )
         with self._lock:
             self._tasks[task_id] = info
@@ -301,6 +304,19 @@ class TaskQueue:
         with self._lock:
             for info in self._tasks.values():
                 if info.dedup_key == dedup_key and info.status == "running":
+                    return info
+        return None
+
+    def get_running_for_scopes(
+        self, exclusive_scopes: Collection[str]
+    ) -> TaskInfo | None:
+        """Return a running task claiming any requested exclusive scope."""
+        requested = frozenset(exclusive_scopes)
+        if not requested:
+            return None
+        with self._lock:
+            for info in self._tasks.values():
+                if info.status == "running" and requested & info.exclusive_scopes:
                     return info
         return None
 

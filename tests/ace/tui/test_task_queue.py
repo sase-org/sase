@@ -141,6 +141,46 @@ class TestTaskQueueDedup:
 
         assert q.get_running_for_key("launch:foo") is None
 
+    def test_update_scopes_conflict_by_intersection(self) -> None:
+        q = TaskQueue()
+        comprehensive = q.submit(
+            "comprehensive-update",
+            "updates",
+            "",
+            dedup_key="comprehensive-update",
+            exclusive_scopes=("sase-update", "agent-cli-update"),
+        )
+
+        assert q.get_running_for_scopes(("sase-update",)) is comprehensive
+        assert q.get_running_for_scopes(("agent-cli-update",)) is comprehensive
+        assert q.get_running_for_scopes(("plugin-install",)) is None
+
+
+def test_tracked_update_scope_blocks_different_dedup_key() -> None:
+    app = _TaskActionsHarness()
+    first = app._submit_tracked_task(
+        "comprehensive-update",
+        "updates",
+        "",
+        lambda: TrackedTaskResult(True, "done"),
+        dedup_key="comprehensive-update",
+        exclusive_scopes=("sase-update", "agent-cli-update"),
+    )
+
+    blocked = app._submit_tracked_task(
+        "sase-update",
+        "sase",
+        "",
+        lambda: TrackedTaskResult(True, "done"),
+        dedup_key="sase-update",
+        exclusive_scopes=("sase-update",),
+        duplicate_message="update conflict",
+    )
+
+    assert first is not None
+    assert blocked is None
+    assert app.notifications[-1] == ("update conflict", "warning")
+
 
 # ---------------------------------------------------------------------------
 # TaskQueue.get_all / remove

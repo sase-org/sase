@@ -97,6 +97,7 @@ class UpdateToastMixin:
     _automatic_update_check_in_flight: bool
     _automatic_update_check_interval_seconds: float
     _automatic_update_check_timer: Timer | None
+    _automatic_update_provider_names: tuple[str, ...] | None
 
     def _schedule_startup_update_toast_check(self) -> None:
         """Start periodic checks and schedule the first one after first paint."""
@@ -236,6 +237,13 @@ class UpdateToastMixin:
         sections: Sequence[_ToastRepoSection] | None = None,
     ) -> None:
         """Apply automatic update status to all UI surfaces."""
+        # This UI-thread assignment is the only authority used by the global
+        # comprehensive-update shortcut.  Failed/in-flight checks never reach
+        # this method, and a successful empty result intentionally replaces a
+        # prior non-empty projection.
+        self._automatic_update_provider_names = tuple(
+            candidate.provider for candidate in status.provider_candidates
+        )
         if config.indicator:
             self._refresh_updates_indicator(status)
         if config.startup_toast:

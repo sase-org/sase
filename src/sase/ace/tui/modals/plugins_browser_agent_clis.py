@@ -295,7 +295,7 @@ class AgentCliBrowserMixin:
             table.add_row("Latest probe", status.latest_error)
         outcome = self._agent_cli_results.get(status.name)
         if outcome is not None:
-            table.add_row("Last outcome", _agent_cli_result_line(outcome))
+            table.add_row("Last outcome", agent_cli_result_line(outcome))
         return Panel(
             Group(table),
             title=status.display_name,
@@ -511,7 +511,7 @@ class AgentCliBrowserMixin:
             message = _agent_cli_update_summary(results)
             reporter.section("Results")
             for result in results:
-                reporter.log(_agent_cli_result_line(result), stream="result")
+                reporter.log(agent_cli_result_line(result), stream="result")
             failed = any(
                 result.status is UpdateResultStatus.FAILED for result in results
             )
@@ -532,6 +532,7 @@ class AgentCliBrowserMixin:
             task,
             display_name="update agent CLIs",
             dedup_key="agent-cli-update",
+            exclusive_scopes=("agent-cli-update",),
             duplicate_message="An agent CLI update is already running.",
             on_complete=self._on_agent_cli_update_complete,
             reload_on_complete=False,
@@ -555,11 +556,12 @@ class AgentCliBrowserMixin:
             self._start_load(force=False)
 
 
-def _agent_cli_result_line(result: AgentCliUpdateResult) -> str:
+def agent_cli_result_line(result: AgentCliUpdateResult) -> str:
     if result.status is UpdateResultStatus.UPDATED:
         old = result.old_version or "unknown"
         new = result.new_version or "unknown"
-        return f"{result.display_name}: updated {old} → {new}"
+        line = f"{result.display_name}: updated {old} → {new}"
+        return f"{line} — {result.reason}" if result.reason else line
     if result.status is UpdateResultStatus.ALREADY_CURRENT:
         return f"{result.display_name}: already current"
     if result.status is UpdateResultStatus.FAILED:
@@ -573,4 +575,4 @@ def _agent_cli_update_summary(results: tuple[AgentCliUpdateResult, ...]) -> str:
     """Build the concise completion toast for a batch agent-CLI update."""
     if not results:
         return "No agent CLIs needed an update."
-    return "\n".join(_agent_cli_result_line(result) for result in results)
+    return "\n".join(agent_cli_result_line(result) for result in results)

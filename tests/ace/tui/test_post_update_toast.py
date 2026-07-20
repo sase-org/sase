@@ -14,6 +14,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.actions import post_update_toast, update_toast
 from sase.ace.tui.actions.post_update_toast import PostUpdateToastMixin
 from sase.ace.update_receipt import (
+    _ProviderUpdateReceiptResult,
     UpdateToastReceipt,
     UpdateVersionTransition,
     write_pending_update_toast,
@@ -151,6 +152,40 @@ def test_post_update_toast_formats_diffstats() -> None:
         "\n\n[dim]16 files changed · +2 dependencies · "
         "Reloaded into the new version.[/]"
     ) in message
+
+
+def test_post_update_toast_renders_provider_partial_failure_and_manual_guidance() -> (
+    None
+):
+    receipt = UpdateToastReceipt(
+        kind="managed",
+        created_at=time.time(),
+        primary=UpdateVersionTransition("sase", "0.5.0", "0.6.0"),
+        provider_results=(
+            _ProviderUpdateReceiptResult(
+                name="claude",
+                display_name="Claude Code",
+                status="failed",
+                reason="command failed; see vendor docs",
+            ),
+            _ProviderUpdateReceiptResult(
+                name="codex",
+                display_name="Codex CLI",
+                status="skipped",
+                reason="Homebrew requires a manual upgrade",
+                suggested_command=("brew", "upgrade", "codex"),
+            ),
+        ),
+    )
+
+    assert post_update_toast._format_post_update_toast_title(receipt) == (
+        "⚠ SASE updated with Agent CLI issues"
+    )
+    message = post_update_toast._format_post_update_toast_message(receipt)
+    assert "Agent CLIs" in message
+    assert "Claude Code: [red]failed" in message
+    assert "Codex CLI: [yellow]manual" in message
+    assert "brew upgrade codex" in message
 
 
 def test_post_update_toast_managed_receipt_keeps_legacy_rendering() -> None:

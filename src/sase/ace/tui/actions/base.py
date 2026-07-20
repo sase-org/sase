@@ -146,8 +146,15 @@ class BaseActionsMixin:
         self._open_config_center("updates")
 
     def action_update_sase_shortcut(self) -> None:
-        """Open Updates and prompt for the comprehensive SASE update."""
-        self._open_config_center("updates", auto_update=True)
+        """Open Updates with a snapshot-gated comprehensive request."""
+        # Keystroke dispatch copies only immutable in-memory state.  Provider
+        # inventory, disk, network, and subprocess work begins in pane workers.
+        provider_names = getattr(self, "_automatic_update_provider_names", None)
+        self._open_config_center(
+            "updates",
+            auto_update=True,
+            comprehensive_provider_names=provider_names,
+        )
 
     def action_show_diff(self) -> None:
         """Show diff for the current ChangeSpec."""
@@ -552,13 +559,21 @@ class BaseActionsMixin:
         self._open_config_center(initial_tab)
 
     def _open_config_center(
-        self, initial_tab: Any, *, auto_update: bool = False
+        self,
+        initial_tab: Any,
+        *,
+        auto_update: bool = False,
+        comprehensive_provider_names: tuple[str, ...] | None = None,
     ) -> None:
         """Open the SASE Admin Center and refresh updates state on dismiss."""
         from ..modals import ConfigCenterModal
 
         self.push_screen(  # type: ignore[attr-defined]
-            ConfigCenterModal(initial_tab=initial_tab, auto_update=auto_update),
+            ConfigCenterModal(
+                initial_tab=initial_tab,
+                auto_update=auto_update,
+                comprehensive_provider_names=comprehensive_provider_names,
+            ),
             self._on_config_center_dismissed,
         )
 

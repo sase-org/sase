@@ -168,6 +168,18 @@ def test_update_sase_shortcut_opens_updates_with_auto_update() -> None:
     assert isinstance(modal, ConfigCenterModal)
     assert modal._active_tab == "updates"
     assert modal._auto_update is True
+    assert modal._comprehensive_provider_names is None
+
+
+def test_update_shortcut_immutably_captures_provider_projection() -> None:
+    app = _ActionApp()
+    app._automatic_update_provider_names = ("claude", "codex")
+
+    app.action_update_sase_shortcut()
+    app._automatic_update_provider_names = ("gemini",)
+
+    modal = app.pushed_modals[0]
+    assert modal._comprehensive_provider_names == ("claude", "codex")
 
 
 def test_open_config_center_action_uses_remembered_admin_center_tab() -> None:

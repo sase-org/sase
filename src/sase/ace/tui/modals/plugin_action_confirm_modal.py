@@ -38,6 +38,17 @@ IncomingCommitsLoader = Callable[[], tuple[RepoIncomingCommits, ...]]
 
 
 @dataclass(frozen=True)
+class PluginActionPreviewSection:
+    """One titled section in a composite mutation preview."""
+
+    title: str
+    summary: str = ""
+    commands: tuple[str, ...] = ()
+    details: tuple[str, ...] = ()
+    skipped: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class PluginActionVariant:
     """One selectable preview of a mutation (e.g. install-from-index vs -git).
 
@@ -55,6 +66,7 @@ class PluginActionVariant:
     items: tuple[str, ...] = ()
     items_label: str = "Plugins"
     skipped: tuple[str, ...] = ()
+    sections: tuple[PluginActionPreviewSection, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -184,6 +196,31 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
             parts.append(command)
             parts.append(Text(""))
         parts.append(Text(variant.summary, style="bold"))
+
+        for section in variant.sections:
+            parts.append(Text(""))
+            parts.append(Text(section.title, style="bold cyan"))
+            if section.summary:
+                parts.append(Text(section.summary, style="dim"))
+            if section.commands:
+                parts.append(Text("Commands", style="dim"))
+                for item in section.commands:
+                    line = Text()
+                    line.append("- ", style="dim")
+                    line.append(item, style="cyan")
+                    parts.append(line)
+            for detail in section.details:
+                line = Text()
+                line.append("- ", style="dim")
+                line.append(detail)
+                parts.append(line)
+            if section.skipped:
+                parts.append(Text("Manual / skipped", style="yellow"))
+                for item in section.skipped:
+                    line = Text()
+                    line.append("- ", style="dim")
+                    line.append(item, style="yellow")
+                    parts.append(line)
 
         if variant.items:
             parts.append(Text(""))

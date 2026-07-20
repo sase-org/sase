@@ -223,6 +223,34 @@ def test_periodic_update_threads_composite_aggregate_to_indicator(
     assert app.indicator.core is False
 
 
+def test_completed_automatic_results_atomically_replace_provider_projection() -> None:
+    app = _AutomaticCheckApp()
+    config = update_toast._UpdateToastConfig(
+        startup_toast=False,
+        indicator=False,
+    )
+    first = UpdateStatus(
+        checked_at=100.0,
+        components=(),
+        provider_candidates=(
+            ProviderUpdateCandidate("claude", "Claude Code", "1.0", "1.1"),
+            ProviderUpdateCandidate("codex", "Codex CLI", "0.9", "1.0"),
+        ),
+    )
+
+    app._apply_startup_update_status(first, config)
+    assert app._automatic_update_provider_names == ("claude", "codex")
+
+    app._complete_automatic_update_check(None)
+    assert app._automatic_update_provider_names == ("claude", "codex")
+
+    app._apply_startup_update_status(
+        UpdateStatus(checked_at=200.0, components=()),
+        config,
+    )
+    assert app._automatic_update_provider_names == ()
+
+
 def test_provider_only_status_updates_indicator_without_legacy_repo_toast(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

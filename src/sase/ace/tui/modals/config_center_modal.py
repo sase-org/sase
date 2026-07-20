@@ -190,10 +190,12 @@ class ConfigCenterModal(ModalScreen[None]):
         *,
         initial_tab: CenterTab = "config",
         auto_update: bool = False,
+        comprehensive_provider_names: tuple[str, ...] | None = None,
     ) -> None:
         super().__init__()
         self._project = project
         self._auto_update = auto_update
+        self._comprehensive_provider_names = comprehensive_provider_names
         self._active_tab: CenterTab = (
             initial_tab if initial_tab in _TAB_ORDER else "config"
         )
@@ -233,7 +235,9 @@ class ConfigCenterModal(ModalScreen[None]):
                 yield StatisticsPane(id="statistics", keymaps=statistics_keymaps)
                 yield TasksPane(id="tasks")
                 yield PluginsBrowserPane(
-                    id="updates", auto_update_on_load=self._auto_update
+                    id="updates",
+                    auto_update_on_load=self._auto_update,
+                    comprehensive_provider_names=self._comprehensive_provider_names,
                 )
                 yield XPromptBrowserPane(self._project, id="xprompts")
 

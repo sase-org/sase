@@ -7,12 +7,19 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.update_receipt import (
+    _ProviderUpdateReceiptResult,
     UpdateToastReceipt,
     UpdateVersionTransition,
     build_update_receipt,
     read_and_clear_pending_update_toast,
     write_pending_update_toast,
 )
+from sase.ace.comprehensive_update import (
+    ComprehensiveSaseUpdateResult,
+    ComprehensiveUpdateResult,
+    SaseUpdateResultStatus,
+)
+from sase.agent_clis.models import AgentCliUpdateResult, UpdateResultStatus
 from sase.dev_update.models import DevUpdateOutcome, DevUpdateResult
 from sase.dev_update.models import RepoDiffStat
 from sase.main.update_types import CombinedUpdateResult
@@ -98,6 +105,101 @@ def test_pending_update_toast_round_trips_optional_diffstats(
     with patch("sase.ace.update_receipt._PENDING_UPDATE_TOAST_FILE", receipt_file):
         assert write_pending_update_toast(receipt) is True
         assert read_and_clear_pending_update_toast(now=101.0) == receipt
+
+
+def test_comprehensive_receipt_round_trips_provider_outcomes(
+    tmp_path: Path,
+) -> None:
+    summary = UpdateSummary(
+        outcomes=(
+            UpdateOutcome(
+                "sase",
+                "primary",
+                ChangeKind.UPGRADED,
+                old_version="0.5.0",
+                new_version="0.6.0",
+            ),
+        )
+    )
+    result = ComprehensiveUpdateResult(
+        sase=ComprehensiveSaseUpdateResult(
+            SaseUpdateResultStatus.UPDATED,
+            "updated sase",
+            summary,
+        ),
+        provider_results=(
+            AgentCliUpdateResult(
+                name="claude",
+                display_name="Claude Code",
+                status=UpdateResultStatus.UPDATED,
+                old_version="1.0.0",
+                new_version="1.1.0",
+                command=("claude", "update"),
+                docs_url="https://example.com/claude",
+            ),
+            AgentCliUpdateResult(
+                name="codex",
+                display_name="Codex CLI",
+                status=UpdateResultStatus.SKIPPED,
+                old_version="0.9.0",
+                new_version="0.9.0",
+                command=None,
+                docs_url="https://example.com/codex",
+                suggested_command=("brew", "upgrade", "codex"),
+                reason="manual upgrade required",
+            ),
+        ),
+    )
+    receipt = build_update_receipt(result, created_at=100.0)
+
+    assert receipt is not None
+    assert receipt.provider_results == (
+        _ProviderUpdateReceiptResult(
+            name="claude",
+            display_name="Claude Code",
+            status="updated",
+            old_version="1.0.0",
+            new_version="1.1.0",
+            docs_url="https://example.com/claude",
+            command=("claude", "update"),
+        ),
+        _ProviderUpdateReceiptResult(
+            name="codex",
+            display_name="Codex CLI",
+            status="skipped",
+            old_version="0.9.0",
+            new_version="0.9.0",
+            reason="manual upgrade required",
+            docs_url="https://example.com/codex",
+            suggested_command=("brew", "upgrade", "codex"),
+        ),
+    )
+    receipt_file = tmp_path / "pending.json"
+    with patch("sase.ace.update_receipt._PENDING_UPDATE_TOAST_FILE", receipt_file):
+        assert write_pending_update_toast(receipt)
+        assert read_and_clear_pending_update_toast(now=101.0) == receipt
+
+
+def test_provider_only_comprehensive_result_does_not_create_restart_receipt() -> None:
+    result = ComprehensiveUpdateResult(
+        sase=ComprehensiveSaseUpdateResult(
+            SaseUpdateResultStatus.ALREADY_CURRENT,
+            "already current",
+        ),
+        provider_results=(
+            AgentCliUpdateResult(
+                name="claude",
+                display_name="Claude Code",
+                status=UpdateResultStatus.UPDATED,
+                old_version="1.0.0",
+                new_version="1.1.0",
+                command=("claude", "update"),
+                docs_url=None,
+            ),
+        ),
+    )
+
+    assert build_update_receipt(result, created_at=100.0) is None
 
 
 def test_pending_update_toast_round_trips_install_and_uninstall_transitions(

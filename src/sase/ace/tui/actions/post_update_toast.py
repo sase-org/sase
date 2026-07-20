@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shlex
 
 from textual.markup import escape
 
@@ -49,13 +50,18 @@ class PostUpdateToastMixin:
 
         self._update_toast_shown = True
         try:
+            severity = (
+                "warning"
+                if any(result.status == "failed" for result in receipt.provider_results)
+                else "information"
+            )
             self.notify(  # type: ignore[attr-defined]
                 _format_post_update_toast_message(
                     receipt,
                     show_diffstat=config.post_update_toast_diffstat,
                 ),
                 title=_format_post_update_toast_title(receipt),
-                severity="information",
+                severity=severity,
                 timeout=_TOAST_TIMEOUT_SECONDS,
                 markup=True,
             )
@@ -64,6 +70,8 @@ class PostUpdateToastMixin:
 
 
 def _format_post_update_toast_title(receipt: UpdateToastReceipt) -> str:
+    if any(result.status == "failed" for result in receipt.provider_results):
+        return "⚠ SASE updated with Agent CLI issues"
     if receipt.kind == "mode_switch_dev":
         return f"{_SUCCESS_GLYPH} Switched to Dev (editable)"
     if receipt.kind == "mode_switch_pypi":
@@ -96,9 +104,45 @@ def _format_post_update_toast_message(
 ) -> str:
     accent = center_tab_accent("updates") or "#AF87FF"
     if not show_diffstat or not _receipt_has_diffstat(receipt):
-        return _format_legacy_post_update_toast_message(receipt, accent)
+        message = _format_legacy_post_update_toast_message(receipt, accent)
+    else:
+        message = _format_diffstat_post_update_toast_message(receipt, accent)
+    provider_lines = _provider_result_lines(receipt)
+    if not provider_lines:
+        return message
+    return "\n\n".join(part for part in (message, provider_lines) if part)
 
-    return _format_diffstat_post_update_toast_message(receipt, accent)
+
+def _provider_result_lines(receipt: UpdateToastReceipt) -> str:
+    if not receipt.provider_results and receipt.provider_overflow <= 0:
+        return ""
+    lines = ["[bold]Agent CLIs[/]"]
+    for result in receipt.provider_results:
+        name = escape(result.display_name)
+        if result.status == "updated":
+            old = escape(result.old_version or "unknown")
+            new = escape(result.new_version or "unknown")
+            line = f"• {name}: [dim]{old} →[/] [green]{new}[/]"
+            if result.reason:
+                line += f" — [yellow]{escape(result.reason)}[/]"
+            lines.append(line)
+            continue
+        if result.status == "already_current":
+            lines.append(f"• {name}: [dim]already current[/]")
+            continue
+        reason = escape(result.reason or "skipped")
+        if result.status == "failed":
+            lines.append(f"• {name}: [red]failed[/] — {reason}")
+            continue
+        if result.suggested_command:
+            command = escape(shlex.join(result.suggested_command))
+            lines.append(f"• {name}: [yellow]manual[/] — {reason}")
+            lines.append(f"  [dim]{command}[/]")
+        else:
+            lines.append(f"• {name}: [yellow]skipped[/] — {reason}")
+    if receipt.provider_overflow:
+        lines.append(f"…and {receipt.provider_overflow} more provider results")
+    return "\n".join(lines)
 
 
 def _format_legacy_post_update_toast_message(

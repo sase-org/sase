@@ -186,6 +186,7 @@ async def test_agent_cli_update_plan_confirm_and_tracked_execution(
         await page.press("y")
         await page.expect_modal("ConfigCenterModal")
         assert submitted["dedup_key"] == "agent-cli-update"
+        assert submitted["exclusive_scopes"] == ("agent-cli-update",)
         assert submitted["reload_on_complete"] is False
 
         plan = pane._make_agent_cli_update_plan(None, all_clis=True)

@@ -53,6 +53,8 @@ __all__ = ["StateInitMixin"]
 class StateInitMixin:
     """Mixin housing the multi-section ``_init_app_state`` method."""
 
+    _automatic_update_provider_names: tuple[str, ...] | None
+
     def _init_app_state(
         self,
         query: str,
@@ -113,6 +115,10 @@ class StateInitMixin:
         self._agents_onboarding_plugins_refresh_running = False
         self._agents_onboarding_plugins_refresh_pending = False
         self._update_toast_shown = False
+        # Provider names from the last *completed* automatic update result.
+        # ``None`` means no completed result has supplied authority yet; an
+        # empty tuple is an authoritative completed result with no candidates.
+        self._automatic_update_provider_names: tuple[str, ...] | None = None
         self._automatic_update_check_in_flight = False
         self._automatic_update_check_interval_seconds = (
             _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS
