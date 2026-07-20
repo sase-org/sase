@@ -146,7 +146,7 @@ def test_merged_layout_clear_removes_unseen_persisted_panel_folds() -> None:
     )
 
 
-def test_stale_group_and_panel_pruning_enqueues_clean_snapshot() -> None:
+def test_partial_projection_preserves_panel_intent_and_prunes_stale_groups() -> None:
     app = _Harness()
     app._agents_fold_state_merged = True
     app._collapsed_panel_keys.add("vanished")
@@ -158,16 +158,59 @@ def test_stale_group_and_panel_pruning_enqueues_clean_snapshot() -> None:
         {AgentPanelFoldScope(None): []},
     )
 
-    assert app._collapsed_panel_keys == set()
-    assert app._expanded_panel_keys == set()
+    assert app._collapsed_panel_keys == {"vanished"}
+    assert app._expanded_panel_keys == {"also-vanished"}
     assert AgentPanelFoldScope("vanished") not in app._group_fold_registry._registries
     pending = app._agents_fold_state_save_pending
     assert pending is not None
     generation, snapshot = pending
     assert generation == 1
-    assert snapshot.collapsed_panels == frozenset()
-    assert snapshot.expanded_panels == frozenset()
+    assert snapshot.collapsed_panels == frozenset({"vanished"})
+    assert snapshot.expanded_panels == frozenset({"also-vanished"})
     assert snapshot.group_folds == ()
+
+
+def test_panel_intents_survive_restart_disappearance_and_reappearance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = _Harness()
+    first._collapsed_panel_keys.add("chop")
+    first._expanded_panel_keys.add("research")
+    path = tmp_path / "folds.json"
+    save_agents_fold_state(first._capture_agents_fold_state(), path)
+
+    fresh = _Harness()
+    fresh._resolve_agents_fold_state_load(load_agents_fold_state(path))
+    fresh._maybe_install_agents_fold_state_before_finalize()
+
+    reconcile_panel_fold_registries(
+        fresh,
+        {AgentPanelFoldScope(None): []},
+    )
+    assert fresh._collapsed_panel_keys == {"chop"}
+    assert fresh._expanded_panel_keys == {"research"}
+
+    reconcile_panel_fold_registries(
+        fresh,
+        {
+            AgentPanelFoldScope(None): [],
+            AgentPanelFoldScope("chop"): [],
+            AgentPanelFoldScope("research"): [],
+        },
+    )
+
+    from sase.ace.tui.actions.agents._panel_fold_intent import (
+        effective_panel_collapses,
+    )
+    from sase.ace.tui.models import tribe_display
+
+    monkeypatch.setattr(
+        tribe_display,
+        "tribe_display_for",
+        lambda key: SimpleNamespace(initially_expanded=key != "research"),
+    )
+    assert effective_panel_collapses(fresh, {"chop", "research"}) == {"chop"}
 
 
 def test_late_load_uses_in_memory_full_rebuild_refresh() -> None:

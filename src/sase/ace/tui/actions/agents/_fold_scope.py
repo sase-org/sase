@@ -62,29 +62,21 @@ def reconcile_panel_fold_registries(
     owner: Any,
     known_by_scope: Mapping[AgentPanelFoldScope, Iterable[GroupKey]],
 ) -> None:
-    """Prune the active layout's scoped registries from a prepared projection."""
+    """Prune the active layout's nested folds from a prepared projection.
+
+    Whole-panel fold intent is durable user preference, so a projection that
+    temporarily omits a panel must not clear it.  Deliberate layout transitions
+    and panel toggles own that intent's lifetime instead.
+    """
     from ...models.agent_group_fold import AgentGroupFoldRegistry
 
     registry_owner = getattr(owner, "_group_fold_registry", None)
     merged = bool(getattr(owner, "_agent_panels_grouped", False))
-    panel_state_changed = False
-    panel_intents = (
-        getattr(owner, "_collapsed_panel_keys", None),
-        getattr(owner, "_expanded_panel_keys", None),
-    )
-    if not merged:
-        known_panels = {scope.panel_key for scope in known_by_scope if not scope.merged}
-        for intent_keys in panel_intents:
-            if intent_keys is None:
-                continue
-            before = len(intent_keys)
-            intent_keys.intersection_update(known_panels)
-            panel_state_changed |= len(intent_keys) != before
     if isinstance(registry_owner, AgentGroupFoldRegistry):
         group_state_changed = registry_owner.reconcile_layout(
             known_by_scope, merged=merged
         )
-        if panel_state_changed or group_state_changed:
+        if group_state_changed:
             schedule = getattr(owner, "_agents_fold_state_changed", None)
             if callable(schedule):
                 schedule()
@@ -100,7 +92,7 @@ def reconcile_panel_fold_registries(
             if scope.merged == merged
             for key in cast("Iterable[GroupKey]", keys)
         )
-        if panel_state_changed or changed:
+        if changed:
             schedule = getattr(owner, "_agents_fold_state_changed", None)
             if callable(schedule):
                 schedule()

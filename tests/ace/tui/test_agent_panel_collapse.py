@@ -416,17 +416,26 @@ def test_collapsed_panel_rows_are_opt_in_without_bypassing_group_folds() -> None
     assert jumpable[2] == app._panel_group.panel_keys.index("alpha")
 
 
-def test_panel_collapse_state_prunes_and_clears_on_grouping_toggle() -> None:
+def test_panel_fold_intent_survives_projection_churn_and_clears_on_merge() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key="alpha")
-    app._collapsed_panel_keys.update({"alpha", "beta"})
-    app._agents = [agent for agent in app._agents if agent.tribe != "beta"]
+    app._collapsed_panel_keys.add("alpha")
+    app._expanded_panel_keys = {"beta"}
+    app._agents = [agent for agent in app._agents if agent.tribe is None]
     app._invalidate_agent_panel_cache()
 
     app._sync_panel_group()
 
     assert app._collapsed_panel_keys == {"alpha"}
+    assert app._expanded_panel_keys == {"beta"}
+
+    app._agents = _multi_panel_agents()
+    app._invalidate_agent_panel_cache()
+    app._sync_panel_group()
+
+    assert app._panel_group.panel_keys == [None, "beta", "alpha"]
     app.action_toggle_agent_panel_grouping()
     assert app._collapsed_panel_keys == set()
+    assert app._expanded_panel_keys == set()
     assert app._agent_panels_grouped is True
     assert app._resolve_focused_panel() is None
     assert app.refresh_calls == [True]

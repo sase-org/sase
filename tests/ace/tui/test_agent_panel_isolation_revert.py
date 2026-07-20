@@ -128,7 +128,7 @@ def test_vanished_target_expires_restore_when_markers_are_computed() -> None:
     assert app._panel_isolation_revert is None
 
 
-def test_restore_drops_vanished_panels_and_leaves_new_panels_expanded() -> None:
+def test_restore_preserves_vanished_intent_and_leaves_new_panels_expanded() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key="alpha")
     app._collapsed_panel_keys.add("beta")
     app._sync_panel_group()
@@ -144,8 +144,7 @@ def test_restore_drops_vanished_panels_and_leaves_new_panels_expanded() -> None:
 
     app.action_hooks_or_collapse_all()
 
-    assert app._collapsed_panel_keys == set()
-    assert "beta" not in app._collapsed_panel_keys
+    assert app._collapsed_panel_keys == {"beta"}
     assert "gamma" not in app._collapsed_panel_keys
     assert app._panel_isolation_revert is None
 

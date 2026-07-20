@@ -47,18 +47,8 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         if selection_memory is not None:
             for stale_key in set(selection_memory) - known_keys:
                 selection_memory.pop(stale_key, None)
-        panel_intent_changed = False
-        for field in ("_collapsed_panel_keys", "_expanded_panel_keys"):
-            intent_keys = getattr(self, field, None)
-            if intent_keys is None:
-                continue
-            before = len(intent_keys)
-            intent_keys.intersection_update(self._panel_group.panel_keys)
-            panel_intent_changed |= len(intent_keys) != before
-        if panel_intent_changed:
-            schedule = getattr(self, "_agents_fold_state_changed", None)
-            if callable(schedule):
-                schedule()
+        # Whole-panel fold intent deliberately outlives this projection.
+        # User toggles and split-to-merged transitions clear it explicitly.
 
         keys_per_agent = self._panel_keys_per_agent()
         focused_key = self._panel_group.focused_key
