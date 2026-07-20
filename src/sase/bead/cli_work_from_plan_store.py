@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
-import logging
-import subprocess
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
+import fcntl
+import hashlib
+import logging
+import os
+import subprocess
 from pathlib import Path
 from typing import Any, Literal
 
@@ -17,6 +22,8 @@ from sase.bead.project import BEADS_DIRNAME
 from sase.sdd.store import SDD_STORAGE_IN_TREE, SddStore
 
 _logger = logging.getLogger(__name__)
+
+EPIC_PLAN_LAUNCH_LOCK_FILENAME = "sase-epic-plan-launch.lock"
 
 
 @dataclass(frozen=True)
@@ -89,6 +96,64 @@ def require_epic_launch_store_health(cwd: Path) -> None:
         require_plan_store_health(location.store)
 
 
+@contextmanager
+def epic_plan_launch_lock(repo_root: Path) -> Iterator[None]:
+    """Serialize complete approved-plan launches for one canonical store.
+
+    This blocking lock is deliberately distinct from ``store_git_write_lock``.
+    Lock ordering is always launch lock first, then the short-lived store write
+    lock used by nested commits. Keeping the launch lock outermost lets archive,
+    bead, rollback, and terminal-push operations form one transaction without
+    self-deadlocking.
+    """
+    lock_path = _epic_plan_launch_lock_path(repo_root)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as lock_file:
+        while True:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+                break
+            except InterruptedError:
+                continue
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _epic_plan_launch_lock_path(repo_root: Path) -> Path:
+    """Return an untracked lock path keyed by the canonical store root."""
+    canonical_root = repo_root.expanduser().resolve(strict=False)
+    try:
+        from sase.sdd._git import run_sdd_git
+
+        result = run_sdd_git(
+            ["rev-parse", "--git-dir"],
+            cwd=canonical_root,
+            op="sdd.epic_plan_launch_lock.git_dir",
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        result = None
+    if result is not None and result.returncode == 0:
+        raw_git_dir = result.stdout.strip()
+        if raw_git_dir:
+            git_dir = Path(raw_git_dir)
+            if not git_dir.is_absolute():
+                git_dir = canonical_root / git_dir
+            return git_dir.resolve(strict=False) / EPIC_PLAN_LAUNCH_LOCK_FILENAME
+
+    # Supported local stores need not be Git repositories. Keep their lock out
+    # of durable plan/bead content while preserving one identity across
+    # processes that resolve the same canonical root.
+    identity = hashlib.sha256(os.fsencode(canonical_root)).hexdigest()
+    from sase.core.paths import sase_subdir
+
+    return sase_subdir("locks") / "epic-plan-launches" / f"{identity}.lock"
+
+
 def commit_plan_file(
     store: SddStore,
     *,
@@ -129,6 +194,9 @@ def push_store_after_launch(store: SddStore, *, no_push: bool) -> None:
     from sase.sdd._commit_store import push_sdd_store_after_commit
 
     try:
-        push_sdd_store_after_commit(store, push_after_commit="async")
+        push_sdd_store_after_commit(store, push_after_commit=True)
     except Exception:
-        _logger.warning("Failed to start deferred SDD store push", exc_info=True)
+        _logger.warning(
+            "Failed to synchronize SDD store after approved epic launch",
+            exc_info=True,
+        )

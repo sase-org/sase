@@ -466,14 +466,14 @@ def test_plan_file_rejects_preserved_archive_identity_mismatch(
 
 @pytest.mark.parametrize(
     ("no_push", "expected_pushes"),
-    [(False, ["async"]), (True, [])],
+    [(False, [True]), (True, [])],
 )
-def test_plan_file_success_defers_one_store_push_until_launch_finishes(
+def test_plan_file_success_runs_one_blocking_store_push_after_launch(
     project_dir: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     no_push: bool,
-    expected_pushes: list[str],
+    expected_pushes: list[bool],
 ) -> None:
     from sase.bead.cli_common import _BeadsLocation
 
@@ -540,7 +540,7 @@ def test_plan_file_success_defers_one_store_push_until_launch_finishes(
     assert ("launch", (no_push, True)) in events
     assert [value for kind, value in events if kind == "push"] == expected_pushes
     if expected_pushes:
-        assert events[-1] == ("push", "async")
+        assert events[-1] == ("push", True)
 
 
 def test_plan_file_resume_reuses_linked_epic(
@@ -571,7 +571,7 @@ def test_plan_file_resume_reuses_linked_epic(
         "sase.bead.cli_work_handler.launch_epic_bead_work",
         lambda _project, epic_id, **_kwargs: not launches.append(epic_id),
     )
-    pushes: list[str] = []
+    pushes: list[bool] = []
     monkeypatch.setattr(
         "sase.sdd._commit_store.push_sdd_store_after_commit",
         lambda _store, *, push_after_commit: pushes.append(push_after_commit),
@@ -589,7 +589,7 @@ def test_plan_file_resume_reuses_linked_epic(
     assert result.resumed is True
     assert result.phase_bead_ids == (core.id, cli.id, verify.id)
     assert launches == [epic.id]
-    assert pushes == ["async"]
+    assert pushes == [True]
     with BeadProject(project_dir) as project:
         assert len(project.list_issues()) == 4
 
@@ -688,19 +688,25 @@ def test_plan_file_launch_failure_rolls_back_for_resume(
 
 
 @pytest.mark.parametrize(
-    ("no_push", "expected_commit_pushes", "expected_rollback_push"),
+    (
+        "no_push",
+        "expected_commit_pushes",
+        "expected_rollback_push",
+        "expected_terminal_pushes",
+    ),
     [
-        (False, [False, False, True], None),
-        (True, [False, False, False], False),
+        (False, [False, False, False], False, [True]),
+        (True, [False, False, False], False, []),
     ],
 )
-def test_plan_file_rollback_keeps_best_effort_push_unless_disabled(
+def test_plan_file_rollback_suppresses_intermediate_pushes_and_syncs_once(
     project_dir: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     no_push: bool,
     expected_commit_pushes: list[bool],
     expected_rollback_push: bool | None,
+    expected_terminal_pushes: list[bool],
 ) -> None:
     from sase.bead.cli_common import _BeadsLocation
 
@@ -747,6 +753,11 @@ def test_plan_file_rollback_keeps_best_effort_push_unless_disabled(
         "sase.bead.epic_from_plan.auto_commit_bead_store",
         auto_commit,
     )
+    terminal_pushes: list[bool] = []
+    monkeypatch.setattr(
+        "sase.sdd._commit_store.push_sdd_store_after_commit",
+        lambda _store, *, push_after_commit: terminal_pushes.append(push_after_commit),
+    )
     monkeypatch.setattr(
         "sase.bead.cli_work_handler.launch_epic_bead_work",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -765,6 +776,7 @@ def test_plan_file_rollback_keeps_best_effort_push_unless_disabled(
 
     assert commit_pushes == expected_commit_pushes
     assert rollback_pushes == [expected_rollback_push]
+    assert terminal_pushes == expected_terminal_pushes
 
 
 def test_plan_file_dry_run_is_pure_and_previews_waves(

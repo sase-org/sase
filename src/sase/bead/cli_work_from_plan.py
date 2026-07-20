@@ -17,6 +17,7 @@ from sase.bead.cli_work_from_plan_render import (
 )
 from sase.bead.cli_work_from_plan_store import (
     commit_plan_file as _commit_plan_file,
+    epic_plan_launch_lock as _epic_plan_launch_lock,
     push_store_after_launch as _push_store_after_launch,
     require_epic_launch_store_health,
     require_plan_store_health as _require_plan_store_health,
@@ -50,7 +51,7 @@ def work_from_plan_file(
     render: bool = True,
 ) -> _PlanFileWorkResult:
     """Validate, archive, materialize, link, and launch one epic plan."""
-    from sase.sdd.plan_archive import archive_plan_file, plan_archive_destination
+    from sase.sdd.plan_archive import plan_archive_destination
     from sase.sdd.plan_validate import validate_plan_file
 
     source_path = Path(target).expanduser().resolve(strict=False)
@@ -78,7 +79,8 @@ def work_from_plan_file(
 
     try:
         location, store, workspace_dir = _resolve_context(dry_run=dry_run)
-        _require_plan_store_health(store)
+        if dry_run:
+            _require_plan_store_health(store)
         archive_destination = plan_archive_destination(
             source_path,
             store,
@@ -104,7 +106,7 @@ def work_from_plan_file(
 
     parent_id = selected_epic_parent_id(plan.parent_bead, parent)
     preview_epic_id: str | None = None
-    if parent_id is not None:
+    if dry_run and parent_id is not None:
         try:
             with BeadProject(
                 location.root,
@@ -166,6 +168,52 @@ def work_from_plan_file(
             resumed=existing_epic_id is not None,
             waves=waves,
         )
+
+    with _epic_plan_launch_lock(store.repo_root):
+        return _work_from_plan_file_locked(
+            location=location,
+            store=store,
+            workspace_dir=workspace_dir,
+            source_path=source_path,
+            destination_name=destination_name,
+            plan=plan,
+            phase_ids=phase_ids,
+            waves=waves,
+            parent_id=parent_id,
+            parent=parent,
+            yes=yes,
+            no_push=no_push,
+            render=render,
+        )
+
+
+def _work_from_plan_file_locked(
+    *,
+    location: Any,
+    store: SddStore,
+    workspace_dir: Path,
+    source_path: Path,
+    destination_name: str | None,
+    plan: Any,
+    phase_ids: tuple[str, ...],
+    waves: tuple[tuple[str, ...], ...],
+    parent_id: str | None,
+    parent: str | None,
+    yes: bool,
+    no_push: bool,
+    render: bool,
+) -> _PlanFileWorkResult:
+    """Run one mutation transaction while its store launch lock is held."""
+    from sase.sdd.plan_archive import archive_plan_file
+
+    try:
+        _require_plan_store_health(store)
+    except Exception as exc:
+        raise _error_with_resume(
+            f"approved epic plans store is not safe to use: {exc}",
+            source_path,
+            no_push=no_push,
+        ) from exc
 
     try:
         archive_result = archive_plan_file(
@@ -246,18 +294,14 @@ def work_from_plan_file(
         workspace_dir=workspace_dir,
     )
     launched_names: tuple[str, ...] = ()
-    plan_link_commit_calls = 0
 
     def commit_plan_link(path: Path) -> bool:
-        nonlocal plan_link_commit_calls
-        is_rollback = plan_link_commit_calls > 0
-        plan_link_commit_calls += 1
         return _commit_plan_file(
             store,
             workspace_dir=workspace_dir,
             plan_path=path,
             no_push=no_push,
-            push_after_commit=is_rollback,
+            push_after_commit=False,
             message=f"Link approved epic plan to its bead: {path.stem}",
         )
 
@@ -290,9 +334,10 @@ def work_from_plan_file(
                 commit_plan_update=commit_plan_link,
                 launch_work=launch_created_epic,
                 parent_override=parent,
-                rollback_push_after_commit=False if no_push else None,
+                rollback_push_after_commit=False,
             )
     except Exception as exc:
+        _push_store_after_launch(store, no_push=no_push)
         raise _error_with_resume(
             str(exc),
             archived_path,
@@ -478,8 +523,10 @@ def _resume_linked_epic(
     except PlanFileWorkError:
         raise
     except BeadWorkError as exc:
+        _push_store_after_launch(store, no_push=no_push)
         raise _error_with_resume(str(exc), archived_path, no_push=no_push) from exc
     except Exception as exc:
+        _push_store_after_launch(store, no_push=no_push)
         raise _error_with_resume(str(exc), archived_path, no_push=no_push) from exc
 
     if launched:

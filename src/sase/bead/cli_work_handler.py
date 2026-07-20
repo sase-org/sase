@@ -368,7 +368,7 @@ def launch_epic_bead_work(
                 epic_id,
                 claimed,
                 unmark_ready=marked_ready_this_run,
-                no_push=no_push,
+                no_push=no_push or defer_push,
             )
             raise BeadWorkError(f"pre-claim failed for epic {epic_id}: {e}") from e
 
@@ -391,7 +391,7 @@ def launch_epic_bead_work(
             epic_id,
             claimed,
             unmark_ready=marked_ready_this_run,
-            no_push=no_push,
+            no_push=no_push or defer_push,
             launched_pids=launched_pids,
             launched_results=launched_results,
         )
