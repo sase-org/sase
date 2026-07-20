@@ -135,6 +135,7 @@ def test_runner_slot_wait_info_includes_live_count_and_queue_position() -> None:
             agent_meta=AgentMetaWire(),
             waiting=WaitingMarkerWire(
                 wait_runners=9,
+                wait_priority=20,
                 slot_requested_at="2026-07-12T12:00:01Z",
             ),
         ),
@@ -148,6 +149,7 @@ def test_runner_slot_wait_info_includes_live_count_and_queue_position() -> None:
             waiting=WaitingMarkerWire(
                 wait_runners=0,
                 wait_runners_explicit=True,
+                wait_priority=1,
                 slot_requested_at="2026-07-12T12:00:02Z",
             ),
         ),
@@ -158,14 +160,122 @@ def test_runner_slot_wait_info_includes_live_count_and_queue_position() -> None:
     )
 
     assert first.wait.wait_runners == 9
+    assert first.wait.wait_priority == 20
     assert first.wait.runner_slots_in_use == 7
     assert first.wait.runner_slot_queue_position == 1
     assert first.wait.runner_slot_queue_size == 1
     assert first.wait.runner_slot_holders == ("phase",)
     assert second.wait.wait_runners_explicit is True
+    assert second.wait.wait_priority == 1
     assert second.wait.runner_slot_queue_position is None
     assert second.wait.runner_slot_queue_size == 1
     assert second.wait.runner_slot_holders == ("phase",)
+
+
+def test_runner_slot_queue_orders_priority_before_fifo_with_default_priority() -> None:
+    def waiter(
+        *,
+        name: str,
+        timestamp: str,
+        requested_at: str,
+        priority: int | None,
+    ):
+        return _build_agent_list_entry(
+            _agent(
+                name=name,
+                status="WAITING",
+                artifacts_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
+            ),
+            record=_record(
+                timestamp=timestamp,
+                artifact_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
+                agent_meta=AgentMetaWire(),
+                waiting=WaitingMarkerWire(
+                    wait_runners=9,
+                    wait_priority=priority,
+                    slot_requested_at=requested_at,
+                ),
+            ),
+        )
+
+    older_low_priority = waiter(
+        name="older-low-priority",
+        timestamp="20260712120001",
+        requested_at="2026-07-12T12:00:01Z",
+        priority=20,
+    )
+    older_default = waiter(
+        name="older-default",
+        timestamp="20260712120002",
+        requested_at="2026-07-12T12:00:02Z",
+        priority=None,
+    )
+    newer_explicit_default = waiter(
+        name="newer-explicit-default",
+        timestamp="20260712120003",
+        requested_at="2026-07-12T12:00:03Z",
+        priority=10,
+    )
+    newer_urgent = waiter(
+        name="newer-urgent",
+        timestamp="20260712120004",
+        requested_at="2026-07-12T12:00:04Z",
+        priority=1,
+    )
+
+    entries = _attach_runner_slot_context(
+        [
+            older_low_priority,
+            older_default,
+            newer_explicit_default,
+            newer_urgent,
+        ],
+        0,
+    )
+    positions = {entry.name: entry.wait.runner_slot_queue_position for entry in entries}
+
+    assert positions == {
+        "older-low-priority": 4,
+        "older-default": 2,
+        "newer-explicit-default": 3,
+        "newer-urgent": 1,
+    }
+
+
+def test_runner_slot_queue_defaults_invalid_priorities() -> None:
+    def waiter(name: str, timestamp: str, priority: int | None):
+        return _build_agent_list_entry(
+            _agent(
+                name=name,
+                status="WAITING",
+                artifacts_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
+            ),
+            record=_record(
+                timestamp=timestamp,
+                artifact_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
+                agent_meta=AgentMetaWire(),
+                waiting=WaitingMarkerWire(
+                    wait_runners=9,
+                    wait_priority=priority,
+                    slot_requested_at=f"2026-07-12T12:00:{timestamp[-2:]}Z",
+                ),
+            ),
+        )
+
+    invalid_boolean = waiter("invalid-boolean", "20260712120001", True)
+    invalid_negative = waiter("invalid-negative", "20260712120002", -1)
+    explicit_priority = waiter("explicit-priority", "20260712120003", 2)
+
+    entries = _attach_runner_slot_context(
+        [invalid_boolean, invalid_negative, explicit_priority], 0
+    )
+    positions = {entry.name: entry.wait.runner_slot_queue_position for entry in entries}
+
+    assert positions == {
+        "invalid-boolean": 2,
+        "invalid-negative": 3,
+        "explicit-priority": 1,
+    }
 
 
 def test_answered_question_runner_wait_has_waiting_precedence(tmp_path) -> None:
@@ -301,6 +411,7 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
                 wait_for_beads=["sase-87.2"],
                 wait_runners=0,
                 wait_runners_explicit=True,
+                wait_priority=3,
                 slot_requested_at="2026-07-12T12:00:00Z",
             ),
         ),
@@ -313,6 +424,7 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
     assert payload["wait_for_beads"] == ["sase-87.2"]
     assert payload["wait_runners"] == 0
     assert payload["wait_runners_explicit"] is True
+    assert payload["wait_priority"] == 3
     assert payload["slot_requested_at"] == "2026-07-12T12:00:00Z"
     assert payload["runner_slots_in_use"] == 0
     assert payload["runner_slot_queue_position"] == 1

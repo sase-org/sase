@@ -23,6 +23,7 @@ class AgentWaitInfo:
     remaining_seconds: int | None = None
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
+    wait_priority: int | None = None
     slot_requested_at: str | None = None
     runner_slots_in_use: int | None = None
     runner_slot_queue_position: int | None = None

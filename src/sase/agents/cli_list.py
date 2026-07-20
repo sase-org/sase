@@ -83,6 +83,7 @@ def _agent_to_json(agent: AgentListEntry) -> dict[str, object]:
         "wait_for_beads": list(agent.wait.wait_for_beads),
         "wait_runners": agent.wait.wait_runners,
         "wait_runners_explicit": agent.wait.wait_runners_explicit,
+        "wait_priority": agent.wait.wait_priority,
         "slot_requested_at": agent.wait.slot_requested_at,
         "runner_slots_in_use": agent.wait.runner_slots_in_use,
         "runner_slot_queue_position": agent.wait.runner_slot_queue_position,

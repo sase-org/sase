@@ -207,6 +207,7 @@ class AgentState:
     # cap as threshold + 1, while explicit %wait(runners=N) waits render N.
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
+    wait_priority: int | None = None
     slot_requested_at: str | None = None
 
     # Snapshot-derived display context. These values are recomputed from the

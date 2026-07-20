@@ -2,9 +2,32 @@
 
 from unittest.mock import MagicMock, patch
 
+from sase.ace.tui.models._dedup import _merge_agent_fields
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
 from tests._agent_loader_helpers import _empty_artifact_snapshot
+
+
+def test_agent_dedup_preserves_wait_priority() -> None:
+    target = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="target",
+        project_file="/tmp/test.sase",
+        status="WAITING",
+        start_time=None,
+    )
+    source = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="source",
+        project_file="/tmp/test.sase",
+        status="WAITING",
+        start_time=None,
+        wait_priority=3,
+    )
+
+    _merge_agent_fields(target, source)
+
+    assert target.wait_priority == 3
 
 
 def test_load_all_agents_dedup_preserves_workspace_num() -> None:

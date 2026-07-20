@@ -36,11 +36,13 @@ def test_refresh_runner_slot_context_orders_currently_eligible_waiters() -> None
         "second",
         wait_runners=0,
         wait_runners_explicit=True,
+        wait_priority=1,
         slot_requested_at="2026-07-12T12:00:02Z",
     )
     first = _agent(
         "first",
         wait_runners=9,
+        wait_priority=20,
         slot_requested_at="2026-07-12T12:00:01Z",
     )
 
@@ -55,6 +57,75 @@ def test_refresh_runner_slot_context_orders_currently_eligible_waiters() -> None
     assert second.runner_slots_in_use == 1
     assert second.runner_slot_queue_position is None
     assert second.runner_slot_queue_size == 1
+
+
+def test_runner_slot_context_orders_priority_before_fifo() -> None:
+    older = _agent(
+        "older",
+        wait_runners=9,
+        wait_priority=20,
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+    newer = _agent(
+        "newer",
+        wait_runners=9,
+        wait_priority=1,
+        slot_requested_at="2026-07-12T12:00:02Z",
+    )
+
+    refresh_runner_slot_context([older, newer], configured_limit=10)
+
+    assert newer.runner_slot_queue_position == 1
+    assert older.runner_slot_queue_position == 2
+
+
+def test_runner_slot_context_defaults_missing_and_invalid_priorities() -> None:
+    missing = _agent(
+        "missing",
+        wait_runners=9,
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+    invalid_boolean = _agent(
+        "invalid-boolean",
+        wait_runners=9,
+        wait_priority=True,
+        slot_requested_at="2026-07-12T12:00:02Z",
+    )
+    invalid_negative = _agent(
+        "invalid-negative",
+        wait_runners=9,
+        wait_priority=-1,
+        slot_requested_at="2026-07-12T12:00:03Z",
+    )
+    explicit_default = _agent(
+        "explicit-default",
+        wait_runners=9,
+        wait_priority=10,
+        slot_requested_at="2026-07-12T12:00:04Z",
+    )
+    explicit_priority = _agent(
+        "explicit-priority",
+        wait_runners=9,
+        wait_priority=2,
+        slot_requested_at="2026-07-12T12:00:05Z",
+    )
+
+    refresh_runner_slot_context(
+        [
+            missing,
+            invalid_boolean,
+            invalid_negative,
+            explicit_default,
+            explicit_priority,
+        ],
+        configured_limit=10,
+    )
+
+    assert explicit_priority.runner_slot_queue_position == 1
+    assert missing.runner_slot_queue_position == 2
+    assert invalid_boolean.runner_slot_queue_position == 3
+    assert invalid_negative.runner_slot_queue_position == 4
+    assert explicit_default.runner_slot_queue_position == 5
 
 
 def test_drain_waiter_joins_fifo_order_when_running_count_reaches_zero() -> None:

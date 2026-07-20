@@ -15,6 +15,7 @@ from sase.core.runner_slots import (
     is_runner_slot_user_agent_record,
     live_runner_slot_waiters,
     may_start,
+    normalize_wait_priority,
     running_root_agent_count,
 )
 
@@ -63,6 +64,14 @@ def _record(
             else None
         ),
     )
+
+
+def test_normalize_wait_priority_defaults_missing_and_invalid_values() -> None:
+    assert normalize_wait_priority(3) == 3
+    assert normalize_wait_priority(None) == DEFAULT_WAIT_PRIORITY
+    assert normalize_wait_priority(True) == DEFAULT_WAIT_PRIORITY
+    assert normalize_wait_priority(-1) == DEFAULT_WAIT_PRIORITY
+    assert normalize_wait_priority("3") == DEFAULT_WAIT_PRIORITY
 
 
 def test_running_count_uses_live_started_roots_only() -> None:

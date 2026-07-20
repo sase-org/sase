@@ -13,6 +13,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
 )
 from sase.core.paths import sase_projects_dir
+from sase.core.runner_slots import normalize_wait_priority
 from sase.core.time import get_timezone
 
 from ._agent_list_entry_builder import (
@@ -106,12 +107,7 @@ def _attach_runner_slot_context(
             and entry.wait.wait_runners is not None
             and runner_slots_in_use <= entry.wait.wait_runners
         ),
-        key=lambda entry: (
-            parse_iso_datetime(entry.wait.slot_requested_at)
-            or datetime.max.replace(tzinfo=get_timezone()),
-            entry.timestamp or "",
-            entry.artifacts_dir or "",
-        ),
+        key=_runner_slot_waiter_sort_key,
     )
     positions = {id(entry): index for index, entry in enumerate(waiters, 1)}
     queue_size = len(waiters)
@@ -130,6 +126,19 @@ def _attach_runner_slot_context(
         else entry
         for entry in entries
     ]
+
+
+def _runner_slot_waiter_sort_key(
+    entry: AgentListEntry,
+) -> tuple[int, int, datetime, str, str]:
+    requested_at = parse_iso_datetime(entry.wait.slot_requested_at)
+    return (
+        normalize_wait_priority(entry.wait.wait_priority),
+        1 if requested_at is None else 0,
+        requested_at or datetime.max.replace(tzinfo=get_timezone()),
+        entry.timestamp or "",
+        entry.artifacts_dir or "",
+    )
 
 
 def _holds_runner_slot(agent: RunningAgentInfo) -> bool:

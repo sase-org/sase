@@ -12,6 +12,13 @@ RecordLiveness = Callable[[AgentArtifactRecordWire], bool]
 DEFAULT_WAIT_PRIORITY = 10
 
 
+def normalize_wait_priority(value: object) -> int:
+    """Return a valid queue priority, defaulting invalid marker values."""
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_WAIT_PRIORITY
+
+
 @dataclass(frozen=True)
 class RunnerSlotWaiter:
     """One live user agent waiting in the global runner-slot queue."""
@@ -92,11 +99,7 @@ def live_runner_slot_waiters(
                     if type(waiting.wait_runners) is int and waiting.wait_runners >= 0
                     else 0
                 ),
-                priority=(
-                    waiting.wait_priority
-                    if type(waiting.wait_priority) is int and waiting.wait_priority >= 0
-                    else DEFAULT_WAIT_PRIORITY
-                ),
+                priority=normalize_wait_priority(waiting.wait_priority),
             )
         )
     waiters.sort(key=_waiter_sort_key)

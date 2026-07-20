@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from sase.core.runner_slots import normalize_wait_priority
+
 from .agent import Agent
 
 
@@ -106,7 +108,7 @@ def _is_live_slot_waiter(agent: Agent) -> bool:
     )
 
 
-def _waiter_sort_key(agent: Agent) -> tuple[int, datetime, str, str]:
+def _waiter_sort_key(agent: Agent) -> tuple[int, int, datetime, str, str]:
     requested_at = agent.slot_requested_at or ""
     try:
         parsed = datetime.fromisoformat(requested_at.replace("Z", "+00:00"))
@@ -118,7 +120,13 @@ def _waiter_sort_key(agent: Agent) -> tuple[int, datetime, str, str]:
         parsed = datetime.max.replace(tzinfo=UTC)
         invalid = 1
     artifacts_dir = agent.artifacts_dir or ""
-    return invalid, parsed, agent.raw_suffix or "", artifacts_dir
+    return (
+        normalize_wait_priority(agent.wait_priority),
+        invalid,
+        parsed,
+        agent.raw_suffix or "",
+        artifacts_dir,
+    )
 
 
 __all__ = ["RunnerCapacitySnapshot", "refresh_runner_slot_context"]

@@ -265,6 +265,7 @@ def _wait_info(
         wait_runners_explicit=(
             waiting.wait_runners_explicit if waiting is not None else False
         ),
+        wait_priority=waiting.wait_priority if waiting is not None else None,
         slot_requested_at=(waiting.slot_requested_at if waiting is not None else None),
     )
 
