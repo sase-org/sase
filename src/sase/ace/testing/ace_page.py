@@ -1,0 +1,333 @@
+"""Full-application test harness for the ace TUI."""
+
+import asyncio
+from collections.abc import Callable
+from contextlib import AsyncExitStack
+from typing import Any, Literal
+from unittest.mock import patch
+
+from sase.ace.changespec import ChangeSpec
+from sase.ace.tui import AceApp
+
+from ._startup import _install_fast_startup_overrides
+from .fixtures import DEFAULT_CHANGESPECS
+
+AceStartupPolicy = Literal["fast", "real"]
+
+_SENTINEL = object()
+
+
+def _capture_screen(app: AceApp, height: int) -> str:
+    """Capture the current screen content as plain text."""
+    lines = [app.screen.render_line(y).text for y in range(height)]
+    return "\n".join(lines)
+
+
+def _get_modal_name(app: AceApp) -> str | None:
+    """Return the class name of the top modal, or None if no modal is open."""
+    if len(app.screen_stack) > 1:
+        return type(app.screen_stack[-1]).__name__
+    return None
+
+
+def _extract_state(app: AceApp) -> dict[str, Any]:
+    """Extract structured state from the app's reactive properties."""
+    state: dict[str, Any] = {
+        "tab": app.current_tab,
+        "artifacts_subtab": app.current_artifacts_subtab,
+        "idx": app.current_idx,
+        "total": len(app.changespecs),
+        "query": app.query_string,
+        "canonical_query": app.canonical_query_string,
+        "marked": sorted(app.marked_indices),
+        "modal": _get_modal_name(app),
+        "hide_reverted": app.hide_reverted,
+        "hooks_collapsed": app.hooks_collapsed.value,
+        "commits_collapsed": app.commits_collapsed.value,
+        "mentors_collapsed": app.mentors_collapsed.value,
+        "deltas_collapsed": app.deltas_collapsed.value,
+    }
+
+    # Selected changespec info
+    if app.changespecs and 0 <= app.current_idx < len(app.changespecs):
+        cs = app.changespecs[app.current_idx]
+        state["selected"] = {
+            "name": cs.name,
+            "status": cs.status,
+            "cl": cs.pr_url,
+            "parent": cs.parent,
+            "project": cs.project_basename,
+            "description": cs.description[:200] if cs.description else None,
+            "commit_count": len(cs.commits) if cs.commits else 0,
+            "hook_count": len(cs.hooks) if cs.hooks else 0,
+            "has_comments": bool(cs.comments),
+            "has_mentors": bool(cs.mentors),
+        }
+    else:
+        state["selected"] = None
+
+    # Tab-specific state
+    if app.current_tab == "agents":
+        state["agent_count"] = len(app._agents)
+        if app._agents and 0 <= app._agents_last_idx < len(app._agents):
+            agent = app._agents[app._agents_last_idx]
+            state["selected_agent"] = {
+                "type": agent.display_type,
+                "cl_name": agent.cl_name,
+                "status": agent.status,
+            }
+        else:
+            state["selected_agent"] = None
+    elif app.current_tab == "axe":
+        state["axe_running"] = app.axe_running
+
+    return state
+
+
+def _resolve_key(data: dict[str, Any], key: str) -> Any:
+    """Resolve a dot-notation key like 'selected.name' into nested dicts."""
+    parts = key.split(".")
+    current: Any = data
+    for part in parts:
+        if not isinstance(current, dict):
+            return _SENTINEL
+        current = current.get(part, _SENTINEL)
+        if current is _SENTINEL:
+            return _SENTINEL
+    return current
+
+
+class AcePage:
+    """Async context manager wrapping AceApp + Pilot for fluent TUI testing."""
+
+    def __init__(
+        self,
+        query: str = '"feature"',
+        size: tuple[int, int] = (120, 40),
+        changespecs: list[ChangeSpec] | None = None,
+        model_tier_override: Literal["large", "small"] | None = None,
+        initial_tab: Literal["changespecs", "agents", "axe"] = "changespecs",
+        notifications: bool = False,
+        wait_for_startup_state: bool = True,
+        startup_policy: AceStartupPolicy = "fast",
+    ) -> None:
+        if startup_policy not in {"fast", "real"}:
+            raise ValueError(f"unsupported AcePage startup policy: {startup_policy!r}")
+        self._query = query
+        self._size = size
+        self._changespecs = (
+            changespecs if changespecs is not None else DEFAULT_CHANGESPECS
+        )
+        self._model_tier_override: Literal["large", "small"] | None = (
+            model_tier_override
+        )
+        self._initial_tab: Literal["changespecs", "agents", "axe"] = initial_tab
+        self._notifications = notifications
+        self._wait_for_startup_state = wait_for_startup_state
+        self._startup_policy = startup_policy
+        self._app: AceApp | None = None
+        self._pilot: Any = None
+        self._stack: AsyncExitStack | None = None
+
+    async def __aenter__(self) -> "AcePage":
+        stack = AsyncExitStack()
+        await stack.__aenter__()
+        self._stack = stack
+        try:
+            stack.enter_context(
+                patch(
+                    "sase.ace.changespec.find_all_changespecs",
+                    return_value=self._changespecs,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "sase.ace.changespec.find_all_changespecs_cached",
+                    return_value=self._changespecs,
+                )
+            )
+            if self._startup_policy == "fast":
+                _install_fast_startup_overrides(stack)
+
+            self._app = AceApp(
+                query=self._query,
+                model_tier_override=self._model_tier_override,
+                refresh_interval=0,
+                initial_tab=self._initial_tab,
+            )
+            self._pilot = await stack.enter_async_context(
+                self._app.run_test(
+                    size=self._size,
+                    notifications=self._notifications,
+                )
+            )
+            if self._wait_for_startup_state:
+                deadline = asyncio.get_running_loop().time() + 15.0
+                paused = False
+                while not self._app._mount_state_loads_done:
+                    if asyncio.get_running_loop().time() >= deadline:
+                        raise AssertionError(
+                            "AcePage startup state did not load within 15 seconds"
+                        )
+                    await self._pilot.pause()
+                    paused = True
+                # Fast fixtures can complete before Textual's run-test enter
+                # returns. Give their queued display/focus continuations one
+                # turn, matching the settling turn the real loader wait gets.
+                if not paused:
+                    await self._pilot.pause()
+            return self
+        except BaseException:
+            await stack.aclose()
+            self._stack = None
+            raise
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> None:
+        stack = self._stack
+        self._stack = None
+        if stack is not None:
+            await stack.__aexit__(exc_type, exc_val, exc_tb)
+
+    async def press(self, *keys: str) -> None:
+        """Press one or more keys via the pilot."""
+        await self._pilot.press(*keys)
+
+    async def pause(self, delay: float | None = None) -> None:
+        """Let the Textual message queue settle.
+
+        Pass ``0`` when the caller has its own semantic or frame-convergence
+        barrier and only needs queued messages to drain. The default retains
+        Textual's CPU-idle heuristic for general-purpose tests.
+        """
+        await self._pilot.pause(delay)
+
+    async def click(self, selector: str) -> None:
+        """Click a widget by CSS selector."""
+        await self._pilot.click(selector)
+
+    @property
+    def state(self) -> dict[str, Any]:
+        """Extract structured state from the app."""
+        assert self._app is not None
+        return _extract_state(self._app)
+
+    @property
+    def screen(self) -> str:
+        """Capture the current screen as plain text."""
+        assert self._app is not None
+        return _capture_screen(self._app, self._size[1])
+
+    def export_svg(self, title: str | None = None, simplify: bool = True) -> str:
+        """Export the current Textual screen as an SVG screenshot."""
+        assert self._app is not None
+        return self._app.export_screenshot(title=title, simplify=simplify)
+
+    @property
+    def app(self) -> AceApp:
+        """Access the underlying AceApp directly."""
+        assert self._app is not None
+        return self._app
+
+    def query_widget(self, selector: str) -> Any:
+        """Query widgets matching a CSS selector."""
+        assert self._app is not None
+        return self._app.query(selector)
+
+    def query_one_widget(self, selector: str, widget_type: type | None = None) -> Any:
+        """Query a single widget by CSS selector."""
+        assert self._app is not None
+        if widget_type is not None:
+            return self._app.query_one(selector, widget_type)
+        return self._app.query_one(selector)
+
+    async def expect_state(
+        self,
+        key: str,
+        value: Any,
+        *,
+        timeout: float = 5.0,
+    ) -> None:
+        """Poll state until state[key] == value, or raise AssertionError.
+
+        Supports dot-notation for nested keys (e.g., "selected.name").
+        """
+        deadline = asyncio.get_event_loop().time() + timeout
+        last_actual: Any = _SENTINEL
+        while True:
+            state = self.state
+            actual = _resolve_key(state, key)
+            last_actual = actual
+            if actual == value:
+                return
+            if asyncio.get_event_loop().time() >= deadline:
+                msg = (
+                    f"expect_state({key!r}, {value!r}) timed out after"
+                    f" {timeout}s — last value was {last_actual!r}"
+                )
+                raise AssertionError(msg)
+            await self._pilot.pause()
+
+    async def expect_modal(self, name: str, *, timeout: float = 5.0) -> None:
+        """Assert that the named modal is currently shown."""
+        await self.expect_state("modal", name, timeout=timeout)
+
+    async def expect_no_modal(self, *, timeout: float = 5.0) -> None:
+        """Assert that no modal is currently shown."""
+        await self.expect_state("modal", None, timeout=timeout)
+
+    async def expect_screen_contains(self, text: str, *, timeout: float = 5.0) -> None:
+        """Poll screen until text is found, or raise AssertionError."""
+        deadline = asyncio.get_event_loop().time() + timeout
+        while True:
+            screen = self.screen
+            if text in screen:
+                return
+            if asyncio.get_event_loop().time() >= deadline:
+                msg = (
+                    f"expect_screen_contains({text!r}) timed out after"
+                    f" {timeout}s — text not found in screen"
+                )
+                raise AssertionError(msg)
+            await self._pilot.pause()
+
+    async def expect_screen_not_contains(
+        self, text: str, *, timeout: float = 5.0
+    ) -> None:
+        """Poll screen until text is absent, or raise AssertionError."""
+        deadline = asyncio.get_event_loop().time() + timeout
+        while True:
+            screen = self.screen
+            if text not in screen:
+                return
+            if asyncio.get_event_loop().time() >= deadline:
+                msg = (
+                    f"expect_screen_not_contains({text!r}) timed out after"
+                    f" {timeout}s — text still present in screen"
+                )
+                raise AssertionError(msg)
+            await self._pilot.pause()
+
+    async def wait_for(
+        self,
+        predicate: Callable[[dict[str, Any]], bool],
+        *,
+        timeout: float = 5.0,
+    ) -> None:
+        """Poll state until predicate(state) returns True, or raise."""
+        deadline = asyncio.get_event_loop().time() + timeout
+        while True:
+            state = self.state
+            if predicate(state):
+                return
+            if asyncio.get_event_loop().time() >= deadline:
+                msg = (
+                    f"wait_for() timed out after {timeout}s —"
+                    f" predicate never returned True"
+                )
+                raise AssertionError(msg)
+            await self._pilot.pause()
