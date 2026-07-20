@@ -8,7 +8,8 @@ from textual import on
 from textual.app import ComposeResult
 from textual.binding import BindingsMap
 from textual.containers import Horizontal, VerticalScroll
-from textual.events import Resize
+from textual.events import Click, Resize
+from textual.message import Message
 from textual.widgets import Input, Static
 from textual.worker import Worker, WorkerState
 
@@ -46,6 +47,40 @@ _REFRESH_INTERVAL_SECONDS = 30.0
 _VIEW_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(view, VIEW_LABELS[view], _ACCENT) for view in VIEW_ORDER
 )
+OVERVIEW_TILE_TARGETS: tuple[tuple[str, StatisticsView], ...] = (
+    ("Agents Run", "runs"),
+    ("Success Rate", "runs"),
+    ("Commits", "runs"),
+    ("Plans Proposed", "plans_questions"),
+    ("Questions", "plans_questions"),
+)
+
+
+class _OverviewTile(Static):
+    """Mouse-only Overview summary that links to a detail view."""
+
+    can_focus = False
+
+    class Navigate(Message):
+        """Request navigation to the view explained by this tile."""
+
+        def __init__(self, view: StatisticsView) -> None:
+            super().__init__()
+            self.view = view
+
+    def __init__(
+        self,
+        target_view: StatisticsView,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._target_view = target_view
+        self.tooltip = f"Open {VIEW_LABELS[target_view]}"
+
+    def on_click(self, event: Click) -> None:
+        event.stop()
+        self.post_message(self.Navigate(self._target_view))
 
 
 class _CustomRangeInput(Input):
@@ -143,8 +178,9 @@ class StatisticsPane(StatisticsPanePresentationBase):
             id="statistics-custom-range",
         )
         with Horizontal(id="statistics-tiles"):
-            for index in range(5):
-                yield Static(
+            for index, (_caption, target_view) in enumerate(OVERVIEW_TILE_TARGETS):
+                yield _OverviewTile(
+                    target_view,
                     self._loading_panel("Loading", height=6),
                     id=f"statistics-tile-{index}",
                     classes="statistics-tile",
@@ -263,6 +299,10 @@ class StatisticsPane(StatisticsPanePresentationBase):
     def _on_view_clicked(self, event: PanelTabStrip.TabClicked) -> None:
         if event.tab_id in VIEW_ORDER:
             self._set_view(cast(StatisticsView, event.tab_id))
+
+    @on(_OverviewTile.Navigate)
+    def _on_overview_tile_navigate(self, event: _OverviewTile.Navigate) -> None:
+        self._set_view(event.view)
 
     @on(Input.Submitted, "#statistics-custom-range")
     def _on_custom_range_submitted(self, event: Input.Submitted) -> None:
@@ -402,4 +442,4 @@ class StatisticsPane(StatisticsPanePresentationBase):
             self._paint_current_view()
 
 
-__all__ = ["StatisticsPane"]
+__all__ = ["OVERVIEW_TILE_TARGETS", "StatisticsPane"]

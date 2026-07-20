@@ -31,19 +31,22 @@ class StatisticsViewsRenderingMixin(StatisticsProjectsRenderingMixin):
 
     def _view_renderable(self, result: StatisticsViewData) -> Any:
         views = result.views
+        renderable: Any
         if self._view == "overview":
-            return self._overview_renderable(views.overview)
-        if self._view == "runs":
-            return self._runs_renderable(views.runs)
-        if self._view == "projects":
+            renderable = self._overview_renderable(views.overview)
+        elif self._view == "runs":
+            renderable = self._runs_renderable(views.runs)
+        elif self._view == "projects":
             return self._projects_renderable(views.projects)
-        if self._view == "providers":
-            return self._providers_renderable(views.providers)
-        if self._view == "runtime":
-            return self._runtime_renderable(views.runtime)
-        if self._view == "activity":
-            return self._activity_renderable(views.activity)
-        return self._plans_questions_renderable(views.plans_questions)
+        elif self._view == "providers":
+            renderable = self._providers_renderable(views.providers)
+        elif self._view == "runtime":
+            renderable = self._runtime_renderable(views.runtime)
+        elif self._view == "activity":
+            renderable = self._activity_renderable(views.activity)
+        elif self._view == "plans_questions":
+            renderable = self._plans_questions_renderable(views.plans_questions)
+        return Group(renderable, self._legend_note(self._view))
 
     def _overview_renderable(self, overview: Any) -> Group:
         buckets = Table(box=box.SIMPLE, expand=True, show_header=True)
@@ -171,17 +174,12 @@ class StatisticsViewsRenderingMixin(StatisticsProjectsRenderingMixin):
                 self._percent(row.share),
                 self._share_bar(row.share, 1.0, width=10),
             )
-        footnote = Text(
-            f"In progress: {runtime.in_progress} (excluded from duration math)",
-            style="dim",
-        )
         return Group(
             Panel(
                 table,
                 title=f"Runtime grouped by {runtime.group_by}",
                 border_style=_ACCENT,
             ),
-            footnote,
         )
 
     def _activity_renderable(self, activity: Any) -> Columns:

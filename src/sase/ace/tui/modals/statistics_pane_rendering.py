@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from rich.align import Align
+from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 from textual.containers import Horizontal, Vertical
@@ -82,18 +83,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             self._set_tiles_visible(False)
             self._update_static(
                 "#statistics-body",
-                Panel(
-                    Align.center(
-                        Text(
-                            "No agent runs were recorded in the selected range.",
-                            style="dim italic",
-                        ),
-                        vertical="middle",
-                    ),
-                    title="Statistics",
-                    border_style="#444444",
-                    height=max(8, int(self.size.height or 24) - 11),
-                ),
+                self._empty_state_renderable(result),
             )
             return
         if self._view == "overview":
@@ -161,12 +151,53 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         self._set_tiles_visible(False)
         self._update_static(
             "#statistics-body",
-            Panel(
-                Align.center(Text(message, style="red"), vertical="middle"),
-                title="Statistics unavailable",
-                border_style="red",
-                height=max(8, int(self.size.height or 24) - 11),
+            self._error_state_renderable(message),
+        )
+
+    def _empty_state_renderable(self, result: StatisticsViewData) -> Panel:
+        """Build recovery guidance for a range with no matching runs."""
+        bindings = statistics_help_bindings(self._keymaps)
+        range_key = bindings[2][0]
+        recovery = Text()
+        recovery.append(f"Press {range_key}", style=f"bold {_CYAN}")
+        recovery.append(" to widen the range.")
+        lines: list[Text] = [
+            Text(
+                f"No agent runs recorded in {result.selected_range.display_label}.",
+                style="dim italic",
             ),
+            recovery,
+        ]
+        if result.project_filter is not None:
+            project_key = bindings[5][0]
+            project_label = result.project_display_snapshot.label_for(
+                result.project_filter
+            )
+            clear_filter = Text()
+            clear_filter.append(f"Press {project_key}", style=f"bold {_GOLD}")
+            clear_filter.append(f" to clear the {project_label} project filter.")
+            lines.append(clear_filter)
+        return Panel(
+            Align.center(Group(*lines), vertical="middle"),
+            title="Statistics",
+            border_style="#444444",
+            height=max(8, int(self.size.height or 24) - 11),
+        )
+
+    def _error_state_renderable(self, message: str) -> Panel:
+        """Build first-load failure guidance using the effective refresh key."""
+        refresh_key = statistics_help_bindings(self._keymaps)[6][0]
+        retry = Text()
+        retry.append(f"Press {refresh_key}", style=f"bold {_ACCENT}")
+        retry.append(" to retry.")
+        return Panel(
+            Align.center(
+                Group(Text(message, style="red"), retry),
+                vertical="middle",
+            ),
+            title="Statistics unavailable",
+            border_style="red",
+            height=max(8, int(self.size.height or 24) - 11),
         )
 
     def _heading_text(self) -> Text:

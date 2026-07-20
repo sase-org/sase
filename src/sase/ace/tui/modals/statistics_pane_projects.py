@@ -14,7 +14,8 @@ from rich.text import Text
 from sase.ace.tui.changespec_status import changespec_status_glyph
 from sase.telemetry.render import categorical_color, format_duration
 
-from .statistics_pane_data import ProjectsGroupBy
+from .statistics_pane_data import ProjectsGroupBy, StatisticsView
+from .statistics_pane_legends import VIEW_LEGENDS
 
 _ACCENT = "#FF87D7"
 _CYAN = "#87D7FF"
@@ -35,12 +36,25 @@ class StatisticsProjectsRenderingMixin:
     def _share_bar(value: float, maximum: float, *, width: int = 14) -> Text:
         raise NotImplementedError
 
+    @staticmethod
+    def _legend_note(view: StatisticsView) -> Text:
+        """Render one dim, newline-free metric definition line for ``view``."""
+        note = Text(style="dim")
+        for index, entry in enumerate(VIEW_LEGENDS[view]):
+            if index:
+                note.append("  ·  ")
+            note.append(entry.term, style="bold dim")
+            note.append(f" = {entry.meaning}")
+        return note
+
     def _projects_renderable(self, projects: Any) -> Group:
         if self._projects_group_by == "changespec":
-            return self._projects_by_changespec_renderable(projects)
-        if self._projects_group_by == "drilldown":
-            return self._projects_drilldown_renderable(projects)
-        return self._projects_by_project_renderable(projects)
+            renderable = self._projects_by_changespec_renderable(projects)
+        elif self._projects_group_by == "drilldown":
+            renderable = self._projects_drilldown_renderable(projects)
+        else:
+            renderable = self._projects_by_project_renderable(projects)
+        return Group(renderable, self._legend_note("projects"))
 
     def _projects_by_project_renderable(self, projects: Any) -> Group:
         table = Table(box=box.SIMPLE, expand=True)
