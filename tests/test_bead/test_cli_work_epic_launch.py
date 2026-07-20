@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
+from dataclasses import dataclass
+from datetime import datetime
+import json
 from pathlib import Path
+import subprocess
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.model import IssueType, PhaseSize, Status
+from sase.bead.model import BeadTier, IssueType, PhaseSize, Status
 from sase.bead.project import BeadProject
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.bead.work import (
@@ -25,6 +31,7 @@ from .cli_work_helpers import (
     seed_changespec_epic,
     seed_diamond,
 )
+from .sync_test_helpers import configure_git_identity
 
 pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
 
@@ -674,115 +681,257 @@ def test_work_dry_run_renders_changespec_launch_wrappers(
             assert phase.assignee == ""
 
 
+@dataclass(frozen=True)
+class _PersistedEpicLaunch:
+    epic_id: str
+    epic_title: str
+    phase_titles: tuple[str, ...]
+    clan_summary: str
+    stale_head: str
+    refreshed_head: str
+    remote_head: str
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+    ).stdout.strip()
+
+
+def _write_checkout_marker(
+    checkout: Path,
+    primary: Path,
+    *,
+    workspace_num: int,
+) -> None:
+    marker_dir = checkout / ".sase"
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    (marker_dir / "checkout.json").write_text(
+        json.dumps(
+            {
+                "project_name": "project",
+                "project_key": "project",
+                "workspace_num": workspace_num,
+                "primary_workspace_dir": str(primary),
+                "registry_path": str(primary / ".sase" / "registry.json"),
+                "schema_version": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+@pytest.fixture
+def stale_epic_summary_launch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_cli_work_xprompts: None,
+) -> _PersistedEpicLaunch:
+    """Persist a launch summary after its plans clone recovers from stale HEAD."""
+    from sase.agent.clan_membership import (
+        CLAN_MEMBERSHIP_ENV,
+        ClanMembershipPlan,
+        encode_clan_membership_plan,
+    )
+    from sase.axe.run_agent_directives import extract_directives_and_write_meta
+    from sase.sdd.store import write_sdd_store_record
+
+    remote = tmp_path / "plans.git"
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(remote)],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    primary_workspace = tmp_path / "project"
+    launch_workspace = tmp_path / "project_2"
+    current_plans = primary_workspace / "sase" / "repos" / "plans"
+    stale_plans = launch_workspace / "sase" / "repos" / "plans"
+    current_plans.parent.mkdir(parents=True)
+    stale_plans.parent.mkdir(parents=True)
+    subprocess.run(
+        ["git", "clone", str(remote), str(current_plans)],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    configure_git_identity(current_plans)
+    with BeadProject.init(current_plans, beads_dirname="beads"):
+        pass
+    _git(current_plans, "add", "-A")
+    _git(current_plans, "commit", "-m", "Initialize plans bead store")
+    _git(current_plans, "push", "-u", "origin", "main")
+
+    subprocess.run(
+        ["git", "clone", str(remote), str(stale_plans)],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    configure_git_identity(stale_plans)
+    stale_head = _git(stale_plans, "rev-parse", "HEAD")
+
+    epic_title = "Diamond epic recovered from remote"
+    with BeadProject(current_plans, beads_dirname="beads") as project:
+        epic = project.create(
+            epic_title,
+            IssueType.PLAN,
+            description="Exercise launch-time stale-store recovery.",
+            design="202607/diamond.md",
+            tier=BeadTier.EPIC,
+        )
+        phases = tuple(
+            project.create(
+                title,
+                IssueType.PHASE,
+                parent_id=epic.id,
+                description=f"Deliver {title.lower()}.",
+                size=PhaseSize.SMALL,
+            )
+            for title in ("P1 parse", "P2 render", "P3 persist", "P4 land")
+        )
+        project.add_dependency(phases[1].id, phases[0].id)
+        project.add_dependency(phases[2].id, phases[0].id)
+        project.add_dependency(phases[3].id, phases[1].id)
+        project.add_dependency(phases[3].id, phases[2].id)
+    phase_titles = tuple(phase.title for phase in phases)
+    _git(current_plans, "add", "-A")
+    _git(current_plans, "commit", "-m", "Add remote epic and phases")
+    _git(current_plans, "push")
+    remote_head = _git(remote, "rev-parse", "refs/heads/main")
+
+    with BeadProject(stale_plans, beads_dirname="beads") as stale_project:
+        with pytest.raises(KeyError):
+            stale_project.show(epic.id)
+
+    write_sdd_store_record(
+        primary_workspace,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": {
+                "plans": {
+                    "repo": "test/project--plans",
+                    "remote_url": str(remote),
+                },
+                "research": {
+                    "repo": "test/project--research",
+                    "remote_url": str(tmp_path / "research.git"),
+                },
+            },
+        },
+    )
+    _write_checkout_marker(primary_workspace, primary_workspace, workspace_num=1)
+    _write_checkout_marker(launch_workspace, primary_workspace, workspace_num=2)
+    monkeypatch.chdir(primary_workspace)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    agent_log = artifacts_dir / "agent.log"
+
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
+        del extra_env
+        assert segment_extra_env
+        for name, value in segment_extra_env[0].items():
+            monkeypatch.setenv(name, value)
+        monkeypatch.setenv(
+            CLAN_MEMBERSHIP_ENV,
+            encode_clan_membership_plan(
+                ClanMembershipPlan(clan_name=epic.id, generation="g1")
+            ),
+        )
+
+        with (
+            patch("sase.agent.names.ensure_historical_auto_name_migration"),
+            patch(
+                "sase.agent.names.agent_name_allocation_lock",
+                return_value=nullcontext(),
+            ),
+            patch("sase.agent.names.claim_agent_name"),
+            patch("sase.agent.names.claim_registered_clan_name"),
+            patch(
+                "sase.xprompt.process_xprompt_references",
+                side_effect=lambda value, **_: value,
+            ),
+            patch(
+                "sase.llm_provider.temporary_override."
+                "resolve_effective_default_provider_model",
+                return_value=("codex", "gpt-5"),
+            ),
+            patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        ):
+            extract_directives_and_write_meta(
+                query.split("\n---\n", maxsplit=1)[0],
+                str(launch_workspace),
+                str(artifacts_dir),
+                output_path=str(agent_log),
+            )
+        return FakeLaunchResult()
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_work_launch",
+        lambda *args, **kwargs: True,
+    )
+
+    bead_cli.handle_bead_work(make_args(epic.id, yes=True, no_push=True))
+
+    persisted = json.loads(
+        (artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert persisted["agent_clan"] == epic.id
+    assert not agent_log.read_text(encoding="utf-8")
+    return _PersistedEpicLaunch(
+        epic_id=epic.id,
+        epic_title=epic_title,
+        phase_titles=phase_titles,
+        clan_summary=persisted["clan_summary"],
+        stale_head=stale_head,
+        refreshed_head=_git(stale_plans, "rev-parse", "HEAD"),
+        remote_head=remote_head,
+    )
+
+
 class TestEpicSummarySmokeExercises:
     """End-to-end smoke tests for epic clan summary persistence and rendering."""
 
-    def test_epic_work_launch_persists_rich_summary_with_all_phases(
+    def test_epic_work_launch_refreshes_stale_clone_and_persists_rich_summary(
         self,
-        project_dir: Path,
-        monkeypatch: pytest.MonkeyPatch,
+        stale_epic_summary_launch: _PersistedEpicLaunch,
     ) -> None:
-        """Epic work launch persists the rich summary with all phase titles."""
-        import json
-        from contextlib import nullcontext
-        from unittest.mock import patch
+        launch = stale_epic_summary_launch
+        fallback = f"[bold]EPIC {launch.epic_id}[/]"
 
-        from sase.agent.clan_membership import (
-            CLAN_MEMBERSHIP_ENV,
-            ClanMembershipPlan,
-            encode_clan_membership_plan,
-        )
-        from sase.axe.run_agent_directives import extract_directives_and_write_meta
-
-        epic_id, phase_ids = seed_diamond(project_dir)
-        captured: dict[str, Any] = {}
-        workspace_dir = project_dir / "workspace"
-        artifacts_dir = project_dir / "artifacts"
-        workspace_dir.mkdir(exist_ok=True)
-        artifacts_dir.mkdir(exist_ok=True)
-
-        def fake_launch(
-            query: str,
-            extra_env: Any = None,
-            segment_extra_env: Any = None,
-        ) -> FakeLaunchResult:
-            captured["query"] = query
-            captured["segment_extra_env"] = segment_extra_env
-            # Simulate the first segment (declaring member) extracting directives
-            if segment_extra_env:
-                # Extract the first segment (before first ---)
-                segments = query.split("\n---\n")
-                first_segment = segments[0]
-
-                monkeypatch.setenv(
-                    CLAN_MEMBERSHIP_ENV,
-                    encode_clan_membership_plan(
-                        ClanMembershipPlan(clan_name=epic_id, generation="g1")
-                    ),
-                )
-
-                with (
-                    patch("sase.agent.names.ensure_historical_auto_name_migration"),
-                    patch(
-                        "sase.agent.names.agent_name_allocation_lock",
-                        return_value=nullcontext(),
-                    ),
-                    patch("sase.agent.names.claim_agent_name"),
-                    patch("sase.agent.names.claim_registered_clan_name"),
-                    patch(
-                        "sase.xprompt.process_xprompt_references",
-                        side_effect=lambda value, **_: value,
-                    ),
-                    patch(
-                        "sase.llm_provider.temporary_override."
-                        "resolve_effective_default_provider_model",
-                        return_value=("codex", "gpt-5"),
-                    ),
-                    patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
-                ):
-                    extract_directives_and_write_meta(
-                        first_segment,
-                        str(workspace_dir),
-                        str(artifacts_dir),
-                    )
-            return FakeLaunchResult()
-
-        monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
-        monkeypatch.setattr(
-            "sase.bead.sync.commit_bead_work_launch",
-            lambda *args, **kwargs: True,
-        )
-
-        bead_cli.handle_bead_work(make_args(epic_id, yes=True))
-
-        # Verify the persisted meta file contains the rich summary
-        persisted = json.loads(
-            (artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")
-        )
-        assert persisted["agent_clan"] == epic_id
-        clan_summary = persisted["clan_summary"]
-
-        # The summary must contain the epic title
-        assert "Diamond epic" in clan_summary
-
-        # The summary must contain every phase title
-        for phase_id in phase_ids:
-            # Each phase should have its number and title in the summary
-            assert "P1" in clan_summary
-            assert "P2" in clan_summary
-            assert "P3" in clan_summary
-            assert "P4" in clan_summary
-
-        # Verify it's not the fallback summary
-        assert "[bold]EPIC" not in clan_summary or "Diamond epic" in clan_summary
+        assert launch.stale_head != launch.refreshed_head
+        assert launch.refreshed_head == launch.remote_head
+        assert launch.epic_title in launch.clan_summary
+        assert all(title in launch.clan_summary for title in launch.phase_titles)
+        assert "[bold #D75FFF]◆ EPIC" in launch.clan_summary
+        assert "PHASES · 0/4 done at launch" in launch.clan_summary
+        assert "bold black on #87D7FF" in launch.clan_summary
+        assert fallback not in launch.clan_summary
 
     def test_epic_work_clan_panel_renders_persisted_summary(
         self,
-        project_dir: Path,
-        monkeypatch: pytest.MonkeyPatch,
+        stale_epic_summary_launch: _PersistedEpicLaunch,
     ) -> None:
-        """Clan panel renders persisted epic summary correctly."""
-        from datetime import datetime
+        """Clan panel renders the markup persisted by the launch exercise."""
         from sase.ace.tui.models._agent_tree import project_clan_tree
         from sase.ace.tui.widgets.prompt_panel._agent_display_clan import (
             build_clan_detail_text,
@@ -791,36 +940,19 @@ class TestEpicSummarySmokeExercises:
             make_clan_agent,
         )
 
-        epic_id, phase_ids = seed_diamond(project_dir)
+        launch = stale_epic_summary_launch
+        fallback = f"[bold]EPIC {launch.epic_id}[/]"
+        assert "[bold #D75FFF]◆ EPIC" in launch.clan_summary
+        assert fallback not in launch.clan_summary
 
-        # Simulate a persisted clan summary with all phases
-        rich_summary = (
-            "[bold #D75FFF]◆ EPIC sase-test · Diamond epic[/bold #D75FFF]\n"
-            "\n"
-            "[bold #87D7FF]PHASES · 0/4 done at launch[/bold #87D7FF]\n"
-            " [bold #87D7FF]◐[/bold #87D7FF] 1. P1                                                          [small]\n"
-            " [bold #87D7FF]◐[/bold #87D7FF] 2. P2                                                          [small]\n"
-            " [bold #87D7FF]◐[/bold #87D7FF] 3. P3                                                          [small]\n"
-            " [bold #87D7FF]◐[/bold #87D7FF] 4. P4                                                          [small]\n"
-        )
-
-        # Create a clan agent with the epic summary
         member = make_clan_agent(
-            f"{epic_id}.land",
+            f"{launch.epic_id}.land",
             status="DONE",
             start=datetime(2026, 7, 17, 12, 0, 0),
             stop=datetime(2026, 7, 17, 12, 2, 0),
         )
-        member.clan_summary = rich_summary
-        container = project_clan_tree([member])[0]
+        member.clan_summary = launch.clan_summary
+        result = build_clan_detail_text(project_clan_tree([member])[0])
 
-        # The panel should render the summary correctly
-        result = build_clan_detail_text(container)
-        result_text = result.plain
-
-        # Verify the result contains phase information
-        assert "Diamond epic" in result_text
-        assert "P1" in result_text
-        assert "P2" in result_text
-        assert "P3" in result_text
-        assert "P4" in result_text
+        assert launch.epic_title in result.plain
+        assert all(title in result.plain for title in launch.phase_titles)
