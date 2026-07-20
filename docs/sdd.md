@@ -194,18 +194,20 @@ Every tale and epic requires these authored fields:
 | Field   | Required | Rule                                                               |
 | ------- | -------- | ------------------------------------------------------------------ |
 | `tier`  | yes      | `tale` or `epic`, matching `-t/--tier`                             |
+| `title` | yes      | Non-empty human-readable plan title                                |
 | `goal`  | yes      | Non-empty description of the outcome the plan is intended to reach |
 | `model` | no       | Non-empty model value using the same syntax as `%model`            |
 
 SASE-managed `create_time`, `status`, `prompt`, and `bead_id` fields are accepted but never required. Unknown fields are
 errors. A plan must start with valid, closed YAML frontmatter and contain a non-empty Markdown body.
 
-Epics additionally require a non-empty `title` and an ordered, non-empty `phases` list. Optional `changespec` and
-integer `bug_id` metadata may be supplied; `bug_id` requires `changespec`. Each phase requires a unique slug `id`, a
-non-empty `title`, and a `depends_on` list. Dependencies may only name earlier phases, cannot repeat, and cannot refer
-to the phase itself. Optional phase fields are `description` and `model`. Only set a phase model when the user's prompt
-requested one or the phase performs no consequential work, such as exercising the feature itself; otherwise omit it so
-the configured `@phase_worker` role applies.
+Epics additionally require an ordered, non-empty `phases` list. Optional `changespec` and integer `bug_id` metadata may
+be supplied; `bug_id` requires `changespec`. The epic-only, SASE-managed `parent_bead` field is accepted but never
+required; it associates an approved plan with the bead under which SASE creates its child epic. Each phase requires a
+unique slug `id`, a non-empty `title`, a `depends_on` list, and `size: small | medium | large`. Dependencies may only
+name earlier phases, cannot repeat, and cannot refer to the phase itself. Optional phase fields are `description` and
+`model`. Only set a phase model when the user's prompt requested one or the phase performs no consequential work, such
+as exercising the feature itself; otherwise omit it so size-derived routing can apply.
 
 ```yaml
 ---
@@ -216,9 +218,11 @@ phases:
   - id: core
     title: GC planner and safety checks
     depends_on: []
+    size: medium
   - id: cli
     title: Workspace GC command
     depends_on: [core]
+    size: small
 ---
 # Plan
 

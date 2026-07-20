@@ -897,12 +897,14 @@ def test_modern_phase_renders_one_frontmatter_bead_and_no_plan(
         "  - id: core\n"
         "    title: Build metadata\n"
         "    depends_on: []\n"
+        "    size: small\n"
         "  - id: render\n"
         "    title: Render phase metadata\n"
         "    depends_on: [core]\n"
         "    description: >-\n"
         "      Show only this selected\n"
         "      phase description.\n"
+        "    size: medium\n"
         "---\n"
         "# Plan\n",
         encoding="utf-8",

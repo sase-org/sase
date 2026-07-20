@@ -38,6 +38,7 @@ def _write_epic(path: Path) -> Path:
         "    title: Canonical phase summary\n"
         "    depends_on: []\n"
         "    description: Normalize the authoritative validator payload.\n"
+        "    size: small\n"
         "---\n"
         "# Plan\n",
         encoding="utf-8",

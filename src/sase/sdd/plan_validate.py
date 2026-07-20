@@ -59,6 +59,7 @@ class ValidatedPlanPhase:
     title: str
     depends_on: tuple[str, ...]
     description: str | None
+    size: str
     model: str | None
 
 
@@ -73,6 +74,7 @@ class _ValidatedPlan:
     phases: tuple[ValidatedPlanPhase, ...]
     changespec: str | None
     bug_id: int | None
+    parent_bead: str | None
 
 
 @dataclass(frozen=True)
@@ -85,18 +87,32 @@ class PlanValidationResult:
     plan: _ValidatedPlan | None
 
 
-def validate_plan(content: str, tier: str) -> PlanValidationResult:
+def validate_plan(
+    content: str,
+    tier: str,
+    *,
+    mode: str = "authoring",
+) -> PlanValidationResult:
     """Validate one complete Markdown plan against ``tier``.
 
     ``tier`` must be ``"tale"`` or ``"epic"``.  Invalid caller tiers are
     rejected by the binding as usage errors; document problems are returned as
     diagnostics so callers receive every problem in one pass.
+
+    ``mode`` defaults to strict authoring validation. Launch consumers may pass
+    ``"launch"`` to normalize a missing legacy phase size to ``"small"`` while
+    retaining the validator's warning.
     """
     binding = require_rust_binding("plan_validate")
-    return _validation_result_from_dict(binding(content, tier))
+    return _validation_result_from_dict(binding(content, tier, mode))
 
 
-def validate_plan_file(path: Path, tier: str) -> PlanValidationResult:
+def validate_plan_file(
+    path: Path,
+    tier: str,
+    *,
+    mode: str = "authoring",
+) -> PlanValidationResult:
     """Read and validate one UTF-8 plan file against ``tier``.
 
     File-system and UTF-8 failures use the same diagnostic envelope as
@@ -118,7 +134,7 @@ def validate_plan_file(path: Path, tier: str) -> PlanValidationResult:
             "plan file is not valid UTF-8",
             line=line,
         )
-    return validate_plan(content, tier)
+    return validate_plan(content, tier, mode=mode)
 
 
 def plan_frontmatter_schema(tier: str) -> tuple[PlanFrontmatterFieldSpec, ...]:
@@ -179,6 +195,7 @@ def _validated_plan_from_dict(payload: dict[str, Any]) -> _ValidatedPlan:
         phases=tuple(_validated_phase_from_dict(item) for item in payload["phases"]),
         changespec=_optional_str(payload.get("changespec")),
         bug_id=(int(payload["bug_id"]) if payload.get("bug_id") is not None else None),
+        parent_bead=_optional_str(payload.get("parent_bead")),
     )
 
 
@@ -188,6 +205,7 @@ def _validated_phase_from_dict(payload: dict[str, Any]) -> ValidatedPlanPhase:
         title=str(payload["title"]),
         depends_on=tuple(str(item) for item in payload["depends_on"]),
         description=_optional_str(payload.get("description")),
+        size=str(payload["size"]),
         model=_optional_str(payload.get("model")),
     )
 

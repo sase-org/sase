@@ -32,6 +32,7 @@ phases:
     title: Implement the capability
     depends_on: []
     description: "'Implement the capability' section: build and verify the complete capability."
+    size: small
 ---
 # Plan
 

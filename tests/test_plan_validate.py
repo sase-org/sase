@@ -17,6 +17,7 @@ from sase.sdd.plan_validate import (
     PlanDiagnosticSeverity,
     plan_frontmatter_schema,
     validate_plan,
+    validate_plan_file,
 )
 
 
@@ -34,15 +35,18 @@ VALID_EPIC = """---
 tier: epic
 title: Strict plan validation
 goal: Plans are validated before execution
+parent_bead: sase-parent.2
 phases:
   - id: core
     title: Core validator
     depends_on: []
     description: "'Core validator' section: build the shared validation engine."
+    size: medium
   - id: cli
     title: CLI integration
     depends_on: [core]
     description: "'CLI integration' section: wire the validator into the command."
+    size: large
 ---
 # Plan
 
@@ -94,9 +98,37 @@ def test_facade_rehydrates_normalized_epic_phases() -> None:
     assert result.ok
     assert result.plan is not None
     assert result.plan.title == "Strict plan validation"
+    assert result.plan.parent_bead == "sase-parent.2"
     assert [phase.id for phase in result.plan.phases] == ["core", "cli"]
+    assert [phase.size for phase in result.plan.phases] == ["medium", "large"]
     assert result.plan.phases[1].depends_on == ("core",)
     assert result.plan.phases[1].description is None
+
+
+def test_file_facade_supports_authoring_and_legacy_launch_modes(
+    tmp_path: Path,
+) -> None:
+    legacy = tmp_path / "legacy.md"
+    legacy.write_text(
+        VALID_EPIC.replace("    size: medium\n", "").replace("    size: large\n", ""),
+        encoding="utf-8",
+    )
+
+    authoring = validate_plan_file(legacy, "epic")
+    launch = validate_plan_file(legacy, "epic", mode="launch")
+
+    assert not authoring.ok
+    assert [diagnostic.code for diagnostic in authoring.diagnostics] == [
+        "phase-size-missing",
+        "phase-size-missing",
+    ]
+    assert launch.ok
+    assert [diagnostic.severity for diagnostic in launch.diagnostics] == [
+        PlanDiagnosticSeverity.WARNING,
+        PlanDiagnosticSeverity.WARNING,
+    ]
+    assert launch.plan is not None
+    assert [phase.size for phase in launch.plan.phases] == ["small", "small"]
 
 
 def test_facade_rehydrates_all_diagnostics_and_is_frozen() -> None:
@@ -131,7 +163,7 @@ def test_facade_rejects_unknown_wire_schema_version(
     monkeypatch.setattr(
         "sase.sdd.plan_validate.require_rust_binding",
         lambda _name: (
-            lambda _content, _tier: {
+            lambda _content, _tier, _mode: {
                 "schema_version": 999,
                 "ok": True,
                 "diagnostics": [],
@@ -212,6 +244,26 @@ def test_valid_epic_and_json_quiet_mode(
     assert payload["diagnostics"] == []
 
 
+def test_epic_failure_renders_size_parent_schema_and_minimal_example(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plan = tmp_path / "epic.md"
+    plan.write_text(
+        VALID_EPIC.replace("    size: medium", "    size: enormous"),
+        encoding="utf-8",
+    )
+
+    assert _invoke([str(plan), "-t", "epic", "--json"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    fields = {field["name"]: field for field in payload["expected_schema"]["fields"]}
+    assert fields["phases[].size"]["type"] == "small | medium | large"
+    assert fields["phases[].size"]["required"] is True
+    assert fields["phases[].size"]["example"] == "small"
+    assert fields["parent_bead"]["required"] is False
+    assert fields["parent_bead"]["example"] == "sase-7z.1"
+    assert "  size: small" in payload["expected_schema"]["example"]
+
+
 def test_failure_human_output_is_location_bearing_and_self_teaching(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -289,6 +341,7 @@ def test_cli_rejects_missing_blank_and_wrong_typed_titles(
     extra = (
         "phases:\n  - id: core\n    title: Core\n    depends_on: []\n"
         "    description: Core section exercises title validation.\n"
+        "    size: small\n"
         if tier == "epic"
         else ""
     )

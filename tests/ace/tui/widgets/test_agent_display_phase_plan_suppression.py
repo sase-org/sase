@@ -74,10 +74,12 @@ def test_damaged_explicit_phase_role_suppresses_epic_plan_and_artifact(
         "  - id: core\n"
         "    title: Build metadata\n"
         "    depends_on: []\n"
+        "    size: small\n"
         "  - id: render\n"
         "    title: Render phase metadata\n"
         "    depends_on: [core]\n"
         "    description: Show only the recovered phase description.\n"
+        "    size: small\n"
         "---\n"
         "# Plan\n",
         encoding="utf-8",
@@ -143,6 +145,7 @@ def test_confirmed_legacy_phase_uses_bead_lane_and_suppresses_old_row(
         "    title: Core phase\n"
         "    depends_on: []\n"
         "    description: Show this confirmed legacy phase only.\n"
+        "    size: small\n"
         "---\n"
         "# Plan\n",
         encoding="utf-8",

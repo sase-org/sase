@@ -29,12 +29,15 @@ phases:
   - id: core
     title: Build the core
     depends_on: []
+    size: small
   - id: cli
     title: Add the CLI
     depends_on: [core]
+    size: medium
   - id: verify
     title: Verify the result
     depends_on: [core, cli]
+    size: large
 ---
 # Plan
 
@@ -49,7 +52,8 @@ def _epic_plan_with_phase_count(
 ) -> str:
     model_line = f"model: {model}\n" if model else ""
     phase_lines = "".join(
-        f"  - id: phase_{index}\n    title: Phase {index}\n    depends_on: []\n"
+        f"  - id: phase_{index}\n    title: Phase {index}\n"
+        "    depends_on: []\n    size: small\n"
         for index in range(1, phase_count + 1)
     )
     return (

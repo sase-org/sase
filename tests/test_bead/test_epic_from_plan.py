@@ -28,13 +28,16 @@ phases:
     title: Build the core
     depends_on: []
     description: Implement the shared core.
+    size: small
   - id: cli
     title: Add the CLI
     depends_on: [core]
+    size: medium
     model: codex/gpt-5.6-sol
   - id: smoke
     title: Exercise the rollout
     depends_on: [core, cli]
+    size: large
 ---
 # Plan
 
