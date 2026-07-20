@@ -80,10 +80,11 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 ("repo: / author:", "Filter repository / author substring"),
                 ("since: / until:", "Filter dates (7d, today, YYYY-MM-DD)"),
+                ("sidecar:true", "Include sidecar repository history"),
                 ("limit: / bare text", "Cap rows / match subject words"),
                 (
                     f"{d(a.commits_toggle_sdd)} / {d(a.commits_toggle_all_projects)}",
-                    "Toggle SDD history / all projects",
+                    "Toggle sidecar history / all projects",
                 ),
                 (
                     f"{d(a.commits_fetch)} / {d(a.commits_refresh)}",

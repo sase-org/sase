@@ -21,7 +21,7 @@ from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_projec
 from sase.project_display_names import project_display_name_for
 from sase.vcs_log.models import LogRepo, LogRepoKind
 
-_KIND_ORDER = {"primary": 0, "linked": 1, "sdd": 2}
+_KIND_ORDER = {"primary": 0, "linked": 1, "sidecar": 2}
 
 
 @dataclass(frozen=True)
@@ -65,7 +65,7 @@ def resolve_log_repos(
     all_projects: bool = False,
     project_scope: str | None = None,
     current_only: bool = False,
-    include_sdd: bool = False,
+    include_sidecars: bool = False,
 ) -> ResolvedRepos:
     """Resolve repositories for the requested timeline scope.
 
@@ -76,19 +76,19 @@ def resolve_log_repos(
     warnings: list[str] = []
 
     if all_projects:
-        repos = _resolve_all_project_repos(warnings, include_sdd=include_sdd)
+        repos = _resolve_all_project_repos(warnings, include_sidecars=include_sidecars)
     elif project_scope is not None:
         repos = _resolve_explicit_project_repos(
             project_scope,
             warnings,
             current_only=current_only,
-            include_sdd=include_sdd,
+            include_sidecars=include_sidecars,
         )
     else:
         repos = _resolve_current_scope_repos(
             cwd=cwd,
             current_only=current_only,
-            include_sdd=include_sdd,
+            include_sidecars=include_sidecars,
             warnings=warnings,
         )
         repos.sort(key=lambda repo: (_KIND_ORDER.get(repo.kind, 9), repo.name))
@@ -107,7 +107,7 @@ def _resolve_explicit_project_repos(
     warnings: list[str],
     *,
     current_only: bool,
-    include_sdd: bool,
+    include_sidecars: bool,
 ) -> list[LogRepo]:
     """Resolve one registered project's constellation without changing cwd."""
     try:
@@ -143,7 +143,7 @@ def _resolve_explicit_project_repos(
         )
     )
     candidates = _resolve_record_candidates(
-        matches[0], warnings, include_sdd=include_sdd
+        matches[0], warnings, include_sidecars=include_sidecars
     )
     repos = _deduplicate_and_name(candidates)
     if current_only:
@@ -152,7 +152,7 @@ def _resolve_explicit_project_repos(
 
 
 def _resolve_current_scope_repos(
-    *, cwd: str, current_only: bool, include_sdd: bool, warnings: list[str]
+    *, cwd: str, current_only: bool, include_sidecars: bool, warnings: list[str]
 ) -> list[LogRepo]:
     from sase.main.utils import ensure_project_file_and_get_workspace_num
 
@@ -166,14 +166,14 @@ def _resolve_current_scope_repos(
             workspace_num=workspace_num if workspace_num is not None else 0,
             cwd=cwd,
             current_only=current_only,
-            include_sdd=include_sdd,
+            include_sidecars=include_sidecars,
             warnings=warnings,
         )
     return _resolve_fallback_repos(cwd, warnings)
 
 
 def _resolve_all_project_repos(
-    warnings: list[str], *, include_sdd: bool
+    warnings: list[str], *, include_sidecars: bool
 ) -> list[LogRepo]:
     try:
         records = list_project_records(
@@ -191,7 +191,9 @@ def _resolve_all_project_repos(
         if record.project_name == "home" or record.system_managed:
             continue
         candidates.extend(
-            _resolve_record_candidates(record, warnings, include_sdd=include_sdd)
+            _resolve_record_candidates(
+                record, warnings, include_sidecars=include_sidecars
+            )
         )
 
     repos = _deduplicate_and_name(candidates)
@@ -204,7 +206,7 @@ def _record_sort_key(record: ProjectRecordWire) -> tuple[str, str]:
 
 
 def _resolve_record_candidates(
-    record: ProjectRecordWire, warnings: list[str], *, include_sdd: bool
+    record: ProjectRecordWire, warnings: list[str], *, include_sidecars: bool
 ) -> list[_RepoCandidate]:
     project_label = effective_project_name(record)
     project_ref = _project_ref(record, project_label)
@@ -251,8 +253,17 @@ def _resolve_record_candidates(
     ]
 
     project_warnings: list[str] = []
-    linked = _resolve_linked_repos(str(project_file), primary_dir, project_warnings)
-    sdd = _resolve_sdd_repo(primary_dir, project_warnings) if include_sdd else None
+    linked = _resolve_linked_repos(
+        str(project_file),
+        primary_dir,
+        project_warnings,
+        include_sidecars=include_sidecars,
+    )
+    legacy_sidecar = (
+        _resolve_legacy_sdd_repo(primary_dir, project_warnings)
+        if include_sidecars
+        else None
+    )
     for warning in project_warnings:
         _warn_once(warnings, f"{project_ref}: {warning}")
 
@@ -261,21 +272,23 @@ def _resolve_record_candidates(
             _RepoCandidate(
                 name=repo.name,
                 path=repo.path,
-                kind="linked",
+                kind=repo.kind,
                 project_name=record.project_name,
                 project_label=project_label,
                 aliases=frozenset((repo.name, *repo.aliases)),
             )
         )
-    if sdd is not None:
+    if legacy_sidecar is not None:
         candidates.append(
             _RepoCandidate(
-                name=sdd.name,
-                path=sdd.path,
-                kind="sdd",
+                name=legacy_sidecar.name,
+                path=legacy_sidecar.path,
+                kind="sidecar",
                 project_name=record.project_name,
                 project_label=project_label,
-                aliases=frozenset((sdd.name, "sdd", *sdd.aliases)),
+                aliases=frozenset(
+                    (legacy_sidecar.name, "sdd", *legacy_sidecar.aliases)
+                ),
             )
         )
     return candidates
@@ -299,7 +312,7 @@ def _resolve_project_repos(
     workspace_num: int,
     cwd: str,
     current_only: bool,
-    include_sdd: bool,
+    include_sidecars: bool,
     warnings: list[str],
 ) -> list[LogRepo]:
     primary_dir = _primary_workspace_dir(project_file, cwd, workspace_num)
@@ -316,11 +329,18 @@ def _resolve_project_repos(
     if current_only:
         return repos
 
-    repos.extend(_resolve_linked_repos(project_file, primary_dir, warnings))
-    if include_sdd:
-        sdd_repo = _resolve_sdd_repo(primary_dir, warnings)
-        if sdd_repo is not None:
-            repos.append(sdd_repo)
+    repos.extend(
+        _resolve_linked_repos(
+            project_file,
+            primary_dir,
+            warnings,
+            include_sidecars=include_sidecars,
+        )
+    )
+    if include_sidecars:
+        legacy_sidecar = _resolve_legacy_sdd_repo(primary_dir, warnings)
+        if legacy_sidecar is not None:
+            repos.append(legacy_sidecar)
     return repos
 
 
@@ -338,7 +358,11 @@ def _primary_workspace_dir(project_file: str, cwd: str, workspace_num: int) -> s
 
 
 def _resolve_linked_repos(
-    project_file: str, primary_dir: str, warnings: list[str]
+    project_file: str,
+    primary_dir: str,
+    warnings: list[str],
+    *,
+    include_sidecars: bool,
 ) -> list[LogRepo]:
     from sase.linked_repos import resolve_linked_repos_for_project
 
@@ -358,15 +382,18 @@ def _resolve_linked_repos(
 
     repos: list[LogRepo] = []
     for repo in resolution.repos:
+        kind: LogRepoKind = "sidecar" if repo.kind == "sidecar" else "linked"
+        if kind == "sidecar" and not include_sidecars:
+            continue
         # Prefer the linked repo's primary checkout; it is the stable,
         # always-materialized copy (numbered workspaces are ephemeral).
         path = repo.primary_dir or repo.workspace_dir
         if path:
-            repos.append(LogRepo(name=repo.name, path=path, kind="linked"))
+            repos.append(LogRepo(name=repo.name, path=path, kind=kind))
     return repos
 
 
-def _resolve_sdd_repo(primary_dir: str, warnings: list[str]) -> LogRepo | None:
+def _resolve_legacy_sdd_repo(primary_dir: str, warnings: list[str]) -> LogRepo | None:
     from sase.sdd import materialized_sdd_clone
 
     try:
@@ -381,7 +408,7 @@ def _resolve_sdd_repo(primary_dir: str, warnings: list[str]) -> LogRepo | None:
     return LogRepo(
         name=_sdd_label(primary_dir),
         path=str(clone),
-        kind="sdd",
+        kind="sidecar",
         aliases=("sdd",),
     )
 
@@ -489,7 +516,7 @@ def _assign_unique_labels(catalog: list[_CatalogRepo]) -> None:
             repo.name = repo.base_name
         elif repo.kind == "primary" and primary_counts[repo.base_name] == 1:
             # A registered project keeps the convenient standalone name when
-            # a linked-only or SDD label happens to collide with it.
+            # a linked-only or sidecar label happens to collide with it.
             repo.name = repo.base_name
         elif repo.kind == "primary":
             repo.name = repo.project_name
@@ -530,7 +557,6 @@ def _apply_filters(
             index
             for index, repo in enumerate(repos)
             if any(alias.casefold() == folded for alias in repo.aliases)
-            or (repo.kind == "sdd" and folded == "sdd")
         ]
         if len(aliases) == 1:
             selected.add(aliases[0])
@@ -562,7 +588,6 @@ def _resolve_exclusions(
             for repo in repos
             if repo.name.casefold() == folded
             or any(alias.casefold() == folded for alias in repo.aliases)
-            or (repo.kind == "sdd" and folded == "sdd")
         ]
         if matches:
             excluded.update(matches)

@@ -64,7 +64,7 @@ def _handle_log(args: argparse.Namespace) -> int:
         repo_filters=args.repos,
         all_projects=args.all,
         current_only=args.current_only,
-        include_sdd=args.sdd,
+        include_sidecars=args.sdd,
         no_fetch=args.no_fetch,
         force_fetch=args.force_fetch,
         remote_ref=args.remote_ref,

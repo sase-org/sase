@@ -17,7 +17,7 @@ INCOMING = "#5FD7FF"
 UNPUSHED = "#D7AF5F"
 
 #: Deterministic per-repo accent palette, cycled in resolved-repo order
-#: (primary first, then linked sorted by name, then SDD).
+#: (primary first, then linked sorted by name, then sidecars).
 REPO_PALETTE = (
     "#87D7FF",
     "#5FD75F",

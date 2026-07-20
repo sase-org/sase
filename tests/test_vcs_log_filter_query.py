@@ -49,7 +49,7 @@ def test_parse_every_token_kind_and_case_insensitive_keys() -> None:
     values = parse_commit_filter_query(
         'REPO:sase,sase-core repo:"SASE docs" '
         'Author:Ada author:"Grace Hopper",@example.com '
-        "since:2026-07-01 until:2026-07-18T08:30 limit:all "
+        "since:2026-07-01 until:2026-07-18T08:30 SIDECAR:TrUe limit:all "
         'fix "live preview"'
     )
 
@@ -59,6 +59,7 @@ def test_parse_every_token_kind_and_case_insensitive_keys() -> None:
     assert values.since == parse_time_bound("2026-07-01")
     assert values.until_text == "2026-07-18T08:30"
     assert values.until == parse_time_bound("2026-07-18T08:30")
+    assert values.sidecar is True
     assert values.limit == 0
     assert values.text == ("fix", "live preview")
 
@@ -100,6 +101,15 @@ def test_parse_mixed_positive_and_negative_terms() -> None:
         ("-since:7d", "may not be negated", "-since:7d", (0, 9)),
         ("fix -until:today", "may not be negated", "-until:today", (4, 16)),
         ("-limit:10", "may not be negated", "-limit:10", (0, 9)),
+        ("sidecar:", "requires a value", "sidecar:", (0, 8)),
+        ("sidecar:yes", "must be 'true' or 'false'", "sidecar:yes", (0, 11)),
+        ("-sidecar:true", "may not be negated", "-sidecar:true", (0, 13)),
+        (
+            "sidecar:true sidecar:false",
+            "only appear once",
+            "sidecar:false",
+            (13, 26),
+        ),
     ),
 )
 def test_parse_errors_carry_bad_token_and_exact_span(
@@ -142,13 +152,16 @@ def test_quoted_key_shaped_term_remains_free_text() -> None:
 
 def test_canonical_query_has_stable_order_and_omits_default_limit() -> None:
     values = parse_commit_filter_query(
-        'preview author:"Ada Lovelace" until:2026-07-18 repo:sase since:7d timeline'
+        'preview author:"Ada Lovelace" until:2026-07-18 repo:sase '
+        "since:7d sidecar:true timeline"
     )
 
     assert to_query_string(values) == (
-        'repo:sase author:"Ada Lovelace" since:7d until:2026-07-18 preview timeline'
+        'repo:sase author:"Ada Lovelace" since:7d until:2026-07-18 '
+        "sidecar:true preview timeline"
     )
     assert to_query_string(CommitLogFilterValues()) == ""
+    assert to_query_string(parse_commit_filter_query("sidecar:false")) == ""
     assert to_query_string(CommitLogFilterValues(limit=0)) == "limit:all"
 
 
@@ -178,6 +191,7 @@ _VALUE_TEXT = st.text(
     excluded_authors=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     text_terms=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     excluded_text=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
+    sidecar=st.booleans(),
     limit=st.sampled_from((0, 1, 40, 100, 999)),
     bounds=st.sampled_from(
         (
@@ -195,6 +209,7 @@ def test_canonical_query_round_trip_property(
     excluded_authors: tuple[str, ...],
     text_terms: tuple[str, ...],
     excluded_text: tuple[str, ...],
+    sidecar: bool,
     limit: int,
     bounds: tuple[str, str],
 ) -> None:
@@ -208,6 +223,7 @@ def test_canonical_query_round_trip_property(
         until=parse_time_bound(until_text) if until_text else None,
         repos=repos,
         excluded_repos=excluded_repos,
+        sidecar=sidecar,
         limit=limit,
         text=text_terms,
         excluded_text=excluded_text,
@@ -335,6 +351,7 @@ def test_matcher_ignores_limit_for_caller_to_apply() -> None:
         ("since:7", 7, ("since", "7")),
         ("until:today", 10, ("until", "toda")),
         ("limit:al", 7, ("limit", "a")),
+        ("sidecar:t", 9, ("sidecar", "t")),
         ("-repo:plans", 11, ("repo", "plans")),
         ("-author:bo", 10, ("author", "bo")),
         ("-since:7", 8, ("key", "since:7")),
@@ -358,12 +375,13 @@ def test_completion_context_reports_negative_polarity() -> None:
 
 def test_filter_chips_use_canonical_query_tokens() -> None:
     filters = parse_commit_filter_query(
-        'author:"Ada Lovelace" repo:sase limit:all "fix live"'
+        'author:"Ada Lovelace" repo:sase sidecar:true limit:all "fix live"'
     )
 
     assert commit_filter_chips(filters) == (
         "repo:sase",
         'author:"Ada Lovelace"',
+        "sidecar:true",
         "limit:all",
         '"fix live"',
     )

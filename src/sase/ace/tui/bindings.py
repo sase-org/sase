@@ -95,7 +95,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("enter", "commits_view_selected", "View Commit", show=False),
     Binding("y", "commits_copy_sha", "Copy Commit SHA", show=False),
     Binding("f", "commits_filters", "Commit Filters", show=False),
-    Binding("d", "commits_toggle_sdd", "Toggle Commit SDD", show=False),
+    Binding("d", "commits_toggle_sdd", "Toggle Commit Sidecars", show=False),
     Binding(
         "a",
         "commits_toggle_all_projects",

@@ -22,7 +22,7 @@ else:
 
 
 CommitCollector = Callable[..., VcsLogResult]
-CommitScopeKey = tuple[str | None, bool, bool]
+CommitScopeKey = tuple[str | None, bool]
 
 
 @dataclass(frozen=True)
@@ -30,12 +30,11 @@ class CommitCollectionSpec:
     generation: int
     project_scope: str | None
     all_projects: bool
-    include_sdd: bool
     filters: CommitLogFilterValues
 
     @property
     def scope_key(self) -> CommitScopeKey:
-        return (self.project_scope, self.all_projects, self.include_sdd)
+        return (self.project_scope, self.all_projects)
 
 
 @dataclass(frozen=True)
@@ -52,7 +51,6 @@ class CommitsCollectionMixin(_MixinBase):
     _collector: CommitCollector
     project_scope: str | None
     all_projects: bool
-    include_sdd: bool
     filters: CommitLogFilterValues
     result: VcsLogResult | None
     _generation: int
@@ -97,7 +95,6 @@ class CommitsCollectionMixin(_MixinBase):
         self._collector = collector
         self.project_scope = None
         self.all_projects = False
-        self.include_sdd = False
         self.filters = CommitLogFilterValues()
         self.result = None
         self._generation = 0
@@ -119,14 +116,13 @@ class CommitsCollectionMixin(_MixinBase):
             self._schedule_collection()
 
     def _scope_key(self) -> CommitScopeKey:
-        return (self.project_scope, self.all_projects, self.include_sdd)
+        return (self.project_scope, self.all_projects)
 
     def _collection_spec(self) -> CommitCollectionSpec:
         return CommitCollectionSpec(
             generation=self._generation,
             project_scope=self.project_scope,
             all_projects=self.all_projects,
-            include_sdd=self.include_sdd,
             filters=self.filters,
         )
 
@@ -145,7 +141,7 @@ class CommitsCollectionMixin(_MixinBase):
             exclude_repo_filters=spec.filters.excluded_repos,
             all_projects=spec.all_projects,
             project_scope=None if spec.all_projects else spec.project_scope,
-            include_sdd=spec.include_sdd,
+            include_sidecars=spec.filters.sidecar,
             no_fetch=not force_fetch,
             force_fetch=force_fetch,
         )
@@ -275,7 +271,7 @@ class CommitsCollectionMixin(_MixinBase):
 
 def _snapshot_breadth(
     snapshot: AuthoritativeCommitSnapshot,
-) -> tuple[int, int, int]:
+) -> tuple[int, int, int, int]:
     filters = snapshot.filters
     constraints = (
         len(filters.repos)
@@ -286,7 +282,7 @@ def _snapshot_breadth(
     )
     unlimited = int(snapshot.collection_limit == 0)
     limit = snapshot.collection_limit if snapshot.collection_limit > 0 else 2**31
-    return (-constraints, unlimited, limit)
+    return (-constraints, int(filters.sidecar), unlimited, limit)
 
 
 def snapshot_covers(
@@ -296,6 +292,8 @@ def snapshot_covers(
     if snapshot.filters == values:
         return True
     base = snapshot.filters
+    if values.sidecar and not base.sidecar:
+        return False
     backend_unfiltered = not (
         base.repos
         or base.excluded_repos

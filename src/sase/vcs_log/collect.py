@@ -105,7 +105,7 @@ def run_vcs_log(
     all_projects: bool = False,
     project_scope: str | None = None,
     current_only: bool = False,
-    include_sdd: bool = False,
+    include_sidecars: bool = False,
     no_fetch: bool = False,
     force_fetch: bool = False,
     remote_ref: str | None = None,
@@ -128,7 +128,7 @@ def run_vcs_log(
             all_projects=all_projects,
             project_scope=project_scope,
             current_only=current_only,
-            include_sdd=include_sdd,
+            include_sidecars=include_sidecars,
         )
     elif project_scope is None:
         resolved = resolve_log_repos(
@@ -136,7 +136,7 @@ def run_vcs_log(
             repo_filters=repo_filters,
             all_projects=all_projects,
             current_only=current_only,
-            include_sdd=include_sdd,
+            include_sidecars=include_sidecars,
         )
     else:
         resolved = resolve_log_repos(
@@ -145,7 +145,7 @@ def run_vcs_log(
             all_projects=all_projects,
             project_scope=project_scope,
             current_only=current_only,
-            include_sdd=include_sdd,
+            include_sidecars=include_sidecars,
         )
     collected = collect_vcs_log(
         resolved.repos,

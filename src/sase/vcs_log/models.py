@@ -11,7 +11,7 @@ from sase.core.vcs_log_wire import AggregatedCommitWire, CommitPresence
 UNLIMITED = -1
 
 #: Which slot of the project constellation a repo occupies.
-LogRepoKind = Literal["primary", "linked", "sdd"]
+LogRepoKind = Literal["primary", "linked", "sidecar"]
 
 
 @dataclass(frozen=True)
@@ -34,7 +34,7 @@ class LogRepo:
 
     Attributes:
         name: Human-facing label (the project name for the primary repo, a
-            linked-repo ``name``, or the SDD store label).
+            linked-repo ``name``, or a sidecar label).
         path: Filesystem path of the repository checkout to read.
         kind: Which slot of the constellation this repo fills.
         aliases: Additional unambiguous source names accepted by ``--repo``.
@@ -64,7 +64,7 @@ class VcsLogResult:
 
     Attributes:
         repos: The repos that were successfully read (in stable display
-            order: primary, then linked sorted by name, then SDD).
+            order: primary, then linked sorted by name, then sidecars).
         commits: The interleaved, newest-first timeline.
         warnings: Human-readable notes about repos that could not be read
             (missing checkout, non-VCS path, provider error, ...).

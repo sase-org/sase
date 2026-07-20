@@ -46,7 +46,7 @@ def _add_list_options(parser: argparse.ArgumentParser) -> None:
         "-o",
         "--current-only",
         action="store_true",
-        help="Only the current/primary repo (skip linked repos and the SDD store)",
+        help="Only the current/primary repo (skip linked and sidecar repos)",
     )
     parser.add_argument(
         "-f",
@@ -116,7 +116,7 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
         "-o",
         "--current-only",
         action="store_true",
-        help="Only the current/primary repo (skip linked repos and the SDD store)",
+        help="Only the current/primary repo (skip linked and sidecar repos)",
     )
     fetch_group = parser.add_mutually_exclusive_group()
     fetch_group.add_argument(
@@ -174,7 +174,7 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
         "-S",
         "--sdd",
         action="store_true",
-        help="Include commits from existing separate SDD repositories",
+        help="Include commits from sidecar repositories",
     )
     parser.add_argument(
         "-s",
@@ -206,14 +206,14 @@ def register_vcs_parser(subparsers: argparse._SubParsersAction) -> None:
 
     ``sase vcs`` lists the resolved repository constellation by default.
     ``sase vcs log`` shows the chronological commit timeline for the primary
-    and linked repositories, with separate SDD history available on request.
+    and linked repositories, with sidecar history available on request.
     """
     vcs_parser = subparsers.add_parser(
         "vcs",
-        help="Inspect the primary + linked + SDD repository constellation",
+        help="Inspect the primary, linked, and sidecar repository constellation",
         description=(
             "Inspect the repository constellation made up of the primary repo, "
-            "configured linked repos, and the separate SDD store when present.\n\n"
+            "configured linked repos, and sidecar repos when present.\n\n"
             "With no subcommand, `sase vcs` defaults to `sase vcs list`."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -229,9 +229,9 @@ def register_vcs_parser(subparsers: argparse._SubParsersAction) -> None:
         "list",
         help="List resolved repositories and aggregate stats",
         description=(
-            "List the available primary, linked, and separate SDD repositories "
+            "List the available primary, linked, and sidecar repositories "
             "with per-repo stats, descriptions, branch state, and last activity. "
-            "Use `sase vcs log --sdd` to include SDD commit history."
+            "Use `sase vcs log --sdd` to include sidecar commit history."
         ),
     )
     _add_list_options(list_parser)
@@ -241,8 +241,8 @@ def register_vcs_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Show a chronological, cross-repository commit timeline",
         description=(
             "Show a chronological, cross-repository commit timeline across "
-            "the primary repo and linked repos. Use --sdd to include separate "
-            "SDD repository commits, and --all to merge repositories from every "
+            "the primary repo and linked repos. Use --sdd to include all sidecar "
+            "repository commits, and --all to merge repositories from every "
             "registered project."
         ),
         epilog=f"DATE grammar: {DATE_HELP}.",

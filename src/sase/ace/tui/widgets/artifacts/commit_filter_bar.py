@@ -40,11 +40,13 @@ class CommitFilterBar(FilterBar):
         ("author", "name or email substring"),
         ("since", "Nh/Nd/Nw, today, YYYY-MM-DD"),
         ("until", "Nh/Nd/Nw, today, YYYY-MM-DD"),
+        ("sidecar", "include sidecar repositories"),
         ("limit", "N or all"),
     )
     STATIC_VALUE_COMPLETIONS = {
         "since": _DATE_COMPLETIONS,
         "until": _DATE_COMPLETIONS,
+        "sidecar": ("true", "false"),
         "limit": ("40", "100", "200", "all"),
     }
     VALUE_HINTS = {
@@ -52,6 +54,7 @@ class CommitFilterBar(FilterBar):
         "author": "author",
         "since": "date bound",
         "until": "date bound",
+        "sidecar": "true or false",
         "limit": "row limit",
     }
     REPEATABLE_VALUE_KINDS = frozenset(("repo", "author"))

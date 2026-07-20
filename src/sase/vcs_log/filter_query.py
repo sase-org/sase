@@ -30,12 +30,13 @@ CompletionKind = Literal[
     "author",
     "since",
     "until",
+    "sidecar",
     "limit",
     "text",
 ]
 RepoAliases = Mapping[str, Iterable[str]]
 
-_FILTER_KEYS = ("repo", "author", "since", "until", "limit")
+_FILTER_KEYS = ("repo", "author", "since", "until", "sidecar", "limit")
 _REPEATABLE_KEYS = frozenset(("repo", "author"))
 _NEGATABLE_KEYS = frozenset(("repo", "author"))
 _NON_NEGATIVE_INTEGER_RE = re.compile(r"^\d+$")
@@ -57,6 +58,7 @@ class CommitLogFilterValues:
     until: int | None = None
     repos: tuple[str, ...] = ()
     excluded_repos: tuple[str, ...] = ()
+    sidecar: bool = False
     limit: int = DEFAULT_COMMIT_LOG_LIMIT
     text: tuple[str, ...] = ()
     excluded_text: tuple[str, ...] = ()
@@ -136,6 +138,14 @@ def parse_commit_filter_query(text: str) -> CommitLogFilterValues:
         else:
             raise _error("limit: must be a non-negative integer or 'all'", limit_token)
 
+    sidecar = False
+    if "sidecar" in singles:
+        sidecar_text, sidecar_token = singles["sidecar"]
+        folded = sidecar_text.casefold()
+        if folded not in {"true", "false"}:
+            raise _error("sidecar: must be 'true' or 'false'", sidecar_token)
+        sidecar = folded == "true"
+
     return CommitLogFilterValues(
         authors=tuple(authors),
         excluded_authors=tuple(excluded_authors),
@@ -145,6 +155,7 @@ def parse_commit_filter_query(text: str) -> CommitLogFilterValues:
         until=until,
         repos=tuple(repos),
         excluded_repos=tuple(excluded_repos),
+        sidecar=sidecar,
         limit=limit,
         text=tuple(text_terms),
         excluded_text=tuple(excluded_text_terms),
@@ -167,6 +178,8 @@ def to_query_tokens(values: CommitLogFilterValues) -> tuple[str, ...]:
         tokens.append(f"since:{quote_value(values.since_text, keyed=True)}")
     if values.until_text:
         tokens.append(f"until:{quote_value(values.until_text, keyed=True)}")
+    if values.sidecar:
+        tokens.append("sidecar:true")
     if values.limit != DEFAULT_COMMIT_LOG_LIMIT:
         tokens.append(f"limit:{values.limit or 'all'}")
     tokens.extend(quote_value(term, keyed=False) for term in values.text)

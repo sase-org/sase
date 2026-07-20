@@ -15,7 +15,7 @@ from sase.ace.tui.widgets.artifacts.commits_timeline import CommitsTimeline
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.vcs_log.filter_query import parse_commit_filter_query
-from tests.ace.tui.test_commits_pane import _DIFF, _result
+from tests.ace.tui.test_commits_pane import _DIFF, _result, _result_with_sidecar
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -237,6 +237,52 @@ async def test_commits_filter_completion_png_snapshot(
             page,
             "artifacts_commits_filter_completion_120x40",
             title="ACE Artifacts Commits repository completion",
+        )
+
+
+async def test_commits_sidecar_filter_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    timestamp = int(datetime(2026, 7, 6, 14, 30, tzinfo=UTC).timestamp())
+    narrow = _result(timestamp)
+    broad = _result_with_sidecar(timestamp)
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **kwargs: broad if kwargs["include_sidecars"] else narrow,
+    )
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
+
+    async with AcePage(
+        query='"visual"',
+        changespecs=changespecs(),
+        initial_tab="changespecs",
+    ) as page:
+        pane, bar = await _open_commits(page, narrow)
+        await page.press("slash")
+        editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
+        editor.load_text("sidecar:true")
+        editor.cursor_position = len(editor.text)
+        completion = bar.query_one("#commit-filter-completion", OptionList)
+        await page.wait_for(
+            lambda _state: (
+                pane.filters.sidecar
+                and pane.result is broad
+                and completion.display
+                and completion.option_count == 1
+            )
+        )
+        await wait_for_svg_contains(page, "sidecar:true")
+        await wait_for_svg_contains(page, "ccccccc")
+        await wait_for_svg_contains(page, "true or false")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "artifacts_commits_sidecar_filter_120x40",
+            title="ACE Artifacts Commits sidecar filter",
         )
 
 

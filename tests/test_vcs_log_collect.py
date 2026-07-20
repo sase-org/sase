@@ -134,7 +134,7 @@ def test_collect_isolates_failing_repo_and_interleaves() -> None:
     repos = [
         LogRepo("sase", "/p/sase", "primary"),
         LogRepo("sase-core", "/p/core", "linked"),
-        LogRepo("sase-bad", "/p/bad", "sdd"),
+        LogRepo("sase-bad", "/p/bad", "sidecar"),
     ]
 
     result = collect_vcs_log(
@@ -570,9 +570,9 @@ def test_run_merges_resolution_warnings_ahead_of_collection(
         repo_filters=(),
         all_projects=False,
         current_only=False,
-        include_sdd=False,
+        include_sidecars=False,
     ):
-        scopes.append((all_projects, include_sdd))
+        scopes.append((all_projects, include_sidecars))
         return ResolvedRepos(
             repos=[LogRepo("sase", "/p/sase", "primary")],
             warnings=["resolve-warning"],
@@ -590,7 +590,7 @@ def test_run_merges_resolution_warnings_ahead_of_collection(
     run_vcs_log(
         cwd="/anywhere",
         limit=10,
-        include_sdd=True,
+        include_sidecars=True,
         provider_factory=lambda path: providers[path],
     )
 
@@ -617,9 +617,16 @@ def test_run_threads_repo_exclusions_before_provider_collection(
         all_projects=False,
         project_scope=None,
         current_only=False,
-        include_sdd=False,
+        include_sidecars=False,
     ):
-        del cwd, repo_filters, all_projects, project_scope, current_only, include_sdd
+        del (
+            cwd,
+            repo_filters,
+            all_projects,
+            project_scope,
+            current_only,
+            include_sidecars,
+        )
         resolve_calls.append(tuple(exclude_repo_filters))
         return ResolvedRepos(
             repos=[LogRepo("sase", "/p/sase", "primary")],

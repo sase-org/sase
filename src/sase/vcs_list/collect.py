@@ -83,7 +83,7 @@ def run_vcs_list(
         cwd=cwd,
         repo_filters=repo_filters,
         current_only=current_only,
-        include_sdd=True,
+        include_sidecars=True,
     )
     collected = _collect_vcs_list(
         resolved.repos,
@@ -168,7 +168,7 @@ def _resolve_description(
     *,
     no_fetch: bool,
 ) -> tuple[str | None, DescriptionSource | None]:
-    if repo.kind == "linked":
+    if repo.kind in {"linked", "sidecar"}:
         description = descriptions.get(repo.name)
         if description:
             return description, "config"

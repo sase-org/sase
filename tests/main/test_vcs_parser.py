@@ -233,7 +233,7 @@ class TestVcsParser:
         assert [options_text.index(option) for option in long_options] == sorted(
             options_text.index(option) for option in long_options
         )
-        assert "Include commits from existing separate SDD repositories" in " ".join(
+        assert "Include commits from sidecar repositories" in " ".join(
             help_text.split()
         )
         assert (

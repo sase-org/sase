@@ -35,7 +35,6 @@ def build_commits_info(
     project_display_name: str | None,
     project_scope: str | None,
     all_projects: bool,
-    include_sdd: bool,
     filters: CommitLogFilterValues,
     result: VcsLogResult | None,
     refreshing: bool,
@@ -53,8 +52,8 @@ def build_commits_info(
     text.append(scope, style=f"bold {accent}")
     text.append("  ·  ", style="dim")
     text.append(
-        "SDD on" if include_sdd else "SDD off",
-        style="bold" if include_sdd else "dim",
+        "Sidecars included" if filters.sidecar else "Sidecars hidden",
+        style="bold" if filters.sidecar else "dim",
     )
     for chip in commit_filter_chips(filters):
         text.append("  ·  ", style="dim")
@@ -89,7 +88,7 @@ def build_commits_hints(registry: KeymapRegistry) -> Text:
     for key, label in (
         (key_display_name(actions.commits_copy_sha), "copy"),
         (key_display_name(actions.edit_query), "filter"),
-        (key_display_name(actions.commits_toggle_sdd), "SDD"),
+        (key_display_name(actions.commits_toggle_sdd), "sidecars"),
         (key_display_name(actions.commits_toggle_all_projects), "all"),
         (key_display_name(actions.commits_fetch), "fetch"),
         (key_display_name(actions.commits_refresh), "refresh"),
@@ -118,13 +117,7 @@ def build_commit_view_spec(
     )
     repo_kind: RepoKind = "linked"
     if repo is not None:
-        repo_kind = (
-            "primary"
-            if repo.kind == "primary"
-            else "sidecar"
-            if repo.kind == "sdd"
-            else "linked"
-        )
+        repo_kind = repo.kind
     message = entry.commit.subject
     if entry.commit.body:
         message = f"{message}\n\n{entry.commit.body}"

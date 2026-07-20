@@ -156,7 +156,31 @@ async def test_negative_completion_omits_non_negatable_keys() -> None:
         assert any(label.startswith("-author:") for label in labels)
         assert not any(label.startswith("-since:") for label in labels)
         assert not any(label.startswith("-until:") for label in labels)
+        assert not any(label.startswith("-sidecar:") for label in labels)
         assert not any(label.startswith("-limit:") for label in labels)
+
+
+async def test_sidecar_key_and_boolean_values_complete_without_io() -> None:
+    app = _FilterBarApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(CommitFilterBar)
+        bar.open("side")
+        await pilot.pause()
+
+        completion = app.query_one("#commit-filter-completion", OptionList)
+        labels = _option_labels(completion)
+        assert len(labels) == 1
+        assert labels[0].startswith("sidecar:")
+        assert "include sidecar repositories" in labels[0]
+
+        editor = app.query_one("#commit-filter-input", SingleLineVimTextArea)
+        editor.load_text("sidecar:")
+        editor.cursor_position = len(editor.text)
+        await pilot.pause()
+        labels = _option_labels(completion)
+        assert labels[0].startswith("true")
+        assert labels[1].startswith("false")
+        assert all("true or false" in label for label in labels)
 
 
 async def test_typing_emits_changed_before_submitted() -> None:

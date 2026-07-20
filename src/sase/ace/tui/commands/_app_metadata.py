@@ -104,7 +104,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("commits_filters", "Commits: filter bar", "Display", CL_ONLY, ()),
     (
         "commits_toggle_sdd",
-        "Commits: toggle SDD history",
+        "Commits: toggle sidecar history",
         "Display",
         CL_ONLY,
         (),

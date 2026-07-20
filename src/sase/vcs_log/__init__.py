@@ -1,6 +1,6 @@
 """Repo resolution + collection service for ``sase vcs log``.
 
-A SASE project is a constellation of repos (primary + linked + SDD store).
+A SASE project is a constellation of primary, linked, and sidecar repos.
 This package resolves that repo set for the current workspace, collects a
 commit log from each (through the provider-agnostic ``vcs_log`` hook), and
 interleaves them into one chronological, cross-repository timeline via the

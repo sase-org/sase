@@ -22,6 +22,7 @@ class _FakeLinked:
     name: str
     primary_dir: str
     workspace_dir: str = ""
+    kind: str = "linked"
 
 
 @dataclass(frozen=True)
@@ -80,7 +81,7 @@ def test_primary_only(monkeypatch: pytest.MonkeyPatch, project: None) -> None:
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
     _set_sdd(monkeypatch, None)
 
-    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sidecars=True)
 
     assert [(r.name, r.path, r.kind) for r in resolved.repos] == [
         ("sase", "/ws/sase", "primary")
@@ -95,7 +96,7 @@ def test_primary_name_falls_back_to_project_key(
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
     _set_sdd(monkeypatch, None)
 
-    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sidecars=True)
 
     assert [(r.name, r.path, r.kind) for r in resolved.repos] == [
         ("gh_sase-org__sase", "/ws/sase", "primary")
@@ -116,7 +117,7 @@ def test_primary_plus_linked_sorted_by_name(
     )
     _set_sdd(monkeypatch, None)
 
-    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sidecars=True)
 
     # primary first, then linked sorted by name.
     assert [r.name for r in resolved.repos] == [
@@ -125,6 +126,59 @@ def test_primary_plus_linked_sorted_by_name(
         "sase-telegram",
     ]
     assert [r.kind for r in resolved.repos] == ["primary", "linked", "linked"]
+
+
+def test_modern_sidecars_keep_identity_and_require_opt_in(
+    monkeypatch: pytest.MonkeyPatch, project: None
+) -> None:
+    _set_linked(
+        monkeypatch,
+        _FakeLinkedResolution(
+            repos=(
+                _FakeLinked("sase-core", "/ws/core"),
+                _FakeLinked("plans", "/ws/plans", kind="sidecar"),
+                _FakeLinked("research", "/ws/research", kind="sidecar"),
+            )
+        ),
+    )
+    _set_sdd(monkeypatch, None)
+
+    default = resolve_log_repos(cwd="/ws/sase")
+    included = resolve_log_repos(cwd="/ws/sase", include_sidecars=True)
+
+    assert [(repo.name, repo.kind) for repo in default.repos] == [
+        ("sase", "primary"),
+        ("sase-core", "linked"),
+    ]
+    assert [(repo.name, repo.kind) for repo in included.repos] == [
+        ("sase", "primary"),
+        ("sase-core", "linked"),
+        ("plans", "sidecar"),
+        ("research", "sidecar"),
+    ]
+
+
+def test_repo_filter_cannot_select_hidden_modern_sidecar(
+    monkeypatch: pytest.MonkeyPatch, project: None
+) -> None:
+    _set_linked(
+        monkeypatch,
+        _FakeLinkedResolution(
+            repos=(_FakeLinked("plans", "/ws/plans", kind="sidecar"),)
+        ),
+    )
+    _set_sdd(monkeypatch, None)
+
+    default = resolve_log_repos(cwd="/ws/sase", repo_filters=["plans"])
+    included = resolve_log_repos(
+        cwd="/ws/sase",
+        repo_filters=["plans"],
+        include_sidecars=True,
+    )
+
+    assert default.repos == []
+    assert default.warnings == ["--repo 'plans' did not match any repository"]
+    assert [(repo.name, repo.kind) for repo in included.repos] == [("plans", "sidecar")]
 
 
 def test_materialized_sdd_clone_is_included_with_record_label(
@@ -140,10 +194,10 @@ def test_materialized_sdd_clone_is_included_with_record_label(
     )
 
     default = resolve_log_repos(cwd="/ws/sase")
-    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sidecars=True)
 
     assert [r.kind for r in default.repos] == ["primary"]
-    sdd = [r for r in resolved.repos if r.kind == "sdd"]
+    sdd = [r for r in resolved.repos if r.kind == "sidecar"]
     assert len(sdd) == 1
     assert sdd[0].name == "sase-sdd"
     assert sdd[0].path == str(sdd_dir)
@@ -157,9 +211,9 @@ def test_materialized_sdd_clone_uses_fallback_label_without_repo_name(
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
     _set_sdd(monkeypatch, sdd_dir)
 
-    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sidecars=True)
 
-    assert [r.kind for r in resolved.repos] == ["primary", "sdd"]
+    assert [r.kind for r in resolved.repos] == ["primary", "sidecar"]
 
 
 def test_materialized_sdd_record_with_unusable_clone_is_skipped(
@@ -168,7 +222,7 @@ def test_materialized_sdd_record_with_unusable_clone_is_skipped(
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
     _set_sdd(monkeypatch, None, record=_FakeRecord(repo="sase-sdd"))
 
-    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sidecars=True)
 
     assert [r.kind for r in resolved.repos] == ["primary"]
 
@@ -181,7 +235,7 @@ def test_stale_non_materialized_sdd_clone_is_skipped_without_warning(
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
     _set_sdd(monkeypatch, None)
 
-    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sidecars=True)
 
     assert [r.kind for r in resolved.repos] == ["primary"]
     assert resolved.warnings == []
@@ -198,7 +252,9 @@ def test_current_only_drops_linked_and_sdd(
     sdd_dir.mkdir()
     _set_sdd(monkeypatch, sdd_dir)
 
-    resolved = resolve_log_repos(cwd="/ws/sase", current_only=True, include_sdd=True)
+    resolved = resolve_log_repos(
+        cwd="/ws/sase", current_only=True, include_sidecars=True
+    )
 
     assert [r.name for r in resolved.repos] == ["sase"]
 
@@ -281,11 +337,13 @@ def test_sdd_filter_requires_sdd_scope(
     )
 
     default = resolve_log_repos(cwd="/ws/sase", repo_filters=["sdd"])
-    resolved = resolve_log_repos(cwd="/ws/sase", repo_filters=["sdd"], include_sdd=True)
+    resolved = resolve_log_repos(
+        cwd="/ws/sase", repo_filters=["sdd"], include_sidecars=True
+    )
 
     assert default.repos == []
     assert default.warnings == ["--repo 'sdd' did not match any repository"]
-    assert [r.kind for r in resolved.repos] == ["sdd"]
+    assert [r.kind for r in resolved.repos] == ["sidecar"]
 
 
 def test_sdd_exclusion_applies_only_to_the_enabled_sdd_scope(
@@ -299,7 +357,7 @@ def test_sdd_exclusion_applies_only_to_the_enabled_sdd_scope(
     without_scope = resolve_log_repos(cwd="/ws/sase", exclude_repo_filters=["sdd"])
     with_scope = resolve_log_repos(
         cwd="/ws/sase",
-        include_sdd=True,
+        include_sidecars=True,
         exclude_repo_filters=["sdd"],
     )
 
@@ -324,7 +382,7 @@ def test_excluded_sdd_store_is_not_probed_or_warned(
     monkeypatch.setattr(sdd_mod, "materialized_sdd_clone", fail_sdd)
 
     default = resolve_log_repos(cwd="/ws/sase")
-    included = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
+    included = resolve_log_repos(cwd="/ws/sase", include_sidecars=True)
 
     assert calls == [("/ws/sase", 0)]
     assert default.warnings == []
@@ -472,6 +530,8 @@ def test_explicit_project_scope_resolves_only_that_constellation(
     beta = _global_record(tmp_path, "beta")
     core = tmp_path / "repos" / "core"
     core.mkdir(parents=True)
+    plans = tmp_path / "repos" / "plans"
+    plans.mkdir(parents=True)
     alpha_sdd = tmp_path / "stores" / "alpha-sdd"
     alpha_sdd.mkdir(parents=True)
     _configure_global_resolution(
@@ -479,7 +539,12 @@ def test_explicit_project_scope_resolves_only_that_constellation(
         tmp_path,
         [alpha, beta],
         linked={
-            "alpha": _FakeLinkedResolution(repos=(_FakeLinked("sase-core", str(core)),))
+            "alpha": _FakeLinkedResolution(
+                repos=(
+                    _FakeLinked("sase-core", str(core)),
+                    _FakeLinked("plans", str(plans), kind="sidecar"),
+                )
+            )
         },
         sdd={"alpha": alpha_sdd},
         sdd_records={"alpha": _FakeRecord(repo="alpha-sdd")},
@@ -488,13 +553,14 @@ def test_explicit_project_scope_resolves_only_that_constellation(
     resolved = resolve_log_repos(
         cwd="/unrelated",
         project_scope="a",
-        include_sdd=True,
+        include_sidecars=True,
     )
 
     assert [(repo.name, repo.kind) for repo in resolved.repos] == [
         ("Alpha Display", "primary"),
         ("sase-core", "linked"),
-        ("alpha-sdd", "sdd"),
+        ("alpha-sdd", "sidecar"),
+        ("plans", "sidecar"),
     ]
     assert all("beta" not in repo.path for repo in resolved.repos)
 
@@ -524,6 +590,8 @@ def test_all_projects_uses_full_inventory_outside_a_workspace(
     ]
     core = tmp_path / "repos" / "core"
     core.mkdir(parents=True)
+    plans = tmp_path / "repos" / "plans"
+    plans.mkdir(parents=True)
     sdd_dir = tmp_path / "stores" / "alpha-sdd"
     sdd_dir.mkdir(parents=True)
     calls = _configure_global_resolution(
@@ -535,6 +603,7 @@ def test_all_projects_uses_full_inventory_outside_a_workspace(
                 repos=(
                     _FakeLinked("gamma", records[0].workspace_dir or ""),
                     _FakeLinked("sase-core", str(core)),
+                    _FakeLinked("plans", str(plans), kind="sidecar"),
                 )
             )
         },
@@ -554,7 +623,7 @@ def test_all_projects_uses_full_inventory_outside_a_workspace(
 
     calls.clear()
     resolved = resolve_log_repos(
-        cwd="/not/a/workspace", all_projects=True, include_sdd=True
+        cwd="/not/a/workspace", all_projects=True, include_sidecars=True
     )
 
     assert [(repo.name, repo.kind) for repo in resolved.repos] == [
@@ -562,7 +631,8 @@ def test_all_projects_uses_full_inventory_outside_a_workspace(
         ("beta", "primary"),
         ("gamma", "linked"),
         ("sase-core", "linked"),
-        ("alpha-sdd", "sdd"),
+        ("alpha-sdd", "sidecar"),
+        ("plans", "sidecar"),
     ]
     assert calls[0] == {
         "root": tmp_path / "projects",
@@ -620,7 +690,7 @@ def test_all_projects_deduplicates_symlinks_and_promotes_registered_primary(
         [root, other, core],
         linked={
             "root": _FakeLinkedResolution(
-                repos=(_FakeLinked("core", str(core_alias)),),
+                repos=(_FakeLinked("core", str(core_alias), kind="sidecar"),),
                 warnings=(
                     "Skipping linked repo 'sase-core': primary path does not exist: /old/core",
                 ),
@@ -637,6 +707,7 @@ def test_all_projects_deduplicates_symlinks_and_promotes_registered_primary(
     resolved = resolve_log_repos(
         cwd="/anywhere",
         all_projects=True,
+        include_sidecars=True,
         repo_filters=["core"],
     )
 
@@ -742,11 +813,13 @@ def test_all_projects_qualifies_colliding_sdd_labels_when_enabled(
         },
     )
 
-    resolved = resolve_log_repos(cwd="/anywhere", all_projects=True, include_sdd=True)
+    resolved = resolve_log_repos(
+        cwd="/anywhere", all_projects=True, include_sidecars=True
+    )
     ambiguous = resolve_log_repos(
         cwd="/anywhere",
         all_projects=True,
-        include_sdd=True,
+        include_sidecars=True,
         repo_filters=["sdd"],
     )
 
@@ -779,8 +852,10 @@ def test_all_projects_deduplicates_shared_sdd_checkout_when_enabled(
         },
     )
 
-    resolved = resolve_log_repos(cwd="/anywhere", all_projects=True, include_sdd=True)
+    resolved = resolve_log_repos(
+        cwd="/anywhere", all_projects=True, include_sidecars=True
+    )
 
-    sdd_repos = [repo for repo in resolved.repos if repo.kind == "sdd"]
+    sdd_repos = [repo for repo in resolved.repos if repo.kind == "sidecar"]
     assert len(sdd_repos) == 1
     assert sdd_repos[0].path == str(shared_sdd.resolve())

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
@@ -138,7 +139,6 @@ class CommitsPane(
             project_display_name=self._project_display_name,
             project_scope=self.project_scope,
             all_projects=self.all_projects,
-            include_sdd=self.include_sdd,
             filters=self.filters,
             result=self.result,
             refreshing=worker is not None and worker.is_running,
@@ -151,8 +151,10 @@ class CommitsPane(
         return commit_filter_chips(self.filters)
 
     def toggle_sdd(self) -> None:
-        self.include_sdd = not self.include_sdd
-        self._state_changed()
+        self._commit_filter_values(
+            replace(self.filters, sidecar=not self.filters.sidecar),
+            close_session=False,
+        )
 
     def toggle_all_projects(self) -> None:
         self.all_projects = not self.all_projects

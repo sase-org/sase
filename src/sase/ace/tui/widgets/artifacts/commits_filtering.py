@@ -92,16 +92,20 @@ class CommitsFilteringMixin(_MixinBase):
     ) -> VcsLogResult:
         aliases = {repo.name: repo.aliases for repo in result.repos}
         matcher = compile_commit_matcher(values, repo_aliases=aliases)
-        commits = tuple(entry for entry in result.commits if matcher(entry))
-        if values.limit > 0:
-            commits = commits[: values.limit]
-        metadata_values = replace(values, repos=())
         repos = tuple(
             repo
             for repo in result.repos
-            if commit_repo_matches(metadata_values, repo.name, repo.aliases)
+            if (values.sidecar or repo.kind != "sidecar")
+            and commit_repo_matches(values, repo.name, repo.aliases)
         )
         repo_names = frozenset(repo.name for repo in repos)
+        commits = tuple(
+            entry
+            for entry in result.commits
+            if entry.repo in repo_names and matcher(entry)
+        )
+        if values.limit > 0:
+            commits = commits[: values.limit]
         remote_states = tuple(
             state for state in result.remote_states if state.name in repo_names
         )
@@ -269,18 +273,36 @@ class CommitsFilteringMixin(_MixinBase):
             self.notify(exc.message, severity="error")
             return
 
+        self._commit_filter_values(values, close_session=True)
+
+    def _commit_filter_values(
+        self,
+        values: CommitLogFilterValues,
+        *,
+        close_session: bool,
+    ) -> None:
+        """Commit validated values and reconcile their authoritative result."""
         if values != self._live_filter_values:
             self._generation += 1
         self._live_filter_values = values
         self.filters = values
-        self._close_filter_session()
-        self.query_one("#commits-timeline", CommitsTimeline).focus()
+        if close_session:
+            self._close_filter_session()
+            self.query_one("#commits-timeline", CommitsTimeline).focus()
         self._refresh_info()
 
         cached = self._authoritative_results.get((self._scope_key(), values))
         if cached is not None:
             self._display_result(self._filtered_result(cached, values))
-        elif not self._collection_matches(values):
+            return
+
+        snapshot = self._authoritative_snapshot(values)
+        if snapshot is not None:
+            self._display_result(
+                self._filtered_result(snapshot.result, values),
+                live_preview=not close_session,
+            )
+        if not self._collection_matches(values):
             self._schedule_collection()
 
     def on_commit_filter_bar_dismissed(

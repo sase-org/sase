@@ -101,9 +101,11 @@ combine with AND semantics; comma-separated and repeated values within one facet
 terms must all match. Press `Tab` to accept the highlighted key or value completion, `Enter` to keep the query, or
 `Escape` to restore the last committed query.
 
-Commits accepts `repo:`, `author:`, `since:`, `until:`, and `limit:` plus free text matched against the commit subject.
-For example, `repo:sase author:Ada since:7d fix` shows recent SASE commits by Ada whose subjects contain `fix`, while
-`limit:all` removes the final row cap.
+Commits accepts `repo:`, `author:`, `since:`, `until:`, `sidecar:`, and `limit:` plus free text matched against the
+commit subject. Sidecar repositories are hidden by default; `sidecar:true` includes the complete sidecar set, and the
+configured `d` action toggles that same canonical filter. Selecting a sidecar with `repo:` still requires
+`sidecar:true`. For example, `repo:sase author:Ada since:7d fix` shows recent SASE commits by Ada whose subjects contain
+`fix`, `repo:plans sidecar:true` shows only plans-sidecar history, and `limit:all` removes the final row cap.
 
 Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, and `until:` plus free text matched across plan and
 bead metadata. Kinds are `proposal`, `epic`, `phase`, and `archive`. For example,
@@ -113,9 +115,10 @@ A leading unquoted `-` excludes a match. Commits can exclude repositories, autho
 kinds, statuses, tiers, projects, and text. Exclusion wins when positive and negative constraints overlap:
 `repo:sase,plans -repo:plans`, `author:Ada -author:bot`, and `status:open -status:blocked` are all valid. A comma list
 negates the whole token, so `-repo:plans,research` excludes either repository. Date bounds and `limit:` cannot be
-negated. Quote the whole token to search for a literal leading minus (`"-repo:plans"`); quote only the excluded value to
-keep negation active (`-"generated rollout"`). Matching remains case-insensitive, and repository/project aliases work
-for both inclusion and exclusion.
+negated. `sidecar:` is singular and accepts only `true` or `false`; canonical queries omit the default false value.
+Quote the whole token to search for a literal leading minus (`"-repo:plans"`); quote only the excluded value to keep
+negation active (`-"generated rollout"`). Matching remains case-insensitive, and repository/project aliases work for
+both inclusion and exclusion.
 
 ## Keybindings: Artifacts / PRs
 

@@ -21,6 +21,10 @@ from sase.ace.tui.util.lazy_syntax import (
 )
 from sase.ace.tui.widgets.artifacts import CommitsPane, CommitsTimeline
 from sase.ace.tui.widgets.artifacts.commit_filter_bar import CommitFilterBar
+from sase.ace.tui.widgets.artifacts.commits_collection import (
+    AuthoritativeCommitSnapshot,
+    snapshot_covers,
+)
 from sase.ace.tui.widgets.artifacts.commits_rendering import build_commit_detail
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 import sase.ace.tui.widgets.artifacts.commits as commits_module
@@ -30,6 +34,7 @@ from sase.core.vcs_log_wire import (
     VcsCommitWire,
 )
 from sase.vcs_log.models import LogRepo, RepoRemoteState, VcsLogResult
+from sase.vcs_log.filter_query import CommitLogFilterValues
 from sase.vcs_log.render import build_pretty_legend
 
 
@@ -114,6 +119,33 @@ def _result(timestamp: int | None = None) -> VcsLogResult:
                 "alpha-platform-repository", "origin/main", 1, 0, False, 1.0
             ),
             RepoRemoteState("sase-core-foundation", "origin/main", 0, 1, True, 1.0),
+        ),
+    )
+
+
+def _result_with_sidecar(timestamp: int | None = None) -> VcsLogResult:
+    base = _result(timestamp)
+    now = timestamp or int(datetime.now(tz=UTC).timestamp())
+    sidecar = AggregatedCommitWire(
+        "plans",
+        VcsCommitWire(
+            full_id="c" * 40,
+            short_id="ccccccc",
+            author_name="Plan Curator",
+            author_email="plans@example.com",
+            timestamp=now - 120,
+            subject="docs(plans): record the approved sidecar rollout",
+            body="Keep plans history available through sidecar:true.",
+            presence="synced",
+        ),
+    )
+    return replace(
+        base,
+        repos=(*base.repos, LogRepo("plans", "/tmp/plans", "sidecar")),
+        commits=(sidecar, *base.commits),
+        remote_states=(
+            *base.remote_states,
+            RepoRemoteState("plans", "origin/main", 0, 0, True, 1.0),
         ),
     )
 
@@ -313,8 +345,11 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         await page.wait_for(lambda _state: bool(diff_calls))
         detail = pane.query_one("#commits-detail", Static)
         footer = pane.query_one("#commits-footer", Static)
+        assert (
+            "Sidecars hidden" in pane.query_one("#commits-info", Static).content.plain
+        )
         assert footer.content.plain == (
-            "j/k navigate  enter view  y copy  / filter  d SDD  "
+            "j/k navigate  enter view  y copy  / filter  d sidecars  "
             "a all  F fetch  R refresh  p project"
         )
         await page.wait_for(lambda _state: "Changes:" in _rendered_text(detail.content))
@@ -390,8 +425,10 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
 
         await page.press("d")
         await page.wait_for(
-            lambda _state: any(call["include_sdd"] is True for call in calls)
+            lambda _state: any(call["include_sidecars"] is True for call in calls)
         )
+        assert pane.filters.sidecar is True
+        assert "sidecar:true" in pane.query_one("#commits-info", Static).content.plain
         await page.press("a")
         await page.wait_for(
             lambda _state: any(call["all_projects"] is True for call in calls)
@@ -525,4 +562,106 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
         await page.expect_modal("HelpModal")
         modal = page.app.screen
         assert isinstance(modal, HelpModal)
-        assert "F / f2" in modal._build_left_column().plain
+        help_text = modal._build_left_column().plain
+        assert "F / f2" in help_text
+        assert "sidecar:true" in help_text
+        assert "Toggle sidecar history" in help_text
+
+
+def test_sidecar_snapshot_coverage_is_directional() -> None:
+    scope = (None, False)
+    narrow_values = CommitLogFilterValues()
+    broad_values = CommitLogFilterValues(sidecar=True)
+    narrow = AuthoritativeCommitSnapshot(scope, narrow_values, 40, _result())
+    broad = AuthoritativeCommitSnapshot(scope, broad_values, 40, _result_with_sidecar())
+
+    assert snapshot_covers(narrow, narrow_values) is True
+    assert snapshot_covers(narrow, broad_values) is False
+    assert snapshot_covers(broad, narrow_values) is True
+
+
+async def test_sidecar_filter_and_compatibility_toggle_share_collection_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    broad = _result_with_sidecar()
+    sidecar_names = {repo.name for repo in broad.repos if repo.kind == "sidecar"}
+    narrow = replace(
+        broad,
+        repos=tuple(repo for repo in broad.repos if repo.kind != "sidecar"),
+        commits=tuple(
+            entry for entry in broad.commits if entry.repo not in sidecar_names
+        ),
+        remote_states=tuple(
+            state for state in broad.remote_states if state.name not in sidecar_names
+        ),
+    )
+    calls: list[dict[str, Any]] = []
+
+    def collect(**kwargs: Any) -> VcsLogResult:
+        calls.append(kwargs)
+        return broad if kwargs["include_sidecars"] else narrow
+
+    monkeypatch.setattr(commits_module, "run_vcs_log", collect)
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("]")
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.wait_for(lambda _state: pane.result is narrow)
+        assert calls[-1]["include_sidecars"] is False
+        assert all(repo.kind != "sidecar" for repo in pane.result.repos)
+
+        bar = pane.query_one(CommitFilterBar)
+        await page.press("slash")
+        editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
+        editor.load_text("sidecar:true")
+        editor.cursor_position = len(editor.text)
+        await page.wait_for(
+            lambda _state: (
+                pane.filters.sidecar
+                and pane.result is not None
+                and any(repo.kind == "sidecar" for repo in pane.result.repos)
+            )
+        )
+        await page.press("enter")
+        await page.wait_for(lambda _state: not bar.display)
+        assert calls[-1]["include_sidecars"] is True
+        assert "sidecar:true" in pane._filter_chips()
+
+        await page.press("j")
+        await page.wait_for(lambda _state: pane._selected_entry() is not None)
+        selected_sha = pane._selected_entry().commit.full_id  # type: ignore[union-attr]
+
+        await page.press("d")
+        await page.wait_for(
+            lambda _state: (
+                not pane.filters.sidecar
+                and pane.result is not None
+                and all(repo.kind != "sidecar" for repo in pane.result.repos)
+            )
+        )
+        assert pane._selected_entry() is not None
+        assert pane._selected_entry().commit.full_id == selected_sha
+        assert "sidecar:true" not in pane._filter_chips()
+
+        await page.press("slash")
+        editor.load_text("repo:plans")
+        editor.cursor_position = len(editor.text)
+        await page.wait_for(
+            lambda _state: (
+                pane.filters.repos == ("plans",)
+                and pane.result is not None
+                and pane.result.commits == ()
+                and calls[-1]["include_sidecars"] is False
+            )
+        )
+        editor.load_text("repo:plans sidecar:true")
+        editor.cursor_position = len(editor.text)
+        await page.wait_for(
+            lambda _state: (
+                pane.filters.sidecar
+                and pane.result is not None
+                and [entry.repo for entry in pane.result.commits] == ["plans"]
+                and calls[-1]["include_sidecars"] is True
+            )
+        )
