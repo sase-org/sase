@@ -16,9 +16,10 @@ from textual.widgets import ContentSwitcher, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import (
-    _HOME_FOOTER,
+    _AdminCenterLanding,
+    _AdminCenterLandingRow,
+    _HOME_HINT,
     _HOME_ID,
-    _HOME_INSTRUCTION,
     _HOME_LEAD,
     _HOME_ORIENTATION,
     _PANEL_TABS,
@@ -172,21 +173,34 @@ async def test_generic_modal_is_static_home_with_no_concrete_panes(
         assert modal._active_tab is None
         assert modal._panes == {}
         assert switcher.current == _HOME_ID
-        assert caption.render().plain == _HOME_LEAD
-        assert modal.query_one(
-            "#admin-center-home-orientation", Static
-        ).render().plain == (_HOME_ORIENTATION)
-        assert modal.query_one(
-            "#admin-center-home-instruction", Static
-        ).render().plain == (_HOME_INSTRUCTION)
-        assert modal.query_one("#admin-center-home-footer", Static).render().plain == (
-            _HOME_FOOTER
+        assert caption.render().plain == _HOME_ORIENTATION
+        assert (
+            modal.query_one("#admin-center-home-lead", Static).render().plain
+            == _HOME_LEAD
         )
-        menu = modal.query_one("#admin-center-home-menu", Static).render()
-        for spec in _TAB_SPECS:
-            assert str(spec.number) in menu.plain
-            assert spec.label in menu.plain
-            assert spec.description in menu.plain
+        assert modal.query_one("#admin-center-home-hint", Static).render().plain == (
+            _HOME_HINT
+        )
+        rows = list(modal.query(_AdminCenterLandingRow))
+        assert len(rows) == len(_TAB_SPECS)
+        for row, spec in zip(rows, _TAB_SPECS, strict=True):
+            assert row.id == f"admin-center-home-row-{spec.id}"
+            assert (
+                row.query_one(".admin-center-home-row-key", Static).render().plain
+                == f" {spec.number} "
+            )
+            assert (
+                row.query_one(".admin-center-home-row-label", Static)
+                .render()
+                .plain.rstrip()
+                == spec.label
+            )
+            assert (
+                row.query_one(".admin-center-home-row-description", Static)
+                .render()
+                .plain
+                == spec.description
+            )
             assert not modal.query(f"#{spec.id}")
 
 
@@ -276,6 +290,68 @@ async def test_tab_click_mounts_target_and_reentry_reuses_state(
         assert modal._panes["projects"] is pane
         assert pane.saved_state == "preserved"
         assert pane.visibility == [True, False, True]
+
+
+async def test_landing_row_click_mounts_exact_target_and_focuses_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, calls = _patch_stub_panes(monkeypatch)
+    async with _HostApp().run_test(size=(120, 40)) as pilot:
+        modal = ConfigCenterModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        await pilot.click("#admin-center-home-row-projects")
+        await _wait_until(pilot, lambda: modal._active_tab == "projects")
+
+        assert calls == ["projects"]
+        assert tuple(modal._panes) == ("projects",)
+        assert created["projects"][0].focus_count >= 1
+        assert (
+            modal.query_one("#config-center-switcher", ContentSwitcher).current
+            == "projects"
+        )
+
+
+async def test_landing_is_keyboard_transparent_and_digits_work_immediately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, calls = _patch_stub_panes(monkeypatch)
+    async with _HostApp().run_test(size=(120, 40)) as pilot:
+        modal = ConfigCenterModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        landing = modal.query_one(_AdminCenterLanding)
+        landing_widgets = [landing, *landing.query("*")]
+        assert all(not widget.can_focus for widget in landing_widgets)
+
+        await pilot.press("4")
+        await _wait_until(pilot, lambda: modal._active_tab == "statistics")
+
+        assert calls == ["statistics"]
+        assert created["statistics"][0].focus_count >= 1
+
+
+async def test_landing_compact_class_tracks_viewport_size() -> None:
+    async with AcePage(query="!!!", changespecs=[], size=(120, 40)) as page:
+        modal = ConfigCenterModal()
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _state: bool(modal.query(_AdminCenterLanding)))
+
+        landing = modal.query_one(_AdminCenterLanding)
+        key = modal.query_one(".admin-center-home-row-key", Static)
+        assert not landing.has_class("-compact")
+        assert key.render().plain == " 1 "
+
+        await page._pilot.resize_terminal(100, 24)  # noqa: SLF001
+        await _wait_until(page, lambda: landing.has_class("-compact"))
+        assert key.render().plain == "1"
+
+        await page._pilot.resize_terminal(120, 40)  # noqa: SLF001
+        await _wait_until(page, lambda: not landing.has_class("-compact"))
+        assert key.render().plain == " 1 "
 
 
 async def test_repeated_first_navigation_is_idempotent(

@@ -4606,40 +4606,97 @@ ConfigCenterModal #admin-center-home {
     align: center middle;
     overflow-y: auto;
     overflow-x: hidden;
-    scrollbar-gutter: stable;
 }
 
-ConfigCenterModal #admin-center-home-orientation {
+ConfigCenterModal #admin-center-home-hero {
+    width: auto;
+    height: auto;
+    margin-bottom: 2;
+}
+
+ConfigCenterModal #admin-center-home-lead {
     width: 100%;
     height: 1;
-    color: $text-muted;
     text-align: center;
     text-wrap: nowrap;
+    text-overflow: clip;
+    margin-bottom: 1;
 }
 
-ConfigCenterModal #admin-center-home-instruction {
-    width: 100%;
-    height: 1;
-    color: #87D7FF;
-    text-style: bold;
-    text-align: center;
-    text-wrap: nowrap;
+ConfigCenterModal #admin-center-home-card {
+    width: auto;
+    height: auto;
+    border: round #5F5F87;
+    padding: 1 2;
 }
 
-ConfigCenterModal #admin-center-home-menu {
-    width: 85;
+ConfigCenterModal .admin-center-home-row {
     max-width: 100%;
-    height: 7;
+    height: 1;
+    background: transparent;
+}
+
+ConfigCenterModal .admin-center-home-row:hover {
+    background: #29293A;
+}
+
+ConfigCenterModal .admin-center-home-row-key {
+    width: 3;
+    height: 1;
     text-wrap: nowrap;
     text-overflow: clip;
 }
 
-ConfigCenterModal #admin-center-home-footer {
+ConfigCenterModal .admin-center-home-row-label {
+    width: 10;
+    height: 1;
+    margin-left: 2;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+ConfigCenterModal .admin-center-home-row-description {
+    width: 1fr;
+    height: 1;
+    color: #C6C6C6;
+    margin-left: 1;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+ConfigCenterModal .admin-center-home-row:hover > .admin-center-home-row-description {
+    color: #FFFFFF;
+}
+
+ConfigCenterModal #admin-center-home-hint {
     width: 100%;
     height: 1;
     color: #777777;
     text-align: center;
     text-wrap: nowrap;
+    text-overflow: clip;
+    margin-top: 1;
+}
+
+ConfigCenterModal #admin-center-home.-compact #admin-center-home-hero {
+    margin-bottom: 0;
+}
+
+ConfigCenterModal #admin-center-home.-compact #admin-center-home-lead {
+    margin-bottom: 0;
+}
+
+ConfigCenterModal #admin-center-home.-compact #admin-center-home-card {
+    border: none;
+    padding: 0;
+}
+
+ConfigCenterModal #admin-center-home.-compact .admin-center-home-row-key {
+    width: 1;
+}
+
+ConfigCenterModal #admin-center-home.-compact #admin-center-home-hint {
+    margin-top: 0;
 }
 
 ConfigCenterModal ConfigPane,

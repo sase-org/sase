@@ -72,7 +72,7 @@ async def test_bench_admin_center_home_first_paint(
             assert isinstance(modal, ConfigCenterModal)
             await page.wait_for(
                 lambda _state, current_modal=modal: bool(
-                    current_modal.query("#admin-center-home-menu")
+                    current_modal.query("#admin-center-home-card")
                 )
             )
             await page.pause()

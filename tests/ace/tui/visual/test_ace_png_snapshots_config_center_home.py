@@ -42,7 +42,7 @@ async def test_config_center_home_png_snapshot(
         await page.expect_modal("ConfigCenterModal")
         modal = page.app.screen
         assert isinstance(modal, ConfigCenterModal)
-        await page.wait_for(lambda _state: bool(modal.query("#admin-center-home-menu")))
+        await page.wait_for(lambda _state: bool(modal.query("#admin-center-home-card")))
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

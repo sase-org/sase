@@ -21,8 +21,8 @@ from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, VerticalScroll
-from textual.events import Key
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.events import Click, Key, Resize
 from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import ContentSwitcher, Label, Static
@@ -178,8 +178,13 @@ _PANEL_TABS: tuple[PanelTab, ...] = tuple(
 _HOME_ID = "admin-center-home"
 _HOME_LEAD = "Choose a section"
 _HOME_ORIENTATION = "Configure, observe, and maintain SASE from one place."
-_HOME_INSTRUCTION = "Press 1-7 or click a tab to open it."
-_HOME_FOOTER = "Tab/Shift+Tab cycle tabs · q/Esc close"
+_HOME_HINT = "Press 1-7 or click a section · Tab/Shift+Tab cycle · q/Esc close"
+_HOME_LABEL_WIDTH = max(len(spec.label) for spec in _TAB_SPECS)
+_HOME_DESCRIPTION_WIDTH = max(len(spec.description) for spec in _TAB_SPECS)
+_HOME_ROOMY_ROW_WIDTH = 3 + 2 + _HOME_LABEL_WIDTH + 1 + _HOME_DESCRIPTION_WIDTH
+_HOME_COMPACT_ROW_WIDTH = 1 + 2 + _HOME_LABEL_WIDTH + 1 + _HOME_DESCRIPTION_WIDTH
+_HOME_COMPACT_BELOW_WIDTH = 96
+_HOME_COMPACT_BELOW_HEIGHT = 14
 _TITLE_LABEL = "SASE Admin Center"
 _TITLE_TEXT = _TITLE_LABEL
 _HEADER_DIVIDER_RULE = "─"
@@ -234,22 +239,27 @@ def _tab_description_text(tab: CenterTab) -> Text:
 
 
 def _home_lead_text() -> Text:
-    """Render the landing-page lead without selecting a working tab."""
-    return Text(_HOME_LEAD, style="bold #B98CFF")
+    """Render the landing-page lead with the Admin Center aurora sweep."""
+    return _gradient_text(_HOME_LEAD, bold=True)
 
 
-def _landing_menu_text() -> Text:
-    """Build the static, catalog-derived seven-row landing menu."""
-    text = Text()
-    label_width = max(len(spec.label) for spec in _TAB_SPECS)
-    for index, spec in enumerate(_TAB_SPECS):
-        text.append(str(spec.number), style=f"bold reverse {spec.accent}")
-        text.append(" ")
-        text.append(f"{spec.label:<{label_width}}", style=f"bold {spec.accent}")
-        text.append(f" {spec.description}", style="#C6C6C6")
-        if index != len(_TAB_SPECS) - 1:
-            text.append("\n")
-    return text
+def _home_orientation_text() -> Text:
+    """Render the muted orientation caption shown while home is active."""
+    return Text(_HOME_ORIENTATION, style="#888888")
+
+
+def _landing_key_text(spec: _CenterTabSpec, *, compact: bool) -> Text:
+    """Render one roomy or compact reversed numeric key chip."""
+    key = str(spec.number) if compact else f" {spec.number} "
+    return Text(key, style=f"bold reverse {spec.accent}")
+
+
+def _landing_label_text(spec: _CenterTabSpec) -> Text:
+    """Render one catalog label padded to the shared landing column."""
+    return Text(
+        f"{spec.label:<{_HOME_LABEL_WIDTH}}",
+        style=f"bold {spec.accent}",
+    )
 
 
 def center_tab_accent(tab: str) -> str | None:
@@ -269,20 +279,88 @@ class _ConfigCenterHeaderDivider(Static):
         return Text(_HEADER_DIVIDER_RULE * width, style="#444444")
 
 
+class _AdminCenterLandingRow(Horizontal):
+    """Catalog-derived, mouse-clickable, keyboard-transparent home row."""
+
+    can_focus = False
+
+    def __init__(self, spec: _CenterTabSpec) -> None:
+        super().__init__(
+            id=f"admin-center-home-row-{spec.id}",
+            classes="admin-center-home-row",
+        )
+        self._spec = spec
+        self._compact = False
+        self.styles.width = _HOME_ROOMY_ROW_WIDTH
+
+    def compose(self) -> ComposeResult:
+        yield Static(
+            _landing_key_text(self._spec, compact=self._compact),
+            classes="admin-center-home-row-key",
+            markup=False,
+        )
+        yield Static(
+            _landing_label_text(self._spec),
+            classes="admin-center-home-row-label",
+            markup=False,
+        )
+        yield Static(
+            self._spec.description,
+            classes="admin-center-home-row-description",
+        )
+
+    def set_compact(self, compact: bool) -> None:
+        """Repaint the key chip after the landing's synchronous reflow."""
+        if compact == self._compact:
+            return
+        self._compact = compact
+        self.styles.width = (
+            _HOME_COMPACT_ROW_WIDTH if compact else _HOME_ROOMY_ROW_WIDTH
+        )
+        key = self.query_one(".admin-center-home-row-key", Static)
+        key.update(_landing_key_text(self._spec, compact=compact))
+
+    def on_click(self, event: Click) -> None:
+        """Open this row through the modal's shared navigation path."""
+        event.stop()
+        modal = self.screen
+        if isinstance(modal, ConfigCenterModal):
+            modal._schedule_switch(self._spec.id)
+
+
 class _AdminCenterLanding(VerticalScroll):
     """Pure, bounded presentation-only home view."""
 
     can_focus = False
 
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._compact: bool | None = None
+
     def compose(self) -> ComposeResult:
-        yield Static(_HOME_ORIENTATION, id="admin-center-home-orientation")
-        yield Static(_HOME_INSTRUCTION, id="admin-center-home-instruction")
-        yield Static(
-            _landing_menu_text(),
-            id="admin-center-home-menu",
-            markup=False,
+        with Vertical(id="admin-center-home-hero"):
+            yield Static(
+                _home_lead_text(),
+                id="admin-center-home-lead",
+                markup=False,
+            )
+            with Vertical(id="admin-center-home-card"):
+                for spec in _TAB_SPECS:
+                    yield _AdminCenterLandingRow(spec)
+            yield Static(_HOME_HINT, id="admin-center-home-hint")
+
+    def on_resize(self, event: Resize) -> None:
+        """Toggle compact home chrome with bounded synchronous work."""
+        compact = (
+            event.size.width < _HOME_COMPACT_BELOW_WIDTH
+            or event.size.height < _HOME_COMPACT_BELOW_HEIGHT
         )
-        yield Static(_HOME_FOOTER, id="admin-center-home-footer")
+        if compact == self._compact:
+            return
+        self._compact = compact
+        self.set_class(compact, "-compact")
+        for row in self.query(_AdminCenterLandingRow):
+            row.set_compact(compact)
 
 
 class ConfigCenterModal(ModalScreen[None]):
@@ -339,7 +417,7 @@ class ConfigCenterModal(ModalScreen[None]):
                 id="config-center-tabs",
             )
             yield Static(
-                _home_lead_text(),
+                _home_orientation_text(),
                 id="config-center-tab-description",
             )
             yield _ConfigCenterHeaderDivider(id="config-center-divider")
@@ -428,7 +506,7 @@ class ConfigCenterModal(ModalScreen[None]):
         strip.set_active_tab(tab)
         description = self.query_one("#config-center-tab-description", Static)
         description.update(
-            _home_lead_text() if tab is None else _tab_description_text(tab)
+            _home_orientation_text() if tab is None else _tab_description_text(tab)
         )
 
     async def _switch_to(self, tab: CenterTab) -> bool:
