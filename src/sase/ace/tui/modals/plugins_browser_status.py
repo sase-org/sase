@@ -24,8 +24,11 @@ class PluginsBrowserStatusMixin:
 
     if TYPE_CHECKING:
         _catalog: PluginCatalog | None
+        from sase.agent_clis.models import AgentCliStatus
         from sase.uv_tool.versions import CoreVersions
 
+        _agent_cli_error: str | None
+        _agent_cli_statuses: tuple[AgentCliStatus, ...]
         _core_versions: CoreVersions
         _error: str | None
         _filter_text: str
@@ -55,18 +58,30 @@ class PluginsBrowserStatusMixin:
             return False
         if catalog.updates_available != 0:
             return False
-        return all(
+        components_current = all(
             package.installed_version is not None
             and package.latest_checked
             and package.latest_error is None
             and not package.update_available
             for package in self._core_versions.packages
         )
+        if not components_current or self._agent_cli_error is not None:
+            return False
+        return all(
+            status.latest_version is not None
+            and status.latest_error is None
+            and not status.update_available
+            for status in self._agent_cli_statuses
+            if status.installed
+        )
 
     def _all_current_banner(self) -> Panel:
-        """Hero confirmation shown when SASE core and plugins are current."""
+        """Confirm that SASE, plugins, and installed agent CLIs are current."""
         catalog = self._catalog
         installed_count = catalog.installed_count if catalog is not None else 0
+        installed_agent_clis = sum(
+            status.installed for status in self._agent_cli_statuses
+        )
         package_versions = {
             package.name: package.installed_version
             for package in self._core_versions.packages
@@ -74,7 +89,9 @@ class PluginsBrowserStatusMixin:
         version_line = (
             f"sase v{package_versions.get('sase') or '?'} · "
             f"sase-core v{package_versions.get('sase-core') or '?'} · "
-            f"{installed_count} {self._plural(installed_count, 'plugin')} current"
+            f"{installed_count} {self._plural(installed_count, 'plugin')} current · "
+            f"{installed_agent_clis} agent "
+            f"{self._plural(installed_agent_clis, 'CLI')} current"
         )
         age = humanize_age(catalog.age_seconds(self._now)) if catalog else "unknown"
 

@@ -7,8 +7,11 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
-from sase.agent_clis.models import AgentCliStatus
-from sase.agent_clis.operations import collect_agent_cli_statuses
+from sase.agent_clis.models import AgentCliStatus, UpdateStrategy
+from sase.agent_clis.operations import (
+    collect_agent_cli_statuses,
+    plan_agent_cli_status,
+)
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry, load_plugin_catalog
 from sase.plugins.latest import enrich_with_latest, is_newer
 from sase.plugins.latest_cache import (
@@ -55,6 +58,7 @@ class ProviderUpdateCandidate:
     display_name: str
     installed_version: str
     latest_version: str
+    manual_only: bool = False
 
     @property
     def name(self) -> str:
@@ -145,6 +149,11 @@ class UpdateStatus:
         return len(self.provider_candidates)
 
     @property
+    def manual_agent_cli_count(self) -> int:
+        """Return the number of provider updates requiring manual action."""
+        return sum(candidate.manual_only for candidate in self.provider_candidates)
+
+    @property
     def provider_count(self) -> int:
         """Alias for the provider CLI count."""
         return self.agent_cli_count
@@ -156,11 +165,11 @@ def compute_update_status(
     refresh: bool = False,
     now: float | None = None,
 ) -> UpdateStatus:
-    """Compute best-effort update status for SASE core and installed plugins.
+    """Compute update status for SASE, plugins, and installed agent CLIs.
 
-    Each source degrades independently. A PyPI, GitHub, or dev-checkout failure
-    can suppress that source's entries, but it never prevents reporting updates
-    found from the other source.
+    Each source degrades independently. A PyPI, GitHub, npm, or dev-checkout
+    failure can suppress that source's entries without hiding updates found by
+    the other sources.
     """
     checked_at = time.time() if now is None else now
     core_components, core_source = _compute_core_source(
@@ -244,6 +253,9 @@ def provider_update_candidates(
             display_name=status.display_name,
             installed_version=status.installed_version,
             latest_version=status.latest_version,
+            manual_only=(
+                plan_agent_cli_status(status).strategy is UpdateStrategy.MANUAL
+            ),
         )
         for status in statuses
         if status.installed

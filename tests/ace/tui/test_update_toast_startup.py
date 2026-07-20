@@ -71,8 +71,16 @@ def test_startup_update_check_updates_indicator_when_toast_disabled(
             self.count = 0
             self.core = False
 
-        def set_available(self, count: int, *, core: bool = False) -> None:
-            self.count = count
+        def set_available(
+            self,
+            count: int,
+            *,
+            core: bool = False,
+            agent_cli_count: int = 0,
+            manual_agent_cli_count: int = 0,
+        ) -> None:
+            del manual_agent_cli_count
+            self.count = count + agent_cli_count
             self.core = core
 
     class _App(UpdateToastMixin):

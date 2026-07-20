@@ -451,12 +451,12 @@
         },
         "updates": {
           "type": "object",
-          "description": "Automatic ACE-session update-check behavior for the Updates tab, badge, and toasts",
+          "description": "Automatic ACE-session update-check behavior for SASE, plugins, supported agent CLIs, the Updates tab, badge, and toasts",
           "additionalProperties": false,
           "properties": {
             "startup_toast": {
               "type": "boolean",
-              "description": "Show an informational toast on ACE startup when SASE core or installed plugins have updates available",
+              "description": "Show an informational toast on ACE startup when SASE core, installed plugins, or supported agent CLIs have updates available",
               "default": true
             },
             "startup_toast_max_commits": {
@@ -467,7 +467,7 @@
             },
             "post_update_toast": {
               "type": "boolean",
-              "description": "Show a one-shot confirmation toast after a full SASE self-update restarts ACE into the new version",
+              "description": "Show a one-shot confirmation toast after a comprehensive update changes SASE code and restarts ACE into the new version",
               "default": true
             },
             "post_update_toast_diffstat": {
@@ -477,12 +477,12 @@
             },
             "indicator": {
               "type": "boolean",
-              "description": "Show a persistent top-bar badge while SASE core or installed plugins have updates available",
+              "description": "Show a segmented top-bar badge while SASE core, installed plugins, or supported agent CLIs have updates available",
               "default": true
             },
             "check_interval_minutes": {
               "type": "number",
-              "description": "Interval between update-check eligibility attempts in a running ACE session. Positive-indicator and in-flight guards may suppress work on an attempt.",
+              "description": "Interval between update-check attempts in a running ACE session. Ordinary attempts only revalidate the cached composite snapshot; in-flight guards may suppress overlapping work.",
               "exclusiveMinimum": 0,
               "default": 10
             },
@@ -499,7 +499,7 @@
             },
             "recompute_interval_minutes": {
               "type": "number",
-              "description": "Minimum snapshot age before a periodic ACE-session check may perform a full network update-status recompute. Checks between full recomputes only revalidate cached status locally.",
+              "description": "Minimum snapshot age before a periodic ACE-session check may perform a full network recompute across SASE, plugins, and supported agent CLIs. Checks between full recomputes only revalidate cached candidates locally.",
               "exclusiveMinimum": 0,
               "default": 60
             },

@@ -212,8 +212,10 @@ Axe restarted (pid 12345) to load the updated code.
   daemon loads the new code. In the Admin Center Updates tab, SASE restarts ACE and axe through the same restart path as
   the `Q` restart action. No-op and failed updates do not restart anything.
 - **The Admin Center mirrors the split.** In the Updates tab's **Plugins** sub-tab, `U` updates the highlighted
-  installed plugin and `m` switches install mode. The pane-wide `u` still runs the full SASE core + plugins update;
-  pane-wide `A` is deliberately separate and updates supported agent CLIs.
+  installed plugin and `m` switches install mode. Pane-wide `u` still runs only the SASE core + plugins update, while
+  pane-wide `A` deliberately targets the current supported agent-CLI inventory. Global `,U` is snapshot-gated: it
+  includes only provider names from the latest completed automatic check, revalidates them live, and then previews one
+  comprehensive tracked update. Manual-only providers are guidance, never guessed or privileged commands.
 - **`-n|--dry-run`** prints the exact `uv` command or editable-checkout plan that would run and exits `0` without
   changing anything. uv itself has no dry-run, so sase resolves and prints the managed plan itself.
 - **`-j|--json`** emits `schema_version: 2` with a stable, sorted payload. Managed outcomes are reported under

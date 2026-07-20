@@ -13,8 +13,11 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from sase.agent_clis.models import AgentCliStatus
-from sase.agent_clis.operations import detect_agent_cli_statuses_for_names
+from sase.agent_clis.models import AgentCliStatus, UpdateStrategy
+from sase.agent_clis.operations import (
+    detect_agent_cli_statuses_for_names,
+    plan_agent_cli_status,
+)
 from sase.core.paths import ensure_sase_directory, sase_subdir
 from sase.dev_update.detect import git_status_has_update
 from sase.plugins.latest import is_newer
@@ -28,7 +31,7 @@ from .status import (
     compute_update_status,
 )
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 CACHE_SUBDIR = "updates"
 CACHE_FILENAME = "status_snapshot.json"
 DEFAULT_UPDATE_STATUS_TTL_SECONDS = 10 * 60
@@ -137,6 +140,7 @@ def write_update_status_snapshot(
                 "display_name": candidate.display_name,
                 "installed_version": candidate.installed_version,
                 "latest_version": candidate.latest_version,
+                "manual_only": candidate.manual_only,
             }
             for candidate in status.provider_candidates
         ],
@@ -234,7 +238,15 @@ def revalidate_provider_candidates(
             kept.append(candidate)
             continue
         if is_newer_fn(candidate.latest_version, live.installed_version):
-            kept.append(replace(candidate, installed_version=live.installed_version))
+            kept.append(
+                replace(
+                    candidate,
+                    installed_version=live.installed_version,
+                    manual_only=(
+                        plan_agent_cli_status(live).strategy is UpdateStrategy.MANUAL
+                    ),
+                )
+            )
     return tuple(kept)
 
 
@@ -397,6 +409,7 @@ def _provider_candidate_from_json(raw: object) -> ProviderUpdateCandidate | None
     display_name = raw.get("display_name")
     installed_version = raw.get("installed_version")
     latest_version = raw.get("latest_version")
+    manual_only = raw.get("manual_only")
     if not isinstance(provider, str) or not provider:
         return None
     if not isinstance(display_name, str) or not display_name:
@@ -405,11 +418,14 @@ def _provider_candidate_from_json(raw: object) -> ProviderUpdateCandidate | None
         return None
     if not isinstance(latest_version, str) or not latest_version:
         return None
+    if not isinstance(manual_only, bool):
+        return None
     return ProviderUpdateCandidate(
         provider=provider,
         display_name=display_name,
         installed_version=installed_version,
         latest_version=latest_version,
+        manual_only=manual_only,
     )
 
 

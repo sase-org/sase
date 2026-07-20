@@ -98,7 +98,7 @@ _LEADER_LABELS: dict[str, str] = {
     "models_panel": "Models panel",
     # Back-compat: a user keymap may still bind the pre-rename action id.
     "temporary_llm_override": "Models panel",
-    "update_sase": "Update sase, core, and plugins",
+    "update_sase": "Update eligible SASE and agent CLIs",
     "capture_agents_repro": "Capture Agents-tab repro bundle",
     "toggle_agents_repro_checks": "Toggle Agents-tab repro checks",
 }

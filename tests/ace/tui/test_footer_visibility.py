@@ -70,6 +70,6 @@ async def test_leader_footer_final_grid_row_visible(
             "LEADER",
             "run cmd (PR)",
             "models panel",
-            "update core + plugins",
+            "update eligible SASE + CLIs",
             "STOPPED",
         )

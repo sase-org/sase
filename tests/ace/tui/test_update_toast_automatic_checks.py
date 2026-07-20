@@ -201,7 +201,13 @@ def test_periodic_update_threads_composite_aggregate_to_indicator(
         checked_at=100.0,
         components=(),
         provider_candidates=(
-            ProviderUpdateCandidate("claude", "Claude Code", "1.0.0", "1.1.0"),
+            ProviderUpdateCandidate(
+                "claude",
+                "Claude Code",
+                "1.0.0",
+                "1.1.0",
+                manual_only=True,
+            ),
         ),
     )
     monkeypatch.setattr(
@@ -220,6 +226,9 @@ def test_periodic_update_threads_composite_aggregate_to_indicator(
     app.workers[0][0]()
 
     assert app.indicator.count == 1
+    assert app.indicator.sase_count == 0
+    assert app.indicator.agent_cli_count == 1
+    assert app.indicator.manual_agent_cli_count == 1
     assert app.indicator.core is False
 
 
@@ -251,7 +260,7 @@ def test_completed_automatic_results_atomically_replace_provider_projection() ->
     assert app._automatic_update_provider_names == ()
 
 
-def test_provider_only_status_updates_indicator_without_legacy_repo_toast(
+def test_provider_only_status_updates_indicator_and_provider_toast(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     status = UpdateStatus(
@@ -282,7 +291,9 @@ def test_provider_only_status_updates_indicator_without_legacy_repo_toast(
     app.workers[0][0]()
 
     assert app.indicator.count == 1
-    assert app.notifications == []
+    assert len(app.notifications) == 1
+    assert "CLI Claude Code" in str(app.notifications[0]["message"])
+    assert "eligible set" in str(app.notifications[0]["message"])
 
 
 def test_cached_revalidation_threads_core_state_to_indicator(

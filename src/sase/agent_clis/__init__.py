@@ -17,6 +17,7 @@ from .operations import (
     detect_agent_cli_statuses_for_names,
     execute_agent_cli_updates,
     list_agent_clis,
+    plan_agent_cli_status,
     plan_agent_cli_updates,
 )
 
@@ -35,5 +36,6 @@ __all__ = [
     "detect_agent_cli_statuses_for_names",
     "execute_agent_cli_updates",
     "list_agent_clis",
+    "plan_agent_cli_status",
     "plan_agent_cli_updates",
 ]

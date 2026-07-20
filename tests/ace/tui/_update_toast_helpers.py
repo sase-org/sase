@@ -102,10 +102,23 @@ def _incoming(prefix: str, total: int) -> IncomingCommits:
 class _Indicator:
     def __init__(self, count: int = 0) -> None:
         self.count = count
+        self.sase_count = count
+        self.agent_cli_count = 0
+        self.manual_agent_cli_count = 0
         self.core = False
 
-    def set_available(self, count: int, *, core: bool = False) -> None:
-        self.count = count
+    def set_available(
+        self,
+        count: int,
+        *,
+        core: bool = False,
+        agent_cli_count: int = 0,
+        manual_agent_cli_count: int = 0,
+    ) -> None:
+        self.count = count + agent_cli_count
+        self.sase_count = count
+        self.agent_cli_count = agent_cli_count
+        self.manual_agent_cli_count = manual_agent_cli_count
         self.core = core
 
 

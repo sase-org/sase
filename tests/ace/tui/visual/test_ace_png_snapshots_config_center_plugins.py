@@ -97,6 +97,7 @@ async def test_config_center_updates_all_current_png_snapshot(
         monkeypatch,
         catalog=_all_current_catalog(),
         uv_tool=_uv_tool(),
+        agent_cli_statuses=(),
     )
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:

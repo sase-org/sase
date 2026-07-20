@@ -134,7 +134,7 @@ def plan_agent_cli_updates(
                 resolved.append(status)
         selected = tuple(resolved)
 
-    entries = tuple(_plan_status(status) for status in selected)
+    entries = tuple(plan_agent_cli_status(status) for status in selected)
     if any(entry.ready for entry in entries):
         return AgentCliUpdatesReady(entries=entries, all_clis=all_clis)
     return AgentCliNothingToUpdate(entries=entries, all_clis=all_clis)
@@ -253,7 +253,8 @@ def execute_agent_cli_updates(
     return tuple(results)
 
 
-def _plan_status(status: AgentCliStatus) -> AgentCliUpdateEntry:
+def plan_agent_cli_status(status: AgentCliStatus) -> AgentCliUpdateEntry:
+    """Project one live status into the shared safe/manual update plan."""
     docs_url = status.docs_url
     if status.install_method is InstallMethod.NOT_INSTALLED:
         return AgentCliUpdateEntry(
@@ -376,5 +377,6 @@ __all__ = [
     "detect_agent_cli_statuses_for_names",
     "execute_agent_cli_updates",
     "list_agent_clis",
+    "plan_agent_cli_status",
     "plan_agent_cli_updates",
 ]

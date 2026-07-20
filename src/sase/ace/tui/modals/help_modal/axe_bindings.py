@@ -93,7 +93,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'update_sase'))}",
-                    "Update sase, core & plugins",
+                    "Update eligible SASE + agent CLIs",
                 ),
             ],
         ),

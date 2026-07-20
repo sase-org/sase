@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import subprocess
+from pathlib import Path
 from typing import Any
+
+import pytest
 
 from sase.ace.tui.actions.base import BaseActionsMixin
 from sase.ace.tui.commands import build_command_catalog
@@ -180,6 +184,25 @@ def test_update_shortcut_immutably_captures_provider_projection() -> None:
 
     modal = app.pushed_modals[0]
     assert modal._comprehensive_provider_names == ("claude", "codex")
+
+
+def test_update_shortcut_dispatch_performs_no_disk_or_subprocess_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("keypress dispatch must stay in-memory")
+
+    monkeypatch.setattr(Path, "read_text", fail)
+    monkeypatch.setattr(Path, "write_text", fail)
+    monkeypatch.setattr(subprocess, "run", fail)
+    monkeypatch.setattr(subprocess, "Popen", fail)
+    app = _ActionApp()
+    app._automatic_update_provider_names = ("claude",)
+
+    app.action_update_sase_shortcut()
+
+    assert len(app.pushed_modals) == 1
+    assert app.pushed_modals[0]._comprehensive_provider_names == ("claude",)
 
 
 def test_open_config_center_action_uses_remembered_admin_center_tab() -> None:

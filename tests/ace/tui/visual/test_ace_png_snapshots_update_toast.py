@@ -12,6 +12,7 @@ from sase.updates import (
     CommitSummary,
     IncomingCommits,
     OutdatedComponent,
+    ProviderUpdateCandidate,
     UpdateStatus,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -48,6 +49,21 @@ def _toast_status() -> UpdateStatus:
                 installed_version="0.5.0",
                 latest_version="0.6.0",
                 distribution_name="sase-telegram",
+            ),
+        ),
+        provider_candidates=(
+            ProviderUpdateCandidate(
+                "claude",
+                "Claude Code",
+                "1.0.0",
+                "1.1.0",
+            ),
+            ProviderUpdateCandidate(
+                "codex",
+                "Codex CLI",
+                "0.9.0",
+                "1.0.0",
+                manual_only=True,
             ),
         ),
     )

@@ -36,7 +36,7 @@ async def test_top_bar_places_updates_indicator_left_of_model() -> None:
         assert ids.index("updates-indicator") < ids.index("llm-override-indicator")
 
 
-async def test_core_updates_indicator_keeps_narrow_top_bar_in_bounds(
+async def test_mixed_updates_indicator_keeps_narrow_top_bar_in_bounds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -50,11 +50,11 @@ async def test_core_updates_indicator_keeps_narrow_top_bar_in_bounds(
             "#updates-indicator",
             UpdatesAvailableIndicator,
         )
-        indicator.set_available(3, core=True)
+        indicator.set_available(3, core=True, agent_cli_count=2)
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
 
-        assert indicator.render().plain == " ↑ 3 * "
+        assert indicator.render().plain == " ↑ 3 * CLI ↑ 2 "
         visible_regions = [
             child.region for child in top_bar.children if child.region.width > 0
         ]

@@ -149,9 +149,22 @@ route editable packages through the [dev-update](plugins.md#dev-editable-install
 the `uv` path. Blocked editable states appear as dim reasons such as `dev · local changes`, `dev · diverged`,
 `dev · detached HEAD`, `dev · no upstream`, or `dev · offline`.
 
-The persistent top-bar update badge is purple for routine host/plugin updates. When the available set includes
-`sase-core-rs`, the badge turns amber and adds `*`; its tooltip explains that the update needs a Rust rebuild and may
-take longer. Clicking either badge opens this tab.
+ACE computes one composite SASE/plugin/agent-CLI snapshot after first paint. The existing ten-minute session tick only
+revalidates that cached snapshot and locally probes provider names already present in it. A full inventory/network
+recompute is eligible on the longer `ace.updates.recompute_interval_minutes` cadence (one hour by default), while npm
+latest-version lookups retain their separate six-hour cache. Source failures remain independent, so a provider lookup
+failure does not erase known SASE/plugin results and vice versa.
+
+The persistent top-bar badge uses separate joined segments: purple `↑ N` for routine SASE/plugin updates, amber `↑ N *`
+when `sase-core-rs` requires a Rust rebuild, and cyan `CLI ↑ N` for supported agent CLIs. Mixed states join the SASE and
+CLI segments, and the tooltip spells out both counts plus any manual-only CLI updates. Clicking the badge opens this tab
+without mutating anything.
+
+The global `,U` action captures the provider names from the latest completed automatic snapshot at keypress time,
+revalidates those names against the live inventory, and previews one comprehensive update. Its foreground load cannot
+add a newly discovered provider to that invocation. Safe commands run sequentially; Homebrew, non-writable npm, and
+unknown-provenance installs remain visible with manual guidance. The pane-wide `u` remains SASE/core/plugins-only, and
+pane-wide `A` remains the deliberate action for the current agent-CLI inventory.
 
 Every mutation **previews first**. Plugin and core actions show the underlying `uv` or editable-checkout plan. `A`
 previews every exact agent-CLI command and every skip with its reason and docs URL; on the Agent CLIs sub-tab it uses
@@ -313,9 +326,9 @@ ace:
       color: "#FFAF5F"
       initially_expanded: false
   updates:
-    startup_toast: true # show update-available toast on startup
+    startup_toast: true # show SASE/plugin/agent-CLI updates on startup
     post_update_toast: true # confirm the version transition after self-update restart
-    indicator: true # show the top-bar update badge
+    indicator: true # show the segmented SASE + agent-CLI update badge
     incoming_commits:
       enabled: true # show incoming commit subjects in the Updates tab
       max_per_repo: 7 # cap subjects per repository
@@ -401,16 +414,16 @@ ACE reads this TUI setting from the user-level `~/.config/sase/sase.yml` (and us
 
 #### `ace.updates`
 
-| Field                           | Type   | Default | Description                                                                                                                    |
-| ------------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `startup_toast`                 | bool   | `true`  | Show the startup toast when cached update status says SASE or installed plugins are behind.                                    |
-| `post_update_toast`             | bool   | `true`  | Show a one-shot toast after a full SASE self-update restarts ACE into the new code.                                            |
-| `indicator`                     | bool   | `true`  | Show the top-bar Updates badge when cached update status reports available updates.                                            |
-| `incoming_commits.enabled`      | bool   | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.                                                 |
-| `incoming_commits.max_per_repo` | int    | `7`     | Maximum incoming commit subjects to show per repository.                                                                       |
-| `check_interval_minutes`        | number | `10`    | Interval between periodic update-check attempts in a running ACE session.                                                      |
-| `check_ttl_minutes`             | number | `10`    | Minimum age before a startup update check recomputes cached status.                                                            |
-| `recompute_interval_minutes`    | number | `60`    | Minimum snapshot age before a periodic check may perform a full network recompute; intervening checks only revalidate locally. |
+| Field                           | Type   | Default | Description                                                                                                             |
+| ------------------------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `startup_toast`                 | bool   | `true`  | Show the startup toast when cached status reports SASE, plugin, or supported agent-CLI updates.                         |
+| `post_update_toast`             | bool   | `true`  | Show a one-shot combined result after an update changes SASE code and restarts ACE.                                     |
+| `indicator`                     | bool   | `true`  | Show the segmented SASE and agent-CLI badge when cached status reports available updates.                               |
+| `incoming_commits.enabled`      | bool   | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.                                          |
+| `incoming_commits.max_per_repo` | int    | `7`     | Maximum incoming commit subjects to show per repository.                                                                |
+| `check_interval_minutes`        | number | `10`    | Interval between local cached-snapshot revalidation attempts in a running ACE session.                                  |
+| `check_ttl_minutes`             | number | `10`    | Minimum age before a startup update check recomputes cached status.                                                     |
+| `recompute_interval_minutes`    | number | `60`    | Minimum snapshot age before a full SASE/plugin/agent-CLI network recompute; intervening checks only revalidate locally. |
 
 #### `ace.keymaps`
 

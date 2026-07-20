@@ -8,6 +8,7 @@ from sase.updates import (
     CommitSummary,
     IncomingCommits,
     OutdatedComponent,
+    ProviderUpdateCandidate,
     UpdateStatus,
 )
 
@@ -25,7 +26,7 @@ def test_update_toast_message_recommends_update_keymap() -> None:
     assert "sase" in message
     assert "1.0.0 → 1.1.0" in message
     assert "],U[/]" in message
-    assert "update sase, core & plugins" in message
+    assert "eligible set across SASE/core/plugins & agent CLIs" in message
 
 
 def test_update_toast_message_lists_all_component_headers() -> None:
@@ -111,7 +112,40 @@ def test_update_toast_message_renders_grouped_commits_and_overflow() -> None:
     assert "fix: escape \\[toast] markup" in message
     assert "def5678" in message
     assert "+1 more…" in message
-    assert message.endswith("update sase, core & plugins")
+    assert message.endswith("eligible set across SASE/core/plugins & agent CLIs")
+
+
+def test_update_toast_lists_provider_transitions_without_commit_preview() -> None:
+    status = UpdateStatus(
+        checked_at=100.0,
+        components=(),
+        provider_candidates=(
+            ProviderUpdateCandidate(
+                "claude",
+                "Claude Code",
+                "1.0.0",
+                "1.1.0",
+            ),
+            ProviderUpdateCandidate(
+                "codex",
+                "Codex CLI",
+                "0.9.0",
+                "1.0.0",
+                manual_only=True,
+            ),
+        ),
+    )
+
+    message = update_toast._format_update_toast_message(status)
+
+    assert "2 updates" in message
+    assert "2 agent CLI" in message
+    assert "↑ CLI Claude Code" in message
+    assert "1.0.0 → 1.1.0" in message
+    assert "↑ CLI Codex CLI" in message
+    assert "0.9.0 → 1.0.0" in message
+    assert "[yellow]manual[/]" in message
+    assert "commit" not in message
 
 
 def test_build_toast_commit_sections_fairly_truncates_to_global_budget() -> None:

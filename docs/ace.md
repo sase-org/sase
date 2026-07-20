@@ -274,7 +274,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,C`       | Review mentors (opens Mentor Review modal)                                           |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`              |
 | `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel)) |
-| `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)                   |
+| `,U`       | Update eligible SASE and agent CLIs from the latest automatic snapshot               |
 | `,M`       | Kill running mentors                                                                 |
 | `,R`       | Show runners info                                                                    |
 | `,<space>` | Run agent from current PR (skips project selection)                                  |
@@ -935,7 +935,7 @@ collapsed clan.
 | `,u`       | Mark all loaded unread completed agents as read                                                   |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
 | `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel))              |
-| `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)                                |
+| `,U`       | Update eligible SASE and agent CLIs from the latest automatic snapshot                            |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
 | `,r`       | Revert focused or marked agent commits, including recorded linked repos                           |
@@ -1095,7 +1095,7 @@ numerical identity.
 | `,,` | Repeat the last leader command                                                       |
 | `,h` | Run agent from home prompt context; bare prompts default to `#git:home`              |
 | `,m` | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel)) |
-| `,U` | Update sase, core, and plugins (opens Updates confirmation prompt)                   |
+| `,U` | Update eligible SASE and agent CLIs from the latest automatic snapshot               |
 | `,R` | Show runners info                                                                    |
 | `,?` | Open Help for the current tab (Keymaps / Guide)                                      |
 
@@ -2702,11 +2702,19 @@ sub-tabs; cycle them with `]` / `[`. Core shows SASE package versions and incomi
 browser and its install/update/uninstall/mode-switch actions. Agent CLIs shows provider-colored installed → latest rows,
 exact update or manual commands, vendor docs links, and update marks.
 
+Automatic checks publish one composite snapshot after first paint. Ten-minute session ticks only revalidate cached
+SASE/plugin rows and provider names already known outdated; full discovery waits for the longer configured recompute
+cadence, and provider registry lookups retain their own cache. The top bar renders purple/amber SASE and cyan `CLI`
+segments with separate counts.
+
+Global `,U` captures the agent-CLI candidates from the latest completed automatic result, revalidates exactly those
+names, and previews one comprehensive tracked update; the Updates-pane load cannot broaden the captured set. Manual-only
+providers remain in the preview with their suggested command or docs. A real SASE/core/plugin code change restarts ACE
+and axe only after provider work finishes, while provider-only updates refresh in place.
+
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate pane-wide agent-CLI action: on
 the Agent CLIs sub-tab it updates the marked `Space` selection, and elsewhere it targets every safely updatable
-installed CLI. Both flows preview first and run as tracked background tasks. Core/plugin code changes retain the ACE/axe
-restart path; agent-CLI updates refresh in place because those binaries are external and newly launched agents pick up
-their new versions. See the [Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior, and
+installed CLI. See the [Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior, and
 [Plugins](plugins.md) for the equivalent `sase plugin` CLI.
 
 ## Snippets

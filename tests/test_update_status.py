@@ -25,6 +25,7 @@ from sase.updates import (
     compute_update_status,
     get_cached_update_status,
     merge_update_status,
+    provider_update_candidates,
     read_update_status_snapshot,
     revalidate_provider_candidates,
     revalidate_update_status,
@@ -134,6 +135,8 @@ def _agent_cli_status(
     installed: bool = True,
     update_available: bool = True,
     version_error: str | None = None,
+    install_method: InstallMethod | None = None,
+    npm_root_writable: bool | None = None,
 ) -> AgentCliStatus:
     return AgentCliStatus(
         name=name,
@@ -142,13 +145,13 @@ def _agent_cli_status(
         executable=f"/bin/{name}" if installed else None,
         installed_version=installed_version,
         latest_version=latest_version,
-        install_method=(
-            InstallMethod.NPM if installed else InstallMethod.NOT_INSTALLED
-        ),
+        install_method=install_method
+        or (InstallMethod.NPM if installed else InstallMethod.NOT_INSTALLED),
         update_available=update_available,
         docs_url=None,
         install_hint=f"install {name}",
         package=f"@example/{name}",
+        npm_root_writable=npm_root_writable,
         version_error=version_error,
     )
 
@@ -418,6 +421,7 @@ def test_compute_update_status_discovers_only_installed_outdated_provider_clis(
     )
     assert result.component_count == 0
     assert result.agent_cli_count == 1
+    assert result.manual_agent_cli_count == 0
     assert result.count == 1
     assert result.has_agent_cli_updates is True
 
@@ -444,6 +448,7 @@ def test_update_status_snapshot_round_trip_and_freshness(tmp_path: Path) -> None
                 display_name="Claude Code",
                 installed_version="1.0.0",
                 latest_version="1.1.0",
+                manual_only=True,
             ),
         ),
         core_source=UpdateSourceStatus.success(90.0),
@@ -454,12 +459,16 @@ def test_update_status_snapshot_round_trip_and_freshness(tmp_path: Path) -> None
     write_update_status_snapshot(status, path=path)
 
     assert read_update_status_snapshot(path=path) == status
-    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 3
+    envelope = json.loads(path.read_text(encoding="utf-8"))
+    assert envelope["schema_version"] == 4
+    assert envelope["provider_candidates"][0]["manual_only"] is True
     assert update_status_snapshot_is_fresh(status, now=110.0, ttl_seconds=20)
     assert not update_status_snapshot_is_fresh(status, now=130.0, ttl_seconds=20)
 
 
-def test_update_status_snapshot_v1_is_treated_as_cache_miss(tmp_path: Path) -> None:
+def test_previous_update_status_schema_is_treated_as_cache_miss(
+    tmp_path: Path,
+) -> None:
     path = tmp_path / "status.json"
     path.write_text(
         json.dumps(
@@ -481,6 +490,32 @@ def test_update_status_snapshot_v1_is_treated_as_cache_miss(tmp_path: Path) -> N
     )
 
     assert read_update_status_snapshot(path=path) is None
+
+
+def test_provider_candidate_projection_marks_only_manual_plans() -> None:
+    candidates = provider_update_candidates(
+        (
+            _agent_cli_status("claude"),
+            _agent_cli_status("codex", install_method=InstallMethod.HOMEBREW),
+            _agent_cli_status("qwen", npm_root_writable=False),
+        )
+    )
+
+    assert [
+        (candidate.provider, candidate.manual_only) for candidate in candidates
+    ] == [
+        ("claude", False),
+        ("codex", True),
+        ("qwen", True),
+    ]
+    assert (
+        UpdateStatus(
+            checked_at=1.0,
+            components=(),
+            provider_candidates=candidates,
+        ).manual_agent_cli_count
+        == 2
+    )
 
 
 def test_update_status_snapshot_rejects_partially_invalid_rows(tmp_path: Path) -> None:
@@ -620,6 +655,31 @@ def test_revalidate_provider_candidates_is_named_drop_only_and_conservative() ->
 
     assert calls == [("claude", "codex", "qwen")]
     assert result == (candidates[0],)
+
+
+def test_revalidate_provider_candidates_refreshes_manual_projection() -> None:
+    candidate = ProviderUpdateCandidate("codex", "Codex", "1.0.0", "2.0.0")
+
+    result = revalidate_provider_candidates(
+        (candidate,),
+        status_fn=lambda _names: (
+            _agent_cli_status(
+                "codex",
+                installed_version="1.1.0",
+                install_method=InstallMethod.HOMEBREW,
+            ),
+        ),
+    )
+
+    assert result == (
+        ProviderUpdateCandidate(
+            "codex",
+            "Codex",
+            "1.1.0",
+            "2.0.0",
+            manual_only=True,
+        ),
+    )
 
 
 @pytest.mark.parametrize(
@@ -778,6 +838,45 @@ def test_get_cached_update_status_revalidate_only_uses_stale_snapshot(
     )
 
     assert result == status
+
+
+def test_ordinary_tick_revalidates_named_candidates_without_full_inventory(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "status.json"
+    candidate = ProviderUpdateCandidate("claude", "Claude Code", "1.0.0", "2.0.0")
+    status = UpdateStatus(
+        checked_at=100.0,
+        components=(),
+        provider_candidates=(candidate,),
+    )
+    write_update_status_snapshot(status, path=path)
+    named_calls: list[tuple[str, ...]] = []
+
+    def local_status(names: tuple[str, ...]) -> tuple[AgentCliStatus, ...]:
+        named_calls.append(names)
+        return (_agent_cli_status("claude", installed_version="1.1.0"),)
+
+    result = get_cached_update_status(
+        path=path,
+        now=10_000.0,
+        revalidate_only=True,
+        compute_fn=lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("ordinary ticks must not run full/network discovery")
+        ),
+        provider_status_fn=local_status,
+    )
+
+    assert result is not None
+    assert result.provider_candidates == (
+        ProviderUpdateCandidate(
+            "claude",
+            "Claude Code",
+            "1.1.0",
+            "2.0.0",
+        ),
+    )
+    assert named_calls == [("claude",)]
 
 
 def test_get_cached_update_status_revalidate_only_does_not_compute_on_miss(

@@ -18,6 +18,7 @@ from sase.updates import (
     CommitSummary,
     DEFAULT_UPDATE_STATUS_TTL_SECONDS,
     IncomingCommits,
+    ProviderUpdateCandidate,
     UpdateStatus,
     allocate_commit_budget,
     component_commit_spec,
@@ -40,6 +41,7 @@ log = logging.getLogger(__name__)
 
 _UPDATE_GLYPH = "↑"
 _TOAST_TITLE = f"{_UPDATE_GLYPH} Updates available"
+_AGENT_CLI_ACCENT = "#00D7FF"
 _TOAST_TIMEOUT_SECONDS = 12.0
 # Fallbacks used only when a TTL key is present but unparsable; both resolve to
 # the 10-minute default so a garbage override never silently re-enables a day.
@@ -257,7 +259,7 @@ class UpdateToastMixin:
         """Show the automatic update toast once per TUI session."""
         if getattr(self, "_update_toast_shown", False):
             return
-        if not status.has_component_updates:
+        if not status.has_updates:
             return
         self._update_toast_shown = True
         self.notify(  # type: ignore[attr-defined]
@@ -298,6 +300,8 @@ class UpdateToastMixin:
                     self._set_updates_indicator_state,
                     0,
                     False,
+                    0,
+                    0,
                 )
                 return
             if status is None:
@@ -306,17 +310,30 @@ class UpdateToastMixin:
                 status = revalidate_update_status(status)
             self.call_from_thread(  # type: ignore[attr-defined]
                 self._set_updates_indicator_state,
-                0 if status is None else status.count,
+                0 if status is None else status.component_count,
                 False if status is None else status.has_core_update,
+                0 if status is None else status.agent_cli_count,
+                0 if status is None else status.manual_agent_cli_count,
             )
         except Exception:
             log.debug("Updates-indicator refresh failed", exc_info=True)
 
     def _refresh_updates_indicator(self, status: UpdateStatus) -> None:
         """Set the top-bar updates badge from a status object."""
-        self._set_updates_indicator_state(status.count, status.has_core_update)
+        self._set_updates_indicator_state(
+            status.component_count,
+            status.has_core_update,
+            status.agent_cli_count,
+            status.manual_agent_cli_count,
+        )
 
-    def _set_updates_indicator_state(self, count: int, core: bool = False) -> None:
+    def _set_updates_indicator_state(
+        self,
+        count: int,
+        core: bool = False,
+        agent_cli_count: int = 0,
+        manual_agent_cli_count: int = 0,
+    ) -> None:
         """Set the top-bar updates badge state if the widget is mounted."""
         from ..widgets import UpdatesAvailableIndicator
 
@@ -327,7 +344,12 @@ class UpdateToastMixin:
             )
         except Exception:
             return
-        indicator.set_available(count, core=core)
+        indicator.set_available(
+            count,
+            core=core,
+            agent_cli_count=agent_cli_count,
+            manual_agent_cli_count=manual_agent_cli_count,
+        )
 
 
 def _load_update_toast_config() -> _UpdateToastConfig:
@@ -526,21 +548,35 @@ def _format_update_toast_message(
 ) -> str:
     """Build the Rich/Textual markup body for the update toast."""
     accent = center_tab_accent("updates") or "#AF87FF"
-    count = status.component_count
+    count = status.count
     noun = "update" if count == 1 else "updates"
     repo_sections = (
         tuple(sections)
         if sections is not None
         else _header_only_sections(status.components)
     )
-    lines = [f"[bold {accent}]{count} {noun}[/] available"]
-    if repo_sections:
+    domain_counts: list[str] = []
+    if status.component_count:
+        component_noun = "update" if status.component_count == 1 else "updates"
+        domain_counts.append(
+            f"{status.component_count} SASE/core/plugin {component_noun}"
+        )
+    if status.agent_cli_count:
+        provider_noun = "update" if status.agent_cli_count == 1 else "updates"
+        domain_counts.append(f"{status.agent_cli_count} agent CLI {provider_noun}")
+    summary = " · ".join(domain_counts)
+    lines = [f"[bold {accent}]{count} {noun}[/] available · {summary}"]
+    if repo_sections or status.provider_candidates:
         lines.append("")
     for index, section in enumerate(repo_sections):
         if index:
             lines.append("")
         lines.extend(_repo_section_lines(section, accent))
-    if repo_sections:
+    if repo_sections and status.provider_candidates:
+        lines.append("")
+    for candidate in status.provider_candidates:
+        lines.append(_provider_candidate_line(candidate))
+    if repo_sections or status.provider_candidates:
         lines.append("")
     lines.append(_shortcut_line(accent))
     return "\n".join(lines)
@@ -570,8 +606,21 @@ def _commit_line(commit: CommitSummary) -> str:
     return f"  [dim]{sha}[/]  {escape(subject)}"
 
 
+def _provider_candidate_line(candidate: ProviderUpdateCandidate) -> str:
+    manual = "  [yellow]manual[/]" if candidate.manual_only else ""
+    return (
+        f"[bold {_AGENT_CLI_ACCENT}]{_UPDATE_GLYPH} CLI "
+        f"{escape(candidate.display_name)}[/]  "
+        f"[dim]{escape(candidate.installed_version)} → "
+        f"{escape(candidate.latest_version)}[/]{manual}"
+    )
+
+
 def _shortcut_line(accent: str) -> str:
-    return f"Press [bold {accent}],U[/] to update sase, core & plugins"
+    return (
+        f"Press [bold {accent}],U[/] to update the eligible set across "
+        "SASE/core/plugins & agent CLIs"
+    )
 
 
 def _coerce_bool(value: object, *, default: bool) -> bool:
