@@ -189,11 +189,11 @@ def _isolate_sase_home(
 
 @pytest.fixture(autouse=True)
 def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Clear ambient SASE agent env vars before each test.
+    """Clear ambient SASE agent and chop-linkage env vars before each test.
 
     Prevents launcher state from leaking into tests and causing side effects
-    like bogus COMMITS entries in real ChangeSpec files or extra linked-repo
-    dirty checks from the live agent workspace.  Both the canonical
+    like bogus COMMITS entries in real ChangeSpec files, chop registry records,
+    or extra linked-repo dirty checks from the live agent workspace.  Both the canonical
     ``SASE_LINKED_REPO*`` vars and the deprecated ``SASE_SIBLING_REPO*`` aliases
     are scrubbed so finalizer tests don't inherit the developer's real linked
     repositories (e.g. a dirty chezmoi checkout) from the surrounding agent.
@@ -209,6 +209,10 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
             in {
                 "SASE_ARTIFACTS_DIR",
                 "SASE_BEAD_ID",
+                "SASE_CHOP_LUMBERJACK",
+                "SASE_CHOP_NAME",
+                "SASE_CHOP_PROMPT_HASH",
+                "SASE_CHOP_RUN_ID",
                 "SASE_LINKED_REPOS_JSON",
                 "SASE_SIBLING_REPOS_JSON",
             }

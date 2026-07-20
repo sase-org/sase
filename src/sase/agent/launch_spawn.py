@@ -43,6 +43,13 @@ def _remove_inherited_agent_identity_env(env: dict[str, str]) -> None:
     scrub_agent_identity_env(env)
 
 
+def _remove_inherited_chop_context_env(env: dict[str, str]) -> None:
+    """Drop ambient chop context unless this is an explicitly linked launch."""
+    from sase.agent.env_hygiene import scrub_chop_context_env
+
+    scrub_chop_context_env(env)
+
+
 def _remove_inherited_multi_agent_prompt_env(env: dict[str, str]) -> None:
     """Drop stale multi-agent prompt file context inherited from a parent agent."""
     from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
@@ -151,7 +158,10 @@ def spawn_agent_subprocess(
         convert_timestamp_to_artifacts_format,
         launch_artifacts_dir,
     )
-    from sase.axe.chop_agents import record_chop_agent_launch_from_env
+    from sase.axe.chop_agents import (
+        extract_chop_launch_env,
+        record_chop_agent_launch_from_env,
+    )
     from sase.core.agent_launch_facade import (
         prepare_agent_launch,
         safe_launch_name,
@@ -244,16 +254,32 @@ def spawn_agent_subprocess(
             ),
         )
 
+    # Linkage is intentionally scoped to runner-owned launches and continuation
+    # respawns.  Never infer linkage from the fully merged child environment:
+    # that would let ambient chop state poison unrelated nested launches.
+    explicit_chop_launch_env = (
+        extract_chop_launch_env(extra_env) if extra_env is not None else None
+    )
+    continuation_chop_launch_env = (
+        extract_chop_launch_env() if retry_transfer_from_pid is not None else None
+    )
+    chop_launch_env = explicit_chop_launch_env or continuation_chop_launch_env
+
     # Build subprocess environment (copy to avoid mutating os.environ)
     with timer.stage("env_shape"):
         subprocess_env = dict(os.environ)
         _remove_inherited_sase_codex_home(subprocess_env)
         _remove_inherited_workspace_preallocation_env(subprocess_env)
         _remove_inherited_agent_identity_env(subprocess_env)
+        _remove_inherited_chop_context_env(subprocess_env)
         _remove_inherited_multi_agent_prompt_env(subprocess_env)
         _remove_inherited_model_alias_overrides(subprocess_env, extra_env)
         _remove_inherited_linked_repo_env(subprocess_env)
         subprocess_env.update(prepared.env_delta)
+        if chop_launch_env is not None:
+            # Continuations do not repeat the original proposal's extra_env, so
+            # explicitly restore only the four durable linkage variables.
+            subprocess_env.update(chop_launch_env)
         from sase.linked_repos import apply_linked_repo_env
 
         apply_linked_repo_env(subprocess_env, linked_resolution)
@@ -349,21 +375,22 @@ def spawn_agent_subprocess(
             claim_callback=_claim_spawned_child,
         )
 
-    with timer.stage("chop_registry_record"):
-        try:
-            record_chop_agent_launch_from_env(
-                pid=pid,
-                project_file=project_file,
-                project_name=resolved_project_name,
-                workspace_num=workspace_num,
-                workflow_name=workflow_name,
-                cl_name=cl_name,
-                timestamp=timestamp,
-                prompt=prompt,
-                env=subprocess_env,
-            )
-        except Exception:
-            log.exception("Failed to record chop launch metadata for pid %s", pid)
+    if chop_launch_env is not None:
+        with timer.stage("chop_registry_record"):
+            try:
+                record_chop_agent_launch_from_env(
+                    pid=pid,
+                    project_file=project_file,
+                    project_name=resolved_project_name,
+                    workspace_num=workspace_num,
+                    workflow_name=workflow_name,
+                    cl_name=cl_name,
+                    timestamp=timestamp,
+                    prompt=prompt,
+                    env=chop_launch_env,
+                )
+            except Exception:
+                log.exception("Failed to record chop launch metadata for pid %s", pid)
 
     timer.finish(outcome="ok", pid=pid)
     planned_agent_name = (extra_env or {}).get("SASE_AGENT_PLANNED_NAME") or None

@@ -81,10 +81,10 @@ def build_chop_launch_env(
     return env
 
 
-def _chop_agent_env_from_process_env(
-    env: dict[str, str] | None = None,
+def extract_chop_launch_env(
+    env: Mapping[str, str] | None = None,
 ) -> dict[str, str] | None:
-    """Extract chop launch metadata from an environment mapping."""
+    """Return the complete chop-linkage environment from *env*, if present."""
     source = os.environ if env is None else env
     lumberjack_name = source.get(ENV_CHOP_LUMBERJACK)
     chop_name = source.get(ENV_CHOP_NAME)
@@ -92,26 +92,28 @@ def _chop_agent_env_from_process_env(
     if not lumberjack_name or not chop_name or not run_id:
         return None
     result = {
-        "lumberjack_name": lumberjack_name,
-        "chop_name": chop_name,
-        "run_id": run_id,
+        ENV_CHOP_LUMBERJACK: lumberjack_name,
+        ENV_CHOP_NAME: chop_name,
+        ENV_CHOP_RUN_ID: run_id,
     }
     if source.get(ENV_CHOP_PROMPT_HASH):
-        result["prompt_hash"] = source[ENV_CHOP_PROMPT_HASH]
+        result[ENV_CHOP_PROMPT_HASH] = source[ENV_CHOP_PROMPT_HASH]
     return result
 
 
-def agent_meta_from_chop_env(env: dict[str, str] | None = None) -> dict[str, str]:
+def agent_meta_from_chop_env(
+    env: Mapping[str, str] | None = None,
+) -> dict[str, str]:
     """Return agent_meta.json fields corresponding to chop env metadata."""
-    metadata = _chop_agent_env_from_process_env(env)
+    metadata = extract_chop_launch_env(env)
     if metadata is None:
         return {}
     meta = {
-        "chop_lumberjack": metadata["lumberjack_name"],
-        "chop_name": metadata["chop_name"],
-        "chop_run_id": metadata["run_id"],
+        "chop_lumberjack": metadata[ENV_CHOP_LUMBERJACK],
+        "chop_name": metadata[ENV_CHOP_NAME],
+        "chop_run_id": metadata[ENV_CHOP_RUN_ID],
     }
-    prompt_hash_value = metadata.get("prompt_hash")
+    prompt_hash_value = metadata.get(ENV_CHOP_PROMPT_HASH)
     if prompt_hash_value:
         meta["chop_prompt_hash"] = prompt_hash_value
     return meta
@@ -287,17 +289,17 @@ def record_chop_agent_launch_from_env(
     cl_name: str,
     timestamp: str,
     prompt: str,
-    env: dict[str, str] | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> _ChopAgentRecord | None:
-    """Record a launch when the current process is running under a chop."""
-    metadata = _chop_agent_env_from_process_env(env)
+    """Record a launch from caller-scoped, complete chop metadata."""
+    metadata = extract_chop_launch_env(env)
     if metadata is None:
         return None
     return _record_chop_agent_launch(
-        lumberjack_name=metadata["lumberjack_name"],
-        chop_name=metadata["chop_name"],
-        run_id=metadata["run_id"],
-        prompt_hash_value=metadata.get("prompt_hash", ""),
+        lumberjack_name=metadata[ENV_CHOP_LUMBERJACK],
+        chop_name=metadata[ENV_CHOP_NAME],
+        run_id=metadata[ENV_CHOP_RUN_ID],
+        prompt_hash_value=metadata.get(ENV_CHOP_PROMPT_HASH, ""),
         pid=pid,
         project_file=project_file,
         project_name=project_name,

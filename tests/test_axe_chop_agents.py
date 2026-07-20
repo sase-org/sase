@@ -29,12 +29,18 @@ def _spawn_agent_for_env_test(
     monkeypatch: pytest.MonkeyPatch,
     mock_spawn: MagicMock,
     extra_env: dict[str, str] | None = None,
+    retry_transfer_from_pid: int | None = None,
 ) -> None:
     output_path = tmp_path / "proj_ace-run-260101_120000.txt"
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
     tmp_dir = tmp_path / "tmp"
     tmp_dir.mkdir()
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.setattr(
+        "sase.axe.state.JACK_STATE_DIR", sase_home / "axe" / "lumberjacks"
+    )
     mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
@@ -49,6 +55,7 @@ def _spawn_agent_for_env_test(
         timestamp="260101_120000",
         project_name="proj",
         extra_env=extra_env,
+        retry_transfer_from_pid=retry_transfer_from_pid,
     )
 
 
@@ -188,7 +195,6 @@ def test_spawn_agent_subprocess_replaces_ambient_agent_identity_with_launch_env(
     monkeypatch.setenv("SASE_AGENT_AUTO_APPROVE", "1")
     monkeypatch.setenv("SASE_AGENT_CHAT_PATH", "/tmp/stale-chat.jsonl")
     monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "20260701010101")
-    monkeypatch.setenv("SASE_CHOP_NAME", "workflow_checks")
 
     _spawn_agent_for_env_test(
         tmp_path=tmp_path,
@@ -206,10 +212,70 @@ def test_spawn_agent_subprocess_replaces_ambient_agent_identity_with_launch_env(
     assert env["SASE_AGENT_PLANNED_NAME"] == "current-worker"
     assert env["SASE_AGENT_CHAT_PATH"] == "/tmp/current-chat.jsonl"
     assert env["SASE_AGENT_RETRY_HANDOFF"] == "current-handoff"
-    assert env["SASE_CHOP_NAME"] == "workflow_checks"
     assert "SASE_AGENT_NAME" not in env
     assert "SASE_AGENT_AUTO_APPROVE" not in env
     assert "SASE_AGENT_ROOT_TIMESTAMP" not in env
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_scrubs_ambient_chop_context_without_recording(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nested launches neither inherit nor register ambient chop identity."""
+    monkeypatch.setenv(ENV_CHOP_LUMBERJACK, "hooks")
+    monkeypatch.setenv(ENV_CHOP_NAME, "split")
+    monkeypatch.setenv(ENV_CHOP_RUN_ID, "run-1")
+    monkeypatch.setenv(ENV_CHOP_PROMPT_HASH, "prompt-hash")
+    monkeypatch.setenv("SASE_CHOP_RESULT_FILE", "/tmp/ambient-result.json")
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path, monkeypatch=monkeypatch, mock_spawn=mock_spawn
+    )
+
+    env = mock_spawn.call_args.kwargs["env"]
+    chop_keys = sorted(key for key in env if key.startswith("SASE_CHOP_"))
+    assert not chop_keys, chop_keys
+    assert get_chop_agent_records("hooks", chop_name="split") == []
+
+
+@patch(
+    "sase.running_field.transfer_workspace_claim",
+    return_value=ClaimResult(success=True),
+)
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_preserves_chop_linkage_for_retry_continuation(
+    mock_spawn: MagicMock,
+    mock_transfer: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retry handoff re-links its child without forwarding other chop state."""
+    monkeypatch.setenv(ENV_CHOP_LUMBERJACK, "hooks")
+    monkeypatch.setenv(ENV_CHOP_NAME, "split")
+    monkeypatch.setenv(ENV_CHOP_RUN_ID, "run-1")
+    monkeypatch.setenv(ENV_CHOP_PROMPT_HASH, "prompt-hash")
+    monkeypatch.setenv("SASE_CHOP_RESULT_FILE", "/tmp/ambient-result.json")
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+        retry_transfer_from_pid=1234,
+    )
+
+    env = mock_spawn.call_args.kwargs["env"]
+    assert env[ENV_CHOP_LUMBERJACK] == "hooks"
+    assert env[ENV_CHOP_NAME] == "split"
+    assert env[ENV_CHOP_RUN_ID] == "run-1"
+    assert env[ENV_CHOP_PROMPT_HASH] == "prompt-hash"
+    assert "SASE_CHOP_RESULT_FILE" not in env
+    records = get_chop_agent_records("hooks", chop_name="split", run_id="run-1")
+    assert [record.pid for record in records] == [4321]
+    mock_transfer.assert_called_once()
 
 
 @patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
@@ -263,9 +329,6 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
         "sase.axe.state.JACK_STATE_DIR", sase_home / "axe" / "lumberjacks"
     )
     mock_spawn.side_effect = _fake_spawn_success
-    monkeypatch.setenv(ENV_CHOP_LUMBERJACK, "hooks")
-    monkeypatch.setenv(ENV_CHOP_NAME, "split")
-    monkeypatch.setenv(ENV_CHOP_RUN_ID, "run-1")
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
     monkeypatch.setattr(
@@ -282,6 +345,12 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
         prompt="do work",
         timestamp="260101_120000",
         project_name="proj",
+        extra_env=build_chop_launch_env(
+            lumberjack_name="hooks",
+            chop_name="split",
+            prompt="do work",
+            run_id="run-1",
+        ),
     )
 
     assert result.pid == 4321
@@ -308,6 +377,10 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     assert Path(prepared.argv[8]).read_text() == "do work"
     assert Path(prepared.argv[8]).parent == tmp_dir
     assert mock_spawn.call_args.kwargs["claim_callback"] is not None
+    child_env = mock_spawn.call_args.kwargs["env"]
+    assert child_env[ENV_CHOP_LUMBERJACK] == "hooks"
+    assert child_env[ENV_CHOP_NAME] == "split"
+    assert child_env[ENV_CHOP_RUN_ID] == "run-1"
     records = get_chop_agent_records("hooks", chop_name="split")
     assert len(records) == 1
     assert records[0].pid == 4321
@@ -329,10 +402,12 @@ def test_spawn_agent_subprocess_ignores_post_spawn_chop_record_failure(
     workspace_dir.mkdir()
     tmp_dir = tmp_path / "tmp"
     tmp_dir.mkdir()
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.setattr(
+        "sase.axe.state.JACK_STATE_DIR", sase_home / "axe" / "lumberjacks"
+    )
     mock_spawn.side_effect = _fake_spawn_success
-    monkeypatch.setenv(ENV_CHOP_LUMBERJACK, "hooks")
-    monkeypatch.setenv(ENV_CHOP_NAME, "split")
-    monkeypatch.setenv(ENV_CHOP_RUN_ID, "run-1")
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
     monkeypatch.setattr(
@@ -353,6 +428,12 @@ def test_spawn_agent_subprocess_ignores_post_spawn_chop_record_failure(
             prompt="do work",
             timestamp="260101_120000",
             project_name="proj",
+            extra_env=build_chop_launch_env(
+                lumberjack_name="hooks",
+                chop_name="split",
+                prompt="do work",
+                run_id="run-1",
+            ),
         )
 
     assert result.pid == 4321
@@ -375,6 +456,11 @@ def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
     tmp_dir.mkdir()
     xprompts_file = tmp_path / "xprompts.json"
     xprompts_file.write_text("{}")
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.setattr(
+        "sase.axe.state.JACK_STATE_DIR", sase_home / "axe" / "lumberjacks"
+    )
     mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
