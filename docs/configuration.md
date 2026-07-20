@@ -1042,7 +1042,9 @@ previews expose the resulting `wait_on` value and explain a relink in `dedupe_re
 
 The builtin `sase_chop_refresh_docs` emits an update proposal plus a polish proposal that waits for the update. It uses
 the target source's `workspace`, while cadence and commit thresholds stay declarative in configuration. Its default
-prompts can be replaced with non-blank `vars.prompt` and `vars.polish_prompt` strings. See
+prompts are strictly documentation-scoped and tell agents to report suspected code bugs instead of fixing them. The
+defaults can be replaced with non-blank `vars.prompt` and `vars.polish_prompt` strings; operators are responsible for
+the scoping language in replacement prompts. See
 [Axe structured results and launch proposals](axe.md#structured-results-and-launch-proposals) for the result document,
 proposal fields, lifecycle statuses, and debugging commands.
 

@@ -10,9 +10,16 @@ Refresh the documentation for {project}.
 
 Review the current repository behavior and the changes since the last documentation
 refresh. Update user-facing documentation so it is accurate, complete, and clear to
-someone new to the project. Keep the work scoped to documentation unless a tiny
-sidecar correction is required, and run the repository's documentation checks when
-you change files.
+someone new to the project. You may only create, modify, or delete documentation
+files, such as Markdown or other docs-tree content, READMEs, and doc-adjacent assets.
+You MUST NOT create, modify, or delete source code, tests, build configuration, or any
+other non-documentation file, even to fix a bug you are confident about.
+
+When documentation and code disagree, document the actual current behavior; never
+change the code to match the prose. If you identify a suspected code bug, describe it
+in your final response so a human or separately scoped agent can pick it up (and you
+may also note it in the commit message body), but do not fix it. Run the repository's
+documentation checks when you change files.
 """
 
 DEFAULT_POLISH_PROMPT = """\
@@ -20,9 +27,17 @@ Inspect the documentation changes made by the update agent for {project}.
 
 Verify every changed description against the current system behavior rather than
 assuming it is true. Improve clarity for a new user, especially where terminology or
-workflow ordering could be misunderstood. Keep edits scoped to documentation unless
-a tiny sidecar correction is required, and run the repository's documentation checks
-when you change files.
+workflow ordering could be misunderstood. You may only create, modify, or delete
+documentation files, such as Markdown or other docs-tree content, READMEs, and
+doc-adjacent assets. You MUST NOT create, modify, or delete source code, tests, build
+configuration, or any other non-documentation file, even to fix a bug you are
+confident about.
+
+When documentation and code disagree, document the actual current behavior; never
+change the code to match the prose. If you identify a suspected code bug, describe it
+in your final response so a human or separately scoped agent can pick it up (and you
+may also note it in the commit message body), but do not fix it. Run the repository's
+documentation checks when you change files.
 """
 
 

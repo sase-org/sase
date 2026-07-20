@@ -11,6 +11,10 @@ import pytest
 from sase.axe.chop_proposals import prepare_chop_proposals, proposal_previews
 from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
 from sase.chops.builtin import run_builtin_chop
+from sase.scripts.sase_chop_refresh_docs import (
+    DEFAULT_POLISH_PROMPT,
+    DEFAULT_UPDATE_PROMPT,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -87,6 +91,21 @@ def test_refresh_docs_emits_chained_update_and_polish_proposals(
     assert f"%wait:{first_name}" in previews[1]["prompt"]
     assert "#!" not in previews[0]["prompt"]
     assert "#!" not in previews[1]["prompt"]
+
+
+@pytest.mark.parametrize("prompt", [DEFAULT_UPDATE_PROMPT, DEFAULT_POLISH_PROMPT])
+def test_refresh_docs_default_prompts_enforce_docs_only_scope(prompt: str) -> None:
+    normalized_prompt = " ".join(prompt.lower().split())
+
+    assert (
+        "must not create, modify, or delete source code, tests, build configuration, "
+        "or any other non-documentation file"
+    ) in normalized_prompt
+    assert "even to fix a bug you are confident about" in normalized_prompt
+    assert "document the actual current behavior" in normalized_prompt
+    assert "describe it in your final response" in normalized_prompt
+    assert "but do not fix it" in normalized_prompt
+    assert "sidecar correction" not in normalized_prompt
 
 
 def test_prepared_chop_runs_use_non_colliding_agent_names() -> None:

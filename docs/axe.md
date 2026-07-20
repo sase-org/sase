@@ -399,8 +399,11 @@ axe:
             vcs: [git, gh]
 ```
 
-The builtin supplies plain-language update and polish prompts. Override them with non-blank `vars.prompt` and
-`vars.polish_prompt` strings. The script only proposes work; it never calls `sase run` or updates marker files.
+The builtin supplies plain-language update and polish prompts that are strictly scoped to documentation files. They
+direct agents to document the current behavior and report suspected code bugs instead of changing source code, tests,
+build configuration, or other non-documentation files. Override the defaults with non-blank `vars.prompt` and
+`vars.polish_prompt` strings; operators are responsible for including appropriate scope restrictions in replacement
+prompts. The script only proposes work; it never calls `sase run` or updates marker files.
 
 ### Manual Chop Runs
 
