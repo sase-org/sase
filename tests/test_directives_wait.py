@@ -242,6 +242,68 @@ def test_wait_runners_keyword_rejects_duplicate_in_one_directive() -> None:
         extract_prompt_directives(prompt)
 
 
+@pytest.mark.parametrize("directive", ["wait", "w"])
+def test_wait_bead_keyword_sets_bead_only_condition(directive: str) -> None:
+    prompt = f"%{directive}(bead=sase-87.1)\nDo work"
+    with (
+        patch(
+            "sase.agent.names.get_most_recent_agent_name",
+            side_effect=AssertionError("bead-only wait must not resolve a bare wait"),
+        ),
+        patch(
+            "sase.agent.names.is_agent_name_template",
+            side_effect=AssertionError("bead-only wait must not resolve a template"),
+        ),
+    ):
+        cleaned, directives = extract_prompt_directives(prompt)
+
+    assert cleaned == "Do work"
+    assert directives.wait == []
+    assert directives.wait_beads == ["sase-87.1"]
+
+
+def test_wait_bead_keywords_mix_and_deduplicate_in_source_order() -> None:
+    prompt = (
+        "%wait(builder, bead=sase-87.2, time=5m, runners=0)\n"
+        "%w(bead=sase-87.1)\n"
+        "%wait(bead=sase-87.2)\n"
+        "Do work"
+    )
+
+    cleaned, directives = extract_prompt_directives(prompt)
+
+    assert cleaned == "Do work"
+    assert directives.wait == ["builder"]
+    assert directives.wait_beads == ["sase-87.2", "sase-87.1"]
+    assert directives.wait_duration == 300.0
+    assert directives.wait_runners == 0
+
+
+def test_wait_bead_value_does_not_resolve_agent_name_template() -> None:
+    with patch(
+        "sase.agent.names.is_agent_name_template",
+        side_effect=AssertionError("bead IDs are not agent-name templates"),
+    ):
+        _, directives = extract_prompt_directives("%wait(bead=sase-@)\nDo work")
+
+    assert directives.wait_beads == ["sase-@"]
+
+
+@pytest.mark.parametrize("value", ["", '"two words"', "two+words"])
+def test_wait_bead_keyword_rejects_empty_or_whitespace_value(value: str) -> None:
+    with pytest.raises(
+        DirectiveError,
+        match=r"%wait\(bead=\.\.\.\).*non-empty, whitespace-free bead ID",
+    ):
+        extract_prompt_directives(f"%wait(bead={value})\nDo work")
+
+
+def test_wait_bead_keyword_rejects_duplicate_in_one_directive() -> None:
+    prompt = "%wait(bead=sase-87.1, bead=sase-87.2)\nDo work"
+    with pytest.raises(DirectiveError, match="Duplicate keyword argument 'bead'"):
+        extract_prompt_directives(prompt)
+
+
 def test_wait_time_keyword_sets_wait_until() -> None:
     """%wait(time=1430) sets wait_until."""
     prompt = "%wait(time=1430)\nDo work"
@@ -275,5 +337,11 @@ def test_wait_time_keyword_repeated_durations_take_max() -> None:
 def test_wait_unknown_keyword_raises() -> None:
     """Only the documented keywords are supported on %wait."""
     prompt = "%wait(foo=bar)\nDo work"
-    with pytest.raises(DirectiveError, match=r"Unsupported keyword on %wait: foo="):
+    with pytest.raises(
+        DirectiveError,
+        match=(
+            r"Unsupported keyword on %wait: foo=\. "
+            r"Only bead=, runners=, and time= are supported\."
+        ),
+    ):
         extract_prompt_directives(prompt)

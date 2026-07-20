@@ -303,6 +303,42 @@ def test_set_prompt_wait_formats_runner_threshold() -> None:
     assert rewritten == "%wait(dep, time=5m, runners=0)\nDo work"
 
 
+def test_set_prompt_wait_formats_and_round_trips_bead_only_conditions() -> None:
+    rewritten = set_prompt_wait(
+        "Do work",
+        PromptWaitDirective(beads=("sase-87.1", "sase-87.2")),
+    )
+
+    assert rewritten == ("%wait(bead=sase-87.1)\n%wait(bead=sase-87.2)\nDo work")
+    _, directives = extract_prompt_directives(rewritten)
+    assert directives.wait == []
+    assert directives.wait_beads == ["sase-87.1", "sase-87.2"]
+
+
+def test_set_prompt_wait_formats_and_round_trips_mixed_conditions() -> None:
+    rewritten = set_prompt_wait(
+        "%w(bead=old)\nDo work",
+        PromptWaitDirective(
+            agents=("dep",),
+            time_token="5m",
+            runners=0,
+            beads=("sase-87.1", "sase-87.2"),
+        ),
+    )
+
+    assert rewritten == (
+        "%wait(dep, time=5m, runners=0)\n"
+        "%wait(bead=sase-87.1)\n"
+        "%wait(bead=sase-87.2)\n"
+        "Do work"
+    )
+    _, directives = extract_prompt_directives(rewritten)
+    assert directives.wait == ["dep"]
+    assert directives.wait_beads == ["sase-87.1", "sase-87.2"]
+    assert directives.wait_duration == 300.0
+    assert directives.wait_runners == 0
+
+
 def test_set_prompt_wait_round_trips_tribe_reference() -> None:
     rewritten = set_prompt_wait(
         "%w:old\nDo work",

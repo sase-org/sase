@@ -59,6 +59,21 @@ def _parse_wait_tribe_reference(value: str) -> str | None:
         ) from exc
 
 
+def resolve_wait_bead_args(wait_bead_args: list[str]) -> list[str]:
+    """Validate and deduplicate ``%wait(bead=...)`` values."""
+    resolved: list[str] = []
+    seen: set[str] = set()
+    for raw_arg in wait_bead_args:
+        if not raw_arg or re.fullmatch(r"\S+", raw_arg) is None:
+            raise DirectiveError(
+                "'%wait(bead=...)' requires a non-empty, whitespace-free bead ID"
+            )
+        if raw_arg not in seen:
+            seen.add(raw_arg)
+            resolved.append(raw_arg)
+    return resolved
+
+
 def resolve_wait_time_args(
     wait_time_args: list[str],
 ) -> tuple[float | None, str | None]:

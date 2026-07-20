@@ -24,6 +24,7 @@ from ._directive_values import (
     resolve_model_alias_overrides,
     resolve_reasoning_effort,
     resolve_wait_agent_args,
+    resolve_wait_bead_args,
     resolve_wait_templates,
     resolve_wait_runners_args,
     resolve_wait_time_args,
@@ -80,6 +81,7 @@ def extract_prompt_directives(
         collected.seen["id"] = get_next_auto_name()
 
     resolve_wait_agent_args(collected.seen_multi)
+    wait_beads = resolve_wait_bead_args(collected.wait_bead_args)
     wait_duration, wait_until = resolve_wait_time_args(collected.wait_time_args)
     wait_runners = resolve_wait_runners_args(collected.wait_runners_args)
 
@@ -196,6 +198,7 @@ def extract_prompt_directives(
         repeat_count=repeat_count,
         tribe=tribe,
         wait=expanded_multi.get("wait", []),
+        wait_beads=wait_beads,
         wait_duration=wait_duration,
         wait_until=wait_until,
         wait_runners=wait_runners,

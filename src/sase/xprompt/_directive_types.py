@@ -116,6 +116,7 @@ class PromptDirectives:
         tribe: Standalone tribe declared through the ``tribe=`` keyword on
             ``%id``, or None.
         wait: List of agent names to wait for via positional %wait arguments.
+        wait_beads: Ordered, deduplicated bead IDs from %wait(bead=...) keywords.
         wait_duration: Duration in seconds from the %wait(time=...) keyword.
         wait_until: Absolute target datetime from the %wait(time=...) keyword.
         wait_runners: Existing-runner threshold from the
@@ -153,6 +154,7 @@ class PromptDirectives:
     repeat_count: int | None = None
     tribe: str | None = None
     wait: list[str] = field(default_factory=list)
+    wait_beads: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
     wait_runners: int | None = None

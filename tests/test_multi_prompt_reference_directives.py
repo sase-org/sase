@@ -8,6 +8,8 @@ from sase.agent.multi_prompt_reference_directives import (
     StaticClanDirective,
     extract_static_clan_directive,
     extract_static_name_directive,
+    has_bare_wait_directive,
+    rewrite_bare_wait_directives,
 )
 
 
@@ -50,4 +52,21 @@ def test_static_clan_extraction_marks_clan_directive_as_declaration() -> None:
         name="research",
         tribe="review",
         declared=True,
+    )
+
+
+@pytest.mark.parametrize("directive", ["wait", "w"])
+def test_bead_only_wait_is_not_bare_or_rewritten(directive: str) -> None:
+    prompt = f"%{directive}(bead=sase-87.1)\nDo work"
+
+    assert has_bare_wait_directive(prompt) is False
+    assert rewrite_bare_wait_directives(prompt, "previous") == prompt
+
+
+def test_bead_only_wait_does_not_hide_separate_bare_wait() -> None:
+    prompt = "%w(bead=sase-87.1)\n%wait\nDo work"
+
+    assert has_bare_wait_directive(prompt) is True
+    assert rewrite_bare_wait_directives(prompt, "previous") == (
+        "%w(bead=sase-87.1)\n%wait:previous\nDo work"
     )
