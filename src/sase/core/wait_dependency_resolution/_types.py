@@ -5,9 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-SUCCESS_OUTCOME = "completed"
-IDENTITY_SUCCESS_OUTCOMES = frozenset({"completed", "plan_rejected"})
-FAILURE_OUTCOMES = frozenset({"failed", "killed", "stopped"})
+from sase.core.dismissed_agent_completion import (
+    FAILURE_OUTCOMES,
+    IDENTITY_SUCCESS_OUTCOMES,
+    SUCCESS_OUTCOME,
+    ArchivedAgentCompletion,
+)
+
 HANDOFF_TERMINAL_STEP_STATUSES = frozenset({"completed", "skipped"})
 
 
@@ -38,6 +42,7 @@ class ArtifactCandidate:
     clan_name: str | None = None
     clan_generation: str | None = None
     clan_tribe: str | None = None
+    archived_completion: ArchivedAgentCompletion | None = None
 
 
 @dataclass(frozen=True)

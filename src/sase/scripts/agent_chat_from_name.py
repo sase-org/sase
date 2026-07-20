@@ -26,6 +26,10 @@ from sase.agent.names import (
 from sase.agent.names._lookup_artifacts import SUCCESS_OUTCOME
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.agent_tribe import parse_tribe_reference
+from sase.core.dismissed_agent_completion import (
+    ArchivedAgentCompletion,
+    archived_response_path,
+)
 from sase.core.paths import sase_projects_dir
 from sase.core.wait_dependency_resolution import (
     TribeCandidate,
@@ -260,14 +264,12 @@ def _resolve_fork_source(name: str) -> _ForkSource:
 
         clan_members: list[_ForkClanMemberSource] = []
         for member in clan.members:
-            path = _read_json_string_field(
-                member.artifacts_dir / "done.json", "response_path"
+            path = _completed_response_path(
+                member.name,
+                member.artifacts_dir,
+                archived_completion=member.archived_completion,
+                clan_member=True,
             )
-            if path is None:
-                raise RuntimeError(
-                    f"No agent with chat history found for clan member: {member.name}"
-                )
-            _validate_readable_transcript(member.name, path)
             clan_members.append(
                 _ForkClanMemberSource(
                     name=member.name,
@@ -293,8 +295,8 @@ def _resolve_fork_source(name: str) -> _ForkSource:
         family_members: list[_ForkFamilyMemberSource] = []
         excluded: list[_ForkExcludedFamilyMember] = []
         for family_member in family.members:
-            path, status = _resolve_family_member_transcript(family_member)
-            if path is None:
+            family_path, status = _resolve_family_member_transcript(family_member)
+            if family_path is None:
                 excluded.append(
                     _ForkExcludedFamilyMember(
                         name=family_member.name,
@@ -305,7 +307,7 @@ def _resolve_fork_source(name: str) -> _ForkSource:
             family_members.append(
                 _ForkFamilyMemberSource(
                     name=family_member.name,
-                    path=path,
+                    path=family_path,
                     artifact_dir=str(family_member.artifacts_dir),
                     outcome=SUCCESS_OUTCOME,
                 )
@@ -365,6 +367,7 @@ def _build_all_projects_wait_index() -> WaitDependencyIndex:
     if not projects_dir.exists():
         return index
 
+    artifact_rows: list[tuple[Path, dict[str, Any], str]] = []
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
             continue
@@ -375,7 +378,8 @@ def _build_all_projects_wait_index() -> WaitDependencyIndex:
         ):
             meta = read_json_dict(artifact_dir / "agent_meta.json")
             if meta is not None:
-                index.add(artifact_dir, meta, project_name=project_dir.name)
+                artifact_rows.append((artifact_dir, meta, project_dir.name))
+    index.add_many(artifact_rows)
     return index
 
 
@@ -383,13 +387,22 @@ def _fork_source_from_tribe_candidate(candidate: TribeCandidate) -> _ForkSource:
     """Project a selected wait candidate into the fork workflow source wire."""
     if candidate.kind == "agent":
         member = candidate.members[0]
-        path = _completed_response_path(member.name, Path(member.artifact_dir))
+        path = _completed_response_path(
+            member.name,
+            Path(member.artifact_dir),
+            archived_completion=member.archived_completion,
+        )
         return _ForkSource(kind="agent", name=member.name, path=path)
 
     members = tuple(
         _ForkClanMemberSource(
             name=member.name,
-            path=_completed_response_path(member.name, Path(member.artifact_dir)),
+            path=_completed_response_path(
+                member.name,
+                Path(member.artifact_dir),
+                archived_completion=member.archived_completion,
+                clan_member=True,
+            ),
             artifact_dir=member.artifact_dir,
         )
         for member in sorted(candidate.members, key=lambda item: item.timestamp)
@@ -405,9 +418,21 @@ def _fork_source_from_tribe_candidate(candidate: TribeCandidate) -> _ForkSource:
     )
 
 
-def _completed_response_path(name: str, artifact_dir: Path) -> str:
+def _completed_response_path(
+    name: str,
+    artifact_dir: Path,
+    *,
+    archived_completion: ArchivedAgentCompletion | None = None,
+    clan_member: bool = False,
+) -> str:
     path = _read_json_string_field(artifact_dir / "done.json", "response_path")
+    if path is None and archived_completion is not None:
+        path = archived_response_path(archived_completion)
     if path is None:
+        if clan_member:
+            raise RuntimeError(
+                f"No agent with chat history found for clan member: {name}"
+            )
         raise RuntimeError(f"No agent with chat history found for: {name}")
     _validate_readable_transcript(name, path)
     return path
@@ -486,6 +511,8 @@ def _resolve_family_member_transcript(
     done_path = _read_json_string_field(
         member.artifacts_dir / "done.json", "response_path"
     )
+    if done_path is None and member.archived_completion is not None:
+        done_path = archived_response_path(member.archived_completion)
     if done_path is None:
         return None, "missing transcript"
     try:

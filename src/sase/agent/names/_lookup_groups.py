@@ -14,6 +14,10 @@ from sase.agent.names._lookup_artifacts import (
     meta_parent_timestamp,
     read_json_dict,
 )
+from sase.core.dismissed_agent_completion import (
+    ArchivedAgentCompletion,
+    load_archived_agent_completions,
+)
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
     agent_family_base,
@@ -31,6 +35,7 @@ class AgentFamilyMember:
     timestamp: str
     outcome: str | None
     parent_timestamp: str | None
+    archived_completion: ArchivedAgentCompletion | None = None
 
     @property
     def is_done(self) -> bool:
@@ -67,6 +72,7 @@ class AgentClanMember:
     timestamp: str
     outcome: str | None
     generation: str
+    archived_completion: ArchivedAgentCompletion | None = None
 
     @property
     def is_done(self) -> bool:
@@ -112,7 +118,7 @@ def _family_base_from_meta(meta: dict[str, Any]) -> str | None:
 
 
 def _iter_family_members(base_name: str) -> list[AgentFamilyMember]:
-    members: list[AgentFamilyMember] = []
+    rows: list[tuple[Path, dict[str, Any], str, str | None, str | None]] = []
     for artifact_dir in iter_ace_run_artifact_dirs():
         meta = read_json_dict(artifact_dir / "agent_meta.json")
         if meta is None or _family_base_from_meta(meta) != base_name:
@@ -120,17 +126,49 @@ def _iter_family_members(base_name: str) -> list[AgentFamilyMember]:
 
         name_value = meta.get("name")
         name = name_value if isinstance(name_value, str) else base_name
-        members.append(
-            AgentFamilyMember(
-                name=name,
-                artifacts_dir=artifact_dir,
-                timestamp=artifact_dir.name,
-                outcome=done_outcome(artifact_dir),
-                parent_timestamp=meta_parent_timestamp(meta),
+        rows.append(
+            (
+                artifact_dir,
+                meta,
+                name,
+                done_outcome(artifact_dir),
+                meta_parent_timestamp(meta),
             )
         )
 
-    return members
+    archived = load_archived_agent_completions(
+        (
+            artifact_dir,
+            meta,
+            _project_name_from_artifact_dir(artifact_dir),
+        )
+        for artifact_dir, meta, _name, outcome, _parent in rows
+        if outcome is None and not (artifact_dir / "done.json").exists()
+    )
+    return [
+        AgentFamilyMember(
+            name=name,
+            artifacts_dir=artifact_dir,
+            timestamp=artifact_dir.name,
+            outcome=(
+                outcome
+                if outcome is not None
+                else archived[str(artifact_dir)].outcome
+                if str(artifact_dir) in archived
+                else None
+            ),
+            parent_timestamp=parent_timestamp,
+            archived_completion=archived.get(str(artifact_dir)),
+        )
+        for artifact_dir, _meta, name, outcome, parent_timestamp in rows
+    ]
+
+
+def _project_name_from_artifact_dir(artifact_dir: Path) -> str:
+    try:
+        return artifact_dir.parents[2].name
+    except IndexError:
+        return ""
 
 
 def _clan_identity_from_meta(
@@ -156,7 +194,7 @@ def _clan_identity_from_meta(
 
 
 def _iter_clan_members(clan_name: str) -> list[AgentClanMember]:
-    members: list[AgentClanMember] = []
+    rows: list[tuple[Path, dict[str, Any], str, str | None, str]] = []
     for artifact_dir in iter_ace_run_artifact_dirs():
         meta = read_json_dict(artifact_dir / "agent_meta.json")
         if meta is None:
@@ -167,16 +205,42 @@ def _iter_clan_members(clan_name: str) -> list[AgentClanMember]:
         name = meta.get("name")
         if not isinstance(name, str) or not name:
             continue
-        members.append(
-            AgentClanMember(
-                name=name,
-                artifacts_dir=artifact_dir,
-                timestamp=artifact_dir.name,
-                outcome=done_outcome(artifact_dir),
-                generation=identity[1],
+        rows.append(
+            (
+                artifact_dir,
+                meta,
+                name,
+                done_outcome(artifact_dir),
+                identity[1],
             )
         )
-    return members
+
+    archived = load_archived_agent_completions(
+        (
+            artifact_dir,
+            meta,
+            _project_name_from_artifact_dir(artifact_dir),
+        )
+        for artifact_dir, meta, _name, outcome, _generation in rows
+        if outcome is None and not (artifact_dir / "done.json").exists()
+    )
+    return [
+        AgentClanMember(
+            name=name,
+            artifacts_dir=artifact_dir,
+            timestamp=artifact_dir.name,
+            outcome=(
+                outcome
+                if outcome is not None
+                else archived[str(artifact_dir)].outcome
+                if str(artifact_dir) in archived
+                else None
+            ),
+            generation=generation,
+            archived_completion=archived.get(str(artifact_dir)),
+        )
+        for artifact_dir, _meta, name, outcome, generation in rows
+    ]
 
 
 def find_agent_clan(clan_name: str) -> AgentClan | None:

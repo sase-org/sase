@@ -59,6 +59,24 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "are inspected only to report member model and outcome metadata."
         ),
     ),
+    "src/sase/agent/names/_lookup_groups.py:_iter_clan_members": PathPassingReview(
+        exemption=(
+            "Read-only clan completion lookup: done.json presence and outcome are "
+            "inspected before consulting an exact dismissed-archive fallback."
+        ),
+    ),
+    "src/sase/agent/names/_lookup_groups.py:_iter_family_members": PathPassingReview(
+        exemption=(
+            "Read-only family completion lookup: done.json presence and outcome are "
+            "inspected before consulting an exact dismissed-archive fallback."
+        ),
+    ),
+    "src/sase/core/wait_dependency_resolution/_index.py:add_many": PathPassingReview(
+        exemption=(
+            "Read-only dependency-index construction: done.json is batched into "
+            "terminal projections without mutating artifact markers."
+        ),
+    ),
 }
 
 

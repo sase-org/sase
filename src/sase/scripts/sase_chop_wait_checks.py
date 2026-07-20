@@ -9,6 +9,7 @@ dependencies for a waiting agent are satisfied.
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
@@ -50,6 +51,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     unresolved = 0
     dependency_index = WaitDependencyIndex.empty()
     pending_waiting_markers: list[_WaitingMarker] = []
+    artifact_rows: list[tuple[Path, dict[str, Any], str]] = []
 
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
@@ -65,7 +67,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
 
             meta = _read_json_dict(artifact_dir / "agent_meta.json")
             if meta is not None:
-                dependency_index.add(artifact_dir, meta, project_name=project_dir.name)
+                artifact_rows.append((artifact_dir, meta, project_dir.name))
 
             waiting_path = artifact_dir / "waiting.json"
             if not waiting_path.exists():
@@ -84,6 +86,8 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
                     waiting_path=waiting_path,
                 )
             )
+
+    dependency_index.add_many(artifact_rows)
 
     for waiting_marker in pending_waiting_markers:
         try:

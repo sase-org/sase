@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.agent_clan_tribe import ClanTribeMemberWire, resolve_clan_tribe
+from sase.core.dismissed_agent_completion import (
+    ArchivedAgentCompletion,
+    load_archived_agent_completions,
+)
 from sase.core.agent_tribe import (
     InvalidTribeError,
     RawAgentTribeIdentity,
@@ -81,6 +85,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             agent_tribes_path=agent_tribes_path,
             legacy_agent_tags_path=legacy_agent_tags_path,
         )
+        artifacts = []
         for artifact_dir in iter_agent_artifact_dirs(
             project_name,
             "ace-run",
@@ -88,8 +93,38 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         ):
             meta = read_json_dict(artifact_dir / "agent_meta.json")
             if meta is not None:
-                index.add(artifact_dir, meta, project_name=project_name)
+                artifacts.append((artifact_dir, meta, project_name))
+        index.add_many(artifacts)
         return index
+
+    def add_many(
+        self,
+        artifacts: Iterable[tuple[Path, dict[str, Any], str]],
+    ) -> None:
+        """Add artifact rows using one dismissed-archive fallback query."""
+
+        prepared = [
+            (
+                artifact_dir,
+                meta,
+                project_name,
+                read_json_dict(artifact_dir / "done.json"),
+            )
+            for artifact_dir, meta, project_name in artifacts
+        ]
+        archived = load_archived_agent_completions(
+            (artifact_dir, meta, project_name)
+            for artifact_dir, meta, project_name, done_data in prepared
+            if done_data is None and not (artifact_dir / "done.json").exists()
+        )
+        for artifact_dir, meta, project_name, done_data in prepared:
+            self._add_prepared(
+                artifact_dir,
+                meta,
+                project_name=project_name,
+                done_data=done_data,
+                archived_completion=archived.get(str(artifact_dir)),
+            )
 
     def add(
         self,
@@ -98,14 +133,57 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         *,
         project_name: str = "",
     ) -> None:
+        """Add one artifact, using a one-row archive fallback batch."""
+
         done_path = artifact_dir / "done.json"
         done_data = read_json_dict(done_path)
-        outcome = done_outcome_from_data(done_data)
-        is_resolved = artifact_is_resolved(artifact_dir, meta, outcome)
-        is_done = outcome == SUCCESS_OUTCOME
-        is_identity_success = artifact_succeeded_for_identity(done_data)
-        is_failed = artifact_failed_for_identity(done_data)
-        is_queued = (artifact_dir / "waiting.json").exists() and not done_path.exists()
+        archived = (
+            load_archived_agent_completions(((artifact_dir, meta, project_name),))
+            if done_data is None and not done_path.exists()
+            else {}
+        )
+        self._add_prepared(
+            artifact_dir,
+            meta,
+            project_name=project_name,
+            done_data=done_data,
+            archived_completion=archived.get(str(artifact_dir)),
+        )
+
+    def _add_prepared(
+        self,
+        artifact_dir: Path,
+        meta: dict[str, Any],
+        *,
+        project_name: str,
+        done_data: dict[str, Any] | None,
+        archived_completion: ArchivedAgentCompletion | None,
+    ) -> None:
+        done_path = artifact_dir / "done.json"
+        if done_data is not None:
+            outcome = done_outcome_from_data(done_data)
+            is_resolved = artifact_is_resolved(artifact_dir, meta, outcome)
+            is_done = outcome == SUCCESS_OUTCOME
+            is_identity_success = artifact_succeeded_for_identity(done_data)
+            is_failed = artifact_failed_for_identity(done_data)
+            archived_completion = None
+        elif archived_completion is not None:
+            outcome = archived_completion.outcome
+            is_resolved = archived_completion.is_resolved
+            is_done = archived_completion.is_done
+            is_identity_success = archived_completion.is_identity_success
+            is_failed = archived_completion.is_failed
+        else:
+            outcome = None
+            is_resolved = artifact_is_resolved(artifact_dir, meta, outcome)
+            is_done = False
+            is_identity_success = False
+            is_failed = False
+        is_queued = (
+            (artifact_dir / "waiting.json").exists()
+            and not done_path.exists()
+            and archived_completion is None
+        )
         timestamp = artifact_dir.name
 
         name = meta.get("name")
@@ -182,6 +260,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             clan_name=clan_name,
             clan_generation=generation,
             clan_tribe=clan_tribe,
+            archived_completion=archived_completion,
         )
         if project_name:
             self.artifacts[(project_name, timestamp)] = artifact

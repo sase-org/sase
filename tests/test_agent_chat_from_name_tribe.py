@@ -8,6 +8,11 @@ import pytest
 
 from sase.scripts.agent_chat_from_name import _resolve_agent_chat_sources
 from tests._agent_chat_from_name_helpers import write_agent
+from tests._dismissed_completion_helpers import (
+    add_archive_identity,
+    rebuild_completion_archive,
+    write_dismissed_completion,
+)
 
 
 def test_tribe_fork_resolves_earliest_complete_standalone_agent(
@@ -135,4 +140,55 @@ def test_mixed_tribe_and_named_fork_parents_preserve_order(
     assert [(source.kind, source.name) for source in sources] == [
         ("agent", "tribe-worker"),
         ("agent", "builder"),
+    ]
+
+
+def test_tribe_fork_reads_archived_clan_member_transcript(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    current_dir = write_agent(tmp_path, "20260720200000", "waiter")
+    generation = "20260720201000"
+    archived_chat = tmp_path / "archived.md"
+    archived_dir = write_agent(
+        tmp_path,
+        "20260720202000",
+        "review.archived",
+        done={"response_path": str(archived_chat), "outcome": "completed"},
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": generation,
+            "clan_tribe": "epic",
+            "changespec_name": "change",
+        },
+    )
+    add_archive_identity(archived_dir)
+    write_dismissed_completion(
+        tmp_path,
+        archived_dir,
+        "review.archived",
+        response_path=str(archived_chat),
+    )
+    (archived_dir / "done.json").unlink()
+    live_chat = tmp_path / "live.md"
+    write_agent(
+        tmp_path,
+        "20260720203000",
+        "review.live",
+        done={"response_path": str(live_chat), "outcome": "completed"},
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": generation,
+        },
+    )
+    rebuild_completion_archive()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
+
+    source = _resolve_agent_chat_sources(["@epic"])[0]
+
+    assert source.kind == "clan"
+    assert [(member.name, member.path) for member in source.members] == [
+        ("review.archived", str(archived_chat)),
+        ("review.live", str(live_chat)),
     ]

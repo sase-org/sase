@@ -9,6 +9,11 @@ import pytest
 
 from sase.scripts.agent_chat_from_name import _resolve_agent_chat_sources, main
 from tests._agent_chat_from_name_helpers import write_agent
+from tests._dismissed_completion_helpers import (
+    add_archive_identity,
+    rebuild_completion_archive,
+    write_dismissed_completion,
+)
 
 
 def test_complete_clan_emits_all_members_in_launch_order(
@@ -127,3 +132,130 @@ def test_clan_and_agent_sources_preserve_parent_order(
         ("clan", "review"),
         ("agent", "builder"),
     ]
+
+
+def test_clan_fork_includes_live_and_dismissed_member_transcripts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    generation = "20260720160000"
+    archived_chat = tmp_path / "archived.md"
+    live_chat = tmp_path / "live.md"
+    archived_dir = write_agent(
+        tmp_path,
+        "20260720160100",
+        "review.archived",
+        done={"response_path": str(archived_chat), "outcome": "completed"},
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": generation,
+            "changespec_name": "change",
+        },
+    )
+    add_archive_identity(archived_dir)
+    write_dismissed_completion(
+        tmp_path,
+        archived_dir,
+        "review.archived",
+        response_path=str(archived_chat),
+    )
+    (archived_dir / "done.json").unlink()
+    live_dir = write_agent(
+        tmp_path,
+        "20260720160200",
+        "review.live",
+        done={"response_path": str(live_chat), "outcome": "completed"},
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": generation,
+        },
+    )
+    rebuild_completion_archive()
+
+    source = _resolve_agent_chat_sources(["review"])[0]
+
+    assert source.path == str(live_chat)
+    assert [
+        (member.name, member.path, member.artifact_dir) for member in source.members
+    ] == [
+        ("review.archived", str(archived_chat), str(archived_dir)),
+        ("review.live", str(live_chat), str(live_dir)),
+    ]
+
+
+def test_archived_failed_clan_member_keeps_fork_incomplete(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    generation = "20260720170000"
+    failed = write_agent(
+        tmp_path,
+        "20260720170100",
+        "review.failed",
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": generation,
+            "changespec_name": "change",
+        },
+    )
+    add_archive_identity(failed)
+    write_dismissed_completion(
+        tmp_path,
+        failed,
+        "review.failed",
+        status="FAILED",
+    )
+    write_agent(
+        tmp_path,
+        "20260720170200",
+        "review.live",
+        done={
+            "response_path": str(tmp_path / "live.md"),
+            "outcome": "completed",
+        },
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": generation,
+        },
+    )
+    rebuild_completion_archive()
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"Clan 'review' is not complete: 1/2 members done",
+    ):
+        _resolve_agent_chat_sources(["review"])
+
+
+def test_unreadable_archived_clan_transcript_fails_explicitly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    transcript = tmp_path / "missing.md"
+    artifact_dir = write_agent(
+        tmp_path,
+        "20260720180100",
+        "review.archived",
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": "20260720180000",
+            "changespec_name": "change",
+        },
+    )
+    add_archive_identity(artifact_dir)
+    write_dismissed_completion(
+        tmp_path,
+        artifact_dir,
+        "review.archived",
+        response_path=str(transcript),
+    )
+    rebuild_completion_archive()
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"Transcript for agent 'review\.archived' is not readable",
+    ):
+        _resolve_agent_chat_sources(["review"])

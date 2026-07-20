@@ -1,0 +1,200 @@
+"""Exact archive fallback semantics for terminal agent artifacts."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from sase.ace.dismissed_agents import mark_bundles_revived_by_suffixes
+from sase.core.wait_dependency_resolution import (
+    build_wait_dependency_index,
+    dependency_resolution_status,
+)
+from tests._agent_names_fixtures import make_agent
+from tests._dismissed_completion_helpers import (
+    add_archive_identity,
+    rebuild_completion_archive,
+    write_dismissed_completion,
+)
+
+
+def _archived_agent(
+    tmp_path: Path,
+    *,
+    status: str = "DONE",
+    name: str = "worker",
+    suffix: str = "20260720120100",
+) -> Path:
+    artifact_dir = make_agent(tmp_path, "proj", suffix, name)
+    add_archive_identity(artifact_dir)
+    write_dismissed_completion(tmp_path, artifact_dir, name, status=status)
+    return artifact_dir
+
+
+def _identity_dependency(artifact_dir: Path, name: str = "worker") -> dict[str, str]:
+    return {
+        "project_name": "proj",
+        "timestamp": artifact_dir.name,
+        "artifact_dir": str(artifact_dir),
+        "name": name,
+    }
+
+
+def test_plan_rejected_archive_is_identity_terminal_but_not_wait_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    artifact_dir = _archived_agent(tmp_path, status="PLAN REJECTED")
+    rebuild_completion_archive()
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert not index.is_resolved("worker")
+    assert dependency_resolution_status(
+        index,
+        [],
+        [_identity_dependency(artifact_dir)],
+    ).resolved
+
+
+@pytest.mark.parametrize("status", ["FAILED", "KILLED", "STOPPED"])
+def test_failed_archived_statuses_remain_blocking(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    artifact_dir = _archived_agent(tmp_path, status=status)
+    rebuild_completion_archive()
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert not index.is_resolved("worker")
+    assert not dependency_resolution_status(
+        index,
+        [],
+        [_identity_dependency(artifact_dir)],
+    ).resolved
+
+
+@pytest.mark.parametrize(
+    ("bundle_name", "bundle_changespec"),
+    [("other", "change"), ("worker", "other-change")],
+)
+def test_archive_name_and_changespec_mismatches_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bundle_name: str,
+    bundle_changespec: str,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    artifact_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260720130100",
+        "worker",
+    )
+    add_archive_identity(artifact_dir)
+    write_dismissed_completion(
+        tmp_path,
+        artifact_dir,
+        bundle_name,
+        changespec_name=bundle_changespec,
+    )
+    rebuild_completion_archive()
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert not index.is_resolved("worker")
+
+
+def test_corrupt_or_revived_archive_does_not_resolve(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    corrupt = make_agent(
+        tmp_path,
+        "proj",
+        "20260720140100",
+        "corrupt",
+    )
+    add_archive_identity(corrupt)
+    corrupt_bundle = write_dismissed_completion(tmp_path, corrupt, "corrupt")
+    corrupt_bundle.write_text("{", encoding="utf-8")
+
+    revived = make_agent(
+        tmp_path,
+        "proj",
+        "20260720140200",
+        "revived",
+    )
+    add_archive_identity(revived)
+    write_dismissed_completion(tmp_path, revived, "revived")
+    rebuild_completion_archive()
+    assert mark_bundles_revived_by_suffixes({revived.name}) == 1
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert not index.is_resolved("corrupt")
+    assert not index.is_resolved("revived")
+
+
+def test_live_done_marker_precedes_matching_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    artifact_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260720150100",
+        "worker",
+        done=True,
+        outcome="failed",
+    )
+    add_archive_identity(artifact_dir)
+    write_dismissed_completion(tmp_path, artifact_dir, "worker", status="DONE")
+    rebuild_completion_archive()
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert not index.is_resolved("worker")
+
+
+def test_ambiguous_exact_archive_rows_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    artifact_dir = _archived_agent(tmp_path)
+    first_bundle = write_dismissed_completion(tmp_path, artifact_dir, "worker")
+    duplicate = first_bundle.parent / "202607" / first_bundle.name
+    duplicate.parent.mkdir(parents=True)
+    duplicate.write_text(first_bundle.read_text(encoding="utf-8"), encoding="utf-8")
+    rebuild_completion_archive()
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert not index.is_resolved("worker")

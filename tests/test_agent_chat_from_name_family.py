@@ -11,6 +11,11 @@ from sase.scripts.agent_chat_from_name import (
     _resolve_agent_chat_sources,
 )
 from tests._agent_chat_from_name_helpers import write_agent
+from tests._dismissed_completion_helpers import (
+    add_archive_identity,
+    rebuild_completion_archive,
+    write_dismissed_completion,
+)
 
 
 def test_family_name_and_explicit_children_use_member_owned_transcripts(
@@ -49,6 +54,50 @@ def test_family_name_and_explicit_children_use_member_owned_transcripts(
     assert _resolve_agent_chat_path("cx") == str(coder_chat)
     assert _resolve_agent_chat_path("cx--plan") == str(planner_chat)
     assert _resolve_agent_chat_path("cx--code") == str(coder_chat)
+
+
+def test_family_source_reads_dismissed_member_transcript_from_bundle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    planner_chat = tmp_path / "planner.md"
+    coder_chat = tmp_path / "coder.md"
+    write_agent(
+        tmp_path,
+        "20260720190100",
+        "cx--plan",
+        done={"response_path": str(planner_chat), "outcome": "completed"},
+        meta={"agent_family": "cx"},
+    )
+    coder_dir = write_agent(
+        tmp_path,
+        "20260720190200",
+        "cx--code",
+        done={"response_path": str(coder_chat), "outcome": "completed"},
+        meta={
+            "agent_family": "cx",
+            "parent_timestamp": "20260720190100",
+            "changespec_name": "change",
+        },
+    )
+    add_archive_identity(coder_dir)
+    write_dismissed_completion(
+        tmp_path,
+        coder_dir,
+        "cx--code",
+        response_path=str(coder_chat),
+    )
+    (coder_dir / "done.json").unlink()
+    rebuild_completion_archive()
+
+    source = _resolve_agent_chat_sources(["cx"])[0]
+
+    assert [(member.name, member.path) for member in source.members] == [
+        ("cx--plan", str(planner_chat)),
+        ("cx--code", str(coder_chat)),
+    ]
+    assert source.excluded == ()
 
 
 def test_family_source_includes_completed_members_in_chain_order(
