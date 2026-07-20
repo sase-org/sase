@@ -229,6 +229,49 @@ def test_new_style_clan_tribe_projects_into_folded_summary_header() -> None:
     assert "Fold: 1/3\n" in detail
 
 
+def test_clan_summary_renders_rich_markup_at_every_fold_level() -> None:
+    member = _agent(
+        "research.one",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    member.clan_summary = (
+        "[bold #FFD75F]RESEARCH PROMPT:[/bold #FFD75F]\n"
+        "[italic]Trace the summary from launch to panel.[/italic]"
+    )
+    container = project_clan_tree([member])[0]
+
+    for fold_level in (
+        FoldLevel.COLLAPSED,
+        FoldLevel.EXPANDED,
+        FoldLevel.FULLY_EXPANDED,
+    ):
+        detail = build_clan_detail_text(container, fold_level=fold_level)
+        plain = detail.plain
+
+        assert (
+            "Members: 1 agent\n\n"
+            "RESEARCH PROMPT:\n"
+            "Trace the summary from launch to panel.\n\n"
+            "Fold: "
+        ) in plain
+        assert _style_at(detail, plain.index("RESEARCH PROMPT:")) == ("bold #ffd75f")
+
+
+def test_clan_summary_invalid_markup_falls_back_to_raw_text() -> None:
+    member = _agent(
+        "research.one",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    member.clan_summary = "[bold]Research[/italic]"
+    container = project_clan_tree([member])[0]
+
+    detail = build_clan_detail_text(container).plain
+
+    assert "Members: 1 agent\n\n[bold]Research[/italic]\n\nFold: 1/3" in detail
+
+
 def test_cold_collapsed_summary_hides_unknown_disk_sections_behind_tail() -> None:
     member = _agent(
         "research.one",

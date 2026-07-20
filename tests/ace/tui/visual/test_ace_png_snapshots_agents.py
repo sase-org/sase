@@ -236,7 +236,7 @@ def _parallel_family_agents() -> list[Agent]:
     return sort_and_reorder(rows, [])
 
 
-def _clan_tree_agents() -> list[Agent]:
+def _clan_tree_agents(*, clan_summary: str | None = None) -> list[Agent]:
     generation = "20260717100000"
     family = Agent(
         agent_type=AgentType.RUNNING,
@@ -249,6 +249,7 @@ def _clan_tree_agents() -> list[Agent]:
         agent_name="research.family",
         agent_clan="research",
         agent_clan_generation=generation,
+        clan_summary=clan_summary,
         agent_family="research.family",
         agent_family_role="root",
         tribe="epic",

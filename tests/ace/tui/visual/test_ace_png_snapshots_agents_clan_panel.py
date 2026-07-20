@@ -27,6 +27,12 @@ from tests.ace.tui.visual.test_ace_png_snapshots_agents import (
 
 pytestmark = pytest.mark.visual
 
+_RESEARCH_CLAN_SUMMARY = (
+    "[bold #FFD75F]RESEARCH PROMPT:[/bold #FFD75F]\n"
+    "[italic #D7D7FF]How do clan summaries stay fast, safe, and beautiful\n"
+    "across every fold level?[/italic #D7D7FF]"
+)
+
 
 @pytest.fixture(autouse=True)
 def _isolate_clan_plan_enrichment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -110,7 +116,9 @@ async def test_swarm_clan_panel_png_snapshots(
     _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 10, 15, 0))
     patch_startup_loaders(
         monkeypatch,
-        agents=_decorate_clan_panel_sections(_clan_tree_agents()),
+        agents=_decorate_clan_panel_sections(
+            _clan_tree_agents(clan_summary=_RESEARCH_CLAN_SUMMARY)
+        ),
     )
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -121,6 +129,8 @@ async def test_swarm_clan_panel_png_snapshots(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "CLAN")
+        assert_page_svg_contains(page, "RESEARCH PROMPT:")
+        assert_page_svg_contains(page, "across every fold level?")
         assert_page_svg_contains(page, "3 agents")
         assert_page_svg_contains(page, "1 family")
         assert_page_svg_contains(page, "--code")

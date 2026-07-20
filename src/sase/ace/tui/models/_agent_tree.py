@@ -198,32 +198,43 @@ def _container_for_clan(
     ]
     generation = generations[0] if generations else None
     explicit_clan_tribe = any(row.clan_tribe for row in rows)
+    explicit_clan_summary = any(row.clan_summary for row in rows)
     resolved_clan_tribe: str | None = None
+    resolved_clan_summary: str | None = None
     tribes: tuple[str, ...]
-    if explicit_clan_tribe:
+    if explicit_clan_tribe or explicit_clan_summary:
         from sase.core.agent_clan_tribe import (
             ClanTribeMemberWire,
+            resolve_clan_summary,
             resolve_clan_tribe,
         )
 
-        resolution = resolve_clan_tribe(
-            clan_name,
-            generation,
-            [
-                ClanTribeMemberWire(
-                    agent_clan=row.agent_clan or clan_name,
-                    agent_clan_generation=row.agent_clan_generation,
-                    clan_tribe=row.clan_tribe,
-                    launch_timestamp=row.raw_suffix or "",
-                    identity=(
-                        f"{row.agent_type.value}:{row.cl_name}:"
-                        f"{row.raw_suffix or ''}:{row.agent_name or ''}"
-                    ),
-                )
-                for row in rows
-            ],
-        )
-        resolved_clan_tribe = resolution.tribe
+        member_wires = [
+            ClanTribeMemberWire(
+                agent_clan=row.agent_clan or clan_name,
+                agent_clan_generation=row.agent_clan_generation,
+                clan_tribe=row.clan_tribe,
+                clan_summary=row.clan_summary,
+                launch_timestamp=row.raw_suffix or "",
+                identity=(
+                    f"{row.agent_type.value}:{row.cl_name}:"
+                    f"{row.raw_suffix or ''}:{row.agent_name or ''}"
+                ),
+            )
+            for row in rows
+        ]
+        if explicit_clan_tribe:
+            resolved_clan_tribe = resolve_clan_tribe(
+                clan_name,
+                generation,
+                member_wires,
+            ).tribe
+        if explicit_clan_summary:
+            resolved_clan_summary = resolve_clan_summary(
+                clan_name,
+                generation,
+                member_wires,
+            ).summary
 
     # A new-style declaration is authoritative. Only generations with no
     # declaration use standalone per-member tribe aggregation.
@@ -252,6 +263,7 @@ def _container_for_clan(
         agent_clan=clan_name,
         agent_clan_generation=generation,
         clan_tribe=resolved_clan_tribe,
+        clan_summary=resolved_clan_summary,
         is_clan_container=True,
         clan_tribes=tribes,
         tribe=tribes[0] if len(tribes) == 1 else None,

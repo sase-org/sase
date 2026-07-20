@@ -20,8 +20,12 @@ from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import build_agent_tree
 from sase.ace.tui.models.fold_state import FoldStateManager
+from sase.ace.tui.models._loaders._meta_enrichment_wire import (
+    enrich_agent_from_meta_wire,
+)
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
+from sase.core.agent_scan_wire import AgentMetaWire
 
 _GENERATION = "20260717100000"
 
@@ -47,6 +51,7 @@ def _agent(
     generation: str | None = _GENERATION,
     tribe: str | None = None,
     clan_tribe: str | None = None,
+    clan_summary: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=agent_type,
@@ -65,6 +70,7 @@ def _agent(
         agent_clan_generation=generation,
         tribe=tribe,
         clan_tribe=clan_tribe,
+        clan_summary=clan_summary,
     )
 
 
@@ -245,6 +251,50 @@ def test_project_clan_tree_uses_latest_explicit_clan_tribe() -> None:
     assert container.tribe == "beta"
     assert container.clan_tribe == "beta"
     assert container.clan_tribes == ("beta",)
+
+
+def test_wire_enrichment_loads_clan_summary() -> None:
+    agent = _agent("research.first", "one")
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(clan_summary="[bold]Research[/bold]"),
+        None,
+    )
+
+    assert agent.clan_summary == "[bold]Research[/bold]"
+
+
+def test_project_clan_tree_uses_latest_explicit_clan_summary() -> None:
+    first = _agent(
+        "research.first",
+        "20260717100001",
+        clan_summary="First summary",
+    )
+    latest = _agent(
+        "research.latest",
+        "20260717100002",
+        clan_summary="[bold]Latest summary[/bold]",
+    )
+    later_without_declaration = _agent(
+        "research.later",
+        "20260717100003",
+    )
+
+    container = project_clan_tree([later_without_declaration, first, latest])[0]
+
+    assert container.clan_summary == "[bold]Latest summary[/bold]"
+
+
+def test_project_clan_tree_omits_summary_without_declaration() -> None:
+    container = project_clan_tree(
+        [
+            _agent("research.first", "one"),
+            _agent("research.second", "two"),
+        ]
+    )[0]
+
+    assert container.clan_summary is None
 
 
 def test_project_clan_tree_retains_direct_tribe_fallback() -> None:

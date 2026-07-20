@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Collection, Mapping
 from datetime import datetime
 
+from rich.errors import MarkupError
 from rich.text import Text
 
 from sase.agent.status_buckets import status_bucket_for_values
@@ -173,6 +174,15 @@ def build_clan_detail_text(
             f"{family_count} famil{'ies' if family_count != 1 else 'y'}"
         )
     text.append(" · ".join(member_parts) + "\n", style="#D7D7FF")
+
+    if agent.clan_summary:
+        text.append("\n")
+        try:
+            summary = Text.from_markup(agent.clan_summary)
+        except MarkupError:
+            summary = Text(agent.clan_summary)
+        text.append_text(summary)
+        text.append("\n\n")
 
     append_fold_header_line(text, level=fold_level, scale=CLAN_FOLD_SCALE)
 
