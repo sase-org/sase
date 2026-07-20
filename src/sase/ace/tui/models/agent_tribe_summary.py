@@ -329,6 +329,8 @@ def _attention_preview(rows: Sequence[Agent], status: str) -> str:
     for row in rows:
         if row.waiting_for:
             return "waiting for " + ", ".join(row.waiting_for)
+        if row.waiting_for_beads:
+            return "waiting for beads " + ", ".join(row.waiting_for_beads)
     return status
 
 

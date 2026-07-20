@@ -196,6 +196,7 @@ def _append_wait_field(
     )
     if not (
         wait_agent.waiting_for
+        or wait_agent.waiting_for_beads
         or wait_agent.wait_duration
         or wait_agent.wait_until
         or has_slot_wait
@@ -230,6 +231,16 @@ def _append_wait_field(
                 text.append(")", style="dim #AF87FF")
             elif agent_status_buckets is not None:
                 _append_wait_status_badge(text, agent_status_buckets.get(name))
+        appended_dependency_names = True
+
+    if wait_agent.waiting_for_beads:
+        if appended_dependency_names:
+            text.append(" + ", style=_WAITING_VALUE_STYLE)
+        text.append("beads: ", style="dim #AF87FF")
+        text.append(
+            ", ".join(wait_agent.waiting_for_beads),
+            style=_WAITING_VALUE_STYLE,
+        )
         appended_dependency_names = True
 
     time_part: str | None = None

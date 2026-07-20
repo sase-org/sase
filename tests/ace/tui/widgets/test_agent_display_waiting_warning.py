@@ -128,6 +128,22 @@ def test_missing_agent_status_bucket_map_renders_no_badges() -> None:
     assert _waiting_line(header) == "Wait: ghost_deploy"
 
 
+def test_bead_waits_render_as_named_read_only_conditions() -> None:
+    agent = make_agent(
+        status="WAITING",
+        waiting_for=["coder"],
+        waiting_for_beads=["sase-87.2", "sase-87.3"],
+    )
+
+    header, _ = build_header_text(
+        agent,
+        cheap=True,
+        agent_status_buckets={"coder": "Done"},
+    )
+
+    assert _waiting_line(header) == ("Wait: coder ✓ + beads: sase-87.2, sase-87.3")
+
+
 def test_waited_for_status_badges_keep_duration_format() -> None:
     agent = make_agent(
         status="WAITING",
@@ -398,6 +414,12 @@ def test_wait_dependencies_satisfied_accepts_empty_wait_list() -> None:
     agent = make_agent(status="WAITING", waiting_for=[])
 
     assert wait_dependencies_satisfied(agent, None) is True
+
+
+def test_wait_dependencies_satisfied_keeps_bead_waits_pending() -> None:
+    agent = make_agent(status="WAITING", waiting_for_beads=["sase-87.2"])
+
+    assert wait_dependencies_satisfied(agent, None) is False
 
 
 def test_wait_dependencies_satisfied_requires_all_deps_done() -> None:

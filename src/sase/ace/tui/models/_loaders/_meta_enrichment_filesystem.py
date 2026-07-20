@@ -110,6 +110,8 @@ def enrich_agent_from_meta(
         agent.output_variables = string_output_variables(data.get("output_variables"))
     if data.get("wait_for"):
         agent.waiting_for = data["wait_for"]
+    if data.get("wait_for_beads"):
+        agent.waiting_for_beads = data["wait_for_beads"]
     raw_auto_action = data.get("auto_approve_plan_action")
     auto_action = (
         raw_auto_action
@@ -273,6 +275,8 @@ def enrich_agent_from_meta(
             if isinstance(waiting_data, dict):
                 if waiting_data.get("waiting_for"):
                     agent.waiting_for = waiting_data["waiting_for"]
+                if waiting_data.get("wait_for_beads"):
+                    agent.waiting_for_beads = waiting_data["wait_for_beads"]
                 # Read wait_duration from waiting.json (preferred source)
                 raw_dur = waiting_data.get("wait_duration")
                 if raw_dur is not None:

@@ -193,6 +193,9 @@ class AgentState:
     # Names this agent is waiting for (from %wait directives)
     waiting_for: list[str] = field(default_factory=list)
 
+    # Bead IDs this agent is waiting to reach closed status.
+    waiting_for_beads: list[str] = field(default_factory=list)
+
     # Duration wait in seconds (from %wait(time=5m) directive)
     wait_duration: float | None = None
 

@@ -393,6 +393,8 @@ class ArtifactRestorationMixin:
             data["output_variables"] = dict(agent.output_variables)
         if agent.waiting_for:
             data["wait_for"] = agent.waiting_for
+        if agent.waiting_for_beads:
+            data["wait_for_beads"] = agent.waiting_for_beads
         if agent.wait_duration is not None:
             data["wait_duration"] = agent.wait_duration
         if agent.wait_until:

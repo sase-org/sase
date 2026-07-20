@@ -260,6 +260,11 @@ Close one or more issues.
 Closing a plan bead also closes all descendant phase and child-plan beads recursively. Use this intentionally: phase
 agents should close only their assigned phase bead, not the parent epic.
 
+Closing a delegated child plan/epic also closes its parent phase automatically once every child of that phase is closed.
+This upward cascade continues only through phase parents and never auto-closes a parent plan/epic; the parent land agent
+retains that responsibility. Removing a child epic does not trigger the cascade, so its phase stays open and can be
+scheduled again on retry.
+
 | Flag           | Description                |
 | -------------- | -------------------------- |
 | `-r, --reason` | Optional close reason text |
@@ -345,7 +350,9 @@ agents. `--json` prints one stable object for scripting; successful human output
 Once an epic bead exists, the shared launch path:
 
 1. Validates that `<epic_id>` resolves to an issue of type `plan` with `tier=epic`. If the plan is already marked
-   `is_ready_to_work`, the command treats the run as a retry and schedules any remaining non-closed phases.
+   `is_ready_to_work`, the command treats the run as a retry and schedules any remaining non-closed phases. A phase that
+   owns a non-closed child plan/epic is delegated work already in flight and is skipped until that child closes or is
+   removed; retries therefore do not launch a duplicate phase agent.
 2. On a confirmed launch, force-reuses the deterministic bead-work names — `<epic_id>.<N>` (for each open phase),
    `<epic_id>.land` (for the land agent), and the legacy `<epic_id>` land-agent name — by wiping any prior owner of
    those names, whether that owner is a completed, dismissed, or planned reservation or a still-live agent (live owners
@@ -353,27 +360,37 @@ Once an epic bead exists, the shared launch path:
    cannot complete (a wipe fails or a name is still reserved afterward), the command aborts before mutating any bead
    state. `--dry-run` performs no cleanup; it only warns which live agents a real launch would force-reuse.
 3. Flips the epic plan bead's `is_ready_to_work` flag to `True` when it was not already ready.
-4. Builds a Kahn-wave schedule from the epic's open phase children, respecting dependencies.
+4. Builds a Kahn-wave schedule from the epic's schedulable open phase children, respecting dependencies and excluding
+   delegated phases with an open child plan/epic. When every remaining phase is delegated, only the land agent is
+   launched and remains parked behind the phase beads.
 5. Pre-claims each phase bead — sets `status=in_progress` and `assignee=<phase_bead_id>` (i.e. `<epic_id>.<N>`).
 6. Hands a single `---`-separated multi-prompt to the agent launcher. Each per-phase agent is spawned with name
    `<epic_id>.<N>` and references the [`work_phase_bead`](xprompt.md#available-tags) xprompt; a final land agent named
    `<epic_id>.land` references the [`land_epic`](xprompt.md#available-tags) xprompt. Every segment joins clan
    `<epic_id>` and assigns that whole clan to tribe `@epic` with the single `%clan(<epic_id>, tribe=epic)` directive.
-   Phase dependencies become `%w` waits on blocker phase-agent names, and the land agent waits on every launched phase
-   agent. Because `%w` requires a successful `done.json` outcome, a failed or killed phase keeps dependent phases and
-   the land agent parked until the phase name is retried successfully. Small phases launch directly and default to
-   `%model:@phase_worker`; medium phases also use `@phase_worker` but append `#plan` after their work reference; large
-   phases append `#plan` and default to `%model:@smartest`. A stored phase `model` always wins over the size-derived
-   alias, and a missing legacy size behaves as `small`. The land agent emits `%model:<value>` when the epic plan bead
-   has a stored `model`. Without one, it emits `%model:@epic_lander` below `bead.big_epic_phase_threshold` and
-   `%model:@big_epic_lander` at or above the threshold (default `5`), using the total authored phase count even when
-   resumed work has already-closed phases. `@big_epic_lander` falls through to `@epic_lander`; it, `@phase_worker`, and
-   `@smartest` ultimately fall through to `@default` unless explicitly configured under
-   `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic segment carries bare `%auto`, so
-   submitted implementation and landing plans are auto-approved. An agent may author a tale or an epic as needed; the
-   plan's authored `tier` selects the corresponding automatic follow-up path. Each segment uses the force-reuse
-   `%id:!<agent_name>` form so re-running `sase bead work` after a killed or failed run wipes the stale name owners
-   before the relaunch — the command is safe to retry.
+   Each phase dependency becomes both a `%w` wait on the blocker phase-agent name and a `%w(bead=<blocker-phase-id>)`
+   closure wait. The land agent likewise waits on every launched phase agent and on every authored phase bead, including
+   already-closed or currently delegated phases. Requiring both conditions prevents a phase that delegated to a child
+   epic from releasing dependents merely because its original agent finished; the child epic must land and close the
+   parent phase first. A failed or killed phase keeps dependents and the land agent parked until its agent name is
+   retried successfully and its bead closes. Small phases launch directly and default to `%model:@phase_worker`; medium
+   phases also use `@phase_worker` but append `#plan` after their work reference; large phases append `#plan` and
+   default to `%model:@smartest`. A stored phase `model` always wins over the size-derived alias, and a missing legacy
+   size behaves as `small`. The land agent emits `%model:<value>` when the epic plan bead has a stored `model`. Without
+   one, it emits `%model:@epic_lander` below `bead.big_epic_phase_threshold` and `%model:@big_epic_lander` at or above
+   the threshold (default `5`), using the total authored phase count even when resumed work has already-closed phases.
+   `@big_epic_lander` falls through to `@epic_lander`; it, `@phase_worker`, and `@smartest` ultimately fall through to
+   `@default` unless explicitly configured under `llm_provider.model_aliases.builtin`. Each phase segment and the final
+   land-epic segment carries bare `%auto`, so submitted implementation and landing plans are auto-approved. An agent may
+   author a tale or an epic as needed; the plan's authored `tier` selects the corresponding automatic follow-up path.
+   Each segment uses the force-reuse `%id:!<agent_name>` form so re-running `sase bead work` after a killed or failed
+   run wipes the stale name owners before the relaunch — the command is safe to retry.
+
+When a phase agent auto-approves an epic-tier implementation plan, that child epic is created beneath the phase and the
+phase remains open while delegated work runs. Landing the child epic triggers the upward close cascade described above,
+which closes the phase and lets its bead-gated dependents proceed. Until then, parent-epic retries skip that delegated
+phase. The land agent now genuinely requires every phase bead to close; if a phase crashes before closure, retry or
+close that phase explicitly rather than expecting landing to sweep it up.
 
 | Flag            | Description                                                                                   |
 | --------------- | --------------------------------------------------------------------------------------------- |

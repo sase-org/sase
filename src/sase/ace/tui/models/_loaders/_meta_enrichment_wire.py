@@ -79,6 +79,8 @@ def enrich_agent_from_meta_wire(
     agent.output_variables = dict(meta.output_variables)
     if meta.wait_for:
         agent.waiting_for = list(meta.wait_for)
+    if meta.wait_for_beads:
+        agent.waiting_for_beads = list(meta.wait_for_beads)
     if meta.auto_approve_plan_action:
         agent.auto_approve_plan_action = meta.auto_approve_plan_action
         agent.approve = True
@@ -190,6 +192,8 @@ def enrich_agent_from_meta_wire(
         agent.wait_start_time = agent.start_time
         if waiting.waiting_for:
             agent.waiting_for = list(waiting.waiting_for)
+        if waiting.wait_for_beads:
+            agent.waiting_for_beads = list(waiting.wait_for_beads)
         if waiting.wait_duration is not None:
             agent.wait_duration = waiting.wait_duration
         if waiting.wait_until:

@@ -98,6 +98,7 @@ def test_waiting_runner_slot_fields_match_filesystem_marker(tmp_path: Path) -> N
         json.dumps(
             {
                 "waiting_for": ["upstream"],
+                "wait_for_beads": ["sase-87.2", "sase-87.3"],
                 "wait_duration": 300.0,
                 "wait_until": "2026-07-12T19:30:00Z",
                 "wait_runners": 3,
@@ -114,6 +115,7 @@ def test_waiting_runner_slot_fields_match_filesystem_marker(tmp_path: Path) -> N
 
     assert waiting is not None
     assert waiting.waiting_for == raw["waiting_for"]
+    assert waiting.wait_for_beads == raw["wait_for_beads"]
     assert waiting.wait_duration == raw["wait_duration"]
     assert waiting.wait_until == raw["wait_until"]
     assert waiting.wait_runners == raw["wait_runners"]

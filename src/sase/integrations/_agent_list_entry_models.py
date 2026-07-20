@@ -17,6 +17,7 @@ class AgentWaitInfo:
     """Wait metadata projected from agent markers."""
 
     wait_for: tuple[str, ...] = ()
+    wait_for_beads: tuple[str, ...] = ()
     wait_duration_seconds: float | None = None
     wait_until: str | None = None
     remaining_seconds: int | None = None
@@ -32,6 +33,7 @@ class AgentWaitInfo:
     def has_wait(self) -> bool:
         return bool(
             self.wait_for
+            or self.wait_for_beads
             or self.wait_duration_seconds is not None
             or self.wait_until
             or self.remaining_seconds is not None

@@ -52,24 +52,33 @@ def action_agent_prompt_name(agent: Agent) -> str | None:
 
 def wait_spec_label(result: WaitModalResult) -> str:
     """Build a user-facing label for a wait spec."""
-    if result.agents and result.time_token:
-        label = f"waiting for {', '.join(result.agents)}, then {result.time_token}"
-    elif result.agents:
-        label = f"waiting for {', '.join(result.agents)}"
+    dependency_parts: list[str] = []
+    if result.agents:
+        dependency_parts.append(", ".join(result.agents))
+    if result.beads:
+        dependency_parts.append("beads " + ", ".join(result.beads))
+    if dependency_parts:
+        label = f"waiting for {' and '.join(dependency_parts)}"
+        if result.time_token:
+            label = f"{label}, then {result.time_token}"
     elif result.time_token:
         label = f"waiting until {result.time_token}"
     elif result.runners is not None:
         label = f"waiting for runners ≤ {result.runners}"
     else:
         return "running now"
-    if result.runners is not None and (result.agents or result.time_token):
+    if result.runners is not None and (
+        result.agents or result.beads or result.time_token
+    ):
         label = f"{label}, with runners ≤ {result.runners}"
     return label
 
 
 def result_has_wait_spec(result: WaitModalResult) -> bool:
     """Return whether the result contains a wait dependency or time floor."""
-    return bool(result.agents or result.time_token or result.runners is not None)
+    return bool(
+        result.agents or result.beads or result.time_token or result.runners is not None
+    )
 
 
 def prompt_wait_spec(result: WaitModalResult) -> PromptWaitDirective | None:
@@ -80,6 +89,7 @@ def prompt_wait_spec(result: WaitModalResult) -> PromptWaitDirective | None:
         agents=tuple(result.agents),
         time_token=result.time_token,
         runners=result.runners,
+        beads=tuple(result.beads),
     )
 
 

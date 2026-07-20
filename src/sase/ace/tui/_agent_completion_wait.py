@@ -128,6 +128,8 @@ def wait_dependencies_satisfied(
     from sase.ace.tui.models.agent_time import wait_display_agent
 
     wait_agent = wait_display_agent(agent)
+    if wait_agent.waiting_for_beads:
+        return False
     if not wait_agent.waiting_for:
         return True
     if status_buckets is None:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from textual.app import App, ComposeResult
-from textual.widgets import Input, OptionList
+from textual.widgets import Input, OptionList, Static
 
 from sase.ace.tui.modals.wait_modal import (
     WaitAgentCandidate,
@@ -190,3 +190,52 @@ async def test_modal_returns_explicit_runner_threshold() -> None:
         await pilot.pause()
 
     assert result == WaitModalResult(agents=[], time_token=None, runners=0)
+
+
+async def test_modal_displays_and_preserves_read_only_bead_waits() -> None:
+    result: WaitModalResult | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: WaitModalResult | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = WaitModal(current_waiting_for_beads=["sase-87.2", "sase-87.3"])
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        assert modal.query_one("#wait-beads-summary", Static).render().plain == (
+            "sase-87.2, sase-87.3"
+        )
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert result == WaitModalResult(
+        agents=[],
+        time_token=None,
+        beads=["sase-87.2", "sase-87.3"],
+    )
+
+
+async def test_modal_run_now_cancels_bead_waits() -> None:
+    result: WaitModalResult | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: WaitModalResult | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = WaitModal(current_waiting_for_beads=["sase-87.2"])
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+        await pilot.press("ctrl+r")
+        await pilot.pause()
+
+    assert result == WaitModalResult(
+        agents=[],
+        time_token=None,
+        beads=[],
+        run_now=True,
+    )

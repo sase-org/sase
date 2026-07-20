@@ -282,9 +282,9 @@ def format_agent_option(
                 )
             text.append(slot_label, style="dim #AF87FF")
         deps_satisfied = (
-            not wait_agent.waiting_for
+            not wait_agent.waiting_for and not wait_agent.waiting_for_beads
             if wait_deps_satisfied is None
-            else wait_deps_satisfied
+            else wait_deps_satisfied and not wait_agent.waiting_for_beads
         )
         wait_remaining = wait_remaining_seconds(agent, now=now)
         if wait_remaining is not None and wait_remaining > 0 and deps_satisfied:
@@ -293,7 +293,7 @@ def format_agent_option(
                 style="#AF87FF",
             )
         elif (
-            wait_agent.waiting_for
+            (wait_agent.waiting_for or wait_agent.waiting_for_beads)
             and wait_agent.wait_duration is not None
             and not wait_agent.wait_until
         ):

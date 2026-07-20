@@ -64,6 +64,8 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.artifacts_dir = source.artifacts_dir
     if not target.waiting_for and source.waiting_for:
         target.waiting_for = source.waiting_for
+    if not target.waiting_for_beads and source.waiting_for_beads:
+        target.waiting_for_beads = source.waiting_for_beads
     if target.wait_runners is None and source.wait_runners is not None:
         target.wait_runners = source.wait_runners
         target.wait_runners_explicit = source.wait_runners_explicit

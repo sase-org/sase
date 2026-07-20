@@ -104,9 +104,14 @@ def test_wait_info_prefers_waiting_marker_and_computes_remaining_seconds() -> No
     entry = _build_agent_list_entry(
         _agent(status="STARTING"),
         record=_record(
-            agent_meta=AgentMetaWire(wait_for=["meta-dep"], wait_duration=999.0),
+            agent_meta=AgentMetaWire(
+                wait_for=["meta-dep"],
+                wait_for_beads=["meta-bead"],
+                wait_duration=999.0,
+            ),
             waiting=WaitingMarkerWire(
                 waiting_for=["dep"],
+                wait_for_beads=["sase-87.2"],
                 wait_until=(now + timedelta(minutes=5)).isoformat(),
             ),
         ),
@@ -116,6 +121,7 @@ def test_wait_info_prefers_waiting_marker_and_computes_remaining_seconds() -> No
     assert entry.status == "WAITING"
     assert entry.status_bucket == "Waiting"
     assert entry.wait.wait_for == ("dep",)
+    assert entry.wait.wait_for_beads == ("sase-87.2",)
     assert entry.wait.wait_until is not None
     assert entry.wait.remaining_seconds == 300
 
@@ -291,6 +297,8 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
         record=_record(
             agent_meta=AgentMetaWire(),
             waiting=WaitingMarkerWire(
+                waiting_for=["phase"],
+                wait_for_beads=["sase-87.2"],
                 wait_runners=0,
                 wait_runners_explicit=True,
                 slot_requested_at="2026-07-12T12:00:00Z",
@@ -301,6 +309,8 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
 
     payload = _agent_to_json(entry)
 
+    assert payload["waiting_for"] == ["phase"]
+    assert payload["wait_for_beads"] == ["sase-87.2"]
     assert payload["wait_runners"] == 0
     assert payload["wait_runners_explicit"] is True
     assert payload["slot_requested_at"] == "2026-07-12T12:00:00Z"

@@ -195,6 +195,7 @@ def parse_linked_repos(raw_value: object) -> tuple[LinkedRepoMetadata, ...]:
 def meta_has_wait_directive(data: dict[str, object]) -> bool:
     return (
         bool(data.get("wait_for"))
+        or bool(data.get("wait_for_beads"))
         or data.get("wait_duration") is not None
         or bool(data.get("wait_until"))
     )
@@ -202,7 +203,10 @@ def meta_has_wait_directive(data: dict[str, object]) -> bool:
 
 def wire_meta_has_wait_directive(meta: AgentMetaWire) -> bool:
     return (
-        bool(meta.wait_for) or meta.wait_duration is not None or bool(meta.wait_until)
+        bool(meta.wait_for)
+        or bool(meta.wait_for_beads)
+        or meta.wait_duration is not None
+        or bool(meta.wait_until)
     )
 
 

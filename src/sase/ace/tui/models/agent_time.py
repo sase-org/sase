@@ -133,7 +133,7 @@ def wait_remaining_seconds(agent: "Agent", now: datetime | None = None) -> float
         return (target - reference).total_seconds()
     if wait_agent.wait_duration is None or wait_agent.start_time is None:
         return None
-    if wait_agent.waiting_for:
+    if wait_agent.waiting_for or wait_agent.waiting_for_beads:
         return None
     target = wait_agent.start_time + timedelta(seconds=wait_agent.wait_duration)
     reference = _reference_for_target(target, now)
@@ -506,6 +506,7 @@ def wait_countdown_ticks(agent: "Agent") -> bool:
         wait_agent.wait_duration is not None
         and wait_agent.start_time is not None
         and not wait_agent.waiting_for
+        and not wait_agent.waiting_for_beads
     )
 
 

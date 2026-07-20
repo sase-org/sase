@@ -236,6 +236,9 @@ def _wait_info(
     wait_for = tuple(waiting.waiting_for) if waiting is not None else ()
     if not wait_for and meta is not None:
         wait_for = tuple(meta.wait_for)
+    wait_for_beads = tuple(waiting.wait_for_beads) if waiting is not None else ()
+    if not wait_for_beads and meta is not None:
+        wait_for_beads = tuple(meta.wait_for_beads)
     wait_duration = (
         waiting.wait_duration
         if waiting is not None and waiting.wait_duration is not None
@@ -252,6 +255,7 @@ def _wait_info(
     )
     return AgentWaitInfo(
         wait_for=wait_for,
+        wait_for_beads=wait_for_beads,
         wait_duration_seconds=wait_duration,
         wait_until=wait_until,
         remaining_seconds=_remaining_wait_seconds(

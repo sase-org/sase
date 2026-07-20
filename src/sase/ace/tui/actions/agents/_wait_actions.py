@@ -85,6 +85,7 @@ class AgentWaitActionsMixin:
         self.push_screen(  # type: ignore[attr-defined]
             WaitModal(
                 current_waiting_for=agent.waiting_for,
+                current_waiting_for_beads=agent.waiting_for_beads,
                 current_wait_duration=agent.wait_duration,
                 current_wait_until=agent.wait_until,
                 current_wait_runners=(
@@ -122,25 +123,41 @@ class AgentWaitActionsMixin:
         result: WaitModalResult,
     ) -> None:
         """Apply a WAITING-agent wait result."""
-        if agent.slot_requested_at and not result.agents and not result.time_token:
+        if (
+            not result.run_now
+            and agent.slot_requested_at
+            and not result.agents
+            and not result.time_token
+        ):
             self._apply_live_runner_wait(artifacts_dir, agent, result)
             return
-        if result.time_token or result.runners is not None or agent.slot_requested_at:
+        if not result.run_now and (
+            result.time_token or result.runners is not None or agent.slot_requested_at
+        ):
             self._apply_wait_relaunch(agent, result)
             return
 
         wait_names = list(result.agents)
-        if wait_names:
-            wait_spec = PromptWaitDirective(agents=tuple(wait_names))
+        wait_beads = list(result.beads)
+        if wait_names or wait_beads:
+            wait_spec = PromptWaitDirective(
+                agents=tuple(wait_names),
+                beads=tuple(wait_beads),
+            )
             spec = AgentDirectivePersistenceSpec(
                 artifacts_dir=artifacts_dir,
                 prompt_mutator=lambda prompt: set_prompt_wait(prompt, wait_spec),
-                meta_patch=wait_meta_patch_for_token(wait_names=tuple(wait_names)),
+                meta_patch=wait_meta_patch_for_token(
+                    wait_names=tuple(wait_names),
+                    wait_beads=tuple(wait_beads),
+                ),
                 waiting_marker=waiting_marker_patch_for_token(
                     wait_names=tuple(wait_names),
+                    wait_beads=tuple(wait_beads),
                 ),
             )
             prior_waiting_for = list(agent.waiting_for)
+            prior_waiting_for_beads = list(agent.waiting_for_beads)
             prior_wait_duration = agent.wait_duration
             prior_wait_until = agent.wait_until
 
@@ -158,6 +175,7 @@ class AgentWaitActionsMixin:
                 if completion.success:
                     return
                 agent.waiting_for = prior_waiting_for
+                agent.waiting_for_beads = prior_waiting_for_beads
                 agent.wait_duration = prior_wait_duration
                 agent.wait_until = prior_wait_until
                 self.notify(  # type: ignore[attr-defined]
@@ -183,16 +201,20 @@ class AgentWaitActionsMixin:
             if task_info is None:
                 return
             agent.waiting_for = wait_names
+            agent.waiting_for_beads = wait_beads
             agent.wait_duration = None
             agent.wait_until = None
-            wait_label = ", ".join(wait_names)
+            wait_label_parts = [", ".join(wait_names)] if wait_names else []
+            if wait_beads:
+                wait_label_parts.append("beads: " + ", ".join(wait_beads))
+            wait_label = "; ".join(wait_label_parts)
             self.notify(f"Now waiting for: {wait_label}")  # type: ignore[attr-defined]
             self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
         else:
             spec = AgentDirectivePersistenceSpec(
                 artifacts_dir=artifacts_dir,
                 prompt_mutator=lambda prompt: set_prompt_wait(prompt, None),
-                meta_patch=wait_meta_patch_for_token(),
+                meta_patch=wait_meta_patch_for_token(update_wait_runners=True),
                 ready_marker=ReadyMarkerPatch(
                     resolved_deps=tuple(agent.waiting_for),
                     unwait=True,
@@ -235,8 +257,12 @@ class AgentWaitActionsMixin:
             if task_info is None:
                 return
             agent.waiting_for = []
+            agent.waiting_for_beads = []
             agent.wait_duration = None
             agent.wait_until = None
+            agent.wait_runners = None
+            agent.wait_runners_explicit = False
+            agent.slot_requested_at = None
             self.notify(f"Wait: {agent.display_name or agent.cl_name}")  # type: ignore[attr-defined]
             self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
 
@@ -252,10 +278,12 @@ class AgentWaitActionsMixin:
             artifacts_dir=artifacts_dir,
             prompt_mutator=lambda prompt: set_prompt_wait(prompt, wait_spec),
             meta_patch=wait_meta_patch_for_token(
+                wait_beads=tuple(result.beads),
                 update_wait_runners=True,
                 wait_runners=result.runners,
             ),
             waiting_marker=waiting_marker_patch_for_token(
+                wait_beads=tuple(result.beads),
                 update_wait_runners=True,
                 wait_runners=result.runners,
             ),

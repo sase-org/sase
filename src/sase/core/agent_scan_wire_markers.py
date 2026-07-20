@@ -152,6 +152,7 @@ class AgentMetaWire:
     plan_action: str | None = None
     plan_committed: bool | None = None
     wait_for: list[str] = field(default_factory=list)
+    wait_for_beads: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
     wait_completed_at: str | None = None
@@ -197,6 +198,7 @@ class WaitingMarkerWire:
     """
 
     waiting_for: list[str] = field(default_factory=list)
+    wait_for_beads: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
     wait_runners: int | None = None

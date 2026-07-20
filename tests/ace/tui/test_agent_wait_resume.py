@@ -61,7 +61,11 @@ def test_apply_wait_overwrites_wait_conditions(tmp_path: Path) -> None:
 
 
 def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> None:
-    agent = make_waiting_agent(waiting_for=["old_dep"], wait_duration=None)
+    agent = make_waiting_agent(
+        waiting_for=["old_dep"],
+        waiting_for_beads=["sase-87.2"],
+        wait_duration=None,
+    )
     app = FakeWaitResumeApp()
 
     with patch(
@@ -80,6 +84,7 @@ def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> N
         "unwait": True,
     }
     assert agent.waiting_for == []
+    assert agent.waiting_for_beads == []
     assert app.notifications == [("Wait: test_cl", "information")]
     update_index.assert_not_called()
 
@@ -134,6 +139,57 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
     assert app.killed_agents == []
 
 
+def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
+    (tmp_path / "raw_xprompt.md").write_text(
+        "%wait(runners=0)\nDo work", encoding="utf-8"
+    )
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"wait_runners": 0}), encoding="utf-8"
+    )
+    (tmp_path / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": [],
+                "wait_runners": 0,
+                "wait_runners_explicit": True,
+                "slot_requested_at": "2026-07-12T12:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    agent = make_waiting_agent(
+        artifacts_dir=str(tmp_path),
+        waiting_for=[],
+        wait_duration=None,
+        wait_until=None,
+        wait_runners=0,
+        wait_runners_explicit=True,
+        slot_requested_at="2026-07-12T12:00:00Z",
+    )
+    app = FakeWaitResumeApp()
+
+    with patch(
+        "sase.ace.tui.actions.agents._directive_persistence."
+        "update_agent_artifact_index_for_marker_mutation"
+    ):
+        app._apply_wait(
+            str(tmp_path),
+            agent,
+            WaitModalResult(agents=[], time_token=None, run_now=True),
+        )
+
+    assert json.loads((tmp_path / "ready.json").read_text()) == {
+        "resolved_deps": [],
+        "unwait": True,
+    }
+    assert json.loads((tmp_path / "agent_meta.json").read_text()) == {}
+    assert (tmp_path / "raw_xprompt.md").read_text() == "Do work"
+    assert agent.wait_runners is None
+    assert agent.wait_runners_explicit is False
+    assert agent.slot_requested_at is None
+    assert app.killed_agents == []
+
+
 def test_prompt_wait_spec_builds_canonical_forms() -> None:
     assert _prompt_wait_spec(
         WaitModalResult(agents=["alice", "bob"], time_token="5m")
@@ -152,6 +208,63 @@ def test_prompt_wait_spec_builds_canonical_forms() -> None:
         )
         == "%wait(alice)\nDo work"
     )
+    assert _prompt_wait_spec(
+        WaitModalResult(
+            agents=["alice"],
+            time_token=None,
+            beads=["sase-87.2"],
+        )
+    ) == PromptWaitDirective(agents=("alice",), beads=("sase-87.2",))
+
+
+def test_apply_wait_preserves_bead_conditions(tmp_path: Path) -> None:
+    (tmp_path / "raw_xprompt.md").write_text(
+        "%wait(old, bead=sase-87.2)\nDo work",
+        encoding="utf-8",
+    )
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"wait_for": ["old"], "wait_for_beads": ["sase-87.2"]}),
+        encoding="utf-8",
+    )
+    (tmp_path / "waiting.json").write_text(
+        json.dumps({"waiting_for": ["old"], "wait_for_beads": ["sase-87.2"]}),
+        encoding="utf-8",
+    )
+    agent = make_waiting_agent(
+        artifacts_dir=str(tmp_path),
+        waiting_for=["old"],
+        waiting_for_beads=["sase-87.2"],
+        wait_duration=None,
+        wait_until=None,
+    )
+    app = FakeWaitResumeApp()
+
+    with patch(
+        "sase.ace.tui.actions.agents._directive_persistence."
+        "update_agent_artifact_index_for_marker_mutation"
+    ):
+        app._apply_wait(
+            str(tmp_path),
+            agent,
+            WaitModalResult(
+                agents=["new"],
+                time_token=None,
+                beads=["sase-87.2"],
+            ),
+        )
+
+    assert (tmp_path / "raw_xprompt.md").read_text(encoding="utf-8") == (
+        "%wait(new)\n%wait(bead=sase-87.2)\nDo work"
+    )
+    assert json.loads((tmp_path / "agent_meta.json").read_text()) == {
+        "wait_for": ["new"],
+        "wait_for_beads": ["sase-87.2"],
+    }
+    assert json.loads((tmp_path / "waiting.json").read_text()) == {
+        "waiting_for": ["new"],
+        "wait_for_beads": ["sase-87.2"],
+    }
+    assert agent.waiting_for_beads == ["sase-87.2"]
 
 
 def test_wait_modal_candidates_excludes_self_unnamed_and_duplicates() -> None:

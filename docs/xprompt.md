@@ -999,17 +999,17 @@ the prompt before further processing.
 
 ### Supported Directives
 
-| Directive | Alias | Description                                                           |
-| --------- | ----- | --------------------------------------------------------------------- |
-| `%model`  | `%m`  | Override the LLM model for this prompt                                |
-| `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                 |
-| `%id`     | `%i`  | Assign an id, clan, family, or user-managed tribe                     |
-| `%clan`   | `%c`  | Declare a new named, rootless parallel agent clan                     |
-| `%wait`   | `%w`  | Wait for dependencies, a time floor, and/or a runner threshold        |
-| `%hide`   | `%h`  | Hide the agent from the default Agents tab display                    |
-| `%auto`   | `%a`  | Request automatic gate resolution; an optional argument is gate-owned |
-| `%repeat` | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                     |
-| `%alt`    | `%{}` | Split prompt into variants with different text (brace shorthand)      |
+| Directive | Alias | Description                                                            |
+| --------- | ----- | ---------------------------------------------------------------------- |
+| `%model`  | `%m`  | Override the LLM model for this prompt                                 |
+| `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                  |
+| `%id`     | `%i`  | Assign an id, clan, family, or user-managed tribe                      |
+| `%clan`   | `%c`  | Declare a new named, rootless parallel agent clan                      |
+| `%wait`   | `%w`  | Wait for agents, closed beads, a time floor, and/or a runner threshold |
+| `%hide`   | `%h`  | Hide the agent from the default Agents tab display                     |
+| `%auto`   | `%a`  | Request automatic gate resolution; an optional argument is gate-owned  |
+| `%repeat` | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                      |
+| `%alt`    | `%{}` | Split prompt into variants with different text (brace shorthand)       |
 
 Agent identity uses `%id` or its `%i` alias. The retired `%name` and `%n` prompt directives are not launch aliases.
 Using either as a top-level directive now raises a migration error that points to `%id` / `%i` and, for clan membership,
@@ -1059,6 +1059,8 @@ Directives use the same argument syntax as xprompt references:
 %wait:agent1,agent2          # Multi-value: equivalent to two separate %wait: lines
 %wait(agent1, agent2)        # Same, paren form
 %wait:@review                # Wait for the next completed @review agent or clan
+%wait(bead=sase-87.2)        # Wait for a bead in this project to close
+%wait(agent1, bead=sase-87.2) # Require both the agent and bead conditions
 %wait(time=5m)               # Wait for 5 minutes before starting
 %wait(time=1h30m)            # Wait for 1 hour 30 minutes
 %wait(time=90s)              # Wait for 90 seconds
@@ -1199,6 +1201,13 @@ name, every member or child must complete successfully. An exact agent name stil
 killed, crashed, still-running, malformed, or missing `done.json` artifacts do not satisfy the wait; the dependent agent
 stays parked until a later successful run of the same dependency name appears.
 
+The repeatable `bead=<bead-id>` keyword adds a closure condition from the waiting agent's own project bead store. Every
+named agent/artifact condition and every bead condition must resolve before the wait releases; a missing bead, missing
+store, or read error keeps the agent parked. For example, `%wait(build, bead=sase-87.2)` requires both the successful
+`build` agent and closed bead `sase-87.2`. Multiple `bead=` values preserve their authored order and are deduplicated.
+Bead-only waits do not name an agent, so they do not participate in bare-wait rewriting, agent-name templates, or
+cross-project lookup. Once a wait releases, reopening the bead does not re-park the agent.
+
 An `@<tribe>` dependency has next-entity semantics. `%wait:@review` ignores older tribe members and selects the earliest
 successfully completed eligible entity launched after the waiting agent: one standalone agent or one whole clan
 generation. A tribe-assigned clan member enrolls its generation, which becomes eligible only when the normal aggregate
@@ -1237,9 +1246,9 @@ For a pure time wait, `#t:<time>` is shorthand for `%wait(time=<time>)`.
 - **`yymmdd/HHMM`** — wait until a specific date and time (e.g., `%wait(time=260415/0900)` for 2026-04-15 at 09:00).
   Raises an error if the target is in the past.
 
-Agent dependencies, `time=`, and `runners=` combine in one `%wait(...)` directive. Dependencies wait first, then the
-time floor applies, and the runner-slot gate is the final admission stage. Primary and linked-workspace preparation
-start only after admission, so admitted runner counts include that preparation work.
+Agent and bead dependencies, `time=`, and `runners=` combine across `%wait(...)` directives. All dependencies wait
+first, then the time floor applies, and the runner-slot gate is the final admission stage. Primary and linked-workspace
+preparation starts only after admission, so admitted runner counts include that preparation work.
 
 The `runners=N` keyword is a per-prompt threshold, not a reservation of future capacity: the agent starts only when at
 most `N` root user agents are already running. It overrides the configured `max_running_agents - 1` threshold for that

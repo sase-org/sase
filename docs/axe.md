@@ -132,14 +132,19 @@ High-frequency hook lifecycle management:
 
 Fast-polling agent dependency resolution:
 
-| Chop          | Description                                                       |
-| ------------- | ----------------------------------------------------------------- |
-| `wait_checks` | Resolve successful agent wait dependencies and write `ready.json` |
+| Chop          | Description                                                        |
+| ------------- | ------------------------------------------------------------------ |
+| `wait_checks` | Resolve successful agent and closed-bead waits; write `ready.json` |
 
 `wait_checks` only unblocks a named dependency when the newest matching agent, or the newest matching workflow root and
 all of its children, has a `done.json` outcome of `"completed"`. Failed, killed, crashed, still-running, malformed, or
 missing `done.json` artifacts do not satisfy `%wait`; the dependent agent remains parked until a later successful run of
 the same dependency name appears.
+
+Markers may also carry `wait_for_beads`, emitted by `%wait(bead=<bead-id>)`. `wait_checks` reads the waiting agent's
+project bead store once per cycle and releases the marker only when every named bead is closed as well as every agent or
+artifact dependency being satisfied. Missing beads, unavailable stores, and read failures deliberately fail closed and
+leave the agent parked; ACE's run-now action remains the manual escape hatch.
 
 ### checks (5-minute interval)
 

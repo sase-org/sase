@@ -3898,6 +3898,10 @@ WaitModal #wait-modal-summary {
     color: $text-muted;
 }
 
+WaitModal #wait-beads-summary {
+    color: $text-muted;
+}
+
 WaitModal .wait-field-label {
     color: $secondary;
     text-style: bold;

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from rich.text import Text
@@ -48,6 +48,7 @@ class WaitModalResult:
     agents: list[str]
     time_token: str | None
     runners: int | None = None
+    beads: list[str] = field(default_factory=list)
     run_now: bool = False
 
 
@@ -270,6 +271,7 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
     def __init__(
         self,
         current_waiting_for: list[str] | None = None,
+        current_waiting_for_beads: list[str] | None = None,
         current_wait_duration: float | None = None,
         current_wait_until: str | None = None,
         current_wait_runners: int | None = None,
@@ -279,6 +281,7 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         """Initialize the wait modal."""
         super().__init__()
         self._current_waiting_for = current_waiting_for or []
+        self._current_waiting_for_beads = current_waiting_for_beads or []
         self._time_prefill = _prefill_time_token(
             current_wait_duration,
             current_wait_until,
@@ -300,6 +303,12 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
                 "Wait for agents, a time floor, and/or a runner threshold.",
                 id="wait-modal-summary",
             )
+            if self._current_waiting_for_beads:
+                yield Label("Beads (read-only)", classes="wait-field-label")
+                yield Static(
+                    ", ".join(self._current_waiting_for_beads),
+                    id="wait-beads-summary",
+                )
             yield Label("Agents", classes="wait-field-label")
             yield _WaitInput(
                 value=agent_prefill,
@@ -380,7 +389,9 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
 
     def action_run_now(self) -> None:
         """Dismiss with an explicit run-now result."""
-        self.dismiss(WaitModalResult(agents=[], time_token=None, run_now=True))
+        self.dismiss(
+            WaitModalResult(agents=[], time_token=None, beads=[], run_now=True)
+        )
 
     def action_accept_completion(self) -> None:
         """Accept the highlighted agent completion, if any."""
@@ -484,13 +495,17 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
             return
         agents = _parse_agents_value(self.query_one("#agents-input", _WaitInput).value)
         run_now = (
-            not agents and validation.token is None and runners_validation.value is None
+            not agents
+            and not self._current_waiting_for_beads
+            and validation.token is None
+            and runners_validation.value is None
         )
         self.dismiss(
             WaitModalResult(
                 agents=agents,
                 time_token=validation.token,
                 runners=runners_validation.value,
+                beads=list(self._current_waiting_for_beads),
                 run_now=run_now,
             )
         )
