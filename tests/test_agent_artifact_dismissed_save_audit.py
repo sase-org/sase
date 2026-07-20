@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from tests._agent_artifact_marker_audit_helpers import (
     _SCHEDULE_DISMISSED_INDEX,
     _SYNC_DISMISSED_INDEX,
@@ -49,12 +51,27 @@ _REVIEWED_DISMISSED_SAVE_CONTEXTS: dict[str, tuple[str, ...]] = {
 }
 
 
-def test_dismissed_agent_save_sites_are_reviewed() -> None:
-    assert set(_dismissed_save_contexts()) == set(_REVIEWED_DISMISSED_SAVE_CONTEXTS)
+@pytest.fixture(scope="module")
+def _dismissed_context_snapshot() -> tuple[tuple[str, tuple[str, ...]], ...]:
+    return tuple(_dismissed_save_contexts().items())
 
 
-def test_reviewed_dismissed_agent_save_sites_sync_projection() -> None:
-    contexts = _dismissed_save_contexts()
+@pytest.fixture
+def dismissed_contexts(
+    _dismissed_context_snapshot: tuple[tuple[str, tuple[str, ...]], ...],
+) -> dict[str, tuple[str, ...]]:
+    return dict(_dismissed_context_snapshot)
+
+
+def test_dismissed_agent_save_sites_are_reviewed(
+    dismissed_contexts: dict[str, tuple[str, ...]],
+) -> None:
+    assert set(dismissed_contexts) == set(_REVIEWED_DISMISSED_SAVE_CONTEXTS)
+
+
+def test_reviewed_dismissed_agent_save_sites_sync_projection(
+    dismissed_contexts: dict[str, tuple[str, ...]],
+) -> None:
     for context, expected_lifecycle_calls in _REVIEWED_DISMISSED_SAVE_CONTEXTS.items():
-        missing = set(expected_lifecycle_calls) - set(contexts[context])
+        missing = set(expected_lifecycle_calls) - set(dismissed_contexts[context])
         assert not missing, f"{context} is missing lifecycle calls: {missing}"

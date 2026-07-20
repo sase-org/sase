@@ -102,12 +102,19 @@ def test_update_mode_writes_png_golden(tmp_path: Path) -> None:
     assert (tmp_path / "snapshots" / "png" / "accepted.png").read_bytes() == png
 
 
-def test_matching_png_passes(tmp_path: Path) -> None:
+def test_matching_png_passes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     ace_png_visual = _fixture(tmp_path)
     png = _png((255, 0, 0, 255), size=(1, 1))
     _write_golden(tmp_path, "matching.png", png)
+    pixel_diff = MagicMock(side_effect=AssertionError("pixel diff should be skipped"))
+    monkeypatch.setattr(png_diff, "diff_pngs", pixel_diff)
 
     ace_png_visual.assert_png("matching", png)
+
+    pixel_diff.assert_not_called()
 
 
 def test_default_exact_mode_fails_on_low_amplitude_pixel_diff(

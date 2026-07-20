@@ -218,6 +218,13 @@ def assert_png_matches(
         max_material_diff_pixels=max_material_diff_pixels,
     )
     expected = expected_path.read_bytes()
+    # The pinned local renderer emits deterministic PNG bytes. Avoid decoding,
+    # compositing, diffing, and re-encoding the overwhelmingly common exact
+    # passing case. Byte differences still take the normal pixel-comparison
+    # path, so equivalent encodings and every failure artifact behave exactly
+    # as before.
+    if expected == png_bytes:
+        return
     summary, diff_png = diff_pngs(
         expected,
         png_bytes,

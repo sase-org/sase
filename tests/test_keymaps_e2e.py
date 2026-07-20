@@ -40,18 +40,19 @@ async def test_remapped_navigation_key() -> None:
 
 
 async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
-    for subtab, subtab_key, expected_edit in (
-        ("prs", None, True),
-        ("commits", "2", True),
-        ("bugs", "3", False),
-        ("plans", "4", True),
-    ):
-        with _patch_config():
-            async with AcePage(initial_tab="changespecs") as page:
+    with _patch_config():
+        async with AcePage(initial_tab="changespecs") as page:
+            edits: list[str] = []
+            for subtab, subtab_key, expected_edit in (
+                ("prs", None, True),
+                ("commits", "2", True),
+                ("bugs", "3", False),
+                ("plans", "4", True),
+            ):
                 if subtab_key is not None:
                     await page.press(subtab_key)
                     await page.expect_state("artifacts_subtab", subtab)
-                edits: list[str] = []
+                edits.clear()
                 page.app.action_edit_query = (  # type: ignore[method-assign]
                     lambda edits=edits, subtab=subtab: edits.append(subtab)
                 )
@@ -62,7 +63,6 @@ async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
                 await page.press("comma", "slash")
                 assert edits == ([subtab] if expected_edit else [])
 
-    with _patch_config():
         async with AcePage(initial_tab="axe") as page:
             edits: list[bool] = []
             page.app.action_edit_query = lambda: edits.append(True)  # type: ignore[method-assign]
@@ -72,7 +72,6 @@ async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
             await page.press("comma", "slash")
             assert edits == [True]
 
-    with _patch_config():
         async with AcePage(initial_tab="agents") as page:
             searches: list[bool] = []
             edits: list[bool] = []
@@ -105,8 +104,8 @@ async def test_custom_app_and_leader_query_remaps_stay_independent() -> None:
             await page.press("comma", "f6")
             assert edits == [True]
 
-    with _patch_config(keymap_cfg):
-        async with AcePage(initial_tab="agents") as page:
+            await page.press("shift+tab")
+            await page.expect_state("tab", "agents")
             searches: list[bool] = []
             edits: list[bool] = []
             page.app.action_search_forward = lambda: searches.append(True)  # type: ignore[method-assign]
@@ -121,14 +120,20 @@ async def test_custom_app_and_leader_query_remaps_stay_independent() -> None:
 
 
 async def test_leader_help_chord_opens_help_and_bare_question_is_inert() -> None:
-    for tab in ("changespecs", "agents", "axe"):
-        with _patch_config():
-            async with AcePage(initial_tab=tab) as page:
+    with _patch_config():
+        async with AcePage(initial_tab="changespecs") as page:
+            for index, tab in enumerate(("changespecs", "agents", "axe")):
+                if index:
+                    await page.press("shift+tab")
+                    await page.expect_state("tab", tab)
                 await page.press("question_mark")
                 await page.expect_no_modal()
 
                 await page.press("comma", "question_mark")
                 await page.expect_modal("HelpModal")
+                if tab != "axe":
+                    await page.press("escape")
+                    await page.expect_no_modal()
 
 
 async def test_plus_dispatches_custom_agent_and_at_does_not() -> None:

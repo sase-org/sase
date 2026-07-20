@@ -17,12 +17,15 @@ way to keep the Tier 1 SQLite index in sync with a marker mutation:
 
 from __future__ import annotations
 
+import pytest
+
 from tests._agent_artifact_marker_audit_helpers import (
     _DELETE_INDEX,
     _DELETE_INDEX_BOUNDED,
     _UPDATE_INDEX,
     _UPSERT_INDEX,
     BatchedCoverage,
+    ContextInfo,
     DelegatedCoverage,
     Review,
     _context_call_names,
@@ -291,26 +294,42 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
 }
 
 
-def test_tracked_marker_mutation_sites_are_reviewed() -> None:
-    assert set(_marker_mutation_contexts()) == set(_REVIEWED_MARKER_MUTATION_CONTEXTS)
+@pytest.fixture(scope="module")
+def _marker_context_snapshot() -> tuple[tuple[str, ContextInfo], ...]:
+    return tuple(_marker_mutation_contexts().items())
 
 
-def test_reviewed_marker_mutation_sites_match_expected_mutations() -> None:
-    contexts = _marker_mutation_contexts()
+@pytest.fixture
+def marker_contexts(
+    _marker_context_snapshot: tuple[tuple[str, ContextInfo], ...],
+) -> dict[str, ContextInfo]:
+    return dict(_marker_context_snapshot)
+
+
+def test_tracked_marker_mutation_sites_are_reviewed(
+    marker_contexts: dict[str, ContextInfo],
+) -> None:
+    assert set(marker_contexts) == set(_REVIEWED_MARKER_MUTATION_CONTEXTS)
+
+
+def test_reviewed_marker_mutation_sites_match_expected_mutations(
+    marker_contexts: dict[str, ContextInfo],
+) -> None:
     expected = {
         context: review.mutation_calls
         for context, review in _REVIEWED_MARKER_MUTATION_CONTEXTS.items()
     }
     actual = {
         context: info.mutation_calls
-        for context, info in contexts.items()
+        for context, info in marker_contexts.items()
         if context in _REVIEWED_MARKER_MUTATION_CONTEXTS
     }
     assert actual == expected
 
 
-def test_reviewed_marker_mutation_sites_declare_lifecycle_coverage() -> None:
-    contexts = _marker_mutation_contexts()
+def test_reviewed_marker_mutation_sites_declare_lifecycle_coverage(
+    marker_contexts: dict[str, ContextInfo],
+) -> None:
     for context, review in _REVIEWED_MARKER_MUTATION_CONTEXTS.items():
         coverage_kinds = sum(
             bool(kind)
@@ -325,7 +344,7 @@ def test_reviewed_marker_mutation_sites_declare_lifecycle_coverage() -> None:
 
         if review.lifecycle_calls:
             missing = set(review.lifecycle_calls) - set(
-                contexts[context].lifecycle_calls
+                marker_contexts[context].lifecycle_calls
             )
             assert not missing, f"{context} is missing lifecycle calls: {missing}"
 

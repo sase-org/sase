@@ -466,9 +466,14 @@ class AcePage:
         """Press one or more keys via the pilot."""
         await self._pilot.press(*keys)
 
-    async def pause(self) -> None:
-        """Let the Textual message queue settle."""
-        await self._pilot.pause()
+    async def pause(self, delay: float | None = None) -> None:
+        """Let the Textual message queue settle.
+
+        Pass ``0`` when the caller has its own semantic or frame-convergence
+        barrier and only needs queued messages to drain. The default retains
+        Textual's CPU-idle heuristic for general-purpose tests.
+        """
+        await self._pilot.pause(delay)
 
     async def click(self, selector: str) -> None:
         """Click a widget by CSS selector."""

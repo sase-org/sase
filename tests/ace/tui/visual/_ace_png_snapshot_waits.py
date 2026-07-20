@@ -32,7 +32,7 @@ async def wait_for_state(
     deadline = loop.time() + timeout
 
     while True:
-        await page.pause()
+        await page.pause(0)
         if predicate():
             return
         if loop.time() >= deadline:
@@ -66,6 +66,10 @@ _VISUAL_DEBOUNCERS = (
     "_axe_detail_debouncer",
 )
 _VISUAL_STABLE_FRAME_COUNT = 3
+# Three queue-drain cycles can complete before a deferred Textual style update
+# is scheduled. Require the unchanged frame to survive a small amount of real
+# time as well, without paying Pilot's much longer CPU-idle heuristic.
+_VISUAL_STABLE_MIN_SECONDS = 0.1
 # Short one-shot timers cover input diagnostics, validation, and pressed-state
 # cleanup. Longer one-shots (for example toast expiry) intentionally keep a
 # stable visible surface alive and must not be awaited until it disappears.
@@ -137,11 +141,18 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 8.0) -> None:
     deadline = loop.time() + timeout
     previous_svg: str | None = None
     stable_frames = 0
+    stable_since: float | None = None
     frame_digests: list[str] = []
     pending: tuple[list[str], list[str], list[str]] = ([], [], [])
 
+    # A long-running visual-suite process can have CPU-bound layout or syntax
+    # work outside Textual's message/worker registries. Pay the CPU-idle
+    # heuristic once so that work lands, then use cheap queue drains while the
+    # explicit pending-work and frame-convergence barriers prove stability.
+    await page.pause()
+
     while True:
-        await page.pause()
+        await page.pause(0)
         _clear_transient_button_state(page)
         _disable_cursor_blink(page)
         pending = _pending_visual_work(page)
@@ -149,6 +160,7 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 8.0) -> None:
         if any(pending):
             previous_svg = None
             stable_frames = 0
+            stable_since = None
         else:
             # Exporting forces Textual to materialize the compositor's current
             # frame. Requiring the same result across separate idle/layout
@@ -158,9 +170,17 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 8.0) -> None:
             digest = hashlib.sha256(svg.encode()).hexdigest()[:12]
             frame_digests.append(digest)
             frame_digests = frame_digests[-4:]
-            stable_frames = stable_frames + 1 if svg == previous_svg else 1
+            if svg == previous_svg:
+                stable_frames += 1
+            else:
+                stable_frames = 1
+                stable_since = loop.time()
             previous_svg = svg
-            if stable_frames >= _VISUAL_STABLE_FRAME_COUNT:
+            if (
+                stable_frames >= _VISUAL_STABLE_FRAME_COUNT
+                and stable_since is not None
+                and loop.time() - stable_since >= _VISUAL_STABLE_MIN_SECONDS
+            ):
                 return
 
         if loop.time() >= deadline:

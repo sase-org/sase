@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import pytest
 
+from tests.ace.tui.visual import _ace_png_snapshot_waits as snapshot_waits
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     _pending_visual_work,
     wait_for_state,
@@ -56,7 +57,8 @@ class _DelayedPaintPage:
         self.export_count = 0
         self.frame = "mounting"
 
-    async def pause(self) -> None:
+    async def pause(self, delay: float | None = None) -> None:
+        del delay
         await asyncio.sleep(0)
         self.pause_count += 1
         if self.pause_count == 4:
@@ -73,9 +75,11 @@ class _ChangingPage:
     def __init__(self) -> None:
         self.app = _App()
         self.pause_count = 0
+        self.pause_delays: list[float | None] = []
         self.export_count = 0
 
-    async def pause(self) -> None:
+    async def pause(self, delay: float | None = None) -> None:
+        self.pause_delays.append(delay)
         await asyncio.sleep(0)
         self.pause_count += 1
 
@@ -84,6 +88,30 @@ class _ChangingPage:
         self.export_count += 1
         # The first two frames appear stable, then a delayed layout/paint lands.
         return "shell" if self.export_count < 3 else "complete"
+
+
+class _WallClockDelayedPaintPage(_ChangingPage):
+    def __init__(self) -> None:
+        super().__init__()
+        self.frame = "shell"
+        self._scheduled = False
+
+    async def pause(self, delay: float | None = None) -> None:
+        await super().pause(delay)
+        if not self._scheduled:
+            self._scheduled = True
+            asyncio.get_running_loop().call_later(
+                0.04,
+                setattr,
+                self,
+                "frame",
+                "complete",
+            )
+
+    def export_svg(self, title: str | None = None, simplify: bool = True) -> str:
+        del title, simplify
+        self.export_count += 1
+        return self.frame
 
 
 class _NeverStablePage(_ChangingPage):
@@ -98,8 +126,8 @@ class _SemanticPage(_ChangingPage):
         super().__init__()
         self.ready = False
 
-    async def pause(self) -> None:
-        await super().pause()
+    async def pause(self, delay: float | None = None) -> None:
+        await super().pause(delay)
         if self.pause_count >= 3:
             self.ready = True
 
@@ -110,7 +138,10 @@ class _SemanticPage(_ChangingPage):
 
 
 @pytest.mark.asyncio
-async def test_visual_idle_waits_for_worker_and_three_converged_frames() -> None:
+async def test_visual_idle_waits_for_worker_and_three_converged_frames(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(snapshot_waits, "_VISUAL_STABLE_MIN_SECONDS", 0.0)
     page = _DelayedPaintPage()
 
     await wait_for_visual_idle(cast(Any, page), timeout=0.5)
@@ -121,12 +152,26 @@ async def test_visual_idle_waits_for_worker_and_three_converged_frames() -> None
 
 
 @pytest.mark.asyncio
-async def test_visual_idle_observes_delayed_paint_before_converging() -> None:
+async def test_visual_idle_observes_delayed_paint_before_converging(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(snapshot_waits, "_VISUAL_STABLE_MIN_SECONDS", 0.0)
     page = _ChangingPage()
 
     await wait_for_visual_idle(cast(Any, page), timeout=0.5)
 
     assert page.export_count == 5
+    assert page.pause_delays[0] is None
+    assert page.pause_delays[1:]
+    assert set(page.pause_delays[1:]) == {0}
+
+    monkeypatch.setattr(snapshot_waits, "_VISUAL_STABLE_MIN_SECONDS", 0.1)
+    wall_clock_page = _WallClockDelayedPaintPage()
+
+    await wait_for_visual_idle(cast(Any, wall_clock_page), timeout=0.5)
+
+    assert wall_clock_page.frame == "complete"
+    assert wall_clock_page.export_count > 3
 
 
 @pytest.mark.asyncio

@@ -46,7 +46,7 @@ async def test_completed_agent_zoom_loads_seeded_file_list_without_refresh(
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -80,7 +80,7 @@ async def test_zoom_next_file_shows_next_seeded_file(tmp_path: Any) -> None:
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -101,7 +101,7 @@ async def test_zoom_prev_file_shows_previous_seeded_file(tmp_path: Any) -> None:
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -122,7 +122,7 @@ async def test_zoom_prev_file_wraps_first_to_last(tmp_path: Any) -> None:
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -143,7 +143,7 @@ async def test_zoom_next_file_wraps_last_to_first(tmp_path: Any) -> None:
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -188,7 +188,7 @@ async def test_zoom_seeded_file_list_freezes_across_terminal_refresh(
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -200,7 +200,7 @@ async def test_zoom_seeded_file_list_freezes_across_terminal_refresh(
         assert panel.current_file_index == 2
 
         modal._refresh_active_panel(force=False)
-        await pilot.pause()
+        await pilot.pause(0)
 
         assert panel.current_file_slots == seed_list
         assert panel.current_file_index == 2
@@ -212,7 +212,7 @@ async def test_zoom_next_file_wrap_survives_refresh_tick(tmp_path: Any) -> None:
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -220,7 +220,7 @@ async def test_zoom_next_file_wrap_survives_refresh_tick(tmp_path: Any) -> None:
         await _wait_for_file_content(pilot, panel, "third file body")
 
         modal._refresh_active_panel(force=False)
-        await pilot.pause()
+        await pilot.pause(0)
         await pilot.press("ctrl+n")
         rendered = await _wait_for_file_content(pilot, panel, "first file body")
 
@@ -236,7 +236,7 @@ async def test_zoom_file_rail_lists_files_and_tracks_active(
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel, _ZoomFileRail
 
@@ -264,7 +264,7 @@ async def test_zoom_file_rail_collapses_for_single_file(tmp_path: Any) -> None:
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel, _ZoomFileRail
 
@@ -286,7 +286,7 @@ async def test_zoom_next_file_reveals_file_panel_from_metadata(
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -314,7 +314,7 @@ async def test_zoom_prev_file_reveals_file_panel_from_metadata(
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -346,7 +346,7 @@ async def test_zoom_revealed_file_panel_pages_after_first_press(
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -388,7 +388,7 @@ async def test_zoom_revealed_file_panel_reverse_pages_after_first_press(
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -428,7 +428,7 @@ async def test_zoom_ctrl_p_returns_to_metadata_after_reveal_single_file(
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -445,7 +445,7 @@ async def test_zoom_ctrl_p_returns_to_metadata_after_reveal_single_file(
         # Ctrl-P immediately after must undo the reveal and return to metadata,
         # not "page" the lone file (which would leave the UI stuck).
         await pilot.press("ctrl+p")
-        await pilot.pause()
+        await pilot.pause(0)
 
         assert modal._target == ZoomPanelTarget.METADATA
         assert modal.query_one("#zoom-file-view").has_class("hidden")
@@ -468,7 +468,7 @@ async def test_zoom_same_direction_paging_survives_reveal_undo(
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -498,7 +498,7 @@ async def test_zoom_ctrl_n_returns_to_metadata_after_prev_reveal(
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -512,7 +512,7 @@ async def test_zoom_ctrl_n_returns_to_metadata_after_prev_reveal(
 
         # The opposite key (Ctrl-N) immediately after must restore metadata.
         await pilot.press("ctrl+n")
-        await pilot.pause()
+        await pilot.pause(0)
 
         assert modal._target == ZoomPanelTarget.METADATA
         assert modal.query_one("#zoom-file-view").has_class("hidden")
@@ -530,10 +530,10 @@ async def test_zoom_next_file_warns_when_metadata_agent_has_no_files() -> None:
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         await pilot.press("ctrl+n")
-        await pilot.pause()
+        await pilot.pause(0)
 
         assert modal._target == ZoomPanelTarget.METADATA
         assert modal.query_one("#zoom-file-view").has_class("hidden")
@@ -556,8 +556,8 @@ async def test_zoom_file_full_content_survives_periodic_refresh(tmp_path: Any) -
 
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
-        await pilot.pause()
+        await pilot.pause(0)
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -568,7 +568,7 @@ async def test_zoom_file_full_content_survives_periodic_refresh(tmp_path: Any) -
 
         # A periodic refresh tick keeps the complete body rendered.
         modal._refresh_active_panel(force=False)
-        await pilot.pause()
-        await pilot.pause()
+        await pilot.pause(0)
+        await pilot.pause(0)
         assert panel._visible_line_count == 200
         assert not panel._is_content_capped

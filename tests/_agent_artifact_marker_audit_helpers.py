@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -107,6 +108,17 @@ class PathPassingReview:
     exemption: str = ""
 
 
+@dataclass(frozen=True)
+class _AuditSnapshot:
+    """Immutable audit facts derived from one parse of each Python source."""
+
+    context_call_names: tuple[tuple[str, tuple[str, ...]], ...]
+    dismissed_save_contexts: tuple[tuple[str, tuple[str, ...]], ...]
+    marker_mutation_contexts: tuple[tuple[str, ContextInfo], ...]
+    directory_operation_contexts: tuple[tuple[str, tuple[str, ...]], ...]
+    path_passing_contexts: frozenset[str]
+
+
 def _own_descendants(root: ast.AST) -> list[ast.AST]:
     descendants: list[ast.AST] = []
     stack = list(ast.iter_child_nodes(root))
@@ -200,23 +212,11 @@ def _unique(values: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(values))
 
 
-def _context_node(context: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
-    rel_path, name = context.split(":", 1)
-    path = _REPO_ROOT / rel_path
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    for node in ast.walk(tree):
-        if isinstance(node, _FUNCTION_NODES) and node.name == name:
-            return node
-    raise AssertionError(f"missing context {context}")
-
-
 def _context_call_names(context: str) -> tuple[str, ...]:
-    node = _context_node(context)
-    calls = (
-        _generic_call_name(call)
-        for call in _source_ordered_calls(_own_descendants(node))
-    )
-    return tuple(name for name in calls if name is not None)
+    try:
+        return dict(_audit_snapshot(_REPO_ROOT).context_call_names)[context]
+    except KeyError as exc:
+        raise AssertionError(f"missing context {context}") from exc
 
 
 def _iter_source_files(root: Path) -> list[Path]:
@@ -230,31 +230,7 @@ def _function_name_used_by_call(call: ast.Call, name: str) -> bool:
 
 
 def _dismissed_save_contexts(root: Path = _REPO_ROOT) -> dict[str, tuple[str, ...]]:
-    dismissed_projection_call_names = _LIFECYCLE_CALL_NAMES | {
-        _SCHEDULE_DISMISSED_INDEX
-    }
-    contexts: dict[str, tuple[str, ...]] = {}
-    for path in _iter_source_files(root):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        rel_path = path.relative_to(root).as_posix()
-        for node in ast.walk(tree):
-            if not isinstance(node, _FUNCTION_NODES):
-                continue
-            calls = _source_ordered_calls(_own_descendants(node))
-            if not any(
-                _function_name_used_by_call(call, "save_dismissed_agents")
-                for call in calls
-            ):
-                continue
-            lifecycle_calls = tuple(
-                dict.fromkeys(
-                    name
-                    for name in dismissed_projection_call_names
-                    if any(_function_name_used_by_call(call, name) for call in calls)
-                )
-            )
-            contexts[f"{rel_path}:{node.name}"] = lifecycle_calls
-    return contexts
+    return dict(_audit_snapshot(root).dismissed_save_contexts)
 
 
 def _build_parent_map(tree: ast.AST) -> dict[ast.AST, ast.AST]:
@@ -277,33 +253,7 @@ def _enclosing_function(
 def _marker_mutation_contexts(
     root: Path = _REPO_ROOT,
 ) -> dict[str, ContextInfo]:
-    contexts: dict[str, ContextInfo] = {}
-    for path in _iter_source_files(root):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        rel_path = path.relative_to(root).as_posix()
-        for node in ast.walk(tree):
-            if not isinstance(node, _FUNCTION_NODES):
-                continue
-            descendants = _own_descendants(node)
-            if not _contains_tracked_marker_literal(descendants):
-                continue
-            if not _contains_marker_mutation_call(descendants):
-                continue
-            mutation_calls = tuple(
-                name
-                for call in _source_ordered_calls(descendants)
-                if (name := _mutation_call_name(call)) is not None
-            )
-            lifecycle_calls: tuple[str, ...] = tuple(
-                name
-                for call in _source_ordered_calls(descendants)
-                if (name := _lifecycle_call_name(call)) is not None
-            )
-            contexts[f"{rel_path}:{node.name}"] = ContextInfo(
-                mutation_calls=mutation_calls,
-                lifecycle_calls=_unique(lifecycle_calls),
-            )
-    return contexts
+    return dict(_audit_snapshot(root).marker_mutation_contexts)
 
 
 def _has_lifecycle_coverage(review: Review) -> bool:
@@ -332,22 +282,7 @@ def _dir_operation_call_label(call: ast.Call) -> str | None:
 def _artifact_directory_operation_contexts(
     root: Path = _REPO_ROOT,
 ) -> dict[str, tuple[str, ...]]:
-    contexts: dict[str, set[str]] = {}
-    for path in _iter_source_files(root):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        rel_path = path.relative_to(root).as_posix()
-        parent_map = _build_parent_map(tree)
-        for call in ast.walk(tree):
-            if not isinstance(call, ast.Call):
-                continue
-            label = _dir_operation_call_label(call)
-            if label is None:
-                continue
-            enclosing = _enclosing_function(call, parent_map)
-            if enclosing is None:
-                continue
-            contexts.setdefault(f"{rel_path}:{enclosing.name}", set()).add(label)
-    return {key: tuple(sorted(value)) for key, value in contexts.items()}
+    return dict(_audit_snapshot(root).directory_operation_contexts)
 
 
 _SAFE_PATH_CALLEES: frozenset[str] = frozenset(
@@ -442,23 +377,110 @@ def _arg_carries_marker_construction(arg: ast.expr) -> bool:
     return False
 
 
-def _path_passing_contexts(root: Path = _REPO_ROOT) -> set[str]:
-    found: set[str] = set()
+def _build_audit_snapshot(root: Path) -> _AuditSnapshot:
+    context_call_names: dict[str, tuple[str, ...]] = {}
+    dismissed_save_contexts: dict[str, tuple[str, ...]] = {}
+    marker_mutation_contexts: dict[str, ContextInfo] = {}
+    directory_operation_contexts: dict[str, set[str]] = {}
+    path_passing_contexts: set[str] = set()
+    dismissed_projection_call_names = _LIFECYCLE_CALL_NAMES | {
+        _SCHEDULE_DISMISSED_INDEX
+    }
+
     for path in _iter_source_files(root):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         rel_path = path.relative_to(root).as_posix()
+        nodes = tuple(ast.walk(tree))
+        functions = tuple(node for node in nodes if isinstance(node, _FUNCTION_NODES))
+        calls = tuple(node for node in nodes if isinstance(node, ast.Call))
         parent_map = _build_parent_map(tree)
-        for call in ast.walk(tree):
-            if not isinstance(call, ast.Call):
+
+        for node in functions:
+            context = f"{rel_path}:{node.name}"
+            descendants = _own_descendants(node)
+            ordered_calls = _source_ordered_calls(descendants)
+            context_call_names.setdefault(
+                context,
+                tuple(
+                    name
+                    for call in ordered_calls
+                    if (name := _generic_call_name(call)) is not None
+                ),
+            )
+
+            if any(
+                _function_name_used_by_call(call, "save_dismissed_agents")
+                for call in ordered_calls
+            ):
+                dismissed_save_contexts[context] = tuple(
+                    dict.fromkeys(
+                        name
+                        for name in dismissed_projection_call_names
+                        if any(
+                            _function_name_used_by_call(call, name)
+                            for call in ordered_calls
+                        )
+                    )
+                )
+
+            if _contains_tracked_marker_literal(
+                descendants
+            ) and _contains_marker_mutation_call(descendants):
+                marker_mutation_contexts[context] = ContextInfo(
+                    mutation_calls=tuple(
+                        name
+                        for call in ordered_calls
+                        if (name := _mutation_call_name(call)) is not None
+                    ),
+                    lifecycle_calls=_unique(
+                        tuple(
+                            name
+                            for call in ordered_calls
+                            if (name := _lifecycle_call_name(call)) is not None
+                        )
+                    ),
+                )
+
+        for call in calls:
+            enclosing = _enclosing_function(call, parent_map)
+            if enclosing is None:
                 continue
+            context = f"{rel_path}:{enclosing.name}"
+
+            label = _dir_operation_call_label(call)
+            if label is not None:
+                directory_operation_contexts.setdefault(context, set()).add(label)
+
             name = _generic_call_name(call)
             if name is None or name in _SAFE_PATH_CALLEES:
                 continue
             args: list[ast.expr] = list(call.args) + [kw.value for kw in call.keywords]
-            if not any(_arg_carries_marker_construction(a) for a in args):
-                continue
-            enclosing = _enclosing_function(call, parent_map)
-            if enclosing is None:
-                continue
-            found.add(f"{rel_path}:{enclosing.name}")
-    return found
+            if any(_arg_carries_marker_construction(arg) for arg in args):
+                path_passing_contexts.add(context)
+
+    return _AuditSnapshot(
+        context_call_names=tuple(context_call_names.items()),
+        dismissed_save_contexts=tuple(dismissed_save_contexts.items()),
+        marker_mutation_contexts=tuple(marker_mutation_contexts.items()),
+        directory_operation_contexts=tuple(
+            (context, tuple(sorted(labels)))
+            for context, labels in directory_operation_contexts.items()
+        ),
+        path_passing_contexts=frozenset(path_passing_contexts),
+    )
+
+
+@lru_cache(maxsize=1)
+def _real_audit_snapshot() -> _AuditSnapshot:
+    return _build_audit_snapshot(_REPO_ROOT)
+
+
+def _audit_snapshot(root: Path) -> _AuditSnapshot:
+    """Cache only the real checkout; temporary regression roots stay fresh."""
+    if root.resolve() == _REPO_ROOT.resolve():
+        return _real_audit_snapshot()
+    return _build_audit_snapshot(root)
+
+
+def _path_passing_contexts(root: Path = _REPO_ROOT) -> set[str]:
+    return set(_audit_snapshot(root).path_passing_contexts)

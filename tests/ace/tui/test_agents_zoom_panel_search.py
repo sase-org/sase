@@ -60,10 +60,10 @@ async def test_zoom_search_entry_captures_zoom_shortcut_keys() -> None:
 
     async with _ModalTestApp().run_test(size=(100, 30)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         await pilot.press("slash", "q", "backspace", "a")
-        await pilot.pause()
+        await pilot.pause(0)
 
         assert isinstance(pilot.app.screen, ZoomPanelModal)
         assert modal._zoom_search_mode == "typing"
@@ -73,7 +73,7 @@ async def test_zoom_search_entry_captures_zoom_shortcut_keys() -> None:
 
         await pilot.press("escape")
         await pilot.press("question_mark")
-        await pilot.pause()
+        await pilot.pause(0)
 
         assert isinstance(pilot.app.screen, ZoomPanelModal)
         assert modal._zoom_search_mode == "typing"
@@ -100,11 +100,11 @@ async def test_zoom_search_incsearch_cancel_and_refresh_timer_resume() -> None:
 
     async with _ModalTestApp().run_test(size=(100, 30)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
         modal._refresh_timer = timer  # type: ignore[assignment]
 
         await pilot.press("slash", "n", "e", "e", "d", "l", "e")
-        await pilot.pause()
+        await pilot.pause(0)
 
         assert timer.pause_count == 1
         assert modal._zoom_search_current_selection is not None
@@ -114,7 +114,7 @@ async def test_zoom_search_incsearch_cancel_and_refresh_timer_resume() -> None:
         assert modal.query_one("#zoom-metadata-scroll").has_class("hidden")
 
         await pilot.press("escape")
-        await pilot.pause()
+        await pilot.pause(0)
 
         assert modal._zoom_search_mode == "off"
         assert timer.resume_count == 1
@@ -127,10 +127,10 @@ async def test_zoom_search_no_match_readout_restores_origin() -> None:
 
     async with _ModalTestApp().run_test(size=(100, 30)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         await pilot.press("slash", "z", "z", "z")
-        await pilot.pause()
+        await pilot.pause(0)
 
         assert modal._zoom_search_current_selection is None
         assert "pattern not found" in _search_command(modal).render().plain
@@ -148,23 +148,23 @@ async def test_zoom_search_commit_repeat_and_wrap_feedback() -> None:
 
     async with _ModalTestApp().run_test(size=(100, 30)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
-        await pilot.pause()
+        await pilot.pause(0)
 
         assert modal._zoom_search_mode == "committed"
         assert modal._last_zoom_search == ("alpha", "forward")
         assert "[1/3]" in _search_command(modal).render().plain
 
         await pilot.press("n")
-        await pilot.pause()
+        await pilot.pause(0)
         assert modal._zoom_search_current_selection is not None
         assert modal._zoom_search_current_selection.index == 1
         assert "[2/3]" in _search_command(modal).render().plain
 
         await pilot.press("n", "n")
-        await pilot.pause()
+        await pilot.pause(0)
         assert modal._zoom_search_current_selection is not None
         assert modal._zoom_search_current_selection.index == 0
         assert modal.notifications[-1] == (
@@ -173,7 +173,7 @@ async def test_zoom_search_commit_repeat_and_wrap_feedback() -> None:
         )
 
         await pilot.press("N")
-        await pilot.pause()
+        await pilot.pause(0)
         assert modal._zoom_search_current_selection is not None
         assert modal._zoom_search_current_selection.index == 2
         assert modal.notifications[-1] == (
@@ -193,7 +193,7 @@ async def test_zoom_search_uses_full_static_file_content(
 
     async with _ModalTestApp().run_test(size=(90, 16)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
@@ -202,8 +202,11 @@ async def test_zoom_search_uses_full_static_file_content(
         assert panel._visible_line_count == panel._total_line_count
         assert "needle below trim" in (_renderable_to_text(panel.content) or "")
 
-        await pilot.press("slash", "n", "e", "e", "d", "l", "e")
-        await pilot.pause()
+        # ``b`` occurs only in the below-trim sentinel, so one dispatched
+        # character proves the search sees the complete static-file corpus
+        # without paying to redraw that large corpus for every query prefix.
+        await pilot.press("slash", "b")
+        await pilot.pause(0)
 
         assert "needle below trim" in modal._zoom_search_corpus
         assert modal._zoom_search_current_selection is not None
@@ -220,15 +223,15 @@ async def test_zoom_search_structural_key_exits_and_then_pages_file(
 
     async with _ModalTestApp().run_test(size=(100, 30)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
         panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
         await _wait_for_file_content(pilot, panel, "first alpha")
 
-        await pilot.press("slash", "f", "i", "r", "s", "t", "enter")
-        await pilot.pause()
+        await pilot.press("slash", "f", "enter")
+        await pilot.pause(0)
         assert modal._zoom_search_mode == "committed"
         assert modal.query_one("#zoom-file-view").has_class("hidden")
 
@@ -252,10 +255,10 @@ async def test_zoom_search_empty_file_panel_notifies_without_state_change() -> N
 
     async with _ModalTestApp().run_test(size=(100, 30)) as pilot:
         pilot.app.push_screen(modal)
-        await pilot.pause()
+        await pilot.pause(0)
 
         await pilot.press("slash")
-        await pilot.pause()
+        await pilot.pause(0)
 
         assert modal._zoom_search_mode == "off"
         assert _search_scroll(modal).has_class("hidden")

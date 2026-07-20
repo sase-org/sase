@@ -161,10 +161,13 @@ async def _wait_for_file_content(
 ) -> str:
     rendered = ""
     for _ in range(attempts):
-        await pilot.pause()
         rendered = _renderable_to_text(getattr(panel, "content", None)) or ""
         if panel._full_content is not None and expected in rendered:
             return rendered
+        worker = getattr(panel, "_static_worker", None)
+        if worker is not None and getattr(worker, "is_running", False):
+            await worker.wait()
+        await pilot.pause(0)
     assert panel._full_content is not None
     assert expected in rendered
     return rendered
