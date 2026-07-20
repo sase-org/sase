@@ -20,7 +20,7 @@ from sase.project_display_names import ProjectDisplaySnapshot
 from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import StatsRange
 
-from tests.ace.tui.test_statistics_pane import (
+from tests.ace.tui._statistics_pane_helpers import (
     _open_statistics,
     _patch_center,
     _result,
