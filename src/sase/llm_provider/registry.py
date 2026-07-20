@@ -498,14 +498,37 @@ def _auth_evidence_metadata(value: Any) -> dict[str, Any]:
     }
 
 
-def _install_metadata(value: Any) -> dict[str, str | None]:
+def _install_metadata(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
-        return {"manager": None, "package": None, "scope": None}
-    return {
+        value = {}
+    metadata: dict[str, Any] = {
         "manager": _optional_str(value.get("manager")),
         "package": _optional_str(value.get("package")),
         "scope": _optional_str(value.get("scope")),
     }
+    for key in (
+        "display_name",
+        "docs_url",
+        "version_regex",
+        "latest_version_package",
+        "brew_package",
+    ):
+        if (normalized := _optional_str(value.get(key))) is not None:
+            metadata[key] = normalized
+    if argv := _argv_metadata(value.get("self_update_argv")):
+        metadata["self_update_argv"] = argv
+    if "version_argv" in value:
+        metadata["version_argv"] = _argv_metadata(
+            value.get("version_argv"), default=("--version",)
+        )
+    return metadata
+
+
+def _argv_metadata(value: Any, *, default: tuple[str, ...] = ()) -> list[str]:
+    if not isinstance(value, list | tuple):
+        return list(default)
+    argv = [str(item).strip() for item in value if str(item).strip()]
+    return argv or list(default)
 
 
 def _str_dict(value: Any) -> dict[str, str]:

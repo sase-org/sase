@@ -109,11 +109,16 @@ class ClaudeCodeProvider(LLMProvider):
         }
 
     @hookimpl
-    def llm_install_metadata(self) -> dict[str, str]:
+    def llm_install_metadata(self) -> dict[str, object]:
         return {
             "manager": "npm",
             "package": "@anthropic-ai/claude-code",
             "scope": "global",
+            "display_name": "Claude Code",
+            "docs_url": "https://code.claude.com/docs/en/installation",
+            "self_update_argv": ["update"],
+            "latest_version_package": "@anthropic-ai/claude-code",
+            "brew_package": "claude-code",
         }
 
     @hookimpl

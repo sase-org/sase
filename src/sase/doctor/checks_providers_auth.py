@@ -154,7 +154,7 @@ def check_llm_auth(context: DoctorContext) -> DiagnosticCheck:
                 "provider_readiness": selected_readiness,
                 "auth_status": "skipped_cli_missing",
                 "auth_verified": False,
-                "setup_hint": setup_hint(provider_name),
+                "setup_hint": setup_hint(provider_name, metadata),
             },
         )
 
@@ -183,7 +183,7 @@ def check_llm_auth(context: DoctorContext) -> DiagnosticCheck:
             f"{provider_name} CLI is present but no offline auth evidence was found"
         )
         next_steps = (
-            format_setup_hint(provider_name),
+            format_setup_hint(provider_name, metadata),
             _RERUN_LLM_AUTH,
         )
         auth_status = "missing_evidence"
@@ -209,7 +209,7 @@ def check_llm_auth(context: DoctorContext) -> DiagnosticCheck:
             "checked_paths": evidence["checked_paths"],
             "checked_env_vars": evidence["checked_env_vars"],
             "skipped_path_patterns": evidence["skipped_path_patterns"],
-            "setup_hint": setup_hint(provider_name),
+            "setup_hint": setup_hint(provider_name, metadata),
         },
     )
 

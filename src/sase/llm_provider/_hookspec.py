@@ -100,12 +100,16 @@ class LLMHookSpec:
         ...
 
     @hookspec(firstresult=True)
-    def llm_install_metadata(self) -> dict[str, str] | None:
-        """Provider install metadata for read-only doctor checks.
+    def llm_install_metadata(self) -> dict[str, object] | None:
+        """Provider CLI install and update metadata.
 
         ``manager`` names the external package manager needed to install this
         provider CLI, such as ``npm``. ``package`` and ``scope`` are optional
-        descriptive fields used in diagnostic output.
+        descriptive fields used in diagnostic output. Providers may also
+        declare ``display_name``, ``docs_url``, ``self_update_argv``,
+        ``version_argv`` (default ``["--version"]``), ``version_regex``,
+        ``latest_version_package``, and ``brew_package``. Consumers must treat
+        every field as optional so third-party providers remain compatible.
         """
         ...
 

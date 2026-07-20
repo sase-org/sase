@@ -270,11 +270,16 @@ class CodexProvider(LLMProvider):
         }
 
     @hookimpl
-    def llm_install_metadata(self) -> dict[str, str]:
+    def llm_install_metadata(self) -> dict[str, object]:
         return {
             "manager": "npm",
             "package": "@openai/codex",
             "scope": "global",
+            "display_name": "Codex CLI",
+            "docs_url": "https://developers.openai.com/codex/cli/",
+            "self_update_argv": ["update"],
+            "latest_version_package": "@openai/codex",
+            "brew_package": "codex",
         }
 
     @hookimpl

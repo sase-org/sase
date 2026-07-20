@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import os
 import shutil
-from pathlib import Path
+from collections.abc import Mapping
 from typing import Any, TYPE_CHECKING
 
+from sase.agent_clis.detect import resolve_executable
 from sase.diagnostics import CheckSpec, DiagnosticCheck
 from sase.llm_provider import registry as llm_registry
 from sase.llm_provider.config import get_llm_provider_config
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
 
 
-_PROVIDER_SETUP_HINTS: dict[str, dict[str, str]] = {
+_PROVIDER_SETUP_FALLBACKS: dict[str, dict[str, str]] = {
     "claude": {
         "tool": "Claude Code",
         "install": "npm install -g @anthropic-ai/claude-code",
@@ -159,7 +159,7 @@ def provider_readiness(
         "command": command,
         "executable": executable,
         "ready": executable is not None if command else False,
-        "setup_hint": setup_hint(provider_name),
+        "setup_hint": setup_hint(provider_name, metadata),
     }
 
 
@@ -189,33 +189,77 @@ def format_selection(selection: dict[str, Any]) -> str:
     return "autodetect"
 
 
-def setup_hint(provider_name: str) -> dict[str, str] | None:
-    hint = _PROVIDER_SETUP_HINTS.get(provider_name)
-    if hint is None:
-        return None
-    return dict(hint)
+def setup_hint(
+    provider_name: str,
+    metadata: Mapping[str, Any] | None = None,
+) -> dict[str, str] | None:
+    """Build doctor setup guidance from provider install metadata.
+
+    The local fallback keeps auth wording and supports older third-party
+    providers that do not yet publish enriched install metadata.
+    """
+    fallback = _PROVIDER_SETUP_FALLBACKS.get(provider_name)
+    raw_install = metadata.get("install") if metadata is not None else None
+    install = raw_install if isinstance(raw_install, Mapping) else {}
+    tool = optional_str(install.get("display_name"))
+    manager = optional_str(install.get("manager"))
+    package = optional_str(install.get("package"))
+    docs_url = optional_str(install.get("docs_url"))
+    if not any((tool, manager, package, docs_url)):
+        return dict(fallback) if fallback is not None else None
+
+    if manager == "npm" and package:
+        install_text = f"npm install -g {package}"
+    elif manager == "bundled":
+        install_text = "bundled with SASE — nothing to install"
+    elif docs_url:
+        install_text = f"install from {docs_url}"
+    elif fallback is not None:
+        install_text = fallback["install"]
+    else:
+        install_text = f"install the {provider_name} CLI"
+    hint = {
+        "tool": tool or (fallback or {}).get("tool", provider_name),
+        "install": install_text,
+        "auth": (fallback or {}).get(
+            "auth", f"follow the {provider_name} authentication flow"
+        ),
+    }
+    if docs_url:
+        hint["docs_url"] = docs_url
+    return hint
 
 
 def setup_hints_for(providers: dict[str, dict[str, Any]]) -> dict[str, dict[str, str]]:
     return {
         name: hint
         for name in sorted(providers)
-        if (hint := setup_hint(name)) is not None
+        if (hint := setup_hint(name, providers[name])) is not None
     }
 
 
-def format_setup_hint(provider_name: str) -> str:
-    hint = setup_hint(provider_name)
+def format_setup_hint(
+    provider_name: str,
+    metadata: Mapping[str, Any] | None = None,
+) -> str:
+    hint = setup_hint(provider_name, metadata)
     if hint is None:
         return f"Install and authenticate the {provider_name} CLI."
-    return f"{hint['tool']} setup: {hint['install']}; {hint['auth']}."
+    return _format_setup_hint_dict(hint)
 
 
 def first_provider_setup_step(readiness: list[dict[str, Any]]) -> str:
     for row in readiness:
-        if row.get("setup_hint"):
-            return format_setup_hint(str(row["provider"]))
+        hint = row.get("setup_hint")
+        if isinstance(hint, dict):
+            return _format_setup_hint_dict(hint)
     return "Install and authenticate at least one SASE LLM provider CLI."
+
+
+def _format_setup_hint_dict(hint: Mapping[str, str]) -> str:
+    text = f"{hint['tool']} setup: {hint['install']}; {hint['auth']}."
+    docs_url = hint.get("docs_url")
+    return f"{text} Docs: {docs_url}" if docs_url else text
 
 
 def optional_str(value: Any) -> str | None:
@@ -232,17 +276,7 @@ def _provider_path_env(provider_name: str) -> str:
 
 
 def _resolve_executable(command: str | None) -> str | None:
-    if not command:
-        return None
-    expanded = os.path.expanduser(command)
-    resolved = shutil.which(expanded)
-    if resolved:
-        return resolved
-    if os.sep in expanded:
-        path = Path(expanded)
-        if path.is_file() and os.access(path, os.X_OK):
-            return str(path)
-    return None
+    return resolve_executable(command, which_fn=shutil.which)
 
 
 _selection_context = selection_context

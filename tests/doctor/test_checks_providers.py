@@ -10,6 +10,7 @@ from sase.doctor.checks_providers import (
     _check_llm_default,
     _check_llm_registry,
     provider_check_specs,
+    setup_hint,
 )
 from sase.doctor.runner import DoctorContext
 
@@ -153,6 +154,27 @@ def test_provider_check_specs_registers_llm_auth(tmp_path) -> None:
     ids = [spec.id for spec in provider_check_specs(_context(tmp_path))]
 
     assert ids == ["llm.registry", "llm.default", "llm.auth"]
+
+
+def test_setup_hint_prefers_enriched_provider_metadata() -> None:
+    hint = setup_hint(
+        "codex",
+        {
+            "install": {
+                "manager": "npm",
+                "package": "replacement-codex",
+                "display_name": "Replacement Codex",
+                "docs_url": "https://example.test/codex",
+            }
+        },
+    )
+
+    assert hint == {
+        "tool": "Replacement Codex",
+        "install": "npm install -g replacement-codex",
+        "auth": "run `codex login`",
+        "docs_url": "https://example.test/codex",
+    }
 
 
 def test_llm_registry_reports_metadata_load_failure(monkeypatch) -> None:

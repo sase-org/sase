@@ -148,6 +148,19 @@ class OpenCodeProvider(LLMProvider):
             ],
         }
 
+    @hookimpl
+    def llm_install_metadata(self) -> dict[str, object]:
+        return {
+            "manager": "npm",
+            "package": "opencode-ai",
+            "scope": "global",
+            "display_name": "OpenCode",
+            "docs_url": "https://opencode.ai/docs/",
+            "self_update_argv": ["upgrade"],
+            "latest_version_package": "opencode-ai",
+            "brew_package": "opencode",
+        }
+
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
         """Translate a resolved reasoning effort into ``--variant`` args."""
         return effort_cli_args(

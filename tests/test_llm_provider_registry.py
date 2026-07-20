@@ -173,3 +173,37 @@ def test_provider_metadata_includes_install_metadata() -> None:
         "package": "@example/fake",
         "scope": "global",
     }
+
+
+def test_provider_metadata_tolerantly_normalizes_update_fields() -> None:
+    class FakeProvider:
+        def llm_provider_name(self) -> str:
+            return "fake"
+
+        def llm_install_metadata(self) -> dict[str, object]:
+            return {
+                "manager": "npm",
+                "package": "fake-cli",
+                "scope": "global",
+                "display_name": "Fake CLI",
+                "docs_url": " https://example.test/fake ",
+                "self_update_argv": ["upgrade", 1, ""],
+                "version_argv": "invalid",
+                "version_regex": r"version=(\d+)",
+                "latest_version_package": "fake-cli",
+                "unrecognized": {"future": True},
+            }
+
+    install = registry._provider_metadata("fake", FakeProvider())["install"]
+
+    assert install == {
+        "manager": "npm",
+        "package": "fake-cli",
+        "scope": "global",
+        "display_name": "Fake CLI",
+        "docs_url": "https://example.test/fake",
+        "version_regex": r"version=(\d+)",
+        "latest_version_package": "fake-cli",
+        "self_update_argv": ["upgrade", "1"],
+        "version_argv": ["--version"],
+    }

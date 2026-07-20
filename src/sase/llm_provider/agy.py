@@ -336,6 +336,16 @@ class AgyProvider(LLMProvider):
         }
 
     @hookimpl
+    def llm_install_metadata(self) -> dict[str, object]:
+        return {
+            "manager": "native",
+            "scope": "user",
+            "display_name": "Antigravity CLI",
+            "docs_url": "https://antigravity.google/docs/cli-install",
+            "self_update_argv": ["update"],
+        }
+
+    @hookimpl
     def llm_default_retry_config(self) -> ProviderRetryConfig:
         from .retry_config import (
             _RETRY_CONTINUATION_NUDGE,

@@ -142,11 +142,14 @@ class QwenProvider(LLMProvider):
         }
 
     @hookimpl
-    def llm_install_metadata(self) -> dict[str, str]:
+    def llm_install_metadata(self) -> dict[str, object]:
         return {
             "manager": "npm",
             "package": "@qwen-code/qwen-code",
             "scope": "global",
+            "display_name": "Qwen Code",
+            "docs_url": "https://qwenlm.github.io/qwen-code-docs/en/",
+            "latest_version_package": "@qwen-code/qwen-code",
         }
 
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:

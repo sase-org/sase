@@ -1,0 +1,37 @@
+"""Detection and update operations for supported agent CLIs."""
+
+from .models import (
+    AgentCliNothingToUpdate,
+    AgentCliStatus,
+    AgentCliUnknownName,
+    AgentCliUpdateEntry,
+    AgentCliUpdatePlan,
+    AgentCliUpdateResult,
+    AgentCliUpdatesReady,
+    InstallMethod,
+    UpdateResultStatus,
+    UpdateStrategy,
+)
+from .operations import (
+    collect_agent_cli_statuses,
+    execute_agent_cli_updates,
+    list_agent_clis,
+    plan_agent_cli_updates,
+)
+
+__all__ = [
+    "AgentCliNothingToUpdate",
+    "AgentCliStatus",
+    "AgentCliUnknownName",
+    "AgentCliUpdateEntry",
+    "AgentCliUpdatePlan",
+    "AgentCliUpdateResult",
+    "AgentCliUpdatesReady",
+    "InstallMethod",
+    "UpdateResultStatus",
+    "UpdateStrategy",
+    "collect_agent_cli_statuses",
+    "execute_agent_cli_updates",
+    "list_agent_clis",
+    "plan_agent_cli_updates",
+]

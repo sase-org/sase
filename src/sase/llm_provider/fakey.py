@@ -138,8 +138,13 @@ class FakeyProvider(LLMProvider):
         }
 
     @hookimpl
-    def llm_install_metadata(self) -> dict[str, str]:
-        return {"manager": "bundled", "package": "sase", "scope": "environment"}
+    def llm_install_metadata(self) -> dict[str, object]:
+        return {
+            "manager": "bundled",
+            "package": "sase",
+            "scope": "environment",
+            "display_name": "Fakey",
+        }
 
     @hookimpl
     def llm_default_retry_config(self) -> ProviderRetryConfig:

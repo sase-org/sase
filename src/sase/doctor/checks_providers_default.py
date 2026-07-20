@@ -131,7 +131,7 @@ def check_llm_default(context: DoctorContext) -> DiagnosticCheck:
             next_steps.append(
                 f"Install the {provider_name} CLI or set `{env_var}` to its executable path."
             )
-        next_steps.append(format_setup_hint(provider_name))
+        next_steps.append(format_setup_hint(provider_name, metadata))
         next_steps.append(_RERUN_LLM_DEFAULT)
     elif executable:
         summary = (
@@ -165,7 +165,7 @@ def check_llm_default(context: DoctorContext) -> DiagnosticCheck:
             "executable": executable,
             "auth_status": "not_verified",
             "auth_verified": False,
-            "setup_hint": setup_hint(provider_name),
+            "setup_hint": setup_hint(provider_name, metadata),
             "model_resolutions": metadata.get("model_resolutions", {}),
         },
     )
