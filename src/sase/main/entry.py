@@ -49,6 +49,12 @@ def main() -> NoReturn:
 
         handle_agent_command(args)
 
+    # --- agent-cli ---
+    if args.command == "agent-cli":
+        from .agent_cli_handler import handle_agent_cli_command
+
+        handle_agent_cli_command(args)
+
     # --- artifact-file ---
     if args.command == "artifact-file":
         from .artifact_file_handler import handle_artifact_file_command

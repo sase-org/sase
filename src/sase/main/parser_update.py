@@ -35,7 +35,9 @@ def register_update_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase update -q         # only print a one-line summary\n"
             "  sase update -j         # stable machine-readable JSON\n"
             "  sase update -t dev     # switch to editable checkouts\n"
-            "  sase update -t pypi -y # switch to published wheels without prompting"
+            "  sase update -t pypi -y # switch to published wheels without prompting\n"
+            "\n"
+            "Agent CLIs are separate; update them with `sase agent-cli update`."
         ),
     )
     # Options are listed short-alias alphabetical (-j, -n, -q, -t, -y) to match the bar

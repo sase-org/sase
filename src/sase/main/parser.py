@@ -11,6 +11,7 @@ from rich.text import Text
 
 from sase.main.parser_ace import register_ace_parser, register_axe_parser
 from sase.main.parser_agent import register_agent_parser
+from sase.main.parser_agent_cli import register_agent_cli_parser
 from sase.main.parser_artifact_file import register_artifact_file_parser
 from sase.main.parser_bead import register_bead_parser
 from sase.main.parser_chat import register_chat_parser
@@ -409,6 +410,7 @@ def create_parser() -> argparse.ArgumentParser:
     # =========================================================================
     register_ace_parser(top_level_subparsers)
     register_agent_parser(top_level_subparsers)
+    register_agent_cli_parser(top_level_subparsers)
     register_artifact_file_parser(top_level_subparsers)
     register_axe_parser(top_level_subparsers)
     register_bead_parser(top_level_subparsers)
