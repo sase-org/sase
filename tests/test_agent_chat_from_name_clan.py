@@ -184,6 +184,44 @@ def test_clan_fork_includes_live_and_dismissed_member_transcripts(
     ]
 
 
+def test_clan_fork_recovers_dismissed_member_from_day_sharded_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    timestamp = "20260720160300"
+    archived_chat = tmp_path / "archived-sharded.md"
+    legacy_dir = write_agent(
+        tmp_path,
+        timestamp,
+        "review.archived",
+        done={"response_path": str(archived_chat), "outcome": "completed"},
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": "20260720160000",
+            "changespec_name": "change",
+        },
+    )
+    archived_dir = legacy_dir.parent / timestamp[:6] / timestamp[6:8] / timestamp
+    archived_dir.parent.mkdir(parents=True)
+    legacy_dir.rename(archived_dir)
+    add_archive_identity(archived_dir)
+    write_dismissed_completion(
+        tmp_path,
+        archived_dir,
+        "review.archived",
+        project_name="proj",
+        response_path=str(archived_chat),
+    )
+    (archived_dir / "done.json").unlink()
+    rebuild_completion_archive()
+
+    source = _resolve_agent_chat_sources(["review"])[0]
+
+    assert source.members[0].path == str(archived_chat)
+    assert source.members[0].artifact_dir == str(archived_dir)
+
+
 def test_archived_failed_clan_member_keeps_fork_incomplete(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
