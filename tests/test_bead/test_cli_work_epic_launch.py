@@ -40,6 +40,10 @@ def _epic_clan_declaration(epic_id: str) -> str:
     return f"%clan({epic_id}, tribe=epic, summary_script=sase_clan_summary_epic)"
 
 
+def _bead_wait_lines(rendered: str) -> list[str]:
+    return [line for line in rendered.splitlines() if line.startswith("%w(bead=")]
+
+
 def test_work_launches_and_passes_rendered_multi_prompt(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -95,6 +99,9 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     assert f"%id(land, clan={epic_id})" in land_segment
     assert membership not in land_segment
     assert f"#bd/land_epic:{epic_id}" in query
+    assert _bead_wait_lines(land_segment) == [
+        f"%w(bead={phase_id})" for phase_id in phase_ids
+    ]
     assert captured["extra_env"] is None
     assert captured["segment_extra_env"] == tuple(
         [
@@ -456,6 +463,38 @@ def test_work_dry_run_never_mutates_or_launches(
     assert "%group:" not in out
 
 
+def test_work_dry_run_matches_confirmed_launch_before_force_reuse_rewrite(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.agent.launch_validation import rewrite_force_reuse_name_directives
+    from sase.agent.names import AgentNameWipeResult
+
+    epic_id, _ = seed_diamond(project_dir)
+
+    bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
+    dry_output = capsys.readouterr().out
+    dry_query = dry_output.split("--- Multi-prompt (dry run) ---\n", 1)[1].rstrip()
+
+    monkeypatch.setattr(
+        "sase.agent.names.wipe_agent_name_for_reuse",
+        lambda name: AgentNameWipeResult(target_name=name, found=False),
+    )
+    launched_queries: list[str] = []
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None, segment_extra_env=None: (
+            launched_queries.append(query) or FakeLaunchResult()
+        ),
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+    assert launched_queries == [rewrite_force_reuse_name_directives(dry_query)]
+    assert _bead_wait_lines(launched_queries[0]) == _bead_wait_lines(dry_query)
+
+
 def test_work_dry_run_renders_model_directives(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -613,6 +652,13 @@ def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
     assert out.count(_epic_clan_declaration(epic_id)) == 1
     assert "%family" not in out
     assert "%group:" not in out
+    assert _bead_wait_lines(out) == [
+        f"%w(bead={phase_ids[0]})",
+        f"%w(bead={phase_ids[0]})",
+        f"%w(bead={phase_ids[1]})",
+        f"%w(bead={phase_ids[2]})",
+        *[f"%w(bead={phase_id})" for phase_id in phase_ids],
+    ]
 
     with BeadProject(project_dir) as proj:
         assert proj.show(epic_id).is_ready_to_work is False
@@ -672,6 +718,11 @@ def test_work_dry_run_renders_changespec_launch_wrappers(
     assert out.count(_epic_clan_declaration(epic_id)) == 1
     assert "%family" not in out
     assert "%group:" not in out
+    assert _bead_wait_lines(out) == [
+        f"%w(bead={phase_ids[0]})",
+        f"%w(bead={phase_ids[0]})",
+        f"%w(bead={phase_ids[1]})",
+    ]
 
     with BeadProject(project_dir) as proj:
         assert proj.show(epic_id).is_ready_to_work is False

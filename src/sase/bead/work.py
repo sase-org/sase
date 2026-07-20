@@ -44,6 +44,7 @@ class _PhaseAssignment:
     bead_id: str
     agent_name: str
     waits_on: tuple[str, ...]
+    blocker_bead_ids: tuple[str, ...]
     wave: int
     model: str = ""
     size: PhaseSize | None = None
@@ -56,6 +57,7 @@ class EpicWorkPlan:
     epic_id: str
     launch_tag_id: str
     total_phase_count: int
+    phase_bead_ids: tuple[str, ...]
     waves: tuple[tuple[_PhaseAssignment, ...], ...]
     land_agent_name: str
     land_waits_on: tuple[str, ...]
@@ -175,6 +177,9 @@ def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
                     waits_on=tuple(
                         _membership_name(v) for v in assignment.get("waits_on", [])
                     ),
+                    blocker_bead_ids=tuple(
+                        str(v) for v in assignment["blocker_bead_ids"]
+                    ),
                     wave=int(assignment["wave"]),
                     model=str(assignment.get("model", "")),
                     size=(
@@ -187,6 +192,7 @@ def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
             )
             for wave in raw_waves
         ),
+        phase_bead_ids=tuple(str(v) for v in payload["phase_bead_ids"]),
         land_agent_name=_epic_clan_agent_name(
             epic_id,
             str(payload["land_agent_name"]),
@@ -352,6 +358,9 @@ def render_multi_prompt(
             lines.append("%auto")
             if assignment.waits_on:
                 lines.append(f"%w:{','.join(assignment.waits_on)}")
+            lines.extend(
+                f"%w(bead={bead_id})" for bead_id in assignment.blocker_bead_ids
+            )
             lines.append(f"#{work_phase_xprompt.name}:{assignment.bead_id}")
             if _phase_size(assignment.size) in {PhaseSize.MEDIUM, PhaseSize.LARGE}:
                 lines.append("#plan")
@@ -373,6 +382,7 @@ def render_multi_prompt(
     land_lines.append("%auto")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
+    land_lines.extend(f"%w(bead={bead_id})" for bead_id in plan.phase_bead_ids)
     land_lines.append(f"#{land_epic_xprompt.name}:{plan.epic_id}")
     segments.append("\n".join(land_lines))
 

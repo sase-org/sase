@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 from sase.bead.work import (
+    ChangeSpecLaunchContext,
     EpicWorkPlan,
     _PhaseAssignment as PhaseAssignment,
     SASE_BEAD_ID_ENV,
@@ -21,7 +22,11 @@ from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.workflow_models import Workflow
 
-from .work_test_helpers import epic, phase, seed
+from .work_test_helpers import depends, epic, phase, seed
+
+
+def _bead_wait_lines(rendered: str) -> list[str]:
+    return [line for line in rendered.splitlines() if line.startswith("%w(bead=")]
 
 
 class TestRenderEdgeCases:
@@ -44,6 +49,34 @@ class TestRenderEdgeCases:
         assert "#bd/work_phase_bead:p1" in rendered
         assert "#bd/work_phase_bead:p2" in rendered
         assert "#bd/land_epic:e1" in rendered
+
+    def test_vcs_and_changespec_wrappers_preserve_identical_bead_waits(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        seed(conn, [epic("e1"), phase("p1"), phase("p2")])
+        depends(conn, "p2", "p1")
+        plan = _build_epic_work_plan(conn, "e1")
+
+        vcs_rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            vcs_context=VCSLaunchContext(vcs_workflow="git", project_name="sase"),
+        )
+        changespec_rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            changespec_context=ChangeSpecLaunchContext(
+                changespec_name="feature_epic",
+                vcs_workflow="git",
+                project_name="sase",
+            ),
+        )
+
+        expected = ["%w(bead=p1)", "%w(bead=p1)", "%w(bead=p2)"]
+        assert _bead_wait_lines(vcs_rendered) == expected
+        assert _bead_wait_lines(changespec_rendered) == expected
 
     def test_user_override_xprompt_names_propagate(
         self, conn: sqlite3.Connection
@@ -77,12 +110,14 @@ class TestRenderEdgeCases:
             epic_id="sase-42.3",
             launch_tag_id="sase-42.3",
             total_phase_count=1,
+            phase_bead_ids=("sase-42.3.1",),
             waves=(
                 (
                     PhaseAssignment(
                         bead_id="sase-42.3.1",
                         agent_name="sase-42.3.1",
                         waits_on=(),
+                        blocker_bead_ids=(),
                         wave=0,
                     ),
                 ),
@@ -124,12 +159,14 @@ class TestRenderEdgeCases:
             epic_id="sase-42",
             launch_tag_id="sase-42",
             total_phase_count=1,
+            phase_bead_ids=("sase-42.1",),
             waves=(
                 (
                     PhaseAssignment(
                         bead_id="sase-42.1",
                         agent_name="sase-42.1",
                         waits_on=(),
+                        blocker_bead_ids=(),
                         wave=0,
                     ),
                 ),
@@ -189,12 +226,14 @@ class TestRenderEdgeCases:
             epic_id="sase-7z.5.1",
             launch_tag_id="sase-7z.5.1",
             total_phase_count=1,
+            phase_bead_ids=("sase-7z.5.1.1",),
             waves=(
                 (
                     PhaseAssignment(
                         bead_id="sase-7z.5.1.1",
                         agent_name="sase-7z.5.1.1",
                         waits_on=(),
+                        blocker_bead_ids=(),
                         wave=0,
                     ),
                 ),

@@ -292,7 +292,12 @@ class TestModelDirective:
         assert "%model:@phase_worker" in phase_segment
         # An explicit per-epic land model still wins over the epic-lander alias.
         assert land_segment == (
-            "%id(!land, clan=e1)\n%model:claude/opus\n%auto\n%w:e1.p1\n#bd/land_epic:e1"
+            "%id(!land, clan=e1)\n"
+            "%model:claude/opus\n"
+            "%auto\n"
+            "%w:e1.p1\n"
+            "%w(bead=p1)\n"
+            "#bd/land_epic:e1"
         )
 
     def test_no_model_only_adds_role_alias_directives_over_baseline(
@@ -328,6 +333,8 @@ class TestModelDirective:
             "%id(!land, clan=e1)\n"
             "%auto\n"
             "%w:e1.p1,e1.p2\n"
+            "%w(bead=p1)\n"
+            "%w(bead=p2)\n"
             "#bd/land_epic:e1"
         )
         # The only additions over the baseline are the role-alias model

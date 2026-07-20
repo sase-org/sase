@@ -49,6 +49,7 @@ class TestChangeSpecRendering:
             "%model:@epic_lander\n"
             "%auto\n"
             "%w:e1.p1\n"
+            "%w(bead=p1)\n"
             "#bd/land_epic:e1"
         )
         assert rendered == expected
@@ -86,6 +87,7 @@ class TestChangeSpecRendering:
             "%model:@phase_worker\n"
             "%auto\n"
             "%w:e1.p1\n"
+            "%w(bead=p1)\n"
             "#custom/work:p2\n"
             "---\n"
             "#gh:feature_epic\n"
@@ -93,6 +95,7 @@ class TestChangeSpecRendering:
             "%model:@phase_worker\n"
             "%auto\n"
             "%w:e1.p2\n"
+            "%w(bead=p2)\n"
             "#custom/work:p3\n"
             "---\n"
             "#gh:feature_epic\n"
@@ -100,6 +103,9 @@ class TestChangeSpecRendering:
             "%model:@epic_lander\n"
             "%auto\n"
             "%w:e1.p1,e1.p2,e1.p3\n"
+            "%w(bead=p1)\n"
+            "%w(bead=p2)\n"
+            "%w(bead=p3)\n"
             "#custom/land:e1"
         )
         assert rendered == expected
