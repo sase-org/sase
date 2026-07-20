@@ -5,7 +5,7 @@ import json
 import os
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -87,9 +87,10 @@ def _record_wait_completed_at(
 
 
 def _initial_dependencies_resolved(
-    wait_names: list[str],
-    wait_identity_deps: list[dict[str, str]],
+    wait_names: Iterable[object],
+    wait_identity_deps: Iterable[object],
     *,
+    resolved_deps: Iterable[object] = (),
     project_name: str | None,
     artifacts_dir: str,
 ) -> bool:
@@ -104,6 +105,7 @@ def _initial_dependencies_resolved(
         dependency_index,
         wait_names,
         wait_identity_deps,
+        resolved_deps,
         self_artifact_dir=artifacts_dir,
     )
     return status.resolved
@@ -130,6 +132,7 @@ def _read_ready_result(ready_path: str) -> bool:
 
 
 _RUNNER_SLOT_POLL_INTERVAL = 2
+_WAIT_DEPENDENCY_FALLBACK_INTERVAL = 60.0
 _RUNNER_SLOT_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     include_prompt_step_markers=False,
     include_raw_prompt_snippets=False,
@@ -191,6 +194,38 @@ def _read_json_dict(path: Path) -> dict[str, Any] | None:
     except (json.JSONDecodeError, OSError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def _waiting_marker_dependencies_resolved(
+    waiting_path: Path,
+    *,
+    project_name: str | None,
+    artifacts_dir: str,
+) -> bool:
+    """Re-resolve the dependencies currently recorded in ``waiting.json``."""
+    waiting_data = _read_json_dict(waiting_path)
+    if waiting_data is None:
+        return False
+
+    wait_names = waiting_data.get("waiting_for", [])
+    wait_identity_deps = waiting_data.get("wait_for_artifacts", [])
+    resolved_deps = waiting_data.get("resolved_deps", [])
+    if not isinstance(wait_names, list):
+        return False
+    if not isinstance(wait_identity_deps, list):
+        wait_identity_deps = []
+    if not isinstance(resolved_deps, list):
+        resolved_deps = []
+    if not wait_names and not wait_identity_deps:
+        return False
+
+    return _initial_dependencies_resolved(
+        wait_names,
+        wait_identity_deps,
+        resolved_deps=resolved_deps,
+        project_name=project_name,
+        artifacts_dir=artifacts_dir,
+    )
 
 
 def _marker_threshold(
@@ -327,11 +362,12 @@ def wait_for_dependencies(
 ) -> bool:
     """Wait for named agent dependencies, a duration, or an absolute time.
 
-    When *wait_names* is non-empty, writes waiting.json, polls for ready.json,
-    then returns once the agent can proceed.  When *duration* is set alongside
-    named dependencies, the duration starts after ready.json appears; without
-    named dependencies, the duration starts immediately.  When *wait_until* is
-    set (ISO 8601 timestamp), the agent won't start before that wall-clock time.
+    When *wait_names* is non-empty, writes waiting.json and polls for ready.json,
+    periodically resolving the dependencies directly as a fallback. When
+    *duration* is set alongside named dependencies, the duration starts after
+    dependency resolution; without named dependencies, the duration starts
+    immediately. When *wait_until* is set (ISO 8601 timestamp), the agent won't
+    start before that wall-clock time.
 
     Returns whether the process actually blocked. Exits with SIGTERM code if
     killed during the wait.
@@ -407,16 +443,36 @@ def wait_for_dependencies(
             parts.append(f"until: {wait_until}")
         print(f"Waiting for {' and '.join(parts)}")
 
-        # Poll for ready.json (written by wait_checks lumberjack chop).
+        # Poll primarily for ready.json (written by the wait_checks lumberjack
+        # chop), with a coarse direct-resolution fallback so chop outages cannot
+        # strand the runner forever.
         ready_path = os.path.join(artifacts_dir, "ready.json")
-        ready_observed = False
-        while not ready_observed:
+        dependencies_resolved = False
+        next_fallback_at = (
+            time.monotonic() + _WAIT_DEPENDENCY_FALLBACK_INTERVAL
+            if project_name
+            else None
+        )
+        while not dependencies_resolved:
             if os.path.exists(ready_path):
-                ready_observed = _read_ready_result(ready_path)
-                if ready_observed:
+                dependencies_resolved = _read_ready_result(ready_path)
+                if dependencies_resolved:
                     break
             if was_killed():
                 break
+            if next_fallback_at is not None and time.monotonic() >= next_fallback_at:
+                if _waiting_marker_dependencies_resolved(
+                    Path(waiting_path),
+                    project_name=project_name,
+                    artifacts_dir=artifacts_dir,
+                ):
+                    dependencies_resolved = True
+                    print(
+                        "Dependencies satisfied by runner fallback "
+                        "(ready.json not observed)"
+                    )
+                    break
+                next_fallback_at = time.monotonic() + _WAIT_DEPENDENCY_FALLBACK_INTERVAL
             blocked = True
             _opportunistic_ensure_axe()
             time.sleep(_WAIT_POLL_INTERVAL)
@@ -425,7 +481,7 @@ def wait_for_dependencies(
         if (
             duration is not None
             and duration > 0
-            and ready_observed
+            and dependencies_resolved
             and not was_killed()
         ):
             deadline = datetime.now(UTC) + timedelta(seconds=duration)
