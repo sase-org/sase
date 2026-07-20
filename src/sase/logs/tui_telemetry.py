@@ -7,14 +7,17 @@ raise back into the TUI or launch paths.
 
 from __future__ import annotations
 
-import fcntl
-import json
 import logging
 import os
 from pathlib import Path
 from typing import Any
 
 from sase.core.paths import sase_subdir
+from sase.logs._bounded import (
+    DEFAULT_MAX_BYTES,
+    append_jsonl_record,
+    max_bytes_from_env,
+)
 
 log = logging.getLogger(__name__)
 
@@ -31,8 +34,6 @@ ENV_LAUNCH_TIMING_PATH = "SASE_TUI_LAUNCH_TIMING_PATH"
 ENV_EXTERNAL_TOOLS_PATH = "SASE_TUI_EXTERNAL_TOOLS_PATH"
 ENV_AGENT_LOADS_PATH = "SASE_TUI_AGENT_LOADS_PATH"
 ENV_MAX_BYTES = "SASE_TUI_TELEMETRY_MAX_BYTES"
-
-DEFAULT_MAX_BYTES = 2_000_000
 
 
 def _logs_dir() -> str:
@@ -116,39 +117,15 @@ def log_tui_agent_load(record: dict[str, Any]) -> None:
 
 def _append_jsonl(path: Path, record: dict[str, Any]) -> None:
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        _rotate_if_needed(path, _max_bytes())
-        with open(path, "a", encoding="utf-8") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-            try:
-                f.write(json.dumps(record, default=str) + "\n")
-            finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+        append_jsonl_record(
+            path,
+            record,
+            max_bytes=_max_bytes(),
+            json_default=str,
+        )
     except Exception:
         log.debug("TUI telemetry write failed for %s", path, exc_info=True)
 
 
 def _max_bytes() -> int:
-    raw = os.environ.get(ENV_MAX_BYTES)
-    if raw is None:
-        return DEFAULT_MAX_BYTES
-    try:
-        return max(0, int(raw))
-    except ValueError:
-        return DEFAULT_MAX_BYTES
-
-
-def _rotate_if_needed(path: Path, max_bytes: int) -> None:
-    if max_bytes <= 0:
-        return
-    try:
-        if not path.exists() or path.stat().st_size <= max_bytes:
-            return
-        rotated = path.with_name(f"{path.name}.1")
-        try:
-            rotated.unlink()
-        except FileNotFoundError:
-            pass
-        path.replace(rotated)
-    except OSError:
-        log.debug("TUI telemetry rotation failed for %s", path, exc_info=True)
+    return max_bytes_from_env(ENV_MAX_BYTES, DEFAULT_MAX_BYTES)

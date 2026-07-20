@@ -7,8 +7,9 @@ from collections.abc import Iterator
 
 import pytest
 
+from sase.ace.tui import log_setup
 from sase.ace.tui.log_setup import _HANDLER_NAME, install_tui_file_logging
-from sase.logs import tui_log_path
+from sase.logs import launch_log, tui_log_path
 
 
 @pytest.fixture(autouse=True)
@@ -75,3 +76,24 @@ def test_info_below_threshold_is_filtered() -> None:
     path = tui_log_path()
     text = path.read_text() if path.exists() else ""
     assert "just info" not in text
+
+
+def test_tui_log_keeps_only_configured_rotating_generations(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui.log"
+    monkeypatch.setattr(launch_log, "TUI_LOG", str(path))
+    monkeypatch.setattr(log_setup, "_MAX_BYTES", 100)
+    monkeypatch.setattr(log_setup, "_BACKUP_COUNT", 1)
+
+    install_tui_file_logging()
+    logger = logging.getLogger("sase.rotation")
+    for index in range(4):
+        logger.warning("record %s %s", index, "x" * 150)
+    for handler in _sase_handlers():
+        handler.flush()
+
+    assert path.exists()
+    assert path.with_name("tui.log.1").exists()
+    assert not path.with_name("tui.log.2").exists()

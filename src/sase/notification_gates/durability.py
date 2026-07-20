@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from sase.core.atomic_temp import reap_stale_atomic_temps
 from sase.notification_gates.models import GateError, GateResource
 from sase.notification_gates.paths import open_regular_nofollow, owned_resource_path
 
@@ -67,6 +68,7 @@ def atomic_write_json(path: Path, value: object, *, exclusive: bool = False) -> 
     path.parent.mkdir(parents=True, exist_ok=True)
     if exclusive and path.exists():
         raise FileExistsError(path)
+    reap_stale_atomic_temps(path)
     fd, temporary = tempfile.mkstemp(
         dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
     )

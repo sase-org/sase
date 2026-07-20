@@ -1,10 +1,27 @@
 """Tests for sase.logs.run_log."""
 
 import json
+import multiprocessing
+import os
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.logs import run_log
 from sase.logs.run_log import log_agent_run, log_event
+
+
+def _write_run_records(path: str, writer: int, count: int) -> None:
+    run_log.RUNS_FILE = path
+    os.environ[run_log.ENV_MAX_BYTES] = "0"
+    for index in range(count):
+        log_agent_run(
+            workflow=f"writer-{writer}-{index}",
+            project="sase",
+            branch_or_workspace="stress",
+            workspace_num=writer,
+            duration_seconds=float(index),
+            status="success",
+        )
 
 
 class TestLogAgentRun:
@@ -81,6 +98,32 @@ class TestLogAgentRun:
 
         lines = Path(runs_file).read_text().strip().splitlines()
         assert len(lines) == 3
+
+    def test_two_process_appends_are_complete_json_records(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        runs_file = tmp_path / "runs.jsonl"
+        count_per_writer = 100
+        context = multiprocessing.get_context("fork")
+        writers = [
+            context.Process(
+                target=_write_run_records,
+                args=(str(runs_file), writer, count_per_writer),
+            )
+            for writer in range(2)
+        ]
+
+        for writer in writers:
+            writer.start()
+        for writer in writers:
+            writer.join(timeout=20)
+
+        assert [writer.exitcode for writer in writers] == [0, 0]
+        lines = runs_file.read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 2 * count_per_writer
+        records = [json.loads(line) for line in lines]
+        assert {record["workspace_num"] for record in records} == {0, 1}
 
 
 class TestLogEvent:

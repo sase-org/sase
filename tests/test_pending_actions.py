@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -41,6 +43,33 @@ def test_register_and_resolve_shared_pending_action_store(
 
         assert pending_actions.resolve_prefix("abcdef01").notification_id == n1.id
         assert pending_actions.resolve_prefix("abcdef").resolution == "ambiguous_prefix"
+
+
+def test_pending_action_writer_reaps_only_targeted_stale_temp_siblings(
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "pending_actions" / "actions.json"
+    store_path.parent.mkdir()
+    stale = store_path.parent / ".actions.json.old.tmp"
+    fresh = store_path.parent / ".actions.json.fresh.tmp"
+    unrelated = store_path.parent / ".other.json.old.tmp"
+    near_match = store_path.parent / ".actions.json.tmp"
+    for path in (stale, fresh, unrelated, near_match):
+        path.write_text("temp", encoding="utf-8")
+    old = time.time() - 25 * 60 * 60
+    os.utime(stale, (old, old))
+    os.utime(unrelated, (old, old))
+    os.utime(near_match, (old, old))
+
+    with patch.object(pending_actions, "PENDING_ACTIONS_PATH", store_path):
+        pending_actions.register_notification(
+            _notification("abcdef01-full", "PlanApproval", {"response_dir": "x"})
+        )
+
+    assert not stale.exists()
+    assert fresh.exists()
+    assert unrelated.exists()
+    assert near_match.exists()
 
 
 def test_pending_action_state_detects_external_handled_and_stale(

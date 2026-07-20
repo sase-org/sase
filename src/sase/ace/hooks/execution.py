@@ -3,6 +3,7 @@
 import os
 import subprocess
 import tempfile
+from pathlib import Path
 
 from sase.core.changespec import strip_reverted_suffix
 from sase.core.time import generate_timestamp, local_timezone_name
@@ -13,6 +14,7 @@ from ..changespec import (
     HookEntry,
     HookStatusLine,
 )
+from .output_capture import compact_completed_hook_output
 from .persistence import get_hook_output_path
 from .timestamps import (
     calculate_duration_from_timestamps,
@@ -226,9 +228,9 @@ def check_hook_completion(
         return None
 
     try:
-        with open(output_path, encoding="utf-8") as f:
-            content = f.read()
-    except OSError:
+        content_bytes = Path(output_path).read_bytes()
+        content = content_bytes.decode("utf-8")
+    except (OSError, UnicodeDecodeError):
         return None
 
     # Look for completion marker with end timestamp
@@ -287,14 +289,8 @@ def check_hook_completion(
     if completed_status == "FAILED" and hook.skip_fix_hook:
         from sase.config.metahook import find_matching_metahook
 
-        # Read hook output to check for metahook match
-        hook_output_content = ""
-        if os.path.exists(output_path):
-            with open(output_path, encoding="utf-8") as f:
-                hook_output_content = f.read()
-
         # Only auto-summarize if no metahook matches
-        if not find_matching_metahook(hook.command, hook_output_content):
+        if not find_matching_metahook(hook.command, content):
             from sase.ace.hooks.summarize_utils import get_file_summary
 
             auto_skip_suffix = get_file_summary(
@@ -318,7 +314,9 @@ def check_hook_completion(
     if running_idx >= 0:
         updated_status_lines[running_idx] = updated_status_line
 
-    return HookEntry(
+    completed_hook = HookEntry(
         command=hook.command,
         status_lines=updated_status_lines,
     )
+    compact_completed_hook_output(Path(output_path), content_bytes)
+    return completed_hook

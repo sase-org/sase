@@ -130,6 +130,29 @@ class TestCollectJsonl:
         assert len(results) == 1
         assert "260315" in results[0]
 
+    def test_collect_run_log_skips_malformed_historical_line(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        from sase.logs.collectors import collect_run_log
+
+        logs_dir = tmp_path / "logs"
+        logs_dir.mkdir()
+        (logs_dir / "runs.jsonl").write_text(
+            "torn historical record\n"
+            + json.dumps({"timestamp": "260315_120000", "event": "agent_run"})
+            + "\n",
+            encoding="utf-8",
+        )
+
+        start = datetime(2026, 3, 14, tzinfo=get_timezone())
+        end = datetime(2026, 3, 16, 23, 59, 59, tzinfo=get_timezone())
+        with _patch_expanduser(tmp_path):
+            results = collect_run_log(start, end)
+
+        assert len(results) == 1
+        assert json.loads(results[0])["event"] == "agent_run"
+
 
 class TestNewCollectors:
     def test_collect_comments(self, tmp_path: Path) -> None:

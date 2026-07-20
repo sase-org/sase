@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from sase.core.atomic_temp import reap_stale_atomic_temps
 from sase.core.paths import sase_subdir
 from sase.notification_gates.registry import adapter_for_kind, registered_gate_kinds
 from sase.notifications.models import Notification
@@ -477,6 +478,7 @@ def _locked_store() -> Any:
 def _write_store(store: dict[str, Any]) -> None:
     store_path = _pending_actions_path()
     store_path.parent.mkdir(parents=True, exist_ok=True)
+    reap_stale_atomic_temps(store_path)
     fd, tmp_path = tempfile.mkstemp(
         dir=store_path.parent,
         prefix=f".{store_path.name}.",

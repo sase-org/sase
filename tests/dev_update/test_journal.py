@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from sase.dev_update.journal import (
+    ENV_MAX_BYTES,
     _dev_update_journal_record,
     append_dev_update_journal,
 )
@@ -169,3 +170,21 @@ def test_append_dev_update_journal_writes_jsonl(tmp_path: Path) -> None:
     assert payload["restart"]["status"] == "restarted"
     assert payload["restart"]["verified"] is True
     assert payload["restart"]["attempts"][0]["pid"] == 2468
+
+
+def test_append_dev_update_journal_rotates_existing_file(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    path = tmp_path / "logs" / "dev_update.jsonl"
+    path.parent.mkdir()
+    path.write_text('{"generation":"current"}\n', encoding="utf-8")
+    rotated = path.with_name(f"{path.name}.1")
+    rotated.write_text('{"generation":"stale-backup"}\n', encoding="utf-8")
+    monkeypatch.setenv(ENV_MAX_BYTES, "1")
+
+    assert append_dev_update_journal(_plan(), _result(_plan()), path=path) == path
+
+    assert json.loads(rotated.read_text(encoding="utf-8")) == {"generation": "current"}
+    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 1
+    assert not path.with_name(f"{path.name}.2").exists()

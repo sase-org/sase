@@ -2,10 +2,9 @@
 
 Provides ``log_agent_run()`` and ``log_event()`` which append JSON lines to
 ``~/.sase/logs/runs.jsonl`` and ``~/.sase/logs/events.jsonl`` respectively.
-Uses atomic append with file locking (same pattern as the notifications store).
+Uses one-write atomic append with sibling locking and bounded rotation.
 """
 
-import fcntl
 import json
 import os
 from collections.abc import Iterator
@@ -15,6 +14,11 @@ from typing import Any
 
 from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
+from sase.logs._bounded import (
+    DEFAULT_MAX_BYTES,
+    append_jsonl_record,
+    max_bytes_from_env,
+)
 
 REVIVE_EVENTS: frozenset[str] = frozenset(
     {"agent_revive_started", "agent_revived", "agent_revive_failed"}
@@ -23,6 +27,7 @@ REVIVE_EVENTS: frozenset[str] = frozenset(
 LOGS_DIR: str | None = None
 RUNS_FILE: str | None = None
 EVENTS_FILE: str | None = None
+ENV_MAX_BYTES = "SASE_RUN_LOG_MAX_BYTES"
 
 
 def _logs_dir() -> str:
@@ -48,14 +53,13 @@ def events_log_path() -> Path:
 
 
 def _append_jsonl(path: str, record: dict[str, Any]) -> None:
-    """Append a JSON record as a single line with exclusive file locking."""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "a") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-        try:
-            f.write(json.dumps(record, default=str) + "\n")
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
+    """Append a JSON record with bounded, concurrency-safe rotation."""
+    append_jsonl_record(
+        Path(path),
+        record,
+        max_bytes=max_bytes_from_env(ENV_MAX_BYTES, DEFAULT_MAX_BYTES),
+        json_default=str,
+    )
 
 
 def log_agent_run(

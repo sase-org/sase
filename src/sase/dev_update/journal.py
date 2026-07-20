@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import fcntl
-import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -16,8 +14,14 @@ from sase.dev_update.models import (
     DevUpdatePlan,
     DevUpdateResult,
 )
+from sase.logs._bounded import (
+    DEFAULT_MAX_BYTES,
+    append_jsonl_record,
+    max_bytes_from_env,
+)
 
 DEV_UPDATE_JOURNAL: str | None = None
+ENV_MAX_BYTES = "SASE_DEV_UPDATE_JOURNAL_MAX_BYTES"
 _MAX_STREAM_CHARS = 12_000
 
 
@@ -37,14 +41,13 @@ def append_dev_update_journal(
     target = path or dev_update_journal_path()
     record = _dev_update_journal_record(plan, result, restart=restart)
     try:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with target.open("a", encoding="utf-8") as file:
-            fcntl.flock(file, fcntl.LOCK_EX)
-            try:
-                file.write(json.dumps(record, sort_keys=True) + "\n")
-            finally:
-                fcntl.flock(file, fcntl.LOCK_UN)
-    except OSError:
+        append_jsonl_record(
+            target,
+            record,
+            max_bytes=max_bytes_from_env(ENV_MAX_BYTES, DEFAULT_MAX_BYTES),
+            sort_keys=True,
+        )
+    except Exception:
         return None
     return target
 

@@ -7,7 +7,6 @@ Errors are diagnostic-only and must never escape back into the TUI.
 
 from __future__ import annotations
 
-import fcntl
 import json
 import logging
 import os
@@ -21,12 +20,20 @@ from typing import Any
 
 from sase.axe.state import read_tail_seek
 from sase.core.paths import sase_subdir
+from sase.logs._bounded import (
+    DEFAULT_MAX_BYTES,
+    append_encoded_line_locked,
+    encode_jsonl_record,
+    log_file_lock,
+    max_bytes_from_env,
+)
 
 log = logging.getLogger(__name__)
 
 TUI_TOASTS_JSONL: str | None = None
 
 ENV_TOASTS_PATH = "SASE_TUI_TOASTS_PATH"
+ENV_MAX_BYTES = "SASE_TUI_TOASTS_MAX_BYTES"
 TOAST_HISTORY_LIMIT = 100
 _COMPACT_SLACK = 50
 
@@ -196,27 +203,26 @@ def _writer_main() -> None:
 
 
 def _append_record(path: Path, record: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a+", encoding="utf-8") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
-        try:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-            f.flush()
-            _compact_locked(f)
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
+    encoded = encode_jsonl_record(record, ensure_ascii=False)
+    with log_file_lock(path):
+        append_encoded_line_locked(
+            path,
+            encoded,
+            max_bytes=max_bytes_from_env(ENV_MAX_BYTES, DEFAULT_MAX_BYTES),
+        )
+        _compact_locked(path)
 
 
-def _compact_locked(file_obj: Any) -> None:
-    file_obj.seek(0)
-    lines = file_obj.readlines()
-    if len(lines) <= TOAST_HISTORY_LIMIT + _COMPACT_SLACK:
-        return
-    kept = lines[-TOAST_HISTORY_LIMIT:]
-    file_obj.seek(0)
-    file_obj.truncate(0)
-    file_obj.writelines(kept)
-    file_obj.flush()
+def _compact_locked(path: Path) -> None:
+    with path.open("r+", encoding="utf-8") as file_obj:
+        lines = file_obj.readlines()
+        if len(lines) <= TOAST_HISTORY_LIMIT + _COMPACT_SLACK:
+            return
+        kept = lines[-TOAST_HISTORY_LIMIT:]
+        file_obj.seek(0)
+        file_obj.truncate(0)
+        file_obj.writelines(kept)
+        file_obj.flush()
 
 
 def _toast_record_from_json(data: Any) -> ToastRecord | None:

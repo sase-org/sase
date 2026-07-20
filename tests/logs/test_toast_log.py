@@ -112,6 +112,24 @@ def test_compaction_keeps_exactly_last_100_after_slack(
     assert json.loads(lines[-1])["message"] == "toast 150"
 
 
+def test_size_rotation_uses_single_generation(
+    toast_log_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    toast_log_path.write_text(json.dumps(_record(1)) + "\n", encoding="utf-8")
+    rotated = toast_log_path.with_name(f"{toast_log_path.name}.1")
+    rotated.write_text("stale backup\n", encoding="utf-8")
+    monkeypatch.setenv(toast_log.ENV_MAX_BYTES, "1")
+
+    toast_log._append_record(toast_log_path, _record(2))
+
+    assert json.loads(rotated.read_text(encoding="utf-8"))["message"] == "toast 1"
+    assert json.loads(toast_log_path.read_text(encoding="utf-8"))["message"] == (
+        "toast 2"
+    )
+    assert not toast_log_path.with_name(f"{toast_log_path.name}.2").exists()
+
+
 def test_read_recent_toasts_skips_malformed_lines(toast_log_path: Path) -> None:
     toast_log_path.write_text(
         "\n".join(
