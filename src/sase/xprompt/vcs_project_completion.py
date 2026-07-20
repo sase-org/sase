@@ -35,6 +35,7 @@ from sase.ace.changespec import (
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import effective_project_name
+from sase.project_display_names import ProjectDisplaySnapshot, humanize_cl_name
 from sase.status_state_machine import remove_workspace_suffix
 from sase.workspace_provider import (
     detect_workflow_type,
@@ -161,7 +162,9 @@ def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
     """Build the enabled project/PR completion catalog from *projects_dir*."""
     project_entries: dict[str, VcsProjectEntry] = {}
     prefix_by_project: dict[str, tuple[str, str]] = {}
-    for record in list_project_records(projects_dir, "enabled"):
+    records = list_project_records(projects_dir, "enabled")
+    project_display_snapshot = ProjectDisplaySnapshot.from_records(records)
+    for record in records:
         if record.system_managed or not record.launchable:
             continue
         if record.project_name == _HOME_PROJECT_NAME:
@@ -203,14 +206,19 @@ def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
         if prefix_info is None:
             continue
         vcs_prefix, provider_display = prefix_info
+        display_name = humanize_cl_name(
+            changespec.name,
+            snapshot=project_display_snapshot,
+        )
+        aliases = (changespec.name,) if display_name != changespec.name else ()
         changespec_entries.append(
             VcsProjectEntry(
-                name=changespec.name,
+                name=display_name,
                 vcs_prefix=vcs_prefix,
-                display_tag=f"#{vcs_prefix}:{changespec.name}",
+                display_tag=f"#{vcs_prefix}:{display_name}",
                 provider_display=provider_display,
                 description="",
-                aliases=(),
+                aliases=aliases,
                 kind="changespec",
                 project=project,
                 status=base_status,

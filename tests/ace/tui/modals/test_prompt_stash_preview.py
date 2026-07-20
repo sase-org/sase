@@ -8,7 +8,7 @@ from sase.ace.tui.modals._prompt_stash_preview import (
     _build_prompt_stash_preview,
 )
 from sase.core.prompt_stash_wire import PromptStashEntryWire
-from sase.project_display_names import ProjectDisplaySnapshot
+from tests._project_display_case import ProjectDisplayCase
 
 
 def _entry(**overrides: object) -> PromptStashEntryWire:
@@ -55,16 +55,18 @@ def test_metadata_uses_placeholders_and_omits_single_prompt_count() -> None:
     assert "Prompts:" not in metadata
 
 
-def test_metadata_projects_canonical_project_from_supplied_snapshot() -> None:
-    canonical = "gh_acme__widgets"
+def test_metadata_projects_canonical_project_from_supplied_snapshot(
+    project_display_case: ProjectDisplayCase,
+) -> None:
+    canonical = project_display_case.project_key
     entry = _entry(project=canonical)
 
     metadata = _build_prompt_stash_metadata(
         entry,
         prompt_count=1,
-        project_display_snapshot=ProjectDisplaySnapshot({canonical: "widgets"}),
+        project_display_snapshot=project_display_case.snapshot,
     ).plain
 
-    assert "Project:    widgets" in metadata
+    assert f"Project:    {project_display_case.project_label}" in metadata
     assert canonical not in metadata
     assert entry.project == canonical

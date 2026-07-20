@@ -19,6 +19,7 @@ from sase.sibling_repos import OPENED_SIBLINGS_FILENAME, opened_sibling_names
 from sase.vcs_provider import VCS_DEFAULT_REVISION
 from sase.workspace_provider.registry import record_workspace
 from sase.workspace_provider.store import WorkspaceStore
+from tests._project_display_case import ProjectDisplayCase
 from tests.main.workspace_handler_helpers import make_args, project_layout
 
 __all__ = ["project_layout"]
@@ -70,35 +71,57 @@ class TestList:
 
     def test_human_list_uses_configured_label_but_json_keeps_identity(
         self,
-        project_layout: tuple[str, str, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
+        project_display_case: ProjectDisplayCase,
     ) -> None:
-        project_name, project_file, _primary = project_layout
-        path = Path(project_file)
-        path.write_text(
-            f"PROJECT_NAME: widgets\n{path.read_text(encoding='utf-8')}",
-            encoding="utf-8",
+        monkeypatch.setenv("HOME", str(tmp_path / "home"))
+        monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+        monkeypatch.delenv("SASE_WORKSPACE_ROOT", raising=False)
+        layout = project_display_case.write_project_layout(
+            tmp_path / "home" / ".sase" / "projects",
+            workspace_dir=tmp_path / "primary",
+        )
+        fake_config = {
+            "workspace": {
+                "root": str(tmp_path / "managed"),
+                "project_key": "demo-key",
+                "cleanup_ttl_days": 1,
+            }
+        }
+        monkeypatch.setattr(
+            "sase.main.workspace_handler.load_merged_config",
+            lambda: fake_config,
+        )
+        monkeypatch.setattr(
+            "sase.config.core.load_merged_config",
+            lambda: fake_config,
         )
 
         human_args = make_args(
             workspace_subcommand="list",
-            project=project_name,
+            project=project_display_case.project_key,
             json=False,
         )
         with pytest.raises(SystemExit, match="0"):
             handle_workspace_command(human_args)
-        assert "Project: widgets" in capsys.readouterr().out
+        human = capsys.readouterr().out
+        assert f"Project: {project_display_case.project_label}" in human
+        assert project_display_case.project_key not in human
 
         json_args = make_args(
             workspace_subcommand="list",
-            project=project_name,
+            project=project_display_case.project_key,
             json=True,
         )
         with pytest.raises(SystemExit, match="0"):
             handle_workspace_command(json_args)
         payload = json.loads(capsys.readouterr().out)
-        assert payload["project"] == project_name
+        assert payload["project"] == project_display_case.project_key
         assert payload["project_key"] == "demo-key"
+        assert payload["root_dir"] == str(tmp_path / "managed" / "demo-key")
+        assert layout.project_file.name == f"{project_display_case.project_key}.sase"
 
     def test_list_does_not_auto_initialize_sdd(
         self,

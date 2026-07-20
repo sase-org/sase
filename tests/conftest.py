@@ -16,6 +16,7 @@ from sase.ace.changespec import (
 )
 from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
 from tests._suite_gate import configure_suite_gate, unconfigure_suite_gate
+from tests._project_display_case import ProjectDisplayCase
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -69,6 +70,12 @@ def gate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     )
     store._LOAD_CACHE.clear()
     return tmp_path
+
+
+@pytest.fixture
+def project_display_case() -> ProjectDisplayCase:
+    """Return the shared canonical-key/display-label mismatch case."""
+    return ProjectDisplayCase()
 
 
 def pytest_configure(config: pytest.Config) -> None:

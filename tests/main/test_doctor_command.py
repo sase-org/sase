@@ -14,7 +14,7 @@ from sase.diagnostics import (
 from sase.doctor.runner import DoctorContext, build_doctor_registry
 from sase.main import doctor_handler
 from sase.main.parser import create_parser
-from sase.project_display_names import ProjectDisplaySnapshot
+from tests._project_display_case import ProjectDisplayCase
 
 
 def _report(status: str = "OK", *, strict: bool = False) -> DiagnosticReport:
@@ -105,8 +105,12 @@ def test_doctor_json_output_returns_report_exit_code(monkeypatch, capsys) -> Non
     assert payload["checks"][0]["id"] == "runtime.version"
 
 
-def test_doctor_humanizes_project_only_in_human_report(monkeypatch, capsys) -> None:
-    canonical = "gh_acme__widgets"
+def test_doctor_humanizes_project_only_in_human_report(
+    monkeypatch,
+    capsys,
+    project_display_case: ProjectDisplayCase,
+) -> None:
+    canonical = project_display_case.project_key
     report = DiagnosticReport(
         generated_at="2026-07-20T12:00:00Z",
         cwd="/workspace",
@@ -126,13 +130,13 @@ def test_doctor_humanizes_project_only_in_human_report(monkeypatch, capsys) -> N
     monkeypatch.setattr(doctor_handler, "run_doctor", lambda **_kwargs: report)
     monkeypatch.setattr(
         "sase.project_display_names.load_project_display_snapshot",
-        lambda: ProjectDisplaySnapshot({canonical: "widgets"}),
+        lambda: project_display_case.snapshot,
     )
 
     human_args = create_parser().parse_args(["doctor"])
     assert doctor_handler.handle_doctor_command(human_args) == 0
     human = capsys.readouterr().out
-    assert "widgets" in human
+    assert project_display_case.project_label in human
     assert canonical not in human
 
     json_args = create_parser().parse_args(["doctor", "--json"])

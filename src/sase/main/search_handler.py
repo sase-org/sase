@@ -34,21 +34,32 @@ def handle_search_command(args: argparse.Namespace) -> None:
         print("No ChangeSpecs match the query.")
         sys.exit(0)
 
+    project_display_snapshot = load_project_display_snapshot()
     if args.format == "rich":
-        _display_rich(matching)
+        _display_rich(
+            matching,
+            project_display_snapshot=project_display_snapshot,
+        )
     elif args.format == "markdown":
         _display_markdown(
             matching,
             query=args.query,
-            project_display_snapshot=load_project_display_snapshot(),
+            project_display_snapshot=project_display_snapshot,
         )
     else:
-        _display_plain(matching)
+        _display_plain(
+            matching,
+            project_display_snapshot=project_display_snapshot,
+        )
 
     sys.exit(0)
 
 
-def _display_rich(matching: list) -> None:  # type: ignore[type-arg]
+def _display_rich(
+    matching: list,  # type: ignore[type-arg]
+    *,
+    project_display_snapshot: ProjectDisplaySnapshot | None = None,
+) -> None:
     """Display search results with rich formatting."""
     from collections import Counter
 
@@ -60,7 +71,11 @@ def _display_rich(matching: list) -> None:  # type: ignore[type-arg]
 
     console = Console()
     for cs in matching:
-        display_changespec(cs, console)
+        display_changespec(
+            cs,
+            console,
+            project_display_snapshot=project_display_snapshot,
+        )
 
     # Print summary panel
     summary = Text()
@@ -77,14 +92,22 @@ def _display_rich(matching: list) -> None:  # type: ignore[type-arg]
     # One-line per ChangeSpec
     for cs in matching:
         status_color = get_status_color(cs.status)
-        summary.append(f"  {cs.name}", style="bold #00D7AF")
+        display_name = humanize_cl_name(
+            cs.name,
+            snapshot=project_display_snapshot,
+        )
+        summary.append(f"  {display_name}", style="bold #00D7AF")
         summary.append(f" [{cs.status}]\n", style=f"bold {status_color}")
 
     summary.rstrip()
     console.print(Panel(summary, title="Summary", border_style="green"))
 
 
-def _display_plain(matching: list) -> None:  # type: ignore[type-arg]
+def _display_plain(
+    matching: list,  # type: ignore[type-arg]
+    *,
+    project_display_snapshot: ProjectDisplaySnapshot | None = None,
+) -> None:
     """Display search results in plain text format."""
     from sase.ace.display_helpers import format_running_claims_aligned
     from sase.ace.hooks import format_timestamp_display
@@ -105,16 +128,32 @@ def _display_plain(matching: list) -> None:  # type: ignore[type-arg]
             formatted_claims = format_running_claims_aligned(running_claims)
             for ws_col, pid_col, wf_col, cl_name in formatted_claims:
                 if cl_name:
-                    print(f"  {ws_col} | {pid_col} | {wf_col} | {cl_name}")
+                    display_cl_name = humanize_cl_name(
+                        cl_name,
+                        snapshot=project_display_snapshot,
+                    )
+                    print(f"  {ws_col} | {pid_col} | {wf_col} | {display_cl_name}")
                 else:
                     print(f"  {ws_col} | {pid_col} | {wf_col}")
 
-        print(f"NAME: {cs.name}")
+        print(
+            "NAME: "
+            + humanize_cl_name(
+                cs.name,
+                snapshot=project_display_snapshot,
+            )
+        )
         print("DESCRIPTION:")
         for line in cs.description.split("\n"):
             print(f"  {line}")
         if cs.parent:
-            print(f"PARENT: {cs.parent}")
+            print(
+                "PARENT: "
+                + humanize_cl_name(
+                    cs.parent,
+                    snapshot=project_display_snapshot,
+                )
+            )
         if cs.pr_url:
             print(f"PR: {cs.pr_url}")
         print(f"STATUS: {cs.status}")

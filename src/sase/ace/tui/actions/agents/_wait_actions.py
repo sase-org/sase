@@ -242,12 +242,15 @@ class AgentWaitActionsMixin:
                 if callable(refresh):
                     refresh(source="agent-run-now-persist-failed")
 
+            display_name = humanize_cl_name(
+                agent.display_name or agent.cl_name or "agent"
+            )
             task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
                 "agent-directive",
                 agent.cl_name or agent.display_name or "agent",
                 artifacts_dir,
                 _task,
-                display_name=f"Persist run-now: {agent.display_name}",
+                display_name=f"Persist run-now: {display_name}",
                 dedup_key=f"agent-directive-persist:{artifacts_dir}",
                 duplicate_message="A directive update is already running for this agent",
                 on_complete=_on_complete,
@@ -263,7 +266,7 @@ class AgentWaitActionsMixin:
             agent.wait_runners = None
             agent.wait_runners_explicit = False
             agent.slot_requested_at = None
-            self.notify(f"Wait: {agent.display_name or agent.cl_name}")  # type: ignore[attr-defined]
+            self.notify(f"Wait: {display_name}")  # type: ignore[attr-defined]
             self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
 
     def _apply_live_runner_wait(

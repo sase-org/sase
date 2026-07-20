@@ -5,6 +5,7 @@ import pytest
 
 from sase.project_display_names import ProjectDisplaySnapshot
 from sase.stats.views import build_statistics_views
+from tests._project_display_case import ProjectDisplayCase
 
 
 def _run_payload() -> dict[str, object]:
@@ -337,20 +338,22 @@ def test_work_rows_tolerate_partial_and_invalid_values() -> None:
     assert views.projects.projects[0].changespecs[0].has_pr is False
 
 
-def test_project_display_snapshot_projects_every_project_bearing_row() -> None:
+def test_project_display_snapshot_projects_every_project_bearing_row(
+    project_display_case: ProjectDisplayCase,
+) -> None:
     payload = _run_payload()
-    widgets_key = "gh_acme__widgets"
+    widgets_key = project_display_case.project_key
     payload["workspaces"][0]["project"] = widgets_key  # type: ignore[index]
     payload["work"]["projects"][0]["project"] = widgets_key  # type: ignore[index]
     payload["work"]["changespecs"][0].update(  # type: ignore[index,union-attr]
         {
             "project": widgets_key,
-            "name": f"{widgets_key}_stats-view",
+            "name": project_display_case.changespec_key,
         }
     )
     payload["runtime_group_by"] = "project"
     payload["runtime_groups"][0]["group"] = widgets_key  # type: ignore[index]
-    snapshot = ProjectDisplaySnapshot({widgets_key: "widgets"})
+    snapshot = project_display_case.snapshot
 
     views = build_statistics_views(
         payload,
@@ -359,42 +362,48 @@ def test_project_display_snapshot_projects_every_project_bearing_row() -> None:
     )
 
     project = views.projects.projects[0]
-    assert (project.project_key, project.project_label) == (widgets_key, "widgets")
+    assert (project.project_key, project.project_label) == (
+        widgets_key,
+        project_display_case.project_label,
+    )
     assert [row.changespec_key for row in project.changespecs] == [
-        f"{widgets_key}_stats-view"
+        project_display_case.changespec_key
     ]
-    assert project.changespecs[0].changespec_label == "widgets_stats-view"
+    assert (
+        project.changespecs[0].changespec_label == project_display_case.changespec_label
+    )
     assert (
         project.changespecs[0].project_key,
         project.changespecs[0].project_label,
-    ) == (widgets_key, "widgets")
+    ) == (widgets_key, project_display_case.project_label)
     assert (
         views.activity.workspaces[0].project_key,
         views.activity.workspaces[0].project_label,
-    ) == (widgets_key, "widgets")
+    ) == (widgets_key, project_display_case.project_label)
     assert (
         views.runtime.rows[0].group_key,
         views.runtime.rows[0].group_label,
-    ) == (widgets_key, "widgets")
+    ) == (widgets_key, project_display_case.project_label)
     assert views.projects.projects[1].project_label == "core"
 
 
-def test_changespec_runtime_groups_are_humanized_without_losing_identity() -> None:
+def test_changespec_runtime_groups_are_humanized_without_losing_identity(
+    project_display_case: ProjectDisplayCase,
+) -> None:
     payload = _run_payload()
-    widgets_key = "gh_acme__widgets"
-    changespec_key = f"{widgets_key}_repair_labels"
+    changespec_key, changespec_label = project_display_case.changespec("repair_labels")
     payload["runtime_group_by"] = "changespec"
     payload["runtime_groups"][0]["group"] = changespec_key  # type: ignore[index]
 
     runtime = build_statistics_views(
         payload,
         _activity_payload(),
-        project_display_snapshot=ProjectDisplaySnapshot({widgets_key: "widgets"}),
+        project_display_snapshot=project_display_case.snapshot,
     ).runtime
 
     assert (runtime.rows[0].group_key, runtime.rows[0].group_label) == (
         changespec_key,
-        "widgets_repair_labels",
+        changespec_label,
     )
 
 

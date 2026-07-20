@@ -19,6 +19,7 @@ from rich.console import Console
 
 from sase.ace.query import parse_query
 from sase.core.time import get_timezone
+from sase.project_display_names import humanize_cl_names_in_text
 from sase.telemetry import init_telemetry
 from sase.telemetry.metrics import AXE_CYCLE_DURATION, AXE_CYCLES, AXE_ERRORS
 
@@ -118,7 +119,8 @@ class Lumberjack:
 
     def _log(self, message: str, style: str | None = None) -> None:
         timestamp = datetime.now(get_timezone()).strftime("%Y-%m-%d %H:%M:%S")
-        full_message = f"[{timestamp}] [{self.name}] {message}"
+        display_message = humanize_cl_names_in_text(message)
+        full_message = f"[{timestamp}] [{self.name}] {display_message}"
         self.console.print(full_message, style=style, markup=False)
         self._flush_log_to_file()
 

@@ -20,6 +20,7 @@ from sase.agent.launch_types import AgentLaunchResult
 from sase.integrations.mobile_notifications import execute_mobile_gate_action
 from sase.notifications import pending_actions
 from sase.notifications.models import Notification
+from tests._project_display_case import ProjectDisplayCase
 
 
 class _TuiLaunchApprovalApp:
@@ -288,9 +289,10 @@ def test_tui_launch_approval_approve_dispatches_stored_request(
 def test_tui_launch_approval_projects_completed_task_label_only(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    project_display_case: ProjectDisplayCase,
 ) -> None:
-    canonical = "gh_acme__widgets"
-    canonical_cl = f"{canonical}_feature"
+    canonical = project_display_case.project_key
+    canonical_cl = project_display_case.changespec_key
     response_dir = tmp_path / "launch"
     launch_cwd = tmp_path / "workspace"
     _write_tui_launch_request(
@@ -299,11 +301,9 @@ def test_tui_launch_approval_projects_completed_task_label_only(
         project_name=canonical,
         cl_name=canonical_cl,
     )
-    project_dir = tmp_path / "sase-home" / "projects" / canonical
-    project_dir.mkdir(parents=True)
-    (project_dir / f"{canonical}.sase").write_text(
-        "PROJECT_NAME: widgets\n",
-        encoding="utf-8",
+    project_display_case.write_project_layout(
+        tmp_path / "sase-home" / "projects",
+        workspace_dir=launch_cwd,
     )
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
     notification = _launch_notification(response_dir)
@@ -334,7 +334,10 @@ def test_tui_launch_approval_projects_completed_task_label_only(
         )
 
     task_info = app.tracked_tasks[0]["task_info"]
-    assert task_info.display_name == "approve launch widgets_feature"
+    assert (
+        task_info.display_name
+        == f"approve launch {project_display_case.changespec_label}"
+    )
     assert task_info.cl_name == canonical_cl
     assert task_info.project_file == str(launch_cwd / f"{canonical}.sase")
     stored_request = json.loads(

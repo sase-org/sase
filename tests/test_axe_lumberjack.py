@@ -3,8 +3,12 @@
 import os
 from pathlib import Path
 
+import pytest
+from rich.text import Text
+
 from sase.axe.config import AxeConfig, LumberjackConfig
 from sase.axe.lumberjack import Lumberjack
+from tests._project_display_case import ProjectDisplayCase
 
 pytest_plugins = ("tests._axe_lumberjack_fixtures",)
 
@@ -80,3 +84,28 @@ def test_log_flush_respects_axe_log_cap(
     data = log_path.read_text()
     assert log_path.stat().st_size <= 256
     assert "29" in data
+
+
+def test_log_projects_changespec_names_but_preserves_paths(
+    temp_state_dir: Path,
+    lumberjack_config: LumberjackConfig,
+    axe_config: AxeConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    project_display_case: ProjectDisplayCase,
+) -> None:
+    monkeypatch.setattr(
+        "sase.project_display_names._project_display_name_map_cached",
+        lambda _projects_root=None: project_display_case.snapshot,
+    )
+    lumberjack = Lumberjack("test_lumberjack", lumberjack_config, axe_config)
+    canonical_path = f"/tmp/{project_display_case.project_key}/result.json"
+
+    lumberjack._log(f"* {project_display_case.changespec_key}: wrote {canonical_path}")
+
+    log_path = (
+        temp_state_dir / "lumberjacks" / "test_lumberjack" / "logs" / "output.log"
+    )
+    rendered = Text.from_ansi(log_path.read_text(encoding="utf-8")).plain
+    assert project_display_case.changespec_label in rendered
+    assert project_display_case.changespec_key not in rendered
+    assert canonical_path in rendered

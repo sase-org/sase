@@ -12,6 +12,7 @@ from sase.ace.tui.actions.agents._wait_resume import (
 )
 from sase.ace.tui.modals import WaitModalResult
 from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
+from tests._project_display_case import ProjectDisplayCase
 from tests.ace.tui._agent_wait_resume_helpers import (
     FakeWaitResumeApp,
     make_waiting_agent,
@@ -87,6 +88,34 @@ def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> N
     assert agent.waiting_for_beads == []
     assert app.notifications == [("Wait: test_cl", "information")]
     update_index.assert_not_called()
+
+
+def test_apply_wait_run_now_projects_notification_but_keeps_agent_identity(
+    tmp_path: Path,
+    monkeypatch,
+    project_display_case: ProjectDisplayCase,
+) -> None:
+    agent = make_waiting_agent(cl_name=project_display_case.changespec_key)
+    app = FakeWaitResumeApp()
+    monkeypatch.setattr(
+        "sase.project_display_names._project_display_name_map_cached",
+        lambda _projects_root=None: project_display_case.snapshot,
+    )
+
+    with patch(
+        "sase.ace.tui.actions.agents._directive_persistence."
+        "update_agent_artifact_index_for_marker_mutation"
+    ):
+        app._apply_wait(
+            str(tmp_path),
+            agent,
+            WaitModalResult(agents=[], time_token=None, run_now=True),
+        )
+
+    assert app.notifications == [
+        (f"Wait: {project_display_case.changespec_label}", "information")
+    ]
+    assert agent.cl_name == project_display_case.changespec_key
 
 
 def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> None:

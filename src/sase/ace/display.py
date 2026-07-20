@@ -9,7 +9,7 @@ from rich.markup import escape as _esc
 from rich.panel import Panel
 from rich.text import Text
 from sase.running_field import get_claimed_workspaces
-from sase.project_display_names import humanize_cl_name
+from sase.project_display_names import ProjectDisplaySnapshot, humanize_cl_name
 
 from .changespec import (
     ChangeSpec,
@@ -30,6 +30,8 @@ def display_changespec(
     console: Console,
     with_hints: bool = False,
     hints_for: str | None = None,
+    *,
+    project_display_snapshot: ProjectDisplaySnapshot | None = None,
 ) -> tuple[dict[int, str], dict[int, int]]:
     """Display a ChangeSpec using rich formatting.
 
@@ -79,13 +81,22 @@ def display_changespec(
             text.append(wf_col, style="#FFD787")  # Gold/amber for workflow
             if cl_name:
                 text.append(" | ", style="dim")
-                text.append(humanize_cl_name(cl_name), style="#87D7AF")
+                text.append(
+                    humanize_cl_name(
+                        cl_name,
+                        snapshot=project_display_snapshot,
+                    ),
+                    style="#87D7AF",
+                )
             text.append("\n")
         text.append("\n\n")  # Separator after RUNNING
 
     # NAME field
     text.append("NAME: ", style="bold #87D7FF")
-    text.append(f"{humanize_cl_name(changespec.name)}\n", style="bold #00D7AF")
+    text.append(
+        f"{humanize_cl_name(changespec.name, snapshot=project_display_snapshot)}\n",
+        style="bold #00D7AF",
+    )
 
     # DESCRIPTION field
     text.append("DESCRIPTION:\n", style="bold #87D7FF")
@@ -95,7 +106,10 @@ def display_changespec(
     # PARENT field (only display if present)
     if changespec.parent:
         text.append("PARENT: ", style="bold #87D7FF")
-        text.append(f"{humanize_cl_name(changespec.parent)}\n", style="bold #00D7AF")
+        text.append(
+            f"{humanize_cl_name(changespec.parent, snapshot=project_display_snapshot)}\n",
+            style="bold #00D7AF",
+        )
 
     # PR field (only display if present)
     if changespec.pr_url:

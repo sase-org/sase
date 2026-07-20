@@ -31,6 +31,7 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
     _patch_catalog,
     _patch_other_panes,
 )
+from tests._project_display_case import ProjectDisplayCase
 
 _NOW = 1_720_268_400.0
 
@@ -196,13 +197,33 @@ def _result(
     empty: bool = False,
     project_filter: str | None = None,
     project_display_snapshot: ProjectDisplaySnapshot | None = None,
+    project_display_case: ProjectDisplayCase | None = None,
 ) -> StatisticsViewData:
     run_payload = {} if empty else _run_payload(selected_range, group_by)
+    if project_display_case is not None and run_payload:
+        run_payload["workspaces"][0]["project"] = project_display_case.project_key
+        run_payload["work"]["projects"][0]["project"] = project_display_case.project_key
+        run_payload["work"]["changespecs"][0].update(
+            {
+                "project": project_display_case.project_key,
+                "name": project_display_case.changespec_key,
+            }
+        )
+        if group_by == "project":
+            run_payload["runtime_groups"][0]["group"] = project_display_case.project_key
+        elif group_by == "changespec":
+            run_payload["runtime_groups"][0]["group"] = (
+                project_display_case.changespec_key
+            )
     activity_payload = {} if empty else _activity_payload()
     display_snapshot = (
         project_display_snapshot
         if project_display_snapshot is not None
-        else ProjectDisplaySnapshot()
+        else (
+            project_display_case.snapshot
+            if project_display_case is not None
+            else ProjectDisplaySnapshot()
+        )
     )
     return StatisticsViewData(
         view=view,
@@ -222,6 +243,8 @@ def _result(
 def _patch_center(
     monkeypatch: pytest.MonkeyPatch,
     calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]],
+    *,
+    project_display_case: ProjectDisplayCase | None = None,
 ) -> None:
     _patch_other_panes(monkeypatch)
     _patch_catalog(monkeypatch, catalog=_catalog())
@@ -238,6 +261,7 @@ def _patch_center(
             selected_range,
             group_by,
             project_filter=project_filter,
+            project_display_case=project_display_case,
         )
 
     monkeypatch.setattr(sp, "load_statistics_view", load)
@@ -399,12 +423,13 @@ async def test_project_filter_cycles_ranked_projects_and_survives_range_change(
 
 async def test_project_filter_label_submits_canonical_key_across_reload_paths(
     monkeypatch: pytest.MonkeyPatch,
+    project_display_case: ProjectDisplayCase,
 ) -> None:
     calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
     _patch_other_panes(monkeypatch)
     _patch_catalog(monkeypatch, catalog=_catalog())
-    widgets_key = "gh_acme__widgets"
-    snapshot = ProjectDisplaySnapshot({widgets_key: "widgets"})
+    widgets_key = project_display_case.project_key
+    snapshot = project_display_case.snapshot
 
     def load(
         view: StatisticsView,
@@ -441,7 +466,7 @@ async def test_project_filter_label_submits_canonical_key_across_reload_paths(
         project_scope = _scope_plain(pane, "project")
         assert pane._project_filter == widgets_key
         assert calls[-1][3] == widgets_key
-        assert "widgets" in project_scope
+        assert project_display_case.project_label in project_scope
         assert widgets_key not in project_scope
 
         pane.action_cycle_range()
@@ -486,10 +511,13 @@ def _render_plain(renderable: object) -> str:
 
 def test_renderers_use_projected_labels_and_canonical_project_colors(
     monkeypatch: pytest.MonkeyPatch,
+    project_display_case: ProjectDisplayCase,
 ) -> None:
-    widgets_key = "gh_acme__widgets"
-    changespec_key = f"{widgets_key}_statistics-projects"
-    snapshot = ProjectDisplaySnapshot({widgets_key: "widgets"})
+    widgets_key = project_display_case.project_key
+    changespec_key, changespec_label = project_display_case.changespec(
+        "statistics-projects"
+    )
+    snapshot = project_display_case.snapshot
     payload = _run_payload(StatsRange(0, 100, "absolute", "Test"), "project")
     payload["workspaces"][0]["project"] = widgets_key
     payload["work"]["projects"][0]["project"] = widgets_key
@@ -524,11 +552,13 @@ def test_renderers_use_projected_labels_and_canonical_project_colors(
             _render_plain(pane._projects_renderable(views.projects))
         )
 
-    assert "widgets" in overview
-    assert "widgets · 15" in activity
-    assert "widgets" in runtime
-    assert all("widgets" in rendered for rendered in project_surfaces)
-    assert "widgets_statistics-projects" in "\n".join(project_surfaces)
+    assert project_display_case.project_label in overview
+    assert f"{project_display_case.project_label} · 15" in activity
+    assert project_display_case.project_label in runtime
+    assert all(
+        project_display_case.project_label in rendered for rendered in project_surfaces
+    )
+    assert changespec_label in "\n".join(project_surfaces)
     assert widgets_key not in "\n".join(
         (overview, activity, runtime, *project_surfaces)
     )
@@ -726,6 +756,7 @@ async def test_statistics_bindings_are_inactive_on_other_admin_center_tabs(
 async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    project_display_case: ProjectDisplayCase,
 ) -> None:
     stall_log = tmp_path / "tui_stalls.jsonl"
     monkeypatch.setenv("SASE_TUI_STALL_PATH", str(stall_log))
@@ -738,7 +769,11 @@ async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(
     monkeypatch.setattr(sp, "_REFRESH_INTERVAL_SECONDS", 0.2)
 
     calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
-    _patch_center(monkeypatch, calls)
+    _patch_center(
+        monkeypatch,
+        calls,
+        project_display_case=project_display_case,
+    )
 
     async with AcePage() as page:
         _, pane = await _open_statistics(page)
@@ -747,6 +782,12 @@ async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(
 
         assert len(calls) >= 4
         assert all(call[0] == "overview" for call in calls)
+        assert pane._last_result is not None
+        rendered = _render_plain(
+            pane._overview_renderable(pane._last_result.views.overview)
+        )
+        assert project_display_case.project_label in rendered
+        assert project_display_case.project_key not in rendered
 
     assert not stall_log.exists() or not stall_log.read_text().strip()
 

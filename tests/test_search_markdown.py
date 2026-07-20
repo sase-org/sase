@@ -14,8 +14,14 @@ from sase.ace.changespec import (
     MentorEntry,
     MentorStatusLine,
 )
-from sase.main.search_handler import _display_markdown, _md_status_indicator
+from sase.main.search_handler import (
+    _display_markdown,
+    _display_plain,
+    _display_rich,
+    _md_status_indicator,
+)
 from sase.project_display_names import ProjectDisplaySnapshot
+from tests._project_display_case import ProjectDisplayCase
 
 
 def _cs(
@@ -292,17 +298,19 @@ Found 2 change(s): 1 Draft, 1 WIP
     def test_projected_headings_links_parents_projects_and_claims(
         self,
         monkeypatch,
+        project_display_case: ProjectDisplayCase,
     ) -> None:
-        canonical = "gh_acme__widgets"
-        display = ProjectDisplaySnapshot({canonical: "widgets"})
+        canonical = project_display_case.project_key
+        child_key, child_label = project_display_case.changespec("child")
+        other_key, _other_label = project_display_case.changespec("other")
         changespecs = [
             _cs(
-                name=f"{canonical}_child",
-                parent=f"{canonical}_parent",
+                name=child_key,
+                parent=project_display_case.parent_key,
                 project_name=canonical,
             ),
             _cs(
-                name=f"{canonical}_other",
+                name=other_key,
                 project_name=canonical,
             ),
         ]
@@ -313,22 +321,69 @@ Found 2 change(s): 1 Draft, 1 WIP
                     workspace_num=7,
                     pid=123,
                     workflow="axe",
-                    cl_name=f"{canonical}_child",
+                    cl_name=child_key,
                 )
             ],
         )
 
         out = _capture_markdown(
             changespecs,
-            project_display_snapshot=display,
+            project_display_snapshot=project_display_case.snapshot,
         )
 
-        assert "[widgets_child](#widgets_child)" in out
-        assert "## widgets_child" in out
-        assert "**Project:** widgets" in out
-        assert "**Parent:** widgets_parent" in out
-        assert "| #7 | 123 | axe | widgets_child |" in out
+        assert f"[{child_label}](#{child_label})" in out
+        assert f"## {child_label}" in out
+        assert f"**Project:** {project_display_case.project_label}" in out
+        assert f"**Parent:** {project_display_case.parent_label}" in out
+        assert f"| #7 | 123 | axe | {child_label} |" in out
         assert canonical not in out
+
+
+def test_plain_and_rich_search_project_names_without_mutating_identity(
+    monkeypatch,
+    capsys,
+    project_display_case: ProjectDisplayCase,
+) -> None:
+    changespec = _cs(
+        name=project_display_case.changespec_key,
+        parent=project_display_case.parent_key,
+        project_name=project_display_case.project_key,
+    )
+    monkeypatch.setattr(
+        "sase.running_field.get_claimed_workspaces",
+        lambda _path: [
+            SimpleNamespace(
+                workspace_num=7,
+                pid=123,
+                workflow="axe",
+                cl_name=project_display_case.changespec_key,
+            )
+        ],
+    )
+
+    _display_plain(
+        [changespec],
+        project_display_snapshot=project_display_case.snapshot,
+    )
+    plain = capsys.readouterr().out
+    _display_rich(
+        [changespec],
+        project_display_snapshot=project_display_case.snapshot,
+    )
+    rich = capsys.readouterr().out
+
+    for output in (plain, rich):
+        assert project_display_case.changespec_label in output
+        assert project_display_case.parent_label in output
+        assert f"NAME: {project_display_case.changespec_key}" not in output
+        assert f"PARENT: {project_display_case.parent_key}" not in output
+        assert f"| {project_display_case.changespec_key}" not in output
+    assert (
+        f"/projects/{project_display_case.project_key}/"
+        f"{project_display_case.project_key}.sase" in plain
+    )
+    assert changespec.name == project_display_case.changespec_key
+    assert changespec.parent == project_display_case.parent_key
 
 
 # ---------------------------------------------------------------------------

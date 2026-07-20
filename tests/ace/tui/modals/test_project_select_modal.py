@@ -19,6 +19,7 @@ from sase.ace.tui.modals.project_select_modal import (
     ProjectSelectResult,
 )
 from sase.project_display_names import ProjectDisplayProjection, ProjectDisplaySnapshot
+from tests._project_display_case import ProjectDisplayCase
 
 
 class _TestApp(App[ProjectSelectResult | None]):
@@ -249,15 +250,20 @@ async def test_empty_state_toggles_with_no_matches() -> None:
         assert "custom name" in empty_text
 
 
-def test_picker_separates_labels_from_canonical_identity_and_duplicates() -> None:
-    canonical_a = "gh_acme__widgets"
+def test_picker_separates_labels_from_canonical_identity_and_duplicates(
+    project_display_case: ProjectDisplayCase,
+) -> None:
+    canonical_a = project_display_case.project_key
     canonical_b = "gh_other__widgets"
     modal = ProjectSelectModal(
         _data(
-            projects=((canonical_b, "widgets"), (canonical_a, "widgets")),
+            projects=(
+                (canonical_b, project_display_case.project_label),
+                (canonical_a, project_display_case.project_label),
+            ),
             changespecs=(
                 _changespec(
-                    f"{canonical_a}_feature",
+                    project_display_case.changespec_key,
                     "Ready",
                     project_name=canonical_a,
                 ),
@@ -266,14 +272,14 @@ def test_picker_separates_labels_from_canonical_identity_and_duplicates() -> Non
     )
 
     assert [item.display_name for item in modal.all_items] == [
-        "[P] widgets",
-        "[P] widgets",
-        "[PR] widgets_feature [Ready]",
+        f"[P] {project_display_case.project_label}",
+        f"[P] {project_display_case.project_label}",
+        f"[PR] {project_display_case.changespec_label} [Ready]",
     ]
     assert [item.project_name for item in modal.all_items[:2]] == [
         canonical_a,
         canonical_b,
     ]
     assert modal.all_items[2].project_name == canonical_a
-    assert modal.all_items[2].cl_name == f"{canonical_a}_feature"
+    assert modal.all_items[2].cl_name == project_display_case.changespec_key
     assert len({item.option_id for item in modal.all_items}) == 3

@@ -29,6 +29,7 @@ from sase.xprompt.vcs_project_completion import (
     find_vcs_project_trigger,
     vcs_project_catalog_payload,
 )
+from tests._project_display_case import ProjectDisplayCase
 
 # A replace pattern covering gh/git/spy regardless of which workspace-provider
 # plugins happen to be installed in the test environment.
@@ -401,6 +402,46 @@ def test_builder_appends_active_changespecs_after_projects() -> None:
     draft = entries[2]
     assert draft.display_tag == "#git:draft-b"
     assert draft.status == "Draft"
+
+
+def test_builder_projects_changespec_rows_but_keeps_canonical_search_identity(
+    project_display_case: ProjectDisplayCase,
+) -> None:
+    records = [project_display_case.project_record()]
+    workflow_types = {project_display_case.project_key: "gh"}
+    changespecs = [
+        _changespec(
+            project_display_case.changespec_key,
+            project_display_case.project_key,
+            "Ready",
+        )
+    ]
+    list_p, detect_p, display_p = _patch_catalog(records, workflow_types)
+
+    with (
+        list_p,
+        detect_p,
+        display_p,
+        patch.object(
+            vpc,
+            "_iter_enabled_project_changespecs",
+            return_value=changespecs,
+        ),
+    ):
+        entries = build_vcs_project_completion_entries(
+            projects_dir="/tmp/projects",
+            use_cache=False,
+        )
+
+    changespec = next(entry for entry in entries if entry.kind == "changespec")
+    assert changespec.name == project_display_case.changespec_label
+    assert changespec.display_tag == f"#gh:{project_display_case.changespec_label}"
+    assert changespec.project == project_display_case.project_key
+    assert changespec.aliases == (project_display_case.changespec_key,)
+    assert filter_vcs_project_entries(
+        entries,
+        project_display_case.changespec_key,
+    ) == [changespec]
 
 
 def test_builder_filters_changespec_status_and_missing_project() -> None:

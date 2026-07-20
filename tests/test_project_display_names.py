@@ -12,6 +12,7 @@ from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
 )
 from sase import project_display_names as pdn
+from tests._project_display_case import ProjectDisplayCase
 
 
 def _record(project_name: str, display_name: str | None = None) -> ProjectRecordWire:
@@ -37,15 +38,19 @@ def _record(project_name: str, display_name: str | None = None) -> ProjectRecord
 def test_project_display_name_for_resolves_and_falls_back(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    project_display_case: ProjectDisplayCase,
 ) -> None:
     root = tmp_path / "projects"
     root.mkdir()
-    records = [_record("gh_acme__widgets", "widgets"), _record("plain")]
+    records = [project_display_case.project_record(), _record("plain")]
 
     monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
     monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
-    assert pdn.project_display_name_for("gh_acme__widgets", root) == "widgets"
+    assert (
+        pdn.project_display_name_for(project_display_case.project_key, root)
+        == project_display_case.project_label
+    )
     assert pdn.project_display_name_for("plain", root) == "plain"
     assert pdn.project_display_name_for("missing", root) == "missing"
 

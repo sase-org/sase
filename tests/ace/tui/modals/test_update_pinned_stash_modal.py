@@ -8,7 +8,7 @@ from textual.widgets import Static
 
 from sase.ace.tui.modals.update_pinned_stash_modal import UpdatePinnedStashModal
 from sase.core.prompt_stash_wire import PromptStashEntryWire
-from sase.project_display_names import ProjectDisplaySnapshot
+from tests._project_display_case import ProjectDisplayCase
 
 
 def _entry(
@@ -144,17 +144,19 @@ def test_rows_render_pin_glyph_preview_and_digit_gutter() -> None:
     assert "preview line" in plain
 
 
-def test_rows_use_project_label_but_keep_canonical_entry() -> None:
-    canonical = "gh_acme__widgets"
+def test_rows_use_project_label_but_keep_canonical_entry(
+    project_display_case: ProjectDisplayCase,
+) -> None:
+    canonical = project_display_case.project_key
     entry = _entry("a", project=canonical)
     modal = UpdatePinnedStashModal(
         [entry],
-        project_display_snapshot=ProjectDisplaySnapshot({canonical: "widgets"}),
+        project_display_snapshot=project_display_case.snapshot,
     )
 
     option = modal._build_options()[0]
     assert isinstance(option.prompt, Text)
-    assert "widgets" in option.prompt.plain
+    assert project_display_case.project_label in option.prompt.plain
     assert canonical not in option.prompt.plain
     assert modal._entries[0].project == canonical
 
