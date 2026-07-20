@@ -14,6 +14,7 @@ from sase.agent.names._lookup_artifacts import (
     meta_parent_timestamp,
     read_json_dict,
 )
+from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.dismissed_agent_completion import (
     ArchivedAgentCompletion,
     load_archived_agent_completions,
@@ -166,9 +167,10 @@ def _iter_family_members(base_name: str) -> list[AgentFamilyMember]:
 
 def _project_name_from_artifact_dir(artifact_dir: Path) -> str:
     try:
-        return artifact_dir.parents[2].name
-    except IndexError:
+        info = parse_agent_artifact_path(artifact_dir)
+    except (OSError, RuntimeError, ValueError):
         return ""
+    return info.project_name if info is not None else ""
 
 
 def _clan_identity_from_meta(
