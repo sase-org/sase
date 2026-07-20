@@ -318,7 +318,6 @@ class AgentInfoPanel(Static):
     def _append_runner_capacity(self, text: Text) -> None:
         """Append the always-visible cached global runner-capacity chip."""
         text.append("  [", style="dim")
-        text.append("runners ", style="dim")
         if self._runner_limit > 0 and self._runner_slots_in_use > self._runner_limit:
             occupancy_style = "bold #FF5F5F"
         elif self._runner_limit > 0 and self._runner_slots_in_use == self._runner_limit:
