@@ -17,6 +17,7 @@ from .execution import (
 from .persistence import (
     get_hook_output_path,
     merge_hook_updates,
+    transform_changespec_hooks_field,
     update_changespec_hooks_field,
     update_hook_status_line_suffix_type,
 )
@@ -140,6 +141,7 @@ __all__ = [
     "set_hook_suffix",
     "start_hook_background",
     "try_claim_hook_for_fix",
+    "transform_changespec_hooks_field",
     "update_changespec_hooks_field",
     "update_hook_status_line_suffix_type",
 ]

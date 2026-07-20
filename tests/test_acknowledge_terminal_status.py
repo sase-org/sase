@@ -120,8 +120,8 @@ def test_strip_terminal_status_markers_processes_hooks() -> None:
     )
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.update_changespec_hooks_field",
-        return_value=True,
+        "sase.ace.scheduler.suffix_transforms.transform_changespec_hooks_field",
+        side_effect=lambda _path, _name, transform: transform([hook]) != [hook],
     ):
         result = strip_terminal_status_markers(cs)
 
@@ -149,7 +149,8 @@ def test_strip_terminal_status_markers_processes_comments() -> None:
     )
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.clear_comment_suffix", return_value=True
+        "sase.ace.scheduler.suffix_transforms.transform_changespec_comments_field",
+        side_effect=lambda _path, _name, transform: transform([comment]) != [comment],
     ):
         result = strip_terminal_status_markers(cs)
 
@@ -183,8 +184,8 @@ def test_strip_terminal_status_markers_processes_hooks_empty_running_agent() -> 
     )
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.update_changespec_hooks_field",
-        return_value=True,
+        "sase.ace.scheduler.suffix_transforms.transform_changespec_hooks_field",
+        side_effect=lambda _path, _name, transform: transform([hook]) != [hook],
     ):
         result = strip_terminal_status_markers(cs)
 
@@ -213,7 +214,8 @@ def test_strip_terminal_status_markers_processes_comments_running_agent() -> Non
     )
 
     with patch(
-        "sase.ace.scheduler.suffix_transforms.clear_comment_suffix", return_value=True
+        "sase.ace.scheduler.suffix_transforms.transform_changespec_comments_field",
+        side_effect=lambda _path, _name, transform: transform([comment]) != [comment],
     ):
         result = strip_terminal_status_markers(cs)
 

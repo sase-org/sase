@@ -11,6 +11,7 @@ from .operations import (
     clear_comment_suffix,
     remove_comment_entry,
     set_comment_suffix,
+    transform_changespec_comments_field,
     update_changespec_comments_field,
     update_comment_suffix_type,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "clear_comment_suffix",
     "remove_comment_entry",
     "set_comment_suffix",
+    "transform_changespec_comments_field",
     "update_changespec_comments_field",
     "update_comment_suffix_type",
 ]

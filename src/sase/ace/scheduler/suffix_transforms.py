@@ -6,18 +6,23 @@ This module handles:
 - Stripping terminal status markers (error -> removed)
 """
 
+from dataclasses import replace
+
 from sase.workflows.commit_utils import update_commit_entry_suffix
 
 from ..changespec import (
     ChangeSpec,
+    CommentEntry,
     HookEntry,
-    HookStatusLine,
     MentorEntry,
     MentorStatusLine,
     parse_commit_entry_id,
 )
-from ..comments import clear_comment_suffix
-from ..hooks import update_changespec_hooks_field, update_hook_status_line_suffix_type
+from ..comments import transform_changespec_comments_field
+from ..hooks import (
+    transform_changespec_hooks_field,
+    update_hook_status_line_suffix_type,
+)
 from ..mentors import update_changespec_mentors_field
 
 
@@ -140,6 +145,68 @@ def strip_old_entry_error_markers(changespec: ChangeSpec) -> list[str]:
     return updates
 
 
+def _transform_terminal_hook_suffixes(
+    hooks: list[HookEntry],
+) -> tuple[list[HookEntry], list[str]]:
+    """Transform terminal hook markers and describe actual changes."""
+    updated_hooks: list[HookEntry] = []
+    updates: list[str] = []
+
+    for hook in hooks:
+        if not hook.status_lines:
+            updated_hooks.append(hook)
+            continue
+
+        updated_status_lines = []
+        for status_line in hook.status_lines:
+            if (
+                status_line.suffix_type == "running_agent"
+                and status_line.suffix is not None
+            ):
+                updated_status_lines.append(
+                    replace(status_line, suffix_type="killed_agent")
+                )
+                updates.append(
+                    f"Converted HOOK '{hook.display_command}' "
+                    f"({status_line.commit_entry_num}) to killed_agent: "
+                    f"{status_line.suffix}"
+                )
+            elif status_line.suffix_type == "error" and status_line.suffix:
+                updated_status_lines.append(replace(status_line, suffix_type="plain"))
+                updates.append(
+                    f"Stripped error marker from HOOK '{hook.display_command}' "
+                    f"({status_line.commit_entry_num}): {status_line.suffix}"
+                )
+            else:
+                updated_status_lines.append(status_line)
+
+        updated_hooks.append(replace(hook, status_lines=updated_status_lines))
+
+    return updated_hooks, updates
+
+
+def _transform_terminal_comment_suffixes(
+    comments: list[CommentEntry],
+) -> tuple[list[CommentEntry], list[str]]:
+    """Clear terminal comment markers and describe actual changes."""
+    updated_comments: list[CommentEntry] = []
+    updates: list[str] = []
+
+    for comment in comments:
+        should_clear = (
+            comment.suffix_type == "running_agent" and comment.suffix is not None
+        ) or (comment.suffix_type == "error" and bool(comment.suffix))
+        if should_clear:
+            updated_comments.append(replace(comment, suffix=None, suffix_type=None))
+            updates.append(
+                f"Cleared COMMENT [{comment.reviewer}] suffix: {comment.suffix}"
+            )
+        else:
+            updated_comments.append(comment)
+
+    return updated_comments, updates
+
+
 def strip_terminal_status_markers(changespec: ChangeSpec) -> list[str]:
     """Strip error suffixes for terminal status ChangeSpecs.
 
@@ -174,83 +241,39 @@ def strip_terminal_status_markers(changespec: ChangeSpec) -> list[str]:
                         f"suffix: {entry.suffix}"
                     )
 
-    # Process HOOKS entries with error or running_agent suffix_type
-    # Build modified hooks list with cleared suffixes
-    if changespec.hooks:
-        hooks_to_update: list[HookEntry] = []
-        hook_updates: list[str] = []
+    # Process HOOKS entries from current disk state so earlier transforms in the
+    # same scheduler cycle cannot be undone by this terminal cleanup.
+    hook_updates: list[str] = []
 
-        for hook in changespec.hooks:
-            if hook.status_lines:
-                updated_status_lines: list[HookStatusLine] = []
-                for sl in hook.status_lines:
-                    if sl.suffix_type == "running_agent" and sl.suffix is not None:
-                        # Convert running_agent (@:) to killed_agent (~@:)
-                        updated_status_lines.append(
-                            HookStatusLine(
-                                commit_entry_num=sl.commit_entry_num,
-                                timestamp=sl.timestamp,
-                                status=sl.status,
-                                duration=sl.duration,
-                                suffix=sl.suffix,
-                                suffix_type="killed_agent",
-                            )
-                        )
-                        hook_updates.append(
-                            f"Converted HOOK '{hook.display_command}' "
-                            f"({sl.commit_entry_num}) to killed_agent: {sl.suffix}"
-                        )
-                    elif sl.suffix_type == "error" and sl.suffix:
-                        # Convert error (!:) to plain (no prefix)
-                        updated_status_lines.append(
-                            HookStatusLine(
-                                commit_entry_num=sl.commit_entry_num,
-                                timestamp=sl.timestamp,
-                                status=sl.status,
-                                duration=sl.duration,
-                                suffix=sl.suffix,
-                                suffix_type="plain",
-                            )
-                        )
-                        hook_updates.append(
-                            f"Stripped error marker from HOOK '{hook.display_command}' "
-                            f"({sl.commit_entry_num}): {sl.suffix}"
-                        )
-                    else:
-                        updated_status_lines.append(sl)
-                hooks_to_update.append(
-                    HookEntry(command=hook.command, status_lines=updated_status_lines)
-                )
-            else:
-                hooks_to_update.append(hook)
+    def transform_hooks(hooks: list[HookEntry]) -> list[HookEntry]:
+        updated_hooks, current_updates = _transform_terminal_hook_suffixes(hooks)
+        hook_updates.extend(current_updates)
+        return updated_hooks
 
-        if hook_updates:
-            success = update_changespec_hooks_field(
-                changespec.file_path,
-                changespec.name,
-                hooks_to_update,
-            )
-            if success:
-                updates.extend(hook_updates)
+    if transform_changespec_hooks_field(
+        changespec.file_path,
+        changespec.name,
+        transform_hooks,
+    ):
+        updates.extend(hook_updates)
 
-    # Process COMMENTS entries with error or running_agent suffix_type
-    if changespec.comments:
-        for comment in changespec.comments:
-            # Clear error suffixes (must be non-empty) and running_agent
-            # suffixes (including empty "- (@)" markers)
-            if (
-                comment.suffix_type == "running_agent" and comment.suffix is not None
-            ) or (comment.suffix_type == "error" and comment.suffix):
-                success = clear_comment_suffix(
-                    changespec.file_path,
-                    changespec.name,
-                    comment.reviewer,
-                    changespec.comments,
-                )
-                if success:
-                    updates.append(
-                        f"Cleared COMMENT [{comment.reviewer}] suffix: {comment.suffix}"
-                    )
+    # Process COMMENTS from current disk state and preserve unrelated or
+    # concurrently changed entries.
+    comment_updates: list[str] = []
+
+    def transform_comments(comments: list[CommentEntry]) -> list[CommentEntry]:
+        updated_comments, current_updates = _transform_terminal_comment_suffixes(
+            comments
+        )
+        comment_updates.extend(current_updates)
+        return updated_comments
+
+    if transform_changespec_comments_field(
+        changespec.file_path,
+        changespec.name,
+        transform_comments,
+    ):
+        updates.extend(comment_updates)
 
     # Process MENTORS entries with running_agent suffix_type
     if changespec.mentors:

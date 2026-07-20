@@ -1,5 +1,8 @@
 """Comments operations - file updates and project file modifications."""
 
+from collections.abc import Callable
+from dataclasses import replace
+
 from ..changespec import (
     CommentEntry,
     changespec_lock,
@@ -186,6 +189,47 @@ def update_changespec_comments_field(
         return False
 
 
+def transform_changespec_comments_field(
+    project_file: str,
+    changespec_name: str,
+    transform: Callable[[list[CommentEntry]], list[CommentEntry]],
+) -> bool:
+    """Transform the current COMMENTS field under the ChangeSpec lock.
+
+    Returns ``True`` only when the freshly read comments materially change and
+    the updated field is persisted.
+    """
+    from ..changespec import parse_project_file
+
+    try:
+        with changespec_lock(project_file):
+            changespecs = parse_project_file(project_file)
+            changespec = next(
+                (cs for cs in changespecs if cs.name == changespec_name), None
+            )
+            if changespec is None:
+                return False
+
+            current_comments = [
+                replace(comment, suffix_type="plain")
+                if comment.suffix is not None and comment.suffix_type is None
+                else comment
+                for comment in changespec.comments or []
+            ]
+            updated_comments = transform(current_comments)
+            if updated_comments == current_comments:
+                return False
+
+            _write_comments_unlocked(
+                project_file,
+                changespec_name,
+                updated_comments or None,
+            )
+            return True
+    except Exception:
+        return False
+
+
 def add_comment_entry(
     project_file: str,
     changespec_name: str,
@@ -339,34 +383,32 @@ def clear_comment_suffix(
     project_file: str,
     changespec_name: str,
     reviewer: str,
-    comments: list[CommentEntry],
+    comments: list[CommentEntry] | None = None,
 ) -> bool:
-    """Clear the suffix from a specific comment entry.
+    """Clear a comment suffix using the current COMMENTS field from disk.
 
     Args:
         project_file: Path to the ProjectSpec file.
         changespec_name: NAME of the ChangeSpec to update.
         reviewer: The reviewer identifier to update.
-        comments: Current list of CommentEntry objects.
+        comments: Retained for caller compatibility; disk state is always re-read.
 
     Returns:
         True if update succeeded, False otherwise.
     """
-    updated_comments = []
-    for comment in comments:
-        if comment.reviewer == reviewer and comment.suffix is not None:
-            updated_comments.append(
-                CommentEntry(
-                    reviewer=comment.reviewer,
-                    file_path=comment.file_path,
-                    suffix=None,
-                )
-            )
-        else:
-            updated_comments.append(comment)
 
-    return update_changespec_comments_field(
-        project_file, changespec_name, updated_comments
+    def transform(current_comments: list[CommentEntry]) -> list[CommentEntry]:
+        return [
+            replace(comment, suffix=None, suffix_type=None)
+            if comment.reviewer == reviewer and comment.suffix is not None
+            else comment
+            for comment in current_comments
+        ]
+
+    return transform_changespec_comments_field(
+        project_file,
+        changespec_name,
+        transform,
     )
 
 
