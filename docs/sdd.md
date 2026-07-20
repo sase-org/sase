@@ -85,6 +85,12 @@ Planning artifacts may also carry a `status` field (set to `done` when work comp
 the bead issue tracker. For an epic, `sase bead work <plan-file>` writes `bead_id` after it creates the epic and phase
 beads. Re-running the command sees that link and resumes the existing epic instead of creating duplicates.
 
+When an epic is proposed from a bead-work phase agent, SASE also records that phase's ID as the managed `parent_bead`;
+an epic proposed by the land agent records the current epic's ID instead. Approving the proposal creates a child epic
+under that bead, so a proposal from `sase-5.2` becomes `sase-5.2.1`, while the next child proposed by the `sase-5` land
+agent becomes `sase-5.4` after phases `.1` through `.3`. Agents outside bead work have no association and continue to
+create top-level epics.
+
 When `sase plan propose` submits a plan for approval, it touches `~/.sase/.ace_refresh_pulse` so any running ACE TUI
 flips the agent into the tier-aware `TALE` or `EPIC` pending-review status immediately rather than waiting for the next
 auto-refresh tick. Legacy or unreadable-tier plans use the `PLAN` fallback. The pulse file is consumed by the
@@ -170,17 +176,26 @@ phases:
   - id: implementation
     title: Implement the rollout
     depends_on: []
+    size: medium
   - id: exercise
     title: Exercise the completed rollout
     depends_on: [implementation]
+    size: small
     model: codex/gpt-5.6-sol
 ```
 
-On Epic approval, SASE deterministically copies the top-level model to the epic plan bead and each phase model to its
-phase bead. Omitted phase models use `@phase_worker`. When the top-level model is omitted, the land agent uses
-`@epic_lander` below `bead.big_epic_phase_threshold` and `@big_epic_lander` at or above the threshold (default `5`). The
-approval preview and emitted launch prompt use this same rule. Routing counts every authored phase, including
-already-closed phases when an epic resumes, so the selected lander role stays stable throughout the epic.
+On Epic approval, SASE deterministically copies the top-level model to the epic plan bead and each phase's model and
+size to its phase bead. Small phases launch directly and default to `@phase_worker`. Medium phases also default to
+`@phase_worker` but receive `#plan` so they plan before implementation. Large phases receive `#plan` and default to
+`@smartest`. An explicit phase `model` always wins over this size-derived routing. When the top-level model is omitted,
+the land agent uses `@epic_lander` below `bead.big_epic_phase_threshold` and `@big_epic_lander` at or above the
+threshold (default `5`). The approval preview and emitted launch prompt use these same rules. Routing counts every
+authored phase, including already-closed phases when an epic resumes, so the selected lander role stays stable
+throughout the epic.
+
+Choose `medium` when a phase is potentially a lot of work and merits its own plan file. Choose `large` when that phase
+plan may itself be large enough to deserve an epic tier. Use `small` for focused work that does not need a planning
+handoff.
 
 ### Plan Frontmatter Schema and Validation
 
@@ -198,16 +213,17 @@ Every tale and epic requires these authored fields:
 | `goal`  | yes      | Non-empty description of the outcome the plan is intended to reach |
 | `model` | no       | Non-empty model value using the same syntax as `%model`            |
 
-SASE-managed `create_time`, `status`, `prompt`, and `bead_id` fields are accepted but never required. Unknown fields are
-errors. A plan must start with valid, closed YAML frontmatter and contain a non-empty Markdown body.
+SASE-managed `create_time`, `status`, `prompt`, and `bead_id` fields are accepted but never required. Epics may also
+carry the SASE-managed `parent_bead` field. Unknown fields are errors. A plan must start with valid, closed YAML
+frontmatter and contain a non-empty Markdown body.
 
 Epics additionally require an ordered, non-empty `phases` list. Optional `changespec` and integer `bug_id` metadata may
-be supplied; `bug_id` requires `changespec`. The epic-only, SASE-managed `parent_bead` field is accepted but never
-required; it associates an approved plan with the bead under which SASE creates its child epic. Each phase requires a
-unique slug `id`, a non-empty `title`, a `depends_on` list, and `size: small | medium | large`. Dependencies may only
-name earlier phases, cannot repeat, and cannot refer to the phase itself. Optional phase fields are `description` and
-`model`. Only set a phase model when the user's prompt requested one or the phase performs no consequential work, such
-as exercising the feature itself; otherwise omit it so size-derived routing can apply.
+be supplied; `bug_id` requires `changespec`. The epic-only `parent_bead` associates an approved plan with the bead under
+which SASE creates its child epic. Each phase requires a unique slug `id`, a non-empty `title`, a `depends_on` list, and
+`size: small | medium | large`. Dependencies may only name earlier phases, cannot repeat, and cannot refer to the phase
+itself. Optional phase fields are `description` and `model`. Only set a phase model when the user's prompt requested one
+or the phase performs no consequential work, such as exercising the feature itself; otherwise omit it so size-derived
+routing can apply.
 
 ```yaml
 ---

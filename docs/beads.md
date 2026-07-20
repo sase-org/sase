@@ -31,7 +31,7 @@ PLANS_ROOT=$(sase repo path plans)
 sase bead init                                          # Initialize beads in current project
 sase bead create -t "New feature" --type "plan(${PLANS_ROOT}/202605/feature.md)" --tier plan
 sase bead create -t "Epic" --type "plan(${PLANS_ROOT}/202605/epic.md)" --tier epic
-sase bead create -t "Sub-task" --type "phase(beads-001)"   # Create a phase under a plan
+sase bead create -t "Sub-task" --type "phase(beads-001)" --size small # Create a sized phase
 sase bead list                                          # List open and in-progress issues
 sase bead list --status=open                            # List open issues
 sase bead list --status=closed                          # List closed issues
@@ -55,13 +55,15 @@ sase bead work beads-001                                # Launch agents for an e
 
 ### Issue Types
 
-| Type      | Description                              | ID Format            |
-| --------- | ---------------------------------------- | -------------------- |
-| **Plan**  | Plan-like container with a tier          | `{prefix}-{counter}` |
-| **Phase** | Executable task within an epic/plan bead | `{parent_id}.{N}`    |
+| Type      | Description                                          | ID Format                                 |
+| --------- | ---------------------------------------------------- | ----------------------------------------- |
+| **Plan**  | Plan-like container with a tier; may be a child epic | `{prefix}-{counter}` or `{parent_id}.{N}` |
+| **Phase** | Sized executable task within an epic/plan bead       | `{parent_id}.{N}`                         |
 
 Plans are groupings that can optionally link to an SDD file via the `design` field. Phases always belong to a parent
-plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`).
+plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`). An epic proposed by a phase or land agent becomes a
+child plan bead beneath the bead responsible for that agent. For example, phase `beads-001.2` can own child epic
+`beads-001.2.1`; an epic proposed by the land agent can become the next direct child such as `beads-001.3`.
 
 Plan beads carry a tier. The paths below are relative to the effective plans root. Use `sase repo path plans` or
 `SASE_SDD_PLANS_DIR` to locate it without depending on the storage layout.
@@ -170,6 +172,7 @@ Create a new issue.
 | `-c, --changespec`  | no       | Attach a ChangeSpec name to a plan bead                                                                                                                                                                                              |
 | `-b, --bug-id`      | no       | Bug ID for the attached ChangeSpec; requires `--changespec`                                                                                                                                                                          |
 | `-m, --model`       | no       | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase beads it is the per-phase work model. |
+| `-z, --size`        | no       | Phase size: `small`, `medium`, or `large`. Valid only on phase beads; an omitted legacy/manual value behaves as `small`.                                                                                                             |
 
 ChangeSpec metadata is valid only on plan beads. It is used by the epic-approval and `sase bead work` flows to keep plan
 beads linked to the ChangeSpec they are intended to produce.
@@ -238,23 +241,24 @@ Reopen an issue by setting its status to `open`. This is equivalent to `sase bea
 
 Update one or more fields on an issue.
 
-| Flag                | Description                                             |
-| ------------------- | ------------------------------------------------------- |
-| `-s, --status`      | Change status                                           |
-| `-t, --title`       | Change title                                            |
-| `-d, --description` | Change description                                      |
-| `-n, --notes`       | Change notes                                            |
-| `-D, --design`      | Change plan path                                        |
-| `-a, --assignee`    | Change assignee                                         |
-| `--tier`            | Change plan tier                                        |
-| `-m, --model`       | Change the launch model. Pass an empty string to clear. |
+| Flag                | Description                                               |
+| ------------------- | --------------------------------------------------------- |
+| `-s, --status`      | Change status                                             |
+| `-t, --title`       | Change title                                              |
+| `-d, --description` | Change description                                        |
+| `-n, --notes`       | Change notes                                              |
+| `-D, --design`      | Change plan path                                          |
+| `-a, --assignee`    | Change assignee                                           |
+| `--tier`            | Change plan tier                                          |
+| `-m, --model`       | Change the launch model. Pass an empty string to clear.   |
+| `-z, --size`        | Change a phase bead's `small`, `medium`, or `large` size. |
 
 ### `sase bead close <id> [<id2> ...]`
 
 Close one or more issues.
 
-Closing a plan bead also closes its phase children. Use this intentionally: phase agents should close only their
-assigned phase bead, not the parent epic.
+Closing a plan bead also closes all descendant phase and child-plan beads recursively. Use this intentionally: phase
+agents should close only their assigned phase bead, not the parent epic.
 
 | Flag           | Description                |
 | -------------- | -------------------------- |
@@ -262,7 +266,8 @@ assigned phase bead, not the parent epic.
 
 ### `sase bead rm <id>`
 
-Remove an issue and cascade-delete all its children. This is irreversible.
+Remove an issue and recursively cascade-delete all its descendants, including phases nested beneath child epics. This is
+irreversible.
 
 ### `sase bead dep add <issue> <depends_on>`
 
@@ -293,7 +298,7 @@ Run health checks on the beads database. Checks for:
 - Projection drift between canonical events and `issues.jsonl`
 - Invalid events or unreduced orphan phase records
 - Uncommitted bead-state changes
-- Orphan children (phases whose parent plan is missing)
+- Orphan children (phase or nested-plan beads whose parent is missing)
 
 If bead commands fail before opening a store, run `sase core health` first. It verifies that the required `sase_core_rs`
 extension is importable and exposes the representative bead CLI binding used by the fast path.
@@ -314,8 +319,9 @@ Plan-file mode is the canonical epic-approval entry point. It:
 2. Resolves the project's SDD and bead stores, initializing the bead store when needed.
 3. Archives the plan under the resolved `{YYYYMM}/` plans directory and commits it.
 4. Resumes the linked epic when the archived plan already has a valid `bead_id`.
-5. Otherwise creates the epic plan bead from the plan's `title`, `goal`, top-level `model`, and optional ChangeSpec
-   metadata; creates phase beads in `phases[]` order; wires every `depends_on` edge; and commits the new `bead_id` link.
+5. Otherwise creates the epic plan bead from the plan's `title`, `goal`, top-level `model`, optional `parent_bead`, and
+   optional ChangeSpec metadata; creates phase beads with their authored sizes in `phases[]` order; wires every
+   `depends_on` edge; and commits the new `bead_id` link.
 6. Invokes the existing bead-ID launch path.
 
 A missing phase description becomes a deterministic pointer to the plan and phase ID. A linked `bead_id` that no longer
@@ -325,9 +331,16 @@ normal bead-work rollback before that creation rollback runs. A failure committi
 is reported without deleting the live agents or their beads. Every plan-file failure after archiving prints the exact
 `sase bead work ... --yes` command to resume.
 
-`--dry-run` plan-file mode validates and resolves the stores, previews the archive destination, authored beads, and
-dependency waves, and does not write files, create beads, reserve names, or launch agents. `--json` prints one stable
-object for scripting; successful human output always ends with a grep-friendly `Epic: <id>` line used by approval hosts.
+When an epic-tier plan is proposed from bead work, `sase plan propose` automatically stamps `parent_bead` from the phase
+agent's `SASE_PHASE_BEAD_ID`, or from the land agent's `SASE_EPIC_BEAD_ID`. Plan-file mode resolves that bead and
+creates the new epic beneath it, yielding recursive IDs such as `beads-001.2.1`; an unresolved parent fails with a
+remedy instead of silently creating a top-level epic. `--parent <bead-id>` overrides the authored association, while
+`--parent top-level` explicitly creates an unparented epic. The override applies only to plan-file targets.
+
+`--dry-run` plan-file mode validates and resolves the stores, previews the archive destination, parented epic ID,
+authored beads, routed models, and dependency waves, and does not write files, create beads, reserve names, or launch
+agents. `--json` prints one stable object for scripting; successful human output always ends with a grep-friendly
+`Epic: <id>` line used by approval hosts.
 
 Once an epic bead exists, the shared launch path:
 
@@ -348,24 +361,27 @@ Once an epic bead exists, the shared launch path:
    `<epic_id>` and assigns that whole clan to tribe `@epic` with the single `%clan(<epic_id>, tribe=epic)` directive.
    Phase dependencies become `%w` waits on blocker phase-agent names, and the land agent waits on every launched phase
    agent. Because `%w` requires a successful `done.json` outcome, a failed or killed phase keeps dependent phases and
-   the land agent parked until the phase name is retried successfully. Phase beads with a stored `model` emit
-   `%model:<value>`; phase beads without one default to the `%model:@phase_worker` role alias. The land agent emits
-   `%model:<value>` when the epic plan bead has a stored `model`. Without one, it emits `%model:@epic_lander` below
-   `bead.big_epic_phase_threshold` and `%model:@big_epic_lander` at or above the threshold (default `5`), using the
-   total authored phase count even when resumed work has already-closed phases. `@big_epic_lander` falls through to
-   `@epic_lander`, and both it and `@phase_worker` ultimately fall through to `@default` unless explicitly configured
-   under `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic segment carries bare `%auto`,
-   so submitted implementation and landing plans are auto-approved. An agent may author a tale or an epic as needed; the
+   the land agent parked until the phase name is retried successfully. Small phases launch directly and default to
+   `%model:@phase_worker`; medium phases also use `@phase_worker` but append `#plan` after their work reference; large
+   phases append `#plan` and default to `%model:@smartest`. A stored phase `model` always wins over the size-derived
+   alias, and a missing legacy size behaves as `small`. The land agent emits `%model:<value>` when the epic plan bead
+   has a stored `model`. Without one, it emits `%model:@epic_lander` below `bead.big_epic_phase_threshold` and
+   `%model:@big_epic_lander` at or above the threshold (default `5`), using the total authored phase count even when
+   resumed work has already-closed phases. `@big_epic_lander` falls through to `@epic_lander`; it, `@phase_worker`, and
+   `@smartest` ultimately fall through to `@default` unless explicitly configured under
+   `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic segment carries bare `%auto`, so
+   submitted implementation and landing plans are auto-approved. An agent may author a tale or an epic as needed; the
    plan's authored `tier` selects the corresponding automatic follow-up path. Each segment uses the force-reuse
    `%id:!<agent_name>` form so re-running `sase bead work` after a killed or failed run wipes the stale name owners
    before the relaunch — the command is safe to retry.
 
-| Flag            | Description                                                                              |
-| --------------- | ---------------------------------------------------------------------------------------- |
-| `-n, --dry-run` | Validate and preview plan archiving, bead creation, and waves without mutation or launch |
-| `-j, --json`    | Print one machine-readable result object; also skips interactive confirmation            |
-| `-P, --no-push` | Commit plan and bead state locally but skip post-commit pushes                           |
-| `-y, --yes`     | Skip the launch confirmation prompt                                                      |
+| Flag            | Description                                                                                   |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| `-n, --dry-run` | Validate and preview plan archiving, bead creation, model routing, and waves without mutation |
+| `-j, --json`    | Print one machine-readable result object; also skips interactive confirmation                 |
+| `-P, --no-push` | Commit plan and bead state locally but skip post-commit pushes                                |
+| `-p, --parent`  | Override a plan file's `parent_bead`; pass `top-level` to force an unparented epic            |
+| `-y, --yes`     | Skip the launch confirmation prompt                                                           |
 
 The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
 matching tag overrides the built-in. For epic-tier work, every phase and land segment carries bare `%auto`, so spawned

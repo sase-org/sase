@@ -543,8 +543,9 @@ offset zero or immediately follows a literal ASCII space. It is not disabled by 
 project/ChangeSpec completion uses the same token rule and works regardless of these automatic-completion settings.
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists inline-typable model names,
-implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_lander`, `@big_epic_lander`, `@phase_worker`),
-and configured model aliases; provider short aliases are shown as filter/display hints but are not inserted.
+implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_lander`, `@big_epic_lander`, `@phase_worker`,
+`@smartest`), and configured model aliases; provider short aliases are shown as filter/display hints but are not
+inserted.
 
 File-path completion roots relative lookups in the prompt-selected workspace. Registered workspace-provider refs and
 known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can root lookup in that project checkout. If no
@@ -572,6 +573,7 @@ llm_provider:
       claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
       codex_coder: claude/opus # coder follow-ups from Codex-authored plans
       big_epic_lander: codex/gpt-5.6-sol # specialize threshold-selected epic landers
+      smartest: claude/opus # highest-capability large phase agents
     custom:
       blogger:
         model: claude/opus
@@ -604,12 +606,12 @@ remaining independently addressable and editable.
 
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases** that resolve even when unset:
 `@default` (no-`%model` launches), `@coder` and the per-provider `@<provider>_coder` (plan coder follow-ups),
-`@epic_lander`, `@big_epic_lander`, and `@phase_worker` (bead/epic role launches). `@big_epic_lander` falls back to
-`@epic_lander`, and every chain ultimately reaches `@default`, so configuring `model_aliases.builtin.default` is enough
-to drive every role while an existing `epic_lander` override applies to both epic sizes. Override only large epics by
-configuring `model_aliases.builtin.big_epic_lander`. See [Implicit role aliases](llms.md#implicit-role-aliases) for the
-full table and [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches
-pick a role.
+`@epic_lander`, `@big_epic_lander`, `@phase_worker`, and `@smartest` (bead/epic role launches). `@big_epic_lander` falls
+back to `@epic_lander`, while the phase roles and every other chain ultimately reach `@default`, so configuring
+`model_aliases.builtin.default` is enough to drive every role. Override only threshold-sized epic landers with
+`model_aliases.builtin.big_epic_lander`; override `size: large` phase agents with `model_aliases.builtin.smartest`. See
+[Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
+[Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role.
 
 Legacy `model_aliases.builtin.epic_creator` entries remain accepted so existing configs still load, but SASE no longer
 launches an epic-creator agent or resolves that alias implicitly.
@@ -2194,15 +2196,17 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead create`
 
-| Flag                | Values          | Default    | Description                                                                 |
-| ------------------- | --------------- | ---------- | --------------------------------------------------------------------------- |
-| `-t, --title`       | string          | (required) | Issue title                                                                 |
-| `-T, --type`        | string          | (required) | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)` |
-| `-d, --description` | string          | -          | Issue description                                                           |
-| `-a, --assignee`    | string          | -          | Assignee name                                                               |
-| `--tier`            | `plan`, `epic`  | -          | Plan-bead tier                                                              |
-| `-c, --changespec`  | ChangeSpec name | -          | Attach ChangeSpec metadata to a plan bead                                   |
-| `-b, --bug-id`      | string          | -          | Bug ID for the attached ChangeSpec; requires `--changespec`                 |
+| Flag                | Values                     | Default    | Description                                                                 |
+| ------------------- | -------------------------- | ---------- | --------------------------------------------------------------------------- |
+| `-t, --title`       | string                     | (required) | Issue title                                                                 |
+| `-T, --type`        | string                     | (required) | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)` |
+| `-d, --description` | string                     | -          | Issue description                                                           |
+| `-a, --assignee`    | string                     | -          | Assignee name                                                               |
+| `-m, --model`       | string                     | -          | Epic land-agent or phase-work model                                         |
+| `-z, --size`        | `small`, `medium`, `large` | -          | Phase size; valid only for phase beads                                      |
+| `--tier`            | `plan`, `epic`             | -          | Plan-bead tier                                                              |
+| `-c, --changespec`  | ChangeSpec name            | -          | Attach ChangeSpec metadata to a plan bead                                   |
+| `-b, --bug-id`      | string                     | -          | Bug ID for the attached ChangeSpec; requires `--changespec`                 |
 
 #### `sase bead list`
 
@@ -2247,6 +2251,8 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 | `-n, --notes`       | string                          | -          | Change notes          |
 | `-D, --design`      | path                            | -          | Change plan path      |
 | `-a, --assignee`    | string                          | -          | Change assignee       |
+| `-m, --model`       | string                          | -          | Change launch model   |
+| `-z, --size`        | `small`, `medium`, `large`      | -          | Change phase size     |
 | `--tier`            | `plan`, `epic`                  | -          | Change plan-bead tier |
 
 #### `sase bead close`
@@ -2277,12 +2283,14 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead work`
 
-| Flag            | Values | Default    | Description                                                              |
-| --------------- | ------ | ---------- | ------------------------------------------------------------------------ |
-| `id`            | string | (required) | Epic plan bead ID.                                                       |
-| `-n, --dry-run` | flag   | -          | Print the wave plan and rendered multi-prompt without mutating state.    |
-| `-P, --no-push` | flag   | -          | Commit launched bead state locally but skip the post-commit `git push`.  |
-| `-y, --yes`     | flag   | -          | Skip the launch confirmation prompt when launching phase or epic agents. |
+| Flag            | Values                 | Default    | Description                                                                 |
+| --------------- | ---------------------- | ---------- | --------------------------------------------------------------------------- |
+| `target`        | bead ID or plan path   | (required) | Existing epic bead to launch, or validated epic plan file to create/launch. |
+| `-n, --dry-run` | flag                   | -          | Print the wave plan and rendered multi-prompt without mutating state.       |
+| `-j, --json`    | flag                   | -          | Print one machine-readable result object.                                   |
+| `-P, --no-push` | flag                   | -          | Commit launched bead state locally but skip the post-commit `git push`.     |
+| `-p, --parent`  | bead ID or `top-level` | -          | Override a plan file's `parent_bead`, including forcing an unparented epic. |
+| `-y, --yes`     | flag                   | -          | Skip the launch confirmation prompt when launching phase or epic agents.    |
 
 ### SDD repository and plan commands
 
