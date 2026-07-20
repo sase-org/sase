@@ -367,6 +367,12 @@ dependency in `wait_on` and explain the change in `dedupe_reason`, so removing d
 new downstream proposal. For a clan, the first surviving member becomes the declarer; dry runs show the same concrete
 clan, declaration/join roles, full member names, and effective waits without reserving names or spawning agents.
 
+A proposal that supplies an explicit `agent_name` treats a name collision at launch as idempotency, not failure: the
+sequential launch path records that proposal as skipped with a name-collision reason, releases its once-per key, and
+relinks dependent waits the same way once-per dedupe does. If every proposal is skipped the run finishes `skipped`;
+otherwise launched proposals proceed normally. Collisions on runner-derived names (which embed a per-run token) and in
+clan batch launches remain hard failures.
+
 #### Builtin `refresh_docs`
 
 `sase_chop_refresh_docs` replaces the former scheduled xprompt workflow. It expects an expanded target with a
@@ -493,6 +499,16 @@ The durable `agent_chops.json` linkage and `SASE_CHOP_*` metadata associate laun
 state. Configuration is always script-based. Each launched agent receives `SASE_CHOP_LUMBERJACK`, `SASE_CHOP_NAME`,
 `SASE_CHOP_RUN_ID`, and a prompt hash; the housekeeping pass uses the registry plus normal agent completion artifacts to
 finalize `launched` runs.
+
+Linkage is explicit: a registry record is created only for proposal launches the runner itself performs and for
+continuation respawns (retry or model-fallback) of an already-linked agent. Ambient `SASE_CHOP_*` context is scrubbed
+from every other spawned child's environment, so nested launches by chop agents and launches performed by chop scripts
+themselves neither register nor inherit chop identity.
+
+Housekeeping matches registry records to the run entry's own recorded launches by artifacts timestamp, following retry
+successors through `retried_as_timestamp` chains. Unmatched records are logged into the run output and ignored for
+status purposes; a launch with no matching record still fails the run closed. Records whose run entry is missing or
+already terminal are garbage-collected during the housekeeping pass.
 
 ## Concurrency Management
 
