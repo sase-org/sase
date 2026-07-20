@@ -4809,6 +4809,48 @@ StatisticsPane #statistics-hints {
     text-align: center;
 }
 
+/* Contextual Statistics reference built from the pane's loaded state. */
+StatisticsHelpModal {
+    align: center middle;
+}
+
+StatisticsHelpModal > #statistics-help-container {
+    width: 94%;
+    max-width: 150;
+    height: 92%;
+    border: double #FF87D7;
+    background: $surface;
+    padding: 1 2;
+}
+
+StatisticsHelpModal #statistics-help-title {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+    text-align: center;
+}
+
+StatisticsHelpModal #statistics-help-scroll {
+    width: 100%;
+    height: 1fr;
+    scrollbar-gutter: stable;
+}
+
+StatisticsHelpModal #statistics-help-content {
+    width: 100%;
+    height: auto;
+}
+
+StatisticsHelpModal #statistics-help-footer {
+    width: 100%;
+    height: auto;
+    margin-top: 1;
+    padding-top: 1;
+    border-top: solid $secondary;
+    color: $text-muted;
+    text-align: center;
+}
+
 /* Tasks tab: live background-task monitor */
 TasksPane #tasks-pane-title {
     text-style: bold;

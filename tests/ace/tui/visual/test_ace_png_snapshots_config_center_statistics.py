@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from textual.containers import VerticalScroll
 
 from sase.ace.testing import AcePage
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
@@ -68,6 +69,73 @@ async def test_config_center_statistics_runtime_png_snapshot(
             page,
             "config_center_statistics_runtime_120x40",
             title="ACE SASE Admin Center — Statistics runtime",
+        )
+
+
+async def test_config_center_statistics_runs_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("runs")
+        await page.pause()
+        pane.query_one("#statistics-body-scroll", VerticalScroll).scroll_end(
+            animate=False
+        )
+        await page.pause()
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_runs_120x40",
+            title="ACE SASE Admin Center — Statistics runs",
+        )
+
+
+async def test_config_center_statistics_help_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await _open_statistics_modal(page)
+        await page.press("question_mark")
+        await page.expect_modal("StatisticsHelpModal")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_help_120x40",
+            title="ACE SASE Admin Center — Statistics help",
+        )
+
+
+async def test_config_center_statistics_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(
+        query='"visual"',
+        changespecs=changespecs(),
+        size=(90, 30),
+    ) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_statistics_modal(page)
+        assert pane._compact_scope is True
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_narrow_90x30",
+            title="ACE SASE Admin Center — Statistics narrow",
         )
 
 

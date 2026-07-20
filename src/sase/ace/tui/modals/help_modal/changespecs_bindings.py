@@ -404,7 +404,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.toggle_hide_reverted), "Show/hide reverted PRs"),
                 (
                     d(a.open_config_center),
-                    "Admin Center: 1-7 jumps; Statistics [/] t/c/g/p/r",
+                    "Admin Center: 1-7 jumps; Statistics [/] t/c/g/p/r/?",
                 ),
                 (d(a.show_notifications), "Notifications (d debugs row)"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),

@@ -16,6 +16,7 @@ from sase.ace.tui.keymaps import load_keymap_registry, statistics_help_bindings
 from sase.ace.tui.modals import statistics_pane as sp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.statistics_pane import StatisticsPane
+from sase.ace.tui.modals.statistics_help_modal import StatisticsHelpModal
 from sase.ace.tui.modals.statistics_pane_data import (
     StatisticsView,
     StatisticsViewData,
@@ -697,6 +698,7 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
                     "cycle_group": "f8",
                     "cycle_project_filter": "f7",
                     "refresh": "f6",
+                    "help": "f5",
                 }
             }
         }
@@ -710,6 +712,7 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         ("f8", "Group By"),
         ("f7", "Project Filter"),
         ("f6", "Refresh"),
+        ("f5", "Help"),
     ]
 
     async with AcePage() as page:
@@ -717,7 +720,7 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         _, pane = await _open_statistics(page)
 
         hints = pane.query_one("#statistics-hints", Static).render().plain
-        assert hints == "f12 / f11 views   f9 custom range   f6 refresh"
+        assert hints == "f12 / f11 views   f9 custom range   f6 refresh   f5 help"
         assert _scope_plain(pane, "range").startswith(" f10  Range ")
         assert _scope_plain(pane, "group").startswith(" f8  Group ")
         assert _scope_plain(pane, "project").startswith(" f7  Project ")
@@ -730,12 +733,34 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         assert len(calls) == 1
 
 
+async def test_statistics_help_opens_and_closes_from_configured_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    _patch_center(monkeypatch, calls)
+    registry = load_keymap_registry({"keymaps": {"statistics": {"help": "f5"}}})
+
+    async with AcePage() as page:
+        page.app._keymap_registry = registry
+        _, pane = await _open_statistics(page)
+
+        await page.press("f5")
+        await page.expect_modal("StatisticsHelpModal")
+        assert isinstance(page.app.screen, StatisticsHelpModal)
+
+        await page.press("question_mark")
+        await page.expect_modal("ConfigCenterModal")
+        assert pane.is_mounted
+
+
 async def test_statistics_bindings_are_inactive_on_other_admin_center_tabs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
     _patch_center(monkeypatch, calls)
-    registry = load_keymap_registry({"keymaps": {"statistics": {"cycle_group": "f12"}}})
+    registry = load_keymap_registry(
+        {"keymaps": {"statistics": {"cycle_group": "f12", "help": "f5"}}}
+    )
 
     async with AcePage() as page:
         page.app._keymap_registry = registry
@@ -746,11 +771,13 @@ async def test_statistics_bindings_are_inactive_on_other_admin_center_tabs(
         assert not modal.query("#statistics")
 
         await page.press("f12")
+        await page.press("f5")
         await page.pause()
 
         assert modal._active_tab == "config"
         assert not modal.query("#statistics")
         assert calls == []
+        assert isinstance(page.app.screen, ConfigCenterModal)
 
 
 async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(

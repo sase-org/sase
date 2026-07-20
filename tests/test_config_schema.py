@@ -56,6 +56,7 @@ def test_config_schema_accepts_scoped_statistics_keymaps() -> None:
                         "cycle_group": "f8",
                         "cycle_project_filter": "f7",
                         "refresh": "f6",
+                        "help": "f5",
                     }
                 }
             }

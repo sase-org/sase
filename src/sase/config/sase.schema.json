@@ -655,6 +655,10 @@
                 "refresh": {
                   "type": "string",
                   "description": "Refresh historical statistics"
+                },
+                "help": {
+                  "type": "string",
+                  "description": "Open contextual statistics help"
                 }
               }
             },

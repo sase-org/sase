@@ -23,13 +23,13 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
     ),
     "runs": (
         _MetricLegend("Outcome share", "share of finished runs"),
-        _MetricLegend("Waiting", "runs paused for prerequisites"),
-        _MetricLegend("Retry chains", "distinct linked retry groups"),
-        _MetricLegend("Attempts", "runs launched as retries"),
-        _MetricLegend("Kills", "retries marked terminal"),
+        _MetricLegend("Waiting", "paused for prerequisites"),
+        _MetricLegend("Retry chains", "linked retry groups"),
+        _MetricLegend("Attempts", "retry launches"),
+        _MetricLegend("Kills", "terminal retry attempts"),
         _MetricLegend(
             "Committing agents",
-            "run records with at least one recorded commit",
+            "run records with ≥1 commit",
         ),
     ),
     "projects": (

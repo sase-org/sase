@@ -393,6 +393,7 @@ def test_default_config_covers_all_statistics_keymaps() -> None:
         "cycle_group": "g",
         "cycle_project_filter": "p",
         "refresh": "r",
+        "help": "question_mark",
     }
     assert field_names == set(defaults)
 

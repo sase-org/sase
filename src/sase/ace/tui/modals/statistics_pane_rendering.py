@@ -293,6 +293,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         for (key, description), color in (
             (bindings[3], _CYAN),
             (bindings[6], _ACCENT),
+            (bindings[7], _ACCENT),
         ):
             hints.append("   ")
             hints.append(key, style=f"bold {color}")

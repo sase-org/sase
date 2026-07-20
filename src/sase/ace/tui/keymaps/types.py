@@ -170,6 +170,7 @@ _STATISTICS_BINDING_META: tuple[tuple[str, str], ...] = (
     ("cycle_group", "Group By"),
     ("cycle_project_filter", "Project Filter"),
     ("refresh", "Refresh"),
+    ("help", "Help"),
 )
 
 # Shared bindings owned by the branch renderer inside gate-review modals.
@@ -469,6 +470,7 @@ class StatisticsPaneKeymaps:
     cycle_group: str = "g"
     cycle_project_filter: str = "p"
     refresh: str = "r"
+    help: str = "question_mark"
 
 
 @dataclass

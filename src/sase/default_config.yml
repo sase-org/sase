@@ -120,6 +120,7 @@ ace:
       cycle_group: "g"
       cycle_project_filter: "p"
       refresh: "r"
+      help: "question_mark"
     app:
       # Navigation
       next_changespec: "j"

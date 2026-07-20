@@ -295,6 +295,30 @@ class StatisticsPane(StatisticsPanePresentationBase):
         """Coalesce a manual refresh through the worker-backed load path."""
         self._schedule_load()
 
+    def action_help(self) -> None:
+        """Open contextual help built only from already-loaded pane state."""
+        from .statistics_help_modal import StatisticsHelpModal
+
+        result = self._last_result
+        project_label = "All projects"
+        if self._project_filter is not None:
+            project_label = self._project_filter
+            if result is not None:
+                project_label = result.project_display_snapshot.label_for(
+                    self._project_filter
+                )
+        self.app.push_screen(
+            StatisticsHelpModal(
+                current_view=self._view,
+                selected_range=self._range,
+                runtime_group_by=self._runtime_group_by,
+                projects_group_by=self._projects_group_by,
+                project_label=project_label,
+                generated_at=result.generated_at if result is not None else None,
+                keymaps=self._keymaps,
+            )
+        )
+
     @on(PanelTabStrip.TabClicked)
     def _on_view_clicked(self, event: PanelTabStrip.TabClicked) -> None:
         if event.tab_id in VIEW_ORDER:

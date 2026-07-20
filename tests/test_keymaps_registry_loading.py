@@ -60,6 +60,7 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.statistics.cycle_group == "g"
     assert reg.statistics.cycle_project_filter == "p"
     assert reg.statistics.refresh == "r"
+    assert reg.statistics.help == "question_mark"
 
 
 def test_app_query_override_is_honored_while_retired_help_is_dropped(
@@ -89,6 +90,7 @@ def test_statistics_pane_keys_can_be_overridden_independently() -> None:
                     "cycle_group": "f8",
                     "cycle_project_filter": "f7",
                     "refresh": "f6",
+                    "help": "f5",
                 }
             }
         }
@@ -101,6 +103,17 @@ def test_statistics_pane_keys_can_be_overridden_independently() -> None:
     assert reg.statistics.cycle_group == "f8"
     assert reg.statistics.cycle_project_filter == "f7"
     assert reg.statistics.refresh == "f6"
+    assert reg.statistics.help == "f5"
+
+
+def test_duplicate_statistics_help_override_reverts_to_default(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry({"keymaps": {"statistics": {"help": "r"}}})
+
+    assert reg.statistics.help == "question_mark"
+    assert "Duplicate statistics key" in caplog.text
 
 
 def test_gate_modal_keys_can_be_overridden_independently() -> None:
