@@ -1,5 +1,7 @@
 """Shared retry and stale-lock recovery policy for git commands."""
 
+from __future__ import annotations
+
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 import logging
@@ -8,7 +10,7 @@ from pathlib import Path
 import re
 import subprocess
 import time
-from typing import Any
+from typing import Any, TypeVar
 
 ENV_GIT_LOCK_RETRY_DELAYS = "SASE_GIT_LOCK_RETRY_DELAYS"
 DEFAULT_GIT_LOCK_RETRY_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6, 3.2)
@@ -20,7 +22,7 @@ _UNABLE_TO_CREATE_LOCK_RE = re.compile(
     re.IGNORECASE,
 )
 
-type GitLockResultAdapter[ResultT] = Callable[[ResultT], tuple[int, str | bytes | None]]
+ResultT = TypeVar("ResultT")
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,11 +106,11 @@ def git_index_lock_path(workspace_dir: str | Path) -> Path | None:
     return git_dir_path.resolve(strict=False) / "index.lock"
 
 
-def run_with_git_lock_retry[ResultT](
+def run_with_git_lock_retry(  # noqa: UP047
     attempt: Callable[[], ResultT],
     *,
     cwd: str | Path,
-    result_adapter: GitLockResultAdapter[ResultT] | None = None,
+    result_adapter: Callable[[ResultT], tuple[int, str | bytes | None]] | None = None,
     delays: Iterable[float] | None = None,
     allow_lock_removal: bool = True,
 ) -> tuple[ResultT, _GitLockRetryOutcome]:
@@ -309,7 +311,6 @@ def _stream_text(value: object) -> str:
 __all__ = [
     "DEFAULT_GIT_LOCK_RETRY_DELAYS",
     "ENV_GIT_LOCK_RETRY_DELAYS",
-    "GitLockResultAdapter",
     "STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS",
     "git_index_lock_path",
     "git_lock_retry_delays",
