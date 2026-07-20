@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from sase.bead.config import load_config, save_config
-from sase.bead.model import BeadTier, IssueType, Status
+from sase.bead.model import BeadTier, IssueType, PhaseSize, Status
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 
 
@@ -148,6 +148,22 @@ def test_create_and_update_model(project):
     relabeled = project.update(epic.id, model="codex/gpt-5.5")
     assert relabeled.model == "codex/gpt-5.5"
     assert project.show(epic.id).model == "codex/gpt-5.5"
+
+
+def test_create_and_update_phase_size(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    phase = project.create(
+        "Phase",
+        IssueType.PHASE,
+        parent_id=epic.id,
+        size=PhaseSize.MEDIUM,
+    )
+    assert phase.size is PhaseSize.MEDIUM
+    assert project.show(phase.id).size is PhaseSize.MEDIUM
+
+    updated = project.update(phase.id, size="large")
+    assert updated.size is PhaseSize.LARGE
+    assert project.show(phase.id).size is PhaseSize.LARGE
 
 
 def test_create_epic_with_changespec_metadata(project):

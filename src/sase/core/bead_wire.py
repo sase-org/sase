@@ -50,6 +50,10 @@ def tier_value(tier: BeadTier | str) -> str:
     return tier.value if isinstance(tier, BeadTier) else str(tier)
 
 
+def phase_size_value(size: PhaseSize | str) -> str:
+    return size.value if isinstance(size, PhaseSize) else str(size)
+
+
 def issue_from_dict(data: dict[str, Any]) -> Issue:
     return Issue(
         id=str(data["id"]),

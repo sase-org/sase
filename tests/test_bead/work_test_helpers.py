@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 from sase.bead import db
-from sase.bead.model import Issue, IssueType, Status
+from sase.bead.model import Issue, IssueType, PhaseSize, Status
 from sase.bead.work import EpicWorkPlan, _PhaseAssignment as PhaseAssignment
 
 NOW = "2026-04-25T00:00:00Z"
@@ -35,6 +35,7 @@ def phase(
     status: Status = Status.OPEN,
     created_at: str = NOW,
     model: str = "",
+    size: PhaseSize | None = None,
 ) -> Issue:
     return Issue(
         id=phase_id,
@@ -43,6 +44,7 @@ def phase(
         parent_id=parent_id,
         status=status,
         model=model,
+        size=size,
         created_at=created_at,
         updated_at=created_at,
     )

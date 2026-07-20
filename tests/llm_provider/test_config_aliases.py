@@ -159,6 +159,9 @@ def test_model_alias_description_builtin_and_custom(
         "Epic land agents selected for plans at or above the configured "
         "phase-count threshold."
     )
+    assert model_alias_description("smartest") == (
+        "Large phase agents that need the highest-capability configured model."
+    )
     assert model_alias_description("claude_coder") == (
         "Coder follow-up agents for plans authored by claude."
     )
@@ -189,6 +192,7 @@ def test_model_alias_names_include_configured_and_special(
         "epic_lander",
         "big_epic_lander",
         "phase_worker",
+        "smartest",
         # per-provider coder aliases
         "claude_coder",
         "codex_coder",
@@ -286,6 +290,7 @@ def test_role_alias_helpers() -> None:
     assert role_model_directive_value("default") == "@default"
     assert implicit_model_alias_fallback("big_epic_lander") == "epic_lander"
     assert implicit_model_alias_fallback("epic_lander") == "default"
+    assert implicit_model_alias_fallback("smartest") == "default"
     assert implicit_model_alias_fallback("default") is None
 
 
@@ -410,8 +415,27 @@ def test_epic_execution_role_aliases_chain_to_default(
     )
 
     assert resolve_model_alias("epic_creator") == "epic_creator"
-    for role in ("epic_lander", "big_epic_lander", "phase_worker"):
+    for role in ("epic_lander", "big_epic_lander", "phase_worker", "smartest"):
         assert resolve_model_alias(role) == "codex/gpt-5.6-sol"
+
+
+def test_configured_smartest_alias_shadows_implicit_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {
+                    "default": "claude/sonnet",
+                    "smartest": "codex/gpt-5.6-sol",
+                }
+            },
+        },
+    )
+
+    assert resolve_model_alias("smartest") == "codex/gpt-5.6-sol"
 
 
 def test_big_epic_lander_inherits_configured_epic_lander(
@@ -581,6 +605,7 @@ def test_worker_and_other_no_longer_special_aliases(
         "epic_lander",
         "big_epic_lander",
         "phase_worker",
+        "smartest",
     } <= names
     assert "epic_creator" not in names
 

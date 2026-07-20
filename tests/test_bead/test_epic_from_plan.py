@@ -9,7 +9,7 @@ import pytest
 from sase.bead.cli_work_handler import BeadWorkError
 from sase.bead.cli_work_handler import launch_epic_bead_work
 from sase.bead.epic_from_plan import create_and_launch_epic_from_plan
-from sase.bead.model import BeadTier, IssueType
+from sase.bead.model import BeadTier, IssueType, PhaseSize
 from sase.bead.project import BeadProject
 from sase.sdd.frontmatter import parse_frontmatter
 
@@ -99,6 +99,11 @@ def test_create_and_launch_maps_frontmatter_in_order(
         )
         assert result.phases[1].model == "codex/gpt-5.6-sol"
         assert result.phases[2].model == ""
+        assert [phase.size for phase in result.phases] == [
+            PhaseSize.SMALL,
+            PhaseSize.MEDIUM,
+            PhaseSize.LARGE,
+        ]
         assert [
             (dependency.issue_id, dependency.depends_on_id)
             for dependency in result.dependencies

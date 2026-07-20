@@ -8,7 +8,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
+from sase.bead.model import BeadTier, Dependency, Issue, IssueType, PhaseSize, Status
 
 _SCHEMA = """\
 CREATE TABLE IF NOT EXISTS issues (
@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS issues (
     notes       TEXT,
     design      TEXT,
     model       TEXT NOT NULL DEFAULT '',
+    size        TEXT
+                  CHECK(size IN ('small', 'medium', 'large')),
     is_ready_to_work INTEGER NOT NULL DEFAULT 0,
     changespec_name TEXT NOT NULL DEFAULT '',
     changespec_bug_id TEXT NOT NULL DEFAULT '',
@@ -41,6 +43,7 @@ CREATE TABLE IF NOT EXISTS issues (
         (issue_type = 'plan')
     ),
     CHECK(issue_type = 'plan' OR tier IS NULL),
+    CHECK(issue_type = 'phase' OR size IS NULL),
     CHECK(is_ready_to_work IN (0, 1)),
     CHECK(
         issue_type = 'plan' OR
@@ -114,6 +117,20 @@ def _migrate_add_model(conn: sqlite3.Connection) -> None:
     if not columns or "model" in columns:
         return
     conn.execute("ALTER TABLE issues ADD COLUMN model TEXT NOT NULL DEFAULT ''")
+    conn.commit()
+
+
+def _migrate_add_size(conn: sqlite3.Connection) -> None:
+    """Add phase-size metadata to a pre-existing issues table if missing."""
+    columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
+    }
+    if not columns or "size" in columns:
+        return
+    conn.execute(
+        "ALTER TABLE issues ADD COLUMN size TEXT "
+        "CHECK(size IN ('small','medium','large'))"
+    )
     conn.commit()
 
 
@@ -196,6 +213,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _migrate_add_changespec_metadata(conn)
     _migrate_add_tier(conn)
     _migrate_add_model(conn)
+    _migrate_add_size(conn)
     conn.executescript(_SCHEMA)
     return conn
 
@@ -219,6 +237,7 @@ def _row_to_issue(row: sqlite3.Row) -> Issue:
         notes=row["notes"] or "",
         design=row["design"] or "",
         model=row["model"] or "",
+        size=PhaseSize(row["size"]) if row["size"] else None,
         is_ready_to_work=bool(row["is_ready_to_work"]),
         changespec_name=row["changespec_name"] or "",
         changespec_bug_id=row["changespec_bug_id"] or "",
@@ -253,9 +272,9 @@ def create_issue(
         "INSERT INTO issues "
         "(id, title, status, issue_type, parent_id, owner, assignee, "
         "tier, created_at, created_by, updated_at, closed_at, close_reason, "
-        "description, notes, design, model, is_ready_to_work, "
+        "description, notes, design, model, size, is_ready_to_work, "
         "changespec_name, changespec_bug_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -274,6 +293,7 @@ def create_issue(
             issue.notes,
             issue.design,
             issue.model,
+            issue.size.value if issue.size else None,
             int(issue.is_ready_to_work),
             issue.changespec_name,
             issue.changespec_bug_id,
@@ -344,6 +364,7 @@ def update_issue(
         "notes",
         "design",
         "model",
+        "size",
         "tier",
         "is_ready_to_work",
         "changespec_name",

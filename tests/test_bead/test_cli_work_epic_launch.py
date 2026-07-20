@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.model import IssueType, Status
+from sase.bead.model import IssueType, PhaseSize, Status
 from sase.bead.project import BeadProject
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.bead.work import (
@@ -469,6 +469,53 @@ def test_work_dry_run_renders_model_directives(
     assert out.count("%model:") == 3
     assert out.count("\n%auto\n") == 3
     assert "%auto:tale" not in out
+
+
+def test_work_dry_run_relaunches_from_stored_phase_sizes(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        epic = project.create("Sized epic", IssueType.PLAN)
+        small = project.create(
+            "Small",
+            IssueType.PHASE,
+            parent_id=epic.id,
+            size=PhaseSize.SMALL,
+        )
+        medium = project.create(
+            "Medium",
+            IssueType.PHASE,
+            parent_id=epic.id,
+            size=PhaseSize.MEDIUM,
+        )
+        large = project.create(
+            "Large",
+            IssueType.PHASE,
+            parent_id=epic.id,
+            size=PhaseSize.LARGE,
+        )
+
+    bead_cli.handle_bead_work(make_args(epic.id, dry_run=True, yes=True))
+
+    prompt = capsys.readouterr().out.split("--- Multi-prompt (dry run) ---\n", 1)[1]
+    segments = prompt.split("\n---\n")
+    by_bead = {
+        bead.id: next(
+            segment
+            for segment in segments
+            if f"#bd/work_phase_bead:{bead.id}" in segment
+        )
+        for bead in (small, medium, large)
+    }
+    assert "%model:@phase_worker" in by_bead[small.id]
+    assert "#plan" not in by_bead[small.id].splitlines()
+    assert "%model:@phase_worker" in by_bead[medium.id]
+    assert (
+        by_bead[medium.id].rstrip().endswith(f"#bd/work_phase_bead:{medium.id}\n#plan")
+    )
+    assert "%model:@smartest" in by_bead[large.id]
+    assert by_bead[large.id].rstrip().endswith(f"#bd/work_phase_bead:{large.id}\n#plan")
 
 
 def test_work_dry_run_uses_custom_big_epic_threshold(

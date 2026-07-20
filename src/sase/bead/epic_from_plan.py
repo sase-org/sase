@@ -53,7 +53,7 @@ def create_and_launch_epic_from_plan(
 
     plan_path = plan_path.expanduser().resolve()
     original_content = plan_path.read_text(encoding="utf-8")
-    validation = validate_plan_file(plan_path, "epic")
+    validation = validate_plan_file(plan_path, "epic", mode="launch")
     if not validation.ok or validation.plan is None:
         details = "; ".join(
             f"[{diagnostic.code}] {diagnostic.message}"
@@ -117,6 +117,7 @@ def create_and_launch_epic_from_plan(
                 description=phase_spec.description
                 or generated_phase_description(plan_ref, phase_spec.id),
                 model=phase_spec.model or "",
+                size=phase_spec.size,
             )
             phases.append(phase)
             phase_by_frontmatter_id[phase_spec.id] = phase

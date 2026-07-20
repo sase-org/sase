@@ -11,6 +11,7 @@ import pytest
 from tests.sdd_policy_helpers import set_sdd_policy
 
 from sase.bead import cli as bead_cli
+from sase.bead.model import PhaseSize
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
 
@@ -32,6 +33,7 @@ def _create_args(
     changespec: str | None = None,
     bug_id: str | None = None,
     model: str | None = None,
+    size: str | None = None,
 ) -> argparse.Namespace:
     return argparse.Namespace(
         title=title,
@@ -42,6 +44,7 @@ def _create_args(
         changespec=changespec,
         bug_id=bug_id,
         model=model,
+        size=size,
     )
 
 
@@ -223,6 +226,116 @@ def test_parser_accepts_model_on_update_short_and_long() -> None:
     long_clear = parser.parse_args(["bead", "update", "x", "--model", ""])
     assert short.model == "claude/opus"
     assert long_clear.model == ""
+
+
+def test_parser_accepts_size_on_create_and_update_short_and_long() -> None:
+    parser = create_parser()
+    create_short = parser.parse_args(
+        ["bead", "create", "-t", "x", "-T", "phase(p)", "-z", "medium"]
+    )
+    create_long = parser.parse_args(
+        [
+            "bead",
+            "create",
+            "-t",
+            "x",
+            "-T",
+            "phase(p)",
+            "--size",
+            "large",
+        ]
+    )
+    update_short = parser.parse_args(["bead", "update", "x", "-z", "small"])
+    update_long = parser.parse_args(["bead", "update", "x", "--size", "medium"])
+    assert create_short.size == "medium"
+    assert create_long.size == "large"
+    assert update_short.size == "small"
+    assert update_long.size == "medium"
+
+
+def test_create_and_update_phase_size_persist(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        epic = proj.create("Epic", issue_type=bead_cli.IssueType.PLAN)
+
+    bead_cli.handle_bead_create(
+        _create_args(
+            title="Sized phase",
+            type_value=f"phase({epic.id})",
+            size="medium",
+        )
+    )
+    with BeadProject(project_dir) as proj:
+        phase = proj.get_epic_children(epic.id)[0]
+        assert phase.size is PhaseSize.MEDIUM
+
+    bead_cli.handle_bead_update(
+        argparse.Namespace(
+            id=phase.id,
+            status=None,
+            title=None,
+            description=None,
+            notes=None,
+            design=None,
+            assignee=None,
+            tier=None,
+            model=None,
+            size="large",
+        )
+    )
+
+    with BeadProject(project_dir) as proj:
+        assert proj.show(phase.id).size is PhaseSize.LARGE
+    capsys.readouterr()
+
+
+def test_create_rejects_size_for_plan_bead(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plan = project_dir / "plan.md"
+    plan.write_text("# Plan\n")
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_create(
+            _create_args(
+                title="Invalid sized epic",
+                type_value=f"plan({plan})",
+                size="large",
+            )
+        )
+
+    assert excinfo.value.code == 1
+    assert "--size can only be set on phase beads" in capsys.readouterr().err
+
+
+def test_update_rejects_size_for_plan_bead(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        epic = proj.create("Epic", issue_type=bead_cli.IssueType.PLAN)
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_update(
+            argparse.Namespace(
+                id=epic.id,
+                status=None,
+                title=None,
+                description=None,
+                notes=None,
+                design=None,
+                assignee=None,
+                tier=None,
+                model=None,
+                size="large",
+            )
+        )
+
+    assert excinfo.value.code == 1
+    assert "phase" in capsys.readouterr().err.lower()
 
 
 def test_create_with_model_persists(

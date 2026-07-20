@@ -17,6 +17,7 @@ from sase.bead.model import (
     Dependency,
     Issue,
     IssueType,
+    PhaseSize,
     Status,
 )
 from sase.bead.sync import bead_state_is_clean, git_sync, rebuild_from_jsonl
@@ -112,6 +113,7 @@ class BeadProject:
         changespec_name: str | int | None = "",
         changespec_bug_id: str | int | None = "",
         model: str = "",
+        size: PhaseSize | str | None = None,
     ) -> Issue:
         """Create a new issue.
 
@@ -134,6 +136,7 @@ class BeadProject:
             changespec_name=changespec_name,
             changespec_bug_id=changespec_bug_id,
             model=model,
+            size=size,
             now=_now(),
         )
         self._refresh_db_from_jsonl()

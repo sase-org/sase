@@ -14,7 +14,7 @@ from sase.bead.cli_work_from_plan import (
     work_from_plan_file,
 )
 from sase.bead.cli_work_handler import BeadWorkError, handle_bead_work
-from sase.bead.model import BeadTier, IssueType
+from sase.bead.model import BeadTier, IssueType, PhaseSize
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
 from sase.sdd.frontmatter import parse_frontmatter
@@ -144,6 +144,11 @@ def test_plan_file_mode_creates_links_and_launches_in_tree(
         epic = project.show(result.epic_id)
         assert epic.tier is BeadTier.EPIC
         assert epic.design.startswith("sdd/plans/")
+        assert [phase.size for phase in project.get_epic_children(epic.id)] == [
+            PhaseSize.SMALL,
+            PhaseSize.MEDIUM,
+            PhaseSize.LARGE,
+        ]
 
 
 def test_plan_file_creates_hierarchical_child_epic_from_managed_parent(
@@ -796,7 +801,36 @@ def test_plan_file_dry_run_is_pure_and_previews_waves(
     assert result.epic_id is None
     assert result.waves == (("core",), ("cli",), ("verify",))
     assert not result.archived_plan_path.exists()
-    assert "Land    @epic_lander" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "core Build the core (small · @phase_worker)" in output
+    assert "cli Add the CLI (medium · @phase_worker · #plan)" in output
+    assert "verify Verify the result (large · @smartest · #plan)" in output
+    assert "Land    @epic_lander" in output
+
+
+def test_plan_file_launch_mode_keeps_legacy_sizeless_epic_resumable(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = project_dir / "legacy.md"
+    legacy_plan = "\n".join(
+        line for line in EPIC_PLAN.splitlines() if not line.strip().startswith("size:")
+    )
+    source.write_text(legacy_plan, encoding="utf-8")
+
+    result = work_from_plan_file(
+        str(source),
+        dry_run=True,
+        yes=False,
+        no_push=False,
+        render=True,
+    )
+
+    assert result.waves == (("core",), ("cli",), ("verify",))
+    output = capsys.readouterr().out
+    assert output.count("small · @phase_worker") == 3
+    assert "@smartest" not in output
+    assert "#plan" not in output
 
 
 @pytest.mark.parametrize(

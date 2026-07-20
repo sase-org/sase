@@ -16,6 +16,7 @@ from sase.llm_provider.config import (
     DEFAULT_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     PHASE_WORKER_MODEL_ALIAS_NAME,
+    SMARTEST_MODEL_ALIAS_NAME,
     coder_model_alias_for_provider,
     get_model_aliases,
     model_alias_config_source,
@@ -43,6 +44,7 @@ _TRAILING_IMPLICIT_ALIASES: tuple[tuple[str, str], ...] = (
         "threshold-selected large-epic land follow-up model",
     ),
     (PHASE_WORKER_MODEL_ALIAS_NAME, "bead phase agent model"),
+    (SMARTEST_MODEL_ALIAS_NAME, "highest-capability large-phase model"),
 )
 
 
@@ -70,7 +72,8 @@ def build_model_completion_catalog(
     aliases are kept as match/display hints only; they are not inserted as
     completion values. The implicit role aliases (``@default``, ``@coder``, each
     registered ``@<provider>_coder``, ``@epic_lander``,
-    ``@big_epic_lander``, ``@phase_worker``) and user-configured aliases are
+    ``@big_epic_lander``, ``@phase_worker``, ``@smartest``) and user-configured
+    aliases are
     inserted with their ``@`` form because those values resolve through the
     normal ``%model`` path.
     """

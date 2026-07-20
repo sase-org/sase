@@ -34,11 +34,22 @@ def render_plan_preview(
     plan: Any,
     waves: tuple[tuple[str, ...], ...],
 ) -> None:
-    from sase.bead.work import epic_land_model_directive_value
+    from sase.bead.work import (
+        epic_land_model_directive_value,
+        phase_model_directive_value,
+    )
 
-    title_by_id = {phase.id: phase.title for phase in plan.phases}
+    phase_by_id = {phase.id: phase for phase in plan.phases}
     for index, wave in enumerate(waves, start=1):
-        entries = " · ".join(f"{phase_id} {title_by_id[phase_id]}" for phase_id in wave)
+        rendered_entries: list[str] = []
+        for phase_id in wave:
+            phase = phase_by_id[phase_id]
+            model = phase_model_directive_value(phase.model, size=phase.size)
+            plan_suffix = " · #plan" if phase.size in {"medium", "large"} else ""
+            rendered_entries.append(
+                f"{phase_id} {phase.title} ({phase.size} · {model}{plan_suffix})"
+            )
+        entries = "  |  ".join(rendered_entries)
         Console().print(f"  [bold]Wave {index}[/bold]  {entries}")
     land_model = epic_land_model_directive_value(
         plan.model,

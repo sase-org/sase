@@ -32,28 +32,16 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
 
     # sase bead create
     bead_create_parser = bead_subparsers.add_parser("create", help="Create a new issue")
-    bead_create_parser.add_argument("-t", "--title", required=True, help="Issue title")
-    bead_create_parser.add_argument(
-        "-T",
-        "--type",
-        required=True,
-        help="Bead type: plan(<plan_file>), plan(<plan_file>,<parent_id>), or phase(<parent_id>)",
-    )
-    bead_create_parser.add_argument("-d", "--description", help="Issue description")
     bead_create_parser.add_argument("-a", "--assignee", help="Assignee")
-    bead_create_parser.add_argument(
-        "--tier",
-        choices=["plan", "epic"],
-        help="Plan-bead tier (plan or epic)",
-    )
-    bead_create_parser.add_argument(
-        "-c", "--changespec", help="Attach a ChangeSpec name to a plan bead"
-    )
     bead_create_parser.add_argument(
         "-b",
         "--bug-id",
         help="Bug ID to pass when creating the attached ChangeSpec",
     )
+    bead_create_parser.add_argument(
+        "-c", "--changespec", help="Attach a ChangeSpec name to a plan bead"
+    )
+    bead_create_parser.add_argument("-d", "--description", help="Issue description")
     bead_create_parser.add_argument(
         "-m",
         "--model",
@@ -63,6 +51,25 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
             "plan beads this becomes the land-agent model; for phase beads it "
             "is the per-phase work model."
         ),
+    )
+    bead_create_parser.add_argument(
+        "-z",
+        "--size",
+        choices=["small", "medium", "large"],
+        help="Phase size controlling plan-first prompting and default model routing",
+    )
+    bead_create_parser.add_argument(
+        "-r",
+        "--tier",
+        choices=["plan", "epic"],
+        help="Plan-bead tier (plan or epic)",
+    )
+    bead_create_parser.add_argument("-t", "--title", required=True, help="Issue title")
+    bead_create_parser.add_argument(
+        "-T",
+        "--type",
+        required=True,
+        help="Bead type: plan(<plan_file>), plan(<plan_file>,<parent_id>), or phase(<parent_id>)",
     )
 
     # sase bead dep
@@ -275,15 +282,9 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase bead update
     bead_update_parser = bead_subparsers.add_parser("update", help="Update an issue")
     bead_update_parser.add_argument("id", help="Issue ID")
-    bead_update_parser.add_argument(
-        "-s", "--status", choices=["open", "in_progress", "closed"]
-    )
-    bead_update_parser.add_argument("-t", "--title")
-    bead_update_parser.add_argument("-d", "--description")
-    bead_update_parser.add_argument("-n", "--notes")
-    bead_update_parser.add_argument("-D", "--design")
     bead_update_parser.add_argument("-a", "--assignee")
-    bead_update_parser.add_argument("--tier", choices=["plan", "epic"])
+    bead_update_parser.add_argument("-D", "--design")
+    bead_update_parser.add_argument("-d", "--description")
     bead_update_parser.add_argument(
         "-m",
         "--model",
@@ -292,3 +293,15 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
             "codex/gpt-5.6-sol) or local alias (e.g. #pro). Pass '' to clear."
         ),
     )
+    bead_update_parser.add_argument("-n", "--notes")
+    bead_update_parser.add_argument(
+        "-z",
+        "--size",
+        choices=["small", "medium", "large"],
+        help="Phase size controlling plan-first prompting and default model routing",
+    )
+    bead_update_parser.add_argument(
+        "-s", "--status", choices=["open", "in_progress", "closed"]
+    )
+    bead_update_parser.add_argument("-r", "--tier", choices=["plan", "epic"])
+    bead_update_parser.add_argument("-t", "--title")

@@ -55,6 +55,7 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "@epic_lander",
         "@big_epic_lander",
         "@phase_worker",
+        "@smartest",
         "@fast",
         "@worker",
     ]
@@ -84,6 +85,11 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "threshold-selected large-epic land follow-up model"
     )
     assert big_epic_lander.aliases == ("big_epic_lander",)
+
+    smartest = by_value["@smartest"]
+    assert smartest.kind == "implicit_alias"
+    assert smartest.description == "highest-capability large-phase model"
+    assert smartest.aliases == ("smartest",)
 
     fast = by_value["@fast"]
     assert fast.kind == "user_alias"

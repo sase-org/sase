@@ -84,6 +84,10 @@ def handle_bead_create(args: argparse.Namespace) -> None:
     if issue_type != IssueType.PLAN and tier is not None:
         print("Error: --tier can only be set on plan beads", file=sys.stderr)
         sys.exit(1)
+    size = getattr(args, "size", None)
+    if issue_type != IssueType.PHASE and size is not None:
+        print("Error: --size can only be set on phase beads", file=sys.stderr)
+        sys.exit(1)
     design = ""
     if plan_path:
         plan_file = Path(plan_path)
@@ -112,6 +116,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 changespec_name=changespec_name,
                 changespec_bug_id=changespec_bug_id,
                 model=getattr(args, "model", None) or "",
+                size=size,
             )
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
@@ -139,6 +144,8 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             fields["tier"] = args.tier
         if getattr(args, "model", None) is not None:
             fields["model"] = args.model
+        if getattr(args, "size", None) is not None:
+            fields["size"] = args.size
         if not fields:
             print("No fields to update.", file=sys.stderr)
             sys.exit(1)

@@ -57,6 +57,7 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["coder"].kind == "role"
     assert by_name["big_epic_lander"].kind == "role"
     assert by_name["phase_worker"].kind == "role"
+    assert by_name["smartest"].kind == "role"
     assert by_name["claude_coder"].kind == "provider_coder"
     assert by_name["codex_coder"].kind == "provider_coder"
 
@@ -87,12 +88,13 @@ def test_default_is_first_and_groups_are_ordered(
 
     assert names[0] == "default"
     # role aliases follow default, in canonical order
-    role_slice = names[1:5]
+    role_slice = names[1:6]
     assert role_slice == [
         "coder",
         "epic_lander",
         "big_epic_lander",
         "phase_worker",
+        "smartest",
     ]
     # provider_coder aliases come next, alphabetically
     assert names.index("claude_coder") < names.index("codex_coder")
@@ -313,13 +315,14 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
         "epic_lander",
         "big_epic_lander",
         "phase_worker",
+        "smartest",
         "coding",
         "research",
         "alpha",
     ]
     assert all(row.name not in {"coder", "claude_coder", "codex_coder"} for row in rows)
 
-    user_rows = rows[5:]
+    user_rows = rows[6:]
     assert [row.name for row in user_rows] == ["coding", "research", "alpha"]
     coding, research, alpha = user_rows
     assert isinstance(coding, BucketView)
@@ -381,6 +384,7 @@ def test_models_panel_rows_coalesce_custom_coders_members(
         "epic_lander",
         "big_epic_lander",
         "phase_worker",
+        "smartest",
         "research",
         "alpha",
     ]

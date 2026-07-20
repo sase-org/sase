@@ -55,7 +55,7 @@ def work_from_plan_file(
 
     source_path = Path(target).expanduser().resolve(strict=False)
     destination_name = _neutral_gate_destination_name(source_path)
-    validation = validate_plan_file(source_path, "epic")
+    validation = validate_plan_file(source_path, "epic", mode="launch")
     if not validation.ok or validation.plan is None:
         if render:
             _render_validation_failure(source_path, validation)

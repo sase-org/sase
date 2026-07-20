@@ -6,7 +6,7 @@ import sqlite3
 
 import pytest
 
-from sase.bead.model import Status
+from sase.bead.model import PhaseSize, Status
 from sase.bead.work import (
     _CrossEpicBlockerError,
     _CycleError,
@@ -347,7 +347,7 @@ class TestCycleDetection:
             _build_epic_work_plan(conn, "e1")
 
 
-class TestModelPropagationFromPayload:
+class TestModelAndSizePropagationFromPayload:
     def test_phase_model_flows_into_assignment(self, conn: sqlite3.Connection) -> None:
         seed(
             conn,
@@ -363,6 +363,23 @@ class TestModelPropagationFromPayload:
         assert assignments["p1"].model == "claude/opus"
         assert assignments["p2"].model == ""
         assert plan.land_model == ""
+
+    def test_phase_size_flows_into_assignment(self, conn: sqlite3.Connection) -> None:
+        seed(
+            conn,
+            [
+                epic("e1"),
+                phase("p1", size=PhaseSize.MEDIUM),
+                phase("p2", size=PhaseSize.LARGE),
+                phase("p3"),
+            ],
+        )
+        plan = _build_epic_work_plan(conn, "e1")
+
+        assignments = {a.bead_id: a for wave in plan.waves for a in wave}
+        assert assignments["p1"].size is PhaseSize.MEDIUM
+        assert assignments["p2"].size is PhaseSize.LARGE
+        assert assignments["p3"].size is None
 
     def test_epic_model_flows_into_land_model(self, conn: sqlite3.Connection) -> None:
         seed(

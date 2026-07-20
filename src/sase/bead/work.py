@@ -15,12 +15,13 @@ from typing import Any
 
 from sase.bead import db
 from sase.bead.config import get_big_epic_phase_threshold
-from sase.bead.model import Dependency, Issue
+from sase.bead.model import Dependency, Issue, PhaseSize
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.core.rust import require_rust_binding
 from sase.llm_provider.config import BIG_EPIC_LANDER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import EPIC_LANDER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import PHASE_WORKER_MODEL_ALIAS_NAME
+from sase.llm_provider.config import SMARTEST_MODEL_ALIAS_NAME
 from sase.llm_provider.config import format_model_directive_value
 from sase.llm_provider.config import role_model_directive_value
 
@@ -43,6 +44,7 @@ class _PhaseAssignment:
     waits_on: tuple[str, ...]
     wave: int
     model: str = ""
+    size: PhaseSize | None = None
 
 
 @dataclass(frozen=True)
@@ -173,6 +175,11 @@ def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
                     ),
                     wave=int(assignment["wave"]),
                     model=str(assignment.get("model", "")),
+                    size=(
+                        PhaseSize(str(assignment["size"]))
+                        if assignment.get("size")
+                        else None
+                    ),
                 )
                 for assignment in wave
             )
@@ -267,6 +274,19 @@ def epic_land_model_directive_value(
     return role_model_directive_value(alias)
 
 
+def phase_model_directive_value(
+    explicit_model: str | None,
+    *,
+    size: PhaseSize | str | None,
+) -> str:
+    """Return the authoritative ``%model`` value for a phase agent."""
+    if explicit_model:
+        return format_model_directive_value(explicit_model)
+    if _phase_size(size) is PhaseSize.LARGE:
+        return role_model_directive_value(SMARTEST_MODEL_ALIAS_NAME)
+    return role_model_directive_value(PHASE_WORKER_MODEL_ALIAS_NAME)
+
+
 def render_multi_prompt(
     plan: EpicWorkPlan,
     work_phase_xprompt: Workflow,
@@ -322,16 +342,17 @@ def render_multi_prompt(
                     declare=declares_clan,
                 )
             )
-            if assignment.model:
-                model_value = format_model_directive_value(assignment.model)
-                lines.append(f"%model:{model_value}")
-            else:
-                phase_alias = role_model_directive_value(PHASE_WORKER_MODEL_ALIAS_NAME)
-                lines.append(f"%model:{phase_alias}")
+            model_value = phase_model_directive_value(
+                assignment.model,
+                size=assignment.size,
+            )
+            lines.append(f"%model:{model_value}")
             lines.append("%auto")
             if assignment.waits_on:
                 lines.append(f"%w:{','.join(assignment.waits_on)}")
             lines.append(f"#{work_phase_xprompt.name}:{assignment.bead_id}")
+            if _phase_size(assignment.size) in {PhaseSize.MEDIUM, PhaseSize.LARGE}:
+                lines.append("#plan")
             segments.append("\n".join(lines))
 
     land_lines = _segment_prefix(launch_context, is_first_phase=False)
@@ -354,6 +375,13 @@ def render_multi_prompt(
     segments.append("\n".join(land_lines))
 
     return "\n---\n".join(segments)
+
+
+def _phase_size(size: PhaseSize | str | None) -> PhaseSize:
+    """Normalize missing legacy size metadata to the small-phase behavior."""
+    if size is None or size == "":
+        return PhaseSize.SMALL
+    return size if isinstance(size, PhaseSize) else PhaseSize(size)
 
 
 def _clan_identity_directives(

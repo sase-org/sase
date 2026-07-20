@@ -6,7 +6,7 @@ import sqlite3
 
 import pytest
 
-from sase.bead.model import Status
+from sase.bead.model import PhaseSize, Status
 from sase.bead.work import (
     ChangeSpecLaunchContext,
     EpicWorkPlan,
@@ -357,6 +357,64 @@ class TestChangeSpecRendering:
 
 
 class TestModelDirective:
+    @pytest.mark.parametrize(
+        ("size", "expected_model", "expects_plan"),
+        [
+            (None, "@phase_worker", False),
+            (PhaseSize.SMALL, "@phase_worker", False),
+            (PhaseSize.MEDIUM, "@phase_worker", True),
+            (PhaseSize.LARGE, "@smartest", True),
+        ],
+    )
+    def test_phase_size_controls_model_and_plan_first_prompt(
+        self,
+        conn: sqlite3.Connection,
+        size: PhaseSize | None,
+        expected_model: str,
+        expects_plan: bool,
+    ) -> None:
+        seed(conn, [epic("e1"), phase("p1", size=size)])
+        plan = _build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        phase_segment = rendered.split("\n---\n")[0]
+        assert f"%model:{expected_model}" in phase_segment
+        assert ("#plan" in phase_segment.splitlines()) is expects_plan
+        if expects_plan:
+            assert phase_segment.endswith("#bd/work_phase_bead:p1\n#plan")
+
+    def test_explicit_model_wins_over_large_phase_smartest_alias(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        seed(
+            conn,
+            [
+                epic("e1"),
+                phase(
+                    "p1",
+                    model="codex/gpt-5.6-sol",
+                    size=PhaseSize.LARGE,
+                ),
+            ],
+        )
+        plan = _build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        phase_segment = rendered.split("\n---\n")[0]
+        assert "%model:codex/gpt-5.6-sol" in phase_segment
+        assert "@smartest" not in phase_segment
+        assert phase_segment.endswith("#bd/work_phase_bead:p1\n#plan")
+
     @pytest.mark.parametrize(
         ("threshold", "phase_count", "expected_alias"),
         [

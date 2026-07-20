@@ -450,6 +450,7 @@ llm_provider:
   #     epic_lander: "@default"     # epic land agents
   #     big_epic_lander: "@epic_lander" # threshold-selected epic land agents
   #     phase_worker: "@default"    # bead phase agents
+  #     smartest: "@default"        # highest-capability large phase agents
   #   custom:
   #     blogger:
   #       model: claude/opus

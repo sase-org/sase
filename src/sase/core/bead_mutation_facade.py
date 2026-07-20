@@ -5,12 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
+from sase.bead.model import BeadTier, Dependency, Issue, IssueType, PhaseSize, Status
 from sase.bead.project import AlreadyReadyError, NotAPlanError
 from sase.core.bead_wire import (
     issue_from_dict,
     issue_type_value,
     issues_from_list,
+    phase_size_value,
     tier_value,
 )
 from sase.core.rust import require_rust_binding
@@ -41,6 +42,7 @@ def create(
     changespec_name: str | int | None = "",
     changespec_bug_id: str | int | None = "",
     model: str = "",
+    size: PhaseSize | str | None = None,
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
     binding = require_rust_binding("bead_create")
@@ -59,6 +61,7 @@ def create(
             "changespec_name": _optional_text(changespec_name),
             "changespec_bug_id": _optional_text(changespec_bug_id),
             "model": model,
+            "size": None if size is None else phase_size_value(size),
             "now": now,
         },
     )
