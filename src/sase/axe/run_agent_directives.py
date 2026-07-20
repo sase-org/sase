@@ -129,6 +129,7 @@ def extract_directives_and_write_meta(
 
     Returns AgentInfo with all extracted info.
     """
+    launch_environment = dict(os.environ)
     preserved_agent_metadata = _preserved_agent_metadata(artifacts_dir)
     epic_work_metadata = _epic_work_metadata_from_env()
 
@@ -582,6 +583,7 @@ def extract_directives_and_write_meta(
                 clan_generation=clan_membership_plan.generation,
                 clan_tribe=directives.clan_tribe,
                 agent_log_path=output_path,
+                environment=launch_environment,
             )
         if clan_summary:
             agent_meta["clan_summary"] = clan_summary

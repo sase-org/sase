@@ -14,28 +14,31 @@ from sase.phase_size_presentation import (
     PHASE_SIZE_CHIP_WIDTH,
     phase_size_chip,
 )
+from sase.sdd.plan_display import (
+    PLAN_FIELD_LABEL_WIDTH,
+    PLAN_MISSING_SUFFIX_STYLE,
+    PLAN_PHASE_ID_STYLE,
+    PLAN_PHASE_MODEL_STYLE,
+    PLAN_SECTION_LABEL,
+    PLAN_SECTION_MAX_WIDTH,
+    plan_field_rows,
+    plan_lane_details,
+    plan_lane_header,
+    plan_logical_text,
+    plan_phase_logical_text,
+    plan_phase_metadata,
+)
 
 from ...models.agent_associated_plan import (
     AssociatedPlanPhaseSummary,
     AssociatedPlanSummary,
 )
-from ._artifact_files import append_artifact_file_path
 from ._agent_context_common import (
-    COLOR_EMPTY,
     COLOR_PLAN_PRIMARY,
     COLOR_PLAN_SUBHEADER,
     COLOR_REASON,
     COLOR_SUMMARY,
-    append_context_lane_header,
-    count_phrase,
 )
-
-PLAN_SECTION_LABEL = "PLAN"
-PLAN_SECTION_MAX_WIDTH = 80
-PLAN_FIELD_LABEL_WIDTH = cell_len("  Title: ")
-PLAN_MISSING_SUFFIX_STYLE = "dim italic #FF8787"
-PLAN_PHASE_ID_STYLE = "#AF87FF"
-PLAN_PHASE_MODEL_STYLE = "italic #AF87FF"
 
 
 @dataclass(slots=True)
@@ -48,15 +51,7 @@ class ResponsivePlanSection:
     @property
     def logical_text(self) -> Text:
         """Return the unwrapped styled lane used by header inspection."""
-        text = self._lane_header()
-        for label, value in self._rows():
-            text.append(label, style=COLOR_SUMMARY)
-            text.append_text(value)
-            text.append("\n")
-        if self.summary.phase_availability == "available":
-            for ordinal, phase in enumerate(self.summary.phases, start=1):
-                text.append_text(self._logical_phase(ordinal, phase))
-        return text
+        return plan_logical_text(self.summary, hint_number=self.hint_number)
 
     def __rich_console__(
         self,
@@ -98,85 +93,23 @@ class ResponsivePlanSection:
                 )
 
     def _lane_header(self) -> Text:
-        text = Text(end="")
-        append_context_lane_header(
-            text,
-            PLAN_SECTION_LABEL,
-            label_style=COLOR_PLAN_SUBHEADER,
-            details=self._lane_details(),
-        )
-        return text
+        return plan_lane_header(self.summary)
 
     def _lane_details(self) -> Text:
-        text = Text()
-        tier = self.summary.effective_tier
-        if tier is None:
-            text.append("tier unavailable", style=COLOR_EMPTY)
-            return text
-
-        text.append(tier, style=COLOR_SUMMARY)
-        if self.summary.phase_availability == "available":
-            text.append(" · ", style=COLOR_SUMMARY)
-            text.append(
-                count_phrase(len(self.summary.phases), "phase"),
-                style=COLOR_SUMMARY,
-            )
-        elif self.summary.phase_availability != "not-applicable":
-            text.append(" · ", style=COLOR_SUMMARY)
-            text.append("phases unavailable", style=COLOR_EMPTY)
-        return text
+        return plan_lane_details(self.summary)
 
     def _rows(self) -> tuple[tuple[str, Text], ...]:
-        return (
-            ("  Title: ", self._title_value()),
-            ("   Goal: ", self._goal_value()),
-            ("   Path: ", self._path_value()),
+        return plan_field_rows(
+            self.summary,
+            hint_number=self.hint_number,
         )
-
-    def _title_value(self) -> Text:
-        if self.summary.title:
-            text = Text()
-            text.append(self.summary.title, style=COLOR_PLAN_PRIMARY)
-            return text
-        return Text("unavailable", style=COLOR_EMPTY)
-
-    def _goal_value(self) -> Text:
-        if self.summary.goal:
-            return Text(self.summary.goal, style=COLOR_REASON)
-        return Text("unavailable", style=COLOR_EMPTY)
-
-    def _path_value(self) -> Text:
-        text = Text()
-        if self.hint_number is not None:
-            text.append(f"[{self.hint_number}] ", style="bold #FFFF00")
-        append_artifact_file_path(
-            text,
-            self.summary.display_path,
-            exists=self.summary.exists,
-        )
-        if not self.summary.exists:
-            text.append(" (missing)", style=PLAN_MISSING_SUFFIX_STYLE)
-        return text
 
     @staticmethod
     def _logical_phase(
         ordinal: int,
         phase: AssociatedPlanPhaseSummary,
     ) -> Text:
-        text = Text()
-        text.append(f"  {ordinal} ", style=COLOR_SUMMARY)
-        text.append("◆ ", style=COLOR_PLAN_SUBHEADER)
-        text.append(phase.title, style=COLOR_PLAN_PRIMARY)
-        text.append_text(phase_size_chip(phase.size, width=PHASE_SIZE_CHIP_WIDTH))
-        text.append("\n")
-        text.append("    ")
-        text.append_text(ResponsivePlanSection._phase_metadata(phase))
-        text.append("\n")
-        if phase.description:
-            text.append("    ")
-            text.append(phase.description, style=COLOR_REASON)
-            text.append("\n")
-        return text
+        return plan_phase_logical_text(ordinal, phase)
 
     @staticmethod
     def _phase_title_table(
@@ -205,21 +138,7 @@ class ResponsivePlanSection:
 
     @staticmethod
     def _phase_metadata(phase: AssociatedPlanPhaseSummary) -> Text:
-        text = Text(phase.id, style=PLAN_PHASE_ID_STYLE)
-        text.append(" · ", style=COLOR_SUMMARY)
-        if phase.depends_on:
-            text.append(
-                f"after {', '.join(phase.depends_on)}",
-                style=COLOR_SUMMARY,
-            )
-        else:
-            text.append("no dependencies", style=COLOR_SUMMARY)
-        if phase.model:
-            text.append(" · model ", style=COLOR_SUMMARY)
-            text.append(phase.model, style=PLAN_PHASE_MODEL_STYLE)
-        text.overflow = "fold"
-        text.no_wrap = False
-        return text
+        return plan_phase_metadata(phase)
 
     @staticmethod
     def _indented_phase_line(text: Text) -> Padding:

@@ -67,6 +67,18 @@ For a computed description, name an executable instead:
 Triage the current failures.
 ```
 
+The value may also contain shell-style quoted arguments. Use the directive text-block form when the command itself
+contains spaces or quotes:
+
+```text
+%id:release.lead
+%clan(release, summary_script=[[sase_clan_summary_plan "plans/release plan.md"]])
+Coordinate the release.
+```
+
+`sase_clan_summary_plan` renders any valid tale or epic plan with the same logical PLAN-lane presentation used by ACE.
+Its first argument is the plan reference; when that argument is omitted, it reads `SASE_EPIC_PLAN_REF` instead.
+
 `summary=` accepts the usual directive values: a bare token, a quoted string for text containing spaces or special
 characters, or a multiline `[[...]]` text block. The `::` shorthand requires a space after `::` and captures everything
 until the next top-level line that starts a directive (`%`) or xprompt reference (`#`). That captured text becomes only
@@ -80,11 +92,17 @@ deferred-workspace launch, that is the placeholder workspace, not the workspace 
 runner re-execs to load updated SASE code, directive extraction can run the executable again.
 
 A bare executable name is resolved next to the running Python interpreter and then on `PATH`; a value containing `/` is
-resolved as an executable absolute path or a path relative to that initial workspace. The child receives
-`SASE_CLAN_NAME`, `SASE_CLAN_GENERATION`, and, when the declaration has one, `SASE_CLAN_TRIBE`. Its standard output
-becomes the summary and its standard error is appended to the agent log. Execution is capped at 10 seconds, and the
-stored summary is truncated to 32 KiB. Missing executables, timeouts, nonzero exits, and empty output are logged and
-omit the optional summary without blocking the agent launch.
+resolved as an executable absolute path or a path relative to that initial workspace. SASE first probes the complete
+value as a literal executable, preserving executable filenames that contain spaces. If that fails, it applies
+shell-style quoting, resolves the first token by the same rules, and passes the remaining tokens directly as argv; it
+never invokes a shell.
+
+The script inherits the complete launch environment. SASE overrides `SASE_CLAN_NAME`, `SASE_CLAN_GENERATION`, and, when
+the declaration has one, `SASE_CLAN_TRIBE` (otherwise an ambient clan-tribe value is removed). Epic work also provides
+`SASE_EPIC_PLAN_REF`, `SASE_EPIC_BEAD_ID`, and `SASE_EPIC_CLAN_TRIBE`, which remain available to a summary script.
+Standard output becomes the summary and standard error is appended to the agent log. Execution is capped at 20 seconds,
+and the stored summary is capped at 32 KiB of UTF-8. Missing executables, malformed quoting, timeouts, nonzero exits,
+and empty output are logged and omit the optional summary without blocking the agent launch.
 
 SASE trims trailing whitespace and persists the result as `clan_summary` on the declaring agent's metadata. The scan
 contract resolves summaries within one clan generation deterministically, using the newest explicit declaration if it

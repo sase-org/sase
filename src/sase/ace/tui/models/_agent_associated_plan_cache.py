@@ -9,14 +9,13 @@ from threading import RLock
 from time import monotonic
 from typing import Final, Protocol
 
-from sase.phase_size_presentation import normalize_phase_size
-from sase.sdd.plan_tiers import normalize_plan_tier, parse_plan_frontmatter
-from sase.sdd.plan_validate import PlanValidationResult, ValidatedPlanPhase
+from sase.sdd.plan_display import (
+    plan_file_metadata_from_content,
+    unavailable_plan_metadata,
+)
+from sase.sdd.plan_validate import PlanValidationResult
 
 from ._agent_associated_plan_types import (
-    AssociatedPlanPhaseAvailability,
-    AssociatedPlanPhaseSummary,
-    AuthoredPlanTier,
     PlanAssociationCacheKey,
     PlanFileSignature,
     PlanFileCacheEntry,
@@ -105,55 +104,21 @@ class PlanFileCache:
         validate: _PlanValidator,
     ) -> PlanFileMetadata:
         if not exists:
-            return _unavailable_metadata(exists=False, readable=False)
+            return unavailable_plan_metadata(exists=False, readable=False)
 
         if not is_readable(path):
-            return _unavailable_metadata(exists=True, readable=False)
+            return unavailable_plan_metadata(exists=True, readable=False)
 
         try:
             content = path.read_text(encoding="utf-8")
         except OSError:
-            return _unavailable_metadata(exists=True, readable=False)
+            return unavailable_plan_metadata(exists=True, readable=False)
         except UnicodeDecodeError:
-            return _unavailable_metadata(exists=True, readable=True)
+            return unavailable_plan_metadata(exists=True, readable=True)
 
-        frontmatter, error = parse_plan_frontmatter(content)
-        if error is not None:
-            return _unavailable_metadata(exists=True, readable=True)
-
-        raw_title = frontmatter.get("title")
-        title = " ".join(raw_title.split()) if isinstance(raw_title, str) else None
-        raw_goal = frontmatter.get("goal")
-        goal = " ".join(raw_goal.split()) if isinstance(raw_goal, str) else None
-        normalized_tier = normalize_plan_tier(frontmatter.get("tier"))
-        authored_tier: AuthoredPlanTier | None = None
-        if normalized_tier == "tale":
-            authored_tier = "tale"
-        elif normalized_tier == "epic":
-            authored_tier = "epic"
-
-        phase_availability: AssociatedPlanPhaseAvailability = "not-applicable"
-        phases: tuple[AssociatedPlanPhaseSummary, ...] = ()
-        if authored_tier == "epic":
-            phase_availability = "unavailable"
-            try:
-                validation = validate(content, "epic", mode="launch")
-                if validation.ok and validation.plan is not None:
-                    phases = tuple(
-                        _phase_summary(phase) for phase in validation.plan.phases
-                    )
-                    phase_availability = "available"
-            except Exception:
-                phases = ()
-        return PlanFileMetadata(
-            title=title or None,
-            goal=goal or None,
-            authored_tier=authored_tier,
-            exists=True,
-            readable=True,
-            frontmatter_readable=True,
-            phase_availability=phase_availability,
-            phases=phases,
+        return plan_file_metadata_from_content(
+            content,
+            validate=validate,
         )
 
     def clear(self) -> None:
@@ -203,33 +168,6 @@ class PlanAssociationCache:
     def clear(self) -> None:
         with self._lock:
             self._entries.clear()
-
-
-def _unavailable_metadata(*, exists: bool, readable: bool) -> PlanFileMetadata:
-    return PlanFileMetadata(
-        title=None,
-        goal=None,
-        authored_tier=None,
-        exists=exists,
-        readable=readable,
-        frontmatter_readable=False,
-        phase_availability="unavailable",
-        phases=(),
-    )
-
-
-def _phase_summary(phase: ValidatedPlanPhase) -> AssociatedPlanPhaseSummary:
-    size = normalize_phase_size(phase.size)
-    if size is None:
-        raise ValueError(f"validator returned invalid phase size: {phase.size!r}")
-    return AssociatedPlanPhaseSummary(
-        id=phase.id,
-        title=phase.title,
-        depends_on=phase.depends_on,
-        description=phase.description,
-        size=size,
-        model=phase.model,
-    )
 
 
 _PLAN_FILE_CACHE = PlanFileCache()

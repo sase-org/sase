@@ -1052,6 +1052,7 @@ Directives use the same argument syntax as xprompt references:
 %clan(research, tribe=review) # Declare a new clan in tribe @review
 %clan(research, summary="Audit the authentication boundary") # Store a launch-time clan description
 %clan(research, summary_script=./describe-clan) # Generate that description with an executable
+%clan(research, summary_script=[[sase_clan_summary_plan "plans/research plan.md"]]) # Pass quoted script argv
 %clan:research:: Audit the authentication boundary. # Text block; ends at the next top-level % or # line
 %wait:agent1                 # Wait for agent1
 %w:agent2                    # Wait for agent2 (alias)
@@ -1104,8 +1105,11 @@ The declaring `%clan` can also attach one launch-time description with `summary=
 The `::` form requires a following space and captures up to the next top-level line beginning with a `%` directive or
 `#` reference. The captured text becomes metadata rather than member instructions; use the explicit `summary=` form when
 the work prompt follows immediately. Script-backed summaries run synchronously during directive extraction, before waits
-and workspace preparation, with a bounded, non-fatal contract. See
-[Launch-time clan summaries](agent_families.md#launch-time-clan-summaries) for the complete ordering, execution, and
+and workspace preparation, with a bounded, non-fatal contract. `summary_script=` may contain shell-style quoted argv
+(without invoking a shell), and `sase_clan_summary_plan PLAN_REF` renders a valid tale or epic with the shared PLAN-lane
+layout; without `PLAN_REF`, it uses `SASE_EPIC_PLAN_REF`. Scripts inherit the launch environment, including epic
+`SASE_EPIC_PLAN_REF`, `SASE_EPIC_BEAD_ID`, and `SASE_EPIC_CLAN_TRIBE`, while SASE overrides the clan identity variables.
+See [Launch-time clan summaries](agent_families.md#launch-time-clan-summaries) for the complete ordering, execution, and
 persistence details.
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,

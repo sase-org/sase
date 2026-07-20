@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import logging
 import os
 from pathlib import Path
 import signal
+import shlex
 import subprocess
 import tempfile
 from typing import BinaryIO
@@ -44,6 +46,7 @@ def resolve_clan_summary_script(
     clan_tribe: str | None,
     agent_log_path: str | None = None,
     timeout_seconds: float | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> str | None:
     """Run *script* once and return its bounded summary, or ``None``.
 
@@ -52,7 +55,7 @@ def resolve_clan_summary_script(
     launching.
     """
     try:
-        script_path = _discover_summary_script(script, workspace_dir)
+        script_argv = _resolve_summary_script_argv(script, workspace_dir)
     except (OSError, RuntimeError, ValueError) as exc:
         log.warning(
             "Clan summary script %r could not be resolved (%s); omitting summary",
@@ -60,11 +63,11 @@ def resolve_clan_summary_script(
             exc,
         )
         return None
-    if script_path is None:
+    if script_argv is None:
         log.warning("Clan summary script %r was not found; omitting summary", script)
         return None
 
-    subprocess_env = dict(os.environ)
+    subprocess_env = dict(os.environ if environment is None else environment)
     for env_name in _CLAN_ENV_NAMES:
         subprocess_env.pop(env_name, None)
     subprocess_env["SASE_CLAN_NAME"] = clan_name
@@ -80,7 +83,7 @@ def resolve_clan_summary_script(
             log_file = _open_agent_log(agent_log_path)
             try:
                 process = subprocess.Popen(
-                    [str(script_path)],
+                    script_argv,
                     cwd=workspace_dir,
                     env=subprocess_env,
                     stdin=subprocess.DEVNULL,
@@ -144,6 +147,24 @@ def _discover_summary_script(script: str, workspace_dir: str) -> Path | None:
     if candidate.is_file() and os.access(candidate, os.X_OK):
         return candidate
     return None
+
+
+def _resolve_summary_script_argv(
+    script: str,
+    workspace_dir: str,
+) -> list[str] | None:
+    """Resolve a literal executable first, then shell-quote argv without a shell."""
+    literal = _discover_summary_script(script, workspace_dir)
+    if literal is not None:
+        return [str(literal)]
+
+    tokens = shlex.split(script)
+    if not tokens:
+        raise ValueError("summary_script produced an empty argv")
+    executable = _discover_summary_script(tokens[0], workspace_dir)
+    if executable is None:
+        return None
+    return [str(executable), *tokens[1:]]
 
 
 def _open_agent_log(agent_log_path: str | None) -> BinaryIO | None:

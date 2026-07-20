@@ -7,9 +7,15 @@ from pathlib import Path
 from typing import Literal
 
 from sase.phase_size_presentation import PhaseSizeValue
+from sase.sdd.plan_display import (
+    AuthoredPlanTier as AuthoredPlanTier,
+    PlanDisplay as AssociatedPlanSummary,
+    PlanDisplayPhase as AssociatedPlanPhaseSummary,
+    PlanDisplayTier as AssociatedPlanTier,
+    PlanFileMetadata as PlanFileMetadata,
+    PlanPhaseAvailability as AssociatedPlanPhaseAvailability,
+)
 
-AssociatedPlanTier = Literal["plan", "tale", "epic"]
-AuthoredPlanTier = Literal["tale", "epic"]
 AgentPlanRole = Literal["ordinary", "author", "phase", "land"]
 _InitialAgentPlanRole = Literal[
     "ordinary",
@@ -18,43 +24,8 @@ _InitialAgentPlanRole = Literal[
     "land",
     "ambiguous",
 ]
-AssociatedPlanPhaseAvailability = Literal[
-    "not-applicable",
-    "available",
-    "unavailable",
-]
 PlanAssociationCacheKey = tuple[str, str, str | None, str | None, int]
 PlanFileSignature = tuple[int, int]
-
-
-@dataclass(frozen=True, slots=True)
-class AssociatedPlanPhaseSummary:
-    """Immutable normalized epic phase consumed by the render path."""
-
-    id: str
-    title: str
-    depends_on: tuple[str, ...]
-    description: str | None
-    size: PhaseSizeValue
-    model: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class AssociatedPlanSummary:
-    """Immutable plan metadata consumed by the in-memory render path."""
-
-    title: str | None
-    goal: str | None
-    authored_tier: AuthoredPlanTier | None
-    effective_tier: AssociatedPlanTier | None
-    actual_path: str
-    display_path: str
-    committed: bool | None
-    exists: bool
-    readable: bool
-    frontmatter_readable: bool
-    phase_availability: AssociatedPlanPhaseAvailability
-    phases: tuple[AssociatedPlanPhaseSummary, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,18 +61,6 @@ class AgentPlanEnrichment:
     def resolved_plan_path(self) -> str | None:
         """Compatibility alias for callers that only handled one plan path."""
         return self.resolved_plan_paths[0] if self.resolved_plan_paths else None
-
-
-@dataclass(frozen=True, slots=True)
-class PlanFileMetadata:
-    title: str | None
-    goal: str | None
-    authored_tier: AuthoredPlanTier | None
-    exists: bool
-    readable: bool
-    frontmatter_readable: bool
-    phase_availability: AssociatedPlanPhaseAvailability
-    phases: tuple[AssociatedPlanPhaseSummary, ...]
 
 
 @dataclass(frozen=True, slots=True)

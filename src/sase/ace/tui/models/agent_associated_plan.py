@@ -201,6 +201,8 @@ def resolve_agent_plan_enrichment(
         frontmatter_readable=metadata.frontmatter_readable,
         phase_availability=phase_availability,
         phases=(metadata.phases if phase_availability == "available" else ()),
+        validation_ok=metadata.validation_ok,
+        validation_diagnostics=metadata.validation_diagnostics,
     )
     return _AgentPlanEnrichment(
         role=role,
@@ -375,6 +377,8 @@ def _resolve_phase_authored_plan(
         frontmatter_readable=metadata.frontmatter_readable,
         phase_availability=phase_availability,
         phases=(metadata.phases if phase_availability == "available" else ()),
+        validation_ok=metadata.validation_ok,
+        validation_diagnostics=metadata.validation_diagnostics,
     )
     return summary, selected_path
 
