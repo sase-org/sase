@@ -8,11 +8,16 @@ from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.binding import Binding, BindingsMap
 from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-from sase.ace.tui.keymaps import StatisticsPaneKeymaps, statistics_help_bindings
+from sase.ace.tui.keymaps import (
+    StatisticsPaneKeymaps,
+    key_display_name,
+    statistics_help_bindings,
+)
 from sase.ace.tui.keymaps.types import _STATISTICS_BINDING_META
 from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import StatsRange
@@ -38,7 +43,6 @@ class StatisticsHelpModal(ModalScreen[None]):
     BINDINGS = [
         ("escape", "close", "Close"),
         ("q", "close", "Close"),
-        ("question_mark", "close", "Close"),
         ("j", "scroll_line_down", "Down"),
         ("k", "scroll_line_up", "Up"),
         ("ctrl+d", "scroll_down", "Scroll down"),
@@ -66,6 +70,18 @@ class StatisticsHelpModal(ModalScreen[None]):
         self._project_label = project_label
         self._generated_at = generated_at
         self._keymaps = keymaps
+        self._bindings = BindingsMap(
+            [
+                Binding(
+                    self._keymaps.help,
+                    "close",
+                    "Close",
+                    show=False,
+                    priority=True,
+                ),
+                *self.BINDINGS,
+            ]
+        )
 
     def compose(self) -> ComposeResult:
         with Container(id="statistics-help-container"):
@@ -73,7 +89,8 @@ class StatisticsHelpModal(ModalScreen[None]):
             with VerticalScroll(id="statistics-help-scroll"):
                 yield Static(self._content(), id="statistics-help-content")
             yield Static(
-                "j/k scroll · Ctrl+D/U page · g/G top/bottom · ?/q/Esc close",
+                "j/k scroll · Ctrl+D/U page · g/G top/bottom · "
+                f"{key_display_name(self._keymaps.help)}/q/Esc close",
                 id="statistics-help-footer",
             )
 

@@ -10,6 +10,7 @@ from sase.agent.status_buckets import (
     ACTIVE_PLAN_HANDOFF_STATUSES,
     PENDING_PLAN_REVIEW_STATUSES,
 )
+from sase.project_display_names import project_display_name_for
 
 from ._mobile_agent_common import (
     MOBILE_AGENT_SCHEMA_VERSION,
@@ -225,7 +226,8 @@ def prompt_snippet(prompt: str | None) -> str | None:
 
 
 def subtitle(agent: RunningAgentInfo) -> str | None:
-    parts = [part for part in (agent.project, agent.provider, agent.model) if part]
+    project = project_display_name_for(agent.project) if agent.project else None
+    parts = [part for part in (project, agent.provider, agent.model) if part]
     return " - ".join(parts) if parts else None
 
 

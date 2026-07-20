@@ -357,6 +357,7 @@ ace:
       cycle_group: "g"
       cycle_project_filter: "p"
       refresh: "r"
+      help: "question_mark"
     app:
       next_changespec: "j"
       prev_changespec: "k"
@@ -466,6 +467,7 @@ deprecated alias for `submit_primary`.
 | `cycle_group`          | `g`                    | Cycle grouping in the Projects or Runtime view.                      |
 | `cycle_project_filter` | `p`                    | Cycle all projects and those ranked by the latest unfiltered result. |
 | `refresh`              | `r`                    | Refresh from durable run and activity records.                       |
+| `help`                 | `question_mark`        | Open contextual Statistics help; the same key closes it.             |
 
 Statistics keys may overlap app-level bindings because they are registered on the focused pane, not globally.
 

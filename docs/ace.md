@@ -2179,6 +2179,7 @@ ace:
       cycle_group: "g"
       cycle_project_filter: "p"
       refresh: "f10"
+      help: "f9"
 ```
 
 These keys dispatch only while the Admin Center Statistics pane is focused. They may overlap app-level bindings without

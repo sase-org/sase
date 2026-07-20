@@ -211,6 +211,30 @@ class TestClassifySourceProjectLocal:
         assert "sase" in display
         assert editable is True
 
+    def test_project_local_config_source_humanizes_project_key(
+        self,
+        monkeypatch,
+        project_display_case,
+    ) -> None:
+        from sase.ace.tui.modals import xprompt_browser_helpers as helpers
+
+        monkeypatch.setattr(
+            helpers,
+            "project_display_name_for",
+            lambda key: (
+                project_display_case.project_label
+                if key == project_display_case.project_key
+                else key
+            ),
+        )
+
+        category, _display, _editable = helpers.classify_source(
+            f"project_local_config:{project_display_case.project_key}"
+        )
+
+        assert category == f"Project ({project_display_case.project_label}) sase.yml"
+        assert project_display_case.project_key not in category
+
     def test_project_local_config_resolve(self, tmp_path: Path) -> None:
         from sase.ace.tui.modals.xprompt_browser_helpers import (
             resolve_source_to_file_path,

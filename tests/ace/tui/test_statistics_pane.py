@@ -791,8 +791,10 @@ async def test_statistics_help_opens_and_closes_from_configured_binding(
         await page.press("f5")
         await page.expect_modal("StatisticsHelpModal")
         assert isinstance(page.app.screen, StatisticsHelpModal)
+        footer = page.app.screen.query_one("#statistics-help-footer", Static)
+        assert "f5/q/Esc close" in footer.render().plain
 
-        await page.press("question_mark")
+        await page.press("f5")
         await page.expect_modal("ConfigCenterModal")
         assert pane.is_mounted
 

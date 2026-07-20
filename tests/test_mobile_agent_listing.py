@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sase import project_display_names as pdn
 from sase.integrations import mobile_agents
 from sase.integrations.mobile_agents import _list_mobile_agents
 from tests._mobile_agents_fixtures import _agent, _known_project
+from tests._project_display_case import ProjectDisplayCase
 
 
 def test_list_mobile_agents_projects_running_agent(monkeypatch, tmp_path: Path) -> None:
@@ -35,6 +37,35 @@ def test_list_mobile_agents_projects_running_agent(monkeypatch, tmp_path: Path) 
     }
     assert agent["retry_lineage"]["retry_of_timestamp"] == "20260506140000"
     assert agent["retry_lineage"]["retry_attempt"] == 1
+
+
+def test_list_mobile_agents_humanizes_display_subtitle_project(
+    monkeypatch,
+    tmp_path: Path,
+    project_display_case: ProjectDisplayCase,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    project_display_case.write_project_layout(tmp_path / "projects")
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    monkeypatch.setattr(
+        mobile_agents,
+        "list_running_agents",
+        lambda: [
+            _agent(
+                tmp_path,
+                project=project_display_case.project_key,
+            )
+        ],
+    )
+
+    payload = _list_mobile_agents({"schema_version": 1})
+    agent = payload["agents"][0]
+
+    assert agent["project"] == project_display_case.project_key
+    assert agent["display"]["subtitle"] == (
+        f"{project_display_case.project_label} - codex - gpt-5.6-sol"
+    )
+    assert project_display_case.project_key not in agent["display"]["subtitle"]
 
 
 def test_list_mobile_agents_filters_and_limits(monkeypatch, tmp_path: Path) -> None:

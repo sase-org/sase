@@ -16,6 +16,7 @@ from sase.content_layout import (
     resolve_project_layout,
 )
 from sase.main.plugin_discovery import discover_plugin_resources
+from sase.project_display_names import project_display_name_for
 from sase.xprompt.loader import (
     get_sase_package_default_xprompts_dir,
     get_sase_package_xprompts_dir,
@@ -92,7 +93,8 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
     # Project-local sase.yml loaded via get_all_project_local_prompts()
     if source_path.startswith("project_local_config:"):
         proj = source_path.removeprefix("project_local_config:")
-        return f"Project ({proj}) sase.yml", "sase/sase.yml", True
+        project_label = project_display_name_for(proj)
+        return f"Project ({project_label}) sase.yml", "sase/sase.yml", True
 
     # Inside sase package (built-in)
     if any(source_path.startswith(pkg_dir) for pkg_dir in sase_pkg_dirs):
@@ -118,8 +120,9 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
         except ValueError:
             continue
         if len(relative.parts) > 1:
+            project_label = project_display_name_for(relative.parts[0])
             return (
-                f"Project home ({relative.parts[0]})",
+                f"Project home ({project_label})",
                 display_path(path, home_root=home_path),
                 True,
             )
@@ -137,8 +140,9 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
         pass
     else:
         project_name = relative.parts[0] if relative.parts else "unknown"
+        project_label = project_display_name_for(project_name)
         return (
-            f"Project home ({project_name}, legacy)",
+            f"Project home ({project_label}, legacy)",
             display_path(path, home_root=home_path),
             True,
         )

@@ -152,14 +152,15 @@ The seven views answer different questions:
 | **Activity**          | Skill, memory, and workspace use.                                                                                                                       |
 | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                     |
 
-| Key     | Action                                                             |
-| ------- | ------------------------------------------------------------------ |
-| `[`/`]` | Cycle statistic views.                                             |
-| `t`     | Cycle Today, 24h, 7d, 30d, 90d, and All.                           |
-| `c`     | Enter a custom absolute or relative time range.                    |
-| `g`     | Cycle grouping in the Projects or Runtime view.                    |
-| `p`     | Cycle All → each project from the latest unfiltered ranking → All. |
-| `r`     | Refresh immediately.                                               |
+| Key     | Action                                                              |
+| ------- | ------------------------------------------------------------------- |
+| `[`/`]` | Cycle statistic views.                                              |
+| `t`     | Cycle Today, 24h, 7d, 30d, 90d, and All.                            |
+| `c`     | Enter a custom absolute or relative time range.                     |
+| `g`     | Cycle grouping in the Projects or Runtime view.                     |
+| `p`     | Cycle All → each project from the latest unfiltered ranking → All.  |
+| `r`     | Refresh immediately.                                                |
+| `?`     | Open contextual help; press the configured help key again to close. |
 
 Custom ranges accept elapsed windows such as `12h`, `14d`, or `8w`; a calendar month such as `2026-07`; a closed date
 range such as `2026-07-01..2026-07-18`; or an open-ended range such as `2026-07-01..`. Calendar inputs use the
@@ -189,6 +190,7 @@ ace:
       cycle_group: "g"
       cycle_project_filter: "p"
       refresh: "r"
+      help: "question_mark"
 ```
 
 The bindings are inactive on every other Admin Center tab and may safely overlap global app keys.
