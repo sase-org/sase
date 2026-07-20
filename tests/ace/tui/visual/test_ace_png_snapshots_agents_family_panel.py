@@ -15,6 +15,7 @@ from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
@@ -23,9 +24,6 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
-from tests.ace.tui.visual.test_ace_png_snapshots_agents import (
-    _pin_agents_visual_now,
-)
 
 pytestmark = pytest.mark.visual
 
@@ -128,7 +126,7 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
     patch_startup_loaders(
         monkeypatch,
         agents=_family_agents(tmp_path, member_count=3, with_content=True),
@@ -202,7 +200,7 @@ async def test_family_two_digit_roster_and_pending_footer_png_snapshots(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 30, 0))
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 30, 0))
     patch_startup_loaders(
         monkeypatch,
         agents=_family_agents(tmp_path, member_count=11, with_content=False),

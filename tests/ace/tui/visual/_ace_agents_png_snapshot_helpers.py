@@ -2,9 +2,32 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from xml.etree import ElementTree
 
+import pytest
+
 from sase.ace.testing import AcePage
+
+
+def pin_agents_visual_now(monkeypatch: pytest.MonkeyPatch, now: datetime) -> None:
+    """Pin Agents-tab runtime formatting for date-sensitive snapshots."""
+    from sase.ace.tui.actions.agents import (
+        _display_panel_patches,
+        _loading_compute_finalize,
+        _loading_finalize,
+    )
+    from sase.ace.tui.models import agent as agent_module
+    from sase.ace.tui.models import agent_time
+
+    for module in (
+        agent_module,
+        agent_time,
+        _display_panel_patches,
+        _loading_compute_finalize,
+        _loading_finalize,
+    ):
+        monkeypatch.setattr(module, "local_now", lambda: now)
 
 
 def assert_page_svg_contains(page: AcePage, text: str) -> None:

@@ -1,7 +1,7 @@
 """ACE TUI PNG visual snapshot coverage for the Axe tab.
 
 ChangeSpecs-tab snapshots live in ``test_ace_png_snapshots`` and Agents-tab
-snapshots in ``test_ace_png_snapshots_agents``. Shared fixtures live in
+snapshots in ``test_ace_png_snapshots_agents*``. Shared fixtures live in
 ``_ace_png_snapshot_helpers``.
 """
 

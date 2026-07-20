@@ -8,8 +8,14 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent_associated_plan import _AgentPlanEnrichment
+from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
+    clan_tree_agents,
+    decorate_clan_panel_sections,
+    epic_clan_agents,
+)
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
@@ -18,12 +24,6 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
-from tests.ace.tui.visual.test_ace_png_snapshots_agents import (
-    _clan_tree_agents,
-    _decorate_clan_panel_sections,
-    _epic_clan_agents,
-    _pin_agents_visual_now,
-)
 
 pytestmark = pytest.mark.visual
 
@@ -62,11 +62,11 @@ async def test_epic_clan_panel_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 12, 15, 0))
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 12, 15, 0))
     patch_startup_loaders(
         monkeypatch,
-        agents=_decorate_clan_panel_sections(
-            _epic_clan_agents(clan_summary=_EPIC_CLAN_SUMMARY)
+        agents=decorate_clan_panel_sections(
+            epic_clan_agents(clan_summary=_EPIC_CLAN_SUMMARY)
         ),
     )
 
@@ -126,11 +126,11 @@ async def test_swarm_clan_panel_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 10, 15, 0))
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 10, 15, 0))
     patch_startup_loaders(
         monkeypatch,
-        agents=_decorate_clan_panel_sections(
-            _clan_tree_agents(clan_summary=_RESEARCH_CLAN_SUMMARY)
+        agents=decorate_clan_panel_sections(
+            clan_tree_agents(clan_summary=_RESEARCH_CLAN_SUMMARY)
         ),
     )
 

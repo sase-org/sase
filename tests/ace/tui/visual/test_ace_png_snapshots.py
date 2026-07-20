@@ -1,7 +1,7 @@
 """ACE TUI PNG visual snapshot coverage for the ChangeSpecs tab and footer.
 
 Other PNG snapshot coverage lives in feature-specific siblings:
-``test_ace_png_snapshots_agents`` (Agents tab),
+``test_ace_png_snapshots_agents*`` (Agents tab),
 ``test_ace_png_snapshots_axe`` (Axe tab),
 ``test_ace_png_snapshots_saved_groups`` (saved agent group revival modal), and
 ``test_ace_png_snapshots_finder`` (recursive file finder modal).
