@@ -85,6 +85,7 @@ def clan_member_source_token(member: Agent) -> tuple[object, ...]:
             row.plan_path,
             row.archived_plan_path,
             row.sdd_plan_path,
+            row.epic_plan_ref,
         ):
             if path_value:
                 source_paths.append(Path(path_value).expanduser())
@@ -104,6 +105,7 @@ def clan_member_source_token(member: Agent) -> tuple[object, ...]:
         member.plan_path,
         member.archived_plan_path,
         member.sdd_plan_path,
+        member.epic_plan_ref,
         member.epic_bead_id,
         member.phase_bead_id,
         member.workspace_dir,

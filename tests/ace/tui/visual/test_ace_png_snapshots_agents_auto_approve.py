@@ -10,7 +10,9 @@ from pathlib import Path
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.modals.zoom_panel_rendering import renderable_to_text
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
@@ -499,6 +501,7 @@ async def test_agents_phase_bead_context_png_snapshot(
         agent_family_role="phase",
         epic_bead_id="sase-visual",
         phase_bead_id="sase-visual.2",
+        epic_plan_ref=relative_plan_path.as_posix(),
         plan_path=relative_plan_path.as_posix(),
         sdd_plan_path=relative_plan_path.as_posix(),
         plan_committed=True,
@@ -537,4 +540,131 @@ async def test_agents_phase_bead_context_png_snapshot(
             page,
             "agents_phase_bead_context_120x40",
             title="ACE agents phase BEAD context lane",
+        )
+
+
+async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    epic_ref = Path("p/epic.md")
+    epic_path = tmp_path / epic_ref
+    epic_path.parent.mkdir(parents=True)
+    epic_path.write_text(
+        "---\n"
+        "tier: epic\n"
+        "title: Parent epic\n"
+        "goal: Coordinate provider updates without leaking the full roadmap.\n"
+        "phases:\n"
+        "  - id: snapshot\n"
+        "    title: Provider update snapshot\n"
+        "    depends_on: []\n"
+        "    description: Provider context.\n"
+        "    size: small\n"
+        "  - id: render\n"
+        "    title: Render update awareness\n"
+        "    depends_on: [snapshot]\n"
+        "    size: medium\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    authored_ref = Path("p/phase.md")
+    authored_path = tmp_path / authored_ref
+    authored_path.write_text(
+        "---\n"
+        "tier: tale\n"
+        "title: Phase plan\n"
+        "goal: Approved handoff beside the parent.\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-phase-plan-family",
+        project_file="/workspace/sase/visual_project.sase",
+        status="TALE APPROVED",
+        start_time=datetime(2026, 7, 20, 10, 30, 0),
+        stop_time=datetime(2026, 7, 20, 10, 36, 0),
+        raw_suffix="20260720103000",
+        role_suffix="--plan",
+        agent_name="sase-83.1--plan",
+        agent_family="sase-83.1",
+        agent_family_role="root",
+        plan_chain_root=True,
+        epic_bead_id="sase-83",
+        phase_bead_id="sase-83.1",
+        epic_plan_ref=epic_ref.as_posix(),
+        archived_plan_path=authored_ref.as_posix(),
+        sdd_plan_path=authored_ref.as_posix(),
+        plan_committed=True,
+        plan_action="tale",
+        workspace_dir=str(tmp_path),
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    coder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-phase-plan-family-code",
+        project_file=root.project_file,
+        status="DONE",
+        start_time=datetime(2026, 7, 20, 10, 37, 0),
+        stop_time=datetime(2026, 7, 20, 10, 45, 0),
+        raw_suffix="20260720103700",
+        parent_timestamp=root.raw_suffix,
+        role_suffix="--code",
+        agent_name="sase-83.1--code",
+        agent_family="sase-83.1",
+        agent_family_role="code",
+        epic_bead_id="sase-83",
+        phase_bead_id="sase-83.1",
+        epic_plan_ref=epic_ref.as_posix(),
+        archived_plan_path=authored_ref.as_posix(),
+        sdd_plan_path=authored_ref.as_posix(),
+        plan_committed=True,
+        workspace_dir=str(tmp_path),
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    patch_startup_loaders(monkeypatch, agents=[root, coder])
+
+    async with AcePage(
+        query='"visual-phase-plan-family"', changespecs=changespecs()
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await page.press("p")
+        panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        await page.wait_for(
+            lambda _state: "Phase plan" in (renderable_to_text(panel.content) or "")
+        )
+        await page.press("Z")
+        await page.expect_modal("ZoomPanelModal")
+        panel = page.app.screen.query_one("#zoom-metadata-panel", AgentPromptPanel)
+        await page.wait_for(
+            lambda _state: "Phase plan" in (renderable_to_text(panel.content) or "")
+        )
+        await wait_for_visual_idle(page)
+
+        metadata = renderable_to_text(panel.content) or ""
+        assert metadata.index("▸ BEAD") < metadata.index("▸ PLAN")
+        svg = page.export_svg(title="ACE phase family dual context assertion")
+        svg_plain = svg.replace("&#160;", " ")
+        assert "SASE CONTEXT" in svg_plain
+        assert "BEAD" in svg_plain
+        assert "PLAN" in svg_plain
+        assert svg_plain.index("BEAD") < svg_plain.index("PLAN")
+        assert "sase-83.1" in svg_plain
+        assert "Parent epic" in svg_plain
+        assert "Phase plan" in svg_plain
+        assert "tale" in svg_plain
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_phase_bead_and_plan_context_120x40",
+            title="ACE agents phase family BEAD and PLAN context lanes",
         )

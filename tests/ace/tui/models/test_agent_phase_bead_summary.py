@@ -51,6 +51,7 @@ def _phase_agent(tmp_path: Path, reference: str = "plans/epic.md") -> Agent:
         agent_name="sase-1.1",
         epic_bead_id="sase-1",
         phase_bead_id="sase-1.1",
+        epic_plan_ref=reference,
         sdd_plan_path=reference,
         plan_committed=True,
         workspace_dir=str(tmp_path),

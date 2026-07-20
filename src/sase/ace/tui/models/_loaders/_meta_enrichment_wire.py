@@ -63,6 +63,8 @@ def enrich_agent_from_meta_wire(
         agent.archived_plan_path = meta.plan_path
     if meta.sdd_plan_path:
         agent.sdd_plan_path = meta.sdd_plan_path
+    if meta.epic_plan_ref:
+        agent.epic_plan_ref = meta.epic_plan_ref
     if meta.epic_bead_id:
         agent.epic_bead_id = meta.epic_bead_id
     if meta.phase_bead_id:

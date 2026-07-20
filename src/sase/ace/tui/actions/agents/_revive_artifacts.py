@@ -413,6 +413,12 @@ class ArtifactRestorationMixin:
             data["chat_path"] = agent.response_path
         if agent.extra_files:
             data["plan_path"] = agent.extra_files[0]
+        if agent.epic_plan_ref:
+            data["epic_plan_ref"] = agent.epic_plan_ref
+        if agent.epic_bead_id:
+            data["epic_bead_id"] = agent.epic_bead_id
+        if agent.phase_bead_id:
+            data["phase_bead_id"] = agent.phase_bead_id
 
         if agent.retry_of_timestamp:
             data["retry_of_timestamp"] = agent.retry_of_timestamp

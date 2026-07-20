@@ -84,8 +84,10 @@ class AgentState:
     sdd_plan_path: str | None = None
     plan_committed: bool | None = None
 
-    # Explicit bead association metadata used by approved epic/phase work.
-    # Agent names remain a supported fallback for older bead-work records.
+    # Parent-epic identity is independent from the phase agent's authored plan.
+    # Older rows overloaded ``sdd_plan_path``; deferred enrichment recovers
+    # their parent relationship from the local bead association instead.
+    epic_plan_ref: str | None = None
     epic_bead_id: str | None = None
     phase_bead_id: str | None = None
 

@@ -117,6 +117,7 @@ def test_create_followup_artifacts_inherits_epic_work_metadata(tmp_path) -> None
             "test_proj",
             {
                 "sdd_plan_path": "sdd/plans/202607/epic.md",
+                "epic_plan_ref": "sdd/plans/202607/parent-epic.md",
                 "plan_committed": True,
                 "epic_bead_id": "sase-7",
                 "phase_bead_id": "sase-7.2",
@@ -127,6 +128,7 @@ def test_create_followup_artifacts_inherits_epic_work_metadata(tmp_path) -> None
 
     meta = json.loads((followup / "agent_meta.json").read_text())
     assert meta["sdd_plan_path"] == "sdd/plans/202607/epic.md"
+    assert meta["epic_plan_ref"] == "sdd/plans/202607/parent-epic.md"
     assert meta["plan_committed"] is True
     assert meta["epic_bead_id"] == "sase-7"
     assert meta["phase_bead_id"] == "sase-7.2"

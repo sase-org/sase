@@ -105,6 +105,47 @@ def test_linked_repos_from_agent_meta_wire() -> None:
     )
 
 
+def test_phase_parent_plan_reference_matches_filesystem_and_wire(
+    tmp_path: Path,
+) -> None:
+    metadata = {
+        "sdd_plan_path": "plans/authored-phase.md",
+        "epic_plan_ref": "plans/parent-epic.md",
+        "epic_bead_id": "sase-83",
+        "phase_bead_id": "sase-83.1",
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(metadata))
+    filesystem_agent = make_agent()
+    wire_agent = make_agent()
+
+    enrich_agent_from_meta(filesystem_agent, str(tmp_path))
+    enrich_agent_from_meta_wire(
+        wire_agent,
+        AgentMetaWire(**metadata),
+        None,
+        None,
+    )
+
+    expected = (
+        "plans/authored-phase.md",
+        "plans/parent-epic.md",
+        "sase-83",
+        "sase-83.1",
+    )
+    assert (
+        filesystem_agent.sdd_plan_path,
+        filesystem_agent.epic_plan_ref,
+        filesystem_agent.epic_bead_id,
+        filesystem_agent.phase_bead_id,
+    ) == expected
+    assert (
+        wire_agent.sdd_plan_path,
+        wire_agent.epic_plan_ref,
+        wire_agent.epic_bead_id,
+        wire_agent.phase_bead_id,
+    ) == expected
+
+
 def test_waiting_json_flips_starting_to_waiting(tmp_path: Path) -> None:
     """waiting.json marker overrides a pre-run STARTING row."""
     (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))

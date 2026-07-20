@@ -264,10 +264,7 @@ def aggregate_clan_in_memory(agent: Agent) -> ClanInMemorySnapshot:
         if bead_id
     )
     plan_paths = _ordered_unique(
-        path
-        for row in rows
-        for path in (row.plan_path, row.archived_plan_path, row.sdd_plan_path)
-        if path
+        path for row in rows for path in _in_memory_plan_paths(row) if path
     )
     workspace_numbers = tuple(
         sorted(
@@ -294,6 +291,22 @@ def aggregate_clan_in_memory(agent: Agent) -> ClanInMemorySnapshot:
         plan_paths=plan_paths,
         workspace_numbers=workspace_numbers,
         heading_counts=counts,
+    )
+
+
+def _in_memory_plan_paths(agent: Agent) -> tuple[str, ...]:
+    """Return only plan paths safe to classify without deferred enrichment.
+
+    Phase rows need parent-bead resolution before their overloaded historical
+    paths can be classified, so the worker contributes those PLAN entries.
+    This keeps a parent epic roadmap from appearing as a phase-authored PLAN.
+    """
+    if agent.phase_bead_id or agent.agent_family_role == "phase":
+        return ()
+    return tuple(
+        path
+        for path in (agent.plan_path, agent.archived_plan_path, agent.sdd_plan_path)
+        if path
     )
 
 

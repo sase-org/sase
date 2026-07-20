@@ -87,6 +87,9 @@ def enrich_agent_from_meta(
     raw_sdd_plan_path = data.get("sdd_plan_path")
     if isinstance(raw_sdd_plan_path, str) and raw_sdd_plan_path:
         agent.sdd_plan_path = raw_sdd_plan_path
+    raw_epic_plan_ref = data.get("epic_plan_ref")
+    if isinstance(raw_epic_plan_ref, str) and raw_epic_plan_ref:
+        agent.epic_plan_ref = raw_epic_plan_ref
     raw_epic_bead_id = data.get("epic_bead_id")
     if isinstance(raw_epic_bead_id, str) and raw_epic_bead_id:
         agent.epic_bead_id = raw_epic_bead_id

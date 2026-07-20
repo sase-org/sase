@@ -110,6 +110,7 @@ class AgentMetaWire:
     plan_path: str | None = None
     sdd_prompt_path: str | None = None
     sdd_plan_path: str | None = None
+    epic_plan_ref: str | None = None
     question_request_path: str | None = None
     question_response_path: str | None = None
     question_session_id: str | None = None

@@ -32,7 +32,7 @@ def test_detail_summary_resolves_plan_only_in_enrichment_worker(
 
     def resolve(agent_arg: object) -> _AgentPlanEnrichment:
         calls.append(agent_arg)
-        return _AgentPlanEnrichment("ordinary", None, plan, plan.actual_path)
+        return _AgentPlanEnrichment("ordinary", None, plan, (plan.actual_path,))
 
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_header_summary."
@@ -60,7 +60,7 @@ def test_canonical_plan_is_removed_from_generic_artifact_metadata(
             "ordinary",
             None,
             plan,
-            plan.actual_path,
+            (plan.actual_path,),
         ),
     )
     monkeypatch.setattr(
@@ -99,7 +99,7 @@ def test_phase_plan_is_not_exposed_as_generic_artifact(
                 epic_title="Selected epic",
             ),
             None,
-            "/tmp/epic.md",
+            ("/tmp/epic.md",),
         ),
     )
     monkeypatch.setattr(
@@ -110,6 +110,50 @@ def test_phase_plan_is_not_exposed_as_generic_artifact(
     summary = build_detail_header_summary(agent)
 
     assert summary.associated_plan is None
+    assert summary.artifact_file_paths == [other]
+
+
+def test_dual_phase_plan_paths_are_both_removed_from_generic_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = make_agent(agent_name="sase-83.1", step_type="bash")
+    plan = _plan_summary(
+        actual_path="/tmp/authored.md",
+        display_path="authored.md",
+    )
+    bead = PhaseBeadSummary(
+        id="sase-83.1",
+        description="Selected parent phase",
+        actual_plan_path="/tmp/parent.md",
+        display_plan_path="parent.md",
+        plan_exists=True,
+        plan_readable=True,
+        epic_title="Parent epic",
+    )
+    other = ArtifactFilePath("notes.md", "/tmp/notes.md")
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_header_summary."
+        "resolve_agent_plan_enrichment",
+        lambda *_args, **_kwargs: _AgentPlanEnrichment(
+            "phase",
+            bead,
+            plan,
+            ("/tmp/parent.md", "/tmp/authored.md"),
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._artifact_files.artifact_file_paths",
+        lambda _agent: [
+            ArtifactFilePath("parent.md", "/tmp/parent.md"),
+            ArtifactFilePath("authored.md", "/tmp/authored.md"),
+            other,
+        ],
+    )
+
+    summary = build_detail_header_summary(agent)
+
+    assert summary.phase_bead is bead
+    assert summary.associated_plan is plan
     assert summary.artifact_file_paths == [other]
 
 
@@ -183,6 +227,7 @@ def test_modern_phase_renders_one_frontmatter_bead_and_no_plan(
         agent_name="sase-9.2",
         epic_bead_id="sase-9",
         phase_bead_id="sase-9.2",
+        epic_plan_ref="plans/epic.md",
         sdd_plan_path="plans/epic.md",
         plan_committed=True,
         workspace_dir=str(tmp_path),

@@ -98,6 +98,7 @@ def test_extract_directives_persists_epic_work_role_metadata(
     persisted = json.loads((artifacts_dir / "agent_meta.json").read_text())
     assert info.meta == persisted
     assert persisted["epic_bead_id"] == "sase-7"
+    assert persisted["epic_plan_ref"] == plan_ref
     assert persisted["sdd_plan_path"] == plan_ref
     assert persisted["plan_committed"] is True
     if phase_bead_id is None:
@@ -122,6 +123,7 @@ def test_extract_directives_preserves_epic_work_metadata_on_reexec(
         json.dumps(
             {
                 "sdd_plan_path": "sdd/plans/202607/epic.md",
+                "epic_plan_ref": "sdd/plans/202607/epic.md",
                 "plan_committed": True,
                 "epic_bead_id": "sase-7",
                 "phase_bead_id": "sase-7.2",
@@ -151,6 +153,7 @@ def test_extract_directives_preserves_epic_work_metadata_on_reexec(
         )
 
     assert info.meta["sdd_plan_path"] == "sdd/plans/202607/epic.md"
+    assert info.meta["epic_plan_ref"] == "sdd/plans/202607/epic.md"
     assert info.meta["plan_committed"] is True
     assert info.meta["epic_bead_id"] == "sase-7"
     assert info.meta["phase_bead_id"] == "sase-7.2"
@@ -198,6 +201,7 @@ def test_join_only_epic_member_persists_launch_clan_tribe(
     assert info.meta["agent_clan_generation"] == "g1"
     assert info.meta["clan_tribe"] == "epic"
     assert info.meta["sdd_plan_path"] == plan_ref
+    assert info.meta["epic_plan_ref"] == plan_ref
     assert info.meta["epic_bead_id"] == "sase-7"
     assert info.meta["phase_bead_id"] == "sase-7.2"
     for env_name in (

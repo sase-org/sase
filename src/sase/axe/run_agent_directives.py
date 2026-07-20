@@ -26,6 +26,7 @@ def _preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
     for key in (
         "wait_completed_at",
         "sdd_plan_path",
+        "epic_plan_ref",
         "epic_bead_id",
         "phase_bead_id",
     ):
@@ -73,7 +74,7 @@ def _epic_work_metadata_from_env() -> dict[str, Any]:
 
     metadata: dict[str, Any] = {}
     for env_name, meta_name in (
-        (SASE_EPIC_PLAN_REF_ENV, "sdd_plan_path"),
+        (SASE_EPIC_PLAN_REF_ENV, "epic_plan_ref"),
         (SASE_EPIC_BEAD_ID_ENV, "epic_bead_id"),
         (SASE_PHASE_BEAD_ID_ENV, "phase_bead_id"),
         (SASE_EPIC_CLAN_TRIBE_ENV, "clan_tribe"),
@@ -81,7 +82,11 @@ def _epic_work_metadata_from_env() -> dict[str, Any]:
         value = os.environ.pop(env_name, "").strip()
         if value:
             metadata[meta_name] = value
-    if "sdd_plan_path" in metadata:
+    if "epic_plan_ref" in metadata:
+        # Keep the overloaded field for consumers that have not adopted the
+        # explicit parent relationship yet. A phase-authored handoff may later
+        # replace only this compatibility value.
+        metadata["sdd_plan_path"] = metadata["epic_plan_ref"]
         metadata["plan_committed"] = True
     return metadata
 

@@ -32,7 +32,7 @@ EPIC_CREATED_STATUS = "EPIC CREATED"
 
 def pending_plan_status_for_agent(agent: Agent) -> str:
     """Return an agent's tier-aware pending plan-review status."""
-    plan_path = agent.plan_path or agent.sdd_plan_path or agent.archived_plan_path
+    plan_path = agent.archived_plan_path or agent.plan_path or agent.sdd_plan_path
     return pending_plan_status_for_tier(cached_plan_tier(plan_path))
 
 
@@ -524,6 +524,8 @@ def copy_missing_plan_metadata(target: Agent, source: Agent) -> None:
         target.archived_plan_path = source.archived_plan_path
     if target.sdd_plan_path is None:
         target.sdd_plan_path = source.sdd_plan_path
+    if target.epic_plan_ref is None:
+        target.epic_plan_ref = source.epic_plan_ref
     if target.plan_committed is None:
         target.plan_committed = source.plan_committed
     if target.plan_action is None:
@@ -596,6 +598,7 @@ def ensure_synthetic_planner_children(
             plan_path=parent.plan_path,
             archived_plan_path=parent.archived_plan_path,
             sdd_plan_path=parent.sdd_plan_path,
+            epic_plan_ref=parent.epic_plan_ref,
             plan_committed=parent.plan_committed,
             step_output=dict(parent.step_output) if parent.step_output else None,
             agent_name=planner_name,

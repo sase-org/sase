@@ -149,6 +149,7 @@ def test_refreshed_bootstrap_preserves_phase_launch_metadata(
         "output_path": "/tmp/old-output.log",
         "wait_completed_at": "2026-07-01T01:02:03+00:00",
         "sdd_plan_path": "sdd/plans/202607/epic.md",
+        "epic_plan_ref": "sdd/plans/202607/epic.md",
         "epic_bead_id": "sase-6k",
         "phase_bead_id": "sase-6k.3",
         "plan_committed": True,

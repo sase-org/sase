@@ -128,6 +128,7 @@ def create_followup_artifacts(
         "cl_name",
         "bead_id",
         "sdd_plan_path",
+        "epic_plan_ref",
         "plan_committed",
         "epic_bead_id",
         "phase_bead_id",

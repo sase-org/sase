@@ -53,7 +53,7 @@ def _isolate_clan_plan_enrichment(monkeypatch: pytest.MonkeyPatch) -> None:
             "ordinary",
             None,
             None,
-            None,
+            (),
         ),
     )
 

@@ -152,12 +152,15 @@ def build_detail_header_summary(
         linked_delta_groups = agent_commit_linked_delta_groups(agent)
 
     resolved_artifact_file_paths = resolve_artifact_file_paths(agent)
-    if plan_enrichment.resolved_plan_path is not None:
-        plan_path = Path(plan_enrichment.resolved_plan_path).resolve(strict=False)
+    if plan_enrichment.resolved_plan_paths:
+        plan_paths = {
+            Path(path).resolve(strict=False)
+            for path in plan_enrichment.resolved_plan_paths
+        }
         resolved_artifact_file_paths = [
             artifact_file
             for artifact_file in resolved_artifact_file_paths
-            if Path(artifact_file.actual_path).resolve(strict=False) != plan_path
+            if Path(artifact_file.actual_path).resolve(strict=False) not in plan_paths
         ]
 
     return DetailHeaderSummary(

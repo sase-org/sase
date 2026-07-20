@@ -69,17 +69,23 @@ class PhaseBeadSummary:
 
 @dataclass(frozen=True, slots=True)
 class AgentPlanEnrichment:
-    """Role-aware plan result consumed by deferred detail enrichment.
+    """Independent BEAD and PLAN relationships for deferred enrichment.
 
-    Phase workers deliberately carry ``associated_plan=None``. Their typed
-    phase-bead summary exposes only the selected phase while the resolved plan
-    path also lets the generic artifact list de-duplicate the epic plan.
+    A phase row may carry both summaries: BEAD is anchored to its parent epic,
+    while PLAN describes the plan authored by that phase agent. Every consumed
+    path is retained so generic artifact discovery cannot duplicate either
+    relationship.
     """
 
     role: AgentPlanRole
     phase_bead: PhaseBeadSummary | None
     associated_plan: AssociatedPlanSummary | None
-    resolved_plan_path: str | None
+    resolved_plan_paths: tuple[str, ...]
+
+    @property
+    def resolved_plan_path(self) -> str | None:
+        """Compatibility alias for callers that only handled one plan path."""
+        return self.resolved_plan_paths[0] if self.resolved_plan_paths else None
 
 
 @dataclass(frozen=True, slots=True)
