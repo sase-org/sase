@@ -44,9 +44,31 @@ just clean         # Remove build artifacts
 just build         # Build wheel and sdist
 ```
 
-`just test`, `just test-slow`, `just test-visual`, and `just test-cov` size the pytest-xdist worker pool from local CPU
-count, capped at 16. Set `SASE_PYTEST_WORKERS=<N>` to override that value. Test selectors are normalized from the
-directory where `just` was invoked, so this works the same from the repository root or a subdirectory:
+`just test`, `just test-slow`, `just test-visual`, and `just test-cov` share a host-global pytest-xdist worker-token
+pool with every other checkout owned by the same UID. An automatic run waits until it can lease a small floor, then
+greedily grows to its per-run ceiling using whatever capacity is currently free. On the standard development host, a
+solo run can receive 28 workers from the 32-token pool while leaving four tokens for another run; concurrent runs scale
+down to their actual grants instead of each independently oversubscribing the host. The granted count is the value
+passed to `pytest -n`.
+
+The default host budget reserves four CPUs and 8 GiB of available memory, allows 1.2 GiB per worker, and never exceeds
+32 tokens (the prior safe aggregate ceiling). The memory allowance was calibrated from a representative eight-worker
+suite run that peaked at approximately 0.65 GiB RSS per worker and 0.13 GiB for the controller, leaving nearly 2x
+per-worker headroom. Missing memory information falls back to a conservative four-token limit, and small hosts clamp to
+at least one token. These capacity safeguards are separate from later work on xdist scheduling and individual test cost.
+
+Set `SASE_PYTEST_WORKERS=<N>` to request exactly that many governed workers; the request must fit the shared capacity.
+Direct parallel `pytest -n ...` controllers use the same pool and lease their resolved numeric, `auto`, or `logical`
+worker count exactly. Lock descriptors survive the runner's exec and are released by the kernel even after `SIGKILL`.
+Nested pytest processes inherit the disabled marker so they cannot deadlock on the parent's tokens.
+
+For deliberate diagnostics, `SASE_TEST_GATE_DISABLED=1` bypasses accounting. `SASE_TEST_GATE_SLOTS` overrides host-wide
+token capacity, `SASE_TEST_GATE_TIMEOUT` controls bounded admission waits, and `SASE_TEST_GATE_DIR` selects the shared
+pool directory. `SASE_PYTEST_WORKER_FLOOR` and `SASE_PYTEST_WORKER_CEILING` tune automatic grants; invalid or
+inconsistent values fail before pytest starts. See [Configuration](configuration.md#general) for the complete contract.
+
+Test selectors are normalized from the directory where `just` was invoked, so this works the same from the repository
+root or a subdirectory:
 
 ```bash
 just test tests/main/test_parser.py::test_example

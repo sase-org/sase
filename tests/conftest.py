@@ -47,12 +47,12 @@ _PLAN_CHAIN_GOLDEN_TEST_FILES = frozenset(
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """Acquire the host-global gate for an xdist controller."""
+    """Acquire host-global worker tokens for an xdist controller."""
     configure_suite_gate(config)
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
-    """Release the host-global gate for an xdist controller."""
+    """Release host-global worker tokens held by an xdist controller."""
     unconfigure_suite_gate(config)
 
 

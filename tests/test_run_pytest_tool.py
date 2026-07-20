@@ -5,6 +5,8 @@ from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -81,7 +83,7 @@ def test_visual_mode_selects_visual_marker() -> None:
 
 
 def test_fast_mode_selects_non_slow_marker_to_include_visual_tests(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runner = _load_run_pytest()
     monkeypatch.delenv(runner.EXCLUDE_VISUAL_ENV, raising=False)
@@ -94,73 +96,116 @@ def test_fast_mode_selects_non_slow_marker_to_include_visual_tests(
     assert result[-1] == "not slow"
 
 
-def _set_mem_available(
-    monkeypatch, runner: ModuleType, tmp_path: Path, available_gib: int
-) -> None:
-    meminfo = tmp_path / "meminfo"
-    meminfo.write_text(
-        f"MemTotal: 99999999 kB\nMemAvailable: {available_gib * 1024 * 1024} kB\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(runner, "MEMINFO_PATH", meminfo)
-
-
-def test_worker_count_caps_at_quarter_of_cpus(monkeypatch, tmp_path: Path) -> None:
-    runner = _load_run_pytest()
-    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
-    monkeypatch.setattr(runner.os, "cpu_count", lambda: 8)
-    _set_mem_available(monkeypatch, runner, tmp_path, available_gib=64)
-
-    assert runner._worker_count() == "2"
-
-
-def test_worker_count_uses_at_least_one_worker(monkeypatch, tmp_path: Path) -> None:
-    runner = _load_run_pytest()
-    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
-    monkeypatch.setattr(runner.os, "cpu_count", lambda: 2)
-    _set_mem_available(monkeypatch, runner, tmp_path, available_gib=64)
-
-    assert runner._worker_count() == "1"
-
-
-def test_worker_count_shrinks_under_memory_pressure(
-    monkeypatch, tmp_path: Path
+def test_parallel_grant_uses_actual_lease_grant(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     runner = _load_run_pytest()
     monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
-    monkeypatch.setattr(runner.os, "cpu_count", lambda: 64)
-    _set_mem_available(monkeypatch, runner, tmp_path, available_gib=3)
+    monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
+    events: list[object] = []
 
-    assert runner._worker_count() == "2"
+    class FakeLease:
+        def __init__(self, **kwargs: object) -> None:
+            events.append(("init", kwargs))
+
+        def acquire(self, floor: int, ceiling: int, *, exact: bool) -> int:
+            events.append(("acquire", floor, ceiling, exact))
+            return 7
+
+        def make_inheritable(self) -> None:
+            events.append("inheritable")
+
+    monkeypatch.setattr(runner, "WorkerTokenLease", FakeLease)
+    monkeypatch.setattr(runner, "configured_token_budget", lambda: (12, False))
+    monkeypatch.setattr(runner, "automatic_worker_range", lambda _budget: (2, 9))
+    monkeypatch.setattr(runner, "gate_directory", lambda: tmp_path)
+    monkeypatch.setattr(runner, "gate_timeout", lambda: 3.0)
+
+    granted, lease = runner._parallel_worker_grant()
+
+    assert granted == 7
+    assert lease is not None
+    assert events == [
+        (
+            "init",
+            {
+                "directory": tmp_path,
+                "budget": 12,
+                "timeout": 3.0,
+                "capacity_is_explicit": False,
+                "governed": True,
+            },
+        ),
+        ("acquire", 2, 9, False),
+        "inheritable",
+    ]
 
 
-def test_worker_count_preserves_cpu_limit_with_plentiful_memory(
-    monkeypatch, tmp_path: Path
+def test_exact_worker_override_requests_exact_governed_capacity(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     runner = _load_run_pytest()
-    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
-    monkeypatch.setattr(runner.os, "cpu_count", lambda: 64)
-    _set_mem_available(monkeypatch, runner, tmp_path, available_gib=64)
+    monkeypatch.setenv("SASE_PYTEST_WORKERS", "6")
+    monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
+    acquisition: list[tuple[int, int, bool]] = []
 
-    assert runner._worker_count() == "16"
+    class FakeLease:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def acquire(self, floor: int, ceiling: int, *, exact: bool) -> int:
+            acquisition.append((floor, ceiling, exact))
+            return 6
+
+        def make_inheritable(self) -> None:
+            pass
+
+    monkeypatch.setattr(runner, "WorkerTokenLease", FakeLease)
+    monkeypatch.setattr(runner, "configured_token_budget", lambda: (8, True))
+    monkeypatch.setattr(runner, "gate_directory", lambda: tmp_path)
+    monkeypatch.setattr(runner, "gate_timeout", lambda: 1.0)
+
+    granted, lease = runner._parallel_worker_grant()
+
+    assert granted == 6
+    assert lease is not None
+    assert acquisition == [(6, 6, True)]
 
 
-def test_worker_count_falls_back_when_meminfo_is_unreadable(
-    monkeypatch, tmp_path: Path
+@pytest.mark.parametrize("invalid", ["", "0", "-1", "many"])
+def test_worker_override_must_be_positive(
+    monkeypatch: pytest.MonkeyPatch, invalid: str
 ) -> None:
     runner = _load_run_pytest()
-    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
-    monkeypatch.setattr(runner.os, "cpu_count", lambda: 64)
-    monkeypatch.setattr(runner, "MEMINFO_PATH", tmp_path / "missing-meminfo")
+    monkeypatch.setenv("SASE_PYTEST_WORKERS", invalid)
 
-    assert runner._worker_count() == "16"
+    with pytest.raises(pytest.UsageError, match="SASE_PYTEST_WORKERS"):
+        runner._parallel_worker_grant()
 
 
-def test_worker_count_prefers_env_override(monkeypatch) -> None:
+def test_disabled_gate_skips_acquisition(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _load_run_pytest()
-    monkeypatch.setenv("SASE_PYTEST_WORKERS", "12")
+    monkeypatch.setenv("SASE_TEST_GATE_DISABLED", "1")
+    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
+    monkeypatch.setattr(runner, "configured_token_budget", lambda: (8, True))
+    monkeypatch.setattr(runner, "automatic_worker_range", lambda _budget: (2, 5))
 
-    assert runner._worker_count() == "12"
+    assert runner._parallel_worker_grant() == (5, None)
+
+
+def test_command_uses_granted_worker_count() -> None:
+    runner = _load_run_pytest()
+
+    result = runner._pytest_command("fast", [], worker_count=7)
+
+    assert result[3:6] == ["-n", "7", "--dist=loadfile"]
+
+
+def test_rejects_xdist_count_that_could_bypass_grant() -> None:
+    runner = _load_run_pytest()
+
+    with pytest.raises(pytest.UsageError, match="SASE_PYTEST_WORKERS"):
+        runner._reject_numprocesses_args(["tests", "-n", "12"])
 
 
 def test_inline_snapshot_fix_disables_default_xdist() -> None:
@@ -214,7 +259,9 @@ def test_slow_mode_selects_slow_marker() -> None:
     assert result[-3:] == ["-m", runner.SLOW_MARKER_EXPRESSION, "tests/perf"]
 
 
-def test_cov_mode_selects_non_slow_marker_to_include_visual_tests(monkeypatch) -> None:
+def test_cov_mode_selects_non_slow_marker_to_include_visual_tests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     runner = _load_run_pytest()
     monkeypatch.setenv(runner.EXCLUDE_VISUAL_ENV, "false")
 
@@ -228,7 +275,7 @@ def test_cov_mode_selects_non_slow_marker_to_include_visual_tests(monkeypatch) -
 
 
 def test_cov_mode_can_exclude_visual_tests_for_noncanonical_ci_legs(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runner = _load_run_pytest()
     monkeypatch.setenv(runner.EXCLUDE_VISUAL_ENV, "true")
@@ -253,7 +300,9 @@ def test_visual_flag_selects_visual_mode() -> None:
     assert args == ["-k", "axe", "tests/ace/tui/visual"]
 
 
-def test_sanitizes_commit_workflow_environment(monkeypatch) -> None:
+def test_sanitizes_commit_workflow_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     runner = _load_run_pytest()
     monkeypatch.setenv("SASE_COMMIT_METHOD", "create_pull_request")
     monkeypatch.setenv("SASE_COMMIT_METHOD_ALLOW_OVERRIDE", "1")
@@ -266,3 +315,91 @@ def test_sanitizes_commit_workflow_environment(monkeypatch) -> None:
     for key in runner.PYTEST_ENV_UNSET_KEYS:
         assert key not in runner.os.environ
     assert runner.os.environ["SASE_AGENT_NAME"] == "agent"
+
+
+def test_main_prepares_governed_environment_and_descriptors_before_exec(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.setenv("SASE_TEST_GATE_DIR", str(tmp_path))
+    monkeypatch.setenv("SASE_TEST_GATE_SLOTS", "4")
+    monkeypatch.setenv("SASE_TEST_GATE_TIMEOUT", "0")
+    monkeypatch.setenv("SASE_PYTEST_WORKER_FLOOR", "2")
+    monkeypatch.setenv("SASE_PYTEST_WORKER_CEILING", "3")
+    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
+    monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
+    monkeypatch.delenv("SASE_TEST_GATE_GOVERNED", raising=False)
+    monkeypatch.setenv("SASE_COMMIT_METHOD", "create_pull_request")
+    observed: dict[str, object] = {}
+
+    class ExecCalled(Exception):
+        pass
+
+    def _execv(_executable: str, command: list[str]) -> None:
+        observed["command"] = command
+        observed["disabled"] = runner.os.environ.get("SASE_TEST_GATE_DISABLED")
+        observed["governed"] = runner.os.environ.get("SASE_TEST_GATE_GOVERNED")
+        observed["workflow"] = runner.os.environ.get("SASE_COMMIT_METHOD")
+        observed["inheritable"] = [
+            runner.os.get_inheritable(fd) for fd in _token_descriptors(tmp_path)
+        ]
+        raise ExecCalled
+
+    monkeypatch.setattr(runner.os, "execv", _execv)
+
+    with pytest.raises(ExecCalled):
+        runner.main(["fast", "tests/test_run_pytest_tool.py"])
+
+    command = observed["command"]
+    assert isinstance(command, list)
+    assert command[3:6] == ["-n", "3", "--dist=loadfile"]
+    assert observed["disabled"] == "1"
+    assert observed["governed"] == "1"
+    assert observed["workflow"] is None
+    assert observed["inheritable"] == [True, True, True]
+    assert "SASE_TEST_GATE_DISABLED" not in runner.os.environ
+    assert "SASE_TEST_GATE_GOVERNED" not in runner.os.environ
+
+
+def test_main_serial_snapshot_mode_never_acquires(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _load_run_pytest()
+    observed: dict[str, list[str]] = {}
+
+    class ExecCalled(Exception):
+        pass
+
+    def _unexpected_grant() -> None:
+        raise AssertionError("serial snapshot mode attempted token acquisition")
+
+    def _execv(_executable: str, command: list[str]) -> None:
+        observed["command"] = command
+        raise ExecCalled
+
+    monkeypatch.setattr(runner, "_parallel_worker_grant", _unexpected_grant)
+    monkeypatch.setattr(runner.os, "execv", _execv)
+
+    with pytest.raises(ExecCalled):
+        runner.main(
+            [
+                "fast",
+                "--inline-snapshot=fix",
+                "tests/test_run_pytest_tool.py",
+            ]
+        )
+
+    assert "-n" not in observed["command"]
+    assert "--dist=loadfile" not in observed["command"]
+
+
+def _token_descriptors(directory: Path) -> list[int]:
+    descriptors: list[int] = []
+    for descriptor_path in Path("/proc/self/fd").iterdir():
+        try:
+            target = descriptor_path.readlink()
+        except OSError:
+            continue
+        if target.parent == directory and target.name.startswith("token-"):
+            descriptors.append(int(descriptor_path.name))
+    return sorted(descriptors)

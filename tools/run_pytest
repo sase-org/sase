@@ -8,9 +8,22 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MEMINFO_PATH = Path("/proc/meminfo")
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tests._suite_gate import (  # noqa: E402
+    WorkerTokenLease,
+    automatic_worker_range,
+    configured_token_budget,
+    gate_directory,
+    gate_timeout,
+)
+
+
 PYTEST_ENV_UNSET_KEYS = (
     "SASE_COMMIT_METHOD",
     "SASE_COMMIT_METHOD_ALLOW_OVERRIDE",
@@ -113,41 +126,6 @@ def _resolve_mode_and_args(mode: str, args: list[str]) -> tuple[str, list[str]]:
     return mode, resolved_args
 
 
-def _worker_count() -> str:
-    configured = os.environ.get("SASE_PYTEST_WORKERS")
-    if configured:
-        return configured
-
-    cpu_workers = max((os.cpu_count() or 1) // 4, 1)
-    mem_available_gib = _mem_available_gib()
-    if mem_available_gib is None:
-        return str(cpu_workers)
-
-    memory_workers = max(mem_available_gib // 2, 2)
-    return str(min(cpu_workers, memory_workers))
-
-
-def _mem_available_gib() -> int | None:
-    try:
-        meminfo = MEMINFO_PATH.read_text(encoding="utf-8")
-    except (OSError, UnicodeError):
-        return None
-
-    for line in meminfo.splitlines():
-        key, separator, value = line.partition(":")
-        if key != "MemAvailable" or not separator:
-            continue
-        fields = value.split()
-        if not fields:
-            return None
-        try:
-            available_kib = int(fields[0])
-        except ValueError:
-            return None
-        return available_kib // (1024 * 1024)
-    return None
-
-
 def _fast_marker_expression() -> str:
     """Return the broad-suite marker expression selected by the caller."""
     exclude_visual = os.environ.get(EXCLUDE_VISUAL_ENV, "").strip().lower()
@@ -184,14 +162,16 @@ def _requires_serial_pytest(args: list[str]) -> bool:
     return False
 
 
-def _pytest_command(mode: str, args: list[str]) -> list[str]:
+def _pytest_command(mode: str, args: list[str], *, worker_count: int = 1) -> list[str]:
     command = [
         sys.executable,
         "-m",
         "pytest",
     ]
     if not _requires_serial_pytest(args):
-        command.extend(["-n", _worker_count(), "--dist=loadfile"])
+        if worker_count < 1:
+            raise ValueError("worker_count must be positive for a parallel run")
+        command.extend(["-n", str(worker_count), "--dist=loadfile"])
 
     if mode == "slow":
         command.extend(["-m", SLOW_MARKER_EXPRESSION])
@@ -222,6 +202,64 @@ def _sanitize_pytest_environment() -> None:
         os.environ.pop(key, None)
 
 
+def _configured_worker_count() -> int | None:
+    raw_value = os.environ.get("SASE_PYTEST_WORKERS")
+    if raw_value is None:
+        return None
+    try:
+        worker_count = int(raw_value)
+    except ValueError as error:
+        raise pytest.UsageError(
+            "SASE_PYTEST_WORKERS must be a positive integer"
+        ) from error
+    if worker_count < 1:
+        raise pytest.UsageError("SASE_PYTEST_WORKERS must be a positive integer")
+    return worker_count
+
+
+def _reject_numprocesses_args(args: list[str]) -> None:
+    for arg in args:
+        if (
+            arg in {"-n", "--numprocesses"}
+            or arg.startswith("-n=")
+            or arg.startswith("--numprocesses=")
+            or (arg.startswith("-n") and len(arg) > 2)
+        ):
+            raise pytest.UsageError(
+                "tools/run_pytest governs its xdist count from the shared token "
+                "pool; use SASE_PYTEST_WORKERS for an exact worker request "
+                "instead of passing -n/--numprocesses."
+            )
+
+
+def _parallel_worker_grant() -> tuple[int, WorkerTokenLease | None]:
+    budget, capacity_is_explicit = configured_token_budget()
+    exact_worker_count = _configured_worker_count()
+    gate_disabled = os.environ.get("SASE_TEST_GATE_DISABLED") == "1"
+
+    if exact_worker_count is not None:
+        if gate_disabled:
+            return exact_worker_count, None
+        floor = ceiling = exact_worker_count
+        exact = True
+    else:
+        floor, ceiling = automatic_worker_range(budget)
+        if gate_disabled:
+            return ceiling, None
+        exact = False
+
+    lease = WorkerTokenLease(
+        directory=gate_directory(),
+        budget=budget,
+        timeout=gate_timeout(),
+        capacity_is_explicit=capacity_is_explicit,
+        governed=True,
+    )
+    granted = lease.acquire(floor, ceiling, exact=exact)
+    lease.make_inheritable()
+    return granted, lease
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("fast", "slow", "visual", "cov"))
@@ -233,12 +271,26 @@ def main(argv: list[str] | None = None) -> int:
     ).resolve()
     mode, pytest_args = _resolve_mode_and_args(namespace.mode, namespace.pytest_args)
     pytest_args = _normalize_args(pytest_args, invocation_dir)
-    command = _pytest_command(mode, pytest_args)
 
-    _sanitize_pytest_environment()
-    os.chdir(REPO_ROOT)
-    os.execv(sys.executable, command)
-    raise AssertionError("unreachable")
+    lease: WorkerTokenLease | None = None
+    try:
+        if _requires_serial_pytest(pytest_args):
+            worker_count = 1
+        else:
+            _reject_numprocesses_args(pytest_args)
+            worker_count, lease = _parallel_worker_grant()
+        command = _pytest_command(mode, pytest_args, worker_count=worker_count)
+
+        _sanitize_pytest_environment()
+        os.chdir(REPO_ROOT)
+        os.execv(sys.executable, command)
+        raise AssertionError("unreachable")
+    except pytest.UsageError as error:
+        print(f"pytest worker-token configuration error: {error}", file=sys.stderr)
+        return int(pytest.ExitCode.USAGE_ERROR)
+    finally:
+        if lease is not None:
+            lease.release()
 
 
 if __name__ == "__main__":

@@ -1690,16 +1690,23 @@ entry points directly.
 
 ### General
 
-| Variable                              | Description                                                                                                     |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `SASE_TMPDIR`                         | Override the temp directory for all sase operations. Falls back to system default when unset.                   |
-| `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.                                 |
-| `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                            |
-| `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                     |
-| `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                                  |
-| `SASE_CORE_DIR`                       | Preferred `sase-core` source checkout for `Justfile` Rust build/install targets; overrides `../sase-core`.      |
-| `SASE_PYTEST_WORKERS`                 | Override the xdist worker count used by `just test`, `just test-slow`, `just test-visual`, and `just test-cov`. |
-| `SASE_JUST_INVOCATION_DIR`            | Internal value set by `just` so test selectors are normalized from the caller's directory.                      |
+| Variable                              | Description                                                                                                                                                                         |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_TMPDIR`                         | Override the temp directory for all sase operations. Falls back to system default when unset.                                                                                       |
+| `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.                                                                                                     |
+| `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                                                                                                |
+| `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                                                                                         |
+| `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                                                                                                      |
+| `SASE_CORE_DIR`                       | Preferred `sase-core` source checkout for `Justfile` Rust build/install targets; overrides `../sase-core`.                                                                          |
+| `SASE_PYTEST_WORKERS`                 | Request exactly this positive number of governed xdist workers for the `just` pytest recipes. The request must fit the active host pool unless accounting is deliberately disabled. |
+| `SASE_PYTEST_WORKER_FLOOR`            | Positive minimum token grant required to start an automatically sized `just` pytest run. Defaults to 4, clamped on smaller hosts, and cannot exceed the ceiling or host pool.       |
+| `SASE_PYTEST_WORKER_CEILING`          | Positive maximum token grant for an automatically sized `just` pytest run. Defaults to at most 28 while reserving another floor-sized grant when capacity permits.                  |
+| `SASE_TEST_GATE_SLOTS`                | Override the host-wide pytest capacity in worker tokens. Unlike the former whole-suite gate, one token now represents one xdist worker.                                             |
+| `SASE_TEST_GATE_DIR`                  | Override the shared pytest token-pool directory. Defaults to a UID-scoped `sase-pytest-tokens-<uid>` directory under `/tmp`.                                                        |
+| `SASE_TEST_GATE_TIMEOUT`              | Non-negative seconds to wait for a sufficient worker-token grant before failing with requested capacity and current-holder diagnostics.                                             |
+| `SASE_TEST_GATE_DISABLED`             | Set to `1` to bypass the pytest worker-token pool deliberately. Governed parents also export it to prevent nested pytest deadlocks.                                                 |
+| `SASE_TEST_GATE_GOVERNED`             | Internal marker indicating that `tools/run_pytest` already leased the controller's worker tokens; inherited pytest configuration must not lease them again.                         |
+| `SASE_JUST_INVOCATION_DIR`            | Internal value set by `just` so test selectors are normalized from the caller's directory.                                                                                          |
 
 ### Workspace Management (Internal)
 
