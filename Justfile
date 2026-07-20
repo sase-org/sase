@@ -236,6 +236,9 @@ _lint-symvision *args: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-89(load_project_display_snapshot)' \
+        --epic-symbol 'sase-89(project_display_for)' \
+        --epic-symbol 'sase-89(refresh_project_display_snapshot)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

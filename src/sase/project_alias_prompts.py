@@ -26,8 +26,7 @@ def _rewrite_ref_with_known_prefix(
         return None
     for known_ref, known_replacement in sorted(
         replacement_by_ref.items(),
-        key=lambda item: len(item[0]),
-        reverse=True,
+        key=lambda item: (-len(item[0]), item[0]),
     ):
         prefix = f"{known_ref}_"
         if ref.startswith(prefix):

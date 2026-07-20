@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -49,6 +48,107 @@ def test_project_display_name_for_resolves_and_falls_back(
     assert pdn.project_display_name_for("gh_acme__widgets", root) == "widgets"
     assert pdn.project_display_name_for("plain", root) == "plain"
     assert pdn.project_display_name_for("missing", root) == "missing"
+
+
+def test_snapshot_keeps_identity_immutable_and_sorts_by_label_then_key() -> None:
+    snapshot = pdn.ProjectDisplaySnapshot.from_records(
+        [
+            _record("gh_globex__widgets", "widgets"),
+            _record("gh_acme__widgets", "widgets"),
+            _record("gh_acme__alpha", "Alpha"),
+        ]
+    )
+
+    assert snapshot.label_for("gh_acme__widgets") == "widgets"
+    assert snapshot.label_for("deleted") == "deleted"
+    assert snapshot.projection_for("deleted") == pdn.ProjectDisplayProjection(
+        project_key="deleted",
+        project_label="deleted",
+    )
+    assert [
+        (projection.project_key, projection.project_label)
+        for projection in snapshot.projections
+    ] == [
+        ("gh_acme__alpha", "Alpha"),
+        ("gh_acme__widgets", "widgets"),
+        ("gh_globex__widgets", "widgets"),
+    ]
+    assert snapshot.projections[1].sort_key == (
+        "widgets",
+        "gh_acme__widgets",
+    )
+
+    with pytest.raises(TypeError):
+        snapshot.labels_by_key["gh_acme__widgets"] = "mutated"  # type: ignore[index]
+
+
+def test_supplied_snapshot_helpers_do_not_reload_lifecycle_inventory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def fake_list_project_records(
+        *_args: object, **_kwargs: object
+    ) -> list[ProjectRecordWire]:
+        nonlocal calls
+        calls += 1
+        return [_record("gh_acme__widgets", "widgets")]
+
+    monkeypatch.setattr(pdn, "list_project_records", fake_list_project_records)
+    monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+    snapshot = pdn.load_project_display_snapshot(tmp_path / "projects")
+    agent = SimpleNamespace(
+        project_file="/tmp/projects/gh_acme__widgets/gh_acme__widgets.sase",
+        project_display_name=None,
+    )
+
+    assert calls == 1
+    assert (
+        pdn.project_display_name_for("gh_acme__widgets", snapshot=snapshot) == "widgets"
+    )
+    assert pdn.project_display_for(
+        "missing", snapshot=snapshot
+    ) == pdn.ProjectDisplayProjection("missing", "missing")
+    assert (
+        pdn.humanize_cl_name("gh_acme__widgets_fix", snapshot=snapshot) == "widgets_fix"
+    )
+    assert (
+        pdn.humanize_cl_names_in_text("done gh_acme__widgets_fix", snapshot=snapshot)
+        == "done widgets_fix"
+    )
+    assert (
+        pdn.humanize_vcs_refs_in_text("#gh:gh_acme__widgets fix", snapshot=snapshot)
+        == "#gh:widgets fix"
+    )
+    assert (
+        pdn.humanize_safe_stem("gh_acme__widgets-ace_run", snapshot=snapshot)
+        == "widgets-ace_run"
+    )
+    assert pdn.project_display_name_map_signature(snapshot=snapshot) == (
+        ("gh_acme__widgets", "widgets"),
+    )
+    pdn.attach_project_display_names([agent], snapshot=snapshot)
+    assert agent.project_display_name == "widgets"
+    assert calls == 1
+
+
+def test_snapshot_load_failure_falls_back_to_canonical_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_inventory(*_args: object, **_kwargs: object) -> list[ProjectRecordWire]:
+        raise RuntimeError("inventory unavailable")
+
+    monkeypatch.setattr(pdn, "list_project_records", fail_inventory)
+
+    snapshot = pdn.load_project_display_snapshot(tmp_path / "projects")
+
+    assert snapshot.label_for("gh_acme__widgets") == "gh_acme__widgets"
+    assert (
+        pdn.project_display_name_for("gh_acme__widgets", snapshot=snapshot)
+        == "gh_acme__widgets"
+    )
 
 
 def test_humanize_cl_name_rewrites_exact_key_and_prefix(
@@ -221,37 +321,54 @@ def test_humanize_safe_stem_prefers_longest_safe_key(
     )
 
 
-def test_project_display_name_cache_invalidates_on_projects_dir_mtime(
+def test_fresh_load_refresh_and_invalidation_observe_nested_name_change(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = tmp_path / "projects"
-    root.mkdir()
+    project_dir = root / "gh_acme__widgets"
+    project_dir.mkdir(parents=True)
+    project_file = project_dir / "gh_acme__widgets.sase"
+    project_file.write_text("widgets", encoding="utf-8")
     calls = 0
-    display_name = "widgets"
 
     def fake_list_project_records(
         *_args: object, **_kwargs: object
     ) -> list[ProjectRecordWire]:
         nonlocal calls
         calls += 1
-        return [_record("gh_acme__widgets", display_name)]
+        return [
+            _record(
+                "gh_acme__widgets",
+                project_file.read_text(encoding="utf-8"),
+            )
+        ]
 
     monkeypatch.setattr(pdn, "list_project_records", fake_list_project_records)
     monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
 
     assert pdn.project_display_name_for("gh_acme__widgets", root) == "widgets"
-    display_name = "gadgets"
+    root_mtime = root.stat().st_mtime_ns
+    project_file.write_text("gadgets", encoding="utf-8")
+    assert root.stat().st_mtime_ns == root_mtime
+
     assert pdn.project_display_name_for("gh_acme__widgets", root) == "widgets"
     assert calls == 1
 
-    stat = root.stat()
-    os.utime(
-        root, ns=(stat.st_atime_ns + 1_000_000_000, stat.st_mtime_ns + 1_000_000_000)
-    )
-
-    assert pdn.project_display_name_for("gh_acme__widgets", root) == "gadgets"
+    fresh = pdn.load_project_display_snapshot(root)
+    assert fresh.label_for("gh_acme__widgets") == "gadgets"
+    assert pdn.project_display_name_for("gh_acme__widgets", root) == "widgets"
     assert calls == 2
+
+    refreshed = pdn.refresh_project_display_snapshot(root)
+    assert refreshed.label_for("gh_acme__widgets") == "gadgets"
+    assert pdn.project_display_name_for("gh_acme__widgets", root) == "gadgets"
+    assert calls == 3
+
+    project_file.write_text("tools", encoding="utf-8")
+    pdn.invalidate_project_display_snapshot(root)
+    assert pdn.project_display_name_for("gh_acme__widgets", root) == "tools"
+    assert calls == 4
 
 
 def test_attach_project_display_names_duck_types_and_clears_fallbacks(

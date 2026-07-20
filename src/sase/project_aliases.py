@@ -151,16 +151,21 @@ def _set_project_name_locked(
     preserve_existing: bool = False,
 ) -> ProjectRecordWire:
     """Replace ``PROJECT_NAME`` while holding the ProjectSpec lock."""
-    return _set_project_name_locked_impl(
+    root = _projects_root(projects_root)
+    record = _set_project_name_locked_impl(
         project,
         name,
-        projects_root=_projects_root(projects_root),
+        projects_root=root,
         commit_msg=commit_msg,
         preserve_existing=preserve_existing,
         resolve_project_ref=resolve_project_alias_ref,
         list_project_records=list_project_records,
         apply_project_name_update=apply_project_name_update,
     )
+    from sase.project_display_names import invalidate_project_display_snapshot
+
+    invalidate_project_display_snapshot(root)
+    return record
 
 
 # symvision: https://github.com/sase-org/sase-github.git
