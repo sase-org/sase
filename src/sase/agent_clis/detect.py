@@ -180,11 +180,7 @@ def _detect_install_method(
     if (
         package
         and npm is not None
-        and (
-            package in npm.installed_packages
-            or _path_under(executable, npm.root)
-            or _path_under(executable, npm.prefix)
-        )
+        and (package in npm.installed_packages or _path_under(executable, npm.root))
     ):
         return InstallMethod.NPM
     if _is_homebrew_path(executable, brew_prefixes):

@@ -43,6 +43,26 @@ def test_npm_evidence_beats_self_update_strategy() -> None:
     assert method is InstallMethod.NPM
 
 
+def test_npm_prefix_alone_does_not_misclassify_homebrew_executable() -> None:
+    npm = _NpmEnvironment(
+        root="/usr/local/lib/node_modules",
+        prefix="/usr/local",
+        installed_packages=frozenset(),
+        root_writable=True,
+    )
+
+    method = _detect_install_method(
+        "/usr/local/bin/tool",
+        manager="npm",
+        package="tool-package",
+        self_update_argv=("update",),
+        npm=npm,
+        brew_prefixes=(Path("/usr/local"),),
+    )
+
+    assert method is InstallMethod.HOMEBREW
+
+
 def test_unknown_install_never_becomes_self_managed_without_declared_command() -> None:
     assert (
         _detect_install_method(

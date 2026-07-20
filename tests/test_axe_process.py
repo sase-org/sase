@@ -425,6 +425,29 @@ def test_cleanup_pid_files_removes_stopped_orchestrator(
     is_running.assert_not_called()
 
 
+def test_cleanup_pid_files_preserves_pid_while_lifecycle_lock_is_held(
+    temp_state_dir: Path,
+) -> None:
+    """Cleanup cannot race a replacement orchestrator publishing its PID."""
+    pid_file = temp_state_dir / "orchestrator.pid"
+    pid_file.write_text("11111\n")
+    lifecycle_lock = AxeLifecycleLock.acquire(blocking=False)
+    assert lifecycle_lock is not None
+
+    try:
+        with patch(
+            "sase.axe._process_probe.is_process_running",
+            return_value=False,
+        ):
+            cleanup_pid_files(stopped_pid=22222)
+        assert pid_file.read_text() == "11111\n"
+        pid_file.write_text("33333\n")
+    finally:
+        lifecycle_lock.release()
+
+    assert pid_file.read_text() == "33333\n"
+
+
 @patch("sase.axe._process_stop.clear_lock_holder_pid")
 @patch("sase.axe._process_stop.is_lifecycle_lock_held", return_value=False)
 def test_stop_cleanup_preserves_pid_published_by_concurrent_restart(

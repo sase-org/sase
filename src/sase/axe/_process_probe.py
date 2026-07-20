@@ -5,6 +5,7 @@ from pathlib import Path
 from sase.ace.hooks.processes import is_process_running
 
 from .lock import (
+    AxeLifecycleLock,
     clear_lock_holder_pid,
     is_lifecycle_lock_held,
     read_lock_holder_pid,
@@ -105,12 +106,26 @@ def _read_pid_path(path: Path) -> int | None:
 
 def _remove_orchestrator_pid_file(*, expected_pid: int) -> None:
     """Remove the orchestrator PID file if it still names *expected_pid*."""
-    if _read_pid_path(ORCHESTRATOR_PID_FILE) != expected_pid:
+    # Hold the same lifecycle lock that every orchestrator must acquire before
+    # publishing its PID.  Merely checking the file contents before unlinking
+    # leaves a race where a replacement orchestrator can publish between those
+    # two operations and have its new PID file removed.
+    try:
+        lifecycle_lock = AxeLifecycleLock.acquire(blocking=False)
+    except OSError:
         return
     try:
-        ORCHESTRATOR_PID_FILE.unlink()
-    except OSError:
-        pass
+        if lifecycle_lock is None:
+            return
+        if _read_pid_path(ORCHESTRATOR_PID_FILE) != expected_pid:
+            return
+        try:
+            ORCHESTRATOR_PID_FILE.unlink()
+        except OSError:
+            pass
+    finally:
+        if lifecycle_lock is not None:
+            lifecycle_lock.release()
 
 
 def cleanup_pid_files(*, stopped_pid: int | None = None) -> None:
