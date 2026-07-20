@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from sase.axe._state_lumberjack import lumberjack_state_dir
+from sase.core.state_write_guard import best_effort_test_state_write_allowed
 from sase.core.time import get_timezone
 
 #: Maximum number of run-history entries retained per chop. Older runs are
@@ -115,6 +116,8 @@ def ensure_chop_dirs(lumberjack_name: str, chop_name: str) -> Path:
         Path to ``~/.sase/axe/lumberjacks/{lumberjack}/chops/{chop}/``.
     """
     chop_dir = _chop_dir(lumberjack_name, chop_name)
+    if not best_effort_test_state_write_allowed(chop_dir, category="axe-chop-state"):
+        return chop_dir
     (chop_dir / "runs").mkdir(parents=True, exist_ok=True)
     return chop_dir
 
@@ -130,6 +133,8 @@ def generate_chop_run_id(when: datetime | None = None) -> str:
 
 
 def _safe_unlink(path: Path) -> None:
+    if not best_effort_test_state_write_allowed(path, category="axe-chop-state"):
+        return
     try:
         path.unlink()
     except OSError:
@@ -185,9 +190,11 @@ def write_chop_run(entry: ChopRunEntry, output: str = "") -> None:
     """
     lumberjack_name = entry.lumberjack_name
     chop_name = entry.chop_name
+    log_path = chop_run_log_path(lumberjack_name, chop_name, entry.run_id)
+    if not best_effort_test_state_write_allowed(log_path, category="axe-chop-log"):
+        return
     ensure_chop_dirs(lumberjack_name, chop_name)
 
-    log_path = chop_run_log_path(lumberjack_name, chop_name, entry.run_id)
     log_path.write_text(output)
     entry.output_bytes = len(output.encode("utf-8"))
     entry.output_log = log_path.name
@@ -216,9 +223,11 @@ def start_chop_run(entry: ChopRunEntry) -> Path:
     """
     lumberjack_name = entry.lumberjack_name
     chop_name = entry.chop_name
+    log_path = chop_run_log_path(lumberjack_name, chop_name, entry.run_id)
+    if not best_effort_test_state_write_allowed(log_path, category="axe-chop-log"):
+        return log_path
     ensure_chop_dirs(lumberjack_name, chop_name)
 
-    log_path = chop_run_log_path(lumberjack_name, chop_name, entry.run_id)
     if not log_path.exists():
         log_path.write_bytes(b"")
     entry.output_log = log_path.name
@@ -249,6 +258,8 @@ def append_chop_run_output(
     not exist — call :func:`start_chop_run` first.
     """
     log_path = chop_run_log_path(lumberjack_name, chop_name, run_id)
+    if not best_effort_test_state_write_allowed(log_path, category="axe-chop-log"):
+        return 0
     if not log_path.exists():
         return 0
     payload = data.encode("utf-8") if isinstance(data, str) else data

@@ -66,6 +66,8 @@ def _fake_spawn_success(
         assert callable(claim_callback)
         assert claim_callback(4321) is True
     assert env["SASE_AGENT"] == "1"
+    assert env["SASE_HOME"]
+    assert "PYTEST_CURRENT_TEST" in env
     return 4321
 
 

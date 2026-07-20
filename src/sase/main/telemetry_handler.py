@@ -10,6 +10,14 @@ def handle_telemetry_command(args: argparse.Namespace) -> None:
     """Dispatch to the appropriate telemetry sub-handler."""
     sub = getattr(args, "telemetry_subcommand", None)
 
+    if sub == "cleanup-test-data":
+        from sase.telemetry.cli_cleanup_test_data import (
+            handle_telemetry_cleanup_test_data,
+        )
+
+        handle_telemetry_cleanup_test_data(args)
+        sys.exit(0)
+
     if sub == "health":
         from sase.telemetry.cli_health import handle_telemetry_health
 
@@ -34,5 +42,5 @@ def handle_telemetry_command(args: argparse.Namespace) -> None:
         handle_telemetry_status()
         sys.exit(0)
 
-    print("Usage: sase telemetry {health,list,snapshot,status}")
+    print("Usage: sase telemetry {cleanup-test-data,health,list,snapshot,status}")
     sys.exit(1)

@@ -17,6 +17,7 @@ from typing import IO
 
 from sase.ace.changespec import count_all_runners_global
 from sase.axe.state import ensure_shared_dir
+from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
 log = logging.getLogger(__name__)
 
@@ -145,8 +146,12 @@ class SharedRunnerPool:
         self.max_runners = max_runners
         shared_dir = ensure_shared_dir()
         self._counter_path = shared_dir / "runner_count"
+        self._state_writes_allowed = best_effort_test_state_write_allowed(
+            self._counter_path,
+            category="axe-runner-pool",
+        )
         # Seed the file if it doesn't exist
-        if not self._counter_path.exists():
+        if self._state_writes_allowed and not self._counter_path.exists():
             self._counter_path.write_text("0")
 
     # -- internal helpers ---------------------------------------------------
@@ -175,6 +180,8 @@ class SharedRunnerPool:
         Returns:
             Total number of runners currently active.
         """
+        if not self._state_writes_allowed:
+            return count_all_runners_global()
         try:
             with open(self._counter_path, "r+") as f:
                 fcntl.flock(f, fcntl.LOCK_SH)
@@ -192,6 +199,8 @@ class SharedRunnerPool:
         Returns:
             True if a slot was reserved, False if at the limit.
         """
+        if not self._state_writes_allowed:
+            return False
         try:
             with open(self._counter_path, "r+") as f:
                 fcntl.flock(f, fcntl.LOCK_EX)
@@ -210,6 +219,8 @@ class SharedRunnerPool:
 
     def release_slot(self) -> None:
         """Release a previously reserved runner slot."""
+        if not self._state_writes_allowed:
+            return
         try:
             with open(self._counter_path, "r+") as f:
                 fcntl.flock(f, fcntl.LOCK_EX)
@@ -227,6 +238,8 @@ class SharedRunnerPool:
         Returns:
             True if no more runners can be started.
         """
+        if not self._state_writes_allowed:
+            return True
         try:
             with open(self._counter_path, "r+") as f:
                 fcntl.flock(f, fcntl.LOCK_SH)

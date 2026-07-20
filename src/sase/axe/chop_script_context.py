@@ -21,6 +21,7 @@ from sase.ace.changespec import (
     MentorEntry,
     MentorStatusLine,
 )
+from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
 
 @dataclass
@@ -47,9 +48,10 @@ def _atomic_json_write(data: object, path: str) -> None:
     Prevents readers from seeing partial/corrupted JSON when multiple
     processes access the same file concurrently.
     """
-    from pathlib import Path
-
-    parent = Path(path).parent
+    target = Path(path)
+    if not best_effort_test_state_write_allowed(target, category="axe-chop-state"):
+        return
+    parent = target.parent
     parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(dir=str(parent), suffix=".tmp")
     try:

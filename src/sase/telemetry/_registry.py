@@ -9,6 +9,7 @@ import threading
 import time
 from typing import Any
 
+from sase.core.state_write_guard import assert_test_state_write_isolated
 from sase.telemetry._accumulators import (
     Counter,
     Gauge,
@@ -122,12 +123,16 @@ def flush_metrics(
     """Drain pending metrics and persist one batch to the local core store.
 
     Store failures are retried a bounded number of times, then dropped and
-    logged at debug level. Telemetry must never disrupt the caller's work.
+    logged at debug level. A pytest write aimed at the real user state tree is
+    the deliberate exception: it raises before pending samples are drained.
     Returns the number of recorded samples, or zero when disabled/empty/failed.
     """
     config = get_telemetry_config()
     if not config.enabled or _registry is None:
         return 0
+
+    store_path = config.resolved_store_path
+    assert_test_state_write_isolated(store_path, category="telemetry")
 
     now_ts = int(time.time())
     source = _format_source(job, grouping_key) if job else _source
@@ -145,7 +150,7 @@ def flush_metrics(
             from sase_core_rs import telemetry_record_batch  # type: ignore[import-untyped]
 
             result = telemetry_record_batch(
-                str(config.resolved_store_path),
+                str(store_path),
                 batch,
                 config.busy_timeout_ms,
             )

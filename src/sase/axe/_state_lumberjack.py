@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Literal
 
 import sase.axe.state as _state
+from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
 DEFAULT_LUMBERJACK_LOG_MAX_BYTES = 50 * 1024 * 1024
 DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS = 5 * 60
@@ -74,6 +75,10 @@ def ensure_lumberjack_dirs(name: str) -> Path:
         Path to the lumberjack state directory.
     """
     lumberjack_dir = lumberjack_state_dir(name)
+    if not best_effort_test_state_write_allowed(
+        lumberjack_dir, category="axe-lumberjack-state"
+    ):
+        return lumberjack_dir
     (lumberjack_dir / "logs").mkdir(parents=True, exist_ok=True)
     return lumberjack_dir
 
@@ -84,8 +89,13 @@ def write_lumberjack_pid(name: str) -> None:
     Args:
         name: Lumberjack name.
     """
-    lumberjack_dir = ensure_lumberjack_dirs(name)
-    (lumberjack_dir / "pid").write_text(str(os.getpid()))
+    pid_file = lumberjack_state_dir(name) / "pid"
+    if not best_effort_test_state_write_allowed(
+        pid_file, category="axe-lumberjack-pid"
+    ):
+        return
+    ensure_lumberjack_dirs(name)
+    pid_file.write_text(str(os.getpid()))
 
 
 def read_lumberjack_pid(name: str) -> int | None:
@@ -113,6 +123,10 @@ def remove_lumberjack_pid(name: str) -> None:
         name: Lumberjack name.
     """
     pid_file = lumberjack_state_dir(name) / "pid"
+    if not best_effort_test_state_write_allowed(
+        pid_file, category="axe-lumberjack-pid"
+    ):
+        return
     try:
         pid_file.unlink()
     except OSError:
@@ -233,6 +247,8 @@ def append_bounded_log(
     data = text.encode("utf-8", errors="replace") if isinstance(text, str) else text
     if not data:
         return
+    if not best_effort_test_state_write_allowed(path, category="axe-log"):
+        return
 
     cap = max(1, int(max_bytes))
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -298,6 +314,8 @@ def reap_stale_log_rotation_temps(
     max_age_seconds: int = DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS,
 ) -> int:
     """Best-effort remove stale bounded-log rotation temps below ``root``."""
+    if not best_effort_test_state_write_allowed(root, category="axe-log-maintenance"):
+        return 0
     cutoff = time.time() - max(0, max_age_seconds)
     reaped = 0
 
@@ -403,6 +421,8 @@ def clear_lumberjack_output_log(name: str) -> None:
     """
     log_file = lumberjack_log_path(name)
     if log_file.exists():
+        if not best_effort_test_state_write_allowed(log_file, category="axe-log"):
+            return
         try:
             log_file.write_text("")
         except OSError:
@@ -428,5 +448,9 @@ def ensure_shared_dir() -> Path:
         Path to ``~/.sase/axe/shared/``.
     """
     shared_dir = _state.shared_state_dir()
+    if not best_effort_test_state_write_allowed(
+        shared_dir, category="axe-shared-state"
+    ):
+        return shared_dir
     shared_dir.mkdir(parents=True, exist_ok=True)
     return shared_dir

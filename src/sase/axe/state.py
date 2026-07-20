@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.core.paths import sase_subdir
+from sase.core.state_write_guard import best_effort_test_state_write_allowed
 from sase.core.time import get_timezone
 
 
@@ -41,11 +42,6 @@ def axe_output_log_path() -> Path:
     return axe_state_dir() / "logs" / "output.log"
 
 
-def ensure_state_dir() -> None:
-    """Ensure state directory exists."""
-    axe_state_dir().mkdir(parents=True, exist_ok=True)
-
-
 def atomic_write_json(path: Path, data: dict | list) -> None:
     """Write JSON atomically using temp file + rename.
 
@@ -53,7 +49,9 @@ def atomic_write_json(path: Path, data: dict | list) -> None:
         path: Target file path.
         data: Dictionary or list to write as JSON.
     """
-    ensure_state_dir()
+    if not best_effort_test_state_write_allowed(path, category="axe-state"):
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_suffix(".tmp")
     try:
         with open(temp_path, "w") as f:
@@ -221,7 +219,6 @@ __all__ = [
     "ensure_chop_dirs",
     "ensure_lumberjack_dirs",
     "ensure_shared_dir",
-    "ensure_state_dir",
     "finish_chop_run",
     "generate_chop_run_id",
     "get_timestamp",

@@ -52,11 +52,16 @@ def _compose_axe_daemon_env(
 ) -> dict[str, str]:
     """Return a system-service environment without agent or chop context."""
     env = dict(environ)
+    pytest_version = env.get("PYTEST_VERSION")
+    if pytest_version is None and "PYTEST_CURRENT_TEST" in env:
+        pytest_version = "detected"
     scrub_agent_identity_env(env)
     scrub_chop_context_env(env)
     for name in tuple(env):
-        if name.startswith("PYTEST_"):
+        if name.startswith("PYTEST_") and name != "PYTEST_VERSION":
             env.pop(name)
+    if pytest_version is not None:
+        env["PYTEST_VERSION"] = pytest_version
     env[AXE_START_SOURCE_ENV] = desired_state_source
     return env
 

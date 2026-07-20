@@ -17,6 +17,34 @@ def register_telemetry_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="telemetry_subcommand", help="Telemetry subcommands"
     )
 
+    # sase telemetry cleanup-test-data
+    cleanup_parser = tel_subparsers.add_parser(
+        "cleanup-test-data",
+        help="Preview or remove telemetry with known test labels",
+        description=(
+            "Preview or remove telemetry rows whose exact labels identify "
+            "test data. Deletion requires the explicit -y/--yes flag."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase telemetry cleanup-test-data --dry-run\n"
+            "  sase telemetry cleanup-test-data --yes"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    cleanup_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Preview exact matches without deleting rows",
+    )
+    cleanup_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Confirm deletion after the preview",
+    )
+
     # sase telemetry health
     health_parser = tel_subparsers.add_parser(
         "health", help="Traffic-light health assessment"

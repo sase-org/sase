@@ -25,6 +25,7 @@ from sase.telemetry.metrics import (
     AXE_LUMBERJACK_RESTARTS,
     AXE_LUMBERJACKS_ACTIVE,
 )
+from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
 from . import state as axe_state
 from .config import AxeConfig
@@ -107,9 +108,7 @@ class Orchestrator:
         cmd.extend(["--max-agent-runners", str(self.config.max_agent_runners)])
         cmd.extend(["--zombie-timeout", str(self.config.zombie_timeout_seconds)])
 
-        # Ensure log directory exists
         log_dir = axe_state.axe_state_dir() / "logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / f"lumberjack-{name}.log"
 
         append_bounded_log(
@@ -241,6 +240,11 @@ class Orchestrator:
         spawn_error: OSError | None,
     ) -> None:
         """Persist and notify one loud alert for a crash-loop episode."""
+        error_path = axe_state.axe_state_dir() / "recent_errors.json"
+        if not best_effort_test_state_write_allowed(
+            error_path, category="axe-crash-loop"
+        ):
+            return
         thread = self._log_threads.get(name)
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=0.2)
@@ -340,6 +344,8 @@ class Orchestrator:
 
     def _write_pid(self) -> None:
         pid_file = orchestrator_pid_file()
+        if not best_effort_test_state_write_allowed(pid_file, category="axe-pid"):
+            return
         pid_file.parent.mkdir(parents=True, exist_ok=True)
         temp_path: Path | None = None
         try:
@@ -363,11 +369,14 @@ class Orchestrator:
                     pass
 
     def _remove_pid(self, *, force: bool = False) -> None:
+        pid_file = orchestrator_pid_file()
+        if not best_effort_test_state_write_allowed(pid_file, category="axe-pid"):
+            return
         pid = self._read_orchestrator_pid()
         if not force and pid is not None and pid != os.getpid():
             return
         try:
-            orchestrator_pid_file().unlink()
+            pid_file.unlink()
         except OSError:
             pass
 

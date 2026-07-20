@@ -41,7 +41,13 @@ def test_telemetry_only_exposes_debugging_and_health_commands() -> None:
         if path == ("sase", "telemetry")
     )
 
-    assert set(telemetry_action.choices) == {"health", "list", "snapshot", "status"}
+    assert set(telemetry_action.choices) == {
+        "cleanup-test-data",
+        "health",
+        "list",
+        "snapshot",
+        "status",
+    }
 
 
 def test_exact_list_subcommands_default_when_group_is_omitted() -> None:

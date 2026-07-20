@@ -48,6 +48,7 @@ def test_compose_axe_daemon_env_strips_agent_and_chop_context() -> None:
 
     assert result == {
         "PATH": "/bin",
+        "PYTEST_VERSION": "9.0.2",
         "SASE_AXE_OTHER": "keep",
         "SASE_AXE_START_SOURCE": "axe start",
     }

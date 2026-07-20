@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 from sase.ace.changespec import ChangeSpec, find_all_changespecs
 from sase.core.query_facade import evaluate_query_many
+from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
 from .chop_script_context import (
     ChopScriptContext,
@@ -36,6 +37,8 @@ def build_oneshot_context(
     """
     state_dir = ensure_lumberjack_dirs(lumberjack_name)
     tick_dir = state_dir / "tick"
+    if not best_effort_test_state_write_allowed(tick_dir, category="axe-chop-state"):
+        return str(tick_dir / "context.json")
     tick_dir.mkdir(parents=True, exist_ok=True)
 
     all_cs_file = str(tick_dir / "all_changespecs.json")

@@ -17,6 +17,7 @@ from pathlib import Path
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
 from sase.core.time import get_timezone
+from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
 from . import state
 
@@ -134,6 +135,9 @@ def _process_registry_lock(lock_path: Path) -> threading.RLock:
 @contextmanager
 def _registry_lock(lumberjack_name: str) -> Iterator[None]:
     path = _registry_path(lumberjack_name)
+    if not best_effort_test_state_write_allowed(path, category="axe-chop-agent-state"):
+        yield
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_suffix(".lock")
     process_lock = _process_registry_lock(lock_path)
@@ -170,6 +174,8 @@ def _write_records_unlocked(
     lumberjack_name: str, records: list[_ChopAgentRecord]
 ) -> None:
     path = _registry_path(lumberjack_name)
+    if not best_effort_test_state_write_allowed(path, category="axe-chop-agent-state"):
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path: Path | None = None
     replaced = False

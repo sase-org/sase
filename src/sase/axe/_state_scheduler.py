@@ -8,6 +8,7 @@ time so home-directory redirection applies to every reader.
 """
 
 import sase.axe.state as _state  # noqa: I001
+from sase.core.state_write_guard import best_effort_test_state_write_allowed
 from dataclasses import asdict, dataclass, field
 from typing import Literal
 
@@ -86,6 +87,8 @@ def read_pid_file() -> int | None:
 def remove_pid_file() -> None:
     """Remove PID file on shutdown."""
     pid_file = _state.axe_state_dir() / "pid"
+    if not best_effort_test_state_write_allowed(pid_file, category="axe-pid"):
+        return
     try:
         pid_file.unlink()
     except OSError:
@@ -208,8 +211,10 @@ def write_last_error_digest_ts(ts: str) -> None:
     Args:
         ts: ISO formatted timestamp string.
     """
-    _state.ensure_state_dir()
     ts_file = _state.axe_state_dir() / "last_error_digest_ts"
+    if not best_effort_test_state_write_allowed(ts_file, category="axe-error-state"):
+        return
+    ts_file.parent.mkdir(parents=True, exist_ok=True)
     ts_file.write_text(ts)
 
 

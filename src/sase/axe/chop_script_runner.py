@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.agent.env_hygiene import scrub_agent_identity_env
+from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
 
 def _compose_chop_subprocess_env(
@@ -136,8 +137,11 @@ def stream_chop_script(
     """
     subprocess_env = _compose_chop_subprocess_env(os.environ, env)
 
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    log_file = open(log_path, "ab", buffering=0)
+    if best_effort_test_state_write_allowed(log_path, category="axe-chop-log"):
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_file = open(log_path, "ab", buffering=0)
+    else:
+        log_file = open(os.devnull, "ab", buffering=0)
 
     try:
         proc = subprocess.Popen(

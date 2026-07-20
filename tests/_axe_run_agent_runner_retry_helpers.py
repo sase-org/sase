@@ -170,6 +170,16 @@ def run_main(
             with pytest.raises(SystemExit):
                 main()
         finally:
+            # Runner tests execute main() in the pytest process. Flush while the
+            # per-test SASE_HOME is still active, then unregister the runner's
+            # atexit hook so it cannot flush after fixture teardown.
+            from sase.telemetry import flush_metrics
+            from sase.telemetry._registry import _reset_for_tests
+
+            try:
+                flush_metrics()
+            finally:
+                _reset_for_tests()
             for p in stack:
                 p.stop()
             os.environ.clear()

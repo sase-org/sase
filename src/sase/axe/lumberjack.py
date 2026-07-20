@@ -18,6 +18,7 @@ import schedule
 from rich.console import Console
 
 from sase.ace.query import parse_query
+from sase.core.state_write_guard import best_effort_test_state_write_allowed
 from sase.core.time import get_timezone
 from sase.project_display_names import humanize_cl_names_in_text
 from sase.telemetry import init_telemetry
@@ -171,6 +172,10 @@ class Lumberjack:
 
         # Serialize changespecs and context to disk for chop scripts
         tick_dir = self._state_dir / "tick"
+        if not best_effort_test_state_write_allowed(
+            tick_dir, category="axe-chop-state"
+        ):
+            return
         tick_dir.mkdir(parents=True, exist_ok=True)
 
         all_cs_file = str(tick_dir / "all_changespecs.json")
