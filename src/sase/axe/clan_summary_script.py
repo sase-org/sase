@@ -15,7 +15,7 @@ from sase.axe.chop_script_runner import discover_chop_script
 log = logging.getLogger(__name__)
 
 CLAN_SUMMARY_MAX_BYTES = 32 * 1024
-CLAN_SUMMARY_TIMEOUT_SECONDS = 10.0
+CLAN_SUMMARY_TIMEOUT_SECONDS = 20.0
 
 _CLAN_ENV_NAMES = (
     "SASE_CLAN_NAME",

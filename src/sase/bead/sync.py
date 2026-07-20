@@ -16,6 +16,10 @@ class BeadWorkLaunchCommitError(RuntimeError):
     """Raised when the post-launch bead metadata commit fails."""
 
 
+class _BeadStoreRefreshError(RuntimeError):
+    """Raised when a blocking refresh cannot integrate the bead store."""
+
+
 @dataclass(frozen=True)
 class _PushOutcome:
     """Result of attempting a post-commit ``git push``."""
@@ -413,6 +417,38 @@ def schedule_current_bead_refresh() -> _AsyncPushHandle | None:
         return _maybe_schedule_bead_refresh(location.beads_dir)
     except Exception:
         return None
+
+
+def refresh_current_bead_store() -> None:
+    """Synchronously integrate the current remote-backed bead store.
+
+    In-tree and non-remote stores need no integration. Unlike the managed sync
+    worker, this read-recovery path deliberately stops after fetch/rebase and
+    never pushes local state.
+    """
+    from sase.bead.cli_common import resolve_beads_location
+
+    location = resolve_beads_location(require_existing=True)
+    if (
+        location is None
+        or location.is_in_tree
+        or location.store is None
+        or not location.store.remote_url
+    ):
+        return
+
+    from sase.sdd._repository_transaction import integrate_sdd_repository
+
+    outcome = integrate_sdd_repository(
+        location.root,
+        beads_dir=location.beads_dir,
+        op_prefix="bead.refresh",
+    )
+    if outcome.succeeded:
+        return
+
+    detail = outcome.error or f"SDD integration ended with {outcome.status.value}"
+    raise _BeadStoreRefreshError(detail)
 
 
 def bead_sync_diagnostics(beads_dir: Path) -> list[str]:

@@ -15,13 +15,20 @@ from sase.agent.clan_membership import (
     ClanMembershipPlan,
     encode_clan_membership_plan,
 )
-from sase.axe.clan_summary_script import CLAN_SUMMARY_MAX_BYTES
+from sase.axe.clan_summary_script import (
+    CLAN_SUMMARY_MAX_BYTES,
+    CLAN_SUMMARY_TIMEOUT_SECONDS,
+)
 from sase.axe.run_agent_directives import extract_directives_and_write_meta
 
 
 def _write_script(path: Path, body: str) -> None:
     path.write_text(f"#!/usr/bin/env python3\n{body}\n", encoding="utf-8")
     path.chmod(0o755)
+
+
+def test_summary_script_default_timeout_covers_blocking_refresh() -> None:
+    assert CLAN_SUMMARY_TIMEOUT_SECONDS == 20.0
 
 
 def _extract_clan_meta(

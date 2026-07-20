@@ -6,16 +6,113 @@ import json
 import subprocess
 import threading
 from contextlib import contextmanager
+from types import SimpleNamespace
+
+import pytest
 
 from sase.bead.sync import (
     commit_bead_work_launch,
     git_sync,
     push_bead_work_launch,
+    refresh_current_bead_store,
 )
 from sase.bead.sync_worker import run_managed_sync_worker
 from sase.sdd._git_contention import ENV_GIT_LOCK_RETRY_DELAYS
 
 from .sync_test_helpers import configure_git_identity, init_git_repo
+
+
+@pytest.mark.parametrize(
+    ("is_in_tree", "remote_url"),
+    [(True, "git@example.test:plans.git"), (False, None)],
+)
+def test_refresh_current_bead_store_skips_non_remote_locations(
+    tmp_path,
+    monkeypatch,
+    is_in_tree,
+    remote_url,
+):
+    location = SimpleNamespace(
+        root=tmp_path,
+        beads_dir=tmp_path / "beads",
+        is_in_tree=is_in_tree,
+        store=SimpleNamespace(remote_url=remote_url),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_common.resolve_beads_location",
+        lambda **_kwargs: location,
+    )
+
+    def unexpected_integration(*_args, **_kwargs):
+        raise AssertionError("non-remote stores must not integrate")
+
+    monkeypatch.setattr(
+        "sase.sdd._repository_transaction.integrate_sdd_repository",
+        unexpected_integration,
+    )
+
+    refresh_current_bead_store()
+
+
+def test_refresh_current_bead_store_integrates_without_push(tmp_path, monkeypatch):
+    beads_dir = tmp_path / "beads"
+    location = SimpleNamespace(
+        root=tmp_path,
+        beads_dir=beads_dir,
+        is_in_tree=False,
+        store=SimpleNamespace(remote_url="git@example.test:plans.git"),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_common.resolve_beads_location",
+        lambda **_kwargs: location,
+    )
+    calls = []
+
+    def integrate(repo_root, **kwargs):
+        calls.append((repo_root, kwargs))
+        return SimpleNamespace(succeeded=True)
+
+    monkeypatch.setattr(
+        "sase.sdd._repository_transaction.integrate_sdd_repository",
+        integrate,
+    )
+
+    refresh_current_bead_store()
+
+    assert calls == [
+        (
+            tmp_path,
+            {"beads_dir": beads_dir, "op_prefix": "bead.refresh"},
+        )
+    ]
+
+
+def test_refresh_current_bead_store_raises_on_failed_integration(
+    tmp_path,
+    monkeypatch,
+):
+    location = SimpleNamespace(
+        root=tmp_path,
+        beads_dir=tmp_path / "beads",
+        is_in_tree=False,
+        store=SimpleNamespace(remote_url="git@example.test:plans.git"),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_common.resolve_beads_location",
+        lambda **_kwargs: location,
+    )
+    outcome = SimpleNamespace(
+        succeeded=False,
+        error="git fetch failed",
+        status=SimpleNamespace(value="remote_unavailable_but_healthy"),
+    )
+    monkeypatch.setattr(
+        "sase.sdd._repository_transaction.integrate_sdd_repository",
+        lambda *_args, **_kwargs: outcome,
+    )
+
+    with pytest.raises(RuntimeError, match="git fetch failed"):
+        refresh_current_bead_store()
 
 
 def test_git_sync_retries_transient_index_lock(tmp_path, monkeypatch):

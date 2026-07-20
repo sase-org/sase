@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 import os
+import sys
 import textwrap
+import traceback
 
 from rich.markup import escape
 
 from sase.bead.cli_common import get_read_view
 from sase.bead.model import BeadTier, Issue, IssueType
+from sase.bead.sync import bead_refresh_mode, refresh_current_bead_store
 
 _SUMMARY_WIDTH = 76
 _UNKNOWN_EPIC_ID = "?"
+
+
+class _MissingEpicError(KeyError):
+    """Identify a missing top-level epic without catching later read errors."""
 
 
 def main() -> int:
@@ -22,8 +29,14 @@ def main() -> int:
     """
     epic_id = os.environ.get("SASE_CLAN_NAME", "").strip()
     try:
-        epic, phases = _load_epic(epic_id)
+        epic, phases = _load_epic_with_refresh(epic_id)
     except Exception:
+        print(
+            f"Unable to load epic clan summary for "
+            f"{epic_id or _UNKNOWN_EPIC_ID!r}; using fallback.",
+            file=sys.stderr,
+        )
+        traceback.print_exc(file=sys.stderr)
         print(_fallback_summary(epic_id))
         return 0
 
@@ -31,12 +44,25 @@ def main() -> int:
     return 0
 
 
+def _load_epic_with_refresh(epic_id: str) -> tuple[Issue, tuple[Issue, ...]]:
+    try:
+        return _load_epic(epic_id)
+    except _MissingEpicError:
+        if bead_refresh_mode() == "off":
+            raise
+        refresh_current_bead_store()
+        return _load_epic(epic_id)
+
+
 def _load_epic(epic_id: str) -> tuple[Issue, tuple[Issue, ...]]:
     if not epic_id:
         raise ValueError("SASE_CLAN_NAME is empty")
 
     with get_read_view() as project:
-        epic = project.show(epic_id)
+        try:
+            epic = project.show(epic_id)
+        except KeyError as exc:
+            raise _MissingEpicError(epic_id) from exc
         if epic.issue_type is not IssueType.PLAN or epic.tier is not BeadTier.EPIC:
             raise ValueError(f"Bead {epic_id!r} is not an epic plan")
         phases = tuple(
