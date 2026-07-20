@@ -83,6 +83,36 @@ tests in `test_agents_zoom_panel_search.py` (roughly 16-20s each), so the improv
 distribution rather than removed test cost. Three complete `worksteal` runs at governed grants of 11, 16, and 28 workers
 passed while auditing for within-file order and shared-state assumptions.
 
+### Final combined-suite verification
+
+The completed optimization was measured on athena on 2026-07-20 with the current 19,921-item fast-suite selection. A
+crash-safe reservation held the measured 29-token host pool across three consecutive samples so unrelated queued suites
+could not enter between runs; each `just test` used 25 workers, the automatic ceiling for that capacity after reserving
+the four-worker floor. Aggregate CPU is GNU time's mean utilized cores, and grant utilization divides it by 25.
+
+| Sample | Pytest time | Recipe wall | Workers | Aggregate CPU | Grant utilization |
+| ------ | ----------- | ----------- | ------- | ------------- | ----------------- |
+| 1      | 90.71s      | 93.14s      | 25      | 1809%         | 72.4%             |
+| 2      | 90.84s      | 93.08s      | 25      | 1776%         | 71.0%             |
+| 3      | 89.63s      | 92.05s      | 25      | 1803%         | 72.1%             |
+| Mean   | 90.39s      | 92.76s      | 25      | 1796%         | 71.8%             |
+
+Against the pre-optimization 4:04 recipe / 194s pytest / 14-worker / ~780% CPU baseline, the mean recipe is **2.63x
+faster** and the pytest segment is **2.15x faster**. Non-pytest recipe overhead fell from roughly 50s to 2.37s. The
+selection grew from 19,744 to 19,921 items while the work landed; no existing test was removed, skipped, or moved out of
+the fast lane.
+
+Coverage parity used the same 19,921-item selection with `just test-cov`: 19,915 tests passed, 7 were skipped, total
+branch coverage was 80.07%, and the unchanged 50% gate passed. The coverage recipe still uses the same `not slow`
+selection and includes the visual regression tests.
+
+Sustained real-host demand also exercised the pool while these measurements were prepared. With memory sizing the active
+budget at 20 tokens, three full suites progressed simultaneously with grants of 12, 4, and 4 workers. Their sum never
+exceeded 20; available memory stayed healthy and swap remained at 2.3 GiB throughout the observation. The process-level
+regression in `tests/test_suite_gate_integration.py` makes the same guarantees deterministic in a temporary three-token
+pool: three one-worker suites reach test execution together, a fourth waits, killing one holder admits the waiter, and
+active grants remain exactly bounded before and after the handoff.
+
 Set `SASE_PYTEST_WORKERS=<N>` to request exactly that many governed workers; the request must fit the shared capacity.
 Direct parallel `pytest -n ...` controllers use the same pool and lease their resolved numeric, `auto`, or `logical`
 worker count exactly. Lock descriptors survive the runner's exec and are released by the kernel even after `SIGKILL`.

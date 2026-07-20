@@ -557,18 +557,20 @@ async def test_zoom_file_full_content_survives_periodic_refresh(tmp_path: Any) -
     async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
         pilot.app.push_screen(modal)
         await pilot.pause(0)
-        await pilot.pause(0)
 
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
         panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        await _wait_for_file_content(pilot, panel, "line 199")
         assert panel._total_line_count == 200
         assert panel._visible_line_count == 200
         assert not panel._is_content_capped
 
         # A periodic refresh tick keeps the complete body rendered.
         modal._refresh_active_panel(force=False)
-        await pilot.pause(0)
+        worker = panel._static_worker
+        if worker is not None and worker.is_running:
+            await worker.wait()
         await pilot.pause(0)
         assert panel._visible_line_count == 200
         assert not panel._is_content_capped

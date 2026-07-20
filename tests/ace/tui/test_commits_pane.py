@@ -463,8 +463,15 @@ async def test_commits_filter_bar_rejects_invalid_submit(
         await page.wait_for(lambda _state: pane.result is result)
         bar = pane.query_one(CommitFilterBar)
 
-        await page.press("slash", "r", "e", "p", "o", "colon", "enter")
-        await page.pause()
+        await page.press("slash", "r", "e", "p", "o")
+        await page.wait_for(lambda _state: pane.filters.text == ("repo",))
+        await page.press("colon", "enter")
+        await page.wait_for(
+            lambda _state: (
+                bar.query_one("#commit-filter-status", Static).has_class("error")
+                and pane.filters.text == ()
+            )
+        )
 
         assert bar.display is True
         assert bar.query_one("#commit-filter-status", Static).has_class("error")

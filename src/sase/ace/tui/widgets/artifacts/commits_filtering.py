@@ -162,6 +162,35 @@ class CommitsFilteringMixin(_MixinBase):
             self._filter_debouncer is not None and self._filter_debouncer.is_pending
         )
 
+    def _show_filter_query_error(self, error: CommitFilterQueryError) -> None:
+        """Restore the pre-edit view while keeping an invalid query editable."""
+        self._generation += 1
+        self._filter_query_error = error
+        self._live_filter_values = None
+        self._pending_filter_values = None
+        if self._filter_debouncer is not None:
+            self._filter_debouncer.cancel()
+
+        restore_values = self._filter_restore_values
+        restore_result = self._filter_restore_result
+        if restore_values is not None:
+            self.filters = restore_values
+            cached = self._authoritative_results.get(
+                (self._scope_key(), restore_values)
+            )
+            if cached is not None:
+                self._display_result(self._filtered_result(cached, restore_values))
+            elif restore_result is not None:
+                self._display_result(restore_result)
+            else:
+                self._refresh_info()
+
+        self.query_one(CommitFilterBar).set_status(
+            None,
+            exact=False,
+            error=error,
+        )
+
     def show_filters(self) -> None:
         """Open and focus the inline commit filter bar."""
         bar = self.query_one(CommitFilterBar)
@@ -190,16 +219,7 @@ class CommitsFilteringMixin(_MixinBase):
         except CommitFilterQueryError as exc:
             # Prevent an already-running collection for the last valid query
             # from landing over the inline error state.
-            self._generation += 1
-            self._filter_query_error = exc
-            self._pending_filter_values = None
-            if self._filter_debouncer is not None:
-                self._filter_debouncer.cancel()
-            self.query_one(CommitFilterBar).set_status(
-                None,
-                exact=False,
-                error=exc,
-            )
+            self._show_filter_query_error(exc)
             return
 
         self._filter_query_error = None
@@ -264,12 +284,7 @@ class CommitsFilteringMixin(_MixinBase):
         try:
             values = parse_commit_filter_query(event.text)
         except CommitFilterQueryError as exc:
-            self._filter_query_error = exc
-            self.query_one(CommitFilterBar).set_status(
-                None,
-                exact=False,
-                error=exc,
-            )
+            self._show_filter_query_error(exc)
             self.notify(exc.message, severity="error")
             return
 

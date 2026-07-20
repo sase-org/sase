@@ -1736,6 +1736,13 @@ entry points directly.
 | `SASE_TEST_GATE_GOVERNED`             | Internal marker indicating that `tools/run_pytest` already leased the controller's worker tokens; inherited pytest configuration must not lease them again.                                 |
 | `SASE_JUST_INVOCATION_DIR`            | Internal value set by `just` so test selectors are normalized from the caller's directory.                                                                                                  |
 
+The pytest variables above describe one UID-scoped pool shared by `just` recipes and direct parallel pytest controllers.
+The first active lease records the effective capacity; later launchers honor that capacity until every holder exits,
+even if `MemAvailable` changes in the meantime. Automatic launchers require their floor atomically and then take
+currently free tokens up to the ceiling. Exact `SASE_PYTEST_WORKERS` requests wait for the complete request, and an
+explicit `SASE_TEST_GATE_SLOTS` value must match an already-active pool. The former whole-suite slot gate is fully
+superseded: admission, diagnostics, and SIGKILL-safe release are all expressed in worker tokens.
+
 ### Workspace Management (Internal)
 
 These are set automatically by sase when launching agent subprocesses and are not intended for manual use. Workspace
