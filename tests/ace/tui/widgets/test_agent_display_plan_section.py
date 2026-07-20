@@ -36,6 +36,8 @@ from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
     PLAN_PHASE_MODEL_STYLE,
     ResponsivePlanSection,
 )
+from sase.ace.tui.widgets.renderable_text import renderable_to_text
+from sase.phase_size_presentation import PHASE_SIZE_STYLES
 from tests.ace.tui.widgets._agent_display_plan_helpers import (
     covering_style as _covering_style,
     epic_summary as _epic_summary,
@@ -312,17 +314,19 @@ def test_epic_phase_roadmap_has_canonical_order_content_and_styles() -> None:
     assert plain.index("Path:") < plain.index("  1 ◆")
     assert "Tier:" not in plain
     assert "Phases:" not in plain
-    assert "  1 ◆ Planner and safety checks\n" in plain
+    assert "  1 ◆ Planner and safety checks small  \n" in plain
     assert "    core · no dependencies\n" in plain
     assert "    Establish the canonical normalized data model.\n" in plain
-    assert "  2 ◆ Responsive phase renderer\n" in plain
+    assert "  2 ◆ Responsive phase renderer medium \n" in plain
     assert "    render · after core · model codex/gpt-5.6-sol\n" in plain
-    assert "  3 ◆ Responsive verification\n" in plain
+    assert "  3 ◆ Responsive verification large  \n" in plain
     assert "    verify · after core, render\n" in plain
     assert_span_covers(header, "3 phases", COLOR_SUMMARY)
     assert_span_covers(header, "  1 ", COLOR_SUMMARY)
     assert_span_covers(header, "◆ ", COLOR_PLAN_SUBHEADER)
     assert_span_covers(header, "Planner and safety checks", COLOR_PLAN_PRIMARY)
+    for label in ("small", "medium", "large"):
+        assert_span_covers(header, label, PHASE_SIZE_STYLES[label])  # type: ignore[index]
     assert_span_covers(header, "core", PLAN_PHASE_ID_STYLE)
     assert_span_covers(header, "codex/gpt-5.6-sol", PLAN_PHASE_MODEL_STYLE)
     assert_span_covers(
@@ -332,12 +336,32 @@ def test_epic_phase_roadmap_has_canonical_order_content_and_styles() -> None:
     )
 
 
+def test_epic_phase_sizes_are_visible_in_logical_text_for_search_and_copy() -> None:
+    section = ResponsivePlanSection(_epic_summary())
+    header, _ = build_header_text(
+        make_agent(agent_name="planner"),
+        summary=DetailHeaderSummary(associated_plan=section.summary),
+    )
+
+    assert section.logical_text.plain.count(" small  ") == 1
+    assert section.logical_text.plain.count(" medium ") == 1
+    assert section.logical_text.plain.count(" large  ") == 1
+    assert header.plain.count("small") == 1
+    assert header.plain.count("medium") == 1
+    assert header.plain.count("large") == 1
+    searchable = renderable_to_text(header)
+    assert searchable is not None
+    for label in ("small", "medium", "large"):
+        assert searchable.count(label) == 1
+
+
 def test_single_phase_count_and_omitted_optional_values_are_compact() -> None:
     phase = AssociatedPlanPhaseSummary(
         id="only",
         title="Only phase",
         depends_on=(),
         description=None,
+        size="small",
         model=None,
     )
     header, _ = build_header_text(
@@ -348,6 +372,7 @@ def test_single_phase_count_and_omitted_optional_values_are_compact() -> None:
     )
 
     assert "▸ PLAN · epic · 1 phase\n" in header.plain
+    assert "  1 ◆ Only phase small  \n" in header.plain
     assert "    only · no dependencies\n" in header.plain
     assert "model" not in header.plain
     assert "None" not in header.plain

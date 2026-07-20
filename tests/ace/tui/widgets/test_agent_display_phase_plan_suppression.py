@@ -121,6 +121,7 @@ def test_damaged_explicit_phase_role_suppresses_epic_plan_and_artifact(
     assert "ID:" not in header.plain
     assert header.plain.count("▸ BEAD · phase sase-9.2") == 1
     assert " Description: Show only the recovered phase description.\n" in header.plain
+    assert "        Size:  small \n" in header.plain
     assert "   Epic Plan: plans/epic.md\n" in header.plain
     assert "  Epic Title: Parent epic roadmap\n" in header.plain
     assert "SASE CONTEXT" in header.plain
@@ -183,6 +184,7 @@ def test_confirmed_legacy_phase_uses_bead_lane_and_suppresses_old_row(
     assert "ID:" not in header.plain
     assert header.plain.count("▸ BEAD · phase sase-legacy.1") == 1
     assert " Description: Show this confirmed legacy phase only.\n" in header.plain
+    assert "        Size:  small \n" in header.plain
     assert "   Epic Plan: plans/legacy epic.md\n" in header.plain
     assert "  Epic Title: Legacy phase context\n" in header.plain
     assert "▸ PLAN" not in header.plain

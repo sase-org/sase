@@ -10,6 +10,11 @@ from rich.padding import Padding
 from rich.table import Table
 from rich.text import Text
 
+from sase.phase_size_presentation import (
+    PHASE_SIZE_CHIP_WIDTH,
+    phase_size_chip,
+)
+
 from ...models.agent_associated_plan import (
     AssociatedPlanPhaseSummary,
     AssociatedPlanSummary,
@@ -162,6 +167,7 @@ class ResponsivePlanSection:
         text.append(f"  {ordinal} ", style=COLOR_SUMMARY)
         text.append("◆ ", style=COLOR_PLAN_SUBHEADER)
         text.append(phase.title, style=COLOR_PLAN_PRIMARY)
+        text.append_text(phase_size_chip(phase.size, width=PHASE_SIZE_CHIP_WIDTH))
         text.append("\n")
         text.append("    ")
         text.append_text(ResponsivePlanSection._phase_metadata(phase))
@@ -184,14 +190,16 @@ class ResponsivePlanSection:
             overflow="fold",
             no_wrap=False,
         )
-        table = Table.grid(padding=0)
+        table = Table.grid(padding=0, expand=True)
         table.add_column(width=cell_len(ordinal_text), no_wrap=True)
         table.add_column(width=cell_len("◆ "), no_wrap=True)
-        table.add_column(overflow="fold")
+        table.add_column(ratio=1, overflow="fold")
+        table.add_column(width=PHASE_SIZE_CHIP_WIDTH, no_wrap=True)
         table.add_row(
             Text(ordinal_text, style=COLOR_SUMMARY),
             Text("◆ ", style=COLOR_PLAN_SUBHEADER),
             title,
+            phase_size_chip(phase.size, width=PHASE_SIZE_CHIP_WIDTH),
         )
         return table
 

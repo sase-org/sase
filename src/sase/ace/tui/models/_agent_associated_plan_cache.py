@@ -7,8 +7,9 @@ from collections.abc import Callable
 from pathlib import Path
 from threading import RLock
 from time import monotonic
-from typing import Final
+from typing import Final, Protocol
 
+from sase.phase_size_presentation import normalize_phase_size
 from sase.sdd.plan_tiers import normalize_plan_tier, parse_plan_frontmatter
 from sase.sdd.plan_validate import PlanValidationResult, ValidatedPlanPhase
 
@@ -29,7 +30,16 @@ _NEGATIVE_TTL_SECONDS = 5.0
 _CACHE_MISS: Final = object()
 
 _ReadableCheck = Callable[[Path], bool]
-_PlanValidator = Callable[[str, str], PlanValidationResult]
+
+
+class _PlanValidator(Protocol):
+    def __call__(
+        self,
+        content: str,
+        tier: str,
+        *,
+        mode: str = "authoring",
+    ) -> PlanValidationResult: ...
 
 
 class PlanFileCache:
@@ -127,14 +137,14 @@ class PlanFileCache:
         if authored_tier == "epic":
             phase_availability = "unavailable"
             try:
-                validation = validate(content, "epic")
+                validation = validate(content, "epic", mode="launch")
+                if validation.ok and validation.plan is not None:
+                    phases = tuple(
+                        _phase_summary(phase) for phase in validation.plan.phases
+                    )
+                    phase_availability = "available"
             except Exception:
-                validation = None
-            if validation is not None and validation.ok and validation.plan is not None:
-                phases = tuple(
-                    _phase_summary(phase) for phase in validation.plan.phases
-                )
-                phase_availability = "available"
+                phases = ()
         return PlanFileMetadata(
             title=title or None,
             goal=goal or None,
@@ -209,11 +219,15 @@ def _unavailable_metadata(*, exists: bool, readable: bool) -> PlanFileMetadata:
 
 
 def _phase_summary(phase: ValidatedPlanPhase) -> AssociatedPlanPhaseSummary:
+    size = normalize_phase_size(phase.size)
+    if size is None:
+        raise ValueError(f"validator returned invalid phase size: {phase.size!r}")
     return AssociatedPlanPhaseSummary(
         id=phase.id,
         title=phase.title,
         depends_on=phase.depends_on,
         description=phase.description,
+        size=size,
         model=phase.model,
     )
 

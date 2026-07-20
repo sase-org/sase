@@ -56,6 +56,7 @@ def epic_summary(
                 title="Planner and safety checks",
                 depends_on=(),
                 description="Establish the canonical normalized data model.",
+                size="small",
                 model=None,
             ),
             AssociatedPlanPhaseSummary(
@@ -63,6 +64,7 @@ def epic_summary(
                 title="Responsive phase renderer",
                 depends_on=("core",),
                 description="Render every phase without truncation.",
+                size="medium",
                 model="codex/gpt-5.6-sol",
             ),
             AssociatedPlanPhaseSummary(
@@ -70,6 +72,7 @@ def epic_summary(
                 title="Responsive verification",
                 depends_on=("core", "render"),
                 description=None,
+                size="large",
                 model=None,
             ),
         )

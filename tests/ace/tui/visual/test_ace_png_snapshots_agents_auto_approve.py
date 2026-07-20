@@ -449,7 +449,11 @@ async def test_agents_epic_phase_roadmap_png_snapshot(
         assert_page_svg_contains(page, "3 phases")
         assert_page_svg_contains(page, "Title:")
         assert_page_svg_contains(page, "Epic phase roadmap")
-        assert_page_svg_contains(page, "Planner and safety checks")
+        for title_word in ("Planner", "safety", "checks"):
+            assert_page_svg_contains(page, title_word)
+        assert_page_svg_contains(page, "small")
+        assert_page_svg_contains(page, "medium")
+        assert_page_svg_contains(page, "large")
         assert_page_svg_contains(page, "no dependencies")
         assert_page_svg_contains(page, "after core")
         assert_page_svg_contains(page, "codex/gpt-5.6-sol")
@@ -527,6 +531,8 @@ async def test_agents_phase_bead_context_png_snapshot(
             svg,
         )
         assert_page_svg_contains(page, "Description:")
+        assert_page_svg_contains(page, "Size:")
+        assert_page_svg_contains(page, "medium")
         assert_page_svg_contains(page, "Epic Plan:")
         assert_page_svg_contains(page, "Epic Title:")
         assert_page_svg_contains(page, "Phase bead SASE context lane")
@@ -534,6 +540,8 @@ async def test_agents_phase_bead_context_png_snapshot(
         assert "ID:" not in svg
         assert "▸ PLAN" not in svg
         assert "Typed phase metadata" not in svg
+        assert "small" not in svg
+        assert "large" not in svg
         assert "Keep the complete epic roadmap" not in svg
 
         ace_png_visual.assert_page_png(
@@ -660,6 +668,8 @@ async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
         assert svg_plain.index("BEAD") < svg_plain.index("PLAN")
         assert "sase-83.1" in svg_plain
         assert "Parent epic" in svg_plain
+        assert "small" in svg_plain
+        assert "medium" not in svg_plain
         assert "Phase plan" in svg_plain
         assert "tale" in svg_plain
 

@@ -142,6 +142,7 @@ def test_phase_values_fold_by_terminal_cells_without_loss(
             "second_dependency_identifier_with_a_complete_suffix",
         ),
         description=description,
+        size="large",
         model=model,
     )
     header, _ = build_header_text(
@@ -155,18 +156,47 @@ def test_phase_values_fold_by_terminal_cells_without_loss(
     rendered_text = "\n".join(rendered)
     compact = "".join(rendered_text.split())
     for value in (
-        title,
         phase.id,
         *phase.depends_on,
         description,
         model,
+        phase.size,
     ):
         assert "".join(value.split()) in compact
+    rendered_titles = _rendered_text_with_style(
+        header,
+        width=24,
+        style=COLOR_PLAN_PRIMARY,
+    )
+    assert "".join(title.split()) in "".join(rendered_titles.split())
     assert "…" not in rendered_text
     assert all(cell_len(line) <= 24 for line in rendered)
 
     wide = _render_header(header, width=120)
     assert all(cell_len(line) <= PLAN_SECTION_MAX_WIDTH for line in wide if line)
+
+
+def test_fixed_phase_size_chips_survive_narrow_rendering_while_titles_fold() -> None:
+    header, _ = build_header_text(
+        make_agent(agent_name="planner"),
+        summary=DetailHeaderSummary(associated_plan=_epic_summary()),
+    )
+
+    rendered = _render_header(header, width=24)
+    roadmap = "\n".join(rendered)
+    assert roadmap.count("small") == 1
+    assert roadmap.count("medium") == 1
+    assert roadmap.count("large") == 1
+    rendered_titles = _rendered_text_with_style(
+        header,
+        width=24,
+        style=COLOR_PLAN_PRIMARY,
+    )
+    assert "Planner and safety checks".replace(" ", "") in rendered_titles.replace(
+        " ", ""
+    ).replace("\n", "")
+    assert "…" not in roadmap
+    assert all(cell_len(line) <= 24 for line in rendered)
 
 
 def test_path_with_spaces_registers_actual_path_hint() -> None:

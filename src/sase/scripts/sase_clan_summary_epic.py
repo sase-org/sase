@@ -15,6 +15,7 @@ from rich.text import Text
 from sase.bead.cli_common import get_read_view, status_icon
 from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
 from sase.bead.sync import bead_refresh_mode, refresh_current_bead_store
+from sase.phase_size_presentation import phase_size_chip
 from sase.scripts._rich_summary import (
     render_markdown_lines,
     serialize_lines,
@@ -35,11 +36,6 @@ _STATUS_STYLES = {
     Status.OPEN: "bold #87D7FF",
     Status.IN_PROGRESS: "bold #FFD700",
     Status.CLOSED: "bold #5FD787",
-}
-_SIZE_STYLES = {
-    PhaseSize.SMALL: "bold black on #87D7FF",
-    PhaseSize.MEDIUM: "bold black on #FFD75F",
-    PhaseSize.LARGE: "bold white on #D75F87",
 }
 
 
@@ -190,7 +186,7 @@ def _header_line(epic: Issue) -> Text:
 
 def _phase_lines(index: int, phase: Issue) -> tuple[Text, ...]:
     size = phase.size or PhaseSize.SMALL
-    chip = Text(f" {size.value} ", style=_SIZE_STYLES[size])
+    chip = phase_size_chip(size)
     left_width = max(_SUMMARY_WIDTH - visible_width(chip) - 1, 1)
 
     left = Text()

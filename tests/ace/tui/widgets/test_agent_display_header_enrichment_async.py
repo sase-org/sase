@@ -119,6 +119,7 @@ def _phase_summary(bead_id: str) -> PhaseBeadSummary:
         plan_exists=True,
         plan_readable=True,
         epic_title="Deferred phase epic",
+        size="medium",
     )
 
 

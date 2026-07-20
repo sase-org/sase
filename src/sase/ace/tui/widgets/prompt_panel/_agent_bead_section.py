@@ -9,6 +9,8 @@ from rich.console import Console, ConsoleOptions, RenderResult
 from rich.table import Table
 from rich.text import Text
 
+from sase.phase_size_presentation import phase_size_chip
+
 from ...models.agent_associated_plan import PhaseBeadSummary
 from ._artifact_files import append_artifact_file_path
 from ._agent_context_common import (
@@ -22,7 +24,8 @@ from ._agent_context_common import (
 
 BEAD_SECTION_LABEL = "BEAD"
 BEAD_SECTION_MAX_WIDTH = 80
-BEAD_FIELD_LABEL_WIDTH = cell_len("  Description: ")
+_BEAD_FIELD_LABELS = ("Description", "Epic Plan", "Epic Title", "Size")
+BEAD_FIELD_LABEL_WIDTH = cell_len(f"  {max(_BEAD_FIELD_LABELS, key=len)}: ")
 BEAD_PLAN_STATE_STYLE = "dim italic #FF8787"
 
 
@@ -75,13 +78,15 @@ class ResponsiveBeadSection:
     def _rows(self) -> tuple[tuple[str, Text], ...]:
         return (
             (self._label("Description"), self._description_value()),
+            (self._label("Size"), self._size_value()),
             (self._label("Epic Plan"), self._plan_value()),
             (self._label("Epic Title"), self._title_value()),
         )
 
     @staticmethod
     def _label(label: str) -> str:
-        return f"  {label:>11}: "
+        field_width = BEAD_FIELD_LABEL_WIDTH - cell_len("  : ")
+        return f"  {label:>{field_width}}: "
 
     def _description_value(self) -> Text:
         if self.summary.description:
@@ -110,3 +115,9 @@ class ResponsiveBeadSection:
         if self.summary.epic_title:
             return Text(self.summary.epic_title, style=COLOR_BEAD_PRIMARY)
         return Text("unavailable", style=COLOR_EMPTY)
+
+    def _size_value(self) -> Text:
+        return phase_size_chip(
+            self.summary.size,
+            unavailable_style=COLOR_EMPTY,
+        )

@@ -28,6 +28,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     HeaderHintState,
     build_header_text,
 )
+from sase.phase_size_presentation import PHASE_SIZE_STYLES, PhaseSizeValue
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import assert_span_covers
 
@@ -41,6 +42,7 @@ def _bead_summary(
     exists: bool = True,
     readable: bool = True,
     title: str | None = "Phase bead context lane",
+    size: PhaseSizeValue | None = "medium",
 ) -> PhaseBeadSummary:
     return PhaseBeadSummary(
         id=bead_id,
@@ -50,6 +52,7 @@ def _bead_summary(
         plan_exists=exists,
         plan_readable=readable,
         epic_title=title,
+        size=size,
     )
 
 
@@ -102,18 +105,23 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
     assert "ID:" not in plain
     assert plain.count("sase-42.3") == 1
     assert plain.index("▸ BEAD · phase sase-42.3") < plain.index("Description:")
-    assert plain.index("Description:") < plain.index("Epic Plan:")
+    assert plain.index("Description:") < plain.index("Size:")
+    assert plain.index("Size:") < plain.index("Epic Plan:")
     assert plain.index("Epic Plan:") < plain.index("Epic Title:")
     field_lines = [
         line
         for line in plain.splitlines()
-        if any(label in line for label in ("Description:", "Epic Plan:", "Epic Title:"))
+        if any(
+            label in line
+            for label in ("Description:", "Size:", "Epic Plan:", "Epic Title:")
+        )
     ]
     assert {line.index(":") for line in field_lines} == {13}
     assert_span_covers(header, "▸ BEAD", COLOR_BEAD_SUBHEADER)
     assert_span_covers(header, "phase", COLOR_SUMMARY)
     assert_span_covers(header, "sase-42.3", COLOR_BEAD_PRIMARY)
     assert_span_covers(header, "Render only this selected phase.", COLOR_REASON)
+    assert_span_covers(header, "medium", PHASE_SIZE_STYLES["medium"])
     assert_span_covers(header, "epic plan.md", COLOR_ARTIFACT_FILE_BASENAME)
     assert_span_covers(header, "Phase bead context lane", COLOR_BEAD_PRIMARY)
 
@@ -121,6 +129,23 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
         rendered = "".join(_render(header, width=width))
         assert rendered.count("sase-42.3") == 1
         assert "…" not in rendered
+
+
+@pytest.mark.parametrize("size", ["small", "medium", "large"])
+def test_bead_size_uses_shared_accessible_chip_palette(
+    size: PhaseSizeValue,
+) -> None:
+    header = _header(_bead_summary(size=size))
+
+    assert f"Size:  {size} " in header.plain
+    assert_span_covers(header, size, PHASE_SIZE_STYLES[size])
+
+
+def test_bead_size_unavailable_is_quiet_and_visible_to_logical_consumers() -> None:
+    header = _header(_bead_summary(size=None))
+
+    assert "Size: unavailable\n" in header.plain
+    assert_span_covers(header, "unavailable", COLOR_EMPTY)
 
 
 @pytest.mark.parametrize(
@@ -200,11 +225,12 @@ def test_known_unavailable_plan_keeps_path_and_quiet_state(
             exists=exists,
             readable=readable,
             title=None,
+            size=None,
         )
     )
 
     assert f"Epic Plan: sase/repos/plans/202607/epic plan.md{suffix}" in header.plain
-    assert header.plain.count("unavailable") == 2
+    assert header.plain.count("unavailable") == 3
     assert_span_covers(header, suffix.strip(), BEAD_PLAN_STATE_STYLE)
     assert_span_covers(header, "unavailable", COLOR_EMPTY)
 

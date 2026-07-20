@@ -149,6 +149,7 @@ def test_authored_epic_phases_are_independent_of_displayed_tale_tier(
             title="Canonical phase summaries",
             depends_on=(),
             description="Normalize the authoritative validator payload.",
+            size="small",
             model=None,
         ),
         AssociatedPlanPhaseSummary(
@@ -156,6 +157,7 @@ def test_authored_epic_phases_are_independent_of_displayed_tale_tier(
             title="Independent documentation",
             depends_on=(),
             description=None,
+            size="small",
             model=None,
         ),
         AssociatedPlanPhaseSummary(
@@ -163,6 +165,7 @@ def test_authored_epic_phases_are_independent_of_displayed_tale_tier(
             title="Responsive roadmap",
             depends_on=("core", "docs"),
             description=None,
+            size="medium",
             model="codex/gpt-5.6-sol",
         ),
         AssociatedPlanPhaseSummary(
@@ -170,11 +173,56 @@ def test_authored_epic_phases_are_independent_of_displayed_tale_tier(
             title="End-to-end verification",
             depends_on=("render",),
             description=None,
+            size="large",
             model=None,
         ),
     )
     with pytest.raises(FrozenInstanceError):
         summary.phases[0].title = "changed"  # type: ignore[misc]
+
+
+def test_legacy_missing_phase_sizes_normalize_to_small_at_consumption(
+    tmp_path: Path,
+) -> None:
+    plan = write_epic(tmp_path / "legacy-epic.md")
+    plan.write_text(
+        "\n".join(
+            line
+            for line in plan.read_text(encoding="utf-8").splitlines()
+            if not line.strip().startswith("size:")
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = resolve_agent_associated_plan(
+        make_agent(archived_plan_path=str(plan), plan_path=str(plan))
+    )
+
+    assert summary is not None
+    assert summary.phase_availability == "available"
+    assert [phase.size for phase in summary.phases] == ["small"] * 4
+
+
+def test_explicit_invalid_phase_size_keeps_all_phase_metadata_unavailable(
+    tmp_path: Path,
+) -> None:
+    plan = write_epic(tmp_path / "invalid-size-epic.md")
+    plan.write_text(
+        plan.read_text(encoding="utf-8").replace(
+            "    size: medium\n",
+            "    size: enormous\n",
+        ),
+        encoding="utf-8",
+    )
+
+    summary = resolve_agent_associated_plan(
+        make_agent(archived_plan_path=str(plan), plan_path=str(plan))
+    )
+
+    assert summary is not None
+    assert summary.phase_availability == "unavailable"
+    assert summary.phases == ()
 
 
 def test_explicit_tale_survives_failed_commit_and_selects_archive(

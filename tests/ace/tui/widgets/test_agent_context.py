@@ -147,6 +147,7 @@ def _bead_section() -> ResponsiveBeadSection:
             plan_exists=True,
             plan_readable=True,
             epic_title="Phase-local context lane",
+            size="medium",
         )
     )
 
@@ -209,6 +210,7 @@ def test_bead_only_context_creates_context_and_has_no_plan_range() -> None:
     assert "ID:" not in text.plain
     assert text.plain.count("sase-42.3") == 1
     assert " Description: Render only the selected phase metadata.\n" in text.plain
+    assert "        Size:  medium \n" in text.plain
     assert "   Epic Plan: sase/repos/plans/epic.md\n" in text.plain
     assert "  Epic Title: Phase-local context lane\n" in text.plain
     assert "▸ PLAN" not in text.plain
@@ -437,6 +439,7 @@ def test_context_hint_numbers_follow_display_order() -> None:
     )
 
     plain = text.plain
+    assert plain.index("Size:  medium") < plain.index("Epic Plan: [1]")
     assert plain.index("Epic Plan: [1]") < plain.index("Path: [2]")
     assert plain.index("Path: [2]") < plain.index("[3] abcdef123456")
     assert plain.index("[3] abcdef123456") < plain.index("[4] src/output.py")

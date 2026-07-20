@@ -97,6 +97,7 @@ def test_phase_plan_is_not_exposed_as_generic_artifact(
                 plan_exists=True,
                 plan_readable=True,
                 epic_title="Selected epic",
+                size="medium",
             ),
             None,
             ("/tmp/epic.md",),
@@ -129,6 +130,7 @@ def test_dual_phase_plan_paths_are_both_removed_from_generic_artifacts(
         plan_exists=True,
         plan_readable=True,
         epic_title="Parent epic",
+        size="small",
     )
     other = ArtifactFilePath("notes.md", "/tmp/notes.md")
     monkeypatch.setattr(
@@ -249,9 +251,11 @@ def test_modern_phase_renders_one_frontmatter_bead_and_no_plan(
     assert " Description: Show only this selected phase description.\n" in (
         header.plain
     )
+    assert "        Size:  medium \n" in header.plain
     assert "   Epic Plan: plans/epic.md\n" in header.plain
     assert "  Epic Title: Role-aware metadata\n" in header.plain
     assert "▸ PLAN" not in header.plain
     assert "Goal:" not in header.plain
     assert "Path:" not in header.plain
     assert "Build metadata" not in header.plain
+    assert "small" not in header.plain

@@ -159,11 +159,16 @@ def test_epic_phase_cache_reuses_validation_until_signature_changes(
     plan = write_epic(tmp_path / "cached epic.md")
     agent = make_agent(archived_plan_path=str(plan), plan_path=str(plan))
     real_validator = plan_model.validate_plan
-    validations: list[str] = []
+    validations: list[tuple[str, str]] = []
 
-    def validate(content: str, tier: str):  # type: ignore[no-untyped-def]
-        validations.append(content)
-        return real_validator(content, tier)
+    def validate(  # type: ignore[no-untyped-def]
+        content: str,
+        tier: str,
+        *,
+        mode: str = "authoring",
+    ):
+        validations.append((content, mode))
+        return real_validator(content, tier, mode=mode)
 
     monkeypatch.setattr(plan_model, "validate_plan", validate)
 
@@ -173,11 +178,16 @@ def test_epic_phase_cache_reuses_validation_until_signature_changes(
     assert cached is not None
     assert cached.phases == first.phases
     assert len(validations) == 1
+    assert validations[0][1] == "launch"
 
     previous_mtime = plan.stat().st_mtime_ns
-    updated_content = plan.read_text(encoding="utf-8").replace(
-        "Responsive roadmap",
-        "Responsive phase roadmap",
+    updated_content = (
+        plan.read_text(encoding="utf-8")
+        .replace(
+            "Responsive roadmap",
+            "Responsive phase roadmap",
+        )
+        .replace("    size: medium\n", "    size: large\n")
     )
     plan.write_text(updated_content, encoding="utf-8")
     os.utime(
@@ -188,4 +198,6 @@ def test_epic_phase_cache_reuses_validation_until_signature_changes(
     updated = resolve_agent_associated_plan(agent)
     assert updated is not None
     assert updated.phases[2].title == "Responsive phase roadmap"
+    assert updated.phases[2].size == "large"
     assert len(validations) == 2
+    assert validations[1][1] == "launch"

@@ -53,6 +53,7 @@ def test_modern_phase_without_plan_stays_bead_only_without_lookup(
     assert enrichment.phase_bead is not None
     assert enrichment.phase_bead.actual_plan_path == str(plan.resolve())
     assert enrichment.phase_bead.epic_title == "Epic phase metadata"
+    assert enrichment.phase_bead.size == "small"
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_paths == (str(plan.resolve()),)
 
@@ -98,6 +99,7 @@ def test_legacy_phase_resolves_parent_design_but_suppresses_plan(
         plan_exists=True,
         plan_readable=True,
         epic_title="Epic phase metadata",
+        size="small",
     )
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_path == str(plan.resolve())
@@ -279,22 +281,30 @@ def test_missing_parent_store_does_not_suppress_authored_plan(
 
 
 @pytest.mark.parametrize(
-    ("epic_bead_id", "phase_bead_id", "expected_description"),
+    (
+        "epic_bead_id",
+        "phase_bead_id",
+        "expected_description",
+        "expected_size",
+    ),
     [
         (
             "sase-1",
             "sase-1.1",
             "Normalize the authoritative validator payload.",
+            "small",
         ),
         (
             "sase-1",
             "sase-1.2",
             "Phase `docs` in approved epic plan `plans/epic.md`.",
+            "small",
         ),
         (
             "sase-42.3",
             "sase-42.3.3",
             "Phase `render` in approved epic plan `plans/epic.md`.",
+            "medium",
         ),
     ],
     ids=["first", "middle", "nested-epic-id"],
@@ -305,6 +315,7 @@ def test_modern_phase_uses_validated_frontmatter_order_without_bead_lookup(
     epic_bead_id: str,
     phase_bead_id: str,
     expected_description: str,
+    expected_size: str,
 ) -> None:
     plan = write_epic(tmp_path / "plans" / "epic.md")
     agent = make_agent(
@@ -333,6 +344,7 @@ def test_modern_phase_uses_validated_frontmatter_order_without_bead_lookup(
         plan_exists=True,
         plan_readable=True,
         epic_title="Epic phase metadata",
+        size=expected_size,  # type: ignore[arg-type]
     )
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_path == str(plan.resolve())
@@ -366,7 +378,10 @@ def test_modern_phase_normalizes_multiline_description(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.parametrize("failure", ["missing", "damaged", "out-of-range"])
+@pytest.mark.parametrize(
+    "failure",
+    ["missing", "damaged", "invalid-size", "out-of-range"],
+)
 def test_modern_phase_plan_failures_stay_bare_and_never_expose_epic(
     tmp_path: Path,
     failure: str,
@@ -375,6 +390,16 @@ def test_modern_phase_plan_failures_stay_bare_and_never_expose_epic(
     if failure == "damaged":
         plan.parent.mkdir(parents=True)
         plan.write_text("---\ntier: [epic\n---\n# Broken\n", encoding="utf-8")
+    elif failure == "invalid-size":
+        write_epic(plan)
+        plan.write_text(
+            plan.read_text(encoding="utf-8").replace(
+                "    size: small\n",
+                "    size: enormous\n",
+                1,
+            ),
+            encoding="utf-8",
+        )
     elif failure == "out-of-range":
         write_epic(plan)
     phase_bead_id = "sase-1.99" if failure == "out-of-range" else "sase-1.1"
@@ -396,6 +421,7 @@ def test_modern_phase_plan_failures_stay_bare_and_never_expose_epic(
     assert enrichment.phase_bead.id == phase_bead_id
     assert enrichment.phase_bead.description is None
     assert enrichment.phase_bead.epic_title is None
+    assert enrichment.phase_bead.size is None
     assert enrichment.phase_bead.actual_plan_path == str(plan.resolve())
     assert enrichment.phase_bead.display_plan_path == "plans/epic.md"
     assert enrichment.phase_bead.plan_exists is (failure != "missing")
@@ -434,6 +460,12 @@ def test_epic_author_and_land_roles_keep_complete_plan(
     assert enrichment.associated_plan is not None
     assert enrichment.associated_plan.actual_path == str(plan.resolve())
     assert len(enrichment.associated_plan.phases) == 4
+    assert tuple(phase.size for phase in enrichment.associated_plan.phases) == (
+        "small",
+        "small",
+        "medium",
+        "large",
+    )
 
 
 def test_legacy_dotted_phase_defaults_to_suppressed_plan_when_unconfirmed(

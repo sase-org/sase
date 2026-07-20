@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from sase.phase_size_presentation import PhaseSizeValue
+
 AssociatedPlanTier = Literal["plan", "tale", "epic"]
 AuthoredPlanTier = Literal["tale", "epic"]
 AgentPlanRole = Literal["ordinary", "author", "phase", "land"]
@@ -33,6 +35,7 @@ class AssociatedPlanPhaseSummary:
     title: str
     depends_on: tuple[str, ...]
     description: str | None
+    size: PhaseSizeValue
     model: str | None
 
 
@@ -65,6 +68,7 @@ class PhaseBeadSummary:
     plan_exists: bool
     plan_readable: bool
     epic_title: str | None
+    size: PhaseSizeValue | None
 
 
 @dataclass(frozen=True, slots=True)

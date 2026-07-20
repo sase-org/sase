@@ -95,6 +95,19 @@ def test_modern_phase_normalizes_epic_title_once(tmp_path: Path) -> None:
     assert enrichment.phase_bead.epic_title == "Epic phase metadata"
 
 
+def test_phase_bead_normalizes_missing_legacy_size_to_small(tmp_path: Path) -> None:
+    plan = _write_epic(tmp_path / "plans" / "epic.md")
+    plan.write_text(
+        plan.read_text(encoding="utf-8").replace("    size: small\n", ""),
+        encoding="utf-8",
+    )
+
+    enrichment = resolve_agent_plan_enrichment(_phase_agent(tmp_path))
+
+    assert enrichment.phase_bead is not None
+    assert enrichment.phase_bead.size == "small"
+
+
 def test_unreadable_modern_phase_keeps_only_identity_and_known_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -117,6 +130,7 @@ def test_unreadable_modern_phase_keeps_only_identity_and_known_path(
         plan_exists=True,
         plan_readable=False,
         epic_title=None,
+        size=None,
     )
 
 
@@ -132,6 +146,7 @@ def test_phase_bead_cache_refreshes_description_and_title_after_plan_edit(
     assert cached == first
     assert first.description == "Normalize the authoritative validator payload."
     assert first.epic_title == "Epic phase metadata"
+    assert first.size == "small"
 
     previous_mtime = plan.stat().st_mtime_ns
     updated_content = (
@@ -141,6 +156,7 @@ def test_phase_bead_cache_refreshes_description_and_title_after_plan_edit(
             "description: Normalize the authoritative validator payload.",
             "description: Updated selected phase description.",
         )
+        .replace("    size: small\n", "    size: large\n")
     )
     plan.write_text(updated_content, encoding="utf-8")
     os.utime(
@@ -152,3 +168,4 @@ def test_phase_bead_cache_refreshes_description_and_title_after_plan_edit(
     assert updated is not None
     assert updated.description == "Updated selected phase description."
     assert updated.epic_title == "Updated epic title"
+    assert updated.size == "large"
