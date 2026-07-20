@@ -15,6 +15,7 @@ from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 from sase.core.time import get_timezone
 
 from .chop_agents import (
+    garbage_collect_chop_agent_records,
     get_chop_agent_records,
     remove_chop_agent_records,
 )
@@ -45,6 +46,12 @@ class _AgentCompletion:
     terminal: bool
     succeeded: bool
     detail: str
+
+
+@dataclass(frozen=True)
+class _MatchedAgentRecord:
+    record: object
+    launch: dict[str, object]
 
 
 def _record_artifacts_dir(record: object) -> Path | None:
@@ -194,9 +201,117 @@ def _launch_for_record(
         (
             candidate
             for candidate in launches
-            if int(str(candidate.get("pid") or "0")) == pid
+            if not _launch_artifacts_timestamp(candidate)
+            and int(str(candidate.get("pid") or "0")) == pid
         ),
         None,
+    )
+
+
+def _retry_successor_timestamp(record: object) -> str:
+    artifacts_dir = _record_artifacts_dir(record)
+    done_path = artifacts_dir / "done.json" if artifacts_dir is not None else None
+    if done_path is None or not done_path.is_file():
+        return ""
+    try:
+        raw = json.loads(done_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    if not isinstance(raw, dict):
+        return ""
+    return str(raw.get("retried_as_timestamp") or "").strip()
+
+
+def _match_records_to_launches(
+    records: list[object],
+    launches: list[dict[str, object]],
+) -> tuple[list[_MatchedAgentRecord], list[object], list[str]]:
+    """Match launch roots and their retry successors to registry records."""
+    available = set(range(len(records)))
+    matched: list[_MatchedAgentRecord] = []
+    linkage_failures: list[str] = []
+
+    if not launches:
+        linkage_failures.append(
+            "launch registry linkage incomplete: expected 0 agent record(s), "
+            f"found {len(records)}"
+        )
+
+    for launch_index, launch in enumerate(launches):
+        record_index = next(
+            (
+                candidate_index
+                for candidate_index in sorted(available)
+                if _launch_for_record(records[candidate_index], [launch]) is not None
+            ),
+            None,
+        )
+        if record_index is None:
+            timestamp = _launch_artifacts_timestamp(launch) or "unknown"
+            pid = str(launch.get("pid") or "unknown")
+            linkage_failures.append(
+                "launch registry linkage incomplete: no agent record matched "
+                f"launch {launch_index + 1} (artifacts timestamp {timestamp}, pid {pid})"
+            )
+            continue
+
+        while record_index is not None:
+            available.remove(record_index)
+            record = records[record_index]
+            matched.append(_MatchedAgentRecord(record=record, launch=launch))
+
+            successor_timestamp = _retry_successor_timestamp(record)
+            if not successor_timestamp:
+                break
+            record_index = next(
+                (
+                    candidate_index
+                    for candidate_index in sorted(available)
+                    if str(
+                        getattr(
+                            records[candidate_index],
+                            "artifacts_timestamp",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                    == successor_timestamp
+                ),
+                None,
+            )
+            if record_index is None:
+                linkage_failures.append(
+                    "launch registry linkage incomplete: retry successor "
+                    f"{successor_timestamp} for launch {launch_index + 1} "
+                    "has no agent record"
+                )
+
+    unmatched = [records[index] for index in sorted(available)]
+    return matched, unmatched, linkage_failures
+
+
+def _log_unmatched_records(
+    *,
+    lumberjack_name: str,
+    chop_name: str,
+    run_id: str,
+    records: list[object],
+) -> None:
+    if not records:
+        return
+    details = ", ".join(
+        (
+            f"pid {int(getattr(record, 'pid', 0) or 0)} "
+            f"(artifacts timestamp "
+            f"{str(getattr(record, 'artifacts_timestamp', '') or 'unknown')})"
+        )
+        for record in records
+    )
+    append_chop_run_output(
+        lumberjack_name,
+        chop_name,
+        run_id,
+        f"Ignored {len(records)} unmatched agent registry record(s): {details}\n",
     )
 
 
@@ -205,18 +320,14 @@ def _release_failed_launch_keys(
     lumberjack_name: str,
     chop_name: str,
     run_id: str,
-    records: list[object],
+    matched_records: list[_MatchedAgentRecord],
     completions: list[_AgentCompletion],
-    launches: list[dict[str, object]],
 ) -> None:
     keys: list[str] = []
-    for record, completion in zip(records, completions, strict=True):
+    for matched, completion in zip(matched_records, completions, strict=True):
         if completion.succeeded:
             continue
-        launch = _launch_for_record(record, launches)
-        if launch is None:
-            continue
-        key = str(launch.get("dedupe_key") or "").strip()
+        key = str(matched.launch.get("dedupe_key") or "").strip()
         if key and key not in keys:
             keys.append(key)
     if not keys:
@@ -250,6 +361,7 @@ def finalize_launched_chop_runs(
     Missing linkage and dead agents without completion artifacts fail closed so
     a run cannot remain in ``launched`` forever.
     """
+    garbage_collect_chop_agent_records(lumberjack_name)
     finalized = 0
     for chop_name in chop_names:
         for run_id in read_chop_run_index(lumberjack_name, chop_name):
@@ -262,31 +374,36 @@ def finalize_launched_chop_runs(
                 chop_name=chop_name,
                 run_id=run_id,
             )
-            expected = len(entry.launches)
-            completion_records: list[object] = []
-            if expected == 0 or len(records) < expected:
-                detail = (
-                    f"launch registry linkage incomplete: expected {expected} "
-                    f"agent record(s), found {len(records)}"
-                )
-                completions = [_AgentCompletion(True, False, detail)]
-            else:
-                completion_records = list(records)
+            launches = list(entry.launches)
+            matched_records, unmatched_records, linkage_failures = (
+                _match_records_to_launches(list(records), launches)
+            )
+            if linkage_failures:
                 completions = [
-                    _agent_completion(record) for record in completion_records
+                    _AgentCompletion(True, False, detail) for detail in linkage_failures
+                ]
+            else:
+                completions = [
+                    _agent_completion(matched.record) for matched in matched_records
                 ]
 
             if any(not completion.terminal for completion in completions):
                 continue
 
-            if completion_records:
+            _log_unmatched_records(
+                lumberjack_name=lumberjack_name,
+                chop_name=chop_name,
+                run_id=run_id,
+                records=unmatched_records,
+            )
+
+            if matched_records and not linkage_failures:
                 _release_failed_launch_keys(
                     lumberjack_name=lumberjack_name,
                     chop_name=chop_name,
                     run_id=run_id,
-                    records=completion_records,
+                    matched_records=matched_records,
                     completions=completions,
-                    launches=list(entry.launches),
                 )
 
             failures = [f"proposal launch failed: {entry.error}"] if entry.error else []
@@ -310,9 +427,7 @@ def finalize_launched_chop_runs(
             detail = (
                 "; ".join(failures)
                 if failures
-                else (
-                    f"all {len(completions)} launched agent(s) completed successfully"
-                )
+                else (f"all {len(launches)} launched agent(s) completed successfully")
             )
             append_chop_run_output(
                 lumberjack_name,

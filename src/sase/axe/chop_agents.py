@@ -16,7 +16,6 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
-from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
 
 from . import state
@@ -120,11 +119,7 @@ def agent_meta_from_chop_env(
 
 
 def _registry_path(lumberjack_name: str) -> Path:
-    jack_state_dir = state.JACK_STATE_DIR
-    default_dir = sase_subdir("axe") / "lumberjacks"
-    if jack_state_dir == default_dir:
-        jack_state_dir = default_dir
-    return jack_state_dir / lumberjack_name / "agent_chops.json"
+    return state.JACK_STATE_DIR / lumberjack_name / "agent_chops.json"
 
 
 def _process_registry_lock(lock_path: Path) -> threading.RLock:
@@ -233,6 +228,24 @@ def remove_chop_agent_records(
         ]
         if kept != records:
             _write_records_unlocked(lumberjack_name, kept)
+
+
+def garbage_collect_chop_agent_records(lumberjack_name: str) -> int:
+    """Remove records whose owning chop run is missing or already terminal."""
+    with _registry_lock(lumberjack_name):
+        records = _read_records_unlocked(lumberjack_name)
+        kept: list[_ChopAgentRecord] = []
+        for record in records:
+            entry = state.read_chop_run(
+                lumberjack_name,
+                record.chop_name,
+                record.run_id,
+            )
+            if entry is not None and entry.status in state.ACTIVE_CHOP_RUN_STATUSES:
+                kept.append(record)
+        if kept != records:
+            _write_records_unlocked(lumberjack_name, kept)
+    return len(records) - len(kept)
 
 
 def _record_chop_agent_launch(

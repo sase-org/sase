@@ -10,7 +10,10 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.axe.chop_agents import _record_chop_agent_launch
+from sase.axe.chop_agents import (
+    _record_chop_agent_launch,
+    get_chop_agent_records,
+)
 from sase.axe.chop_lifecycle import _agent_completion, finalize_launched_chop_runs
 from sase.axe.chop_policy import apply_chop_once_per
 from sase.axe.chop_proposals import (
@@ -729,6 +732,7 @@ def test_lifecycle_finalizes_completed_agents_and_clears_registry(
     entry = read_chop_run("docs", "docs", run_id)
     assert entry is not None
     assert entry.status == "action_succeeded"
+    assert get_chop_agent_records("docs", chop_name="docs", run_id=run_id) == []
 
 
 def test_lifecycle_releases_only_failed_agents_once_per_key(
