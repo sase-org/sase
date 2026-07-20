@@ -47,6 +47,24 @@ def render_plan_preview(
     Console().print(f"  [bold]Land[/bold]    {land_model}")
 
 
+def render_parent_preview(
+    parent_id: str | None,
+    preview_epic_id: str | None,
+    *,
+    overridden: bool,
+) -> None:
+    """Render the effective parent and prospective hierarchical epic ID."""
+    if parent_id is None:
+        if overridden:
+            Console().print(
+                "[green]✓[/green] Parent          top-level (explicit override)"
+            )
+        return
+    Console().print(
+        f"[green]✓[/green] Parent          {parent_id} · preview epic {preview_epic_id}"
+    )
+
+
 def render_created_beads(
     issue: Any,
     phases: list[Any],

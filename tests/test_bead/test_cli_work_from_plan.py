@@ -45,6 +45,13 @@ Execute the rollout.
 """
 
 
+def _epic_plan_with_parent(parent_id: str) -> str:
+    return EPIC_PLAN.replace(
+        "goal: Exercise the host-owned plan-file launch.\n",
+        f"goal: Exercise the host-owned plan-file launch.\nparent_bead: {parent_id}\n",
+    )
+
+
 def _epic_plan_with_phase_count(
     phase_count: int,
     *,
@@ -137,6 +144,138 @@ def test_plan_file_mode_creates_links_and_launches_in_tree(
         epic = project.show(result.epic_id)
         assert epic.tier is BeadTier.EPIC
         assert epic.design.startswith("sdd/plans/")
+
+
+def test_plan_file_creates_hierarchical_child_epic_from_managed_parent(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with BeadProject(project_dir) as project:
+        root = project.create("Root epic", IssueType.PLAN, tier=BeadTier.EPIC)
+        phase = project.create("Parent phase", IssueType.PHASE, parent_id=root.id)
+
+    source = project_dir / "child_epic.md"
+    source.write_text(_epic_plan_with_parent(phase.id), encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._commit_plan_file",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        lambda _project, _epic_id, **_kwargs: True,
+    )
+
+    result = work_from_plan_file(
+        str(source),
+        dry_run=False,
+        yes=True,
+        no_push=False,
+        render=False,
+    )
+
+    assert result.epic_id == f"{phase.id}.1"
+    assert result.parent_id == phase.id
+    assert result.phase_bead_ids == (
+        f"{phase.id}.1.1",
+        f"{phase.id}.1.2",
+        f"{phase.id}.1.3",
+    )
+    assert result.epic_id is not None
+    with BeadProject(project_dir) as project:
+        assert project.show(result.epic_id).parent_id == phase.id
+
+
+def test_plan_file_parent_override_and_force_top_level(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with BeadProject(project_dir) as project:
+        root = project.create("Root epic", IssueType.PLAN, tier=BeadTier.EPIC)
+        authored_parent = project.create(
+            "Authored parent", IssueType.PHASE, parent_id=root.id
+        )
+        override_parent = project.create(
+            "Override parent", IssueType.PHASE, parent_id=root.id
+        )
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._commit_plan_file",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        lambda _project, _epic_id, **_kwargs: True,
+    )
+    overridden_source = project_dir / "overridden_child.md"
+    overridden_source.write_text(
+        _epic_plan_with_parent(authored_parent.id), encoding="utf-8"
+    )
+    top_level_source = project_dir / "top_level_child.md"
+    top_level_source.write_text(
+        _epic_plan_with_parent(authored_parent.id), encoding="utf-8"
+    )
+
+    overridden = work_from_plan_file(
+        str(overridden_source),
+        dry_run=False,
+        yes=True,
+        no_push=False,
+        parent=override_parent.id,
+        render=False,
+    )
+    top_level = work_from_plan_file(
+        str(top_level_source),
+        dry_run=False,
+        yes=True,
+        no_push=False,
+        parent="top-level",
+        render=False,
+    )
+
+    assert overridden.parent_id == override_parent.id
+    assert overridden.epic_id == f"{override_parent.id}.1"
+    assert top_level.parent_id is None
+    assert top_level.epic_id is not None and "." not in top_level.epic_id
+
+
+def test_plan_file_parent_dry_run_previews_id_and_missing_parent_has_remedy(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        root = project.create("Root epic", IssueType.PLAN, tier=BeadTier.EPIC)
+        project.create("First phase", IssueType.PHASE, parent_id=root.id)
+        project.create("Second phase", IssueType.PHASE, parent_id=root.id)
+
+    source = project_dir / "preview_child.md"
+    source.write_text(_epic_plan_with_parent(root.id), encoding="utf-8")
+    result = work_from_plan_file(
+        str(source),
+        dry_run=True,
+        yes=False,
+        no_push=False,
+        render=True,
+    )
+
+    assert result.epic_id is None
+    assert result.parent_id == root.id
+    assert result.preview_epic_id == f"{root.id}.3"
+    output = capsys.readouterr().out
+    assert "preview epic" in output
+    assert f"{root.id}.3" in output
+    assert f"Epic: {root.id}.3" in output
+
+    missing = project_dir / "missing_parent.md"
+    missing.write_text(_epic_plan_with_parent("sase-missing.9"), encoding="utf-8")
+    with pytest.raises(PlanFileWorkError, match="--parent top-level") as excinfo:
+        work_from_plan_file(
+            str(missing),
+            dry_run=True,
+            yes=False,
+            no_push=False,
+            render=False,
+        )
+    assert "missing from the active store" in str(excinfo.value)
 
 
 def test_plan_file_mode_uses_sidecar_store(
@@ -731,6 +870,22 @@ def test_plan_file_json_output_is_one_stable_object(
     assert payload["launched_agent_names"][-1] == f"{payload['epic_id']}.land"
 
 
+def test_bead_id_mode_rejects_parent_override(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = create_parser().parse_args(
+        ["bead", "work", "sase-64", "--parent", "top-level"]
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_bead_work(args)
+
+    assert excinfo.value.code == 1
+    assert "only applies when the bead work target is a plan file" in (
+        capsys.readouterr().err
+    )
+
+
 def test_bead_work_help_describes_both_targets_and_options(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -744,3 +899,5 @@ def test_bead_work_help_describes_both_targets_and_options(
     assert "-j, --json" in help_text
     assert "--dry-run" in help_text
     assert "--no-push" in help_text
+    assert "--parent BEAD_ID|top-level" in help_text
+    assert "--parent top-level" in help_text

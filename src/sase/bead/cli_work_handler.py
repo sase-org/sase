@@ -81,6 +81,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
     yes = bool(getattr(args, "yes", False))
     no_push = bool(getattr(args, "no_push", False))
     json_output = bool(getattr(args, "json", False))
+    parent = getattr(args, "parent", None)
     target = str(getattr(args, "target", getattr(args, "id", "")))
 
     from sase.bead.cli_work_from_plan import (
@@ -103,6 +104,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
                     dry_run=dry_run,
                     yes=yes or json_output,
                     no_push=no_push,
+                    parent=parent,
                     render=not json_output,
                 )
         except PlanFileWorkError as exc:
@@ -137,6 +139,24 @@ def handle_bead_work(args: argparse.Namespace) -> None:
         if json_output:
             print(json.dumps(result.to_json(), sort_keys=True))
         return
+
+    if parent is not None:
+        message = "--parent only applies when the bead work target is a plan file"
+        if json_output:
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "mode": "bead_id",
+                        "epic_id": target,
+                        "error": message,
+                    },
+                    sort_keys=True,
+                )
+            )
+        else:
+            print(f"Error: {message}", file=sys.stderr)
+        raise SystemExit(1)
 
     timer = _make_bead_work_timer(target, dry_run=dry_run)
     with timer, contextlib.ExitStack() as stack:

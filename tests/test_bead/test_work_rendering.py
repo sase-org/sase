@@ -195,6 +195,35 @@ class TestRenderEdgeCases:
             },
         )
 
+    def test_nested_epic_segment_env_uses_child_scoped_ids(self) -> None:
+        plan = EpicWorkPlan(
+            epic_id="sase-7z.5.1",
+            launch_tag_id="sase-7z.5.1",
+            total_phase_count=1,
+            waves=(
+                (
+                    PhaseAssignment(
+                        bead_id="sase-7z.5.1.1",
+                        agent_name="sase-7z.5.1.1",
+                        waits_on=(),
+                        wave=0,
+                    ),
+                ),
+            ),
+            land_agent_name="sase-7z.5.1.land",
+            land_waits_on=("sase-7z.5.1.1",),
+        )
+
+        phase_env, land_env = epic_work_segment_env(
+            plan,
+            plan_ref="sdd/plans/202607/nested.md",
+        )
+
+        assert phase_env[SASE_PHASE_BEAD_ID_ENV] == "sase-7z.5.1.1"
+        assert phase_env[SASE_EPIC_BEAD_ID_ENV] == "sase-7z.5.1"
+        assert land_env[SASE_EPIC_BEAD_ID_ENV] == "sase-7z.5.1"
+        assert SASE_PHASE_BEAD_ID_ENV not in land_env
+
 
 class TestChangeSpecRendering:
     def test_single_phase_wraps_phase_and_land(self, conn: sqlite3.Connection) -> None:

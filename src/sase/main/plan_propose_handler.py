@@ -90,12 +90,36 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
             )
             sys.exit(1)
 
-    # Format plan file in-place with prettier before archiving
+    # Epic plans proposed from bead work inherit the bead this agent is
+    # responsible for.  The phase association is more specific than the epic
+    # association and therefore wins for phase agents; land agents only carry
+    # the epic association.  Tales deliberately remain unstamped so a coder
+    # follow-up can later propose its own epic with the inherited environment.
+    parent_bead: str | None = None
+    if target_tier == "epic":
+        from sase.bead.work import (
+            SASE_EPIC_BEAD_ID_ENV,
+            SASE_PHASE_BEAD_ID_ENV,
+        )
+
+        parent_bead = (
+            os.environ.get(SASE_PHASE_BEAD_ID_ENV, "").strip()
+            or os.environ.get(SASE_EPIC_BEAD_ID_ENV, "").strip()
+            or None
+        )
+
+    # Format plan file in-place with prettier before archiving.  Stamp the
+    # managed association first so the archived copy is fully formatted.
     from sase.file_references import format_with_prettier
 
-    raw = plan_path.read_text(encoding="utf-8")
+    original = plan_path.read_text(encoding="utf-8")
+    raw = original
+    if parent_bead is not None:
+        from sase.sdd.frontmatter import set_frontmatter_fields
+
+        raw = set_frontmatter_fields(raw, {"parent_bead": parent_bead})
     formatted = format_with_prettier(raw)
-    if formatted != raw:
+    if formatted != original:
         plan_path.write_text(formatted, encoding="utf-8")
 
     # Move plan into the ~/.sase/plans/ archive, consuming the scratch file.

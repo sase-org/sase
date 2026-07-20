@@ -227,6 +227,8 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
             "Examples:\n"
             "  sase bead work sase-64\n"
             "  sase bead work ./epic_plan.md --dry-run\n"
+            "  sase bead work ./epic_plan.md --parent sase-64.2 --yes\n"
+            "  sase bead work ./epic_plan.md --parent top-level --yes\n"
             "  sase bead work ./epic_plan.md --yes\n"
             "  sase bead work ./epic_plan.md --json --yes"
         ),
@@ -253,6 +255,15 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         "--no-push",
         action="store_true",
         help="Commit plan and bead state locally but skip post-commit pushes",
+    )
+    bead_work_parser.add_argument(
+        "-p",
+        "--parent",
+        metavar="BEAD_ID|top-level",
+        help=(
+            "Override a plan file's parent_bead; use 'top-level' to create "
+            "an unparented epic"
+        ),
     )
     bead_work_parser.add_argument(
         "-y",

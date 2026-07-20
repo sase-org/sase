@@ -37,6 +37,7 @@ def create_and_launch_epic_from_plan(
     plan_ref: str,
     commit_plan_update: PlanUpdateCommitter,
     launch_work: EpicWorkLauncher,
+    parent_override: str | None = None,
     rollback_push_after_commit: bool | Literal["async"] | None = None,
 ) -> _EpicFromPlanResult:
     """Create an epic DAG, link the plan, and launch ``sase bead work``.
@@ -77,6 +78,8 @@ def create_and_launch_epic_from_plan(
         # boundary explicit avoids creating an untitled bead if wire contracts
         # ever drift.
         raise _EpicFromPlanError("validated epic plan is missing its title")
+    parent_id = selected_epic_parent_id(plan.parent_bead, parent_override)
+    require_epic_parent(proj, parent_id, plan_path=plan_path)
 
     epic: Issue | None = None
     plan_link_written = False
@@ -84,6 +87,7 @@ def create_and_launch_epic_from_plan(
         epic = proj.create(
             title=plan.title,
             issue_type=IssueType.PLAN,
+            parent_id=parent_id,
             description=plan.goal,
             design=plan_ref,
             tier=BeadTier.EPIC,
@@ -163,6 +167,57 @@ def create_and_launch_epic_from_plan(
         raise _EpicFromPlanError(detail) from exc
 
 
+def selected_epic_parent_id(
+    plan_parent_id: str | None,
+    parent_override: str | None,
+) -> str | None:
+    """Return the effective parent for an epic plan launch.
+
+    ``None`` means no CLI override was supplied, while an empty value or the
+    documented ``top-level`` token explicitly clears a plan's managed parent.
+    ``none`` is accepted as a convenient non-interactive synonym.
+    """
+    if parent_override is None:
+        return plan_parent_id
+    normalized = parent_override.strip()
+    if normalized.lower() in {"", "none", "top-level"}:
+        return None
+    return normalized
+
+
+def require_epic_parent(
+    proj: BeadProject,
+    parent_id: str | None,
+    *,
+    plan_path: Path,
+) -> Issue | None:
+    """Resolve an epic parent in the active store or raise with a remedy."""
+    if parent_id is None:
+        return None
+    try:
+        return proj.show(parent_id)
+    except KeyError as exc:
+        raise _EpicFromPlanError(
+            f"epic plan {plan_path} names parent bead {parent_id!r}, but that "
+            "bead is missing from the active store; restore the parent bead, "
+            "choose another with --parent <bead-id>, or force a top-level "
+            "epic with --parent top-level"
+        ) from exc
+
+
+def preview_parented_epic_id(proj: BeadProject, parent_id: str) -> str:
+    """Preview Rust's next direct-child allocation without mutating the store."""
+    prefix = f"{parent_id}."
+    highest = 0
+    for issue in proj.list_issues():
+        if issue.parent_id != parent_id or not issue.id.startswith(prefix):
+            continue
+        suffix = issue.id[len(prefix) :]
+        if suffix.isdigit():
+            highest = max(highest, int(suffix))
+    return f"{parent_id}.{highest + 1}"
+
+
 def _rollback_epic_creation(
     proj: BeadProject,
     *,
@@ -201,4 +256,7 @@ def _rollback_epic_creation(
 
 __all__ = [
     "create_and_launch_epic_from_plan",
+    "preview_parented_epic_id",
+    "require_epic_parent",
+    "selected_epic_parent_id",
 ]

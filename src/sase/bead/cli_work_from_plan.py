@@ -11,6 +11,7 @@ from rich.console import Console
 from sase.bead.cli_work_from_plan_render import (
     render_created_beads as _render_created_beads,
     render_final as _render_final,
+    render_parent_preview as _render_parent_preview,
     render_plan_preview as _render_plan_preview,
     render_validation_failure as _render_validation_failure,
 )
@@ -25,7 +26,7 @@ from sase.bead.cli_work_from_plan_types import (
     PlanFileWorkError,
     PlanFileWorkResult as _PlanFileWorkResult,
 )
-from sase.bead.model import BeadTier, IssueType
+from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.project import BeadProject
 from sase.sdd.store import SddStore
 
@@ -45,6 +46,7 @@ def work_from_plan_file(
     dry_run: bool,
     yes: bool,
     no_push: bool,
+    parent: str | None = None,
     render: bool = True,
 ) -> _PlanFileWorkResult:
     """Validate, archive, materialize, link, and launch one epic plan."""
@@ -94,6 +96,30 @@ def work_from_plan_file(
             f"{store.storage} · beads at {location.beads_dir}"
         )
 
+    from sase.bead.epic_from_plan import (
+        preview_parented_epic_id,
+        require_epic_parent,
+        selected_epic_parent_id,
+    )
+
+    parent_id = selected_epic_parent_id(plan.parent_bead, parent)
+    preview_epic_id: str | None = None
+    if parent_id is not None:
+        try:
+            with BeadProject(
+                location.root,
+                beads_dirname=location.beads_dirname,
+            ) as project:
+                require_epic_parent(project, parent_id, plan_path=source_path)
+                preview_epic_id = preview_parented_epic_id(project, parent_id)
+        except Exception as exc:
+            raise _error_with_resume(
+                str(exc),
+                source_path,
+                no_push=no_push,
+                parent_override=parent,
+            ) from exc
+
     if dry_run:
         if archive_destination.is_file() and not _same_path(
             source_path, archive_destination
@@ -106,20 +132,37 @@ def work_from_plan_file(
             )
         existing_epic_id = _linked_bead_id_if_present(archive_destination)
         if existing_epic_id is not None:
-            _require_linked_epic(location, existing_epic_id, archive_destination)
+            linked_issue = _require_linked_epic(
+                location, existing_epic_id, archive_destination
+            )
+            _require_parent_override_matches_linked(
+                linked_issue,
+                parent_id,
+                parent_override=parent,
+                plan_path=archive_destination,
+            )
+            parent_id = linked_issue.parent_id
+            preview_epic_id = linked_issue.id
         if render:
             Console().print(
                 "[green]✓[/green] Archived        "
                 f"{archive_destination} (preview; no files written)"
             )
             _render_plan_preview(plan, waves)
+            _render_parent_preview(
+                parent_id,
+                preview_epic_id,
+                overridden=parent is not None,
+            )
             Console().print("\nDry run complete; no beads or files were changed.")
-            Console().print(f"Epic: {existing_epic_id or 'dry-run'}")
+            Console().print(f"Epic: {existing_epic_id or preview_epic_id or 'dry-run'}")
         return _PlanFileWorkResult(
             archived_plan_path=archive_destination,
             authored_phase_ids=phase_ids,
             dry_run=True,
             epic_id=existing_epic_id,
+            parent_id=parent_id,
+            preview_epic_id=preview_epic_id,
             resumed=existing_epic_id is not None,
             waves=waves,
         )
@@ -174,6 +217,13 @@ def work_from_plan_file(
 
     existing_epic_id = _linked_bead_id_if_present(archived_path)
     if existing_epic_id is not None:
+        linked_issue = _require_linked_epic(location, existing_epic_id, archived_path)
+        _require_parent_override_matches_linked(
+            linked_issue,
+            parent_id,
+            parent_override=parent,
+            plan_path=archived_path,
+        )
         return _resume_linked_epic(
             location,
             store=store,
@@ -239,10 +289,16 @@ def work_from_plan_file(
                 plan_ref=plan_ref,
                 commit_plan_update=commit_plan_link,
                 launch_work=launch_created_epic,
+                parent_override=parent,
                 rollback_push_after_commit=False if no_push else None,
             )
     except Exception as exc:
-        raise _error_with_resume(str(exc), archived_path, no_push=no_push) from exc
+        raise _error_with_resume(
+            str(exc),
+            archived_path,
+            no_push=no_push,
+            parent_override=parent,
+        ) from exc
 
     _push_store_after_launch(store, no_push=no_push)
     result = _PlanFileWorkResult(
@@ -250,6 +306,7 @@ def work_from_plan_file(
         authored_phase_ids=phase_ids,
         dry_run=False,
         epic_id=created.epic.id,
+        parent_id=created.epic.parent_id,
         phase_bead_ids=tuple(phase.id for phase in created.phases),
         launched_agent_names=launched_names,
         launched=True,
@@ -331,7 +388,7 @@ def _require_linked_epic(
     location: Any,
     epic_id: str,
     plan_path: Path,
-) -> None:
+) -> Issue:
     if not location.beads_dir.is_dir():
         raise PlanFileWorkError(
             _stale_link_message(epic_id, plan_path),
@@ -349,6 +406,25 @@ def _require_linked_epic(
             f"plan {plan_path} links bead_id {epic_id}, but that bead is not an "
             "epic plan bead; remove the stale bead_id or restore the correct bead"
         )
+    return issue
+
+
+def _require_parent_override_matches_linked(
+    issue: Issue,
+    parent_id: str | None,
+    *,
+    parent_override: str | None,
+    plan_path: Path,
+) -> None:
+    """Reject a create-time parent override when a linked epic already exists."""
+    if parent_override is None or issue.parent_id == parent_id:
+        return
+    actual = issue.parent_id or "top-level"
+    requested = parent_id or "top-level"
+    raise PlanFileWorkError(
+        f"plan {plan_path} already links epic {issue.id} under {actual}; "
+        f"--parent requested {requested}, but existing beads cannot be reparented"
+    )
 
 
 def _resume_linked_epic(
@@ -413,6 +489,7 @@ def _resume_linked_epic(
         authored_phase_ids=authored_phase_ids,
         dry_run=False,
         epic_id=epic_id,
+        parent_id=issue.parent_id,
         phase_bead_ids=tuple(phase.id for phase in phases),
         launched_agent_names=launched_names if launched else (),
         launched=launched,
@@ -464,10 +541,13 @@ def _error_with_resume(
     archived_path: Path,
     *,
     no_push: bool,
+    parent_override: str | None = None,
 ) -> PlanFileWorkError:
     command = f"sase bead work {shlex.quote(str(archived_path))} --yes"
     if no_push:
         command += " --no-push"
+    if parent_override is not None:
+        command += f" --parent {shlex.quote(parent_override)}"
     return PlanFileWorkError(message, resume_command=command)
 
 

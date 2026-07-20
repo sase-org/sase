@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -10,6 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.main import plan_command_handler
+from sase.sdd.frontmatter import parse_frontmatter
 from tests.conftest import redirect_sase_home
 
 
@@ -38,6 +40,13 @@ phases:
 
 body
 """
+
+
+@pytest.fixture(autouse=True)
+def _clear_bead_work_association_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep proposal tests independent from the launching agent's bead env."""
+    monkeypatch.delenv("SASE_PHASE_BEAD_ID", raising=False)
+    monkeypatch.delenv("SASE_EPIC_BEAD_ID", raising=False)
 
 
 def _make_artifacts_dir(sase_home: Path) -> Path:
@@ -232,6 +241,79 @@ def test_plan_command_accepts_valid_epic(
 
     kill_mock.assert_called_once_with(str(artifacts_dir))
     assert (artifacts_dir / ".sase_plan_pending").is_file()
+
+
+@pytest.mark.parametrize(
+    ("content", "phase_bead", "epic_bead", "expected_parent"),
+    [
+        pytest.param(
+            VALID_EPIC,
+            "sase-7z.5",
+            "sase-7z",
+            "sase-7z.5",
+            id="phase-precedes-epic",
+        ),
+        pytest.param(
+            VALID_EPIC,
+            None,
+            "sase-7z",
+            "sase-7z",
+            id="land-agent",
+        ),
+        pytest.param(VALID_EPIC, None, None, None, id="outside-bead-work"),
+        pytest.param(
+            VALID_TALE,
+            "sase-7z.5",
+            "sase-7z",
+            None,
+            id="tale-remains-unstamped",
+        ),
+    ],
+)
+def test_plan_command_stamps_epic_parent_from_bead_work_env(
+    content: str,
+    phase_bead: str | None,
+    epic_bead: str | None,
+    expected_parent: str | None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only epic proposals inherit the most specific active bead ID."""
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    plan_file = tmp_path / "associated.md"
+    plan_file.write_text(content, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    if phase_bead is not None:
+        monkeypatch.setenv("SASE_PHASE_BEAD_ID", phase_bead)
+    if epic_bead is not None:
+        monkeypatch.setenv("SASE_EPIC_BEAD_ID", epic_bead)
+
+    with (
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+            side_effect=SystemExit(0),
+        ),
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=lambda raw: raw,
+        ),
+    ):
+        assert _invoke_plan(plan_file) == 0
+
+    marker = json.loads(
+        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
+    )
+    archived = Path(marker["plan_file"])
+    frontmatter, _body, _had_frontmatter = parse_frontmatter(
+        archived.read_text(encoding="utf-8")
+    )
+    if expected_parent is None:
+        assert "parent_bead" not in frontmatter
+    else:
+        assert frontmatter["parent_bead"] == expected_parent
 
 
 @pytest.mark.parametrize(
