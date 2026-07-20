@@ -8,7 +8,10 @@ from unittest.mock import patch
 from rich.text import Text
 
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
-from sase.ace.tui.actions.axe_display._data import ChopRunSnapshot
+from sase.ace.tui.actions.axe_display._data import (
+    AxeStatusDegradation,
+    ChopRunSnapshot,
+)
 from sase.ace.tui.widgets import axe_dashboard
 from sase.ace.tui.widgets.axe_dashboard import AxeDashboard
 from sase.axe.state import LumberjackStatus
@@ -207,6 +210,31 @@ def test_status_section_renders_no_wrap_text() -> None:
     for text in captured:
         assert text.no_wrap is True
         assert text.overflow == "ellipsis"
+
+
+def test_status_section_renders_degraded_axe_status() -> None:
+    """A collector degradation replaces misleading runtime counters."""
+    section = axe_dashboard._AxeStatusSection.__new__(axe_dashboard._AxeStatusSection)
+    section.__init__()  # type: ignore[misc]
+    captured: list[Text] = []
+    section.update = lambda content: captured.append(content)  # type: ignore[assignment,arg-type]
+
+    section.update_display(
+        status=None,
+        is_running=True,
+        full_cycles=0,
+        countdown=17,
+        degraded_status=AxeStatusDegradation(
+            "axe config invalid: [unknown_key] axe.extra: unsupported setting"
+        ),
+    )
+
+    assert captured
+    assert "axe config invalid: [unknown_key] axe.extra: unsupported setting" in (
+        captured[-1].plain
+    )
+    assert "Runtime:" not in captured[-1].plain
+    assert "auto-refresh in 17s" in captured[-1].plain
 
 
 def test_bgcmd_status_section_uses_display_project() -> None:

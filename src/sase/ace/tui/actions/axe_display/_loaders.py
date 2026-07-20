@@ -36,6 +36,7 @@ from ...widgets.bgcmd_list import (
 from ...util.pump_tasks import spawn_pump_free_task
 from ._data import (
     AxeCollectedData,
+    AxeStatusDegradation,
     AxeViewType,
     BgCmdSnapshot,
     ChopSnapshot,
@@ -97,6 +98,7 @@ class AxeDisplayLoadersMixin:
     _axe_status: AxeStatus | None
     _axe_metrics: AxeMetrics | None
     _axe_output: str
+    _axe_degraded_status: AxeStatusDegradation | None
     _axe_pinned_to_bottom: bool
     _axe_cmds_hidden: bool
     _axe_current_view: AxeViewType
@@ -187,6 +189,7 @@ class AxeDisplayLoadersMixin:
         self._axe_status = data.axe_status
         self._axe_metrics = data.axe_metrics
         self._axe_output = data.axe_output
+        self._axe_degraded_status = data.degraded_status
 
         # Apply lumberjack names
         self._axe_lumberjack_names = data.lumberjack_names

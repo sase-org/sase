@@ -13,7 +13,12 @@ from unittest.mock import patch
 
 from sase.ace.tui.actions.axe_display import collect_axe_status_data
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
-from sase.axe.config import ChopConfig, LumberjackConfig
+from sase.axe.config import (
+    _AxeConfigDiagnostic,
+    AxeConfigError,
+    ChopConfig,
+    LumberjackConfig,
+)
 from sase.axe.state import (
     ChopRunEntry,
     LumberjackMetrics,
@@ -76,6 +81,49 @@ def _make_run_entry(lj: str, chop: str, run_id: str) -> ChopRunEntry:
         output_bytes=10,
         output_log=f"{run_id}.log",
     )
+
+
+def test_collector_degrades_invalid_axe_config_to_status() -> None:
+    """Invalid config is visible in the pane instead of escaping the refresh."""
+    error = AxeConfigError(
+        [
+            _AxeConfigDiagnostic(
+                code="unknown_key",
+                path="axe.extra",
+                message="unsupported setting",
+            )
+        ]
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
+        ) as get_proc,
+        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
+            return_value="",
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_active_slots",
+            return_value=[],
+        ),
+        patch("sase.axe.config.load_axe_config") as load_config,
+    ):
+        proc = get_proc.return_value
+        proc.is_axe_running.return_value = True
+        proc.get_axe_status.side_effect = error
+
+        data = collect_axe_status_data()
+
+    assert data.axe_running is True
+    assert data.axe_status is None
+    assert data.lumberjack_names == []
+    assert data.degraded_status is not None
+    assert data.degraded_status.message == (
+        "axe config invalid: [unknown_key] axe.extra: unsupported setting"
+    )
+    load_config.assert_not_called()
 
 
 def test_collector_populates_all_cache_maps() -> None:

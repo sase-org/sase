@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from ..keymaps import KeymapRegistry
     from ..modals import QuitOption
     from .axe_display._loaders import AxeItemKey
+    from .axe_display._data import AxeStatusDegradation
 
 # Type alias for tab names
 TabName = Literal["changespecs", "agents", "axe"]
@@ -53,6 +54,7 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
     _axe_status: AxeStatus | None
     _axe_metrics: AxeMetrics | None
     _axe_output: str
+    _axe_degraded_status: AxeStatusDegradation | None
     _axe_pinned_to_bottom: bool
     _axe_cmds_hidden: bool
     _leader_mode_active: bool

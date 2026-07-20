@@ -30,7 +30,11 @@ _AxeStatusSection = AxeStatusSection
 _AxeOutputSection = AxeOutputSection
 
 if TYPE_CHECKING:
-    from ..actions.axe_display._data import ChopSnapshot, LumberjackSnapshot
+    from ..actions.axe_display._data import (
+        AxeStatusDegradation,
+        ChopSnapshot,
+        LumberjackSnapshot,
+    )
     from ..bgcmd import BackgroundCommandInfo
 
 __all__ = [
@@ -66,6 +70,7 @@ class AxeDashboard(Static):
         full_cycles: int = 0,
         countdown: int = 0,
         lumberjack_summaries: list[LumberjackSummary] | None = None,
+        degraded_status: "AxeStatusDegradation | None" = None,
     ) -> None:
         """Update all dashboard sections with current data.
 
@@ -77,6 +82,7 @@ class AxeDashboard(Static):
             countdown: Seconds until next auto-refresh.
             lumberjack_summaries: Per-lumberjack (name, status, chops_executed)
                 tuples for the activity summary, or None to skip.
+            degraded_status: Recoverable collection problem to surface in the pane.
         """
         with tui_trace(
             "widget.axe_dashboard.update_display",
@@ -86,7 +92,13 @@ class AxeDashboard(Static):
             status_section = self.query_one("#axe-status-section", _AxeStatusSection)
             output_section = self.query_one("#axe-output-section", _AxeOutputSection)
 
-            status_section.update_display(status, is_running, full_cycles, countdown)
+            status_section.update_display(
+                status,
+                is_running,
+                full_cycles,
+                countdown,
+                degraded_status,
+            )
 
             if lumberjack_summaries:
                 output_section.update_lumberjack_summary(

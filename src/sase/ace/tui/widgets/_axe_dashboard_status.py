@@ -18,7 +18,7 @@ from ._axe_dashboard_render import (
 )
 
 if TYPE_CHECKING:
-    from ..actions.axe_display._data import ChopRunSnapshot
+    from ..actions.axe_display._data import AxeStatusDegradation, ChopRunSnapshot
     from ..bgcmd import BackgroundCommandInfo
 
 
@@ -33,6 +33,7 @@ class AxeStatusSection(Static):
         self._status: AxeStatus | None = None
         self._is_running = False
         self._full_cycles = 0
+        self._degraded_status: AxeStatusDegradation | None = None
         # State for bgcmd mode
         self._bgcmd_info: BackgroundCommandInfo | None = None
         self._bgcmd_running = False
@@ -58,6 +59,7 @@ class AxeStatusSection(Static):
         is_running: bool,
         full_cycles: int,
         countdown: int = 0,
+        degraded_status: "AxeStatusDegradation | None" = None,
     ) -> None:
         """Update the compact status section for axe daemon.
 
@@ -66,6 +68,7 @@ class AxeStatusSection(Static):
             is_running: Whether axe daemon is currently running.
             full_cycles: Number of full cycles run.
             countdown: Seconds until next auto-refresh.
+            degraded_status: Recoverable collection problem to display.
         """
         self._axe_mode = True
         self._lumberjack_mode = False
@@ -73,6 +76,7 @@ class AxeStatusSection(Static):
         self._is_running = is_running
         self._full_cycles = full_cycles
         self._countdown = countdown
+        self._degraded_status = degraded_status
         self._refresh_display()
 
     def update_bgcmd_display(
@@ -178,6 +182,16 @@ class AxeStatusSection(Static):
     def _render_axe_display(self) -> None:
         """Render the axe daemon status display."""
         text = Text(no_wrap=True, overflow="ellipsis")
+
+        if self._degraded_status is not None:
+            text.append(self._degraded_status.message, style="bold red")
+            if self._countdown > 0:
+                text.append("  │  ", style="dim")
+                text.append("(auto-refresh in ", style="dim")
+                text.append(f"{self._countdown}s", style="bold #FFD700")
+                text.append(")", style="dim")
+            self.update(text)
+            return
 
         if self._is_running:
             # Runtime (always show when running)

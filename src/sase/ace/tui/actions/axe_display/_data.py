@@ -6,6 +6,7 @@ import dataclasses
 import types
 from typing import Literal
 
+from sase.axe import config as axe_config
 from sase.axe.state import (
     AxeMetrics,
     AxeStatus,
@@ -95,6 +96,13 @@ class LumberjackSnapshot:
     chops: list[ChopSnapshot]
 
 
+@dataclasses.dataclass(frozen=True)
+class AxeStatusDegradation:
+    """A recoverable axe-status collection problem for TUI display."""
+
+    message: str
+
+
 @dataclasses.dataclass
 class AxeCollectedData:
     """Data collected from disk I/O for axe status."""
@@ -120,6 +128,19 @@ class AxeCollectedData:
     # Per-lumberjack composite snapshot bundling everything above for
     # any caller that prefers a single per-lumberjack object.
     lumberjack_snapshots: dict[str, LumberjackSnapshot]
+    degraded_status: AxeStatusDegradation | None = None
+
+
+def _invalid_config_status(
+    error: axe_config.AxeConfigError,
+) -> AxeStatusDegradation:
+    """Render the first config diagnostic as a compact degraded status."""
+    diagnostic = (
+        error.diagnostics[0].format()
+        if error.diagnostics
+        else "invalid axe configuration"
+    )
+    return AxeStatusDegradation(message=f"axe config invalid: {diagnostic}")
 
 
 def get_axe_process_module() -> types.ModuleType:
@@ -166,8 +187,13 @@ def collect_axe_status_data() -> AxeCollectedData:
 
     axe_status: AxeStatus | None = None
     axe_metrics: AxeMetrics | None = None
+    degraded_status: AxeStatusDegradation | None = None
     if axe_running:
-        status_dict = proc.get_axe_status()
+        try:
+            status_dict = proc.get_axe_status()
+        except axe_config.AxeConfigError as error:
+            status_dict = None
+            degraded_status = _invalid_config_status(error)
         if status_dict:
             try:
                 axe_fields = {f.name for f in dataclasses.fields(AxeStatus)}
@@ -182,9 +208,14 @@ def collect_axe_status_data() -> AxeCollectedData:
     # Load lumberjack config so we can iterate configured chops per
     # lumberjack — not just the lumberjack names — and populate the
     # chop run-history cache the navigation path renders from.
-    from sase.axe.config import load_axe_config as load_new_axe_config
-
-    config = load_new_axe_config()
+    if degraded_status is None:
+        try:
+            config = axe_config.load_axe_config()
+        except axe_config.AxeConfigError as error:
+            degraded_status = _invalid_config_status(error)
+            config = axe_config.AxeConfig()
+    else:
+        config = axe_config.AxeConfig()
     lumberjack_names = sorted(config.lumberjacks.keys())
 
     # Load per-lumberjack status/metrics/log-tail off the event loop so
@@ -258,4 +289,5 @@ def collect_axe_status_data() -> AxeCollectedData:
         lumberjack_chop_names=lumberjack_chop_names,
         chop_snapshots=chop_snapshots,
         lumberjack_snapshots=lumberjack_snapshots,
+        degraded_status=degraded_status,
     )

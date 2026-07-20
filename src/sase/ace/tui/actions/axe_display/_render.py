@@ -156,6 +156,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                         full_cycles=full_cycles,
                         countdown=self._countdown_remaining,
                         lumberjack_summaries=[],
+                        degraded_status=self._axe_degraded_status,
                     )
             else:
                 # Showing a bgcmd view — paint from cache when available. On a
