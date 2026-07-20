@@ -93,34 +93,33 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             if unresolved_parent_id is not None:
                 lineage.append(f"{unresolved_parent_id} (not found)")
             print(f"\nPARENT\n  ↑ {' ← '.join(lineage)}")
-        if issue.issue_type == IssueType.PLAN:
-            children = view.get_epic_children(issue.id)
-            if children:
-                print("\nCHILDREN")
-                phases = [
-                    child for child in children if child.issue_type == IssueType.PHASE
-                ]
-                child_epics = [
-                    child for child in children if child.issue_type == IssueType.PLAN
-                ]
-                if phases:
-                    print("  PHASES")
-                    for child in phases:
-                        ci = status_icon(child.status)
-                        print(
-                            f"    {ci} {child.id}: {child.title}"
-                            f"   [{child.status.value.upper()}]"
-                            f" · Size: {_phase_size_value(child)}"
-                        )
-                if child_epics:
-                    print("  CHILD EPICS")
-                    for child in child_epics:
-                        ci = status_icon(child.status)
-                        tier = child.tier.value if child.tier else "(none)"
-                        print(
-                            f"    {ci} {child.id}: {child.title}"
-                            f"   [{child.status.value.upper()}] · Tier: {tier}"
-                        )
+        children = view.get_epic_children(issue.id)
+        if children:
+            print("\nCHILDREN")
+            phases = [
+                child for child in children if child.issue_type == IssueType.PHASE
+            ]
+            child_epics = [
+                child for child in children if child.issue_type == IssueType.PLAN
+            ]
+            if phases:
+                print("  PHASES")
+                for child in phases:
+                    ci = status_icon(child.status)
+                    print(
+                        f"    {ci} {child.id}: {child.title}"
+                        f"   [{child.status.value.upper()}]"
+                        f" · Size: {_phase_size_value(child)}"
+                    )
+            if child_epics:
+                print("  CHILD EPICS")
+                for child in child_epics:
+                    ci = status_icon(child.status)
+                    tier = child.tier.value if child.tier else "(none)"
+                    print(
+                        f"    {ci} {child.id}: {child.title}"
+                        f"   [{child.status.value.upper()}] · Tier: {tier}"
+                    )
         deps_on = list(issue.dependencies)
         if deps_on:
             print("\nDEPENDS ON")

@@ -226,8 +226,8 @@ sase bead search auth --type plan --tier epic
 
 Display complete details for an issue including status, type, tier, parent lineage, dependencies, blockers, description,
 notes, ChangeSpec metadata, model, and linked plan path. Phase beads show their effective size (`small` for legacy beads
-without a stored size). A plan's children are grouped as phases (with status and size) and child epics (with tier and
-status), and nested beads show their complete lineage back to the root plan.
+without a stored size). Any bead's children are grouped as phases (with status and size) and child epics (with tier and
+status), including child epics owned by a phase bead. Nested beads show their complete lineage back to the root plan.
 
 ### `sase bead ready`
 

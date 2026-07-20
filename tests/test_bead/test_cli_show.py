@@ -41,6 +41,11 @@ def nested_store(
         )
         phase = project.create("Root Phase", IssueType.PHASE, parent_id=root.id)
         phase = project.update(phase.id, size="medium")
+        childless_phase = project.create(
+            "Childless Phase",
+            IssueType.PHASE,
+            parent_id=root.id,
+        )
         phase_child = project.create(
             "Phase Child Epic",
             IssueType.PLAN,
@@ -72,6 +77,7 @@ def nested_store(
     yield {
         "root": root,
         "phase": phase,
+        "childless_phase": childless_phase,
         "phase_child": phase_child,
         "nested_phase": nested_phase,
         "deep_child": deep_child,
@@ -114,6 +120,31 @@ def test_show_plan_splits_phases_from_child_epics(
     assert "  CHILD EPICS" in out
     assert f"○ {epic_child.id}: {epic_child.title}   [OPEN] · Tier: epic" in out
     assert nested_store["phase_child"].id not in out
+
+
+def test_show_phase_lists_child_epics(
+    nested_store: dict[str, Issue],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    phase = nested_store["phase"]
+    child = nested_store["phase_child"]
+
+    out = _show(phase, capsys)
+
+    assert "CHILDREN\n  CHILD EPICS" in out
+    assert f"○ {child.id}: {child.title}   [OPEN] · Tier: epic" in out
+
+
+def test_show_childless_phase_omits_children(
+    nested_store: dict[str, Issue],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    phase = nested_store["childless_phase"]
+
+    out = _show(phase, capsys)
+
+    assert "Size: small" in out
+    assert "CHILDREN" not in out
 
 
 def test_show_child_epic_under_phase_has_lineage_and_own_plan(
