@@ -72,7 +72,7 @@ class StatisticsViewsRenderingMixin(StatisticsProjectsRenderingMixin):
         projects.add_column("Success", justify="right", style=_GREEN)
         for row in overview.top_projects:
             projects.add_row(
-                self._project_cell(row.project),
+                self._project_cell(row.project_key, row.project_label),
                 str(row.runs),
                 self._percent(row.success_rate),
             )
@@ -161,7 +161,7 @@ class StatisticsViewsRenderingMixin(StatisticsProjectsRenderingMixin):
         table.add_column("Scale")
         for row in runtime.rows:
             table.add_row(
-                row.group,
+                row.group_label,
                 str(row.runs),
                 format_duration(row.total_seconds),
                 format_duration(row.mean_seconds),
@@ -191,7 +191,10 @@ class StatisticsViewsRenderingMixin(StatisticsProjectsRenderingMixin):
         workspaces.add_column("Workspace", style="bold")
         workspaces.add_column("Runs", justify="right", style=_CYAN)
         for row in activity.workspaces:
-            workspaces.add_row(f"{row.project} · {row.workspace_num}", str(row.runs))
+            workspaces.add_row(
+                f"{row.project_label} · {row.workspace_num}",
+                str(row.runs),
+            )
         return Columns(
             (
                 Panel(skills, title="Skills", border_style=_ACCENT),

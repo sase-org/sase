@@ -9,6 +9,11 @@ from datetime import datetime, tzinfo
 from typing import cast
 
 from sase.core.time import get_timezone
+from sase.project_display_names import (
+    ProjectDisplaySnapshot,
+    humanize_cl_name,
+    project_display_for,
+)
 from sase.stats.query import RuntimeGroupBy
 
 Payload = Mapping[str, object]
@@ -51,7 +56,8 @@ class _RunBucket:
 
 @dataclass(frozen=True, slots=True)
 class _WorkspaceRow:
-    project: str
+    project_key: str
+    project_label: str
     workspace_num: int
     runs: int
 
@@ -69,7 +75,8 @@ class _ProviderRow:
 
 @dataclass(frozen=True, slots=True)
 class _RuntimeRow:
-    group: str
+    group_key: str
+    group_label: str
     runs: int
     total_seconds: float
     mean_seconds: float
@@ -81,8 +88,10 @@ class _RuntimeRow:
 
 @dataclass(frozen=True, slots=True)
 class _ChangeSpecWorkRow:
-    project: str
-    name: str
+    project_key: str
+    project_label: str
+    changespec_key: str
+    changespec_label: str
     status: str
     has_pr: bool
     runs: int
@@ -95,7 +104,8 @@ class _ChangeSpecWorkRow:
 
 @dataclass(frozen=True, slots=True)
 class _ProjectWorkRow:
-    project: str
+    project_key: str
+    project_label: str
     runs: int
     completed: int
     failed: int
@@ -215,10 +225,16 @@ def build_statistics_views(
     *,
     previous_run_payload: Payload | None = None,
     timezone: tzinfo | None = None,
+    project_display_snapshot: ProjectDisplaySnapshot | None = None,
 ) -> StatisticsViews:
     """Build every Statistics view without performing I/O."""
+    display_snapshot = (
+        project_display_snapshot
+        if project_display_snapshot is not None
+        else ProjectDisplaySnapshot()
+    )
     totals = _mapping(run_payload.get("totals"))
-    projects = _build_projects_view(run_payload)
+    projects = _build_projects_view(run_payload, display_snapshot)
     return StatisticsViews(
         start_ts=_integer(run_payload.get("start_ts")),
         end_ts=_integer(run_payload.get("end_ts")),
@@ -233,8 +249,12 @@ def build_statistics_views(
         runs=_build_runs_view(run_payload),
         projects=projects,
         providers=_build_providers_view(run_payload),
-        runtime=_build_runtime_view(run_payload),
-        activity=_build_activity_view(run_payload, activity_payload),
+        runtime=_build_runtime_view(run_payload, display_snapshot),
+        activity=_build_activity_view(
+            run_payload,
+            activity_payload,
+            display_snapshot,
+        ),
         plans_questions=_build_plans_questions_view(run_payload, activity_payload),
     )
 
@@ -348,49 +368,78 @@ def _build_runs_view(run_payload: Payload) -> _RunsView:
     )
 
 
-def _build_projects_view(run_payload: Payload) -> _ProjectsView:
+def _build_projects_view(
+    run_payload: Payload,
+    display_snapshot: ProjectDisplaySnapshot,
+) -> _ProjectsView:
     work = _mapping(run_payload.get("work"))
-    changespecs = tuple(
-        _ChangeSpecWorkRow(
-            project=_text(row.get("project"), "unknown"),
-            name=_text(row.get("name"), "unknown"),
-            status=_text(row.get("status"), "unknown"),
-            has_pr=_boolean(row.get("has_pr")),
-            runs=_integer(row.get("runs")),
-            distinct_agents=_integer(row.get("distinct_agents")),
-            commits=_integer(row.get("commits")),
-            total_runtime_seconds=_number(row.get("total_runtime_seconds")),
-            first_run_ts=_number(row.get("first_run_ts")),
-            last_run_ts=_number(row.get("last_run_ts")),
+    changespec_rows: list[_ChangeSpecWorkRow] = []
+    for row in _rows(work, "changespecs"):
+        project = project_display_for(
+            _text(row.get("project"), "unknown"),
+            snapshot=display_snapshot,
         )
-        for row in _rows(work, "changespecs")
-    )
+        changespec_key = _text(row.get("name"), "unknown")
+        changespec_rows.append(
+            _ChangeSpecWorkRow(
+                project_key=project.project_key,
+                project_label=project.project_label,
+                changespec_key=changespec_key,
+                changespec_label=humanize_cl_name(
+                    changespec_key,
+                    snapshot=display_snapshot,
+                ),
+                status=_text(row.get("status"), "unknown"),
+                has_pr=_boolean(row.get("has_pr")),
+                runs=_integer(row.get("runs")),
+                distinct_agents=_integer(row.get("distinct_agents")),
+                commits=_integer(row.get("commits")),
+                total_runtime_seconds=_number(row.get("total_runtime_seconds")),
+                first_run_ts=_number(row.get("first_run_ts")),
+                last_run_ts=_number(row.get("last_run_ts")),
+            )
+        )
+    changespecs = tuple(changespec_rows)
     changespecs_by_project: defaultdict[str, list[_ChangeSpecWorkRow]] = defaultdict(
         list
     )
     for changespec in changespecs:
-        changespecs_by_project[changespec.project].append(changespec)
+        changespecs_by_project[changespec.project_key].append(changespec)
 
+    project_rows: list[_ProjectWorkRow] = []
+    for row in _rows(work, "projects"):
+        project = project_display_for(
+            _text(row.get("project"), "unknown"),
+            snapshot=display_snapshot,
+        )
+        project_rows.append(
+            _ProjectWorkRow(
+                project_key=project.project_key,
+                project_label=project.project_label,
+                runs=_integer(row.get("runs")),
+                completed=_integer(row.get("completed")),
+                failed=_integer(row.get("failed")),
+                other_terminal=_integer(row.get("other_terminal")),
+                in_progress=_integer(row.get("in_progress")),
+                waiting=_integer(row.get("waiting")),
+                success_rate=_number(row.get("success_rate")),
+                commits=_integer(row.get("commits")),
+                distinct_changespecs=_integer(row.get("distinct_changespecs")),
+                unattributed_runs=_integer(row.get("unattributed_runs")),
+                total_runtime_seconds=_number(row.get("total_runtime_seconds")),
+                last_run_ts=_number(row.get("last_run_ts")),
+                changespecs=tuple(changespecs_by_project[project.project_key]),
+            )
+        )
     projects = tuple(
-        _ProjectWorkRow(
-            project=_text(row.get("project"), "unknown"),
-            runs=_integer(row.get("runs")),
-            completed=_integer(row.get("completed")),
-            failed=_integer(row.get("failed")),
-            other_terminal=_integer(row.get("other_terminal")),
-            in_progress=_integer(row.get("in_progress")),
-            waiting=_integer(row.get("waiting")),
-            success_rate=_number(row.get("success_rate")),
-            commits=_integer(row.get("commits")),
-            distinct_changespecs=_integer(row.get("distinct_changespecs")),
-            unattributed_runs=_integer(row.get("unattributed_runs")),
-            total_runtime_seconds=_number(row.get("total_runtime_seconds")),
-            last_run_ts=_number(row.get("last_run_ts")),
-            changespecs=tuple(
-                changespecs_by_project[_text(row.get("project"), "unknown")]
+        sorted(
+            project_rows,
+            key=lambda item: (
+                -item.runs,
+                item.project_label.casefold(),
+                item.project_key,
             ),
         )
-        for row in _rows(work, "projects")
     )
     truncated = _integer(work.get("truncated_changespec_rows"))
     return _ProjectsView(
@@ -422,7 +471,10 @@ def _build_providers_view(run_payload: Payload) -> _ProvidersView:
     )
 
 
-def _build_runtime_view(run_payload: Payload) -> _RuntimeView:
+def _build_runtime_view(
+    run_payload: Payload,
+    display_snapshot: ProjectDisplaySnapshot,
+) -> _RuntimeView:
     totals = _mapping(run_payload.get("totals"))
     rows = _rows(run_payload, "runtime_groups")
     total_seconds = sum(_number(row.get("total_seconds")) for row in rows)
@@ -439,11 +491,22 @@ def _build_runtime_view(run_payload: Payload) -> _RuntimeView:
         "changespec",
     }
     group_by = cast(RuntimeGroupBy, raw_group if raw_group in valid_groups else "agent")
-    return _RuntimeView(
-        group_by=group_by,
-        rows=tuple(
+    runtime_rows: list[_RuntimeRow] = []
+    for row in rows:
+        group_key = _text(row.get("group"), "unknown")
+        if group_by == "project":
+            group_label = project_display_for(
+                group_key,
+                snapshot=display_snapshot,
+            ).project_label
+        elif group_by == "changespec":
+            group_label = humanize_cl_name(group_key, snapshot=display_snapshot)
+        else:
+            group_label = group_key
+        runtime_rows.append(
             _RuntimeRow(
-                group=_text(row.get("group"), "unknown"),
+                group_key=group_key,
+                group_label=group_label,
                 runs=_integer(row.get("runs")),
                 total_seconds=_number(row.get("total_seconds")),
                 mean_seconds=_number(row.get("mean_seconds")),
@@ -452,26 +515,37 @@ def _build_runtime_view(run_payload: Payload) -> _RuntimeView:
                 max_seconds=_number(row.get("max_seconds")),
                 share=_ratio(_number(row.get("total_seconds")), total_seconds),
             )
-            for row in rows
-        ),
+        )
+    return _RuntimeView(
+        group_by=group_by,
+        rows=tuple(runtime_rows),
         in_progress=_integer(totals.get("in_progress")),
     )
 
 
 def _build_activity_view(
-    run_payload: Payload, activity_payload: Payload
+    run_payload: Payload,
+    activity_payload: Payload,
+    display_snapshot: ProjectDisplaySnapshot,
 ) -> _ActivityView:
-    return _ActivityView(
-        skills=_activity_rows(_rows(activity_payload, "skills")),
-        memories=_activity_rows(_rows(activity_payload, "memories")),
-        workspaces=tuple(
+    workspace_rows: list[_WorkspaceRow] = []
+    for row in _rows(run_payload, "workspaces"):
+        project = project_display_for(
+            _text(row.get("project"), "unknown"),
+            snapshot=display_snapshot,
+        )
+        workspace_rows.append(
             _WorkspaceRow(
-                project=_text(row.get("project"), "unknown"),
+                project_key=project.project_key,
+                project_label=project.project_label,
                 workspace_num=_integer(row.get("workspace_num")),
                 runs=_integer(row.get("runs")),
             )
-            for row in _rows(run_payload, "workspaces")
-        ),
+        )
+    return _ActivityView(
+        skills=_activity_rows(_rows(activity_payload, "skills")),
+        memories=_activity_rows(_rows(activity_payload, "memories")),
+        workspaces=tuple(workspace_rows),
     )
 
 

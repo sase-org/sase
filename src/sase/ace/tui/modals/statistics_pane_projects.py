@@ -55,10 +55,14 @@ class StatisticsProjectsRenderingMixin:
         total_runs = sum(row.runs for row in projects.projects)
         for row in sorted(
             projects.projects,
-            key=lambda item: (-item.runs, item.project.casefold()),
+            key=lambda item: (
+                -item.runs,
+                item.project_label.casefold(),
+                item.project_key,
+            ),
         ):
             table.add_row(
-                self._project_cell(row.project),
+                self._project_cell(row.project_key, row.project_label),
                 self._project_runs_cell(row),
                 self._percent(row.success_rate),
                 str(row.commits),
@@ -86,14 +90,20 @@ class StatisticsProjectsRenderingMixin:
             projects.changespecs,
             key=lambda item: (
                 -item.runs,
-                item.project.casefold(),
-                item.name.casefold(),
+                item.project_label.casefold(),
+                item.project_key,
+                item.changespec_label.casefold(),
+                item.changespec_key,
             ),
         )
         for row in rows:
             table.add_row(
                 self._changespec_cell(row),
-                self._project_cell(row.project, bold=False),
+                self._project_cell(
+                    row.project_key,
+                    row.project_label,
+                    bold=False,
+                ),
                 str(row.runs),
                 str(row.distinct_agents),
                 str(row.commits),
@@ -136,10 +146,14 @@ class StatisticsProjectsRenderingMixin:
         table.add_column("Last run", justify="right")
         for project in sorted(
             projects.projects,
-            key=lambda item: (-item.runs, item.project.casefold()),
+            key=lambda item: (
+                -item.runs,
+                item.project_label.casefold(),
+                item.project_key,
+            ),
         ):
             table.add_row(
-                self._project_cell(project.project),
+                self._project_cell(project.project_key, project.project_label),
                 self._project_runs_cell(project),
                 "—",
                 str(project.commits),
@@ -149,7 +163,11 @@ class StatisticsProjectsRenderingMixin:
             )
             for changespec in sorted(
                 project.changespecs,
-                key=lambda item: (-item.runs, item.name.casefold()),
+                key=lambda item: (
+                    -item.runs,
+                    item.changespec_label.casefold(),
+                    item.changespec_key,
+                ),
             ):
                 table.add_row(
                     self._changespec_cell(changespec, indent=True),
@@ -205,10 +223,15 @@ class StatisticsProjectsRenderingMixin:
         return tuple(notes)
 
     @staticmethod
-    def _project_cell(project: str, *, bold: bool = True) -> Text:
+    def _project_cell(
+        project_key: str,
+        project_label: str,
+        *,
+        bold: bool = True,
+    ) -> Text:
         text = Text(no_wrap=True, overflow="ellipsis")
-        text.append("■ ", style=categorical_color(project))
-        text.append(project, style="bold" if bold else None)
+        text.append("■ ", style=categorical_color(project_key))
+        text.append(project_label, style="bold" if bold else None)
         return text
 
     @staticmethod
@@ -223,7 +246,7 @@ class StatisticsProjectsRenderingMixin:
         text = Text("  " if indent else "")
         glyph, color = changespec_status_glyph(changespec.status)
         text.append(f"{glyph} ", style=f"bold {color}")
-        text.append(changespec.name, style="bold")
+        text.append(changespec.changespec_label, style="bold")
         if changespec.has_pr:
             text.append(" ↗", style="dim")
         return text

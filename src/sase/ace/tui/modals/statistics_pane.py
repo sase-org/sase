@@ -208,7 +208,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
         options = self._project_filter_options
         if not options and self._last_result is not None:
             options = tuple(
-                row.project for row in self._last_result.views.projects.projects
+                row.project_key for row in self._last_result.views.projects.projects
             )
         if not options:
             return
@@ -347,7 +347,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
             self._last_result = result
             if result.project_filter is None:
                 self._project_filter_options = tuple(
-                    row.project for row in result.views.projects.projects
+                    row.project_key for row in result.views.projects.projects
                 )
             self._paint_current_view()
             # A newly lazy-mounted pane can finish a fast worker before its

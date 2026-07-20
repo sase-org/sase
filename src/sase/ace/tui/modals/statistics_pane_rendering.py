@@ -175,7 +175,12 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             view_label += f" · {_PROJECTS_GROUP_LABELS[self._projects_group_by]}"
         heading.append(view_label, style="bold")
         if self._project_filter is not None:
-            heading.append(f"  ·  {self._project_filter}", style=f"bold {_GOLD}")
+            project_label = self._project_filter
+            if self._last_result is not None:
+                project_label = self._last_result.project_display_snapshot.label_for(
+                    self._project_filter
+                )
+            heading.append(f"  ·  {project_label}", style=f"bold {_GOLD}")
         if self._loading:
             heading.append("  ·  refreshing…", style="dim italic")
         elif self._last_error:

@@ -321,7 +321,7 @@ def test_humanize_safe_stem_prefers_longest_safe_key(
     )
 
 
-def test_fresh_load_refresh_and_invalidation_observe_nested_name_change(
+def test_fresh_load_and_invalidation_observe_nested_name_change(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -360,8 +360,7 @@ def test_fresh_load_refresh_and_invalidation_observe_nested_name_change(
     assert pdn.project_display_name_for("gh_acme__widgets", root) == "widgets"
     assert calls == 2
 
-    refreshed = pdn.refresh_project_display_snapshot(root)
-    assert refreshed.label_for("gh_acme__widgets") == "gadgets"
+    pdn.invalidate_project_display_snapshot(root)
     assert pdn.project_display_name_for("gh_acme__widgets", root) == "gadgets"
     assert calls == 3
 

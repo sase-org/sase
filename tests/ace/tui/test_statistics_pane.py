@@ -20,6 +20,7 @@ from sase.ace.tui.modals.statistics_pane_data import (
     StatisticsView,
     StatisticsViewData,
 )
+from sase.project_display_names import ProjectDisplaySnapshot
 from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import StatsRange
 from sase.stats.views import build_statistics_views
@@ -193,16 +194,27 @@ def _result(
     *,
     empty: bool = False,
     project_filter: str | None = None,
+    project_display_snapshot: ProjectDisplaySnapshot | None = None,
 ) -> StatisticsViewData:
     run_payload = {} if empty else _run_payload(selected_range, group_by)
     activity_payload = {} if empty else _activity_payload()
+    display_snapshot = (
+        project_display_snapshot
+        if project_display_snapshot is not None
+        else ProjectDisplaySnapshot()
+    )
     return StatisticsViewData(
         view=view,
         selected_range=selected_range,
         runtime_group_by=group_by,
         generated_at=_NOW,
-        views=build_statistics_views(run_payload, activity_payload),
+        views=build_statistics_views(
+            run_payload,
+            activity_payload,
+            project_display_snapshot=display_snapshot,
+        ),
         project_filter=project_filter,
+        project_display_snapshot=display_snapshot,
     )
 
 
@@ -380,6 +392,62 @@ async def test_project_filter_cycles_ranked_projects_and_survives_range_change(
         assert calls[-1][3] is None
 
 
+async def test_project_filter_label_submits_canonical_key_across_reload_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    widgets_key = "gh_acme__widgets"
+    snapshot = ProjectDisplaySnapshot({widgets_key: "widgets"})
+
+    def load(
+        view: StatisticsView,
+        selected_range: StatsRange,
+        group_by: RuntimeGroupBy,
+        project_filter: str | None = None,
+    ) -> StatisticsViewData:
+        calls.append((view, selected_range, group_by, project_filter))
+        payload = _run_payload(selected_range, group_by)
+        payload["workspaces"][0]["project"] = widgets_key
+        payload["work"]["projects"][0]["project"] = widgets_key
+        payload["work"]["changespecs"][0]["project"] = widgets_key
+        return StatisticsViewData(
+            view=view,
+            selected_range=selected_range,
+            runtime_group_by=group_by,
+            generated_at=_NOW,
+            views=build_statistics_views(
+                payload,
+                _activity_payload(),
+                project_display_snapshot=snapshot,
+            ),
+            project_filter=project_filter,
+            project_display_snapshot=snapshot,
+        )
+
+    monkeypatch.setattr(sp, "load_statistics_view", load)
+
+    async with AcePage() as page:
+        _, pane = await _open_statistics(page)
+
+        pane.action_cycle_project_filter()
+        await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
+        heading = pane.query_one("#statistics-title", Static).render().plain
+        assert pane._project_filter == widgets_key
+        assert calls[-1][3] == widgets_key
+        assert "widgets" in heading
+        assert widgets_key not in heading
+
+        pane.action_cycle_range()
+        await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
+        assert calls[-1][3] == widgets_key
+
+        pane.action_refresh()
+        await page.wait_for(lambda _state: len(calls) == 4 and not pane._loading)
+        assert calls[-1][3] == widgets_key
+
+
 def test_stale_project_filter_result_is_discarded_and_rescheduled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -409,6 +477,57 @@ def _render_plain(renderable: object) -> str:
     with console.capture() as capture:
         console.print(renderable)
     return capture.get()
+
+
+def test_renderers_use_projected_labels_and_canonical_project_colors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    widgets_key = "gh_acme__widgets"
+    changespec_key = f"{widgets_key}_statistics-projects"
+    snapshot = ProjectDisplaySnapshot({widgets_key: "widgets"})
+    payload = _run_payload(StatsRange(0, 100, "absolute", "Test"), "project")
+    payload["workspaces"][0]["project"] = widgets_key
+    payload["work"]["projects"][0]["project"] = widgets_key
+    payload["work"]["changespecs"][0].update(
+        {"project": widgets_key, "name": changespec_key}
+    )
+    payload["runtime_groups"][0]["group"] = widgets_key
+    views = build_statistics_views(
+        payload,
+        _activity_payload(),
+        project_display_snapshot=snapshot,
+    )
+    color_keys: list[str] = []
+
+    def color_for(key: str) -> str:
+        color_keys.append(key)
+        return "#87D7FF"
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.statistics_pane_projects.categorical_color",
+        color_for,
+    )
+    pane = StatisticsPane(auto_load=False)
+
+    overview = _render_plain(pane._overview_renderable(views.overview))
+    activity = _render_plain(pane._activity_renderable(views.activity))
+    runtime = _render_plain(pane._runtime_renderable(views.runtime))
+    project_surfaces: list[str] = []
+    for group_by in ("project", "changespec", "drilldown"):
+        pane._projects_group_by = group_by  # type: ignore[assignment]
+        project_surfaces.append(
+            _render_plain(pane._projects_renderable(views.projects))
+        )
+
+    assert "widgets" in overview
+    assert "widgets · 15" in activity
+    assert "widgets" in runtime
+    assert all("widgets" in rendered for rendered in project_surfaces)
+    assert "widgets_statistics-projects" in "\n".join(project_surfaces)
+    assert widgets_key not in "\n".join(
+        (overview, activity, runtime, *project_surfaces)
+    )
+    assert widgets_key in color_keys
 
 
 def test_all_project_plan_and_question_values_need_no_scope_markers() -> None:
@@ -626,6 +745,13 @@ def test_loader_queries_current_activity_and_previous_equal_window(
 ) -> None:
     calls: list[tuple[str, int, int, str | None]] = []
     selected_range = StatsRange(10, 20, "absolute", "Last 10 seconds")
+    display_snapshot = ProjectDisplaySnapshot({"sase": "SASE Display"})
+    snapshot_loads = 0
+
+    def load_snapshot() -> ProjectDisplaySnapshot:
+        nonlocal snapshot_loads
+        snapshot_loads += 1
+        return display_snapshot
 
     def run_query(**kwargs: int | str | None) -> dict:
         calls.append(
@@ -656,6 +782,10 @@ def test_loader_queries_current_activity_and_previous_equal_window(
         "sase.ace.tui.modals.statistics_pane_data.query_activity_stats",
         activity_query,
     )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.statistics_pane_data.load_project_display_snapshot",
+        load_snapshot,
+    )
 
     result = sp.load_statistics_view("overview", selected_range, "tribe", "sase")
 
@@ -666,3 +796,6 @@ def test_loader_queries_current_activity_and_previous_equal_window(
     ]
     assert result.views.overview.agents_run == 6
     assert result.project_filter == "sase"
+    assert snapshot_loads == 1
+    assert result.project_display_snapshot is display_snapshot
+    assert result.views.projects.projects[0].project_label == "SASE Display"

@@ -7,6 +7,7 @@ import pytest
 from sase.ace.tui.modals import statistics_pane as sp
 from sase.ace.tui.modals.statistics_pane import StatisticsPane
 from sase.ace.tui.modals.statistics_pane_data import StatisticsViewData
+from sase.project_display_names import ProjectDisplaySnapshot
 from sase.stats.ranges import StatsRange
 from sase.stats.views import build_statistics_views
 
@@ -16,6 +17,16 @@ _STATISTICS_RANGE = StatsRange(
     int(_STATISTICS_NOW),
     "2024-07-01 18:20 EDT – 2024-07-08 18:20 EDT",
     "Last 7 days",
+)
+_WIDGETS_KEY = "gh_acme__widgets"
+_ENGINE_KEY = "gh_acme__engine"
+_INTEGRATION_KEY = "gh_acme__integration"
+_PROJECT_DISPLAY_SNAPSHOT = ProjectDisplaySnapshot(
+    {
+        _WIDGETS_KEY: "widgets",
+        _ENGINE_KEY: "engine",
+        _INTEGRATION_KEY: "integration",
+    }
 )
 
 
@@ -89,9 +100,9 @@ def _populated_statistics_view(
         },
         "questions": {"sessions": 8, "asking_agents": 6},
         "workspaces": [
-            {"project": "sase", "workspace_num": 15, "runs": 12},
-            {"project": "sase", "workspace_num": 18, "runs": 9},
-            {"project": "sase-core", "workspace_num": 3, "runs": 6},
+            {"project": _WIDGETS_KEY, "workspace_num": 15, "runs": 12},
+            {"project": _WIDGETS_KEY, "workspace_num": 18, "runs": 9},
+            {"project": _ENGINE_KEY, "workspace_num": 3, "runs": 6},
         ],
         "buckets": [
             {"start_ts": selected_range.start_ts + index * 86_400, "runs": runs}
@@ -129,7 +140,7 @@ def _populated_statistics_view(
         "work": {
             "projects": [
                 {
-                    "project": "sase",
+                    "project": _WIDGETS_KEY,
                     "runs": 18,
                     "completed": 15,
                     "failed": 2,
@@ -144,7 +155,7 @@ def _populated_statistics_view(
                     "last_run_ts": _STATISTICS_NOW - 320,
                 },
                 {
-                    "project": "sase-core",
+                    "project": _ENGINE_KEY,
                     "runs": 9,
                     "completed": 7,
                     "failed": 1,
@@ -159,7 +170,7 @@ def _populated_statistics_view(
                     "last_run_ts": _STATISTICS_NOW - 1_800,
                 },
                 {
-                    "project": "sase-github",
+                    "project": _INTEGRATION_KEY,
                     "runs": 5,
                     "completed": 3,
                     "failed": 1,
@@ -176,8 +187,8 @@ def _populated_statistics_view(
             ],
             "changespecs": [
                 {
-                    "project": "sase",
-                    "name": "statistics-project-views",
+                    "project": _WIDGETS_KEY,
+                    "name": f"{_WIDGETS_KEY}_statistics-project-views",
                     "status": "Ready",
                     "has_pr": False,
                     "runs": 6,
@@ -187,8 +198,8 @@ def _populated_statistics_view(
                     "last_run_ts": _STATISTICS_NOW - 320,
                 },
                 {
-                    "project": "sase",
-                    "name": "agent-artifact-index",
+                    "project": _WIDGETS_KEY,
+                    "name": f"{_WIDGETS_KEY}_agent-artifact-index",
                     "status": "Submitted",
                     "has_pr": True,
                     "runs": 4,
@@ -198,8 +209,8 @@ def _populated_statistics_view(
                     "last_run_ts": _STATISTICS_NOW - 3_600,
                 },
                 {
-                    "project": "sase-core",
-                    "name": "work-statistics-wire",
+                    "project": _ENGINE_KEY,
+                    "name": f"{_ENGINE_KEY}_work-statistics-wire",
                     "status": "Mailed",
                     "has_pr": True,
                     "runs": 3,
@@ -209,8 +220,8 @@ def _populated_statistics_view(
                     "last_run_ts": _STATISTICS_NOW - 1_800,
                 },
                 {
-                    "project": "sase-core",
-                    "name": "runtime-groups",
+                    "project": _ENGINE_KEY,
+                    "name": f"{_ENGINE_KEY}_runtime-groups",
                     "status": "Archived",
                     "has_pr": False,
                     "runs": 2,
@@ -220,8 +231,8 @@ def _populated_statistics_view(
                     "last_run_ts": _STATISTICS_NOW - 14_400,
                 },
                 {
-                    "project": "sase-github",
-                    "name": "provider-rollups",
+                    "project": _INTEGRATION_KEY,
+                    "name": f"{_INTEGRATION_KEY}_provider-rollups",
                     "status": "unknown",
                     "has_pr": False,
                     "runs": 3,
@@ -282,8 +293,10 @@ def _populated_statistics_view(
             run_payload,
             activity_payload,
             previous_run_payload={"totals": {"runs": 24}},
+            project_display_snapshot=_PROJECT_DISPLAY_SNAPSHOT,
         ),
         project_filter=project_filter,
+        project_display_snapshot=_PROJECT_DISPLAY_SNAPSHOT,
     )
 
 

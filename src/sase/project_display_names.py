@@ -134,7 +134,6 @@ def _get_project_display_snapshot(
     """Return the explicitly managed cached snapshot for convenience callers.
 
     Cache freshness never depends on filesystem metadata. Call
-    :func:`refresh_project_display_snapshot` from an off-thread refresh path or
     :func:`invalidate_project_display_snapshot` after a supported mutation.
     """
     global _PROJECT_DISPLAY_NAME_CACHE  # noqa: PLW0603
@@ -148,21 +147,6 @@ def _get_project_display_snapshot(
             cached = load_project_display_snapshot(projects_root)
             _PROJECT_DISPLAY_NAME_CACHE[cache_key] = cached
         return cached
-
-
-def refresh_project_display_snapshot(
-    projects_root: Path | str | None = None,
-) -> ProjectDisplaySnapshot:
-    """Fresh-load and replace the cached snapshot for *projects_root*."""
-    global _PROJECT_DISPLAY_NAME_CACHE  # noqa: PLW0603
-
-    cache_key = _projects_root_cache_key(projects_root)
-    snapshot = load_project_display_snapshot(projects_root)
-    with _PROJECT_DISPLAY_NAME_CACHE_LOCK:
-        if _PROJECT_DISPLAY_NAME_CACHE is None:
-            _PROJECT_DISPLAY_NAME_CACHE = {}
-        _PROJECT_DISPLAY_NAME_CACHE[cache_key] = snapshot
-    return snapshot
 
 
 def invalidate_project_display_snapshot(
@@ -384,5 +368,4 @@ __all__ = [
     "project_display_for",
     "project_display_name_map_signature",
     "project_display_name_for",
-    "refresh_project_display_snapshot",
 ]

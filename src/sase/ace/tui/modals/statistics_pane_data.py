@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
+from sase.project_display_names import (
+    ProjectDisplaySnapshot,
+    load_project_display_snapshot,
+)
 from sase.stats.query import RuntimeGroupBy, query_activity_stats, query_run_stats
 from sase.stats.ranges import StatsRange
 from sase.stats.views import StatisticsViews, build_statistics_views
@@ -69,6 +73,9 @@ class StatisticsViewData:
     generated_at: float
     views: StatisticsViews
     project_filter: str | None = None
+    project_display_snapshot: ProjectDisplaySnapshot = field(
+        default_factory=ProjectDisplaySnapshot
+    )
 
 
 def load_statistics_view(
@@ -78,6 +85,7 @@ def load_statistics_view(
     project_filter: str | None = None,
 ) -> StatisticsViewData:
     """Query composite bindings and build all seven view models off-thread."""
+    project_display_snapshot = load_project_display_snapshot()
     run_payload = query_run_stats(
         start_ts=selected_range.start_ts,
         end_ts=selected_range.end_ts,
@@ -108,8 +116,10 @@ def load_statistics_view(
             run_payload,
             activity_payload,
             previous_run_payload=previous_run_payload,
+            project_display_snapshot=project_display_snapshot,
         ),
         project_filter=project_filter,
+        project_display_snapshot=project_display_snapshot,
     )
 
 
