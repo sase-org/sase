@@ -4715,18 +4715,25 @@ ConfigCenterModal XPromptBrowserPane {
 }
 
 /* Statistics tab: historical numeric views with an inline range editor */
-StatisticsPane #statistics-title {
+StatisticsPane #statistics-heading {
     width: 100%;
     height: 1;
+}
+
+StatisticsPane #statistics-title {
+    width: 1fr;
+    height: 1;
     text-style: bold;
-    text-align: center;
+    text-align: left;
+    text-wrap: nowrap;
     text-overflow: ellipsis;
 }
 
-StatisticsPane #statistics-range {
-    width: 100%;
+StatisticsPane #statistics-status {
+    width: auto;
     height: 1;
-    text-align: center;
+    margin-left: 1;
+    text-align: right;
     text-wrap: nowrap;
     text-overflow: ellipsis;
 }
@@ -4735,6 +4742,29 @@ StatisticsPane #statistics-views {
     width: 100%;
     height: 1;
     text-align: center;
+}
+
+StatisticsPane #statistics-description {
+    width: 100%;
+    height: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+StatisticsPane #statistics-scope {
+    width: 100%;
+    height: 1;
+}
+
+StatisticsPane .statistics-scope-part {
+    width: 1fr;
+    height: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+StatisticsPane #statistics-scope-range {
+    width: 2fr;
 }
 
 StatisticsPane #statistics-custom-range {

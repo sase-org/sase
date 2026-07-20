@@ -13,13 +13,14 @@ from textual.widgets import Static
 
 from sase.ace.tui.keymaps import StatisticsPaneKeymaps, statistics_help_bindings
 from sase.stats.query import RuntimeGroupBy
-from sase.stats.ranges import StatsRange
-from sase.telemetry.render import render_stat_tile
+from sase.stats.ranges import PresetKey, StatsRange
+from sase.telemetry.render import categorical_color, render_stat_tile
 
 from .statistics_pane_data import (
     ProjectsGroupBy,
     StatisticsView,
     StatisticsViewData,
+    VIEW_DESCRIPTIONS,
     VIEW_LABELS,
 )
 from .statistics_pane_views import StatisticsViewsRenderingMixin
@@ -38,15 +39,19 @@ _PROJECTS_GROUP_LABELS: dict[ProjectsGroupBy, str] = {
 class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     """Textual widget base responsible for painting statistics results."""
 
+    _SCOPE_COMPACT_BELOW_WIDTH = 100
+
     _keymaps: StatisticsPaneKeymaps
     _view: StatisticsView
     _runtime_group_by: RuntimeGroupBy
     _projects_group_by: ProjectsGroupBy
     _project_filter: str | None
+    _preset_key: PresetKey | None
     _range: StatsRange
     _loading: bool
     _last_result: StatisticsViewData | None
     _last_error: str
+    _compact_scope: bool
 
     def _paint_loading(self) -> None:
         self._set_tiles_visible(self._view == "overview")
@@ -167,40 +172,84 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     def _heading_text(self) -> Text:
         heading = Text()
         heading.append("Statistics", style=f"bold {_ACCENT}")
-        heading.append("  ·  ")
-        view_label = VIEW_LABELS[self._view]
-        if self._view == "runtime":
-            view_label += f" by {self._runtime_group_by.title()}"
-        elif self._view == "projects":
-            view_label += f" · {_PROJECTS_GROUP_LABELS[self._projects_group_by]}"
-        heading.append(view_label, style="bold")
-        if self._project_filter is not None:
-            project_label = self._project_filter
-            if self._last_result is not None:
-                project_label = self._last_result.project_display_snapshot.label_for(
-                    self._project_filter
-                )
-            heading.append(f"  ·  {project_label}", style=f"bold {_GOLD}")
+        heading.append(" · ")
+        heading.append(VIEW_LABELS[self._view], style="bold")
+        return heading
+
+    def _status_text(self) -> Text:
+        status = Text(no_wrap=True, overflow="ellipsis")
         if self._loading:
-            heading.append("  ·  refreshing…", style="dim italic")
+            status.append("refreshing…", style="dim italic")
         elif self._last_error:
-            heading.append("  ·  load failed", style="red")
+            status.append("load failed", style="red")
         elif self._last_result is not None:
             updated = (
                 datetime.fromtimestamp(self._last_result.generated_at)
                 .astimezone()
                 .strftime("%H:%M:%S")
             )
-            heading.append(f"  ·  updated {updated}", style="dim")
-        return heading
+            status.append(f"updated {updated}", style="dim")
+        return status
 
-    def _range_text(self) -> Text:
-        selected_range = Text(justify="center", no_wrap=True, overflow="ellipsis")
-        selected_range.append("Range: ", style="bold")
-        selected_range.append(self._range.display_label, style=f"bold {_CYAN}")
-        selected_range.append("  ·  ", style="dim")
-        selected_range.append(self._range.label, style=_CYAN)
-        return selected_range
+    def _description_text(self) -> Text:
+        return Text(
+            f"› {VIEW_DESCRIPTIONS[self._view]}",
+            style=f"dim {_ACCENT}",
+            no_wrap=True,
+            overflow="ellipsis",
+        )
+
+    @staticmethod
+    def _scope_text(key: str, label: str, *, accent: str) -> Text:
+        scope = Text(no_wrap=True, overflow="ellipsis")
+        scope.append(f" {key} ", style=f"bold reverse {accent}")
+        scope.append(f" {label} ", style="bold")
+        return scope
+
+    def _range_scope_text(self) -> Text:
+        key = statistics_help_bindings(self._keymaps)[2][0]
+        scope = self._scope_text(key, "Range", accent=_CYAN)
+        if self._preset_key is None:
+            scope.append("Custom", style=f"bold {_CYAN}")
+            scope.append(" · ", style="dim")
+        scope.append(self._range.display_label, style=f"bold {_CYAN}")
+        if not self._compact_scope:
+            scope.append(" · ", style="dim")
+            scope.append(self._range.label, style=_CYAN)
+        return scope
+
+    def _group_scope_text(self) -> Text:
+        key = statistics_help_bindings(self._keymaps)[4][0]
+        scope = self._scope_text(key, "Group", accent=_GREEN)
+        if self._view == "runtime":
+            scope.append(
+                f"Runtime · {self._runtime_group_by.title()}",
+                style=f"bold {_GREEN}",
+            )
+        elif self._view == "projects":
+            scope.append(
+                f"Projects · {_PROJECTS_GROUP_LABELS[self._projects_group_by]}",
+                style=f"bold {_GREEN}",
+            )
+        else:
+            scope.append("—", style="dim")
+        return scope
+
+    def _project_scope_text(self) -> Text:
+        key = statistics_help_bindings(self._keymaps)[5][0]
+        scope = self._scope_text(key, "Project", accent=_GOLD)
+        if self._project_filter is None:
+            scope.append("All projects", style=f"bold {_GOLD}")
+            return scope
+
+        project_label = self._project_filter
+        if self._last_result is not None:
+            project_label = self._last_result.project_display_snapshot.label_for(
+                self._project_filter
+            )
+        scope.append("■ ", style=categorical_color(self._project_filter))
+        scope.append(project_label, style=f"bold {_GOLD}")
+        return scope
 
     def _hints_text(self) -> Text:
         bindings = statistics_help_bindings(self._keymaps)
@@ -210,14 +259,10 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 f"{bindings[0][0]} / {bindings[1][0]}", style=f"bold {_ACCENT}"
             )
             hints.append(" views")
-        styles = (_CYAN, _GOLD, _GREEN, _ACCENT, _CYAN)
-        for (key, description), color in zip(bindings[2:], styles, strict=False):
-            if description == "Group By" and self._view == "runtime":
-                description = f"Group: {self._runtime_group_by.title()}"
-            elif description == "Group By" and self._view == "projects":
-                description = (
-                    f"Group: {_PROJECTS_GROUP_LABELS[self._projects_group_by]}"
-                )
+        for (key, description), color in (
+            (bindings[3], _CYAN),
+            (bindings[6], _ACCENT),
+        ):
             hints.append("   ")
             hints.append(key, style=f"bold {color}")
             hints.append(f" {description.lower()}")
@@ -225,7 +270,14 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
 
     def _update_heading(self) -> None:
         self._update_static("#statistics-title", self._heading_text())
-        self._update_static("#statistics-range", self._range_text())
+        self._update_static("#statistics-status", self._status_text())
+        self._update_static("#statistics-description", self._description_text())
+        self._update_scope()
+
+    def _update_scope(self) -> None:
+        self._update_static("#statistics-scope-range", self._range_scope_text())
+        self._update_static("#statistics-scope-group", self._group_scope_text())
+        self._update_static("#statistics-scope-project", self._project_scope_text())
 
     def _update_hints(self) -> None:
         self._update_static("#statistics-hints", self._hints_text())

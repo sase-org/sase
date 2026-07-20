@@ -8,6 +8,7 @@ from textual import on
 from textual.app import ComposeResult
 from textual.binding import BindingsMap
 from textual.containers import Horizontal, VerticalScroll
+from textual.events import Resize
 from textual.widgets import Input, Static
 from textual.worker import Worker, WorkerState
 
@@ -98,16 +99,42 @@ class StatisticsPane(StatisticsPanePresentationBase):
         self._load_debouncer: DetailPanelDebouncer | None = None
         self._last_result: StatisticsViewData | None = None
         self._last_error = ""
+        self._compact_scope = False
 
     def compose(self) -> ComposeResult:
-        yield Static(self._heading_text(), id="statistics-title", markup=False)
-        yield Static(self._range_text(), id="statistics-range", markup=False)
+        with Horizontal(id="statistics-heading"):
+            yield Static(self._heading_text(), id="statistics-title", markup=False)
+            yield Static(self._status_text(), id="statistics-status", markup=False)
         yield PanelTabStrip(
             _VIEW_TABS,
             self._view,
             uppercase_active=True,
             id="statistics-views",
         )
+        yield Static(
+            self._description_text(),
+            id="statistics-description",
+            markup=False,
+        )
+        with Horizontal(id="statistics-scope"):
+            yield Static(
+                self._range_scope_text(),
+                id="statistics-scope-range",
+                classes="statistics-scope-part",
+                markup=False,
+            )
+            yield Static(
+                self._group_scope_text(),
+                id="statistics-scope-group",
+                classes="statistics-scope-part",
+                markup=False,
+            )
+            yield Static(
+                self._project_scope_text(),
+                id="statistics-scope-project",
+                classes="statistics-scope-part",
+                markup=False,
+            )
         yield _CustomRangeInput(
             placeholder=(
                 "Custom range: 12h, 7d, 2w, YYYY-MM, "
@@ -147,6 +174,14 @@ class StatisticsPane(StatisticsPanePresentationBase):
             self._refresh_timer = None
         if self._worker is not None:
             self._worker.cancel()
+
+    def on_resize(self, event: Resize) -> None:
+        """Update only scope copy when crossing the compact-width threshold."""
+        compact = event.size.width < self._SCOPE_COMPACT_BELOW_WIDTH
+        if compact == self._compact_scope:
+            return
+        self._compact_scope = compact
+        self._update_scope()
 
     def focus_default(self) -> None:
         """Focus this key-driven pane and lazily perform its first load."""

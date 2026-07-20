@@ -43,6 +43,15 @@ VIEW_LABELS: dict[StatisticsView, str] = {
     "activity": "Activity",
     "plans_questions": "Plans & Questions",
 }
+VIEW_DESCRIPTIONS: dict[StatisticsView, str] = {
+    "overview": "Totals and trends across runs, commits, plans, and questions.",
+    "runs": "Run outcomes, retries, workspace usage, and activity over time.",
+    "projects": "Run, ChangeSpec, commit, and runtime activity by project.",
+    "providers": "Provider, model, and effort usage with success and runtime measures.",
+    "runtime": "Runtime distribution and share grouped by the selected dimension.",
+    "activity": "Skill and memory usage across agents in the selected scope.",
+    "plans_questions": "Plan decisions, epic structure, and agent question patterns.",
+}
 
 PROJECTS_GROUP_ORDER: tuple[ProjectsGroupBy, ...] = (
     "project",
@@ -126,6 +135,7 @@ def load_statistics_view(
 __all__ = [
     "PROJECTS_GROUP_ORDER",
     "RUNTIME_GROUP_ORDER",
+    "VIEW_DESCRIPTIONS",
     "VIEW_LABELS",
     "VIEW_ORDER",
     "StatisticsView",

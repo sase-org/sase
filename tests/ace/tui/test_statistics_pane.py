@@ -19,6 +19,7 @@ from sase.ace.tui.modals.statistics_pane import StatisticsPane
 from sase.ace.tui.modals.statistics_pane_data import (
     StatisticsView,
     StatisticsViewData,
+    VIEW_DESCRIPTIONS,
 )
 from sase.project_display_names import ProjectDisplaySnapshot
 from sase.stats.query import RuntimeGroupBy
@@ -254,14 +255,15 @@ async def _open_statistics(
     return modal, pane
 
 
-def _range_row_plain(pane: StatisticsPane) -> str:
-    return pane.query_one("#statistics-range", Static).render().plain
+def _scope_plain(pane: StatisticsPane, name: str) -> str:
+    return pane.query_one(f"#statistics-scope-{name}", Static).render().plain
 
 
-def _assert_range_row_matches_selection(pane: StatisticsPane) -> None:
-    assert _range_row_plain(pane) == (
-        f"Range: {pane._range.display_label}  ·  {pane._range.label}"
-    )
+def _assert_range_scope_matches_selection(pane: StatisticsPane) -> None:
+    scope = _scope_plain(pane, "range")
+    assert "Range" in scope
+    assert pane._range.display_label in scope
+    assert pane._range.label in scope
 
 
 async def test_statistics_loads_only_after_its_tab_becomes_active(
@@ -288,11 +290,13 @@ async def test_statistics_loads_only_after_its_tab_becomes_active(
         assert len(calls) == 1
         assert calls[0][0] == "overview"
         assert calls[0][2] == "tribe"
-        _assert_range_row_matches_selection(pane)
+        _assert_range_scope_matches_selection(pane)
         assert pane._range.display_label == "Last 7 days"
-        assert pane._range.label not in (
-            pane.query_one("#statistics-title", Static).render().plain
-        )
+        title = pane.query_one("#statistics-title", Static).render().plain
+        status = pane.query_one("#statistics-status", Static).render().plain
+        assert title == "Statistics · Overview"
+        assert pane._range.label not in title
+        assert status.startswith("updated ")
 
 
 async def test_range_and_group_switches_coalesce_to_latest_selection(
@@ -324,7 +328,7 @@ async def test_range_and_group_switches_coalesce_to_latest_selection(
         assert pane._preset_key == "90d"
         assert pane._range.display_label == "Last 90 days"
         assert pane._runtime_group_by == "clan"
-        _assert_range_row_matches_selection(pane)
+        _assert_range_scope_matches_selection(pane)
 
 
 async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
@@ -342,13 +346,9 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
         assert pane._projects_group_by == "changespec"
         assert pane._runtime_group_by == "tribe"
         assert len(calls) == 1
-        assert (
-            "By ChangeSpec"
-            in pane.query_one("#statistics-title", Static).render().plain
-        )
-        assert (
-            "group: by changespec"
-            in pane.query_one("#statistics-hints", Static).render().plain
+        assert "Projects · By ChangeSpec" in _scope_plain(pane, "group")
+        assert "group" not in (
+            pane.query_one("#statistics-hints", Static).render().plain
         )
 
         pane._set_view("runs")
@@ -357,6 +357,7 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
         assert pane._projects_group_by == "changespec"
         assert pane._runtime_group_by == "tribe"
         assert len(calls) == 1
+        assert _scope_plain(pane, "group").endswith("Group —")
 
 
 async def test_project_filter_cycles_ranked_projects_and_survives_range_change(
@@ -372,14 +373,18 @@ async def test_project_filter_cycles_ranked_projects_and_survives_range_change(
         await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
         assert pane._project_filter == "sase"
         assert calls[-1][3] == "sase"
-        assert "sase" in pane.query_one("#statistics-title", Static).render().plain
+        assert "sase" in _scope_plain(pane, "project")
+        assert "■" in _scope_plain(pane, "project")
+        assert "sase" not in (
+            pane.query_one("#statistics-title", Static).render().plain
+        )
 
         pane.action_cycle_range()
         await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
         assert calls[-1][1].label == pane._range.label
         assert calls[-1][1].display_label == pane._range.display_label
         assert calls[-1][3] == "sase"
-        _assert_range_row_matches_selection(pane)
+        _assert_range_scope_matches_selection(pane)
 
         pane.action_cycle_project_filter()
         await page.wait_for(lambda _state: len(calls) == 4 and not pane._loading)
@@ -433,11 +438,11 @@ async def test_project_filter_label_submits_canonical_key_across_reload_paths(
 
         pane.action_cycle_project_filter()
         await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
-        heading = pane.query_one("#statistics-title", Static).render().plain
+        project_scope = _scope_plain(pane, "project")
         assert pane._project_filter == widgets_key
         assert calls[-1][3] == widgets_key
-        assert "widgets" in heading
-        assert widgets_key not in heading
+        assert "widgets" in project_scope
+        assert widgets_key not in project_scope
 
         pane.action_cycle_range()
         await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
@@ -574,6 +579,10 @@ async def test_view_cycle_reuses_composite_result_and_updates_strip(
         await page.wait_for(lambda _state: pane._view == "projects")
 
         assert len(calls) == 1
+        assert (
+            pane.query_one("#statistics-description", Static).render().plain
+            == f"› {VIEW_DESCRIPTIONS['projects']}"
+        )
 
         await page.press("right_square_bracket")
         await page.wait_for(lambda _state: pane._view == "providers")
@@ -598,7 +607,7 @@ async def test_refresh_preserves_selection_and_hidden_tick_is_inert(
 
         assert calls[-1][0] == "runtime"
         assert calls[-1][2] == "clan"
-        _assert_range_row_matches_selection(pane)
+        _assert_range_scope_matches_selection(pane)
         await modal._switch_to("config")
         pane._on_refresh_tick()
         await page.pause()
@@ -626,7 +635,9 @@ async def test_custom_range_accepts_valid_input_and_rejects_invalid_input(
         assert pane._custom_range_value == "14d"
         assert custom_input.display is False
         assert pane._range.display_label == "Last 14 days"
-        _assert_range_row_matches_selection(pane)
+        custom_scope = _scope_plain(pane, "range")
+        _assert_range_scope_matches_selection(pane)
+        assert "Custom · Last 14 days" in custom_scope
 
         accepted_range = pane._range
         await page.press("c")
@@ -637,7 +648,7 @@ async def test_custom_range_accepts_valid_input_and_rejects_invalid_input(
         assert pane._range == accepted_range
         assert len(calls) == 2
         assert custom_input.display is True
-        _assert_range_row_matches_selection(pane)
+        _assert_range_scope_matches_selection(pane)
 
 
 async def test_configured_bindings_dispatch_and_render_effective_help(
@@ -676,10 +687,10 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         _, pane = await _open_statistics(page)
 
         hints = pane.query_one("#statistics-hints", Static).render().plain
-        assert hints == (
-            "f12 / f11 views   f10 time range   f9 custom range   "
-            "f8 group by   f7 project filter   f6 refresh"
-        )
+        assert hints == "f12 / f11 views   f9 custom range   f6 refresh"
+        assert _scope_plain(pane, "range").startswith(" f10  Range ")
+        assert _scope_plain(pane, "group").startswith(" f8  Group ")
+        assert _scope_plain(pane, "project").startswith(" f7  Project ")
         await page.press("f11", "f11", "f8")
         await page.wait_for(
             lambda _state: (
