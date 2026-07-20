@@ -80,7 +80,10 @@ def run_script_chop_once(
         pidless_stale_after_seconds=resolved_timeout,
         is_process_running_fn=is_process_running_fn,
     )
-    if live is not None:
+    # Never overlap the script process itself.  A launched action is different:
+    # declarative guards must still get a chance to explain why a later tick is
+    # inhibited, and ``--force`` is allowed to bypass that action-level dedupe.
+    if live is not None and live.status == "running":
         return ChopRunOutcome(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
@@ -129,6 +132,13 @@ def run_script_chop_once(
             started_by=started_by,
             preflight=preflight,
             chop_verbose=chop_verbose,
+        )
+    if live is not None and not force:
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="already_running",
+            run_id=live.run_id,
         )
     try:
         record_chop_checkpoint_event(

@@ -20,7 +20,7 @@ from sase.axe.chop_inventory import collect_chop_inventory
 from sase.axe.chop_proposals import prepare_chop_proposals
 from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
-from sase.axe.state import read_chop_run
+from sase.axe.state import ChopRunEntry, read_chop_run, write_chop_run
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 
 from tests.axe_chop_runner_helpers import make_script
@@ -189,6 +189,77 @@ def test_agent_clan_guard_uses_canonical_active_metadata_and_force_bypasses(
     assert skipped.decision is not None
     assert skipped.decision["provider"] == "agent_clan"
     assert forced.outcome == "fire"
+
+
+def test_active_clan_guard_precedes_launched_run_dedupe_and_force_bypasses(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    marker = tmp_path / "executed"
+    make_script(tmp_path, "split", f"touch '{marker}'\n")
+    context = tmp_path / "context.json"
+    context.write_text("{}", encoding="utf-8")
+    chop = ChopConfig(
+        name="split",
+        description="",
+        inhibit_if=[{"provider": "agent_clan", "name_prefix": "toobig-"}],
+    )
+    config = AxeConfig(chop_script_dirs=[str(tmp_path / "scripts")])
+    active = SimpleNamespace(
+        name="toobig-3.split_file.module",
+        status="WAITING",
+        agent_clan="toobig-3",
+    )
+
+    def _record_launched(run_id: str) -> None:
+        write_chop_run(
+            ChopRunEntry(
+                run_id=run_id,
+                lumberjack_name="checks",
+                chop_name="split",
+                started_at="2026-07-19T12:00:00+00:00",
+                finished_at=None,
+                duration_ms=0,
+                status="launched",
+                launches=[{"pid": 321, "agent_name": active.name}],
+            )
+        )
+
+    _record_launched("20260719T120000_000000")
+    with (
+        patch(
+            "sase.axe.chop_runner_script.finalize_launched_chop_runs",
+            return_value=0,
+        ),
+        patch("sase.axe.chop_policy.list_running_agents", return_value=[active]),
+    ):
+        skipped = run_configured_chop_once(
+            lumberjack_name="checks",
+            chop=chop,
+            axe_config=config,
+            context_file=str(context),
+            source="manual",
+        )
+
+        assert skipped.status == "skipped"
+        assert skipped.reason is not None and "toobig-3" in skipped.reason
+        assert active.name in skipped.reason
+        assert marker.exists() is False
+
+        # Put an active launched row back at the head so this also proves that
+        # force bypasses action-level dedupe, not only the clan policy.
+        _record_launched("20260719T120001_000000")
+        forced = run_configured_chop_once(
+            lumberjack_name="checks",
+            chop=chop,
+            axe_config=config,
+            context_file=str(context),
+            source="manual",
+            force=True,
+        )
+
+    assert forced.status == "success"
+    assert marker.exists()
 
 
 def test_agent_clan_guard_does_not_infer_clan_from_dotted_name(

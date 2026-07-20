@@ -133,10 +133,13 @@ def run_configured_chop_once(
 ) -> ChopRunOutcome:
     """Execute one configured chop once, sharing logic across all callers.
 
-    Dedupes against any live ``running`` run-history entry, then runs the
-    configured script in the foreground via :func:`stream_chop_script`, opening
-    a streaming run-history entry before the subprocess starts and finalizing
-    the same entry on success/failure/timeout.
+    Dedupes against any live script process before preflight.  For a prior
+    launched action, declarative guards run first so their skip reason remains
+    visible; an accepted non-forced run is still deduped, while ``force`` may
+    dispatch another action.  Accepted runs execute the configured script in
+    the foreground via :func:`stream_chop_script`, opening a streaming
+    run-history entry before the subprocess starts and finalizing the same entry
+    on success/failure/timeout.
 
     ``source`` is persisted on the run entry so consumers (TUI, CLI) can
     distinguish scheduled, manual, and CLI one-shot runs without parsing logs.
