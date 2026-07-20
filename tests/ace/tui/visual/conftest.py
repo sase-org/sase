@@ -86,14 +86,10 @@ def _pin_agent_list_clock_for_visual_snapshots(
 
 @pytest.fixture(autouse=True)
 def _stub_projects_loader(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the always-mounted Projects pane off the real projects directory.
+    """Keep Projects-tab snapshots off the real projects directory.
 
-    The Config Center composes its Projects pane in every screenshot even
-    when that tab is hidden, so the pane constructor would otherwise read the
-    real ``~/.sase/projects`` store and render non-deterministic (or
-    "Load failed") content. Patching the symbol the pane imports keeps every
-    Admin Center snapshot deterministic; dedicated Projects-tab snapshots can
-    override this stub with their own project records.
+    The pane is lazy now, but dedicated Projects snapshots still need a
+    deterministic default that their richer fixtures can override.
     """
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane.list_project_records",

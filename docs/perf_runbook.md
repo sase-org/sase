@@ -149,6 +149,16 @@ The harness lives at `tests/perf/bench_tui_trace.py`. It generates in-memory Cha
 the TUI through Textual Pilot without touching real `~/.sase` data. It is marked `pytest.mark.slow`, so it does not run
 as part of `just test`.
 
+For the Admin Center home-first path, use the focused Textual Pilot benchmark:
+
+```bash
+pytest -s -m slow tests/ace/tui/bench_admin_center_open.py
+```
+
+It reports `#` dispatch-to-paint p50/p95/max values for empty and populated project/config stores. Treat zero mounted
+concrete panes and comparable results across fixture sizes as the hard acceptance criteria; use the timing table for
+before/after comparison rather than adding a unit-test wall-clock threshold.
+
 Run via pytest:
 
 ```bash

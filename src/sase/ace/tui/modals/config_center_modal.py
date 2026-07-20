@@ -1,106 +1,193 @@
-"""SASE Admin Center modal: config, logs, projects, statistics, tasks, updates, xprompts.
+"""Home-first SASE Admin Center with lazily mounted working panes.
 
-SASE Admin Center is a full-screen ``ModalScreen`` that hosts seven internal
-alphabetical tabs over a :class:`ContentSwitcher`:
+The unqualified ``#`` action opens a lightweight landing page. The seven
+alphabetical working tabs are created only when the user explicitly enters
+one with ``1``-``7``, ``Tab`` / ``Shift+Tab``, or the clickable tab strip.
+Mounted panes are cached for the lifetime of the modal, so returning to a tab
+preserves its selection and other pane-local state.
 
-- **Config** (tab 1, default focus on first open) — the schema-driven config
-  editor (:class:`ConfigPane`).
-- **Logs** (tab 2) — the canonical SASE log browser (:class:`LogsPane`), replacing
-  the standalone ``,L`` modal.
-- **Projects** (tab 3) — the migrated project lifecycle manager
-  (:class:`ProjectsPane`), replacing the standalone ``,p`` modal.
-- **Statistics** (tab 4) — historical numeric activity views
-  (:class:`StatisticsPane`).
-- **Tasks** (tab 5) — the canonical background-task monitor (:class:`TasksPane`),
-  replacing the standalone ``,t`` modal.
-- **Updates** (tab 6) — Core / Plugins / Agent CLIs update sub-tabs
-  (:class:`PluginsBrowserPane`), mirroring ``sase update``, ``sase plugin``,
-  and the shared agent-CLI update service.
-- **XPrompts** (tab 7) — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
-
-``#`` opens the modal on the last persisted Admin Center tab (Config before a
-tab has been saved). ``1``-``7`` jump directly to the matching tab, and ``Tab``
-/ ``Shift+Tab`` cycle the main tabs with modulo wrapping.
-Pane-local sub-tabs use ``]`` / ``[`` (including Projects / Repos / Workspaces).
-The clickable tab strip mirrors the app's :class:`TabBar`. A centered caption
-below the tab strip describes the active tab using that tab's accent color.
+Direct-entry actions may still pass ``initial_tab`` to open exactly one pane.
+Pane-local sub-tabs continue to use ``]`` / ``[`` where provided.
 """
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container
+from textual.containers import Container, VerticalScroll
 from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import ContentSwitcher, Label, Static
 
-from .config_pane import ConfigPane
-from .logs_pane import LogsPane
-from .plugins_browser_pane import PluginsBrowserPane
-from .projects_pane import ProjectsPane
-from .tasks_pane import TasksPane
-from .xprompt_browser_pane import XPromptBrowserPane
 from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
 CenterTab = Literal[
     "config", "logs", "projects", "statistics", "tasks", "updates", "xprompts"
 ]
+PaneFactory = Callable[["ConfigCenterModal"], Widget]
 
-_TAB_ORDER: tuple[CenterTab, ...] = (
-    "config",
-    "logs",
-    "projects",
-    "statistics",
-    "tasks",
-    "updates",
-    "xprompts",
+
+@dataclass(frozen=True)
+class _CenterTabSpec:
+    """Immutable navigation and construction metadata for one working tab."""
+
+    id: CenterTab
+    number: int
+    label: str
+    accent: str
+    description: str
+    pane_identity: str
+    factory: PaneFactory
+
+
+def _config_pane_factory(modal: ConfigCenterModal) -> Widget:
+    from .config_pane import ConfigPane
+
+    return ConfigPane(project=modal._project, id="config")
+
+
+def _logs_pane_factory(_modal: ConfigCenterModal) -> Widget:
+    from .logs_pane import LogsPane
+
+    return LogsPane(id="logs")
+
+
+def _projects_pane_factory(_modal: ConfigCenterModal) -> Widget:
+    from .projects_pane import ProjectsPane
+
+    return ProjectsPane(id="projects")
+
+
+def _statistics_pane_factory(modal: ConfigCenterModal) -> Widget:
+    from .statistics_pane import StatisticsPane
+
+    registry = getattr(modal.app, "_keymap_registry", None)
+    keymaps = getattr(registry, "statistics", None)
+    return StatisticsPane(id="statistics", keymaps=keymaps)
+
+
+def _tasks_pane_factory(_modal: ConfigCenterModal) -> Widget:
+    from .tasks_pane import TasksPane
+
+    return TasksPane(id="tasks")
+
+
+def _updates_pane_factory(modal: ConfigCenterModal) -> Widget:
+    from .plugins_browser_pane import PluginsBrowserPane
+
+    return PluginsBrowserPane(
+        id="updates",
+        auto_update_on_load=modal._auto_update,
+        comprehensive_provider_names=modal._comprehensive_provider_names,
+    )
+
+
+def _xprompts_pane_factory(modal: ConfigCenterModal) -> Widget:
+    from .xprompt_browser_pane import XPromptBrowserPane
+
+    return XPromptBrowserPane(modal._project, id="xprompts")
+
+
+_TAB_SPECS: tuple[_CenterTabSpec, ...] = (
+    _CenterTabSpec(
+        "config",
+        1,
+        "Config",
+        "#00D7AF",
+        "Review and edit layered SASE settings with provenance and live previews.",
+        "ConfigPane",
+        _config_pane_factory,
+    ),
+    _CenterTabSpec(
+        "logs",
+        2,
+        "Logs",
+        "#FFD700",
+        "Inspect TUI activity, launch failures, and notification history.",
+        "LogsPane",
+        _logs_pane_factory,
+    ),
+    _CenterTabSpec(
+        "projects",
+        3,
+        "Projects",
+        "#FFAF5F",
+        "Manage projects and inspect their repositories and workspaces.",
+        "ProjectsPane",
+        _projects_pane_factory,
+    ),
+    _CenterTabSpec(
+        "statistics",
+        4,
+        "Statistics",
+        "#FF87D7",
+        "Explore agent activity, runtime, outcomes, and trends over time.",
+        "StatisticsPane",
+        _statistics_pane_factory,
+    ),
+    _CenterTabSpec(
+        "tasks",
+        5,
+        "Tasks",
+        "#5FD75F",
+        "Follow background work, inspect live output, and manage running jobs.",
+        "TasksPane",
+        _tasks_pane_factory,
+    ),
+    _CenterTabSpec(
+        "updates",
+        6,
+        "Updates",
+        "#AF87FF",
+        "Update SASE, plugins, and supported agent CLIs from one place.",
+        "PluginsBrowserPane",
+        _updates_pane_factory,
+    ),
+    _CenterTabSpec(
+        "xprompts",
+        7,
+        "XPrompts",
+        "#87D7FF",
+        "Find, preview, and load reusable prompts and workflows.",
+        "XPromptBrowserPane",
+        _xprompts_pane_factory,
+    ),
 )
+_TAB_BY_ID: dict[CenterTab, _CenterTabSpec] = {spec.id: spec for spec in _TAB_SPECS}
+_TAB_BY_NUMBER: dict[int, _CenterTabSpec] = {spec.number: spec for spec in _TAB_SPECS}
+_TAB_ORDER: tuple[CenterTab, ...] = tuple(spec.id for spec in _TAB_SPECS)
 _TAB_LABELS: list[tuple[CenterTab, str]] = [
-    ("config", "Config"),
-    ("logs", "Logs"),
-    ("projects", "Projects"),
-    ("statistics", "Statistics"),
-    ("tasks", "Tasks"),
-    ("updates", "Updates"),
-    ("xprompts", "XPrompts"),
+    (spec.id, spec.label) for spec in _TAB_SPECS
 ]
-_TAB_COLORS: dict[CenterTab, str] = {
-    "config": "#00D7AF",
-    "logs": "#FFD700",
-    "projects": "#FFAF5F",
-    "statistics": "#FF87D7",
-    "tasks": "#5FD75F",
-    "updates": "#AF87FF",
-    "xprompts": "#87D7FF",
+_TAB_COLORS: dict[CenterTab, str] = {spec.id: spec.accent for spec in _TAB_SPECS}
+_TAB_DESCRIPTIONS: dict[CenterTab, str] = {
+    spec.id: spec.description for spec in _TAB_SPECS
 }
 _PANEL_TABS: tuple[PanelTab, ...] = tuple(
-    PanelTab(tab, label, _TAB_COLORS[tab]) for tab, label in _TAB_LABELS
+    PanelTab(spec.id, spec.label, spec.accent) for spec in _TAB_SPECS
 )
-_TAB_DESCRIPTIONS: dict[CenterTab, str] = {
-    "config": "Edit layered SASE settings with live preview",
-    "logs": "Browse SASE logs and launch failures",
-    "projects": "Manage projects, repos, and workspace directories",
-    "statistics": "Aggregate SASE agent activity over any time range",
-    "tasks": "Monitor background tasks and live output",
-    "updates": "Update SASE core, plugins, and supported agent CLIs",
-    "xprompts": "Browse and preview xprompt definitions",
-}
+
+_HOME_ID = "admin-center-home"
+_HOME_LEAD = "Choose a section"
+_HOME_ORIENTATION = "Configure, observe, and maintain SASE from one place."
+_HOME_INSTRUCTION = "Press 1-7 or click a tab to open it."
+_HOME_FOOTER = "Tab/Shift+Tab cycle tabs · q/Esc close"
 _TITLE_LABEL = "SASE Admin Center"
 _TITLE_TEXT = _TITLE_LABEL
 _HEADER_DIVIDER_RULE = "─"
 _TITLE_RULE_CHAR = "━"
 _TITLE_UNDERLINE = _TITLE_RULE_CHAR * len(_TITLE_TEXT)
 # Aurora accent gradient (aqua -> cyan -> sky -> indigo -> violet) swept
-# across the Admin Center header title and its rule. Vivid on the dark surface
-# and a deliberate tie-in to the colorful tab palette directly below it. The
-# first stop doubles as the panel border color (see ``ConfigCenterModal >
-# Container`` in styles.tcss).
+# across the Admin Center header title and its rule. The first stop doubles as
+# the panel border color in styles.tcss.
 _TITLE_GRADIENT: tuple[str, ...] = (
     "#2BE7C7",
     "#36CFEC",
@@ -111,7 +198,7 @@ _TITLE_GRADIENT: tuple[str, ...] = (
 
 
 def _gradient_color(stops: tuple[str, ...], position: float) -> str:
-    """Sample a left-to-right gradient of hex ``stops`` at ``position`` in [0, 1]."""
+    """Sample a left-to-right gradient of hex ``stops`` at ``position``."""
     if position <= 0.0:
         return stops[0]
     if position >= 1.0:
@@ -131,7 +218,7 @@ def _gradient_color(stops: tuple[str, ...], position: float) -> str:
 
 
 def _gradient_text(content: str, *, bold: bool) -> Text:
-    """Render ``content`` with a per-character sweep of :data:`_TITLE_GRADIENT`."""
+    """Render ``content`` with a per-character aurora sweep."""
     text = Text()
     divisor = max(1, len(content) - 1)
     for index, char in enumerate(content):
@@ -141,16 +228,34 @@ def _gradient_text(content: str, *, bold: bool) -> Text:
 
 
 def _tab_description_text(tab: CenterTab) -> Text:
-    """Render the Admin Center caption for ``tab`` in its accent color."""
-    return Text(f"› {_TAB_DESCRIPTIONS[tab]}", style=_TAB_COLORS[tab])
+    """Render the active-tab caption in its accent color."""
+    spec = _TAB_BY_ID[tab]
+    return Text(f"› {spec.description}", style=spec.accent)
+
+
+def _home_lead_text() -> Text:
+    """Render the landing-page lead without selecting a working tab."""
+    return Text(_HOME_LEAD, style="bold #B98CFF")
+
+
+def _landing_menu_text() -> Text:
+    """Build the static, catalog-derived seven-row landing menu."""
+    text = Text()
+    label_width = max(len(spec.label) for spec in _TAB_SPECS)
+    for index, spec in enumerate(_TAB_SPECS):
+        text.append(str(spec.number), style=f"bold reverse {spec.accent}")
+        text.append(" ")
+        text.append(f"{spec.label:<{label_width}}", style=f"bold {spec.accent}")
+        text.append(f" {spec.description}", style="#C6C6C6")
+        if index != len(_TAB_SPECS) - 1:
+            text.append("\n")
+    return text
 
 
 def center_tab_accent(tab: str) -> str | None:
     """Return the accent color for an Admin Center tab, if it exists."""
-    for candidate, color in _TAB_COLORS.items():
-        if candidate == tab:
-            return color
-    return None
+    spec = _TAB_BY_ID.get(cast(Any, tab))
+    return spec.accent if spec is not None else None
 
 
 class _ConfigCenterHeaderDivider(Static):
@@ -164,8 +269,24 @@ class _ConfigCenterHeaderDivider(Static):
         return Text(_HEADER_DIVIDER_RULE * width, style="#444444")
 
 
+class _AdminCenterLanding(VerticalScroll):
+    """Pure, bounded presentation-only home view."""
+
+    can_focus = False
+
+    def compose(self) -> ComposeResult:
+        yield Static(_HOME_ORIENTATION, id="admin-center-home-orientation")
+        yield Static(_HOME_INSTRUCTION, id="admin-center-home-instruction")
+        yield Static(
+            _landing_menu_text(),
+            id="admin-center-home-menu",
+            markup=False,
+        )
+        yield Static(_HOME_FOOTER, id="admin-center-home-footer")
+
+
 class ConfigCenterModal(ModalScreen[None]):
-    """Full-screen modal hosting the Admin Center tabs."""
+    """Full-screen Admin Center home and lazy working-pane host."""
 
     BINDINGS = [
         ("escape", "close", "Close"),
@@ -188,7 +309,7 @@ class ConfigCenterModal(ModalScreen[None]):
         self,
         project: str | None = None,
         *,
-        initial_tab: CenterTab = "config",
+        initial_tab: CenterTab | None = None,
         auto_update: bool = False,
         comprehensive_provider_names: tuple[str, ...] | None = None,
     ) -> None:
@@ -196,19 +317,12 @@ class ConfigCenterModal(ModalScreen[None]):
         self._project = project
         self._auto_update = auto_update
         self._comprehensive_provider_names = comprehensive_provider_names
-        self._active_tab: CenterTab = (
-            initial_tab if initial_tab in _TAB_ORDER else "config"
-        )
+        self._initial_tab = initial_tab if initial_tab in _TAB_ORDER else None
+        self._active_tab: CenterTab | None = None
+        self._panes: dict[CenterTab, Widget] = {}
+        self._navigation_lock = asyncio.Lock()
 
     def compose(self) -> ComposeResult:
-        # Keep statistics/render imports off ACE startup; this module is imported
-        # early for ``_TAB_ORDER``, while Statistics is only needed once the
-        # Admin Center itself is opened.
-        from .statistics_pane import StatisticsPane
-
-        registry = getattr(self.app, "_keymap_registry", None)
-        statistics_keymaps = getattr(registry, "statistics", None)
-
         with Container(id="config-center-container"):
             yield Label(
                 _gradient_text(_TITLE_TEXT, bold=True), id="config-center-title"
@@ -219,32 +333,25 @@ class ConfigCenterModal(ModalScreen[None]):
             )
             yield PanelTabStrip(
                 _PANEL_TABS,
-                self._active_tab,
+                None,
                 show_numbers=True,
+                compact_below=95,
                 id="config-center-tabs",
             )
             yield Static(
-                _tab_description_text(self._active_tab),
+                _home_lead_text(),
                 id="config-center-tab-description",
             )
             yield _ConfigCenterHeaderDivider(id="config-center-divider")
-            with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):
-                yield ConfigPane(project=self._project, id="config")
-                yield LogsPane(id="logs")
-                yield ProjectsPane(id="projects")
-                yield StatisticsPane(id="statistics", keymaps=statistics_keymaps)
-                yield TasksPane(id="tasks")
-                yield PluginsBrowserPane(
-                    id="updates",
-                    auto_update_on_load=self._auto_update,
-                    comprehensive_provider_names=self._comprehensive_provider_names,
-                )
-                yield XPromptBrowserPane(self._project, id="xprompts")
+            with ContentSwitcher(initial=_HOME_ID, id="config-center-switcher"):
+                yield _AdminCenterLanding(id=_HOME_ID)
 
     def on_mount(self) -> None:
-        self._remember_active_tab()
-        self._set_pane_active(self._active_pane(), True)
-        self._focus_active_pane()
+        if self._initial_tab is not None:
+            self._schedule_switch(self._initial_tab)
+
+    def on_unmount(self) -> None:
+        self._set_pane_active(self._active_pane(), False)
 
     def on_key(self, event: Key) -> None:
         """Forward active-pane detail scroll keys when a source list has focus."""
@@ -264,11 +371,14 @@ class ConfigCenterModal(ModalScreen[None]):
                 scroll_to_top()
 
     def _active_pane(self) -> Widget | None:
-        """Return the currently visible pane widget."""
-        try:
-            return self.query_one(f"#{self._active_tab}", Widget)
-        except Exception:
+        """Return the stable, currently visible working pane."""
+        if self._active_tab is None:
             return None
+        return self._panes.get(self._active_tab)
+
+    def _create_pane(self, tab: CenterTab) -> Widget:
+        """Construct one requested pane through the immutable tab catalog."""
+        return _TAB_BY_ID[tab].factory(self)
 
     def _focus_active_pane(self) -> None:
         pane = self._active_pane()
@@ -282,76 +392,120 @@ class ConfigCenterModal(ModalScreen[None]):
         if callable(visibility_changed):
             visibility_changed(active)
 
-    def _remember_active_tab(self) -> None:
-        """Remember the active Admin Center tab for later reopens.
+    def _schedule_switch(self, tab: CenterTab) -> None:
+        """Run navigation outside Textual's serial message-pump callback."""
+        self.run_worker(
+            self._switch_to(tab),
+            name=f"admin-center-open-{tab}",
+            group="admin-center-navigation",
+        )
 
-        Updates the long-lived in-memory app field synchronously (so a plain
-        ``#`` in this session reopens here) and delegates disk persistence off
-        the Textual event loop so a fresh TUI also reopens on this tab.
-        """
+    async def _remove_failed_pane(self, pane: Widget) -> None:
+        """Best-effort cleanup after a failed mount so a retry can reuse the ID."""
         try:
-            self.app._admin_center_tab = self._active_tab  # type: ignore[attr-defined]
+            if pane.parent is not None:
+                await pane.remove()
         except Exception:
             pass
-        persist = getattr(self.app, "_persist_admin_center_tab", None)
-        if callable(persist):
-            try:
-                persist(self._active_tab)
-            except Exception:
-                pass
 
-    def _switch_to(self, tab: CenterTab) -> None:
-        if tab == self._active_tab:
-            return
-        previous_pane = self._active_pane()
-        self._set_pane_active(previous_pane, False)
-        self._active_tab = tab
+    async def _ensure_pane(self, tab: CenterTab) -> Widget:
+        cached = self._panes.get(tab)
+        if cached is not None:
+            return cached
+
+        pane = self._create_pane(tab)
         try:
             switcher = self.query_one("#config-center-switcher", ContentSwitcher)
-            switcher.current = tab
+            await switcher.add_content(pane)
         except Exception:
-            return
-        try:
-            strip = self.query_one("#config-center-tabs", PanelTabStrip)
-            strip.set_active_tab(tab)
-        except Exception:
-            pass
-        try:
-            description = self.query_one("#config-center-tab-description", Static)
-            description.update(_tab_description_text(tab))
-        except Exception:
-            pass
-        self._set_pane_active(self._active_pane(), True)
-        self._focus_active_pane()
-        self._remember_active_tab()
+            await self._remove_failed_pane(pane)
+            raise
+        self._panes[tab] = pane
+        return pane
+
+    def _sync_header(self, tab: CenterTab | None) -> None:
+        strip = self.query_one("#config-center-tabs", PanelTabStrip)
+        strip.set_active_tab(tab)
+        description = self.query_one("#config-center-tab-description", Static)
+        description.update(
+            _home_lead_text() if tab is None else _tab_description_text(tab)
+        )
+
+    async def _switch_to(self, tab: CenterTab) -> bool:
+        """Mount and select ``tab`` once, preserving a stable view on failure."""
+        async with self._navigation_lock:
+            if tab == self._active_tab and tab in self._panes:
+                self._focus_active_pane()
+                return True
+
+            try:
+                pane = await self._ensure_pane(tab)
+            except Exception as exc:
+                spec = _TAB_BY_ID[tab]
+                self.notify(
+                    f"Could not open {spec.label}: {exc}",
+                    severity="error",
+                )
+                return False
+
+            previous_tab = self._active_tab
+            previous_pane = self._active_pane()
+            self._set_pane_active(previous_pane, False)
+            try:
+                switcher = self.query_one("#config-center-switcher", ContentSwitcher)
+                self._active_tab = tab
+                switcher.current = tab
+                self._sync_header(tab)
+            except Exception as exc:
+                self._active_tab = previous_tab
+                try:
+                    switcher.current = previous_tab or _HOME_ID
+                    self._sync_header(previous_tab)
+                except Exception:
+                    pass
+                self._set_pane_active(previous_pane, True)
+                self.notify(
+                    f"Could not open {_TAB_BY_ID[tab].label}: {exc}",
+                    severity="error",
+                )
+                return False
+
+            self._set_pane_active(pane, True)
+            self._focus_active_pane()
+            return True
 
     def action_close(self) -> None:
         """Close SASE Admin Center."""
+        self._set_pane_active(self._active_pane(), False)
         self.dismiss(None)
 
     def action_prev_center_tab(self) -> None:
-        """Switch to the previous tab (wrapping)."""
-        if len(_TAB_ORDER) <= 1:
-            return
-        index = _TAB_ORDER.index(self._active_tab)
-        self._switch_to(_TAB_ORDER[(index - 1) % len(_TAB_ORDER)])
+        """Enter XPrompts from home or select the previous working tab."""
+        if self._active_tab is None:
+            tab = _TAB_ORDER[-1]
+        else:
+            index = _TAB_ORDER.index(self._active_tab)
+            tab = _TAB_ORDER[(index - 1) % len(_TAB_ORDER)]
+        self._schedule_switch(tab)
 
     def action_next_center_tab(self) -> None:
-        """Switch to the next tab (wrapping)."""
-        if len(_TAB_ORDER) <= 1:
-            return
-        index = _TAB_ORDER.index(self._active_tab)
-        self._switch_to(_TAB_ORDER[(index + 1) % len(_TAB_ORDER)])
+        """Enter Config from home or select the next working tab."""
+        if self._active_tab is None:
+            tab = _TAB_ORDER[0]
+        else:
+            index = _TAB_ORDER.index(self._active_tab)
+            tab = _TAB_ORDER[(index + 1) % len(_TAB_ORDER)]
+        self._schedule_switch(tab)
 
     def action_focus_center_tab(self, number: int) -> None:
-        """Switch directly to the numbered tab; out-of-range digits are ignored."""
-        if not 1 <= number <= len(_TAB_ORDER):
-            return
-        self._switch_to(_TAB_ORDER[number - 1])
+        """Switch to a numbered tab; out-of-range digits remain swallowed."""
+        spec = _TAB_BY_NUMBER.get(number)
+        if spec is not None:
+            self._schedule_switch(spec.id)
 
     @on(PanelTabStrip.TabClicked)
     def _on_tab_clicked(self, event: PanelTabStrip.TabClicked) -> None:
-        """Handle mouse selection of a tab."""
+        """Handle mouse selection of a working tab."""
         event.stop()
         if event.tab_id in _TAB_ORDER:
-            self._switch_to(cast(CenterTab, event.tab_id))
+            self._schedule_switch(cast(CenterTab, event.tab_id))

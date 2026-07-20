@@ -349,11 +349,21 @@ class StatisticsPane(StatisticsPanePresentationBase):
                     row.project for row in result.views.projects.projects
                 )
             self._paint_current_view()
+            # A newly lazy-mounted pane can finish a fast worker before its
+            # first layout has assigned the final width. Statistics tiles are
+            # width-sensitive Rich renderables, so repaint once after that
+            # refresh rather than caching provisional mount dimensions.
+            self.call_after_refresh(self._repaint_loaded_view_after_layout)
         elif event.state == WorkerState.ERROR:
             self._loading = False
             self._loaded_once = True
             message = str(event.worker.error) if event.worker.error else "load failed"
             self._paint_error(message)
+
+    def _repaint_loaded_view_after_layout(self) -> None:
+        """Repaint a completed result after lazy-mount layout has settled."""
+        if self._last_result is not None and self._is_active_tab():
+            self._paint_current_view()
 
 
 __all__ = ["StatisticsPane"]

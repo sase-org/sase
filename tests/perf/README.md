@@ -1,5 +1,17 @@
 # Performance Recipes
 
+## Admin Center First Paint
+
+Measure `#` dispatch through the painted, home-first SASE Admin Center under both empty and populated config/project
+fixtures:
+
+```bash
+pytest -s -m slow tests/ace/tui/bench_admin_center_open.py
+```
+
+The benchmark prints p50/p95/max tables and asserts only structural invariants (zero concrete panes and no
+fixture-scaled home work), not a flaky wall-clock budget. Compare the reported rows from the same machine and checkout.
+
 ## Agent Artifact Startup
 
 Use this recipe when changing `sase ace` startup loading, dismissed archive queries, revive, run-log loading, or

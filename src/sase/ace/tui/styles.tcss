@@ -4600,6 +4600,48 @@ ConfigCenterModal #config-center-switcher {
     height: 1fr;
 }
 
+ConfigCenterModal #admin-center-home {
+    width: 100%;
+    height: 100%;
+    align: center middle;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+}
+
+ConfigCenterModal #admin-center-home-orientation {
+    width: 100%;
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    text-wrap: nowrap;
+}
+
+ConfigCenterModal #admin-center-home-instruction {
+    width: 100%;
+    height: 1;
+    color: #87D7FF;
+    text-style: bold;
+    text-align: center;
+    text-wrap: nowrap;
+}
+
+ConfigCenterModal #admin-center-home-menu {
+    width: 85;
+    max-width: 100%;
+    height: 7;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+ConfigCenterModal #admin-center-home-footer {
+    width: 100%;
+    height: 1;
+    color: #777777;
+    text-align: center;
+    text-wrap: nowrap;
+}
+
 ConfigCenterModal ConfigPane,
 ConfigCenterModal TasksPane,
 ConfigCenterModal LogsPane,
@@ -4746,6 +4788,7 @@ LogsPane #log-source-list {
     height: 1fr;
     border: none;
     background: transparent;
+    scrollbar-gutter: stable;
 }
 
 LogsPane #logs-detail-panel {

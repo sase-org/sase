@@ -1166,20 +1166,26 @@ status shorthands, property filters, and searchable fields.
 
 These work on all tabs:
 
-| Key                 | Action                                                                                                       |
-| ------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `Tab` / `Shift+Tab` | Switch between Agents, Artifacts, and Axe tabs                                                               |
-| `#`                 | Open SASE Admin Center (Config, Logs, Projects, Statistics, Tasks, Updates, XPrompts; `1`–`7` jump to a tab) |
-| `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands)                            |
-| `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                                   |
-| `i`                 | Show notifications inbox                                                                                     |
-| `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                     |
-| `Ctrl+L`            | Dismiss all currently-visible toast notifications                                                            |
-| `@`                 | Open the stashed-prompt restore picker                                                                       |
-| `Q`                 | Open the quit / restart menu                                                                                 |
-| `y`                 | Refresh current tab                                                                                          |
-| `q`                 | Quit                                                                                                         |
-| `?`                 | Show help modal                                                                                              |
+| Key                 | Action                                                                                                      |
+| ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `Tab` / `Shift+Tab` | Switch between Agents, Artifacts, and Axe tabs                                                              |
+| `#`                 | Open SASE Admin Center home (`1`–`7` enter Config, Logs, Projects, Statistics, Tasks, Updates, or XPrompts) |
+| `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands)                           |
+| `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                                  |
+| `i`                 | Show notifications inbox                                                                                    |
+| `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                    |
+| `Ctrl+L`            | Dismiss all currently-visible toast notifications                                                           |
+| `@`                 | Open the stashed-prompt restore picker                                                                      |
+| `Q`                 | Open the quit / restart menu                                                                                |
+| `y`                 | Refresh current tab                                                                                         |
+| `q`                 | Quit                                                                                                        |
+| `?`                 | Show help modal                                                                                             |
+
+The generic **Open SASE Admin Center** action and `#` always open a lightweight landing page; they do not reopen the
+previous section. The numbered strip remains clickable, `Tab` enters Config, and `Shift+Tab` enters XPrompts. Each
+working pane and its data are loaded only on first entry, then cached while the modal remains open. Command-palette
+actions such as **Open logs panel**, **Open tasks panel**, and **Open statistics**, plus update shortcuts and
+indicators, continue to enter their requested pane directly.
 
 ### Quit / Restart Menu
 

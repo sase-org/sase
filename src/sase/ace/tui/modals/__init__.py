@@ -56,7 +56,6 @@ from .inventory_project_picker import (
     InventoryProjectPicker,
     InventoryProjectPickerResult,
 )
-from .projects_pane import ProjectsPane
 from .project_select_modal import ProjectSelectModal, ProjectSelectResult, SelectionItem
 from .prompt_history_modal import (
     PromptHistoryAction,
@@ -132,8 +131,6 @@ from .mentor_review_models import (
 from .mentor_review_modal import MentorReviewModal
 from .add_xprompt_modal import AddXPromptModal
 from .agent_run_log_modal import AgentRunLogModal
-from .logs_pane import LogsPane
-from .tasks_pane import TasksPane
 from .input_collection_modal import InputCollectionModal
 from .config_center_modal import ConfigCenterModal
 from .plugin_action_confirm_modal import (
@@ -141,7 +138,6 @@ from .plugin_action_confirm_modal import (
     PluginActionConfirmResult,
     PluginActionVariant,
 )
-from .plugins_browser_pane import PluginsBrowserPane
 from .xprompt_item_modal import XPromptItemModal
 from .xprompt_config_modal import XPromptConfigEntry, XPromptConfigEntryModal
 from .xprompt_filename_modal import XPromptFilenameModal
@@ -199,8 +195,6 @@ __all__ = [
     "AgentCleanupTribeModal",
     "AgentCleanupTribeResult",
     "AgentRunLogModal",
-    "LogsPane",
-    "TasksPane",
     "AgentTribeModal",
     "AgentTribeModalResult",
     "CommandHistoryModal",
@@ -242,7 +236,6 @@ __all__ = [
     "InventoryProjectPicker",
     "InventoryProjectPickerResult",
     "ProjectAliasEditorModal",
-    "ProjectsPane",
     "ProjectSelectModal",
     "ProjectSelectResult",
     "PromptHistoryAction",
@@ -287,7 +280,6 @@ __all__ = [
     "PluginActionConfirmModal",
     "PluginActionConfirmResult",
     "PluginActionVariant",
-    "PluginsBrowserPane",
     "XPromptItemModal",
     "XPromptConfigEntry",
     "XPromptConfigEntryModal",

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from rich.text import Text
-from textual.events import Click
+from textual.events import Click, Resize
 from textual.message import Message
 from textual.widgets import Static
 
@@ -34,21 +34,24 @@ class PanelTabStrip(Static):
     def __init__(
         self,
         tabs: Sequence[PanelTab],
-        active_tab: str,
+        active_tab: str | None,
         *,
         show_numbers: bool = False,
         uppercase_active: bool = False,
+        compact_below: int | None = None,
         **kwargs: Any,
     ) -> None:
         self._tabs = tuple(tabs)
         self._active_tab = active_tab
         self._show_numbers = show_numbers
         self._uppercase_active = uppercase_active
+        self._compact_below = compact_below
         self._tab_ranges: dict[str, tuple[int, int]] = {}
         self._line_width = 0
+        self._content_width = 0
         super().__init__(self._build_content(), **kwargs)
 
-    def set_active_tab(self, active_tab: str) -> None:
+    def set_active_tab(self, active_tab: str | None) -> None:
         """Refresh the active tab indicator."""
         self._active_tab = active_tab
         self.update(self._build_content())
@@ -68,6 +71,12 @@ class PanelTabStrip(Static):
     def _build_content(self) -> Text:
         text = Text()
         self._tab_ranges.clear()
+        width = self._content_width
+        compact = bool(
+            self._compact_below is not None
+            and width > 0
+            and width < self._compact_below
+        )
         for index, tab in enumerate(self._tabs):
             if index > 0:
                 text.append(" │ ", style="#444444")
@@ -76,16 +85,25 @@ class PanelTabStrip(Static):
             start = len(text.plain)
             if self._show_numbers:
                 number_style = tab.accent_color if is_active else "#666666"
-                text.append(f" {index + 1} ", style=number_style)
+                number = f"{index + 1} " if compact else f" {index + 1} "
+                text.append(number, style=number_style)
             else:
-                text.append(" ")
+                if not compact:
+                    text.append(" ")
             label = (
                 tab.label.upper() if self._uppercase_active and is_active else tab.label
             )
-            text.append(f"{label} ", style=label_style)
+            suffix = "" if compact else " "
+            text.append(f"{label}{suffix}", style=label_style)
             self._tab_ranges[tab.id] = (start, len(text.plain))
         self._line_width = len(text.plain)
         return text
+
+    def on_resize(self, _event: Resize) -> None:
+        """Reflow strips that opt into a compact narrow-width layout."""
+        if self._compact_below is not None:
+            self._content_width = max(0, int(_event.size.width))
+            self.update(self._build_content())
 
     def on_click(self, event: Click) -> None:
         """Post :class:`TabClicked` when the user clicks a tab label."""

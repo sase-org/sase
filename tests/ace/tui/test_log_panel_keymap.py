@@ -125,7 +125,7 @@ def test_open_log_panel_action_pushes_admin_center_on_logs() -> None:
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
-    assert modal._active_tab == "logs"
+    assert modal._initial_tab == "logs"
 
 
 def test_open_tasks_panel_action_pushes_admin_center_on_tasks() -> None:
@@ -136,7 +136,7 @@ def test_open_tasks_panel_action_pushes_admin_center_on_tasks() -> None:
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
-    assert modal._active_tab == "tasks"
+    assert modal._initial_tab == "tasks"
 
 
 def test_open_statistics_panel_action_pushes_admin_center_on_statistics() -> None:
@@ -147,7 +147,7 @@ def test_open_statistics_panel_action_pushes_admin_center_on_statistics() -> Non
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
-    assert modal._active_tab == "statistics"
+    assert modal._initial_tab == "statistics"
 
 
 def test_open_updates_panel_action_pushes_admin_center_on_updates() -> None:
@@ -158,7 +158,7 @@ def test_open_updates_panel_action_pushes_admin_center_on_updates() -> None:
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
-    assert modal._active_tab == "updates"
+    assert modal._initial_tab == "updates"
     assert modal._auto_update is False
 
 
@@ -170,7 +170,7 @@ def test_update_sase_shortcut_opens_updates_with_auto_update() -> None:
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
-    assert modal._active_tab == "updates"
+    assert modal._initial_tab == "updates"
     assert modal._auto_update is True
     assert modal._comprehensive_provider_names is None
 
@@ -205,16 +205,16 @@ def test_update_shortcut_dispatch_performs_no_disk_or_subprocess_work(
     assert app.pushed_modals[0]._comprehensive_provider_names == ("claude",)
 
 
-def test_open_config_center_action_uses_remembered_admin_center_tab() -> None:
+def test_open_config_center_action_requests_home() -> None:
     app = _ActionApp()
-    app._admin_center_tab = "updates"
 
     app.action_open_config_center()
 
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
-    assert modal._active_tab == "updates"
+    assert modal._initial_tab is None
+    assert modal._active_tab is None
 
 
 def test_footer_omits_log_panel_on_all_tabs() -> None:

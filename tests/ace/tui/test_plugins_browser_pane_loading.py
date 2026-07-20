@@ -419,22 +419,21 @@ async def test_config_center_cycles_seven_tabs(
         modal = ConfigCenterModal(initial_tab="config")
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
-        assert modal._active_tab == "config"
+        await page.wait_for(lambda _state: modal._active_tab == "config")
         # Tabs cycle alphabetically by their visible labels.
-        modal.action_next_center_tab()
-        assert modal._active_tab == "logs"
-        modal.action_next_center_tab()
-        assert modal._active_tab == "projects"
-        modal.action_next_center_tab()
-        assert modal._active_tab == "statistics"
-        modal.action_next_center_tab()
-        assert modal._active_tab == "tasks"
-        modal.action_next_center_tab()
-        assert modal._active_tab == "updates"
-        modal.action_next_center_tab()
-        assert modal._active_tab == "xprompts"
-        modal.action_next_center_tab()
-        assert modal._active_tab == "config"
+        for tab in (
+            "logs",
+            "projects",
+            "statistics",
+            "tasks",
+            "updates",
+            "xprompts",
+            "config",
+        ):
+            modal.action_next_center_tab()
+            await page.wait_for(
+                lambda _state, expected=tab: modal._active_tab == expected
+            )
         # Wrapping backwards lands on the rightmost XPrompts tab.
         modal.action_prev_center_tab()
-        assert modal._active_tab == "xprompts"
+        await page.wait_for(lambda _state: modal._active_tab == "xprompts")

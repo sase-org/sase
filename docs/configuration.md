@@ -63,11 +63,16 @@ See [Deep-Merge System](#deep-merge-system) below.
 
 ## SASE Admin Center (interactive editor)
 
-Press `#` in the `sase ace` TUI to open **SASE Admin Center**. It reopens on the last tab you used, including after ACE
-restarts; before any tab has been saved, it opens on **Config**. It is a full-screen modal with seven tabs: **Config**,
-**Logs**, **Projects**, **Statistics**, **Tasks**, **Updates**, and **XPrompts**. `Tab` / `Shift+Tab` cycle the main
-tabs, and number keys `1`–`7` jump straight to one. Pane-local `[` / `]` keys switch sub-tabs or views where the active
-pane provides them.
+Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The generic action always starts on its lightweight home
+page, where the seven working sections—**Config**, **Logs**, **Projects**, **Statistics**, **Tasks**, **Updates**, and
+**XPrompts**—are introduced without loading their data. Press `1`–`7` or click the numbered tab strip to enter a
+section. From home, `Tab` enters Config and `Shift+Tab` enters XPrompts; within a working section they wrap across the
+same seven tabs. Pane-local `[` / `]` keys switch sub-tabs or views where the active pane provides them.
+
+Each pane is constructed only on first entry and is then reused until the Admin Center closes, preserving filters,
+selection, and scroll state while avoiding unrelated config, project, log, statistics, task, update, and xprompt work on
+open. Direct commands such as **Open logs panel**, **Open tasks panel**, **Open statistics**, and update actions still
+open their requested pane immediately. Closing and reopening with `#` returns to home rather than remembering a tab.
 
 ### Config tab
 
@@ -193,7 +198,7 @@ ACE/axe restart behavior. The context-sensitive keymaps are:
 | `o`                 | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)                           |
 | `v`                 | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                              |
 | `/`                 | Focus the filter input (matches name / description / topics)                                                |
-| `Tab` / `Shift+Tab` | Switch SASE Admin Center tabs (number keys `1`–`7` jump directly)                                           |
+| `Tab` / `Shift+Tab` | From home enter Config / XPrompts; otherwise switch SASE Admin Center tabs (`1`–`7` jump directly)          |
 | `Esc`               | Clear active plugin/agent-CLI marks first; close when no marks are active                                   |
 | `q`                 | Close SASE Admin Center                                                                                     |
 

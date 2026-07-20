@@ -79,19 +79,6 @@ class StateInitMixin:
         self._reactive_current_tab = initial_tab  # type: ignore[attr-defined]
         self._init_task_queue()  # type: ignore[attr-defined]
         self.theme = "flexoki"
-        # Seed the last-focused Admin Center tab from disk so a fresh TUI
-        # reopens ``#`` on the tab used in a previous run. A single small file
-        # read; falls back to "config" when absent/malformed/stale. Validated
-        # against the Admin Center's tab order (the single source of truth).
-        from ..modals.config_center_modal import _TAB_ORDER
-
-        from ...admin_center_tab import load_admin_center_tab
-
-        self._admin_center_tab: str = load_admin_center_tab(_TAB_ORDER) or "config"
-        # Latest-value coalescing for off-thread persistence of the active tab
-        # (see ``BaseActionsMixin._persist_admin_center_tab``).
-        self._admin_center_tab_save_pending: str | None = None
-        self._admin_center_tab_save_inflight: bool = False
         self._auto_start_axe = auto_start_axe
         self._restart_axe = restart_axe
         self.exit_action = AceExitAction.QUIT

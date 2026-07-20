@@ -252,14 +252,15 @@ async def test_statistics_loads_only_after_its_tab_becomes_active(
         modal = ConfigCenterModal(initial_tab="config")
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
-        await page.wait_for(lambda _state: bool(modal.query("#statistics")))
-        pane = modal.query_one("#statistics", StatisticsPane)
+        await page.wait_for(lambda _state: modal._active_tab == "config")
         await page.pause()
 
         assert calls == []
-        assert pane._worker is None
+        assert not modal.query("#statistics")
 
         await page.press("4")
+        await page.wait_for(lambda _state: bool(modal.query("#statistics")))
+        pane = modal.query_one("#statistics", StatisticsPane)
         await page.wait_for(lambda _state: pane._loaded_once and not pane._loading)
 
         assert len(calls) == 1
@@ -458,7 +459,7 @@ async def test_refresh_preserves_selection_and_hidden_tick_is_inert(
 
         assert calls[-1][0] == "runtime"
         assert calls[-1][2] == "clan"
-        modal._switch_to("config")
+        await modal._switch_to("config")
         pane._on_refresh_tick()
         await page.pause()
         assert len(calls) == 3
@@ -557,13 +558,14 @@ async def test_statistics_bindings_are_inactive_on_other_admin_center_tabs(
         modal = ConfigCenterModal(initial_tab="config")
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
-        await page.wait_for(lambda _state: bool(modal.query("#statistics")))
-        pane = modal.query_one("#statistics", StatisticsPane)
+        await page.wait_for(lambda _state: modal._active_tab == "config")
+        assert not modal.query("#statistics")
 
         await page.press("f12")
         await page.pause()
 
-        assert pane._runtime_group_by == "tribe"
+        assert modal._active_tab == "config"
+        assert not modal.query("#statistics")
         assert calls == []
 
 
