@@ -22,6 +22,7 @@ class _PreparedChopProposal:
     prompt: str
     workspace: str
     agent_name: str
+    explicit_agent_name: bool
     clan: str | None
     tribe: str
     model: str | None
@@ -131,6 +132,7 @@ def prepare_chop_proposals(
                 prompt=str(normalized["prompt"]),
                 workspace=str(normalized["workspace"]),
                 agent_name=agent_name,
+                explicit_agent_name=bool(configured_name),
                 clan=str(normalized["clan"]) if normalized.get("clan") else None,
                 tribe=str(normalized.get("tribe") or "chop"),
                 model=str(normalized["model"]) if normalized.get("model") else None,
@@ -358,7 +360,12 @@ def proposal_previews(
             wait_on = effective_waits[proposal.index]
         wait_name = _resolve_wait_name(wait_on, names_by_index, names_by_id)
         once_per = (once_per_decisions or {}).get(proposal.index, {})
-        validation = "duplicate" if once_per.get("outcome") == "duplicate" else "valid"
+        decision_outcome = once_per.get("outcome")
+        validation = (
+            decision_outcome
+            if decision_outcome in {"duplicate", "name_collision"}
+            else "valid"
+        )
         prompt = _scaffolded_prompt(
             proposal,
             wait_name,
@@ -385,7 +392,16 @@ def proposal_previews(
                 "wait_name": wait_name,
                 "env_names": sorted(proposal.env),
                 "dedupe_key": once_per.get("key") or proposal.dedupe_key,
-                "dedupe_reason": once_per.get("reason"),
+                "dedupe_reason": (
+                    None
+                    if decision_outcome == "name_collision"
+                    else once_per.get("reason")
+                ),
+                "skip_reason": (
+                    once_per.get("reason")
+                    if decision_outcome in {"duplicate", "name_collision"}
+                    else None
+                ),
                 "prompt": prompt,
                 "validation": validation,
             }
@@ -412,6 +428,7 @@ def _launch_descriptor(
     plan: _PlannedChopProposal,
     result: Any,
     *,
+    wait_on: int | str | None,
     wait_name: str | None,
 ) -> dict[str, Any]:
     proposal = plan.proposal
@@ -437,7 +454,7 @@ def _launch_descriptor(
         "artifacts_timestamp": artifacts_timestamp,
         "artifacts_dir": str(getattr(result, "artifacts_dir", "") or ""),
         "dedupe_key": proposal.dedupe_key,
-        "wait_on": proposal.wait_on,
+        "wait_on": wait_on,
         "wait_name": wait_name,
     }
 
@@ -457,7 +474,12 @@ def _record_batch_results(
             names_by_index,
             names_by_id,
         )
-        launch = _launch_descriptor(plan, result, wait_name=wait_name)
+        launch = _launch_descriptor(
+            plan,
+            result,
+            wait_on=proposal.wait_on,
+            wait_name=wait_name,
+        )
         launches.append(launch)
         names_by_index[proposal.index] = str(launch["agent_name"])
         if proposal.proposal_id is not None:
@@ -477,6 +499,9 @@ def launch_chop_proposals(
     launch_agents_from_cwd_fn: Callable[..., Any] | None = None,
     launch_plans: Sequence[_PlannedChopProposal] | None = None,
     launch_recorded_fn: Callable[[dict[str, Any]], None] | None = None,
+    proposal_skipped_fn: (
+        Callable[[_PreparedChopProposal, str, int | str | None], None] | None
+    ) = None,
 ) -> list[dict[str, Any]]:
     """Launch proposals, batching clan members through multi-prompt preflight."""
     plans = list(launch_plans or plan_chop_proposals(proposals))
@@ -520,10 +545,28 @@ def launch_chop_proposals(
 
     names_by_index: dict[int, str] = {}
     names_by_id: dict[str, str] = {}
+    proposal_indices_by_id: dict[str, int] = {}
+    resolved_waits: dict[int, int | str | None] = {}
+    skipped_indices: set[int] = set()
     launches: list[dict[str, Any]] = []
+    from sase.agent.launch_validation import AgentNameLaunchCollisionError
+
     for plan in plans:
         proposal = plan.proposal
-        wait_name = _resolve_wait_name(proposal.wait_on, names_by_index, names_by_id)
+        dependency = proposal.wait_on
+        dependency_index: int | None = None
+        if isinstance(dependency, int):
+            dependency_index = dependency
+        elif isinstance(dependency, str):
+            dependency_index = proposal_indices_by_id.get(dependency)
+        effective_wait = dependency
+        if dependency_index in skipped_indices:
+            effective_wait = resolved_waits[dependency_index]
+        resolved_waits[proposal.index] = effective_wait
+        if proposal.proposal_id is not None:
+            proposal_indices_by_id[proposal.proposal_id] = proposal.index
+
+        wait_name = _resolve_wait_name(effective_wait, names_by_index, names_by_id)
         prompt = _scaffolded_prompt(
             proposal,
             wait_name,
@@ -538,8 +581,22 @@ def launch_chop_proposals(
                 run_id=run_id,
             )
         )
-        result = launch_agent_from_cwd_fn(prompt, extra_env=extra_env)
-        launch = _launch_descriptor(plan, result, wait_name=wait_name)
+        try:
+            result = launch_agent_from_cwd_fn(prompt, extra_env=extra_env)
+        except AgentNameLaunchCollisionError as exc:
+            if not proposal.explicit_agent_name:
+                raise
+            skipped_indices.add(proposal.index)
+            reason = f"explicit agent name collision: {exc} Proposal skipped."
+            if proposal_skipped_fn is not None:
+                proposal_skipped_fn(proposal, reason, effective_wait)
+            continue
+        launch = _launch_descriptor(
+            plan,
+            result,
+            wait_on=effective_wait,
+            wait_name=wait_name,
+        )
         names_by_index[proposal.index] = str(launch["agent_name"])
         if proposal.proposal_id is not None:
             names_by_id[proposal.proposal_id] = str(launch["agent_name"])

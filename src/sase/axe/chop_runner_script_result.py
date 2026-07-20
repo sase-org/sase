@@ -44,6 +44,7 @@ def _release_unlaunched_once_per_keys(
     run_id: str,
     accepted_proposals: list[Any],
     successful_launches: list[dict[str, Any]],
+    after: str = "launch failure",
 ) -> None:
     launched_indices = {int(launch["index"]) for launch in successful_launches}
     keys = list(
@@ -63,14 +64,14 @@ def _release_unlaunched_once_per_keys(
             lumberjack_name,
             chop_name,
             run_id,
-            f"Failed to release once-per keys after launch failure: {exc}\n",
+            f"Failed to release once-per keys after {after}: {exc}\n",
         )
         return
     append_chop_run_output(
         lumberjack_name,
         chop_name,
         run_id,
-        f"Released {released} once-per key(s) after launch failure\n",
+        f"Released {released} once-per key(s) after {after}\n",
     )
 
 
@@ -426,6 +427,48 @@ def process_script_chop_result(
 
         launch_agent_from_cwd_fn = launch_agent_from_cwd
     successful_launches: list[dict[str, Any]] = []
+    collision_decisions: dict[int, dict[str, str]] = {}
+    collision_effective_waits: dict[int, int | str | None] = {}
+
+    def _record_collision_skip(
+        proposal: Any,
+        reason: str,
+        effective_wait: int | str | None,
+    ) -> None:
+        collision_decisions[proposal.index] = {
+            "outcome": "name_collision",
+            "reason": reason,
+            "key": proposal.dedupe_key or "",
+        }
+        collision_effective_waits[proposal.index] = effective_wait
+        append_chop_run_output(
+            lumberjack_name,
+            chop.name,
+            run_id,
+            (
+                f"Skipped proposal {proposal.index + 1} "
+                f"({proposal.agent_name}): {reason}\n"
+            ),
+        )
+
+    def _updated_proposal_previews() -> list[dict[str, Any]]:
+        decisions = dict(once_per.decisions)
+        decisions.update(collision_decisions)
+        effective_waits = dict(once_per.effective_waits)
+        effective_waits.update(collision_effective_waits)
+        effective_waits.update(
+            {
+                int(launch["index"]): launch.get("wait_on")
+                for launch in successful_launches
+            }
+        )
+        return proposal_previews(
+            prepared_proposals,
+            once_per_decisions=decisions,
+            effective_waits=effective_waits,
+            launch_plans=launch_plans,
+        )
+
     try:
         launches = launch_chop_proposals(
             lumberjack_name=lumberjack_name,
@@ -436,9 +479,11 @@ def process_script_chop_result(
             launch_agents_from_cwd_fn=launch_agents_from_cwd_fn,
             launch_plans=launch_plans,
             launch_recorded_fn=successful_launches.append,
+            proposal_skipped_fn=_record_collision_skip,
         )
     except Exception as exc:
         tb = capture_traceback()
+        proposals = _updated_proposal_previews()
         _release_unlaunched_once_per_keys(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
@@ -478,6 +523,63 @@ def process_script_chop_result(
             launches=tuple(successful_launches),
             dry_run=False,
             chop_verbose=chop_verbose,
+        )
+
+    proposals = _updated_proposal_previews()
+    if collision_decisions:
+        _release_unlaunched_once_per_keys(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            accepted_proposals=accepted_proposals,
+            successful_launches=successful_launches,
+            after="agent-name collision skip",
+        )
+
+    if not launches:
+        duplicate_count = sum(
+            decision.get("outcome") == "duplicate"
+            for decision in once_per.decisions.values()
+        )
+        collision_count = len(collision_decisions)
+        if duplicate_count:
+            reason = (
+                f"all {len(prepared_proposals)} proposal(s) skipped "
+                f"({duplicate_count} by once-per dedupe, "
+                f"{collision_count} by agent-name collision)"
+            )
+        else:
+            reason = (
+                f"all {len(prepared_proposals)} proposal(s) skipped by "
+                "agent-name collision"
+            )
+        finalize_script_chop_run(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            status="skipped",
+            exit_code=0,
+            result_file=result_path.name,
+            structured_result=structured_result,
+            proposals=proposals,
+            launches=[],
+            dry_run=False,
+            reason=reason,
+            preflight=preflight,
+        )
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="skipped",
+            run_id=run_id,
+            exit_code=0,
+            result=structured_result,
+            proposals=tuple(proposals),
+            launches=(),
+            dry_run=False,
+            chop_verbose=chop_verbose,
+            reason=reason,
         )
 
     for launch in launches:
