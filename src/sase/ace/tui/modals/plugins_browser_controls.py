@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from rich.console import RenderableType
 from textual.containers import VerticalScroll
+from textual.widget import Widget
 from textual.widgets import Input, OptionList, Static
 
 from .plugins_browser_constants import _HEADER_PREFIX
@@ -39,10 +40,12 @@ class PluginsBrowserControlsMixin:
         def _sync_state_visibility(self) -> None: ...
 
     def focus_default(self) -> None:
-        """Focus the active browser list; Core intentionally has no focus target."""
+        """Focus the active browser list, or the pane itself for Core."""
         option_list = self._active_option_list()
         if option_list is not None:
             option_list.focus()
+        else:
+            cast(Widget, self).focus()
 
     def action_next_option(self) -> None:
         """Move to the next non-header option."""

@@ -38,7 +38,7 @@ from sase.updates.incoming_commits import (
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
 from sase.uv_tool.versions import CoreVersions, collect_installed_core_versions
 
-from .plugins_browser_constants import _DETAIL_PLACEHOLDER
+from .plugins_browser_constants import _DETAIL_PLACEHOLDER, _SUBTAB_NAV_HINT
 from .plugins_browser_agent_clis import AgentCliBrowserMixin
 from .plugins_browser_controls import PluginsBrowserControlsMixin
 from .plugins_browser_dev_update import (
@@ -187,7 +187,7 @@ class PluginsBrowserPane(
 ):
     """Browser for SASE core, plugin, and agent-CLI updates."""
 
-    can_focus = False
+    can_focus = True
 
     BINDINGS = [
         ("j", "next_option", "Next"),
@@ -411,7 +411,7 @@ class PluginsBrowserPane(
                 "A agent CLIs",
                 "r reload",
                 f"o{offline}",
-                "]/[ sub-tab",
+                _SUBTAB_NAV_HINT,
                 "esc",
             )
         )

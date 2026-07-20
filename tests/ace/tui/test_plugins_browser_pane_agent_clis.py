@@ -10,6 +10,7 @@ from textual.widgets import ContentSwitcher, OptionList
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
+from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
 from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.agent_clis.models import (
@@ -56,6 +57,68 @@ async def test_updates_subtabs_cycle_and_gate_plugin_actions(
 
         pane.action_cycle_subtab_reverse()
         assert pane._active_subtab == "agent-clis"
+
+
+async def test_updates_subtabs_handle_brackets_from_core_and_lists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+    )
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="updates")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#updates")))
+        pane = modal.query_one("#updates", PluginsBrowserPane)
+        await page.wait_for(lambda _s: not pane._loading)
+        plugins_list = pane.query_one("#plugins-list", OptionList)
+        agent_clis_list = pane.query_one("#agent-clis-list", OptionList)
+
+        assert pane._active_subtab == "core"
+        assert page.app.focused is pane
+
+        await page.press("right_square_bracket")
+        await page.wait_for(lambda _s: pane._active_subtab == "plugins")
+        assert page.app.focused is plugins_list
+
+        await page.press("right_square_bracket")
+        await page.wait_for(lambda _s: pane._active_subtab == "agent-clis")
+        assert page.app.focused is agent_clis_list
+
+        await page.press("right_square_bracket")
+        await page.wait_for(lambda _s: pane._active_subtab == "core")
+        assert page.app.focused is pane
+
+        await page.press("left_square_bracket")
+        await page.wait_for(lambda _s: pane._active_subtab == "agent-clis")
+        assert page.app.focused is agent_clis_list
+
+        await page.press("left_square_bracket")
+        await page.wait_for(lambda _s: pane._active_subtab == "plugins")
+        assert page.app.focused is plugins_list
+
+        await page.press("left_square_bracket")
+        await page.wait_for(lambda _s: pane._active_subtab == "core")
+        assert page.app.focused is pane
+
+
+async def test_updates_subtab_hints_share_projects_wording(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        hints = (pane._core_hints(), pane._hints(), pane._agent_cli_hints())
+
+        assert all("[ / ] sub-tab" in hint for hint in hints)
+        assert all("]/[ sub-tab" not in hint for hint in hints)
 
 
 async def test_agent_cli_marks_patch_rows_and_escape_clears_first(

@@ -34,6 +34,7 @@ from .plugin_action_confirm_modal import (
     PluginActionConfirmResult,
     PluginActionVariant,
 )
+from .plugins_browser_constants import _SUBTAB_NAV_HINT
 
 if TYPE_CHECKING:
     from textual.app import App
@@ -195,7 +196,7 @@ class AgentCliBrowserMixin:
                 "r reload",
                 "ctrl+d/u scroll",
                 f"o{offline}",
-                "]/[ sub-tab",
+                _SUBTAB_NAV_HINT,
             ]
         )
         if mark_count:

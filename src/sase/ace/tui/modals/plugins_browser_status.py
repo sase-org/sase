@@ -14,6 +14,8 @@ from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.render_common import humanize_age
 from sase.uv_tool.detect import NotUvToolInstall
 
+from .plugins_browser_constants import _SUBTAB_NAV_HINT
+
 _CURRENT_ACCENT = "#00D700"
 
 
@@ -225,7 +227,7 @@ class PluginsBrowserStatusMixin:
                 f"o{offline}",
                 f"v{verbose}",
                 "/ filter",
-                "]/[ sub-tab",
+                _SUBTAB_NAV_HINT,
                 "Tab/Shift+Tab tab",
             ]
         )
