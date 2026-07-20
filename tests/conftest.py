@@ -46,6 +46,31 @@ _PLAN_CHAIN_GOLDEN_TEST_FILES = frozenset(
 )
 
 
+@pytest.fixture()
+def gate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Redirect notification gate persistence to a temporary directory."""
+    from sase.notification_gates import paths
+    from sase.notifications import pending_actions, store
+
+    monkeypatch.setattr(paths, "INTERACTION_REQUESTS_DIR", tmp_path / "requests")
+    monkeypatch.setattr(store, "NOTIFICATIONS_DIR", str(tmp_path / "notifications"))
+    monkeypatch.setattr(
+        store,
+        "NOTIFICATIONS_FILE",
+        str(tmp_path / "notifications" / "notifications.jsonl"),
+    )
+    monkeypatch.setattr(
+        pending_actions, "PENDING_ACTIONS_PATH", tmp_path / "pending.json"
+    )
+    monkeypatch.setattr(
+        pending_actions,
+        "LEGACY_TELEGRAM_PENDING_ACTIONS_PATH",
+        tmp_path / "legacy.json",
+    )
+    store._LOAD_CACHE.clear()
+    return tmp_path
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """Acquire host-global worker tokens for an xdist controller."""
     configure_suite_gate(config)
