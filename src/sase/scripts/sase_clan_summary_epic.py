@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import sys
 import traceback
 from collections.abc import Iterable
@@ -21,6 +22,12 @@ from sase.scripts._rich_summary import (
     serialize_lines,
     shorten_text,
     visible_width,
+)
+from sase.sdd.plan_display import (
+    COLOR_PLAN_SUMMARY,
+    PlanDisplay,
+    load_plan_display,
+    render_plan_document,
 )
 
 _SUMMARY_WIDTH = 76
@@ -43,6 +50,10 @@ class _MissingEpicError(KeyError):
     """Identify a missing top-level epic without catching later read errors."""
 
 
+class _PlanReferenceError(ValueError):
+    """Report why every already-available plan candidate was unusable."""
+
+
 @dataclass(frozen=True)
 class _EpicSnapshot:
     epic: Issue
@@ -57,12 +68,24 @@ class _DocumentBlock:
 
 
 def main() -> int:
-    """Print the epic summary named by ``SASE_CLAN_NAME``.
+    """Print the epic summary selected by clan identity and authored plan env.
 
-    Summary lookup is intentionally best-effort: agent launch must still get a
-    useful clan identity when the bead store is missing, stale, or unreadable.
+    Plan and bead lookup are intentionally best-effort: agent launch must still
+    get a useful clan identity when either source is missing, stale, or unreadable.
     """
     epic_id = os.environ.get("SASE_CLAN_NAME", "").strip()
+    plan_ref = os.environ.get("SASE_EPIC_PLAN_REF", "").strip()
+    plan_error: Exception | None = None
+    if plan_ref:
+        try:
+            plan = _load_plan_reference(plan_ref)
+            rendered = _render_plan_summary(epic_id, plan)
+        except Exception as exc:
+            plan_error = exc
+        else:
+            print(rendered)
+            return 0
+
     try:
         snapshot = _load_epic_with_refresh(epic_id)
     except Exception:
@@ -71,6 +94,11 @@ def main() -> int:
             f"{epic_id or _UNKNOWN_EPIC_ID!r}; using fallback.",
             file=sys.stderr,
         )
+        if plan_error is not None:
+            print(
+                f"Plan reference {plan_ref!r} was also unavailable: {plan_error}",
+                file=sys.stderr,
+            )
         traceback.print_exc(file=sys.stderr)
         print(_fallback_summary(epic_id))
         return 0
@@ -83,6 +111,97 @@ def main() -> int:
         )
     )
     return 0
+
+
+def _load_plan_reference(plan_ref: str) -> PlanDisplay:
+    failures: list[str] = []
+    for candidate in _plan_reference_candidates(plan_ref):
+        summary = load_plan_display(candidate, display_path=plan_ref)
+        if summary.validation_ok:
+            return summary
+        failures.append(f"{candidate}: {_plan_availability_detail(summary)}")
+
+    detail = "; ".join(failures) or "no plan candidates were available"
+    raise _PlanReferenceError(detail)
+
+
+def _plan_reference_candidates(plan_ref: str) -> Iterable[Path]:
+    expanded = Path(plan_ref).expanduser()
+    if expanded.is_absolute():
+        yield expanded.resolve(strict=False)
+        return
+
+    current = (Path.cwd() / expanded).resolve(strict=False)
+    yield current
+
+    primary = _resolve_primary_checkout()
+    if primary is None:
+        return
+    candidate = (primary / expanded).resolve(strict=False)
+    if candidate != current:
+        yield candidate
+
+
+def _resolve_primary_checkout() -> Path | None:
+    """Discover the primary checkout without materializing or refreshing it."""
+    from sase.bead.workspace import resolve_primary_workspace
+
+    return resolve_primary_workspace()
+
+
+def _plan_availability_detail(summary: PlanDisplay) -> str:
+    if not summary.exists:
+        return "plan file does not exist"
+    if not summary.readable:
+        return "plan file is not readable UTF-8"
+    if not summary.frontmatter_readable:
+        return "plan frontmatter is unreadable"
+    return "; ".join(summary.validation_diagnostics) or "plan validation failed"
+
+
+def _render_plan_summary(epic_id: str, summary: PlanDisplay) -> str:
+    document = render_plan_document(summary, width=_SUMMARY_WIDTH)
+    intro = (
+        _plan_header_line(epic_id),
+        *document.intro_lines[1:],
+    )
+    return _fit_plan_document(intro, document.phase_blocks)
+
+
+def _plan_header_line(epic_id: str) -> Text:
+    return shorten_text(
+        Text(f"◆ EPIC {epic_id or _UNKNOWN_EPIC_ID}", style=_HEADER_STYLE),
+        width=_SUMMARY_WIDTH,
+    )
+
+
+def _fit_plan_document(
+    intro: tuple[Text, ...],
+    phase_blocks: tuple[tuple[Text, ...], ...],
+) -> str:
+    intro_markup = serialize_lines(intro)
+    block_markup = [serialize_lines(block) for block in phase_blocks]
+    full = "\n".join([intro_markup, *block_markup])
+    if len(full.encode("utf-8")) <= _SUMMARY_MAX_UTF8_BYTES:
+        return full
+
+    total_blocks = len(block_markup)
+    for included in range(total_blocks - 1, -1, -1):
+        omitted = total_blocks - included
+        omission = _plan_omission_line(omitted).markup
+        candidate = "\n".join([intro_markup, *block_markup[:included], omission])
+        if len(candidate.encode("utf-8")) <= _SUMMARY_MAX_UTF8_BYTES:
+            return candidate
+
+    raise ValueError("plan leading fields exceed the summary byte budget")
+
+
+def _plan_omission_line(omitted: int) -> Text:
+    suffix = "" if omitted == 1 else "s"
+    return Text(
+        f"… {omitted} phase block{suffix} omitted to fit summary size",
+        style=COLOR_PLAN_SUMMARY,
+    )
 
 
 def _load_epic_with_refresh(epic_id: str) -> _EpicSnapshot:

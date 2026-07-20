@@ -8,6 +8,8 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent_associated_plan import _AgentPlanEnrichment
+from sase.scripts.sase_clan_summary_epic import _render_plan_summary
+from sase.sdd.plan_display import PlanDisplay, PlanDisplayPhase
 from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
     clan_tree_agents,
     decorate_clan_panel_sections,
@@ -33,28 +35,57 @@ _RESEARCH_CLAN_SUMMARY = (
     "across every fold level?[/italic #D7D7FF]"
 )
 
-_EPIC_CLAN_SUMMARY = (
-    "[bold #D75FFF]◆ EPIC sase-6n · Rich clan summaries[/bold #D75FFF]\n"
-    "[dim #D7D7FF]Share [bold]launch context[/bold] with [bold]stable[/bold] "
-    "status and no render-time lookups.[/dim #D7D7FF]\n\n"
-    "[bold #87D7FF]PHASES · 1/3 done at launch[/bold #87D7FF]\n"
-    "[bold #5FD787]✓[/bold #5FD787] [bold #87D7FF]1.[/bold #87D7FF] "
-    "Persist summaries at launch                                     "
-    "[bold black on #87D7FF] small [/bold black on #87D7FF]\n"
-    "[dim #D7D7FF]  └ Read [bold]launch-fresh[/bold] bead data.[/dim #D7D7FF]\n"
-    "[bold #FFD700]◐[/bold #FFD700] [bold #87D7FF]2.[/bold #87D7FF] "
-    "Render Rich markup safely                                      "
-    "[bold black on #FFD75F] medium [/bold black on #FFD75F]\n"
-    "[dim #D7D7FF]  └ Keep [bold]Text.from_markup[/bold] parseable.[/dim #D7D7FF]\n"
-    "[bold #87D7FF]○[/bold #87D7FF] [bold #87D7FF]3.[/bold #87D7FF] "
-    "Ship epic and research presets                                  "
-    "[bold white on #D75F87] large [/bold white on #D75F87]\n"
-    "[dim #D7D7FF]  └ Inspect all three visual goldens.[/dim #D7D7FF]\n\n"
-    "[bold #87D7FF]CHILD EPICS · 1[/bold #87D7FF]\n"
-    "[bold #87D7FF]○[/bold #87D7FF] [bold #D75FFF]sase-6n.4[/bold #D75FFF] "
-    "· End-to-end summary exercises\n\n"
-    "[dim #A8A8A8][bold]Plan:[/bold] "
-    "202607/epic_clan_summary_rich.md[/dim #A8A8A8]"
+_EPIC_CLAN_SUMMARY = _render_plan_summary(
+    "sase-6n",
+    PlanDisplay(
+        title="Rich clan summaries",
+        goal=(
+            "Share launch context with stable authored phase details and no "
+            "render-time lookups."
+        ),
+        authored_tier="epic",
+        effective_tier="epic",
+        actual_path="/workspace/sase/sase/repos/plans/202607/epic_clan_summary.md",
+        display_path="sase/repos/plans/202607/epic_clan_summary.md",
+        committed=True,
+        exists=True,
+        readable=True,
+        frontmatter_readable=True,
+        phase_availability="available",
+        phases=(
+            PlanDisplayPhase(
+                id="runtime",
+                title="Persist summaries at launch",
+                depends_on=(),
+                description=(
+                    "Read the committed authored plan before consulting the "
+                    "launch workspace bead store."
+                ),
+                size="small",
+                model="codex/gpt-5",
+            ),
+            PlanDisplayPhase(
+                id="tui",
+                title="Render Rich markup safely",
+                depends_on=("runtime",),
+                description=(
+                    "Keep shared PLAN-lane wrapping, phase metadata, and full "
+                    "descriptions parseable."
+                ),
+                size="medium",
+                model="claude/sonnet",
+            ),
+            PlanDisplayPhase(
+                id="visuals",
+                title="Ship epic clan panel coverage",
+                depends_on=("runtime", "tui"),
+                description="Inspect all three affected visual goldens.",
+                size="large",
+                model=None,
+            ),
+        ),
+        validation_ok=True,
+    ),
 )
 
 
@@ -94,15 +125,17 @@ async def test_epic_clan_panel_png_snapshots(
 
         assert_page_svg_contains(page, "CLAN")
         assert_page_svg_contains(page, "sase-6n")
+        assert_page_svg_contains(page, "Title:")
         assert_page_svg_contains(page, "Rich clan summaries")
-        assert_page_svg_contains(page, "PHASES · 1/3 done at launch")
+        assert_page_svg_contains(page, "Goal:")
+        assert_page_svg_contains(page, "Share launch context")
+        assert_page_svg_contains(page, "Path:")
+        assert_page_svg_contains(page, "epic_clan_summary.md")
         assert_page_svg_contains(page, "Render Rich markup safely")
         assert_page_svg_contains(page, "medium")
-        assert_page_svg_contains(page, "launch-fresh")
-        assert_page_svg_contains(page, "CHILD EPICS · 1")
-        assert_page_svg_contains(page, "sase-6n.4")
-        assert_page_svg_contains(page, "Plan:")
-        assert_page_svg_contains(page, "202607/epic_clan_summary_rich.md")
+        assert_page_svg_contains(page, "after runtime")
+        assert_page_svg_contains(page, "claude/sonnet")
+        assert_page_svg_contains(page, "Keep shared PLAN-lane wrapping")
         assert_page_svg_contains(page, "3 agents")
         ace_png_visual.assert_page_png(
             page,

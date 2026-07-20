@@ -12,6 +12,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+from rich.text import Text
 
 from sase.bead import cli as bead_cli
 from sase.bead.model import BeadTier, IssueType, PhaseSize
@@ -25,10 +26,14 @@ from .sync_test_helpers import configure_git_identity
 class _PersistedEpicLaunch:
     epic_id: str
     epic_title: str
+    epic_goal: str
+    plan_ref: str
+    phase_ids: tuple[str, ...]
     phase_titles: tuple[str, ...]
+    phase_descriptions: tuple[str, ...]
     clan_summary: str
     stale_head: str
-    refreshed_head: str
+    launch_head: str
     remote_head: str
 
 
@@ -72,7 +77,7 @@ def stale_epic_summary_launch(
     monkeypatch: pytest.MonkeyPatch,
     fake_cli_work_xprompts: None,
 ) -> _PersistedEpicLaunch:
-    """Persist a launch summary after its plans clone recovers from stale HEAD."""
+    """Persist a plan summary while the launch workspace remains stale."""
     from sase.agent.clan_membership import (
         CLAN_MEMBERSHIP_ENV,
         ClanMembershipPlan,
@@ -120,13 +125,58 @@ def stale_epic_summary_launch(
     configure_git_identity(stale_plans)
     stale_head = _git(stale_plans, "rev-parse", "HEAD")
 
-    epic_title = "Diamond epic recovered from remote"
+    epic_title = "Diamond epic rendered from its committed plan"
+    epic_goal = "Keep launch summaries rich while fresh workspace stores are stale."
+    plan_ref = "sase/repos/plans/202607/diamond.md"
+    phase_ids = ("parse", "render", "persist", "land")
+    phase_titles = ("P1 parse", "P2 render", "P3 persist", "P4 land")
+    phase_descriptions = tuple(
+        f"'{title}' section: deliver {title.lower()} from the committed plan."
+        for title in phase_titles
+    )
+    authored_plan = current_plans / "202607" / "diamond.md"
+    authored_plan.parent.mkdir(parents=True)
+    authored_plan.write_text(
+        f"""---
+tier: epic
+title: {epic_title}
+goal: {epic_goal}
+phases:
+  - id: {phase_ids[0]}
+    title: {phase_titles[0]}
+    depends_on: []
+    description: "{phase_descriptions[0]}"
+    size: small
+    model: codex/gpt-5.6-sol
+  - id: {phase_ids[1]}
+    title: {phase_titles[1]}
+    depends_on: [{phase_ids[0]}]
+    description: "{phase_descriptions[1]}"
+    size: medium
+  - id: {phase_ids[2]}
+    title: {phase_titles[2]}
+    depends_on: [{phase_ids[0]}]
+    description: "{phase_descriptions[2]}"
+    size: medium
+  - id: {phase_ids[3]}
+    title: {phase_titles[3]}
+    depends_on: [{phase_ids[1]}, {phase_ids[2]}]
+    description: "{phase_descriptions[3]}"
+    size: large
+---
+
+# Plan
+
+Deliver the plan-first epic summary.
+""",
+        encoding="utf-8",
+    )
     with BeadProject(current_plans, beads_dirname="beads") as project:
         epic = project.create(
             epic_title,
             IssueType.PLAN,
-            description="Exercise launch-time stale-store recovery.",
-            design="202607/diamond.md",
+            description=epic_goal,
+            design=plan_ref,
             tier=BeadTier.EPIC,
         )
         phases = tuple(
@@ -137,13 +187,13 @@ def stale_epic_summary_launch(
                 description=f"Deliver {title.lower()}.",
                 size=PhaseSize.SMALL,
             )
-            for title in ("P1 parse", "P2 render", "P3 persist", "P4 land")
+            for title in phase_titles
         )
         project.add_dependency(phases[1].id, phases[0].id)
         project.add_dependency(phases[2].id, phases[0].id)
         project.add_dependency(phases[3].id, phases[1].id)
         project.add_dependency(phases[3].id, phases[2].id)
-    phase_titles = tuple(phase.title for phase in phases)
+    assert tuple(phase.title for phase in phases) == phase_titles
     _git(current_plans, "add", "-A")
     _git(current_plans, "commit", "-m", "Add remote epic and phases")
     _git(current_plans, "push")
@@ -236,14 +286,19 @@ def stale_epic_summary_launch(
         (artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")
     )
     assert persisted["agent_clan"] == epic.id
+    assert persisted["epic_plan_ref"] == plan_ref
     assert not agent_log.read_text(encoding="utf-8")
     return _PersistedEpicLaunch(
         epic_id=epic.id,
         epic_title=epic_title,
+        epic_goal=epic_goal,
+        plan_ref=plan_ref,
+        phase_ids=phase_ids,
         phase_titles=phase_titles,
+        phase_descriptions=phase_descriptions,
         clan_summary=persisted["clan_summary"],
         stale_head=stale_head,
-        refreshed_head=_git(stale_plans, "rev-parse", "HEAD"),
+        launch_head=_git(stale_plans, "rev-parse", "HEAD"),
         remote_head=remote_head,
     )
 
@@ -251,19 +306,26 @@ def stale_epic_summary_launch(
 class TestEpicSummarySmokeExercises:
     """End-to-end smoke tests for epic clan summary persistence and rendering."""
 
-    def test_epic_work_launch_refreshes_stale_clone_and_persists_rich_summary(
+    def test_epic_work_launch_uses_primary_plan_without_refreshing_stale_clone(
         self,
         stale_epic_summary_launch: _PersistedEpicLaunch,
     ) -> None:
         launch = stale_epic_summary_launch
         fallback = f"[bold]EPIC {launch.epic_id}[/]"
+        plain = Text.from_markup(launch.clan_summary).plain
 
-        assert launch.stale_head != launch.refreshed_head
-        assert launch.refreshed_head == launch.remote_head
-        assert launch.epic_title in launch.clan_summary
-        assert all(title in launch.clan_summary for title in launch.phase_titles)
+        assert launch.stale_head == launch.launch_head
+        assert launch.launch_head != launch.remote_head
+        assert launch.epic_title in plain
+        assert launch.epic_goal in plain
+        assert launch.plan_ref in plain
+        assert all(phase_id in plain for phase_id in launch.phase_ids)
+        assert all(title in plain for title in launch.phase_titles)
         assert "[bold #D75FFF]◆ EPIC" in launch.clan_summary
-        assert "PHASES · 0/4 done at launch" in launch.clan_summary
+        assert "Title:" in plain
+        assert "Goal:" in plain
+        assert "Path:" in plain
+        assert "PHASES ·" not in plain
         assert "bold black on #87D7FF" in launch.clan_summary
         assert fallback not in launch.clan_summary
 
@@ -295,4 +357,10 @@ class TestEpicSummarySmokeExercises:
         result = build_clan_detail_text(project_clan_tree([member])[0])
 
         assert launch.epic_title in result.plain
+        assert launch.epic_goal in result.plain
+        assert launch.plan_ref in result.plain
+        assert all(phase_id in result.plain for phase_id in launch.phase_ids)
         assert all(title in result.plain for title in launch.phase_titles)
+        assert all(
+            description in result.plain for description in launch.phase_descriptions
+        )

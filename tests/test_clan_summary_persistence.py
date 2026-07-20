@@ -217,6 +217,8 @@ print(json.dumps({
         monkeypatch,
     )
 
+    assert meta["epic_plan_ref"] == "plans/epic.md"
+    assert meta["epic_bead_id"] == "sase-epic"
     inherited = json.loads(str(meta["clan_summary"]))
     assert inherited == {
         "CUSTOM_LAUNCH_VALUE": "preserved",
