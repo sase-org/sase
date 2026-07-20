@@ -21,6 +21,7 @@ from ..modals import (
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
+    from ..modals.config_center_modal import CenterTab
 
 # Type alias for tab names (used in type hints)
 TabName = Literal["changespecs", "agents", "axe"]
@@ -35,6 +36,7 @@ class BaseActionsMixin:
     current_tab: TabName
     query_string: str
     parsed_query: Any
+    _last_admin_center_tab: CenterTab | None
     # --- Workflow Actions ---
 
     def action_run_workflow(self) -> None:
@@ -559,18 +561,33 @@ class BaseActionsMixin:
         comprehensive_provider_names: tuple[str, ...] | None = None,
     ) -> None:
         """Open the SASE Admin Center and refresh updates state on dismiss."""
-        from ..modals.config_center_modal import ConfigCenterModal
+        from ..modals.config_center_modal import (
+            ConfigCenterModal,
+            validated_center_tab,
+        )
+
+        registry = getattr(self, "_keymap_registry", None)
+        app_keymaps = getattr(registry, "app", None)
+        opener_binding = getattr(app_keymaps, "open_config_center", "number_sign")
+        resume_tab = validated_center_tab(getattr(self, "_last_admin_center_tab", None))
 
         self.push_screen(  # type: ignore[attr-defined]
             ConfigCenterModal(
                 initial_tab=initial_tab,
+                resume_tab=resume_tab,
+                opener_binding=opener_binding,
                 auto_update=auto_update,
                 comprehensive_provider_names=comprehensive_provider_names,
             ),
             self._on_config_center_dismissed,
         )
 
-    def _on_config_center_dismissed(self, _result: object | None = None) -> None:
+    def _on_config_center_dismissed(self, result: object | None = None) -> None:
+        from ..modals.config_center_modal import validated_center_tab
+
+        active_tab = validated_center_tab(result)
+        if active_tab is not None:
+            self._last_admin_center_tab = active_tab
         refresh = getattr(self, "_schedule_updates_indicator_revalidation", None)
         if callable(refresh):
             refresh()

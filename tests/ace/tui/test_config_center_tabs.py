@@ -9,16 +9,17 @@ from typing import Any
 
 import pytest
 from rich.text import Text
-from textual.app import App
+from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.containers import Vertical
 from textual.widget import Widget
-from textual.widgets import ContentSwitcher, Static
+from textual.widgets import ContentSwitcher, Input, Static
 
 from sase.ace.testing import AcePage
+from sase.ace.tui import AceApp
 from sase.ace.tui.modals.config_center_modal import (
     _AdminCenterLanding,
     _AdminCenterLandingRow,
-    _HOME_HINT,
     _HOME_ID,
     _HOME_LEAD,
     _HOME_ORIENTATION,
@@ -31,8 +32,10 @@ from sase.ace.tui.modals.config_center_modal import (
     _TITLE_LABEL,
     _TITLE_TEXT,
     _TITLE_UNDERLINE,
+    _home_hint_text,
     CenterTab,
     ConfigCenterModal,
+    validated_center_tab,
 )
 from sase.ace.tui.widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
@@ -57,6 +60,19 @@ class _StubPane(Static):
     def focus_default(self) -> None:
         self.focus_count += 1
         self.focus()
+
+
+class _InputPane(Vertical):
+    """Working pane whose filter must retain literal opener characters."""
+
+    def __init__(self, tab: CenterTab) -> None:
+        super().__init__(id=tab)
+
+    def compose(self) -> ComposeResult:
+        yield Input(id="stub-filter")
+
+    def focus_default(self) -> None:
+        self.query_one(Input).focus()
 
 
 async def _wait_until(pilot: Any, predicate: Any, *, timeout: float = 5.0) -> None:
@@ -144,6 +160,26 @@ def test_title_has_no_leading_icon_and_underline_matches() -> None:
     assert len(_TITLE_UNDERLINE) == len(_TITLE_TEXT)
 
 
+def test_resume_tab_validation_accepts_only_catalog_ids() -> None:
+    assert validated_center_tab("tasks") == "tasks"
+    assert validated_center_tab("missing") is None
+    assert validated_center_tab(5) is None
+
+
+def test_home_hint_explains_no_history_and_uses_catalog_resume_style() -> None:
+    no_history = _home_hint_text(None, "number_sign", compact=False)
+    assert no_history.plain.startswith(" #  resumes after your first section visit")
+    assert "1-7/click · Tab cycle" in no_history.plain
+
+    resume_ready = _home_hint_text("tasks", "f2", compact=False)
+    assert resume_ready.plain.startswith(" f2  resume Tasks")
+    target_offset = resume_ready.plain.index("resume Tasks")
+    assert any(
+        span.start <= target_offset < span.end and str(span.style) == "bold #5FD75F"
+        for span in resume_ready.spans
+    )
+
+
 def test_tab_cycle_bindings_are_modal_priority() -> None:
     bindings = {
         binding.key: binding
@@ -179,7 +215,7 @@ async def test_generic_modal_is_static_home_with_no_concrete_panes(
             == _HOME_LEAD
         )
         assert modal.query_one("#admin-center-home-hint", Static).render().plain == (
-            _HOME_HINT
+            _home_hint_text(None, "number_sign", compact=False).plain
         )
         rows = list(modal.query(_AdminCenterLandingRow))
         assert len(rows) == len(_TAB_SPECS)
@@ -375,6 +411,29 @@ async def test_repeated_first_navigation_is_idempotent(
         assert len(modal.query("#tasks")) == 1
 
 
+async def test_repeated_opener_without_history_keeps_one_zero_pane_home(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_create(_self: ConfigCenterModal, _tab: CenterTab) -> _StubPane:
+        raise AssertionError("an absent resume target must not construct a pane")
+
+    monkeypatch.setattr(ConfigCenterModal, "_create_pane", fail_create)
+    async with AcePage(initial_tab="agents") as page:
+        assert page.app._last_admin_center_tab is None
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+
+        await page.press("number_sign", "number_sign")
+        await page.pause()
+
+        assert page.app.screen is modal
+        assert len(page.app.screen_stack) == 2
+        assert modal._active_tab is None
+        assert modal._panes == {}
+
+
 async def test_construction_failure_keeps_home_and_allows_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -452,6 +511,7 @@ async def test_direct_initial_tab_mounts_only_that_target(
     _created, calls = _patch_stub_panes(monkeypatch)
     async with _HostApp().run_test() as pilot:
         modal = ConfigCenterModal(initial_tab="updates", auto_update=True)
+        assert modal.check_action("resume_last_tab", ()) is False
         pilot.app.push_screen(modal)
         await _wait_until(pilot, lambda: modal._active_tab == "updates")
 
@@ -460,11 +520,11 @@ async def test_direct_initial_tab_mounts_only_that_target(
         assert modal._auto_update is True
 
 
-async def test_generic_reopen_returns_home_after_using_real_tab(
+async def test_generic_reopen_is_home_first_then_repeated_opener_resumes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _patch_stub_panes(monkeypatch)
-    async with AcePage() as page:
+    _created, calls = _patch_stub_panes(monkeypatch)
+    async with AcePage(initial_tab="agents") as page:
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
         first = page.app.screen
@@ -475,6 +535,7 @@ async def test_generic_reopen_returns_home_after_using_real_tab(
         await page.wait_for(lambda _state: first._active_tab == "tasks")
         await page.press("escape")
         await page.expect_no_modal()
+        assert page.app._last_admin_center_tab == "tasks"
 
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
@@ -483,3 +544,137 @@ async def test_generic_reopen_returns_home_after_using_real_tab(
         assert second is not first
         assert second._active_tab is None
         assert second._panes == {}
+
+        await page.press("number_sign", "number_sign", "number_sign")
+        await page.wait_for(lambda _state: second._active_tab == "tasks")
+
+        assert calls == ["tasks", "tasks"]
+        assert tuple(second._panes) == ("tasks",)
+        assert page.app.screen is second
+        assert len(page.app.screen_stack) == 2
+        assert page.app.current_tab == "agents"
+
+
+async def test_switching_changes_resume_target_and_home_only_close_retains_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_stub_panes(monkeypatch)
+    async with AcePage() as page:
+        page.app._last_admin_center_tab = "tasks"
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+
+        await page.press("number_sign")
+        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+        await page.press("2")
+        await page.wait_for(lambda _state: modal._active_tab == "logs")
+        await page.press("escape")
+        await page.expect_no_modal()
+        assert page.app._last_admin_center_tab == "logs"
+
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        home = page.app.screen
+        assert isinstance(home, ConfigCenterModal)
+        assert home._active_tab is None
+        await page.press("escape")
+        await page.expect_no_modal()
+        assert page.app._last_admin_center_tab == "logs"
+
+
+async def test_direct_entry_establishes_resume_target_after_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_stub_panes(monkeypatch)
+    async with AcePage() as page:
+        page.app.action_open_tasks_panel()
+        await page.expect_modal("ConfigCenterModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+
+        await page.press("escape")
+        await page.expect_no_modal()
+
+        assert page.app._last_admin_center_tab == "tasks"
+
+
+async def test_failed_resume_retains_prior_target_and_remains_retryable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+
+    def create(_self: ConfigCenterModal, tab: CenterTab) -> _StubPane:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("synthetic resume failure")
+        return _StubPane(tab)
+
+    monkeypatch.setattr(ConfigCenterModal, "_create_pane", create)
+    async with AcePage() as page:
+        page.app._last_admin_center_tab = "tasks"
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+
+        await page.press("number_sign")
+        await page.wait_for(lambda _state: attempts == 1)
+        assert modal._active_tab is None
+        assert page.app._last_admin_center_tab == "tasks"
+
+        await page.press("number_sign")
+        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+        assert attempts == 2
+
+
+async def test_custom_opener_opens_home_resumes_and_is_displayed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"ace": {"keymaps": {"app": {"open_config_center": "f2"}}}},
+    )
+    monkeypatch.setattr(AceApp, "_schedule_axe_async_refresh", lambda self: None)
+    _patch_stub_panes(monkeypatch)
+
+    async with AcePage() as page:
+        page.app._last_admin_center_tab = "tasks"
+        await page.press("f2")
+        await page.expect_modal("ConfigCenterModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+        hint = modal.query_one("#admin-center-home-hint", Static).render().plain
+        assert "f2" in hint
+        assert "resume Tasks" in hint
+        assert "#" not in hint
+
+        await page.press("f2")
+        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+
+
+async def test_literal_opener_remains_typeable_and_cannot_nest_modal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        ConfigCenterModal,
+        "_create_pane",
+        lambda _self, tab: _InputPane(tab),
+    )
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="tasks", resume_tab="logs")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+        field = modal.query_one("#stub-filter", Input)
+        await page.wait_for(lambda _state: field.has_focus)
+
+        await page.press("number_sign")
+        await page.pause()
+
+        assert field.value == "#"
+        assert page.app.screen is modal
+        assert len(page.app.screen_stack) == 2

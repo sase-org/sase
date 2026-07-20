@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.config_center_modal import CenterTab, ConfigCenterModal
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -18,14 +18,17 @@ pytestmark = pytest.mark.visual
 
 
 @pytest.mark.parametrize(
-    ("size", "snapshot_name"),
+    ("size", "resume_tab", "snapshot_name"),
     [
-        ((120, 40), "config_center_home_120x40"),
-        ((100, 24), "config_center_home_100x24"),
+        ((120, 40), None, "config_center_home_120x40"),
+        ((100, 24), None, "config_center_home_100x24"),
+        ((120, 40), "tasks", "config_center_home_resume_tasks_120x40"),
+        ((100, 24), "tasks", "config_center_home_resume_tasks_100x24"),
     ],
 )
 async def test_config_center_home_png_snapshot(
     size: tuple[int, int],
+    resume_tab: CenterTab | None,
     snapshot_name: str,
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -38,6 +41,7 @@ async def test_config_center_home_png_snapshot(
         size=size,
     ) as page:
         await wait_for_startup(page)
+        page.app._last_admin_center_tab = resume_tab
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
         modal = page.app.screen

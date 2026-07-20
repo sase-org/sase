@@ -1169,26 +1169,32 @@ status shorthands, property filters, and searchable fields.
 
 These work on all tabs:
 
-| Key                 | Action                                                                                                      |
-| ------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `Tab` / `Shift+Tab` | Switch between Agents, Artifacts, and Axe tabs                                                              |
-| `#`                 | Open SASE Admin Center home (`1`–`7` enter Config, Logs, Projects, Statistics, Tasks, Updates, or XPrompts) |
-| `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands)                           |
-| `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                                  |
-| `i`                 | Show notifications inbox                                                                                    |
-| `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                    |
-| `Ctrl+L`            | Dismiss all currently-visible toast notifications                                                           |
-| `@`                 | Open the stashed-prompt restore picker                                                                      |
-| `Q`                 | Open the quit / restart menu                                                                                |
-| `y`                 | Refresh current tab                                                                                         |
-| `q`                 | Quit                                                                                                        |
-| `?`                 | Show help modal                                                                                             |
+| Key                 | Action                                                                                          |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
+| `Tab` / `Shift+Tab` | Switch between Agents, Artifacts, and Axe tabs                                                  |
+| `#`                 | Open SASE Admin Center home; repeat on home to resume the last section used in this ACE process |
+| `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands)               |
+| `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                      |
+| `i`                 | Show notifications inbox                                                                        |
+| `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix                        |
+| `Ctrl+L`            | Dismiss all currently-visible toast notifications                                               |
+| `@`                 | Open the stashed-prompt restore picker                                                          |
+| `Q`                 | Open the quit / restart menu                                                                    |
+| `y`                 | Refresh current tab                                                                             |
+| `q`                 | Quit                                                                                            |
+| `?`                 | Show help modal                                                                                 |
 
-The generic **Open SASE Admin Center** action and `#` always open a lightweight landing page; they do not reopen the
-previous section. The numbered strip remains clickable, `Tab` enters Config, and `Shift+Tab` enters XPrompts. Each
-working pane and its data are loaded only on first entry, then cached while the modal remains open. Command-palette
-actions such as **Open logs panel**, **Open tasks panel**, and **Open statistics**, plus update shortcuts and
-indicators, continue to enter their requested pane directly.
+The generic **Open SASE Admin Center** action and the first `#` always open a lightweight landing page without mounting
+a working pane. Press `#` again while home is visible to resume the last section that was successfully active in this
+ACE process. With no prior visit, the repeated key stays on home and loads nothing. The numbered strip remains
+clickable, `Tab` enters Config, and `Shift+Tab` enters XPrompts. Each working pane and its data are loaded only on first
+entry, then cached while the modal remains open. Command-palette actions such as **Open logs panel**, **Open tasks
+panel**, and **Open statistics**, plus update shortcuts and indicators, enter their requested pane directly and make a
+successful entry the next resume target. Closing from home does not clear an older target.
+
+Only the section identity is remembered, and only in memory: a new ACE process has no resume target, while filters,
+selection, scroll position, loaded data, and pane instances end with the modal. If `ace.keymaps.app.open_config_center`
+is rebound, repeat that configured key instead; the landing page displays the effective binding and destination.
 
 ### Quit / Restart Menu
 

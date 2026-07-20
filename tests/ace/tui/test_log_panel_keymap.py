@@ -15,6 +15,7 @@ from sase.ace.tui.keymaps.types import LeaderModeKeymaps
 from sase.ace.tui.modals.config_center_modal import (
     _TAB_LABELS,
     _TAB_ORDER,
+    CenterTab,
     ConfigCenterModal,
 )
 from sase.ace.tui.widgets import KeybindingFooter
@@ -28,10 +29,16 @@ from tests.ace.tui._leader_keymap_helpers import (
 class _ActionApp(BaseActionsMixin):
     def __init__(self) -> None:
         self.pushed_modals: list[Any] = []
+        self._last_admin_center_tab: CenterTab | None = None
+        self._keymap_registry = load_keymap_registry({})
+        self.revalidation_count = 0
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         del callback
         self.pushed_modals.append(modal)
+
+    def _schedule_updates_indicator_revalidation(self) -> None:
+        self.revalidation_count += 1
 
 
 def test_leader_mode_drops_log_panel_key() -> None:
@@ -215,6 +222,21 @@ def test_open_config_center_action_requests_home() -> None:
     assert isinstance(modal, ConfigCenterModal)
     assert modal._initial_tab is None
     assert modal._active_tab is None
+    assert modal._resume_tab is None
+    assert modal._opener_binding == "number_sign"
+
+
+def test_dismissal_validates_history_and_revalidates_updates() -> None:
+    app = _ActionApp()
+    app._last_admin_center_tab = "logs"
+
+    app._on_config_center_dismissed(None)
+    app._on_config_center_dismissed("not-a-tab")
+    assert app._last_admin_center_tab == "logs"
+
+    app._on_config_center_dismissed("tasks")
+    assert app._last_admin_center_tab == "tasks"
+    assert app.revalidation_count == 3
 
 
 def test_footer_omits_log_panel_on_all_tabs() -> None:

@@ -1,10 +1,11 @@
 """Home-first SASE Admin Center with lazily mounted working panes.
 
-The unqualified ``#`` action opens a lightweight landing page. The seven
-alphabetical working tabs are created only when the user explicitly enters
-one with ``1``-``7``, ``Tab`` / ``Shift+Tab``, or the clickable tab strip.
-Mounted panes are cached for the lifetime of the modal, so returning to a tab
-preserves its selection and other pane-local state.
+The first unqualified ``#`` action opens a lightweight landing page. Repeating
+the configured opener resumes the last section used in this ACE process. The
+seven alphabetical working tabs are otherwise created only when the user
+explicitly enters one with ``1``-``7``, ``Tab`` / ``Shift+Tab``, or the
+clickable tab strip. Mounted panes are cached for the lifetime of the modal,
+so returning to a tab preserves its selection and other pane-local state.
 
 Direct-entry actions may still pass ``initial_tab`` to open exactly one pane.
 Pane-local sub-tabs continue to use ``]`` / ``[`` where provided.
@@ -20,13 +21,14 @@ from typing import Any, Literal, cast
 from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
-from textual.binding import Binding
+from textual.binding import Binding, BindingsMap
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.events import Click, Key, Resize
 from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import ContentSwitcher, Label, Static
 
+from ..keymaps import is_valid_key, key_display_name
 from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
 CenterTab = Literal[
@@ -178,7 +180,8 @@ _PANEL_TABS: tuple[PanelTab, ...] = tuple(
 _HOME_ID = "admin-center-home"
 _HOME_LEAD = "Choose a section"
 _HOME_ORIENTATION = "Configure, observe, and maintain SASE from one place."
-_HOME_HINT = "Press 1-7 or click a section · Tab/Shift+Tab cycle · q/Esc close"
+_HOME_HINT_NAV = "1-7 or click a section · Tab/Shift+Tab cycle · q/Esc close"
+_HOME_HINT_NAV_COMPACT = "1-7/click · Tab cycle · q/Esc close"
 _HOME_LABEL_WIDTH = max(len(spec.label) for spec in _TAB_SPECS)
 _HOME_DESCRIPTION_WIDTH = max(len(spec.description) for spec in _TAB_SPECS)
 _HOME_ROOMY_ROW_WIDTH = 3 + 2 + _HOME_LABEL_WIDTH + 1 + _HOME_DESCRIPTION_WIDTH
@@ -268,6 +271,39 @@ def center_tab_accent(tab: str) -> str | None:
     return spec.accent if spec is not None else None
 
 
+def validated_center_tab(value: object) -> CenterTab | None:
+    """Return a catalog-backed Admin Center tab identity, if valid."""
+    if isinstance(value, str) and value in _TAB_BY_ID:
+        return cast(CenterTab, value)
+    return None
+
+
+def _home_hint_text(
+    resume_tab: CenterTab | None,
+    opener_binding: str,
+    *,
+    compact: bool,
+) -> Text:
+    """Render the landing's one-row, catalog-derived resume affordance."""
+    spec = _TAB_BY_ID.get(resume_tab) if resume_tab is not None else None
+    accent = spec.accent if spec is not None else _TITLE_GRADIENT[0]
+    navigation = _HOME_HINT_NAV_COMPACT if compact or spec is None else _HOME_HINT_NAV
+
+    text = Text()
+    text.append(f" {key_display_name(opener_binding)} ", style=f"bold reverse {accent}")
+    if spec is None:
+        resume_copy = (
+            " resumes after first visit"
+            if compact
+            else " resumes after your first section visit"
+        )
+        text.append(resume_copy, style="#A0A0A0")
+    else:
+        text.append(f" resume {spec.label}", style=f"bold {spec.accent}")
+    text.append(f" · {navigation}", style="#777777")
+    return text
+
+
 class _ConfigCenterHeaderDivider(Static):
     """Width-aware divider between the SASE Admin Center header and content."""
 
@@ -333,8 +369,15 @@ class _AdminCenterLanding(VerticalScroll):
 
     can_focus = False
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        resume_tab: CenterTab | None,
+        opener_binding: str,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
+        self._resume_tab = resume_tab
+        self._opener_binding = opener_binding
         self._compact: bool | None = None
 
     def compose(self) -> ComposeResult:
@@ -347,7 +390,15 @@ class _AdminCenterLanding(VerticalScroll):
             with Vertical(id="admin-center-home-card"):
                 for spec in _TAB_SPECS:
                     yield _AdminCenterLandingRow(spec)
-            yield Static(_HOME_HINT, id="admin-center-home-hint")
+            yield Static(
+                _home_hint_text(
+                    self._resume_tab,
+                    self._opener_binding,
+                    compact=False,
+                ),
+                id="admin-center-home-hint",
+                markup=False,
+            )
 
     def on_resize(self, event: Resize) -> None:
         """Toggle compact home chrome with bounded synchronous work."""
@@ -361,10 +412,19 @@ class _AdminCenterLanding(VerticalScroll):
         self.set_class(compact, "-compact")
         for row in self.query(_AdminCenterLandingRow):
             row.set_compact(compact)
+        self.query_one("#admin-center-home-hint", Static).update(
+            _home_hint_text(
+                self._resume_tab,
+                self._opener_binding,
+                compact=compact,
+            )
+        )
 
 
-class ConfigCenterModal(ModalScreen[None]):
+class ConfigCenterModal(ModalScreen[CenterTab | None]):
     """Full-screen Admin Center home and lazy working-pane host."""
+
+    _blocks_global_config_center_open = True
 
     BINDINGS = [
         ("escape", "close", "Close"),
@@ -388,6 +448,8 @@ class ConfigCenterModal(ModalScreen[None]):
         project: str | None = None,
         *,
         initial_tab: CenterTab | None = None,
+        resume_tab: CenterTab | None = None,
+        opener_binding: str = "number_sign",
         auto_update: bool = False,
         comprehensive_provider_names: tuple[str, ...] | None = None,
     ) -> None:
@@ -395,10 +457,32 @@ class ConfigCenterModal(ModalScreen[None]):
         self._project = project
         self._auto_update = auto_update
         self._comprehensive_provider_names = comprehensive_provider_names
-        self._initial_tab = initial_tab if initial_tab in _TAB_ORDER else None
+        self._initial_tab = validated_center_tab(initial_tab)
+        self._resume_tab = validated_center_tab(resume_tab)
+        self._opener_binding = (
+            opener_binding
+            if isinstance(opener_binding, str) and is_valid_key(opener_binding)
+            else "number_sign"
+        )
+        # Put the modal-local opener first so a custom binding that overlaps
+        # another modal key (for example Tab or q) still means "resume" while
+        # home is visible.  ``check_action`` disables it on working panes.
+        self._bindings = BindingsMap(
+            [
+                Binding(
+                    self._opener_binding,
+                    "resume_last_tab",
+                    "Resume last section",
+                    show=False,
+                    priority=True,
+                ),
+                *self.BINDINGS,
+            ]
+        )
         self._active_tab: CenterTab | None = None
         self._panes: dict[CenterTab, Widget] = {}
         self._navigation_lock = asyncio.Lock()
+        self._initial_navigation_pending = self._initial_tab is not None
 
     def compose(self) -> ComposeResult:
         with Container(id="config-center-container"):
@@ -422,11 +506,19 @@ class ConfigCenterModal(ModalScreen[None]):
             )
             yield _ConfigCenterHeaderDivider(id="config-center-divider")
             with ContentSwitcher(initial=_HOME_ID, id="config-center-switcher"):
-                yield _AdminCenterLanding(id=_HOME_ID)
+                yield _AdminCenterLanding(
+                    self._resume_tab,
+                    self._opener_binding,
+                    id=_HOME_ID,
+                )
 
     def on_mount(self) -> None:
         if self._initial_tab is not None:
-            self._schedule_switch(self._initial_tab)
+            self.run_worker(
+                self._open_initial_tab(self._initial_tab),
+                name=f"admin-center-open-{self._initial_tab}",
+                group="admin-center-navigation",
+            )
 
     def on_unmount(self) -> None:
         self._set_pane_active(self._active_pane(), False)
@@ -447,6 +539,12 @@ class ConfigCenterModal(ModalScreen[None]):
                 event.prevent_default()
                 event.stop()
                 scroll_to_top()
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Make the configured opener a home-only modal action."""
+        if action == "resume_last_tab":
+            return self._active_tab is None and not self._initial_navigation_pending
+        return super().check_action(action, parameters)
 
     def _active_pane(self) -> Widget | None:
         """Return the stable, currently visible working pane."""
@@ -477,6 +575,13 @@ class ConfigCenterModal(ModalScreen[None]):
             name=f"admin-center-open-{tab}",
             group="admin-center-navigation",
         )
+
+    async def _open_initial_tab(self, tab: CenterTab) -> None:
+        """Finish direct entry before enabling the home resume binding."""
+        try:
+            await self._switch_to(tab)
+        finally:
+            self._initial_navigation_pending = False
 
     async def _remove_failed_pane(self, pane: Widget) -> None:
         """Best-effort cleanup after a failed mount so a retry can reuse the ID."""
@@ -555,7 +660,16 @@ class ConfigCenterModal(ModalScreen[None]):
     def action_close(self) -> None:
         """Close SASE Admin Center."""
         self._set_pane_active(self._active_pane(), False)
-        self.dismiss(None)
+        self.dismiss(self._active_tab)
+
+    def action_resume_last_tab(self) -> None:
+        """Resume the session's last active section from home, when known."""
+        if (
+            self._active_tab is None
+            and not self._initial_navigation_pending
+            and self._resume_tab is not None
+        ):
+            self._schedule_switch(self._resume_tab)
 
     def action_prev_center_tab(self) -> None:
         """Enter XPrompts from home or select the previous working tab."""

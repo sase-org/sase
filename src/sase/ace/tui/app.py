@@ -284,6 +284,13 @@ class AceApp(
         first. It also lets the prompt text area handle Tab for snippet
         expansion.
         """
+        if action == "open_config_center" and getattr(
+            self.screen, "_blocks_global_config_center_open", False
+        ):
+            # The active Admin Center owns its opener locally.  On home that
+            # key resumes the remembered section; on a working pane it must
+            # never push a nested Admin Center over the current one.
+            return False
         if action in (
             "next_tab",
             "prev_tab",

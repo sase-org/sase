@@ -63,16 +63,21 @@ See [Deep-Merge System](#deep-merge-system) below.
 
 ## SASE Admin Center (interactive editor)
 
-Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The generic action always starts on its lightweight home
+Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The first press always starts on its lightweight home
 page, where the seven working sections—**Config**, **Logs**, **Projects**, **Statistics**, **Tasks**, **Updates**, and
-**XPrompts**—are introduced without loading their data. Press `1`–`7` or click the numbered tab strip to enter a
-section. From home, `Tab` enters Config and `Shift+Tab` enters XPrompts; within a working section they wrap across the
-same seven tabs. Pane-local `[` / `]` keys switch sub-tabs or views where the active pane provides them.
+**XPrompts**—are introduced without loading their data. While home is visible, press `#` again to resume the last
+section that was successfully active in this ACE process. Before the first section visit, the repeated key leaves home
+unchanged and constructs no pane. Press `1`–`7` or click the numbered tab strip to enter a section. From home, `Tab`
+enters Config and `Shift+Tab` enters XPrompts; within a working section they wrap across the same seven tabs. Pane-local
+`[` / `]` keys switch sub-tabs or views where the active pane provides them.
 
 Each pane is constructed only on first entry and is then reused until the Admin Center closes, preserving filters,
 selection, and scroll state while avoiding unrelated config, project, log, statistics, task, update, and xprompt work on
 open. Direct commands such as **Open logs panel**, **Open tasks panel**, **Open statistics**, and update actions still
-open their requested pane immediately. Closing and reopening with `#` returns to home rather than remembering a tab.
+open their requested pane immediately and make that successfully mounted section the next resume target. Closing and
+reopening with one `#` still returns to home; only a second press while home is visible resumes. The target is
+memory-only and is cleared by starting a new ACE process. Filters, selections, loaded data, and pane instances are never
+carried between modal lifetimes.
 
 ### Config tab
 
@@ -198,11 +203,14 @@ ACE/axe restart behavior. The context-sensitive keymaps are:
 | `o`                 | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)                           |
 | `v`                 | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                              |
 | `/`                 | Focus the filter input (matches name / description / topics)                                                |
+| `#` (default)       | From home, resume the last section used in this ACE process; otherwise do not open a nested Admin Center    |
 | `Tab` / `Shift+Tab` | From home enter Config / XPrompts; otherwise switch SASE Admin Center tabs (`1`–`7` jump directly)          |
 | `Esc`               | Clear active plugin/agent-CLI marks first; close when no marks are active                                   |
 | `q`                 | Close SASE Admin Center                                                                                     |
 
-These keymaps are widget-local and are not configurable through `default_config.yml`.
+The Admin Center opener is the effective `ace.keymaps.app.open_config_center` binding (`number_sign` / `#` by default),
+so a custom binding is repeated in the same way and appears in the landing-page hint. The remaining section-navigation
+keymaps above are widget-local and are not configurable through `default_config.yml`.
 
 ## Deep-Merge System
 
@@ -462,7 +470,8 @@ deprecated alias for `submit_primary`.
 Statistics keys may overlap app-level bindings because they are registered on the focused pane, not globally.
 
 **`app`** — App-level keybindings. Each key is an action name mapped to a key string. See `src/sase/default_config.yml`
-for the full list of configurable actions and their defaults.
+for the full list of configurable actions and their defaults. Rebinding `open_config_center` also changes the Admin
+Center's home-page resume key; it does not add a second keymap action or setting.
 
 **`modes`** — Prefix-key mode definitions. Built-in modes (`fold_mode`, `copy_mode`, `leader_mode`, `bang_mode`) can be
 reconfigured, and custom modes can be added. Each mode has:

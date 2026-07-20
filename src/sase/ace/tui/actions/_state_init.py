@@ -30,6 +30,7 @@ from .update_toast import _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS
 if TYPE_CHECKING:
     from ...agent_query import QueryExpr as AgentQueryExpr
     from ..app import TabName
+    from ..modals.config_center_modal import CenterTab
     from ..models import Agent
     from ..models.agent import AgentType
     from ..models.agent_loader import AgentLoadState
@@ -77,6 +78,11 @@ class StateInitMixin:
         # internal storage was initialized to "changespecs" by ``App.__init__``;
         # overwrite it here so first paint reflects the requested tab.
         self._reactive_current_tab = initial_tab  # type: ignore[attr-defined]
+        # The Admin Center always opens home-first, but a repeated opener may
+        # resume the last section that was successfully active in this ACE
+        # process.  Keep only the catalog identity here; panes and their state
+        # remain scoped to one modal lifetime.
+        self._last_admin_center_tab: CenterTab | None = None
         self._init_task_queue()  # type: ignore[attr-defined]
         self.theme = "flexoki"
         self._auto_start_axe = auto_start_axe
