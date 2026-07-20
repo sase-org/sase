@@ -672,3 +672,155 @@ def test_work_dry_run_renders_changespec_launch_wrappers(
             phase = proj.show(pid)
             assert phase.status == Status.OPEN
             assert phase.assignee == ""
+
+
+class TestEpicSummarySmokeExercises:
+    """End-to-end smoke tests for epic clan summary persistence and rendering."""
+
+    def test_epic_work_launch_persists_rich_summary_with_all_phases(
+        self,
+        project_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Epic work launch persists the rich summary with all phase titles."""
+        import json
+        from contextlib import nullcontext
+        from unittest.mock import patch
+
+        from sase.agent.clan_membership import (
+            CLAN_MEMBERSHIP_ENV,
+            ClanMembershipPlan,
+            encode_clan_membership_plan,
+        )
+        from sase.axe.run_agent_directives import extract_directives_and_write_meta
+
+        epic_id, phase_ids = seed_diamond(project_dir)
+        captured: dict[str, Any] = {}
+        workspace_dir = project_dir / "workspace"
+        artifacts_dir = project_dir / "artifacts"
+        workspace_dir.mkdir(exist_ok=True)
+        artifacts_dir.mkdir(exist_ok=True)
+
+        def fake_launch(
+            query: str,
+            extra_env: Any = None,
+            segment_extra_env: Any = None,
+        ) -> FakeLaunchResult:
+            captured["query"] = query
+            captured["segment_extra_env"] = segment_extra_env
+            # Simulate the first segment (declaring member) extracting directives
+            if segment_extra_env:
+                # Extract the first segment (before first ---)
+                segments = query.split("\n---\n")
+                first_segment = segments[0]
+
+                monkeypatch.setenv(
+                    CLAN_MEMBERSHIP_ENV,
+                    encode_clan_membership_plan(
+                        ClanMembershipPlan(clan_name=epic_id, generation="g1")
+                    ),
+                )
+
+                with (
+                    patch("sase.agent.names.ensure_historical_auto_name_migration"),
+                    patch(
+                        "sase.agent.names.agent_name_allocation_lock",
+                        return_value=nullcontext(),
+                    ),
+                    patch("sase.agent.names.claim_agent_name"),
+                    patch("sase.agent.names.claim_registered_clan_name"),
+                    patch(
+                        "sase.xprompt.process_xprompt_references",
+                        side_effect=lambda value, **_: value,
+                    ),
+                    patch(
+                        "sase.llm_provider.temporary_override."
+                        "resolve_effective_default_provider_model",
+                        return_value=("codex", "gpt-5"),
+                    ),
+                    patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+                ):
+                    extract_directives_and_write_meta(
+                        first_segment,
+                        str(workspace_dir),
+                        str(artifacts_dir),
+                    )
+            return FakeLaunchResult()
+
+        monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+        monkeypatch.setattr(
+            "sase.bead.sync.commit_bead_work_launch",
+            lambda *args, **kwargs: True,
+        )
+
+        bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+        # Verify the persisted meta file contains the rich summary
+        persisted = json.loads(
+            (artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")
+        )
+        assert persisted["agent_clan"] == epic_id
+        clan_summary = persisted["clan_summary"]
+
+        # The summary must contain the epic title
+        assert "Diamond epic" in clan_summary
+
+        # The summary must contain every phase title
+        for phase_id in phase_ids:
+            # Each phase should have its number and title in the summary
+            assert "P1" in clan_summary
+            assert "P2" in clan_summary
+            assert "P3" in clan_summary
+            assert "P4" in clan_summary
+
+        # Verify it's not the fallback summary
+        assert "[bold]EPIC" not in clan_summary or "Diamond epic" in clan_summary
+
+    def test_epic_work_clan_panel_renders_persisted_summary(
+        self,
+        project_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Clan panel renders persisted epic summary correctly."""
+        from datetime import datetime
+        from sase.ace.tui.models._agent_tree import project_clan_tree
+        from sase.ace.tui.widgets.prompt_panel._agent_display_clan import (
+            build_clan_detail_text,
+        )
+        from tests.ace.tui.widgets._agent_display_clan_helpers import (
+            make_clan_agent,
+        )
+
+        epic_id, phase_ids = seed_diamond(project_dir)
+
+        # Simulate a persisted clan summary with all phases
+        rich_summary = (
+            "[bold #D75FFF]◆ EPIC sase-test · Diamond epic[/bold #D75FFF]\n"
+            "\n"
+            "[bold #87D7FF]PHASES · 0/4 done at launch[/bold #87D7FF]\n"
+            " [bold #87D7FF]◐[/bold #87D7FF] 1. P1                                                          [small]\n"
+            " [bold #87D7FF]◐[/bold #87D7FF] 2. P2                                                          [small]\n"
+            " [bold #87D7FF]◐[/bold #87D7FF] 3. P3                                                          [small]\n"
+            " [bold #87D7FF]◐[/bold #87D7FF] 4. P4                                                          [small]\n"
+        )
+
+        # Create a clan agent with the epic summary
+        member = make_clan_agent(
+            f"{epic_id}.land",
+            status="DONE",
+            start=datetime(2026, 7, 17, 12, 0, 0),
+            stop=datetime(2026, 7, 17, 12, 2, 0),
+        )
+        member.clan_summary = rich_summary
+        container = project_clan_tree([member])[0]
+
+        # The panel should render the summary correctly
+        result = build_clan_detail_text(container)
+        result_text = result.plain
+
+        # Verify the result contains phase information
+        assert "Diamond epic" in result_text
+        assert "P1" in result_text
+        assert "P2" in result_text
+        assert "P3" in result_text
+        assert "P4" in result_text
