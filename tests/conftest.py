@@ -15,6 +15,7 @@ from sase.ace.changespec import (
     HookEntry,
 )
 from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
+from tests._suite_gate import configure_suite_gate, unconfigure_suite_gate
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,6 +44,16 @@ _PLAN_CHAIN_GOLDEN_TEST_FILES = frozenset(
         "tests/plan_chain_golden/test_plan_approval_response_golden.py",
     )
 )
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Acquire the host-global gate for an xdist controller."""
+    configure_suite_gate(config)
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:
+    """Release the host-global gate for an xdist controller."""
+    unconfigure_suite_gate(config)
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:

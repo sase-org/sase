@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+MEMINFO_PATH = Path("/proc/meminfo")
 PYTEST_ENV_UNSET_KEYS = (
     "SASE_COMMIT_METHOD",
     "SASE_COMMIT_METHOD_ALLOW_OVERRIDE",
@@ -116,7 +117,35 @@ def _worker_count() -> str:
     configured = os.environ.get("SASE_PYTEST_WORKERS")
     if configured:
         return configured
-    return str(max((os.cpu_count() or 1) // 4, 1))
+
+    cpu_workers = max((os.cpu_count() or 1) // 4, 1)
+    mem_available_gib = _mem_available_gib()
+    if mem_available_gib is None:
+        return str(cpu_workers)
+
+    memory_workers = max(mem_available_gib // 2, 2)
+    return str(min(cpu_workers, memory_workers))
+
+
+def _mem_available_gib() -> int | None:
+    try:
+        meminfo = MEMINFO_PATH.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return None
+
+    for line in meminfo.splitlines():
+        key, separator, value = line.partition(":")
+        if key != "MemAvailable" or not separator:
+            continue
+        fields = value.split()
+        if not fields:
+            return None
+        try:
+            available_kib = int(fields[0])
+        except ValueError:
+            return None
+        return available_kib // (1024 * 1024)
+    return None
 
 
 def _fast_marker_expression() -> str:

@@ -94,20 +94,66 @@ def test_fast_mode_selects_non_slow_marker_to_include_visual_tests(
     assert result[-1] == "not slow"
 
 
-def test_worker_count_caps_at_quarter_of_cpus(monkeypatch) -> None:
+def _set_mem_available(
+    monkeypatch, runner: ModuleType, tmp_path: Path, available_gib: int
+) -> None:
+    meminfo = tmp_path / "meminfo"
+    meminfo.write_text(
+        f"MemTotal: 99999999 kB\nMemAvailable: {available_gib * 1024 * 1024} kB\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(runner, "MEMINFO_PATH", meminfo)
+
+
+def test_worker_count_caps_at_quarter_of_cpus(monkeypatch, tmp_path: Path) -> None:
     runner = _load_run_pytest()
     monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
     monkeypatch.setattr(runner.os, "cpu_count", lambda: 8)
+    _set_mem_available(monkeypatch, runner, tmp_path, available_gib=64)
 
     assert runner._worker_count() == "2"
 
 
-def test_worker_count_uses_at_least_one_worker(monkeypatch) -> None:
+def test_worker_count_uses_at_least_one_worker(monkeypatch, tmp_path: Path) -> None:
     runner = _load_run_pytest()
     monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
     monkeypatch.setattr(runner.os, "cpu_count", lambda: 2)
+    _set_mem_available(monkeypatch, runner, tmp_path, available_gib=64)
 
     assert runner._worker_count() == "1"
+
+
+def test_worker_count_shrinks_under_memory_pressure(
+    monkeypatch, tmp_path: Path
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
+    monkeypatch.setattr(runner.os, "cpu_count", lambda: 64)
+    _set_mem_available(monkeypatch, runner, tmp_path, available_gib=3)
+
+    assert runner._worker_count() == "2"
+
+
+def test_worker_count_preserves_cpu_limit_with_plentiful_memory(
+    monkeypatch, tmp_path: Path
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
+    monkeypatch.setattr(runner.os, "cpu_count", lambda: 64)
+    _set_mem_available(monkeypatch, runner, tmp_path, available_gib=64)
+
+    assert runner._worker_count() == "16"
+
+
+def test_worker_count_falls_back_when_meminfo_is_unreadable(
+    monkeypatch, tmp_path: Path
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
+    monkeypatch.setattr(runner.os, "cpu_count", lambda: 64)
+    monkeypatch.setattr(runner, "MEMINFO_PATH", tmp_path / "missing-meminfo")
+
+    assert runner._worker_count() == "16"
 
 
 def test_worker_count_prefers_env_override(monkeypatch) -> None:
