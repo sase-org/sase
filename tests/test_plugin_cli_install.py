@@ -388,10 +388,12 @@ def test_install_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
 
 def test_install_restarts_axe_when_changed(tmp_path: Path) -> None:
     restart_calls = 0
+    restart_source = ""
 
-    def _restart() -> AxeStartResult:
-        nonlocal restart_calls
+    def _restart(*, desired_state_source: str) -> AxeStartResult:
+        nonlocal restart_calls, restart_source
         restart_calls += 1
+        restart_source = desired_state_source
         return AxeStartResult(status="started", pid=2468)
 
     out = _console()
@@ -409,6 +411,7 @@ def test_install_restarts_axe_when_changed(tmp_path: Path) -> None:
 
     assert code == 0
     assert restart_calls == 1
+    assert restart_source == "sase plugin install"
     assert "Axe restarted (pid 2468)" in _text(out)
 
 

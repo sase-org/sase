@@ -247,6 +247,7 @@ def _handle_mode_switch(
         changed=result.changed,
         axe_running_fn=axe_running_fn,
         restart_axe_fn=restart_axe_fn,
+        source="sase update mode switch",
     )
 
     if as_json:
@@ -411,6 +412,7 @@ def _handle_live_update(
         changed=changed,
         axe_running_fn=axe_running_fn,
         restart_axe_fn=restart_axe_fn,
+        source="sase update",
     )
     if dev_plan is not None and dev_result is not None:
         append_dev_update_journal(

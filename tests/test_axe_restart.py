@@ -8,6 +8,7 @@ import pytest
 from sase.axe.config import AxeConfig, LumberjackConfig
 from sase.axe._process_restart import _verify_startup
 from sase.axe.desired_state import read_desired_state, write_desired_state
+from sase.axe.lifecycle_journal import read_recent_lifecycle_events
 from sase.axe.process import AxeStartResult, restart_axe_daemon_result
 from sase.axe.state import LumberjackStatus
 
@@ -77,8 +78,10 @@ def test_restart_records_running_before_stop_and_retries_start(tmp_path: Path) -
         result = restart_axe_daemon_result(
             _config(),
             sleep_fn=delays.append,
+            desired_state_source="sase update",
         )
         marker = read_desired_state()
+        journal = read_recent_lifecycle_events(limit=0)
 
     assert result.succeeded is True
     assert result.verified is True
@@ -91,7 +94,19 @@ def test_restart_records_running_before_stop_and_retries_start(tmp_path: Path) -
     verify.assert_called_once()
     assert marker is not None
     assert marker.state == "running"
-    assert marker.source == "restart"
+    assert marker.source == "sase update"
+    assert stop.call_args.kwargs == {
+        "desired_state_source": "sase update",
+        "record_desired_state": False,
+    }
+    assert all(
+        call.kwargs["desired_state_source"] == "sase update"
+        for call in start.call_args_list
+    )
+    assert journal[-1]["event"] == "restart"
+    assert journal[-1]["outcome"] == "restarted"
+    assert journal[-1]["source"] == "sase update"
+    assert journal[-1]["orchestrator_pid"] == 2468
 
 
 def test_restart_failure_is_journaled_and_notified(tmp_path: Path) -> None:

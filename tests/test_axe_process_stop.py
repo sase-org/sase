@@ -11,6 +11,7 @@ import pytest
 
 from sase.axe.desired_state import read_desired_state
 from sase.axe.lock import AxeLifecycleLock
+from sase.axe.lifecycle_journal import read_recent_lifecycle_events
 from sase.axe._process_probe import cleanup_pid_files, probe_orchestrator
 from sase.axe._process_stop import _send_signal
 from sase.axe._process_types import AxeOrchestratorProbe, TerminateResult
@@ -29,7 +30,11 @@ def test_stop_axe_daemon_returns_false_when_no_pid_file(
     marker = read_desired_state()
     assert marker is not None
     assert marker.state == "stopped"
-    assert marker.source == "stop"
+    assert marker.source == "axe stop"
+    journal = read_recent_lifecycle_events(limit=0)
+    assert journal[-1]["event"] == "stop"
+    assert journal[-1]["outcome"] == "not_running"
+    assert journal[-1]["source"] == "axe stop"
 
 
 @patch("sase.axe._process_stop.os.kill")

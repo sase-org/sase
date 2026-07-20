@@ -48,7 +48,7 @@ class _WedgedLockRecovery:
 def _compose_axe_daemon_env(
     environ: Mapping[str, str],
     *,
-    desired_state_source: str = "start",
+    desired_state_source: str = "axe start",
 ) -> dict[str, str]:
     """Return a system-service environment without agent or chop context."""
     env = dict(environ)
@@ -64,7 +64,7 @@ def _compose_axe_daemon_env(
 def start_axe_daemon(
     config: AxeConfig | None = None,
     *,
-    desired_state_source: str = "start",
+    desired_state_source: str = "axe start",
     record_desired_state: bool = True,
 ) -> int | None:
     """Start axe as a background daemon process.
@@ -87,7 +87,7 @@ def start_axe_daemon(
 def start_axe_daemon_result(
     config: AxeConfig | None = None,
     *,
-    desired_state_source: str = "start",
+    desired_state_source: str = "axe start",
     record_desired_state: bool = True,
     _allow_wedged_lock_recovery: bool = True,
 ) -> AxeStartResult:

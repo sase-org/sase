@@ -16,6 +16,7 @@ from . import state as axe_state
 
 MAINTENANCE_FILENAME = "maintenance.json"
 DEFAULT_STALE_SECONDS = 24 * 60 * 60
+_PROC_BOOT_ID_PATH = Path("/proc/sys/kernel/random/boot_id")
 
 
 def _maintenance_path() -> Path:
@@ -40,11 +41,14 @@ def _parse_started_at(value: object) -> datetime | None:
 
 def start_maintenance(reason: str) -> dict[str, Any]:
     """Create the axe maintenance marker and return its payload."""
-    marker = {
+    marker: dict[str, Any] = {
         "reason": reason,
         "pid": os.getpid(),
         "started_at": _now_iso(),
     }
+    owner_identity = _process_identity(marker["pid"])
+    if owner_identity is not None:
+        marker["owner_identity"] = owner_identity
     axe_state.atomic_write_json(_maintenance_path(), marker)
     return marker
 
@@ -59,9 +63,11 @@ def read_maintenance() -> dict[str, Any] | None:
     started_at = marker.get("started_at")
     if not isinstance(reason, str) or not reason:
         return None
-    if not isinstance(pid, int):
+    if not isinstance(pid, int) or pid <= 0:
         return None
     if _parse_started_at(started_at) is None:
+        return None
+    if not _valid_owner_identity(marker.get("owner_identity")):
         return None
     return dict(marker)
 
@@ -85,14 +91,26 @@ def clear_maintenance() -> bool:
 def clear_stale_maintenance(
     max_age_seconds: int = DEFAULT_STALE_SECONDS,
 ) -> dict[str, Any] | None:
-    """Clear and return an old marker or one whose owner PID has exited."""
+    """Clear and return an invalid marker or one whose owner is stale."""
     raw_marker = axe_state.read_json(_maintenance_path())
     if not isinstance(raw_marker, dict):
+        if _maintenance_path().exists():
+            clear_maintenance()
+            return {"malformed": True}
         return None
     marker = dict(raw_marker)
 
+    reason = marker.get("reason")
+    pid = marker.get("pid")
     started_at = _parse_started_at(marker.get("started_at"))
-    if started_at is None:
+    if (
+        not isinstance(reason, str)
+        or not reason
+        or not isinstance(pid, int)
+        or pid <= 0
+        or started_at is None
+        or not _valid_owner_identity(marker.get("owner_identity"))
+    ):
         clear_maintenance()
         return marker
 
@@ -101,11 +119,68 @@ def clear_stale_maintenance(
         clear_maintenance()
         return marker
 
-    pid = marker.get("pid")
-    if isinstance(pid, int) and pid > 0 and not is_process_running(pid):
+    if not is_process_running(pid):
         clear_maintenance()
         return marker
+
+    recorded_identity = marker.get("owner_identity")
+    if isinstance(recorded_identity, dict):
+        current_identity = _process_identity(pid)
+        if current_identity is not None and not _same_process_identity(
+            recorded_identity,
+            current_identity,
+        ):
+            clear_maintenance()
+            return marker
     return None
+
+
+def _process_identity(pid: int) -> dict[str, Any] | None:
+    """Return a Linux process identity that changes when a PID is recycled."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        close_paren = stat.rfind(")")
+        if close_paren < 0:
+            return None
+        # The tail starts at field 3 (state); process start time is field 22.
+        fields = stat[close_paren + 1 :].split()
+        start_ticks = int(fields[19])
+    except (IndexError, OSError, ValueError):
+        return None
+
+    identity: dict[str, Any] = {"start_ticks": start_ticks}
+    try:
+        boot_id = _PROC_BOOT_ID_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        boot_id = ""
+    if boot_id:
+        identity["boot_id"] = boot_id
+    return identity
+
+
+def _valid_owner_identity(value: object) -> bool:
+    if value is None:
+        return True
+    if not isinstance(value, dict):
+        return False
+    start_ticks = value.get("start_ticks")
+    if not isinstance(start_ticks, int) or start_ticks < 0:
+        return False
+    boot_id = value.get("boot_id")
+    return boot_id is None or (isinstance(boot_id, str) and bool(boot_id))
+
+
+def _same_process_identity(
+    recorded: dict[str, Any],
+    current: dict[str, Any],
+) -> bool:
+    if recorded.get("start_ticks") != current.get("start_ticks"):
+        return False
+    recorded_boot_id = recorded.get("boot_id")
+    current_boot_id = current.get("boot_id")
+    if recorded_boot_id is not None and current_boot_id is not None:
+        return recorded_boot_id == current_boot_id
+    return True
 
 
 @contextmanager

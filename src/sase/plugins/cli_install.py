@@ -136,6 +136,7 @@ def handle_plugin_install_command(
         outcome.change_set,
         axe_running_fn=axe_running_fn,
         restart_axe_fn=restart_axe_fn,
+        source="sase plugin install",
     )
 
     if as_json:

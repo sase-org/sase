@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from inspect import Parameter, signature
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from sase.axe.process import AxeStartResult
 from sase.main.update_types import AxeRunningFn, RestartAxeFn, RestartInfo
 
 
@@ -28,6 +31,7 @@ def restart_after_update(
     changed: bool,
     axe_running_fn: AxeRunningFn,
     restart_axe_fn: RestartAxeFn,
+    source: str = "sase update",
 ) -> RestartInfo:
     if not changed:
         return restart_skipped(changed=False)
@@ -43,7 +47,7 @@ def restart_after_update(
         return restart_skipped(changed=True)
 
     try:
-        result = restart_axe_fn()
+        result = _call_restart_axe(restart_axe_fn, source=source)
     except Exception as exc:  # noqa: BLE001 - keep update success separate.
         return RestartInfo(
             attempted=True,
@@ -66,6 +70,30 @@ def restart_after_update(
         attempts=result.attempts,
         verified=result.verified,
     )
+
+
+def _call_restart_axe(
+    restart_axe_fn: RestartAxeFn,
+    *,
+    source: str,
+) -> AxeStartResult:
+    """Pass attribution when supported while preserving zero-arg test fakes."""
+    try:
+        parameters = tuple(signature(restart_axe_fn).parameters.values())
+    except (TypeError, ValueError):
+        parameters = ()
+    supports_source = any(
+        parameter.kind is Parameter.VAR_KEYWORD
+        or (
+            parameter.name == "desired_state_source"
+            and parameter.kind
+            in (Parameter.KEYWORD_ONLY, Parameter.POSITIONAL_OR_KEYWORD)
+        )
+        for parameter in parameters
+    )
+    if supports_source:
+        return restart_axe_fn(desired_state_source=source)
+    return restart_axe_fn()
 
 
 def render_restart_info(restart: RestartInfo, *, console: Console, quiet: bool) -> None:

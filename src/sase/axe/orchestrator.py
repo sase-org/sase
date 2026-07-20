@@ -28,7 +28,9 @@ from sase.telemetry.metrics import (
 
 from . import state as axe_state
 from .config import AxeConfig
+from .lifecycle_journal import append_lifecycle_event
 from .lock import acquire_axe_lifetime_lock, read_lock_holder_pid
+from .maintenance import clear_stale_maintenance
 from .state import (
     append_bounded_log,
     append_error,
@@ -432,7 +434,19 @@ class Orchestrator:
                 return True
 
             signal.signal(signal.SIGTERM, self._handle_shutdown)
+            try:
+                clear_stale_maintenance()
+            except Exception:  # noqa: BLE001 - startup cleanup is best-effort.
+                pass
             self._write_pid()
+            append_lifecycle_event(
+                "start",
+                "started",
+                source=os.environ.get("SASE_AXE_START_SOURCE", "axe start"),
+                reason="Orchestrator acquired the lifecycle lock and published its PID.",
+                orchestrator_pid=os.getpid(),
+                succeeded=True,
+            )
             reap_stale_log_rotation_temps(
                 axe_state.axe_state_dir(),
                 max_age_seconds=self.config.lumberjack_log_temp_max_age_seconds,

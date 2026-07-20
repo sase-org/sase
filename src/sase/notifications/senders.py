@@ -256,6 +256,27 @@ def notify_axe_ensure_failed(message: str, source: str) -> str:
     return notification_id
 
 
+def notify_axe_restart_storm(sources: list[str], journal_path: str) -> str:
+    """Send a durable notification when automatic axe healing is damped."""
+    notification_id = str(uuid4())
+    source_summary = ", ".join(sources) if sources else "unknown"
+    n = Notification(
+        id=notification_id,
+        timestamp=datetime.now(get_timezone()).isoformat(),
+        sender="axe",
+        icon="⚠",
+        notes=[
+            "Axe restart storm damped",
+            f"Recent successful start sources: {source_summary}",
+            f"Lifecycle journal: {journal_path}",
+        ],
+        files=[journal_path],
+        tags=normalize_notification_tags(["axe", "ensure", "restart-storm"]),
+    )
+    append_notification(n)
+    return notification_id
+
+
 def _format_duration(seconds: float) -> str:
     rounded = max(0, int(seconds))
     if rounded < 60:

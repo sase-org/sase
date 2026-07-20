@@ -147,7 +147,13 @@ async def test_stop_axe_and_quit_uses_robust_stop_when_status_is_stale(
 
     await _run_stop_quit_worker(app)
 
-    assert calls == [{"timeout": 5.0, "kill_timeout": 2.0}]
+    assert calls == [
+        {
+            "timeout": 5.0,
+            "kill_timeout": 2.0,
+            "desired_state_source": "ace quit",
+        }
+    ]
     assert app.kill_task_calls == 1
     assert app.stall_watchdog_stops == 1
     assert app.did_quit is True

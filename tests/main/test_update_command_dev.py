@@ -66,8 +66,9 @@ def test_dev_update_runs_backend_and_restarts_axe(
         seen["executed"] = True
         return _dev_result(plan)
 
-    def _restart() -> AxeStartResult:
+    def _restart(*, desired_state_source: str) -> AxeStartResult:
         seen["restart_calls"] += 1
+        seen["restart_source"] = desired_state_source
         return AxeStartResult(status="started", pid=2468)
 
     clock = iter([0.0, 2.0])
@@ -93,6 +94,7 @@ def test_dev_update_runs_backend_and_restarts_axe(
     assert seen["host"] == "sase"
     assert seen["executed"] is True
     assert seen["restart_calls"] == 1
+    assert seen["restart_source"] == "sase update"
     text = _text(out)
     assert "SASE Dev Update" in text
     assert "0.6.1+1.gaaaaaaaaa \u2192 0.6.1+2.gbbbbbbbbb" in text

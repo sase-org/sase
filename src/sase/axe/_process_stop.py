@@ -7,6 +7,7 @@ import time
 
 from . import _process_probe as process_probe
 from .desired_state import write_desired_state
+from .lifecycle_journal import append_lifecycle_event
 from .lock import clear_lock_holder_pid, is_lifecycle_lock_held
 from .state import (
     list_lumberjack_names,
@@ -26,7 +27,7 @@ def stop_axe_daemon(
     kill_timeout: float = 5.0,
     *,
     force: bool = False,
-    desired_state_source: str = "stop",
+    desired_state_source: str = "axe stop",
     record_desired_state: bool = True,
 ) -> bool:
     """Stop the running axe orchestrator and wait for full shutdown.
@@ -57,7 +58,7 @@ def stop_axe_daemon_result(
     kill_timeout: float = 5.0,
     *,
     force: bool = False,
-    desired_state_source: str = "stop",
+    desired_state_source: str = "axe stop",
     record_desired_state: bool = True,
 ) -> AxeStopResult:
     """Stop axe and return a detailed lifecycle result."""
@@ -134,7 +135,7 @@ def stop_axe_daemon_result(
             "processes and reset PID state."
         )
 
-    return AxeStopResult(
+    result = AxeStopResult(
         orchestrator_pid=pid,
         orchestrator_signaled=orchestrator_result.signaled,
         orchestrator_stopped=orchestrator_result.stopped,
@@ -147,6 +148,23 @@ def stop_axe_daemon_result(
         force=force,
         error=error,
     )
+    if result.error is not None and not result.terminated_anything:
+        outcome = "failed"
+    elif result.failed_pids:
+        outcome = "partial"
+    elif result.terminated_anything:
+        outcome = "stopped"
+    else:
+        outcome = "not_running"
+    append_lifecycle_event(
+        "stop",
+        outcome,
+        source=desired_state_source,
+        reason=result.summary(),
+        orchestrator_pid=result.orchestrator_pid,
+        succeeded=result.error is None and not result.failed_pids,
+    )
+    return result
 
 
 def _send_signal(

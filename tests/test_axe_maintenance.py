@@ -29,9 +29,12 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
 
 
 def test_start_read_and_clear_maintenance(temp_state_dir: Path) -> None:
-    marker = start_maintenance("install_sase_github")
+    identity = {"start_ticks": 1234, "boot_id": "boot-a"}
+    with patch("sase.axe.maintenance._process_identity", return_value=identity):
+        marker = start_maintenance("install_sase_github")
 
     assert marker["reason"] == "install_sase_github"
+    assert marker["owner_identity"] == identity
     assert read_maintenance() == marker
 
     assert clear_maintenance() is True
@@ -81,6 +84,42 @@ def test_clear_stale_maintenance_preserves_recent_live_pid_marker(
     temp_state_dir: Path,
 ) -> None:
     marker = start_maintenance("live_install")
+
+    with patch("sase.axe.maintenance.is_process_running", return_value=True):
+        assert clear_stale_maintenance(max_age_seconds=60) is None
+
+    assert read_maintenance() == marker
+
+
+def test_clear_stale_maintenance_removes_recycled_live_pid_marker(
+    temp_state_dir: Path,
+) -> None:
+    recorded = {"start_ticks": 100, "boot_id": "boot-a"}
+    current = {"start_ticks": 200, "boot_id": "boot-a"}
+    with patch("sase.axe.maintenance._process_identity", return_value=recorded):
+        marker = start_maintenance("recycled owner")
+
+    with (
+        patch("sase.axe.maintenance.is_process_running", return_value=True),
+        patch("sase.axe.maintenance._process_identity", return_value=current),
+    ):
+        assert clear_stale_maintenance(max_age_seconds=60) == marker
+
+    assert read_maintenance() is None
+    assert not (temp_state_dir / MAINTENANCE_FILENAME).exists()
+
+
+def test_clear_stale_maintenance_preserves_live_legacy_marker(
+    temp_state_dir: Path,
+) -> None:
+    temp_state_dir.mkdir(parents=True)
+    marker = {
+        "reason": "legacy owner",
+        "pid": 123,
+        "started_at": datetime.now(get_timezone()).isoformat(),
+    }
+    marker_path = temp_state_dir / MAINTENANCE_FILENAME
+    marker_path.write_text(json.dumps(marker))
 
     with patch("sase.axe.maintenance.is_process_running", return_value=True):
         assert clear_stale_maintenance(max_age_seconds=60) is None

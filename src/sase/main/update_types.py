@@ -24,7 +24,7 @@ VersionFn = Callable[[str], str | None]
 ClockFn = Callable[[], float]
 InventoryFn = Callable[[], RuntimeVersionInventory]
 AxeRunningFn = Callable[[], bool]
-RestartAxeFn = Callable[[], AxeStartResult]
+RestartAxeFn = Callable[..., AxeStartResult]
 RestartStatus = Literal[
     "skipped_no_change",
     "skipped_not_running",

@@ -17,12 +17,14 @@ def restart_after_plugin_change(
     *,
     axe_running_fn: AxeRunningFn,
     restart_axe_fn: RestartAxeFn,
+    source: str = "sase plugin change",
 ) -> RestartInfo:
     """Restart AXE when a plugin uv operation changed installed code."""
     return restart_after_update(
         changed=_change_set_changed(change_set),
         axe_running_fn=axe_running_fn,
         restart_axe_fn=restart_axe_fn,
+        source=source,
     )
 
 

@@ -476,9 +476,9 @@ class AxeDisplayLoadersMixin:
         """Load axe status and trigger startup auto-start/restart off the critical path."""
         await self._load_axe_status_async()
         if self._restart_axe and self.axe_running:  # type: ignore[attr-defined]
-            self._restart_axe_daemon()  # type: ignore[attr-defined]
+            self._restart_axe_daemon(source="ace startup restart")  # type: ignore[attr-defined]
         elif self._auto_start_axe and not self.axe_running:  # type: ignore[attr-defined]
-            self._start_axe()  # type: ignore[attr-defined]
+            self._start_axe(source="ace startup")  # type: ignore[attr-defined]
 
     def _load_lumberjack_names(self) -> None:
         """Load lumberjack names from axe config."""

@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import threading
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -16,6 +20,7 @@ from sase.axe.ensure import (
     install_ensure_timer,
     uninstall_ensure_timer,
 )
+from sase.axe.lifecycle_journal import append_lifecycle_event, lifecycle_journal_path
 from sase.axe.process import AxeStartResult, stop_axe_daemon_result
 from sase.notifications.store import load_notifications
 
@@ -93,6 +98,90 @@ def test_ensure_is_noop_when_orchestrator_is_running(axe_state_dir: Path) -> Non
     )
 
     assert result.status == "healthy"
+
+
+def test_ensure_clears_recycled_maintenance_owner_before_health_decision(
+    axe_state_dir: Path,
+) -> None:
+    axe_state_dir.mkdir(parents=True)
+    marker_path = axe_state_dir / "maintenance.json"
+    marker_path.write_text(
+        json.dumps(
+            {
+                "reason": "abandoned update",
+                "pid": os.getpid(),
+                "started_at": datetime.now().astimezone().isoformat(),
+                "owner_identity": {"start_ticks": 100, "boot_id": "boot-a"},
+            }
+        )
+    )
+
+    with (
+        patch("sase.axe.maintenance.is_process_running", return_value=True),
+        patch(
+            "sase.axe.maintenance._process_identity",
+            return_value={"start_ticks": 200, "boot_id": "boot-a"},
+        ),
+    ):
+        result = ensure_axe(running_fn=lambda: True)
+
+    assert result.status == "healthy"
+    assert not marker_path.exists()
+
+
+def test_restart_storm_damper_suppresses_start_and_notifies_once(
+    axe_state_dir: Path,
+) -> None:
+    now = 2_000.0
+    for timestamp, source in (
+        (1_970.0, "ace startup"),
+        (1_980.0, "sase update"),
+        (1_990.0, "axe ensure"),
+    ):
+        assert append_lifecycle_event(
+            "start",
+            "started",
+            source=source,
+            orchestrator_pid=int(timestamp),
+            succeeded=True,
+            timestamp_epoch=timestamp,
+        )
+
+    def fail_start(**_kwargs: object) -> AxeStartResult:
+        raise AssertionError("storm-damped ensure must not start axe")
+
+    first = ensure_axe(
+        now_fn=lambda: now,
+        running_fn=lambda: False,
+        start_fn=fail_start,
+        restart_storm_threshold=3,
+        restart_storm_window_seconds=60,
+    )
+    second = ensure_axe(
+        now_fn=lambda: now + 1,
+        running_fn=lambda: False,
+        start_fn=fail_start,
+        restart_storm_threshold=3,
+        restart_storm_window_seconds=60,
+    )
+
+    notifications = load_notifications()
+    assert first.status == "rate_limited"
+    assert first.notification_id is not None
+    assert second.status == "rate_limited"
+    assert second.notification_id is None
+    assert len(notifications) == 1
+    assert notifications[0].notes[0] == "Axe restart storm damped"
+    assert "ace startup" in notifications[0].notes[1]
+    assert "sase update" in notifications[0].notes[1]
+    assert "axe ensure" in notifications[0].notes[1]
+    assert notifications[0].files == [str(lifecycle_journal_path())]
+    assert notifications[0].tags == ["axe", "ensure", "restart-storm"]
+    ensure_marker = json.loads((axe_state_dir / "ensure.json").read_text())
+    assert ensure_marker == {
+        "checked_at_epoch": now + 1,
+        "source": "axe ensure",
+    }
 
 
 def test_runner_rate_limit_is_host_wide(axe_state_dir: Path) -> None:
@@ -223,7 +312,7 @@ def test_explicit_stop_waits_for_in_progress_ensure(axe_state_dir: Path) -> None
     desired = read_desired_state()
     assert desired is not None
     assert desired.state == "stopped"
-    assert desired.source == "stop"
+    assert desired.source == "axe stop"
 
 
 def test_heal_writes_notification_inbox_entry(axe_state_dir: Path) -> None:

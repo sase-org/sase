@@ -5,6 +5,7 @@ running hooks, managing workflows, and checking PR status.
 """
 
 from .lumberjack import Lumberjack
+from .lifecycle_journal import read_recent_lifecycle_events
 from .orchestrator import Orchestrator
 from .process import (
     get_axe_pid,
@@ -76,5 +77,6 @@ __all__ = [
     "read_lumberjack_status",
     "read_metrics",
     "read_pid_file",
+    "read_recent_lifecycle_events",
     "read_status",
 ]

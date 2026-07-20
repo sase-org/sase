@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import os
 import shutil
@@ -17,6 +18,11 @@ from typing import Literal, TextIO
 import sase.axe.state as _state
 
 from .desired_state import AxeDesiredState, read_desired_state
+from .lifecycle_journal import (
+    lifecycle_journal_path,
+    read_recent_successful_starts,
+)
+from .maintenance import clear_stale_maintenance
 from .process import canonical_axe_start_command
 from ._process_probe import get_pid_from_pid_files
 from ._process_start import start_axe_daemon_result
@@ -25,9 +31,12 @@ from ._process_types import AxeStartResult
 
 DEFAULT_ENSURE_CADENCE_SECONDS = 5 * 60
 DEFAULT_ENSURE_FAILURE_NOTIFICATION_CADENCE_SECONDS = 30 * 60
+DEFAULT_RESTART_STORM_THRESHOLD = 5
+DEFAULT_RESTART_STORM_WINDOW_SECONDS = 30 * 60
 _ENSURE_SERVICE = "sase-axe-ensure.service"
 _ENSURE_TIMER = "sase-axe-ensure.timer"
 _ENSURE_FAILURE_NOTIFICATION_MARKER = "ensure_failure_notification.json"
+_ENSURE_STORM_NOTIFICATION_MARKER = "ensure_storm_notification.json"
 
 EnsureStatus = Literal["failed", "healed", "healthy", "rate_limited", "stopped"]
 
@@ -74,6 +83,9 @@ def ensure_axe(
     failure_notification_rate_limit_seconds: float = (
         DEFAULT_ENSURE_FAILURE_NOTIFICATION_CADENCE_SECONDS
     ),
+    restart_storm_threshold: int = DEFAULT_RESTART_STORM_THRESHOLD,
+    restart_storm_window_seconds: float = DEFAULT_RESTART_STORM_WINDOW_SECONDS,
+    notify_storm_fn: Callable[[list[str], str], str] | None = None,
 ) -> _AxeEnsureResult:
     """Ensure axe matches its desired running state.
 
@@ -97,6 +109,10 @@ def ensure_axe(
         )
 
     try:
+        try:
+            clear_stale_maintenance()
+        except Exception:  # noqa: BLE001 - cleanup must not break healing.
+            pass
         if _rate_limit_active(now, rate_limit_seconds):
             return _AxeEnsureResult(
                 status="rate_limited",
@@ -122,6 +138,33 @@ def ensure_axe(
             )
 
         downtime_seconds = _estimated_downtime_seconds(desired_state, now=now)
+        recent_starts = _recent_starts_for_damper(
+            now=now,
+            window_seconds=restart_storm_window_seconds,
+        )
+        if restart_storm_threshold > 0 and len(recent_starts) >= (
+            restart_storm_threshold
+        ):
+            _clear_failure_notification_marker()
+            sources = _recent_start_sources(recent_starts)
+            storm_notification_id = _maybe_notify_restart_storm(
+                recent_starts,
+                sources=sources,
+                now=now,
+                notify_storm_fn=notify_storm_fn,
+            )
+            source_summary = ", ".join(sources) if sources else "unknown"
+            return _AxeEnsureResult(
+                status="rate_limited",
+                message=(
+                    "Axe healing was damped after "
+                    f"{len(recent_starts)} successful starts within "
+                    f"{int(max(0.0, restart_storm_window_seconds) // 60)} minutes "
+                    f"(sources: {source_summary}). See {lifecycle_journal_path()}."
+                ),
+                downtime_seconds=downtime_seconds,
+                notification_id=storm_notification_id,
+            )
         try:
             started = start_fn(
                 desired_state_source=source,
@@ -325,6 +368,10 @@ def _failure_notification_marker_path() -> Path:
     return _state.axe_state_dir() / _ENSURE_FAILURE_NOTIFICATION_MARKER
 
 
+def _storm_notification_marker_path() -> Path:
+    return _state.axe_state_dir() / _ENSURE_STORM_NOTIFICATION_MARKER
+
+
 def acquire_axe_ensure_lock(*, blocking: bool = False) -> TextIO | None:
     """Acquire the host-wide lock that serializes axe ensure with stop."""
     path = _ensure_lock_path()
@@ -463,6 +510,88 @@ def _clear_failure_notification_marker() -> None:
         pass
 
 
+def _recent_starts_for_damper(
+    *,
+    now: float,
+    window_seconds: float,
+) -> list[dict[str, object]]:
+    try:
+        return read_recent_successful_starts(
+            now=now,
+            window_seconds=window_seconds,
+        )
+    except Exception:  # noqa: BLE001 - unavailable audit data must not break ensure.
+        return []
+
+
+def _recent_start_sources(records: list[dict[str, object]]) -> list[str]:
+    sources: list[str] = []
+    for record in records:
+        source = record.get("source")
+        if isinstance(source, str) and source and source not in sources:
+            sources.append(source)
+    return sources
+
+
+def _restart_storm_signature(records: list[dict[str, object]]) -> str:
+    contributing_starts = [
+        {
+            "timestamp_epoch": record.get("timestamp_epoch"),
+            "source": record.get("source"),
+            "orchestrator_pid": record.get("orchestrator_pid"),
+        }
+        for record in records
+    ]
+    payload = json.dumps(
+        contributing_starts,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _maybe_notify_restart_storm(
+    records: list[dict[str, object]],
+    *,
+    sources: list[str],
+    now: float,
+    notify_storm_fn: Callable[[list[str], str], str] | None,
+) -> str | None:
+    signature = _restart_storm_signature(records)
+    marker = _state.read_json(_storm_notification_marker_path())
+    if isinstance(marker, dict) and marker.get("signature") == signature:
+        return None
+
+    # Persist the signature first so a notification backend failure cannot
+    # turn every ensure poll into another alert attempt for the same episode.
+    _state.atomic_write_json(
+        _storm_notification_marker_path(),
+        {
+            "signature": signature,
+            "notified_at_epoch": now,
+            "sources": sources,
+        },
+    )
+    if notify_storm_fn is None:
+        from sase.notifications.senders import notify_axe_restart_storm
+
+        notify_storm_fn = notify_axe_restart_storm
+    try:
+        notification_id = notify_storm_fn(sources, str(lifecycle_journal_path()))
+    except Exception:  # noqa: BLE001 - damping must hold without notification I/O.
+        return None
+    _state.atomic_write_json(
+        _storm_notification_marker_path(),
+        {
+            "signature": signature,
+            "notified_at_epoch": now,
+            "sources": sources,
+            "notification_id": notification_id,
+        },
+    )
+    return notification_id
+
+
 def _estimated_downtime_seconds(
     desired_state: AxeDesiredState | None,
     *,
@@ -573,6 +702,8 @@ def _run_systemctl(
 __all__ = [
     "DEFAULT_ENSURE_CADENCE_SECONDS",
     "DEFAULT_ENSURE_FAILURE_NOTIFICATION_CADENCE_SECONDS",
+    "DEFAULT_RESTART_STORM_THRESHOLD",
+    "DEFAULT_RESTART_STORM_WINDOW_SECONDS",
     "acquire_axe_ensure_lock",
     "ensure_axe",
     "install_ensure_timer",

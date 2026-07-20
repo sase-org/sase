@@ -7,6 +7,7 @@ from collections.abc import Callable, Sequence
 
 from .config import AxeConfig, AxeConfigError, load_axe_config
 from .desired_state import write_desired_state
+from .lifecycle_journal import append_lifecycle_event
 from .state import append_error, get_timestamp, read_lumberjack_status
 from ._process_guard import (
     AXE_LIFECYCLE_TEST_BLOCK_MESSAGE,
@@ -23,9 +24,18 @@ _DEFAULT_VERIFICATION_TIMEOUT = 15.0
 _VERIFICATION_POLL_INTERVAL = 0.1
 
 
-def restart_axe_daemon(config: AxeConfig | None = None) -> int | None:
+def restart_axe_daemon(
+    config: AxeConfig | None = None,
+    *,
+    desired_state_source: str = "axe restart",
+) -> int | None:
     """Restart the axe orchestrator and return the verified daemon PID."""
-    return restart_axe_daemon_result(config).pid
+    if desired_state_source == "axe restart":
+        return restart_axe_daemon_result(config).pid
+    return restart_axe_daemon_result(
+        config,
+        desired_state_source=desired_state_source,
+    ).pid
 
 
 def restart_axe_daemon_result(
@@ -36,6 +46,7 @@ def restart_axe_daemon_result(
     verification_timeout: float = _DEFAULT_VERIFICATION_TIMEOUT,
     sleep_fn: Callable[[float], None] = time.sleep,
     monotonic_fn: Callable[[], float] = time.monotonic,
+    desired_state_source: str = "axe restart",
 ) -> AxeStartResult:
     """Restart axe, retry startup, and verify every lumberjack heartbeat."""
     if axe_lifecycle_blocked_in_tests():
@@ -44,7 +55,7 @@ def restart_axe_daemon_result(
             message=AXE_LIFECYCLE_TEST_BLOCK_MESSAGE,
         )
 
-    write_desired_state("running", source="restart")
+    write_desired_state("running", source=desired_state_source)
 
     try:
         effective_config = config or load_axe_config()
@@ -55,19 +66,23 @@ def restart_axe_daemon_result(
             attempts=(AxeStartAttempt(number=1, status="failed", message=str(exc)),),
         )
         _report_restart_failure(result)
+        _journal_restart_result(result, source=desired_state_source)
         return result
 
     lumberjack_names = tuple(sorted(effective_config.lumberjacks))
     heartbeat_baseline = {name: _heartbeat_snapshot(name) for name in lumberjack_names}
 
-    stop_axe_daemon_result(record_desired_state=False)
+    stop_axe_daemon_result(
+        desired_state_source=desired_state_source,
+        record_desired_state=False,
+    )
 
     attempts: list[AxeStartAttempt] = []
     for number in range(1, max(1, max_attempts) + 1):
         try:
             started = start_axe_daemon_result(
                 effective_config,
-                desired_state_source="restart",
+                desired_state_source=desired_state_source,
                 record_desired_state=False,
             )
         except Exception as exc:  # noqa: BLE001 - preserve every attempt outcome.
@@ -93,18 +108,23 @@ def restart_axe_daemon_result(
                 )
             )
             if verified:
-                return AxeStartResult(
+                result = AxeStartResult(
                     status=started.status,
                     pid=started.pid,
                     message=f"Axe restarted and verified (pid {started.pid}).",
                     attempts=tuple(attempts),
                     verified=True,
                 )
+                _journal_restart_result(result, source=desired_state_source)
+                return result
 
             # Do not leave a partially-started daemon in place. Keeping the
             # desired-state marker at running lets this retry (and later the
             # watchdog) start from an honestly down state.
-            stop_axe_daemon_result(record_desired_state=False)
+            stop_axe_daemon_result(
+                desired_state_source=desired_state_source,
+                record_desired_state=False,
+            )
         else:
             attempts.append(
                 AxeStartAttempt(
@@ -127,6 +147,7 @@ def restart_axe_daemon_result(
         attempts=tuple(attempts),
     )
     _report_restart_failure(result)
+    _journal_restart_result(result, source=desired_state_source)
     return result
 
 
@@ -219,6 +240,17 @@ def _report_restart_failure(result: AxeStartResult) -> None:
         notify_axe_restart_failed(result.message, attempt_summaries)
     except Exception:  # noqa: BLE001 - restart result must still reach the caller.
         pass
+
+
+def _journal_restart_result(result: AxeStartResult, *, source: str) -> None:
+    append_lifecycle_event(
+        "restart",
+        "restarted" if result.succeeded and result.verified else "failed",
+        source=source,
+        reason=result.message,
+        orchestrator_pid=result.pid,
+        succeeded=result.succeeded and result.verified,
+    )
 
 
 __all__ = ["restart_axe_daemon", "restart_axe_daemon_result"]

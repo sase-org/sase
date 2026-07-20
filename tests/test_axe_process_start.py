@@ -49,7 +49,7 @@ def test_compose_axe_daemon_env_strips_agent_and_chop_context() -> None:
     assert result == {
         "PATH": "/bin",
         "SASE_AXE_OTHER": "keep",
-        "SASE_AXE_START_SOURCE": "start",
+        "SASE_AXE_START_SOURCE": "axe start",
     }
     assert environ["SASE_AGENT_NAME"] == "parent"
 
@@ -238,7 +238,7 @@ def test_start_axe_daemon_result_reports_held_lock_without_pid(
     marker = read_desired_state()
     assert marker is not None
     assert marker.state == "running"
-    assert marker.source == "start"
+    assert marker.source == "axe start"
     assert (temp_state_dir / "wedged_lifecycle_lock.json").exists()
 
 
