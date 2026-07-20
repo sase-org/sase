@@ -14,7 +14,9 @@ from textual.widgets import Markdown, OptionList
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import plans_detail, plans_pane
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
-from sase.bead.model import Status
+from sase.ace.tui.widgets.artifacts.plans_data import ProjectIssue
+from sase.bead.model import PhaseSize, Status
+from sase.phase_size_presentation import PHASE_SIZE_STYLES
 from tests.ace.tui._artifacts_plans_helpers import (
     _all_projects_snapshot,
     _choices,
@@ -85,7 +87,7 @@ def test_plan_list_rows_are_compact_single_line_labels(
     assert labels[1].plain.startswith("▸ ○ alpha-1 0/2 ► ")
     assert labels[1].plain.endswith("  2mo")
     assert "codex/gpt-5" not in labels[2].plain
-    assert labels[2].plain.startswith("↳ ○ alpha-1.1 ► ")
+    assert labels[2].plain.startswith("↳ ○ alpha-1.1 ►  small  ")
     assert labels[3].plain.endswith("epic  done  07-04")
 
 
@@ -135,10 +137,44 @@ def test_plan_list_rows_use_fixed_width_state_glyphs(tmp_path: Path) -> None:
         blocked_ids=frozenset(),
     ).plain
 
-    assert ready_phase.startswith("↳ ○ alpha-1.1 ► ")
-    assert blocked_phase.startswith("↳ ○ alpha-1.2 ⊜ ")
-    assert active_phase.startswith("↳ ◐ alpha-1.1 · ")
+    assert ready_phase.startswith("↳ ○ alpha-1.1 ►  small  ")
+    assert blocked_phase.startswith("↳ ○ alpha-1.2 ⊜  medium ")
+    assert active_phase.startswith("↳ ◐ alpha-1.1 ·  small  ")
     assert "active" not in active_phase
+
+
+@pytest.mark.parametrize(
+    ("size", "label"),
+    [
+        (PhaseSize.SMALL, "small"),
+        (PhaseSize.MEDIUM, "medium"),
+        (PhaseSize.LARGE, "large"),
+        (None, "small"),
+    ],
+)
+def test_phase_rows_show_persisted_size_with_legacy_small_fallback(
+    tmp_path: Path,
+    size: PhaseSize | None,
+    label: str,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    phase = replace(
+        snapshot.phases_by_epic[("alpha", "alpha-1")][0].issue,
+        size=size,
+        title="A flexible title that yields to ellipsis",
+    )
+
+    row = plans_pane._phase_text(
+        phase,
+        project="alpha",
+        ready_ids=snapshot.ready_ids,
+        blocked_ids=snapshot.blocked_ids,
+    )
+    rendered = row.wrap(Console(width=31), 31)[0]
+
+    assert f"►  {label}" in rendered.plain
+    assert "flexible title" not in rendered.plain
+    assert any(str(span.style) == PHASE_SIZE_STYLES[label] for span in row.spans)
 
 
 async def test_plan_list_options_stay_single_line_when_narrow(
@@ -265,6 +301,7 @@ def test_detail_properties_render_all_frontmatter_in_stable_order(
         "tier": "epic",
         "title": "Property-rich plan",
         "alpha": "first extra",
+        "phases": "one(size=small) · two(size=medium) · three(size=large)",
     }
     proposal = replace(snapshot.proposals[0], frontmatter=frontmatter)
     archive = replace(
@@ -289,6 +326,7 @@ def test_detail_properties_render_all_frontmatter_in_stable_order(
         "create_time",
         "goal",
         "alpha",
+        "phases",
         "zeta",
     ]
     for value in frontmatter.values():
@@ -297,6 +335,108 @@ def test_detail_properties_render_all_frontmatter_in_stable_order(
     assert "Source" in archive_detail
     assert "Project" in archive_detail
     assert "archive.md" in "".join(archive_detail.split())
+    assert proposal_detail.count("Phases") == 1
+    assert archive_detail.count("Phases") == 1
+    for label in ("small", "medium", "large"):
+        assert proposal_detail.count(label) == 1
+        assert archive_detail.count(label) == 1
+
+
+def test_bead_detail_uses_persisted_phase_sizes_and_fixed_epic_breakdown(
+    tmp_path: Path,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    epic = snapshot.epics[0].issue
+    first, second = snapshot.phases_by_epic[("alpha", epic.id)]
+    third_issue = replace(
+        second.issue,
+        id="alpha-1.3",
+        title="Large phase",
+        size=PhaseSize.LARGE,
+        dependencies=[],
+    )
+    legacy_issue = replace(
+        second.issue,
+        id="alpha-1.4",
+        title="Legacy phase",
+        size=None,
+        dependencies=[],
+    )
+    snapshot = replace(
+        snapshot,
+        phases_by_epic={
+            ("alpha", epic.id): (
+                first,
+                second,
+                ProjectIssue("alpha", third_issue),
+                ProjectIssue("alpha", legacy_issue),
+            )
+        },
+    )
+
+    epic_detail = _render_detail(
+        plans_detail.bead_properties_header(
+            epic,
+            snapshot,
+            project="alpha",
+            project_name="Alpha",
+        )
+    )
+    phase_detail = _render_detail(
+        plans_detail.bead_properties_header(
+            third_issue,
+            snapshot,
+            project="alpha",
+            project_name="Alpha",
+        )
+    )
+    legacy_detail = _render_detail(
+        plans_detail.bead_properties_header(
+            legacy_issue,
+            snapshot,
+            project="alpha",
+            project_name="Alpha",
+        )
+    )
+
+    assert "Phase sizes" in epic_detail
+    assert "2 small · 1 medium · 1 large" in epic_detail
+    assert "\n       Size" not in epic_detail
+    assert "Size" in phase_detail and "large" in phase_detail
+    assert "Phase sizes" not in phase_detail
+    assert "Size" in legacy_detail and "small" in legacy_detail
+
+    epic_preview = plans_detail.bead_preview_markdown(
+        epic,
+        snapshot,
+        project="alpha",
+    )
+    phase_preview = plans_detail.bead_preview_markdown(
+        legacy_issue,
+        snapshot,
+        project="alpha",
+    )
+    assert "**Phase sizes:** 2 small · 1 medium · 1 large" in epic_preview
+    assert "**Size:** small" in phase_preview
+
+
+def test_epic_detail_omits_size_breakdown_without_direct_phase_context(
+    tmp_path: Path,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    epic = snapshot.epics[0].issue
+    snapshot = replace(snapshot, phases_by_epic={})
+
+    detail = _render_detail(
+        plans_detail.bead_properties_header(
+            epic,
+            snapshot,
+            project="alpha",
+            project_name="Alpha",
+        )
+    )
+
+    assert "Phase sizes" not in detail
 
 
 def test_bead_detail_keeps_dependency_states_in_properties(tmp_path: Path) -> None:

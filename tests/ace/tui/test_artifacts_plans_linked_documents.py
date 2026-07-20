@@ -259,6 +259,7 @@ async def test_bead_details_append_current_plan_after_description_and_notes(
         frontmatter={
             "title": "Worker-loaded plan",
             "goal": "Preserve ordering",
+            "phases": "small: small · medium: medium · large: large",
         },
         body="# Linked plan body\n\nComplete content.\n",
         error=None,
@@ -295,6 +296,7 @@ async def test_bead_details_append_current_plan_after_description_and_notes(
         assert epic_source.index("## Description") < epic_source.index("## Notes")
         assert epic_source.index("## Notes") < epic_source.index("## Plan")
         assert "**Title:** Worker-loaded plan" in epic_source
+        assert epic_source.count("small: small · medium: medium · large: large") == 1
         assert "# Linked plan body" in epic_source
 
         await page.press("l", "j")

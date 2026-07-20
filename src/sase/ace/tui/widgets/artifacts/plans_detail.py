@@ -6,7 +6,13 @@ from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
-from sase.bead.model import Issue, Status
+from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
+from sase.phase_size_presentation import (
+    PHASE_SIZE_STYLES,
+    PHASE_SIZE_VALUES,
+    normalize_phase_size,
+    phase_size_chip,
+)
 from sase.plan_search.model import PlanSearchMatch
 
 from .plans_data import LinkedPlanDocument, PlanProposal, PlansSnapshot
@@ -66,8 +72,17 @@ def bead_properties_header(
         ("Readiness", _readiness_chip(issue, snapshot, project=project)),
         ("Type", issue.issue_type.value),
     ]
+    if issue.issue_type is IssueType.PHASE:
+        properties.append(("Size", phase_size_chip(issue.size or PhaseSize.SMALL)))
     if issue.tier is not None:
         properties.append(("Tier", issue.tier.value))
+    if (
+        issue.issue_type is IssueType.PLAN
+        and issue.tier is BeadTier.EPIC
+        and (phase_sizes := _epic_phase_sizes(issue, snapshot, project=project))
+        is not None
+    ):
+        properties.append(("Phase sizes", phase_sizes))
     properties.extend(
         [
             ("Model", issue.model),
@@ -203,6 +218,15 @@ def bead_preview_markdown(
         f"**Readiness:** {_readiness_label(issue, snapshot, project=project)}  ",
         f"**Type:** {issue.issue_type.value}  ",
     ]
+    if issue.issue_type is IssueType.PHASE:
+        size = normalize_phase_size(issue.size or PhaseSize.SMALL)
+        lines.append(f"**Size:** {size or 'unavailable'}  ")
+    elif (
+        issue.tier is BeadTier.EPIC
+        and (phase_sizes := _epic_phase_sizes(issue, snapshot, project=project))
+        is not None
+    ):
+        lines.append(f"**Phase sizes:** {phase_sizes.plain}  ")
     if issue.model:
         lines.append(f"**Model:** {issue.model}  ")
     if issue.assignee:
@@ -298,6 +322,38 @@ def _dependencies_text(
         text.append(f" {dependency.depends_on_id}", style="white")
         text.append(f"  {state.replace('_', ' ')}", style=style)
     return text
+
+
+def _epic_phase_sizes(
+    issue: Issue,
+    snapshot: PlansSnapshot | None,
+    *,
+    project: str,
+) -> Text | None:
+    """Summarize persisted direct phase sizes without consulting authored plans."""
+    if snapshot is None:
+        return None
+    phases = snapshot.phases_by_epic.get((project, issue.id))
+    if not phases:
+        return None
+
+    counts = dict.fromkeys(PHASE_SIZE_VALUES, 0)
+    for phase in phases:
+        size = normalize_phase_size(phase.issue.size or PhaseSize.SMALL)
+        if size is None:
+            return None
+        counts[size] += 1
+
+    text = Text()
+    for size in PHASE_SIZE_VALUES:
+        count = counts[size]
+        if not count:
+            continue
+        if text:
+            text.append(" · ", style="dim")
+        text.append(f"{count} ", style="white")
+        text.append(size, style=PHASE_SIZE_STYLES[size])
+    return text or None
 
 
 def _dependency_state(

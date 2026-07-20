@@ -7,7 +7,8 @@ from datetime import datetime
 
 from rich.text import Text
 
-from sase.bead.model import Issue, Status
+from sase.bead.model import Issue, PhaseSize, Status
+from sase.phase_size_presentation import phase_size_chip
 from sase.plan_search.model import PlanSearchMatch
 
 from ...keymaps import KeymapRegistry, key_display_name
@@ -258,6 +259,8 @@ def phase_text(
         blocked_ids=blocked_ids,
     )
     text.append(state_glyph, style=state_style)
+    text.append(" ")
+    text.append_text(phase_size_chip(phase.size or PhaseSize.SMALL))
     text.append(" ")
     text.append(phase.title, style="white")
     return text

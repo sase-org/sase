@@ -11,11 +11,19 @@ from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.plan_filter_bar import PlanFilterBar
-from sase.ace.tui.widgets.artifacts.plans_data import LinkedPlanDocument, PlansSnapshot
+from sase.ace.tui.widgets.artifacts.plans_data import (
+    LinkedPlanDocument,
+    PlansSnapshot,
+    ProjectIssue,
+)
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.bead.model import PhaseSize
 from sase.plan_search.filter_query import parse_plan_filter_query
 from tests.ace.tui._artifacts_plans_helpers import _choices, _snapshot
+from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
+    assert_page_svg_contains,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -30,6 +38,15 @@ pytestmark = pytest.mark.visual
 
 def _visual_snapshot(tmp_path: Path) -> PlansSnapshot:
     snapshot = _snapshot(tmp_path)
+    epic = snapshot.epics[0].issue
+    phases = snapshot.phases_by_epic[("alpha", epic.id)]
+    large_phase = replace(
+        phases[1].issue,
+        id="alpha-1.3",
+        title="Polish visual states",
+        size=PhaseSize.LARGE,
+        dependencies=[],
+    )
     return replace(
         snapshot,
         proposals=(
@@ -38,6 +55,9 @@ def _visual_snapshot(tmp_path: Path) -> PlansSnapshot:
                 plan_path="/workspace/alpha--plans/202607/ship_plan_browser.md",
             ),
         ),
+        phases_by_epic={
+            ("alpha", epic.id): (*phases, ProjectIssue("alpha", large_phase))
+        },
     )
 
 
@@ -139,6 +159,9 @@ async def test_artifacts_plans_populated_png_snapshot(
         await page.app.wait_for_refresh()
         await wait_for_svg_contains(page, "Linked plan content.")
         await wait_for_visual_idle(page)
+        for label in ("small", "medium", "large"):
+            assert_page_svg_contains(page, label)
+        assert_page_svg_contains(page, "Size")
 
         ace_png_visual.assert_page_png(
             page,
@@ -252,7 +275,7 @@ async def test_plans_narrowed_filter_chips_png_snapshot(
         await page.wait_for(
             lambda _state: (
                 "0/1 proposals" in status.content.plain
-                and "1/2 phases" in status.content.plain
+                and "1/3 phases" in status.content.plain
                 and "load" in pane.query_one("#plans-info", Static).content.plain
             )
         )

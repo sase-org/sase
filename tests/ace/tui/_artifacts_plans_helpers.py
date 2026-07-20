@@ -13,7 +13,7 @@ from sase.ace.tui.widgets.artifacts.plans_data import (
     ProjectArchive,
     ProjectIssue,
 )
-from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
+from sase.bead.model import BeadTier, Dependency, Issue, IssueType, PhaseSize, Status
 from sase.notifications.models import Notification
 from sase.plan_search.model import Plan, PlanSearchMatch
 
@@ -58,6 +58,7 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
         "status": "wip",
         "create_time": "2026-07-06 11:58:00",
         "goal": "Make plans readable and actionable across every enabled project.",
+        "phases": ("small: small · medium: medium · large: large"),
         "reviewer": "platform-ui",
     }
     proposal_body = (
@@ -87,6 +88,16 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
             "status: wip\n"
             "create_time: 2026-07-06 11:58:00\n"
             "goal: Make plans readable and actionable across every enabled project.\n"
+            "phases:\n"
+            "- id: small\n"
+            "  title: Small phase\n"
+            "  size: small\n"
+            "- id: medium\n"
+            "  title: Medium phase\n"
+            "  size: medium\n"
+            "- id: large\n"
+            "  title: Large phase\n"
+            "  size: large\n"
             "reviewer: platform-ui\n"
             "---\n"
             f"{proposal_body}"
@@ -114,6 +125,7 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
         issue_type=IssueType.PHASE,
         parent_id=epic.id,
         model="codex/gpt-5",
+        size=PhaseSize.SMALL,
         created_at="2026-07-01T09:00:00Z",
         updated_at="2026-07-05T10:00:00Z",
     )
@@ -122,6 +134,7 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
         title="Render dependency state",
         issue_type=IssueType.PHASE,
         parent_id=epic.id,
+        size=PhaseSize.MEDIUM,
         dependencies=[
             Dependency(
                 issue_id="alpha-1.2",
@@ -151,6 +164,7 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
                 "status": "done",
                 "create_time": "2026-07-04 10:00:00",
                 "goal": "Record a completed rollout with its full plan metadata.",
+                "phases": "small: small · medium: medium · large: large",
             },
         ),
         matched_fields=[],

@@ -120,6 +120,22 @@ Quote the whole token to search for a literal leading minus (`"-repo:plans"`); q
 negation active (`-"generated rollout"`). Matching remains case-insensitive, and repository/project aliases work for
 both inclusion and exclusion.
 
+### Epic phase sizes across plan surfaces
+
+ACE uses the literal scope labels `small`, `medium`, and `large`, with blue, gold, and rose chips whose text remains the
+primary signal. Valid older plans and phase beads with an omitted size use the stable `small` fallback, while an invalid
+authored value never produces a confident chip or count.
+
+| Surface                                                                  | Size contract                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agents author and lander                                                 | Shows every normalized authored size in roadmap order.                                                                                                                                                                                                               |
+| Agents phase worker                                                      | Shows only that worker's normalized authored size, preserving phase isolation.                                                                                                                                                                                       |
+| Artifacts / Plans epic and phase beads                                   | Shows current persisted bead sizes in rows and details; the epic detail summarizes direct children in `small`, `medium`, `large` order. These execution views intentionally do not reconcile bead values with authored values because work routing follows the bead. |
+| Artifacts proposals, linked plans, and archives                          | Retains the authored `phases` property exactly once instead of adding a competing roadmap.                                                                                                                                                                           |
+| Telegram epic review                                                     | Adds a validated textual size breakdown while retaining the detailed Properties card and source/PDF attachment.                                                                                                                                                      |
+| Epic clan summary, `sase bead show`, and epic work preview               | Continues using persisted bead sizes, which these execution surfaces already exposed.                                                                                                                                                                                |
+| Raw approval, validation/schema, source/PDF, and mobile attachment paths | Remains a lossless generic/source view; authored phase metadata is preserved without a second summary.                                                                                                                                                               |
+
 ## Keybindings: Artifacts / PRs
 
 ### Navigation
