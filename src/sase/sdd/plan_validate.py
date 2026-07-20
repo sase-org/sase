@@ -75,6 +75,8 @@ class _ValidatedPlan:
     changespec: str | None
     bug_id: int | None
     parent_bead: str | None
+    bead: str | None
+    parent: str | None
 
 
 @dataclass(frozen=True)
@@ -196,6 +198,8 @@ def _validated_plan_from_dict(payload: dict[str, Any]) -> _ValidatedPlan:
         changespec=_optional_str(payload.get("changespec")),
         bug_id=(int(payload["bug_id"]) if payload.get("bug_id") is not None else None),
         parent_bead=_optional_str(payload.get("parent_bead")),
+        bead=_optional_str(payload.get("bead")),
+        parent=_optional_str(payload.get("parent")),
     )
 
 

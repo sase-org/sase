@@ -12,6 +12,7 @@ import pytest
 
 from sase.main import plan_command_handler
 from sase.sdd.frontmatter import parse_frontmatter
+from sase.sdd.plan_validate import validate_plan
 from tests.conftest import redirect_sase_home
 
 
@@ -47,6 +48,7 @@ def _clear_bead_work_association_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep proposal tests independent from the launching agent's bead env."""
     monkeypatch.delenv("SASE_PHASE_BEAD_ID", raising=False)
     monkeypatch.delenv("SASE_EPIC_BEAD_ID", raising=False)
+    monkeypatch.delenv("SASE_EPIC_PLAN_REF", raising=False)
 
 
 def _make_artifacts_dir(sase_home: Path) -> Path:
@@ -244,41 +246,80 @@ def test_plan_command_accepts_valid_epic(
 
 
 @pytest.mark.parametrize(
-    ("content", "phase_bead", "epic_bead", "expected_parent"),
+    ("content", "phase_bead", "epic_bead", "plan_ref", "expected_fields"),
     [
+        pytest.param(
+            VALID_TALE,
+            "sase-7z.5",
+            "sase-7z",
+            "sase/repos/plans/202607/parent.md",
+            {
+                "bead": "sase-7z.5",
+                "parent": "sase/repos/plans/202607/parent.md",
+            },
+            id="tale-phase-agent",
+        ),
+        pytest.param(
+            VALID_TALE,
+            None,
+            "sase-7z",
+            "sase/repos/plans/202607/parent.md",
+            {
+                "bead": "sase-7z",
+                "parent": "sase/repos/plans/202607/parent.md",
+            },
+            id="tale-land-agent",
+        ),
         pytest.param(
             VALID_EPIC,
             "sase-7z.5",
             "sase-7z",
-            "sase-7z.5",
-            id="phase-precedes-epic",
+            "sase/repos/plans/202607/parent.md",
+            {
+                "parent_bead": "sase-7z.5",
+                "parent": "sase/repos/plans/202607/parent.md",
+            },
+            id="epic-phase-precedes-epic",
         ),
         pytest.param(
             VALID_EPIC,
             None,
             "sase-7z",
-            "sase-7z",
-            id="land-agent",
+            "sase/repos/plans/202607/parent.md",
+            {
+                "parent_bead": "sase-7z",
+                "parent": "sase/repos/plans/202607/parent.md",
+            },
+            id="epic-land-agent",
         ),
-        pytest.param(VALID_EPIC, None, None, None, id="outside-bead-work"),
         pytest.param(
             VALID_TALE,
             "sase-7z.5",
             "sase-7z",
             None,
-            id="tale-remains-unstamped",
+            {"bead": "sase-7z.5"},
+            id="missing-plan-ref",
+        ),
+        pytest.param(
+            VALID_EPIC,
+            None,
+            None,
+            None,
+            {},
+            id="outside-bead-work",
         ),
     ],
 )
-def test_plan_command_stamps_epic_parent_from_bead_work_env(
+def test_plan_command_stamps_associations_from_bead_work_env(
     content: str,
     phase_bead: str | None,
     epic_bead: str | None,
-    expected_parent: str | None,
+    plan_ref: str | None,
+    expected_fields: dict[str, str],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Only epic proposals inherit the most specific active bead ID."""
+    """Proposals inherit tier-specific bead and parent-plan associations."""
     sase_home = tmp_path / ".sase"
     redirect_sase_home(monkeypatch, sase_home)
     artifacts_dir = _make_artifacts_dir(sase_home)
@@ -290,6 +331,8 @@ def test_plan_command_stamps_epic_parent_from_bead_work_env(
         monkeypatch.setenv("SASE_PHASE_BEAD_ID", phase_bead)
     if epic_bead is not None:
         monkeypatch.setenv("SASE_EPIC_BEAD_ID", epic_bead)
+    if plan_ref is not None:
+        monkeypatch.setenv("SASE_EPIC_PLAN_REF", plan_ref)
 
     with (
         patch(
@@ -310,10 +353,19 @@ def test_plan_command_stamps_epic_parent_from_bead_work_env(
     frontmatter, _body, _had_frontmatter = parse_frontmatter(
         archived.read_text(encoding="utf-8")
     )
-    if expected_parent is None:
-        assert "parent_bead" not in frontmatter
-    else:
-        assert frontmatter["parent_bead"] == expected_parent
+    for field in ("bead", "parent", "parent_bead"):
+        if field in expected_fields:
+            assert frontmatter[field] == expected_fields[field]
+        else:
+            assert field not in frontmatter
+
+    tier = "epic" if content == VALID_EPIC else "tale"
+    validation = validate_plan(archived.read_text(encoding="utf-8"), tier)
+    assert validation.ok
+    assert validation.plan is not None
+    assert validation.plan.bead == expected_fields.get("bead")
+    assert validation.plan.parent == expected_fields.get("parent")
+    assert validation.plan.parent_bead == expected_fields.get("parent_bead")
 
 
 @pytest.mark.parametrize(

@@ -90,23 +90,28 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
             )
             sys.exit(1)
 
-    # Epic plans proposed from bead work inherit the bead this agent is
-    # responsible for.  The phase association is more specific than the epic
-    # association and therefore wins for phase agents; land agents only carry
-    # the epic association.  Tales deliberately remain unstamped so a coder
-    # follow-up can later propose its own epic with the inherited environment.
-    parent_bead: str | None = None
-    if target_tier == "epic":
-        from sase.bead.work import (
-            SASE_EPIC_BEAD_ID_ENV,
-            SASE_PHASE_BEAD_ID_ENV,
-        )
+    # Plans proposed from epic bead work inherit their managed associations.
+    # Tales record the active phase (or land-agent epic) bead and the parent
+    # epic plan.  Child epics record that active bead as ``parent_bead`` and
+    # the same parent plan.  The phase bead is the more specific association.
+    from sase.bead.work import (
+        SASE_EPIC_BEAD_ID_ENV,
+        SASE_EPIC_PLAN_REF_ENV,
+        SASE_PHASE_BEAD_ID_ENV,
+    )
 
-        parent_bead = (
-            os.environ.get(SASE_PHASE_BEAD_ID_ENV, "").strip()
-            or os.environ.get(SASE_EPIC_BEAD_ID_ENV, "").strip()
-            or None
-        )
+    active_bead = (
+        os.environ.get(SASE_PHASE_BEAD_ID_ENV, "").strip()
+        or os.environ.get(SASE_EPIC_BEAD_ID_ENV, "").strip()
+    )
+    parent_plan = os.environ.get(SASE_EPIC_PLAN_REF_ENV, "").strip()
+    stamps: dict[str, str] = {}
+    if target_tier == "tale" and active_bead:
+        stamps["bead"] = active_bead
+    elif target_tier == "epic" and active_bead:
+        stamps["parent_bead"] = active_bead
+    if parent_plan:
+        stamps["parent"] = parent_plan
 
     # Format plan file in-place with prettier before archiving.  Stamp the
     # managed association first so the archived copy is fully formatted.
@@ -114,10 +119,10 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
 
     original = plan_path.read_text(encoding="utf-8")
     raw = original
-    if parent_bead is not None:
+    if stamps:
         from sase.sdd.frontmatter import set_frontmatter_fields
 
-        raw = set_frontmatter_fields(raw, {"parent_bead": parent_bead})
+        raw = set_frontmatter_fields(raw, stamps)
     formatted = format_with_prettier(raw)
     if formatted != original:
         plan_path.write_text(formatted, encoding="utf-8")
