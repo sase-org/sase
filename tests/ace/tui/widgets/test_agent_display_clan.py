@@ -1,4 +1,4 @@
-"""Aggregate clan detail rendering in the Agents metadata panel."""
+"""Clan header and compatibility rendering in the Agents metadata panel."""
 
 from __future__ import annotations
 
@@ -7,173 +7,29 @@ from types import SimpleNamespace
 
 from rich.text import Text
 
-from sase.ace.tui.models._agent_clan_sections import (
-    CLAN_DISK_SECTIONS,
-    ClanContextEntry,
-    ClanContextLane,
-    ClanDiskMemberSnapshot,
-    ClanDiskSnapshot,
-    ClanSectionSnapshot,
-    ClanSlowToolEntry,
-    ClanTextEntry,
-    aggregate_clan_in_memory,
-)
 from sase.ace.tui.models._agent_tree import project_clan_tree
-from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.tools._entry import ToolCallEntry
-from sase.ace.tui.tools.slow import SlowToolCall
 from sase.ace.tui.widgets.prompt_panel._agent_display_clan import (
     build_clan_detail_text,
-    clan_disk_sections_for_fold_state,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 from sase.ace.tui.widgets.prompt_panel._agent_display_render import (
     AgentDisplayRenderMixin,
 )
-
-_GENERATION = "20260717120000"
-_SASE_BEADS_SKILL = "sase" + "_beads"
-
-
-def _style_at(text: Text, position: int) -> str | None:
-    for span in reversed(text.spans):
-        if span.start <= position < span.end:
-            return str(span.style)
-    return str(text.style) if text.style else None
-
-
-def _agent(
-    name: str,
-    *,
-    status: str,
-    start: datetime,
-    stop: datetime | None = None,
-    model: str | None = "gpt-5",
-    parent_timestamp: str | None = None,
-    family: str | None = None,
-) -> Agent:
-    return Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name=name,
-        project_file="/tmp/demo.sase",
-        status=status,
-        start_time=start,
-        run_start_time=start,
-        stop_time=stop,
-        raw_suffix=start.strftime("%Y%m%d%H%M%S") + name,
-        agent_name=name,
-        parent_timestamp=parent_timestamp,
-        agent_family=family,
-        agent_clan="research",
-        agent_clan_generation=_GENERATION,
-        model=model,
-    )
-
-
-def _rich_clan_snapshot() -> tuple[Agent, ClanSectionSnapshot]:
-    member = _agent(
-        "research.one",
-        status="FAILED",
-        start=datetime(2026, 7, 17, 12, 0, 0),
-        stop=datetime(2026, 7, 17, 12, 3, 0),
-    )
-    member.activity = "reviewing patch"
-    member.waiting_for = ["research.peer"]
-    member.workspace_num = 7
-    member.epic_bead_id = "sase-demo"
-    member.plan_path = "/tmp/demo-plan.md"
-    member.error_message = "Build failed\nSecond error detail"
-    member.error_traceback = "Traceback line one\nValueError: broken"
-    member.output_variables = {"report": "summary line\nfull report detail"}
-    member.step_output = {
-        "meta_release_notes": "release summary\nrelease detail",
-    }
-    container = project_clan_tree([member])[0]
-    in_memory = aggregate_clan_in_memory(container)
-    identity = member.identity
-    reply = ClanTextEntry(
-        member_identity=identity,
-        member_label=".one",
-        kind="AGENT REPLY",
-        preview="Reply summary",
-        body="Reply summary\nReply full detail",
-    )
-    prompt = ClanTextEntry(
-        member_identity=identity,
-        member_label=".one",
-        kind="AGENT XPROMPT",
-        preview="#review segment",
-        body="#review segment\nPrompt full detail",
-    )
-    context_lanes = (
-        ClanContextLane(
-            label="BEAD",
-            entries=(
-                ClanContextEntry(
-                    key="sase-demo",
-                    label="sase-demo · render clan summary",
-                    member_labels=(".one",),
-                ),
-            ),
-        ),
-        ClanContextLane(
-            label="SKILLS",
-            entries=(
-                ClanContextEntry(
-                    key=_SASE_BEADS_SKILL,
-                    label=_SASE_BEADS_SKILL,
-                    member_labels=(".one",),
-                    count=2,
-                ),
-            ),
-        ),
-    )
-    tool_entry = ToolCallEntry(
-        recorded_at="2026-07-17T12:00:00Z",
-        runtime="codex",
-        event="ToolCall",
-        status="completed",
-        tool_name="Bash",
-        duration_ms=125_000,
-        tool_input_summary={"command": "just check"},
-    )
-    slow_tool = ClanSlowToolEntry(
-        member_identity=identity,
-        member_label=".one",
-        source_label="attempt 1",
-        call=SlowToolCall(
-            entry=tool_entry,
-            started_at=datetime.fromisoformat("2026-07-17T12:00:00+00:00"),
-            effective_duration_ms=125_000,
-        ),
-    )
-    disk_member = ClanDiskMemberSnapshot(
-        member_identity=identity,
-        member_label=".one",
-        loaded_sections=CLAN_DISK_SECTIONS,
-        replies=(reply,),
-        prompts=(prompt,),
-    )
-    disk = ClanDiskSnapshot(
-        loaded_sections=CLAN_DISK_SECTIONS,
-        members=(disk_member,),
-        replies=(reply,),
-        prompts=(prompt,),
-        context_lanes=context_lanes,
-        slow_tool_calls=(slow_tool,),
-    )
-    return container, ClanSectionSnapshot(in_memory=in_memory, disk=disk)
+from tests.ace.tui.widgets._agent_display_clan_helpers import (
+    make_clan_agent,
+    style_at,
+)
 
 
 def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None:
-    first = _agent(
+    first = make_clan_agent(
         "research.first",
         status="DONE",
         start=datetime(2026, 7, 17, 12, 0, 0),
         stop=datetime(2026, 7, 17, 12, 2, 0),
     )
-    second = _agent(
+    second = make_clan_agent(
         "research.second",
         status="FAILED",
         start=datetime(2026, 7, 17, 12, 1, 0),
@@ -205,12 +61,12 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
         " 1  .second · agent · ✗ FAILED · default · 45s"
     )
     assert "▸ ERRORS · 1\n" in detail.plain
-    assert _style_at(detail, detail.plain.index("CLAN")) == ("bold #D75FFF underline")
-    assert _style_at(detail, detail.plain.index("research")) == "#D75FFF"
+    assert style_at(detail, detail.plain.index("CLAN")) == ("bold #D75FFF underline")
+    assert style_at(detail, detail.plain.index("research")) == "#D75FFF"
 
 
 def test_new_style_clan_tribe_projects_into_folded_summary_header() -> None:
-    member = _agent(
+    member = make_clan_agent(
         "sase-6u.land",
         status="RUNNING",
         start=datetime(2026, 7, 17, 12, 0, 0),
@@ -230,7 +86,7 @@ def test_new_style_clan_tribe_projects_into_folded_summary_header() -> None:
 
 
 def test_clan_summary_renders_rich_markup_at_every_fold_level() -> None:
-    member = _agent(
+    member = make_clan_agent(
         "research.one",
         status="RUNNING",
         start=datetime(2026, 7, 17, 12, 0, 0),
@@ -255,11 +111,11 @@ def test_clan_summary_renders_rich_markup_at_every_fold_level() -> None:
             "Trace the summary from launch to panel.\n\n"
             "Fold: "
         ) in plain
-        assert _style_at(detail, plain.index("RESEARCH PROMPT:")) == ("bold #ffd75f")
+        assert style_at(detail, plain.index("RESEARCH PROMPT:")) == ("bold #ffd75f")
 
 
 def test_clan_summary_invalid_markup_falls_back_to_raw_text() -> None:
-    member = _agent(
+    member = make_clan_agent(
         "research.one",
         status="RUNNING",
         start=datetime(2026, 7, 17, 12, 0, 0),
@@ -272,215 +128,8 @@ def test_clan_summary_invalid_markup_falls_back_to_raw_text() -> None:
     assert "Members: 1 agent\n\n[bold]Research[/italic]\n\nFold: 1/3" in detail
 
 
-def test_cold_collapsed_summary_hides_unknown_disk_sections_behind_tail() -> None:
-    member = _agent(
-        "research.one",
-        status="RUNNING",
-        start=datetime(2026, 7, 17, 12, 0, 0),
-    )
-    container = project_clan_tree([member])[0]
-
-    detail = build_clan_detail_text(
-        container,
-        fold_level=FoldLevel.COLLAPSED,
-    ).plain
-
-    assert "Tribes:" not in detail
-    assert "Members: 1 agent\n" in detail
-    for heading in ("REPLIES", "SASE CONTEXT", "SLOW TOOL CALLS", "PROMPTS"):
-        assert heading not in detail
-    assert "loading…" not in detail
-    assert detail.count("⋯ scanning member data…") == 1
-    assert clan_disk_sections_for_fold_state(FoldLevel.COLLAPSED) == (
-        CLAN_DISK_SECTIONS
-    )
-
-
-def test_known_empty_disk_sections_disappear_from_collapsed_summary() -> None:
-    member = _agent(
-        "research.one",
-        status="RUNNING",
-        start=datetime(2026, 7, 17, 12, 0, 0),
-    )
-    container = project_clan_tree([member])[0]
-    in_memory = aggregate_clan_in_memory(container)
-    disk_member = ClanDiskMemberSnapshot(
-        member_identity=member.identity,
-        member_label=".one",
-        loaded_sections=CLAN_DISK_SECTIONS,
-    )
-    snapshot = ClanSectionSnapshot(
-        in_memory=in_memory,
-        disk=ClanDiskSnapshot(
-            loaded_sections=CLAN_DISK_SECTIONS,
-            members=(disk_member,),
-            replies=(),
-            prompts=(),
-            context_lanes=(),
-            slow_tool_calls=(),
-        ),
-    )
-
-    detail = build_clan_detail_text(
-        container,
-        snapshot=snapshot,
-        fold_level=FoldLevel.COLLAPSED,
-    ).plain
-
-    for heading in ("REPLIES", "SASE CONTEXT", "SLOW TOOL CALLS", "PROMPTS"):
-        assert heading not in detail
-    assert "⋯ scanning member data…" not in detail
-
-
-def test_loaded_non_empty_disk_section_appears_while_others_scan() -> None:
-    container, snapshot = _rich_clan_snapshot()
-    assert snapshot.disk is not None
-    disk = snapshot.disk
-    partial = ClanSectionSnapshot(
-        in_memory=snapshot.in_memory,
-        disk=ClanDiskSnapshot(
-            loaded_sections=frozenset({"replies"}),
-            members=disk.members,
-            replies=disk.replies,
-            prompts=(),
-            context_lanes=(),
-            slow_tool_calls=(),
-        ),
-    )
-
-    detail = build_clan_detail_text(
-        container,
-        snapshot=partial,
-        fold_level=FoldLevel.COLLAPSED,
-    ).plain
-
-    assert "▸ REPLIES · 1\n" in detail
-    assert "PROMPTS" not in detail
-    assert detail.count("⋯ scanning member data…") == 1
-
-
-def test_clan_sections_honor_all_three_fold_contracts() -> None:
-    container, snapshot = _rich_clan_snapshot()
-
-    collapsed = build_clan_detail_text(
-        container,
-        snapshot=snapshot,
-        fold_level=FoldLevel.COLLAPSED,
-    ).plain
-    expanded = build_clan_detail_text(
-        container,
-        snapshot=snapshot,
-        fold_level=FoldLevel.EXPANDED,
-    ).plain
-    full = build_clan_detail_text(
-        container,
-        snapshot=snapshot,
-        fold_level=FoldLevel.FULLY_EXPANDED,
-    ).plain
-
-    assert "Fold: 1/3\n" in collapsed
-    for heading in (
-        "▸ ❖ CLAN MEMBERS · 1",
-        "▸ ERRORS · 1",
-        "▸ OUTPUT VARIABLES · 1",
-        "▸ WORKFLOW VARIABLES · 1",
-        "▸ REPLIES · 1",
-        "▸ SASE CONTEXT · 2",
-        "▸ SLOW TOOL CALLS · 1",
-        "▸ PROMPTS · 1",
-    ):
-        assert heading in collapsed
-    assert ".one · agent · ✗ FAILED" in collapsed
-    assert "Build failed" not in collapsed
-    assert "Reply summary" not in collapsed
-
-    assert "Fold: 2/3\n" in expanded
-    assert "▾ ❖ CLAN MEMBERS · 1" in expanded
-    assert "reviewing patch" in expanded
-    assert "wait for research.peer" in expanded
-    assert "• .one · Build failed" in expanded
-    assert "• .one.report = summary line" in expanded
-    assert "• .one · AGENT REPLY · Reply summary" in expanded
-    assert "BEAD · sase-demo · render clan summary" in expanded
-    assert "• .one · Bash · 2m 5s · just check" in expanded
-    assert ".one [XPROMPT] · AGENT XPROMPT · #review segment" in expanded
-    assert "Second error detail" not in expanded
-    assert "Reply full detail" not in expanded
-
-    assert "Fold: 3/3\n" in full
-    assert "▼ ❖ CLAN MEMBERS · 1" in full
-    assert "start 2026-07-17 12:00:00" in full
-    assert "0 attempts" in full
-    assert "Second error detail" in full
-    assert "ValueError: broken" in full
-    assert "full report detail" in full
-    assert "release detail" in full
-    assert "Reply full detail" in full
-    assert "Prompt full detail" in full
-
-
-def test_exhaustive_shared_level_clamps_to_fully_expanded_clan() -> None:
-    container, snapshot = _rich_clan_snapshot()
-
-    full = build_clan_detail_text(
-        container,
-        snapshot=snapshot,
-        fold_level=FoldLevel.FULLY_EXPANDED,
-    )
-    exhaustive = build_clan_detail_text(
-        container,
-        snapshot=snapshot,
-        fold_level=FoldLevel.EXHAUSTIVE,
-    )
-
-    assert exhaustive == full
-    assert "Fold: 3/3\n" in exhaustive.plain
-
-
-def test_clan_section_override_and_scanning_tail() -> None:
-    container, snapshot = _rich_clan_snapshot()
-    overrides = {
-        "errors": FoldLevel.FULLY_EXPANDED,
-        "replies": FoldLevel.EXPANDED,
-    }
-
-    detail = build_clan_detail_text(
-        container,
-        snapshot=snapshot,
-        fold_level=FoldLevel.COLLAPSED,
-        section_fold_overrides=overrides,
-    ).plain
-
-    assert "Fold: 1/3\n" in detail
-    assert "▸ ❖ CLAN MEMBERS · 1" in detail
-    assert "▼ ERRORS · 1" in detail
-    assert "Second error detail" in detail
-    assert "▾ REPLIES · 1" in detail
-    assert (
-        clan_disk_sections_for_fold_state(
-            FoldLevel.COLLAPSED,
-            overrides,
-        )
-        == CLAN_DISK_SECTIONS
-    )
-
-    loading_snapshot = ClanSectionSnapshot(in_memory=snapshot.in_memory)
-    loading = build_clan_detail_text(
-        container,
-        snapshot=loading_snapshot,
-        fold_level=FoldLevel.EXPANDED,
-    ).plain
-
-    assert "REPLIES" not in loading
-    assert "▾ SASE CONTEXT\n" in loading
-    assert "SLOW TOOL CALLS" not in loading
-    assert "PROMPTS" not in loading
-    assert "loading…" not in loading
-    assert loading.count("⋯ scanning member data…") == 1
-
-
 def test_family_header_recolors_only_real_container_name() -> None:
-    family = _agent(
+    family = make_clan_agent(
         "research.writer",
         status="RUNNING",
         start=datetime(2026, 7, 17, 12, 0, 0),
@@ -489,7 +138,7 @@ def test_family_header_recolors_only_real_container_name() -> None:
     family.agent_clan = None
     family.agent_family_role = "root"
     family.refresh_presented_agent_name()
-    synthetic = _agent(
+    synthetic = make_clan_agent(
         "research.writer--plan",
         status="DONE",
         start=datetime(2026, 7, 17, 12, 1, 0),
@@ -501,11 +150,11 @@ def test_family_header_recolors_only_real_container_name() -> None:
     lone_header, _ = build_header_text(family, cheap=True)
 
     assert isinstance(lone_header, Text)
-    assert _style_at(lone_header, lone_header.plain.index("research.writer")) == (
+    assert style_at(lone_header, lone_header.plain.index("research.writer")) == (
         "#FFD700"
     )
 
-    member = _agent(
+    member = make_clan_agent(
         "research.writer--code",
         status="RUNNING",
         start=datetime(2026, 7, 17, 12, 2, 0),
@@ -517,14 +166,14 @@ def test_family_header_recolors_only_real_container_name() -> None:
 
     assert isinstance(family_header, Text)
     assert (
-        _style_at(
+        style_at(
             family_header,
             family_header.plain.index("research.writer"),
         )
         == "#00AFFF"
     )
 
-    ordinary = _agent(
+    ordinary = make_clan_agent(
         "research.reader",
         status="RUNNING",
         start=datetime(2026, 7, 17, 12, 3, 0),
@@ -534,7 +183,7 @@ def test_family_header_recolors_only_real_container_name() -> None:
 
     assert isinstance(ordinary_header, Text)
     assert (
-        _style_at(
+        style_at(
             ordinary_header,
             ordinary_header.plain.index("research.reader"),
         )
@@ -543,13 +192,13 @@ def test_family_header_recolors_only_real_container_name() -> None:
 
 
 def test_clan_header_uses_same_unread_aggregate_as_list_row() -> None:
-    read = _agent(
+    read = make_clan_agent(
         "research.read",
         status="DONE",
         start=datetime(2026, 7, 17, 12, 0, 0),
         stop=datetime(2026, 7, 17, 12, 1, 0),
     )
-    unread = _agent(
+    unread = make_clan_agent(
         "research.unread",
         status="DONE",
         start=datetime(2026, 7, 17, 12, 1, 0),
@@ -565,116 +214,8 @@ def test_clan_header_uses_same_unread_aggregate_as_list_row() -> None:
     assert "Status: DONE [U1 D1]\n" in detail.plain
 
 
-def test_clan_members_render_family_aggregate_and_every_member() -> None:
-    family_name = "research.writer"
-    planner = _agent(
-        f"{family_name}--plan-0",
-        status="DONE",
-        start=datetime(2026, 7, 17, 12, 0, 0),
-        stop=datetime(2026, 7, 17, 12, 1, 0),
-        family=family_name,
-    )
-    coder = _agent(
-        f"{family_name}--code",
-        status="DONE",
-        start=datetime(2026, 7, 17, 12, 2, 0),
-        stop=datetime(2026, 7, 17, 12, 3, 0),
-        model="sonnet",
-        parent_timestamp=planner.raw_suffix,
-        family=family_name,
-    )
-    planner.runtime_children = [coder]
-    container = project_clan_tree([planner, coder])[0]
-
-    jump_maps = []
-    detail = build_clan_detail_text(
-        container,
-        now=datetime(2026, 7, 17, 12, 4, 0),
-        member_jump_map_publisher=jump_maps.append,
-    )
-
-    assert "Members: 2 agents · 1 family\n" in detail.plain
-    members_section = (
-        detail.plain.split("▸ ❖ CLAN MEMBERS · 1\n", 1)[1]
-        .split(
-            "\n" + "─" * 50 + "\n",
-            1,
-        )[0]
-        .split("\n⋯ scanning member data…", 1)[0]
-    )
-    assert members_section == (
-        " 0  .writer · family · ✓ DONE · mixed · 2m\n"
-        "    ├─ --plan-0 · agent · ✓ DONE · gpt-5 · 1m\n"
-        "    └─ --code · agent · ✓ DONE · sonnet · 1m\n"
-    )
-    assert len(jump_maps) == 1
-    assert tuple(
-        (target.number, target.member_identity, target.kind)
-        for target in jump_maps[0].targets
-    ) == (("0", planner.identity, "family"),)
-
-
-def test_clan_family_roster_renders_settled_planner_as_done() -> None:
-    family_name = "research.writer"
-    planner = _agent(
-        f"{family_name}--plan",
-        status="TALE APPROVED",
-        start=datetime(2026, 7, 17, 12, 0, 0),
-        family=family_name,
-    )
-    coder = _agent(
-        f"{family_name}--code",
-        status="WORKING TALE",
-        start=datetime(2026, 7, 17, 12, 2, 0),
-        parent_timestamp=planner.raw_suffix,
-        family=family_name,
-    )
-    planner.runtime_children = [coder]
-    container = project_clan_tree([planner, coder])[0]
-
-    detail = build_clan_detail_text(container)
-
-    assert "--plan · agent · ✓ TALE APPROVED" in detail.plain
-    assert "--code · agent · ▶ WORKING TALE" in detail.plain
-
-
-def test_clan_roster_launch_order_is_stable_while_statuses_churn() -> None:
-    first = _agent(
-        "research.first",
-        status="RUNNING",
-        start=datetime(2026, 7, 17, 12, 0, 0),
-    )
-    second = _agent(
-        "research.second",
-        status="WAITING",
-        start=datetime(2026, 7, 17, 12, 1, 0),
-    )
-    container = project_clan_tree([second, first])[0]
-
-    before_maps = []
-    before = build_clan_detail_text(
-        container,
-        member_jump_map_publisher=before_maps.append,
-    ).plain
-    first.status = "DONE"
-    second.status = "FAILED"
-    after_maps = []
-    after = build_clan_detail_text(
-        container,
-        member_jump_map_publisher=after_maps.append,
-    ).plain
-
-    assert before.index(" 0  .first") < before.index(" 1  .second")
-    assert after.index(" 0  .first") < after.index(" 1  .second")
-    assert tuple(target.member_identity for target in before_maps[0].targets) == (
-        first.identity,
-        second.identity,
-    )
-    assert before_maps[0].targets == after_maps[0].targets
-
-
 def test_clan_build_header_path_is_aggregate_only() -> None:
-    member = _agent(
+    member = make_clan_agent(
         "research.only",
         status="WAITING",
         start=datetime(2026, 7, 17, 12, 0, 0),
@@ -692,7 +233,7 @@ def test_clan_build_header_path_is_aggregate_only() -> None:
 
 
 def test_non_clan_agent_has_no_members_section() -> None:
-    agent = _agent(
+    agent = make_clan_agent(
         "research.only",
         status="RUNNING",
         start=datetime(2026, 7, 17, 12, 0, 0),
@@ -705,7 +246,7 @@ def test_non_clan_agent_has_no_members_section() -> None:
 
 
 def test_legacy_parallel_root_keeps_compatibility_members_section() -> None:
-    root = _agent(
+    root = make_clan_agent(
         "legacy-root",
         status="DONE",
         start=datetime(2026, 7, 17, 12, 0, 0),
@@ -713,7 +254,7 @@ def test_legacy_parallel_root_keeps_compatibility_members_section() -> None:
     )
     root.agent_clan = None
     root.agent_family_parallel = True
-    child = _agent(
+    child = make_clan_agent(
         "legacy-child",
         status="DONE",
         start=datetime(2026, 7, 17, 12, 1, 0),
@@ -731,7 +272,7 @@ def test_legacy_parallel_root_keeps_compatibility_members_section() -> None:
 
 
 def test_clan_full_render_bypasses_attempt_and_artifact_paths() -> None:
-    member = _agent(
+    member = make_clan_agent(
         "research.only",
         status="DONE",
         start=datetime(2026, 7, 17, 12, 0, 0),
