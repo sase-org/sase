@@ -146,6 +146,7 @@ async def test_startup_update_toast_png_snapshot(
         query='"visual"',
         changespecs=changespecs(),
         notifications=True,
+        startup_policy="real",
     ) as page:
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
         await page.wait_for(lambda _s: _toast_is_mounted(page))
@@ -185,6 +186,7 @@ async def test_startup_update_toast_grouped_commits_png_snapshot(
         query='"visual"',
         changespecs=changespecs(),
         notifications=True,
+        startup_policy="real",
     ) as page:
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
         await page.wait_for(lambda _s: _toast_is_mounted(page))

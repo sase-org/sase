@@ -188,7 +188,10 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
         slow_startup_read,
     )
 
-    async with AcePage(wait_for_startup_state=False) as page:
+    async with AcePage(
+        wait_for_startup_state=False,
+        startup_policy="real",
+    ) as page:
         try:
             await _wait_for_thread_event(startup_started)
             await _press_within_deadline(page, "tab")

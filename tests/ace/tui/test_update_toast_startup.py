@@ -152,7 +152,7 @@ async def test_startup_update_toast_appears_once_in_tui(
         lambda **_kwargs: status,
     )
 
-    async with AcePage(query='"toast"') as page:
+    async with AcePage(query='"toast"', startup_policy="real") as page:
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
         notifications = list(page.app._notifications)
         assert len(notifications) == 1

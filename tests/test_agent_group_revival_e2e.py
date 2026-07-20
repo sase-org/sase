@@ -133,6 +133,7 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tribe_real_load
             make_changespec(name="visual-polish", file_path=str(project_file))
         ],
         initial_tab="agents",
+        startup_policy="real",
     ) as page:
         await wait_for_startup(page)
         await page.expect_state("agent_count", 1)

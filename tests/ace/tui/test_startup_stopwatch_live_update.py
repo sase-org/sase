@@ -154,7 +154,10 @@ async def test_slow_mount_state_read_does_not_block_app_key_dispatch(
 
     monkeypatch.setattr(AceApp, "_read_notifications_for_startup", slow_notifications)
 
-    async with AcePage(wait_for_startup_state=False) as page:
+    async with AcePage(
+        wait_for_startup_state=False,
+        startup_policy="real",
+    ) as page:
         try:
             assert await asyncio.wait_for(
                 asyncio.to_thread(started.wait, 10.0), timeout=11.0

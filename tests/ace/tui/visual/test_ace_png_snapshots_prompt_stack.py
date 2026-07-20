@@ -452,7 +452,11 @@ async def test_prompt_codeblock_highlight_stack_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(
+        query='"visual"',
+        changespecs=changespecs(),
+        startup_policy="real",
+    ) as page:
         page.app.theme = theme
         await wait_for_startup(page)
         await page.expect_state("tab", "changespecs")

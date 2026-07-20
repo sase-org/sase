@@ -2,11 +2,13 @@
 
 import asyncio
 from collections.abc import Callable
+from contextlib import AsyncExitStack
 from typing import Any, Literal
 from unittest.mock import patch
 
 from textual.app import App, ComposeResult
 
+import sase.notifications as _notifications
 from sase.ace.changespec import (
     ChangeSpec,
     CommentEntry,
@@ -15,9 +17,251 @@ from sase.ace.changespec import (
     HookEntry,
 )
 from sase.ace.tui import AceApp
+from sase.ace.tui.actions.agents import _loading as _agent_loading
+from sase.ace.tui.modals import plugins_browser_pane as _plugins_browser_pane
+from sase.ace.tui.modals import project_inventory_panes as _project_inventory_panes
+from sase.ace.tui.util import stall_watchdog as _stall_watchdog
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
+from sase.repo_inventory import RepoInventory
+from sase.workspace_provider.inventory import WorkspaceInventory
+
+
+AceStartupPolicy = Literal["fast", "real"]
+
+_ORIGINAL_RUN_MOUNT_STATE_LOADS = AceApp._run_mount_state_loads
+_ORIGINAL_RUN_AGENT_STARTUP = AceApp._run_agent_index_startup_prepare_and_refresh
+_ORIGINAL_RUN_AXE_STARTUP = AceApp._run_axe_startup_init
+_ORIGINAL_LOAD_AXE_STATUS_ASYNC = AceApp._load_axe_status_async
+_ORIGINAL_SCHEDULE_FOLD_STATE_LOAD = AceApp._schedule_agents_fold_state_load
+_ORIGINAL_SCHEDULE_DISMISSED_INDEX_SYNC = AceApp._schedule_dismissed_index_startup_sync
+_ORIGINAL_START_ARTIFACT_WATCHER = AceApp._start_artifact_watcher
+_ORIGINAL_START_PROMPT_SOURCE_WATCHER = AceApp._start_prompt_source_watcher
+_ORIGINAL_SCHEDULE_PROMPT_CATALOG_REBUILD = AceApp._schedule_prompt_catalog_rebuild
+_ORIGINAL_SCHEDULE_UPDATE_CHECK = AceApp._schedule_startup_update_toast_check
+
+_ORIGINAL_LOAD_AGENTS_FROM_DISK = _agent_loading.load_agents_from_disk_with_state
+_ORIGINAL_READ_NOTIFICATION_SNAPSHOT = _notifications.read_notification_snapshot
+_ORIGINAL_START_STALL_WATCHDOG = _stall_watchdog.start_event_loop_stall_watchdog
+_ORIGINAL_LOAD_PLUGINS_CATALOG = _plugins_browser_pane._load_plugins_catalog
+_ORIGINAL_COLLECT_REPO_INVENTORY = _project_inventory_panes.collect_repo_inventory
+_ORIGINAL_COLLECT_WORKSPACE_INVENTORY = (
+    _project_inventory_panes.collect_workspace_inventory
+)
+
+
+def _noop_startup_service(*_args: Any, **_kwargs: Any) -> None:
+    """Stand in for a background service suppressed by fast pilot startup."""
+
+
+async def _run_fast_mount_state_loads(app: AceApp) -> None:
+    """Install deterministic mount state without reading the host filesystem."""
+    try:
+        notification_state: tuple[set[str], int, int, int] = (set(), 0, 0, 0)
+        if (
+            _notifications.read_notification_snapshot
+            is not _ORIGINAL_READ_NOTIFICATION_SNAPSHOT
+        ):
+            # Caller-supplied fixtures (notably the visual harness) remain the
+            # source of truth. They are still called off the event loop so a
+            # deliberately blocked fixture retains production scheduling.
+            notification_state = await asyncio.to_thread(
+                app._read_notifications_for_startup
+            )
+        app._initialize_agent_tracking(notification_state)
+        app._apply_prompt_stash_counts(0, 0)
+        # AcePage owns both ChangeSpec loader patches, so this retains the real
+        # filtering, selection, and widget-application path without a disk scan.
+        app._apply_changespecs(app._read_changespecs_from_disk())
+    finally:
+        app._mount_state_loads_done = True
+
+
+def _finish_fast_agent_startup(app: AceApp) -> None:
+    """Complete the empty Agents startup surface without scheduling I/O."""
+    from sase.ace.tui.widgets import AgentInfoPanel, AgentList
+
+    # The real loader establishes both projections before flipping its first-
+    # load flag. Keep the same invariant so later tab switches can run the
+    # production in-memory refilter path against an intentionally empty list.
+    app._agents_with_children = []
+    app._agents_refresh_pending_callbacks.clear()
+    app._agents_refresh_scheduled = False
+    app._agents_first_load_done = True
+    try:
+        app.query_one("#agent-list-panel", AgentList).loading = False
+    except Exception:
+        pass
+    try:
+        app.query_one("#agent-info-panel", AgentInfoPanel).set_loading(False)
+    except Exception:
+        pass
+    app._maybe_end_startup_stopwatch()
+
+
+async def _run_fast_agent_startup(app: AceApp) -> None:
+    _finish_fast_agent_startup(app)
+
+
+async def _run_fast_axe_startup(app: AceApp) -> None:
+    """Complete the empty AXE startup surface without reading daemon state."""
+    from sase.ace.tui.widgets import AxeDashboard, AxeInfoPanel
+
+    app._axe_first_load_done = True
+    try:
+        app.query_one("#axe-dashboard", AxeDashboard).loading = False
+    except Exception:
+        pass
+    try:
+        app.query_one("#axe-info-panel", AxeInfoPanel).set_loading(False)
+    except Exception:
+        pass
+    app._maybe_end_startup_stopwatch()
+
+
+def _schedule_prompt_catalog_without_startup_warm(
+    app: AceApp,
+    *,
+    reason: str,
+    force: bool = False,
+    config_dirty: bool = False,
+) -> None:
+    """Skip automatic warming while retaining page-requested catalog loads."""
+    if reason == "startup_warm":
+        return
+    _ORIGINAL_SCHEDULE_PROMPT_CATALOG_REBUILD(
+        app,
+        reason=reason,
+        force=force,
+        config_dirty=config_dirty,
+    )
+
+
+def _empty_plugins_catalog(**_kwargs: Any) -> Any:
+    """Return an inert Updates-pane snapshot for unrelated mounted tabs."""
+    return _plugins_browser_pane._PluginsLoadResult(
+        catalog=None,
+        error=None,
+        now=0.0,
+    )
+
+
+def _empty_repo_inventory(*_args: Any, **_kwargs: Any) -> RepoInventory:
+    return RepoInventory((), ())
+
+
+def _empty_workspace_inventory(
+    *_args: Any,
+    **_kwargs: Any,
+) -> WorkspaceInventory:
+    return WorkspaceInventory((), ())
+
+
+def _patch_method_if_unchanged(
+    stack: AsyncExitStack,
+    name: str,
+    original: Any,
+    replacement: Any,
+) -> None:
+    """Patch an AceApp method unless a caller already supplied a fixture."""
+    if getattr(AceApp, name) is original:
+        stack.enter_context(patch.object(AceApp, name, replacement))
+
+
+def _install_fast_startup_overrides(stack: AsyncExitStack) -> None:
+    """Install the scoped nonessential-service overrides used by AcePage."""
+    _patch_method_if_unchanged(
+        stack,
+        "_run_mount_state_loads",
+        _ORIGINAL_RUN_MOUNT_STATE_LOADS,
+        _run_fast_mount_state_loads,
+    )
+
+    if (
+        AceApp._run_agent_index_startup_prepare_and_refresh
+        is _ORIGINAL_RUN_AGENT_STARTUP
+        and _agent_loading.load_agents_from_disk_with_state
+        is _ORIGINAL_LOAD_AGENTS_FROM_DISK
+    ):
+        stack.enter_context(
+            patch.object(
+                AceApp,
+                "_run_agent_index_startup_prepare_and_refresh",
+                _run_fast_agent_startup,
+            )
+        )
+
+    if (
+        AceApp._run_axe_startup_init is _ORIGINAL_RUN_AXE_STARTUP
+        and AceApp._load_axe_status_async is _ORIGINAL_LOAD_AXE_STATUS_ASYNC
+    ):
+        stack.enter_context(
+            patch.object(AceApp, "_run_axe_startup_init", _run_fast_axe_startup)
+        )
+
+    for name, original in (
+        ("_schedule_agents_fold_state_load", _ORIGINAL_SCHEDULE_FOLD_STATE_LOAD),
+        (
+            "_schedule_dismissed_index_startup_sync",
+            _ORIGINAL_SCHEDULE_DISMISSED_INDEX_SYNC,
+        ),
+        ("_start_artifact_watcher", _ORIGINAL_START_ARTIFACT_WATCHER),
+        (
+            "_start_prompt_source_watcher",
+            _ORIGINAL_START_PROMPT_SOURCE_WATCHER,
+        ),
+        ("_schedule_startup_update_toast_check", _ORIGINAL_SCHEDULE_UPDATE_CHECK),
+    ):
+        _patch_method_if_unchanged(stack, name, original, _noop_startup_service)
+
+    _patch_method_if_unchanged(
+        stack,
+        "_schedule_prompt_catalog_rebuild",
+        _ORIGINAL_SCHEDULE_PROMPT_CATALOG_REBUILD,
+        _schedule_prompt_catalog_without_startup_warm,
+    )
+    if (
+        _stall_watchdog.start_event_loop_stall_watchdog
+        is _ORIGINAL_START_STALL_WATCHDOG
+    ):
+        stack.enter_context(
+            patch.object(
+                _stall_watchdog,
+                "start_event_loop_stall_watchdog",
+                _noop_startup_service,
+            )
+        )
+    if _plugins_browser_pane._load_plugins_catalog is _ORIGINAL_LOAD_PLUGINS_CATALOG:
+        stack.enter_context(
+            patch.object(
+                _plugins_browser_pane,
+                "_load_plugins_catalog",
+                _empty_plugins_catalog,
+            )
+        )
+    if (
+        _project_inventory_panes.collect_repo_inventory
+        is _ORIGINAL_COLLECT_REPO_INVENTORY
+    ):
+        stack.enter_context(
+            patch.object(
+                _project_inventory_panes,
+                "collect_repo_inventory",
+                _empty_repo_inventory,
+            )
+        )
+    if (
+        _project_inventory_panes.collect_workspace_inventory
+        is _ORIGINAL_COLLECT_WORKSPACE_INVENTORY
+    ):
+        stack.enter_context(
+            patch.object(
+                _project_inventory_panes,
+                "collect_workspace_inventory",
+                _empty_workspace_inventory,
+            )
+        )
 
 
 def make_changespec(
@@ -134,7 +378,10 @@ class AcePage:
         initial_tab: Literal["changespecs", "agents", "axe"] = "changespecs",
         notifications: bool = False,
         wait_for_startup_state: bool = True,
+        startup_policy: AceStartupPolicy = "fast",
     ) -> None:
+        if startup_policy not in {"fast", "real"}:
+            raise ValueError(f"unsupported AcePage startup policy: {startup_policy!r}")
         self._query = query
         self._size = size
         self._changespecs = (
@@ -146,42 +393,63 @@ class AcePage:
         self._initial_tab: Literal["changespecs", "agents", "axe"] = initial_tab
         self._notifications = notifications
         self._wait_for_startup_state = wait_for_startup_state
+        self._startup_policy = startup_policy
         self._app: AceApp | None = None
         self._pilot: Any = None
-        self._patch: Any = None
-        self._pilot_cm: Any = None
+        self._stack: AsyncExitStack | None = None
 
     async def __aenter__(self) -> "AcePage":
-        self._patch = patch(
-            "sase.ace.changespec.find_all_changespecs",
-            return_value=self._changespecs,
-        )
-        self._patch_cached: Any = patch(
-            "sase.ace.changespec.find_all_changespecs_cached",
-            return_value=self._changespecs,
-        )
-        self._patch.start()
-        self._patch_cached.start()
-        self._app = AceApp(
-            query=self._query,
-            model_tier_override=self._model_tier_override,
-            refresh_interval=0,
-            initial_tab=self._initial_tab,
-        )
-        self._pilot_cm = self._app.run_test(
-            size=self._size,
-            notifications=self._notifications,
-        )
-        self._pilot = await self._pilot_cm.__aenter__()
-        if self._wait_for_startup_state:
-            deadline = asyncio.get_running_loop().time() + 15.0
-            while not self._app._mount_state_loads_done:
-                if asyncio.get_running_loop().time() >= deadline:
-                    raise AssertionError(
-                        "AcePage startup state did not load within 15 seconds"
-                    )
-                await self._pilot.pause()
-        return self
+        stack = AsyncExitStack()
+        await stack.__aenter__()
+        self._stack = stack
+        try:
+            stack.enter_context(
+                patch(
+                    "sase.ace.changespec.find_all_changespecs",
+                    return_value=self._changespecs,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "sase.ace.changespec.find_all_changespecs_cached",
+                    return_value=self._changespecs,
+                )
+            )
+            if self._startup_policy == "fast":
+                _install_fast_startup_overrides(stack)
+
+            self._app = AceApp(
+                query=self._query,
+                model_tier_override=self._model_tier_override,
+                refresh_interval=0,
+                initial_tab=self._initial_tab,
+            )
+            self._pilot = await stack.enter_async_context(
+                self._app.run_test(
+                    size=self._size,
+                    notifications=self._notifications,
+                )
+            )
+            if self._wait_for_startup_state:
+                deadline = asyncio.get_running_loop().time() + 15.0
+                paused = False
+                while not self._app._mount_state_loads_done:
+                    if asyncio.get_running_loop().time() >= deadline:
+                        raise AssertionError(
+                            "AcePage startup state did not load within 15 seconds"
+                        )
+                    await self._pilot.pause()
+                    paused = True
+                # Fast fixtures can complete before Textual's run-test enter
+                # returns. Give their queued display/focus continuations one
+                # turn, matching the settling turn the real loader wait gets.
+                if not paused:
+                    await self._pilot.pause()
+            return self
+        except BaseException:
+            await stack.aclose()
+            self._stack = None
+            raise
 
     async def __aexit__(
         self,
@@ -189,14 +457,10 @@ class AcePage:
         exc_val: BaseException | None,
         exc_tb: Any,
     ) -> None:
-        try:
-            if self._pilot_cm is not None:
-                await self._pilot_cm.__aexit__(exc_type, exc_val, exc_tb)
-        finally:
-            if self._patch is not None:
-                self._patch.stop()
-            if getattr(self, "_patch_cached", None) is not None:
-                self._patch_cached.stop()
+        stack = self._stack
+        self._stack = None
+        if stack is not None:
+            await stack.__aexit__(exc_type, exc_val, exc_tb)
 
     async def press(self, *keys: str) -> None:
         """Press one or more keys via the pilot."""
