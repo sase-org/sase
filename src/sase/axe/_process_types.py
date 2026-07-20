@@ -4,7 +4,13 @@ from dataclasses import dataclass
 from typing import Literal
 
 
-StartStatus = Literal["started", "already_running", "failed", "blocked"]
+StartStatus = Literal[
+    "started",
+    "already_running",
+    "failed",
+    "blocked",
+    "blocked_in_tests",
+]
 
 
 @dataclass(frozen=True)
@@ -64,6 +70,7 @@ class AxeStopResult:
     lock_still_held: bool = False
     force: bool = False
     error: str | None = None
+    blocked_in_tests: bool = False
 
     @property
     def terminated_anything(self) -> bool:

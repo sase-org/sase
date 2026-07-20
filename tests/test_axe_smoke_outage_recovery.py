@@ -25,6 +25,9 @@ from sase.axe.state import (
 )
 
 
+pytestmark = pytest.mark.usefixtures("allow_axe_lifecycle_in_tests")
+
+
 @pytest.fixture
 def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
     """Create a temporary state directory for testing."""

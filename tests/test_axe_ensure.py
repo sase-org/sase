@@ -127,6 +127,7 @@ def test_ensure_reports_start_failure(axe_state_dir: Path) -> None:
     assert result.message == "lock stayed held"
 
 
+@pytest.mark.usefixtures("allow_axe_lifecycle_in_tests")
 def test_explicit_stop_waits_for_in_progress_ensure(axe_state_dir: Path) -> None:
     """An in-flight heal cannot overwrite an operator's stopped marker."""
     write_desired_state("running", source="restart")

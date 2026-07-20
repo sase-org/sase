@@ -3,11 +3,16 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.axe.config import AxeConfig, LumberjackConfig
 from sase.axe._process_restart import _verify_startup
 from sase.axe.desired_state import read_desired_state, write_desired_state
 from sase.axe.process import AxeStartResult, restart_axe_daemon_result
 from sase.axe.state import LumberjackStatus
+
+
+pytestmark = pytest.mark.usefixtures("allow_axe_lifecycle_in_tests")
 
 
 def _config() -> AxeConfig:

@@ -31,6 +31,9 @@ from sase.axe.process import (
 )
 
 
+pytestmark = pytest.mark.usefixtures("allow_axe_lifecycle_in_tests")
+
+
 @pytest.fixture
 def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
     """Create a temporary state directory for testing."""
@@ -70,6 +73,9 @@ def test_compose_axe_daemon_env_strips_agent_and_chop_context() -> None:
         "SASE_CHOP_NAME": "workflow_checks",
         "SASE_CHOP_LUMBERJACK": "hooks",
         "SASE_AXE_OTHER": "keep",
+        "PYTEST_CURRENT_TEST": "tests/test_axe_process.py::test_env (call)",
+        "PYTEST_VERSION": "9.0.2",
+        "PYTEST_XDIST_WORKER": "gw3",
     }
 
     result = _compose_axe_daemon_env(environ)
@@ -80,6 +86,32 @@ def test_compose_axe_daemon_env_strips_agent_and_chop_context() -> None:
         "SASE_AXE_START_SOURCE": "start",
     }
     assert environ["SASE_AGENT_NAME"] == "parent"
+
+
+@patch("sase.axe._process_start.subprocess.Popen")
+@patch("sase.axe._process_start._build_axe_start_command")
+@patch("sase.axe._process_start.get_pid_from_pid_files", return_value=None)
+@patch("sase.axe._process_start.get_axe_pid", return_value=None)
+def test_start_axe_daemon_rejects_missing_daemon_cwd(
+    _mock_get_pid: MagicMock,
+    _mock_get_pid_files: MagicMock,
+    mock_build_command: MagicMock,
+    mock_popen: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    axe_config: AxeConfig,
+) -> None:
+    missing_home = tmp_path / "missing-home"
+    monkeypatch.setenv("HOME", str(missing_home))
+    monkeypatch.setattr(os.path, "expanduser", lambda _path: str(missing_home))
+    mock_build_command.return_value = ["sase", "axe", "start"]
+
+    result = start_axe_daemon_result(axe_config, record_desired_state=False)
+
+    assert result.status == "failed"
+    assert str(missing_home) in result.message
+    assert "not an existing directory" in result.message
+    mock_popen.assert_not_called()
 
 
 @patch("sase.axe._process_start.subprocess.Popen")

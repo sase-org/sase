@@ -8,6 +8,10 @@ from collections.abc import Callable, Sequence
 from .config import AxeConfig, AxeConfigError, load_axe_config
 from .desired_state import write_desired_state
 from .state import append_error, get_timestamp, read_lumberjack_status
+from ._process_guard import (
+    AXE_LIFECYCLE_TEST_BLOCK_MESSAGE,
+    axe_lifecycle_blocked_in_tests,
+)
 from ._process_probe import get_axe_pid
 from ._process_start import start_axe_daemon_result
 from ._process_stop import stop_axe_daemon_result
@@ -34,6 +38,12 @@ def restart_axe_daemon_result(
     monotonic_fn: Callable[[], float] = time.monotonic,
 ) -> AxeStartResult:
     """Restart axe, retry startup, and verify every lumberjack heartbeat."""
+    if axe_lifecycle_blocked_in_tests():
+        return AxeStartResult(
+            status="blocked_in_tests",
+            message=AXE_LIFECYCLE_TEST_BLOCK_MESSAGE,
+        )
+
     write_desired_state("running", source="restart")
 
     try:

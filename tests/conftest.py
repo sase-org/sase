@@ -187,6 +187,12 @@ def _isolate_sase_home(
     monkeypatch.setattr(config_targets, "CONFIG_DIR", fake_config_dir)
 
 
+@pytest.fixture
+def allow_axe_lifecycle_in_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Allow lifecycle tests to operate only against their isolated fake home."""
+    monkeypatch.setenv("SASE_AXE_ALLOW_LIFECYCLE_IN_TESTS", "1")
+
+
 @pytest.fixture(autouse=True)
 def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Clear ambient SASE agent and chop-linkage env vars before each test.

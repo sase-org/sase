@@ -18,6 +18,10 @@ from . import state as axe_state
 from .config import AxeConfig, AxeConfigError, load_axe_config
 from .desired_state import write_desired_state
 from .lock import AXE_LOCK_FD_ENV, AxeLifecycleLock
+from ._process_guard import (
+    AXE_LIFECYCLE_TEST_BLOCK_MESSAGE,
+    axe_lifecycle_blocked_in_tests,
+)
 from ._process_probe import get_axe_pid, get_pid_from_pid_files, probe_orchestrator
 from ._process_types import AxeStartResult
 
@@ -34,6 +38,9 @@ def _compose_axe_daemon_env(
     env = dict(environ)
     scrub_agent_identity_env(env)
     scrub_chop_context_env(env)
+    for name in tuple(env):
+        if name.startswith("PYTEST_"):
+            env.pop(name)
     env[AXE_START_SOURCE_ENV] = desired_state_source
     return env
 
@@ -68,6 +75,22 @@ def start_axe_daemon_result(
     record_desired_state: bool = True,
 ) -> AxeStartResult:
     """Start axe as a background daemon process and return a detailed result."""
+    if axe_lifecycle_blocked_in_tests():
+        return AxeStartResult(
+            status="blocked_in_tests",
+            message=AXE_LIFECYCLE_TEST_BLOCK_MESSAGE,
+        )
+
+    daemon_cwd = Path(os.path.expanduser("~"))
+    if not daemon_cwd.is_dir():
+        return AxeStartResult(
+            status="failed",
+            message=(
+                "Could not start axe because its daemon home/cwd is not "
+                f"an existing directory: {daemon_cwd}"
+            ),
+        )
+
     if record_desired_state:
         write_desired_state("running", source=desired_state_source)
 
@@ -149,7 +172,7 @@ def start_axe_daemon_result(
                 start_new_session=True,
                 pass_fds=(lifecycle_lock.fd,),
                 env=env,
-                cwd=os.path.expanduser("~"),
+                cwd=str(daemon_cwd),
             )
         handed_off = True
         lifecycle_lock.close_after_handoff()

@@ -14,6 +14,10 @@ from .state import (
     remove_lumberjack_pid,
 )
 from ._process_probe import cleanup_pid_files, probe_orchestrator
+from ._process_guard import (
+    AXE_LIFECYCLE_TEST_BLOCK_MESSAGE,
+    axe_lifecycle_blocked_in_tests,
+)
 from ._process_types import AxeStopResult, SweepResult, TerminateResult
 
 
@@ -57,6 +61,12 @@ def stop_axe_daemon_result(
     record_desired_state: bool = True,
 ) -> AxeStopResult:
     """Stop axe and return a detailed lifecycle result."""
+    if axe_lifecycle_blocked_in_tests():
+        return AxeStopResult(
+            error=AXE_LIFECYCLE_TEST_BLOCK_MESSAGE,
+            blocked_in_tests=True,
+        )
+
     if record_desired_state:
         # Wait for any in-flight ensure start before publishing the operator's
         # authoritative stop. Otherwise that start could overwrite ``stopped``
