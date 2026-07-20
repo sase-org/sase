@@ -16,11 +16,13 @@ def test_config_schema_accepts_ace_tribe_display_settings() -> None:
         {
             "ace": {
                 "tribes": {
-                    "default": {"icon": "🏠"},
+                    "default": {"icon": "🏠", "color": "#ABCDEF"},
                     "my.tribe-1": {
                         "icon": "X",
+                        "color": "#abcdef",
                         "initially_expanded": False,
                     },
+                    "empty": {"color": ""},
                 }
             }
         }
@@ -35,6 +37,12 @@ def test_config_schema_accepts_ace_tribe_display_settings() -> None:
         {"chop": {"unknown": True}},
         {"chop": {"icon": 7}},
         {"chop": {"icon": "x" * 17}},
+        {"chop": {"color": "#FFF"}},
+        {"chop": {"color": "FFFFFF"}},
+        {"chop": {"color": "gold"}},
+        {"chop": {"color": "#FFFFFF on #000000"}},
+        {"chop": {"color": 7}},
+        {"chop": {"color": None}},
         {"chop": {"initially_expanded": "false"}},
         {"chop": False},
     ],

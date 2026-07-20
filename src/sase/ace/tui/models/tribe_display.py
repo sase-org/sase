@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from collections.abc import Collection
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from sase.config.core import current_config_token
 from .agent_panels import PanelKey
 
 MAX_TRIBE_ICON_CELLS = 4
+_TRIBE_COLOR_PATTERN = re.compile(r"#[0-9A-Fa-f]{6}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +25,7 @@ class _TribeDisplay:
     """Resolved presentation settings for one tribe panel."""
 
     icon: str = ""
+    color: str = ""
     initially_expanded: bool = True
 
 
@@ -38,6 +41,14 @@ def _sanitize_icon(raw: object) -> str:
         return ""
     chunks = chop_cells(icon, MAX_TRIBE_ICON_CELLS)
     return chunks[0].rstrip() if chunks else ""
+
+
+def _sanitize_color(raw: object) -> str:
+    """Return a safe RGB foreground color or an empty fallback value."""
+    if not isinstance(raw, str):
+        return ""
+    color = raw.strip()
+    return color if _TRIBE_COLOR_PATTERN.fullmatch(color) else ""
 
 
 @lru_cache(maxsize=1)
@@ -65,6 +76,7 @@ def _tribe_displays_for_token(
         initially_expanded = raw.get("initially_expanded", True)
         displays[name] = _TribeDisplay(
             icon=_sanitize_icon(raw.get("icon", "")),
+            color=_sanitize_color(raw.get("color", "")),
             initially_expanded=(
                 initially_expanded if isinstance(initially_expanded, bool) else True
             ),

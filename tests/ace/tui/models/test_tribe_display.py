@@ -38,14 +38,20 @@ def test_default_panel_mapping_and_unknown_fallback(
     _install_config(
         monkeypatch,
         {
-            "default": {"icon": " 🏠 "},
-            "chop": {"icon": "🪓", "initially_expanded": False},
+            "default": {"icon": " 🏠 ", "color": " #87D7FF "},
+            "chop": {
+                "icon": "🪓",
+                "color": "#af87ff",
+                "initially_expanded": False,
+            },
         },
     )
 
-    assert display.tribe_display_for(None) == display._TribeDisplay(icon="🏠")
+    assert display.tribe_display_for(None) == display._TribeDisplay(
+        icon="🏠", color="#87D7FF"
+    )
     assert display.tribe_display_for("chop") == display._TribeDisplay(
-        icon="🪓", initially_expanded=False
+        icon="🪓", color="#af87ff", initially_expanded=False
     )
     assert display.tribe_display_for("custom") == display.DEFAULT_TRIBE_DISPLAY
 
@@ -71,6 +77,28 @@ def test_empty_and_hostile_icons_are_sanitized(
     assert cell_len(bounded) <= display.MAX_TRIBE_ICON_CELLS
 
 
+def test_empty_and_hostile_colors_use_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_config(
+        monkeypatch,
+        {
+            "empty": {"color": ""},
+            "valid": {"color": " #aBcDeF "},
+            "short": {"color": "#FFF"},
+            "missing_hash": {"color": "ABCDEF"},
+            "named": {"color": "gold"},
+            "style": {"color": "#FFFFFF on #000000"},
+            "wrong_type": {"color": 7},
+        },
+    )
+
+    assert display.tribe_display_for("empty").color == ""
+    assert display.tribe_display_for("valid").color == "#aBcDeF"
+    for tribe in ("short", "missing_hash", "named", "style", "wrong_type"):
+        assert display.tribe_display_for(tribe).color == ""
+
+
 def test_resolution_is_memoized_per_config_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -80,7 +108,9 @@ def test_resolution_is_memoized_per_config_token(
     def _load() -> dict[str, Any]:
         nonlocal loads
         loads += 1
-        return {"ace": {"tribes": {"chop": {"icon": str(loads)}}}}
+        return {
+            "ace": {"tribes": {"chop": {"icon": str(loads), "color": f"#00000{loads}"}}}
+        }
 
     monkeypatch.setattr(display, "load_merged_config", _load)
     monkeypatch.setattr(
@@ -90,12 +120,14 @@ def test_resolution_is_memoized_per_config_token(
     )
 
     assert display.tribe_display_for("chop").icon == "1"
-    assert display.tribe_display_for("chop").icon == "1"
+    assert display.tribe_display_for("chop").color == "#000001"
     assert display.tribe_display_for("other").icon == ""
+    assert display.tribe_display_for("other").color == ""
     assert loads == 1
 
     token[0] = 2
     assert display.tribe_display_for("chop").icon == "2"
+    assert display.tribe_display_for("chop").color == "#000002"
     assert loads == 2
 
 

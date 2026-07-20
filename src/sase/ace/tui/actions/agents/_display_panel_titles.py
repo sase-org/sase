@@ -130,22 +130,24 @@ def agent_panel_border_title(
     jump_hint: str | None = None,
     selection_hint: int | None = None,
     icon: str = "",
+    color: str = "",
 ) -> Text:
     """Build a styled panel title while preserving its plain-text label."""
     title = Text()
+    identity_style = f"bold {color}" if color else _PANEL_TRIBE_STYLE
     hint = selection_hint if selection_hint is not None else jump_hint
     if hint is not None:
         title.append(f"[{hint}] ", style="bold #FFFF00")
     if selected:
-        title.append("❖ ", style=_PANEL_TRIBE_STYLE)
+        title.append("❖ ", style=_PANEL_SELECTED_CHROME_STYLE)
     if collapsed:
         title.append("▸ ", style=_PANEL_COUNT_STYLE)
     if merge_tribe_panels:
         title.append("All agents", style="bold #AFFFFF")
     else:
         if icon:
-            title.append(f"{icon} ", style=_PANEL_TRIBE_STYLE)
-        title.append(agent_panel_label(key), style=_PANEL_TRIBE_STYLE)
+            title.append(f"{icon} ", style=identity_style)
+        title.append(agent_panel_label(key), style=identity_style)
     if isolation_restore_marked:
         title.append(" ", style=_PANEL_COUNT_STYLE)
         title.append("↺", style=_PANEL_ISOLATION_RESTORE_STYLE)

@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
+from rich.color import Color
+from rich.console import Console
 from rich.text import Text
 
 from sase.ace.testing import AcePage
@@ -22,6 +24,18 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+def _assert_title_identity_color(title: Text, *, text: str, color: str) -> None:
+    start = title.plain.index(text)
+    end = start + len(text)
+    expected = Color.parse(color).triplet
+    console = Console()
+    for position in range(start, end):
+        style = title.get_style_at_offset(console, position)
+        assert style.bold is True
+        assert style.color is not None
+        assert style.color.triplet == expected
 
 
 def _tribe_agents() -> list[Agent]:
@@ -140,7 +154,7 @@ async def test_tribe_panel_display_config_png_snapshot(
         assert page.app._collapsed_panel_keys == set()
         assert page.app._expanded_panel_keys == set()
         titles = [
-            Text.from_markup(widget.border_title).plain
+            Text.from_markup(widget.border_title)
             for widget in page.app.query("AgentList")
         ]
         for label in (
@@ -151,7 +165,20 @@ async def test_tribe_panel_display_config_png_snapshot(
             "◉ @review",
             "▸ † @chop",
         ):
-            assert any(label in title for title in titles)
+            assert any(label in title.plain for title in titles)
+
+        titles_by_key = dict(zip(page.app._panel_group.panel_keys, titles, strict=True))
+        for key, icon, label, color in (
+            (None, "⌂ ", "@default", "#87D7FF"),
+            ("epic", "▲ ", "@epic", "#AF87FF"),
+            ("pinned", "◆ ", "@pinned", "#FFD75F"),
+            ("research", "∴ ", "@research", "#5FD7AF"),
+            ("review", "◉ ", "@review", "#FFD75F"),
+            ("chop", "† ", "@chop", "#FFAF5F"),
+        ):
+            title = titles_by_key[key]
+            _assert_title_identity_color(title, text=icon, color=color)
+            _assert_title_identity_color(title, text=label, color=color)
 
         ace_png_visual.assert_page_png(
             page,
@@ -271,7 +298,8 @@ async def test_tribe_panel_four_level_png_snapshots(
         assert focus.panel_key == "epic"
         assert focus.collapsed is False
         await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "❖ ▲ @epic")
+        assert_page_svg_contains(page, "❖")
+        assert_page_svg_contains(page, "▲ @epic")
         ace_png_visual.assert_page_png(
             page,
             "agents_tribe_panel_selected_expanded_120x40",

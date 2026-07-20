@@ -17,6 +17,7 @@ from rich.text import Text
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.agents._display_panel_titles import (
     _PANEL_ISOLATION_RESTORE_STYLE,
+    _PANEL_SELECTED_CHROME_STYLE,
     AgentPanelCounts,
     agent_panel_border_title,
 )
@@ -163,6 +164,79 @@ def test_panel_title_places_icon_before_tribe_label() -> None:
     assert merged.plain == "All agents · 3"
 
 
+def test_panel_title_custom_color_is_scoped_to_tribe_identity() -> None:
+    title = agent_panel_border_title(
+        "research",
+        12,
+        counts=AgentPanelCounts(running=2),
+        selected=True,
+        icon="∴",
+        color="#5FD7AF",
+    )
+
+    assert title.plain == "❖ ∴ @research · 12 [R2]"
+    _assert_title_span(
+        title,
+        start=0,
+        end=2,
+        style=_PANEL_SELECTED_CHROME_STYLE,
+        text="❖ ",
+    )
+    _assert_title_span(title, start=2, end=4, style="bold #5FD7AF", text="∴ ")
+    _assert_title_span(title, start=4, end=13, style="bold #5FD7AF", text="@research")
+    assert [
+        (span.start, span.end) for span in title.spans if span.style == "bold #5FD7AF"
+    ] == [(2, 4), (4, 13)]
+    total_start = title.plain.index("12")
+    _assert_title_span(
+        title,
+        start=total_start,
+        end=total_start + 2,
+        style=_PANEL_SELECTED_CHROME_STYLE,
+        text="12",
+    )
+
+
+def test_panel_title_custom_color_preserves_hint_and_fold_chrome() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        collapsed=True,
+        jump_hint="x",
+        icon="†",
+        color="#FFAF5F",
+    )
+
+    assert title.plain == "[x] ▸ † @chop · 3"
+    _assert_title_span(title, start=0, end=4, style="bold #FFFF00", text="[x] ")
+    _assert_title_span(title, start=4, end=6, style=_PANEL_COUNT_STYLE, text="▸ ")
+    _assert_title_span(title, start=6, end=8, style="bold #FFAF5F", text="† ")
+    _assert_title_span(title, start=8, end=13, style="bold #FFAF5F", text="@chop")
+    _assert_title_span(title, start=13, end=16, style=_PANEL_COUNT_STYLE, text=" · ")
+
+
+def test_panel_title_empty_color_keeps_legacy_tribe_style() -> None:
+    title = agent_panel_border_title("chop", 3, icon="†", color="")
+
+    assert title.plain == "† @chop · 3"
+    _assert_title_span(title, start=0, end=2, style="bold #FFD75F", text="† ")
+    _assert_title_span(title, start=2, end=7, style="bold #FFD75F", text="@chop")
+
+
+def test_merged_panel_title_ignores_tribe_display_color() -> None:
+    title = agent_panel_border_title(
+        None,
+        3,
+        merge_tribe_panels=True,
+        icon="⌂",
+        color="#87D7FF",
+    )
+
+    assert title.plain == "All agents · 3"
+    _assert_title_span(title, start=0, end=10, style="bold #AFFFFF", text="All agents")
+    assert all(span.style != "bold #87D7FF" for span in title.spans)
+
+
 def test_selected_expanded_panel_title_has_focus_marker() -> None:
     title = agent_panel_border_title(
         "chop",
@@ -180,6 +254,7 @@ def test_selected_expanded_panel_title_has_focus_marker() -> None:
 
     assert title.plain == "❖ @chop · 21 [S1 R2 W3 F4 U5 D6]"
     selected_style = "#FFD75F"
+    _assert_title_span(title, start=0, end=2, style=selected_style, text="❖ ")
     total_start = title.plain.index("21")
     _assert_title_span(
         title,
@@ -359,8 +434,9 @@ def test_panel_titles_label_default_and_named_tribes_with_counts() -> None:
     main = app._panel_widgets["agent-list-panel"]
     main_title = _title_text(main)
     assert main_title.plain == "⌂ @default · 2 [R2]"
+    _assert_title_span(main_title, start=0, end=2, style="bold #87D7FF", text="⌂ ")
     _assert_title_span(
-        main_title, start=2, end=10, style="bold #FFD75F", text="@default"
+        main_title, start=2, end=10, style="bold #87D7FF", text="@default"
     )
 
     # Tribe panels follow in alphabetical order: apple (idx 1), banana (idx 2).

@@ -377,6 +377,12 @@
                 "description": "Short glyph shown before the tribe name; an empty string disables an inherited icon",
                 "default": ""
               },
+              "color": {
+                "type": "string",
+                "pattern": "^(?:|#[0-9A-Fa-f]{6})$",
+                "description": "RGB foreground color for the tribe icon and name; an empty string uses the ACE fallback",
+                "default": ""
+              },
               "initially_expanded": {
                 "type": "boolean",
                 "description": "Whether the panel starts expanded until the user explicitly folds it",

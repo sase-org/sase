@@ -307,8 +307,10 @@ ace:
   tribes:
     default:
       icon: "⌂"
+      color: "#87D7FF"
     chop:
       icon: "†"
+      color: "#FFAF5F"
       initially_expanded: false
   updates:
     startup_toast: true # show update-available toast on startup
@@ -373,7 +375,7 @@ ace:
 | `prompt_completion` | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
 | `repro_output_dir`  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
 | `snippets`          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
-| `tribes`            | dict         | see below | Per-tribe Agents-tab panel icons and initial expansion.                                                                                                    |
+| `tribes`            | dict         | see below | Per-tribe Agents-tab panel icons, identity colors, and initial expansion.                                                                                  |
 | `updates`           | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
 
 #### `ace.tribes`
@@ -384,12 +386,15 @@ panel. Each entry accepts these optional fields:
 | Field                | Type | Default | Description                                                                                     |
 | -------------------- | ---- | ------- | ----------------------------------------------------------------------------------------------- |
 | `icon`               | str  | `""`    | Short glyph rendered before the panel name. Set `""` to remove an icon inherited from defaults. |
+| `color`              | str  | `""`    | `#RRGGBB` foreground for the icon and `@tribe` name. Set `""` to restore ACE's gold fallback.   |
 | `initially_expanded` | bool | `true`  | Initial state the first time the panel appears.                                                 |
 
-The bundled defaults use ⌂ for `default`, ▲ for `epic`, ∴ for `research`, † for `chop`, ◆ for `pinned`, and ◉ for
-`review`; `chop` starts collapsed. Once a user explicitly expands or collapses a panel, that durable choice takes
-precedence over `initially_expanded`, including after ACE restarts. Changing the config still affects panels the user
-has not folded explicitly.
+The bundled defaults use ⌂ in sky blue for `default`, ▲ in lavender-purple for `epic`, ∴ in teal-green for `research`,
+and † in amber-orange for `chop`. They also use ◆ for `pinned` and ◉ for `review`, whose identities retain ACE's gold
+fallback; `chop` starts collapsed. Because config entries merge deeply, setting `color: ""` explicitly clears an
+inherited color without replacing that tribe's other defaults. Once a user explicitly expands or collapses a panel, that
+durable choice takes precedence over `initially_expanded`, including after ACE restarts. Changing the config still
+affects panels the user has not folded explicitly.
 
 ACE reads this TUI setting from the user-level `~/.config/sase/sase.yml` (and user overlays), not project-local
 `sase/sase.yml`.
