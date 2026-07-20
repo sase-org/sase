@@ -5,10 +5,15 @@ waits, or it has received an answer after temporarily yielding its slot at `QUES
 globally using `max_running_agents` (default: 10). A prompt can use `%wait(runners=N)` to override the threshold for its
 initial launch.
 
+The ACE Agents header summarizes the same global state as `[R/L · Q queued]`: slots in use, configured limit, and live
+waiters governed by that configured limit. `Q` does not include waits with an explicit `%wait(runners=N)` threshold.
+
 Admission sorts eligible waiters by lower numeric `%wait(priority=N)` first, then first-in, first-out within the same
 priority, across all projects. Priority defaults to `10` and does not age, so sustained higher-priority arrivals can
 starve default- or lower-priority waiters. An older low-threshold waiter does not block a later launch whose higher
-threshold currently permits it to run. Child agents are exempt so a running parent can safely wait for child work.
+threshold currently permits it to run. Every independently launched clan member and parallel family member participates
+in the cap, even when ACE renders it as a nested row. Serial follow-up children are exempt so a running parent can
+safely wait for child work; workflow Python/bash steps and axe ChangeSpec runners are exempt as well.
 
 To diagnose a wait:
 

@@ -345,6 +345,11 @@ Hook commands are 2-space indented. Status drawer lines are 6-space indented and
 hook command means failed runs should skip fix-hook hints; a leading `$` means the hook is not run for proposal entries
 and is not subject to the normal runner limit. Prefixes can be combined, for example `!$just presubmit`.
 
+ACE leaves a running hook's output file untouched. Once the completion marker is present, a capture larger than 500 KiB
+is atomically compacted to approximately the first 200 KiB and last 300 KiB with an explicit byte-elision marker between
+them. Completion, metahook matching, and failure summarization inspect the full output before compaction, while later
+manual viewing uses the bounded capture.
+
 ### COMMENTS
 
 Stores review comments and discussion threads. Comments are added via the ACE TUI or through the review workflow.

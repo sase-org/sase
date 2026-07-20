@@ -143,6 +143,11 @@ servicing the watchdog beacon. Disable the compact tiers independently with `SAS
 `SASE_TUI_PUMP_HITCH_DISABLE=1`; the existing stall-tier disable flags remain `SASE_TUI_STALL_DISABLE=1` and
 `SASE_TUI_PUMP_STALL_DISABLE=1`.
 
+The persistent TUI diagnostic JSONL files under `~/.sase/logs/`—stall, git-operation, launch-timing, external-tool, and
+agent-load records—rotate independently before a write would make a file exceed 2 MiB. Each keeps one `.1` generation.
+Set `SASE_TUI_TELEMETRY_MAX_BYTES` to another byte limit, or `0` for no size rotation. This bound is separate from the
+opt-in trace files under `~/.sase/perf/`.
+
 ## Synthetic-data benchmark harness
 
 The harness lives at `tests/perf/bench_tui_trace.py`. It generates in-memory ChangeSpec and agent fixtures, then drives

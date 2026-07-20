@@ -45,7 +45,7 @@ If SASE is already installed, install plugins interactively from the TUI:
 
 1. Run `sase ace`.
 2. Press `#` to open the **SASE Admin Center**.
-3. Switch to the **Updates** tab (press `5`, or cycle with `[` / `]`).
+3. Switch to the **Updates** tab (press `6` or select it in the numbered tab strip).
 4. Highlight the plugin (`j` / `k`, or `/` to filter the list).
 5. Press `i` to install and confirm the preview modal. The preview shows the exact `uv` command and the resolved package
    set before anything runs.
@@ -82,7 +82,7 @@ vim-plug) rather than into the Python environment. See the [sase-nvim README](ht
 
 ### Recommended: the SASE Admin Center Updates tab
 
-The **Updates** tab (press `#` in `sase ace`, then `5`) is also the recommended way to keep SASE current:
+The **Updates** tab (press `#` in `sase ace`, then `6`) is also the recommended way to keep SASE current:
 
 - The tab leads with a **SASE Core** panel showing the installed and latest versions of the `sase` and `sase-core-rs`
   packages, with an `↑` marker when a newer version is available. ACE also surfaces startup and top-bar update signals

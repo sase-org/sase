@@ -22,7 +22,7 @@ sase_core_rs telemetry bindings
         v
 ~/.sase/telemetry/metrics.sqlite
         |
-        +---- sase telemetry health/list/snapshot/status
+        +---- sase telemetry cleanup-test-data/health/list/snapshot/status
 ```
 
 Counters and histograms flush only the delta accumulated since the previous write. Gauges flush their latest value with
@@ -81,14 +81,32 @@ read-only command never performs cleanup.
 
 With no subcommand, `sase telemetry` prints a delegation notice and runs `sase telemetry list`.
 
-### `sase telemetry status`
+### `sase telemetry cleanup-test-data`
 
-Show whether recording is enabled, the resolved database path and size, raw and rollup sample counts, inferred flusher
-state, and last-write freshness by subsystem.
+Preview or remove rows whose exact labels identify known test data. The match set is deliberately narrow:
+`llm_provider=test-provider`, `llm_provider=fakey`, or `workflow=test-workflow`. The command reports matching raw,
+five-minute-rollup, and hourly-rollup rows plus the store size before and after the operation.
 
 ```bash
-sase telemetry status
+sase telemetry cleanup-test-data --dry-run
+sase telemetry cleanup-test-data --yes
 ```
+
+Every invocation prints the criteria and a preview first. `-n|--dry-run` stops after that preview without changing the
+store. Running without either flag also leaves the store unchanged but exits `2` with a refusal; deletion requires the
+explicit `-y|--yes` flag. Exact matching preserves near misses such as `test-provider-local`.
+
+### `sase telemetry health`
+
+Assess the last hour of data using the configured error-rate, retry-rate, and p95 thresholds. Rich output is the
+default; JSON is available for automation.
+
+```bash
+sase telemetry health
+sase telemetry health -j
+```
+
+Exit codes are `0` for healthy, `1` for degraded/WARN, and `2` for CRITICAL.
 
 ### `sase telemetry list`
 
@@ -121,17 +139,14 @@ sase telemetry snapshot -s "LLM Provider"
 | `-f, --format`    | `rich`, `json` | `rich`  | Output format.             |
 | `-s, --subsystem` | subsystem name | all     | Restrict returned metrics. |
 
-### `sase telemetry health`
+### `sase telemetry status`
 
-Assess the last hour of data using the configured error-rate, retry-rate, and p95 thresholds. Rich output is the
-default; JSON is available for automation.
+Show whether recording is enabled, the resolved database path and size, raw and rollup sample counts, inferred flusher
+state, and last-write freshness by subsystem.
 
 ```bash
-sase telemetry health
-sase telemetry health -j
+sase telemetry status
 ```
-
-Exit codes are `0` for healthy, `1` for degraded/WARN, and `2` for CRITICAL.
 
 ## Admin Center Statistics tab
 
@@ -139,6 +154,12 @@ Open the SASE Admin Center with `#` or the command palette, then press `4` or se
 durable agent records rather than the short-lived telemetry metric store described above. It loads only while visible,
 performs aggregation off the UI thread, refreshes every 30 seconds, and shows loading, empty-range, and query-error
 states in place.
+
+The scope header makes the current controls explicit: **Range** shows a friendly summary and, when space permits, its
+absolute span; **Group** names the active Projects or Runtime dimension; and **Project** shows **All projects** or the
+configured display name and color of the selected project. A custom range is labeled **Custom**, and narrow terminals
+compact the chips without changing the selection. Project keys remain canonical internally even when every visible label
+is humanized.
 
 The seven views answer different questions:
 
@@ -151,6 +172,10 @@ The seven views answer different questions:
 | **Runtime**           | Total, mean, p50, p95, and maximum runtime; `g` cycles tribe, clan, family, agent, provider, model, workflow, project, and ChangeSpec dimensions.       |
 | **Activity**          | Skill, memory, and workspace use.                                                                                                                       |
 | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                     |
+
+Each view ends with a compact legend defining its calculated metrics. Press `?` for the complete per-view glossary,
+control list, active range/group/project scope, and freshness notes. On Overview, the Agents Run, Success Rate, and
+Commits tiles open Runs when clicked; Plans Proposed and Questions open Plans & Questions without another data load.
 
 | Key     | Action                                                              |
 | ------- | ------------------------------------------------------------------- |
@@ -168,7 +193,7 @@ configured SASE timezone, closed ranges include the final date, and future time 
 
 The project choices come from the most recent unfiltered result. If you change the range while a project remains
 selected, `p` continues to use that cached list; cycle back to **All** and let the pane reload to rank projects for the
-new range.
+new range. When the selected project has no rows in the range, one `p` clears the filter directly to **All projects**.
 
 The project filter applies to run-backed totals, project-attributed activity, plan lifecycle counts, and question
 session counts. Some distributions are derived from global plan and question documents rather than project-attributed
@@ -193,9 +218,10 @@ ace:
       help: "question_mark"
 ```
 
-The bindings are inactive on every other Admin Center tab and may safely overlap global app keys.
-
-The pane shows loading, empty-range, and query-error states directly instead of leaving a blank view.
+The bindings are inactive on every other Admin Center tab and may safely overlap global app keys. Empty ranges name the
+active range and show the effective keys for widening it and, when applicable, clearing the project filter. A first-load
+query failure shows the error and the effective refresh key for retrying; a failure after successful data has loaded
+keeps the prior result visible while marking the refresh as failed.
 
 ## Metric catalog and integration
 

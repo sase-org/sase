@@ -99,6 +99,13 @@ will go, and whether it validates:
   effective merged value, and schema validation of the candidate config. The write is source-preserving (comments, key
   order, and quoting are kept) and is remapped to the chezmoi source tree when `use_chezmoi` is enabled.
 
+After a successful write, ACE checks the file that was actually changed. If that file is dirty inside a git repository,
+it offers to **commit and push** the change as a tracked background task. Confirming stages that config file, commits
+the repository's current index, pulls with rebase, and pushes; pre-existing staged changes are therefore included in the
+same commit. When `use_chezmoi` is enabled, the task works in the chezmoi source repository and runs `chezmoi apply`
+after the push. Skipping the offer—or editing a file outside git—leaves the successful write in place. The
+[Models panel](ace.md#persistent-edits) uses the same workflow for persistent alias edits.
+
 The deprecated `linked_repos` and `sibling_repos` keys remain readable as compatibility aliases for
 [`repos.linked`](#repos), but the Config tab no longer offers a one-key migration action. Prefer editing the config to
 use `repos.linked` directly.
@@ -132,8 +139,12 @@ apply the same scope to the other views.
 
 The pane loads only while visible, refreshes every 30 seconds, and performs its queries off the UI thread. Use `[` / `]`
 to change views, `t` or `c` to choose a preset or custom range, `g` to change the Projects or Runtime grouping, `p` to
-cycle the project filter, and `r` to refresh immediately. The filter cycles through projects ranked by the most recent
-unfiltered result; return to **All** after changing the range to rebuild that list for the new range. See
+cycle the project filter, and `r` to refresh immediately. Keyed scope chips keep the effective range, grouping, and
+project visible; project scopes use configured display names while retaining canonical keys internally. The filter
+cycles through projects ranked by the most recent unfiltered result; return to **All** after changing the range to
+rebuild that list for the new range. If a selected project produces an empty result, one `p` clears directly to **All
+projects**. Every view includes a compact metric legend, `?` opens the complete glossary and current scope, and
+empty/error states show the effective keys for widening, clearing, or retrying. See
 [Telemetry: Admin Center Statistics tab](telemetry.md#admin-center-statistics-tab) for the view contents, range syntax,
 and project-filter caveats.
 
@@ -2430,9 +2441,9 @@ continuation; ordinary `%wait` consumers read it as a normal variable. See
 
 With no subcommand, `sase telemetry` prints a delegation notice and runs `sase telemetry list`.
 
-| Flag         | Values                                 | Default | Description          |
-| ------------ | -------------------------------------- | ------- | -------------------- |
-| _subcommand_ | `health`, `list`, `snapshot`, `status` | `list`  | Telemetry subcommand |
+| Flag         | Values                                                      | Default | Description          |
+| ------------ | ----------------------------------------------------------- | ------- | -------------------- |
+| _subcommand_ | `cleanup-test-data`, `health`, `list`, `snapshot`, `status` | `list`  | Telemetry subcommand |
 
 See [docs/telemetry.md](telemetry.md) for the full CLI reference including per-subcommand flags.
 
@@ -2447,6 +2458,12 @@ Supported date range formats:
 - **Absolute**: `YYmmdd` or `YYmmddHHMMSS`
 - **Relative**: `-Nd` (days ago), `-Nh` (hours ago), `-Nm` (minutes ago), `0d` (today)
 - **Ranges**: `START..END` (e.g., `-7d..0d`); single point means "from that point to now"
+
+The run and event inputs at `~/.sase/logs/runs.jsonl` and `events.jsonl` rotate independently before a write would make
+either file exceed 2 MiB. Rotation keeps one `.1` generation and replaces an older backup; set `SASE_RUN_LOG_MAX_BYTES`
+to another byte limit, or `0` for no size rotation. Malformed historical lines are skipped. The current `sase logs`
+collector reads only the active `.jsonl` files, so copy the matching `.1` files separately when a support bundle must
+include records from the previous generation.
 
 ### `sase editor`
 

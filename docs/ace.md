@@ -824,15 +824,24 @@ per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the
 visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
-session mode is always visible after the cycle toast fades. The same header starts with a visible top-level agent metric
-strip in the form `N [S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with numeric
-counts in place of the letters and zero-count metrics omitted. The leading `N` is the top-level agent total, including
-agents still in the `STARTING` bucket. `stopped` counts agents paused for plan approval, questions, or workflow
-human-input steps; `starting` counts just-launched agents that have not yet surfaced as visible rows; `running` excludes
-waiting, failed, and stopped rows; `waiting` is the blocked/queued subset; `failed` is terminal failed work; `unread`
-counts terminal rows that still need acknowledgement; and `done` is completed visible work that has already been
-acknowledged. During startup the metric strip renders `Agents: …` until the first agent scan has loaded, avoiding a
-misleading zero-agent count. Each TUI launch starts in by-project grouping; cycling only changes the current session.
+session mode is always visible after the cycle toast fades. After the first scan, the header starts with the top-level
+agent total `N`, followed by an always-visible capacity chip in the form `[R/L · Q queued]`: `R` is the global number of
+independent user agent processes currently holding runner slots, `L` is the current `max_running_agents` limit, and `Q`
+counts live waiters using that configured cap. Waits with an explicit `%wait(runners=N)` threshold are intentionally
+excluded from `Q`. Independent parallel family members participate even though ACE nests them under a family; serial
+follow-up children, workflow Python/bash steps, and axe ChangeSpec runners do not. Occupancy is green below the limit,
+gold at the limit, and red above it; a nonzero queue count is violet.
+
+An optional status strip follows in the form
+`[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with numeric counts in place of the
+letters and zero-count metrics omitted. The leading `N` includes agents still in the `STARTING` bucket. `stopped` counts
+agents paused for plan approval, questions, or workflow human-input steps; `starting` counts just-launched agents that
+have not yet surfaced as visible rows; `running` excludes waiting, failed, and stopped rows; `waiting` is the
+blocked/queued subset; `failed` is terminal failed work; `unread` counts terminal rows that still need acknowledgement;
+and `done` is completed visible work that has already been acknowledged. During startup the header renders `Agents: …`
+until the first agent scan has loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project
+grouping; cycling only changes the current session.
+
 **Waiting** holds agents that are blocked but progressing on their own — `WAITING` with a time wait (`%wait(time=5m)`,
 `%wait(time=1430)`), a non-empty `waiting_for` dependency, or a runner-slot gate. Runner-slot rows add a dim Running
 glyph suffix: config-gated waits use live-count/cap form (`WAITING ▶10/10`), while an explicit threshold uses an arrow

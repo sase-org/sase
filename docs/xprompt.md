@@ -1267,8 +1267,9 @@ defaults to `10`.
 
 Without an explicit `runners=`, the global `max_running_agents` config limits concurrent root user agents (default
 `10`). Immediate root launches claim a slot before workspace preparation. Dependency, time, and fork waiters remain
-uncounted until those prerequisites resolve. Child agents, workflow Python/bash steps, and axe ChangeSpec runners do not
-consume these slots.
+uncounted until those prerequisites resolve. Every independently launched clan member and parallel family member
+consumes a slot, even when ACE renders it as a nested row. Serial follow-up children, workflow Python/bash steps, and
+axe ChangeSpec runners do not consume these slots.
 
 A root agent that pauses at `QUESTION` temporarily yields its slot while waiting for the user's answer. Answering does
 not bypass the cap: before follow-up work resumes, the root reacquires capacity through the same locked priority/FIFO
