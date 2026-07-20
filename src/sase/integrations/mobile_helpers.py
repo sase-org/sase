@@ -9,15 +9,17 @@ import json
 import sys
 from typing import Any, TextIO
 
-from sase.bead.workspace import get_all_project_beads_dirs
+from sase.bead import store_locator as _bead_store_locator
+from sase.bead.workspace import (
+    get_all_project_beads_dirs,
+    get_project_beads_dirs_for_project,
+)
 
-from . import _mobile_helper_beads as _beads
 from . import _mobile_helper_catalog as _catalog
 from . import _mobile_helper_updates as _updates
 from ._mobile_helper_beads import (
     beads_list_response,
     beads_show_response,
-    get_project_beads_dirs_for_project,
 )
 from ._mobile_helper_catalog import (
     build_structured_xprompts_catalog,
@@ -90,6 +92,8 @@ def handle_mobile_helper_bridge(
 def _sync_mobile_helper_dependency_overrides() -> None:
     """Preserve legacy monkeypatch targets on this facade module."""
     _catalog.build_structured_xprompts_catalog = build_structured_xprompts_catalog
-    _beads.get_project_beads_dirs_for_project = get_project_beads_dirs_for_project
+    _bead_store_locator.get_project_beads_dirs_for_project = (
+        get_project_beads_dirs_for_project
+    )
     _updates.read_chat_install_status = read_chat_install_status
     _updates.start_chat_install_worker = start_chat_install_worker

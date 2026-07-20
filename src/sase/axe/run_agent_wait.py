@@ -90,6 +90,7 @@ def _initial_dependencies_resolved(
     wait_names: Iterable[object],
     wait_identity_deps: Iterable[object],
     *,
+    wait_beads: Iterable[object] = (),
     resolved_deps: Iterable[object] = (),
     project_name: str | None,
     artifacts_dir: str,
@@ -101,11 +102,20 @@ def _initial_dependencies_resolved(
         dependency_index = build_wait_dependency_index(project_name)
     except Exception:
         return False
+    wait_bead_items = tuple(wait_beads)
+    closed_bead_ids = None
+    if wait_bead_items:
+        from sase.bead.store_locator import closed_bead_ids_for_project
+
+        closed_bead_ids = closed_bead_ids_for_project(project_name)
+
     status = dependency_resolution_status(
         dependency_index,
         wait_names,
         wait_identity_deps,
         resolved_deps,
+        wait_beads=wait_bead_items,
+        closed_bead_ids=closed_bead_ids,
         self_artifact_dir=artifacts_dir,
     )
     return status.resolved
@@ -209,19 +219,23 @@ def _waiting_marker_dependencies_resolved(
 
     wait_names = waiting_data.get("waiting_for", [])
     wait_identity_deps = waiting_data.get("wait_for_artifacts", [])
+    wait_beads = waiting_data.get("wait_for_beads", [])
     resolved_deps = waiting_data.get("resolved_deps", [])
     if not isinstance(wait_names, list):
         return False
     if not isinstance(wait_identity_deps, list):
         wait_identity_deps = []
+    if not isinstance(wait_beads, list):
+        wait_beads = []
     if not isinstance(resolved_deps, list):
         resolved_deps = []
-    if not wait_names and not wait_identity_deps:
+    if not wait_names and not wait_identity_deps and not wait_beads:
         return False
 
     return _initial_dependencies_resolved(
         wait_names,
         wait_identity_deps,
+        wait_beads=wait_beads,
         resolved_deps=resolved_deps,
         project_name=project_name,
         artifacts_dir=artifacts_dir,
@@ -357,15 +371,16 @@ def wait_for_dependencies(
     *,
     project_name: str | None = None,
     wait_identity_deps: list[dict[str, str]] | None = None,
+    wait_beads: list[str] | None = None,
     duration: float | None = None,
     wait_until: str | None = None,
 ) -> bool:
     """Wait for named agent dependencies, a duration, or an absolute time.
 
-    When *wait_names* is non-empty, writes waiting.json and polls for ready.json,
-    periodically resolving the dependencies directly as a fallback. When
-    *duration* is set alongside named dependencies, the duration starts after
-    dependency resolution; without named dependencies, the duration starts
+    When agent or bead dependencies are present, writes waiting.json and polls
+    for ready.json, periodically resolving the dependencies directly as a
+    fallback. When *duration* is set alongside dependencies, the duration starts
+    after dependency resolution; without dependencies, the duration starts
     immediately. When *wait_until* is set (ISO 8601 timestamp), the agent won't
     start before that wall-clock time.
 
@@ -398,20 +413,22 @@ def wait_for_dependencies(
 
     blocked = False
     wait_identity_deps = list(wait_identity_deps or [])
-    has_agent_dependencies = bool(wait_names or wait_identity_deps)
+    wait_beads = list(wait_beads or [])
+    has_dependencies = bool(wait_names or wait_identity_deps or wait_beads)
     dependencies_already_resolved = (
         _initial_dependencies_resolved(
             wait_names,
             wait_identity_deps,
+            wait_beads=wait_beads,
             project_name=project_name,
             artifacts_dir=artifacts_dir,
         )
-        if has_agent_dependencies and duration is None and wait_until is None
+        if has_dependencies and duration is None and wait_until is None
         else False
     )
 
     if (
-        has_agent_dependencies
+        has_dependencies
         and duration is None
         and wait_until is None
         and dependencies_already_resolved
@@ -420,8 +437,8 @@ def wait_for_dependencies(
         if not was_killed():
             _record_wait_completed_at(artifacts_dir, agent_meta)
         return False
-    elif has_agent_dependencies:
-        # --- Agent-name dependency path (with optional duration/time floor) ---
+    elif has_dependencies:
+        # --- Dependency path (with optional duration/time floor) ---
         waiting_path = os.path.join(artifacts_dir, "waiting.json")
         waiting_data: dict[str, Any] = {
             "waiting_for": wait_names,
@@ -430,13 +447,19 @@ def wait_for_dependencies(
         }
         if wait_identity_deps:
             waiting_data["wait_for_artifacts"] = wait_identity_deps
+        if wait_beads:
+            waiting_data["wait_for_beads"] = wait_beads
         if duration is not None:
             waiting_data["wait_duration"] = duration
         if wait_until is not None:
             waiting_data["wait_until"] = wait_until
         _write_waiting_marker(artifacts_dir, waiting_data)
 
-        parts = [f"agents: {', '.join(wait_names)}"]
+        parts = []
+        if wait_names:
+            parts.append(f"agents: {', '.join(wait_names)}")
+        if wait_beads:
+            parts.append(f"beads: {', '.join(wait_beads)}")
         if duration is not None:
             parts.append(f"duration: {duration:.0f}s")
         if wait_until is not None:

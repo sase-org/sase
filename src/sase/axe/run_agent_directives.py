@@ -97,6 +97,7 @@ class AgentInfo(NamedTuple):
     name: str | None
     wait_names: list[str]
     wait_identity_deps: list[dict[str, str]]
+    wait_beads: list[str]
     wait_duration: float | None
     wait_until: str | None
     wait_runners: int | None
@@ -236,6 +237,7 @@ def extract_directives_and_write_meta(
 
     wait_names = list(directives.wait)
     wait_identity_deps: list[dict[str, str]] = []
+    wait_beads = list(directives.wait_beads)
     for fork_wait_target in fork_agent_names(raw_resolved_prompt):
         if fork_wait_target not in wait_names:
             wait_names.append(fork_wait_target)
@@ -430,6 +432,8 @@ def extract_directives_and_write_meta(
             agent_meta["wait_for"] = wait_names
         if wait_identity_deps:
             agent_meta["wait_for_artifacts"] = wait_identity_deps
+        if wait_beads:
+            agent_meta["wait_for_beads"] = wait_beads
         if directives.wait_duration is not None:
             agent_meta["wait_duration"] = directives.wait_duration
         if directives.wait_until is not None:
@@ -602,6 +606,7 @@ def extract_directives_and_write_meta(
         name=agent_name,
         wait_names=wait_names,
         wait_identity_deps=wait_identity_deps,
+        wait_beads=wait_beads,
         wait_duration=directives.wait_duration,
         wait_until=directives.wait_until,
         wait_runners=directives.wait_runners,

@@ -41,6 +41,7 @@ def _agent_info() -> SimpleNamespace:
                 "name": "foo",
             }
         ],
+        wait_beads=["sase-87.2"],
         wait_duration=None,
         wait_until=None,
         wait_runners=None,
@@ -265,6 +266,7 @@ def test_queued_child_proceeds_after_identity_wait_barrier(tmp_path: Path) -> No
             "name": "foo",
         }
     ]
+    assert wait_for_dependencies.call_args.kwargs["wait_beads"] == ["sase-87.2"]
 
     run_execution_loop = result["run_execution_loop"]
     assert isinstance(run_execution_loop, MagicMock)

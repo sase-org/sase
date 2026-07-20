@@ -217,6 +217,86 @@ def test_named_wait_fallback_keeps_waiting_while_dependency_is_unresolved(
     assert "wait_completed_at" not in disk_meta
 
 
+def test_bead_wait_fallback_releases_after_bead_closes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    waiter_dir = _make_waiter(tmp_path)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    closed_beads: set[str] = set()
+    sleep_calls: list[float] = []
+
+    def close_bead_after_poll(seconds: float) -> None:
+        sleep_calls.append(seconds)
+        closed_beads.add("sase-87.3")
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", return_value=False),
+        patch("sase.axe.run_agent_wait._WAIT_DEPENDENCY_FALLBACK_INTERVAL", 0),
+        patch(
+            "sase.bead.store_locator.closed_bead_ids_for_project",
+            side_effect=lambda _project: frozenset(closed_beads),
+        ),
+        patch(
+            "sase.axe.run_agent_wait.time.sleep",
+            side_effect=close_bead_after_poll,
+        ),
+    ):
+        blocked = wait_for_dependencies(
+            [],
+            str(waiter_dir),
+            "cl",
+            "20260720120000",
+            {"pid": 123},
+            project_name="proj",
+            wait_beads=["sase-87.3"],
+        )
+
+    assert blocked is True
+    assert sleep_calls == [2]
+    assert "Dependencies satisfied by runner fallback" in capsys.readouterr().out
+
+
+def test_bead_wait_fallback_stays_parked_while_bead_is_open(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waiter_dir = _make_waiter(tmp_path)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    sleep_count = 0
+
+    def was_killed() -> bool:
+        return sleep_count >= 2
+
+    def count_poll(_seconds: float) -> None:
+        nonlocal sleep_count
+        sleep_count += 1
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", side_effect=was_killed),
+        patch("sase.axe.run_agent_wait._WAIT_DEPENDENCY_FALLBACK_INTERVAL", 0),
+        patch(
+            "sase.bead.store_locator.closed_bead_ids_for_project",
+            return_value=frozenset(),
+        ),
+        patch("sase.axe.run_agent_wait.time.sleep", side_effect=count_poll),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        wait_for_dependencies(
+            [],
+            str(waiter_dir),
+            "cl",
+            "20260720120000",
+            {"pid": 123},
+            project_name="proj",
+            wait_beads=["sase-87.3"],
+        )
+
+    assert exc_info.value.code == 143
+    assert sleep_count == 2
+
+
 def test_named_wait_fallback_is_skipped_without_project_name(
     tmp_path: Path,
 ) -> None:

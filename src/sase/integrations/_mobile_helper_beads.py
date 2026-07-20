@@ -8,8 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from sase.bead.model import BeadTier, Issue, IssueType, Status
-from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
-from sase.bead.workspace import get_project_beads_dirs_for_project
+from sase.bead.store_locator import (
+    canonical_beads_dir_for_project,
+    open_bead_project_for_beads_dir,
+)
 
 from ._mobile_helper_common import (
     GATEWAY_WIRE_SCHEMA_VERSION,
@@ -103,7 +105,7 @@ def beads_show_response(request: dict[str, Any]) -> dict[str, Any]:
     for project, beads_dir in scope.groups:
         try:
             all_issues = _read_store_issues(beads_dir)
-            with _open_project_for_beads_dir(beads_dir) as bead_project:
+            with open_bead_project_for_beads_dir(beads_dir) as bead_project:
                 issue = bead_project.show(bead_id)
         except KeyError:
             continue
@@ -145,7 +147,7 @@ def _resolve_bead_read_scope(request: dict[str, Any]) -> _BeadReadScope:
 
 
 def _explicit_project_scope(project: str) -> _BeadReadScope:
-    beads_dir = _canonical_beads_dir_for_project(project)
+    beads_dir = canonical_beads_dir_for_project(project)
     if beads_dir is None:
         return _BeadReadScope(
             project=project,
@@ -180,7 +182,7 @@ def _device_project_scope(project: str) -> _BeadReadScope:
 def _all_known_project_scope() -> _BeadReadScope:
     groups: list[tuple[str, Path]] = []
     for project in _known_project_names():
-        beads_dir = _canonical_beads_dir_for_project(project)
+        beads_dir = canonical_beads_dir_for_project(project)
         if beads_dir is None or not beads_dir.is_dir():
             continue
         groups.append((project, beads_dir))
@@ -210,13 +212,6 @@ def _known_project_names() -> list[str]:
     ]
 
 
-def _canonical_beads_dir_for_project(project: str) -> Path | None:
-    beads_dirs = get_project_beads_dirs_for_project(project)
-    if not beads_dirs:
-        return None
-    return beads_dirs[0]
-
-
 def _remembered_device_project(device_id: str | None) -> str | None:
     if not device_id:
         return None
@@ -242,17 +237,8 @@ def _remembered_device_project(device_id: str | None) -> str | None:
 
 
 def _read_store_issues(beads_dir: Path) -> list[Issue]:
-    with _open_project_for_beads_dir(beads_dir) as project:
+    with open_bead_project_for_beads_dir(beads_dir) as project:
         return project.list_issues()
-
-
-def _open_project_for_beads_dir(beads_dir: Path) -> BeadProject:
-    parts = beads_dir.parts
-    if len(parts) >= 2 and parts[-2:] == ("sdd", "beads"):
-        return BeadProject(beads_dir.parents[1], beads_dirname=BEADS_DIRNAME)
-    if len(parts) >= 3 and parts[-3:] == (".sase", "sdd", "beads"):
-        return BeadProject(beads_dir.parent, beads_dirname=BEADS_DIRNAME_NON_VC)
-    return BeadProject(beads_dir.parent, beads_dirname=beads_dir.name)
 
 
 def _bead_summary_wire(

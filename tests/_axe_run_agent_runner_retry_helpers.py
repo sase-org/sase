@@ -30,6 +30,7 @@ AGENT_INFO = AgentInfo(
     name="test-agent",
     wait_names=[],
     wait_identity_deps=[],
+    wait_beads=[],
     wait_duration=None,
     wait_until=None,
     wait_runners=None,

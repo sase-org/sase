@@ -289,6 +289,7 @@ def main() -> None:
             has_dependency_wait = (
                 bool(info.wait_names)
                 or bool(info.wait_identity_deps)
+                or bool(info.wait_beads)
                 or info.wait_duration is not None
                 or info.wait_until is not None
             )
@@ -310,6 +311,7 @@ def main() -> None:
                     agent_meta,
                     project_name=project_name,
                     wait_identity_deps=info.wait_identity_deps,
+                    wait_beads=info.wait_beads,
                     duration=info.wait_duration,
                     wait_until=info.wait_until,
                 )

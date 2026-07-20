@@ -51,6 +51,18 @@ class TestExtractDirectivesMetadata:
         assert result["info"].wait_runners == 0
         assert result["meta"]["wait_runners"] == 0
 
+    def test_persists_wait_beads_metadata(self, tmp_path: Path) -> None:
+        result = run_extract(
+            tmp_path,
+            env_auto_dismiss=True,
+            prompt="%wait(bead=sase-87.2)\ndo stuff",
+        )
+
+        assert result["info"].wait_beads == ["sase-87.2"]
+        assert result["info"].wait_names == []
+        assert result["meta"]["wait_for_beads"] == ["sase-87.2"]
+        assert "wait_for" not in result["meta"]
+
     def test_skips_auto_name_when_auto_dismiss(self, tmp_path: Path) -> None:
         """Auto-dismiss agents should not get an auto-assigned name."""
         result = run_extract(tmp_path, env_auto_dismiss=True)

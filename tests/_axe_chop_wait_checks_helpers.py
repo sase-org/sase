@@ -33,6 +33,7 @@ def make_waiting_agent(
     *waiting_for: str,
     suffix: str = "waiter",
     wait_for_artifacts: list[dict[str, str]] | None = None,
+    wait_for_beads: list[str] | None = None,
 ) -> Path:
     artifact_dir = base / ".sase/projects/proj/artifacts/ace-run" / suffix
     artifact_dir.mkdir(parents=True)
@@ -43,6 +44,8 @@ def make_waiting_agent(
     }
     if wait_for_artifacts is not None:
         marker["wait_for_artifacts"] = wait_for_artifacts
+    if wait_for_beads is not None:
+        marker["wait_for_beads"] = wait_for_beads
     (artifact_dir / "waiting.json").write_text(
         json.dumps(marker),
         encoding="utf-8",

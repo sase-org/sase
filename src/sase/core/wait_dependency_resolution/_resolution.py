@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +17,8 @@ def dependency_resolution_status(
     wait_identity_deps: Iterable[object] = (),
     resolved_deps: Iterable[object] = (),
     *,
+    wait_beads: Iterable[object] = (),
+    closed_bead_ids: Collection[str] | None = None,
     self_artifact_dir: str | Path | None = None,
 ) -> WaitDependencyStatus:
     resolved_dep_items = tuple(resolved_deps)
@@ -52,6 +54,17 @@ def dependency_resolution_status(
             newer_than=waiter_launch_cutoff if name.startswith("@") else None,
         ):
             return WaitDependencyStatus("waiting")
+
+    wait_bead_items = tuple(wait_beads)
+    for bead_id in wait_bead_items:
+        if not isinstance(bead_id, str) or not bead_id:
+            return WaitDependencyStatus("waiting")
+    if wait_bead_items and closed_bead_ids is None:
+        return WaitDependencyStatus("waiting")
+    if closed_bead_ids is not None:
+        for bead_id in wait_bead_items:
+            if bead_id not in closed_bead_ids:
+                return WaitDependencyStatus("waiting")
     return WaitDependencyStatus("resolved")
 
 

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.bead.store_locator import closed_bead_ids_for_project
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
@@ -24,6 +25,7 @@ from sase.core.wait_dependency_resolution import (
 
 @dataclass(frozen=True)
 class _WaitingMarker:
+    project_name: str
     ready_path: Path
     waiting_path: Path
 
@@ -82,6 +84,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
 
             pending_waiting_markers.append(
                 _WaitingMarker(
+                    project_name=project_dir.name,
                     ready_path=ready_path,
                     waiting_path=waiting_path,
                 )
@@ -89,6 +92,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
 
     dependency_index.add_many(artifact_rows)
 
+    closed_bead_ids_by_project: dict[str, frozenset[str] | None] = {}
     for waiting_marker in pending_waiting_markers:
         try:
             with open(waiting_marker.waiting_path, encoding="utf-8") as f:
@@ -103,29 +107,47 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
 
         waiting_for = data.get("waiting_for", [])
         wait_for_artifacts = data.get("wait_for_artifacts", [])
+        wait_for_beads = data.get("wait_for_beads", [])
         resolved_deps = data.get("resolved_deps", [])
         if not isinstance(wait_for_artifacts, list):
             wait_for_artifacts = []
+        if not isinstance(wait_for_beads, list):
+            wait_for_beads = []
         if not isinstance(resolved_deps, list):
             resolved_deps = []
         if not isinstance(waiting_for, list) or (
-            not waiting_for and not wait_for_artifacts
+            not waiting_for and not wait_for_artifacts and not wait_for_beads
         ):
             skipped_invalid += 1
             continue
+
+        closed_bead_ids = None
+        if wait_for_beads:
+            project_name = waiting_marker.project_name
+            if project_name not in closed_bead_ids_by_project:
+                closed_bead_ids_by_project[project_name] = closed_bead_ids_for_project(
+                    project_name
+                )
+            closed_bead_ids = closed_bead_ids_by_project[project_name]
 
         status = dependency_resolution_status(
             dependency_index,
             waiting_for,
             wait_for_artifacts,
             resolved_deps,
+            wait_beads=wait_for_beads,
+            closed_bead_ids=closed_bead_ids,
             self_artifact_dir=waiting_marker.waiting_path.parent,
         )
         if status.resolved:
             cl_name = data.get("cl_name", "unknown")
+            waited_on = ", ".join(waiting_for)
+            if wait_for_beads:
+                bead_wait = f"beads: {', '.join(wait_for_beads)}"
+                waited_on = f"{waited_on}; {bead_wait}" if waited_on else bead_wait
             runtime.log(
                 f"[wait_checks] Dependencies satisfied for {cl_name}, "
-                f"waited on: {', '.join(waiting_for)}",
+                f"waited on: {waited_on}",
             )
             try:
                 with open(waiting_marker.ready_path, "w", encoding="utf-8") as f:
