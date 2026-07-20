@@ -56,9 +56,7 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "effort": ":level",
     "hide": "flag",
     "model": ":model or (model, alias=model)",
-    "id": (
-        ":agent-id, (id, clan=clan), (suffix, family=family), or ([id], tribe=tribe)"
-    ),
+    "id": (":agent-id or ([id], bead=bead, clan=/family=/tribe=)"),
     "repeat": ":count",
     "wait": ":agent or (agent, time=5m, runners=1, priority=10)",
 }
@@ -71,7 +69,7 @@ _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "effort": "set the reasoning-effort level for this prompt",
     "hide": "hide the agent from the default Agents tab",
     "model": "choose a model and optional launch-family alias overrides",
-    "id": "assign an agent id, clan, family, or user-managed tribe",
+    "id": "assign an agent id with an optional bead, clan, family, or user-managed tribe",
     "repeat": "run the prompt multiple serial iterations",
     "wait": "defer launch for agents, a time floor, or a runner threshold",
 }
@@ -115,6 +113,7 @@ _CLAN_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
 )
 
 _ID_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
+    ("bead=", "associate this launch with a bead"),
     ("clan=", "derive the full name and join this agent clan"),
     ("family=", "attach this suffix to an existing agent family"),
     ("tribe=", "assign this agent to a user-managed tribe"),

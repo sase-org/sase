@@ -74,6 +74,18 @@ def resolve_wait_bead_args(wait_bead_args: list[str]) -> list[str]:
     return resolved
 
 
+def resolve_launch_bead_id(expanded_args: dict[str, str]) -> str | None:
+    """Validate the optional ``bead=`` keyword on ``%id``."""
+    if "bead" not in expanded_args:
+        return None
+    bead_id = expanded_args["bead"]
+    if not bead_id or re.fullmatch(r"\S+", bead_id) is None:
+        raise DirectiveError(
+            "'%id(..., bead=...)' requires a non-empty, whitespace-free bead ID"
+        )
+    return bead_id
+
+
 def resolve_wait_time_args(
     wait_time_args: list[str],
 ) -> tuple[float | None, str | None]:

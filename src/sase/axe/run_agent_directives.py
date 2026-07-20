@@ -29,6 +29,7 @@ def _preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
         "epic_plan_ref",
         "epic_bead_id",
         "phase_bead_id",
+        "bead_id",
     ):
         value = existing_meta.get(key)
         if isinstance(value, str) and value:
@@ -95,6 +96,7 @@ class AgentInfo(NamedTuple):
     """Result of directive extraction and metadata writing."""
 
     name: str | None
+    bead_id: str | None
     wait_names: list[str]
     wait_identity_deps: list[dict[str, str]]
     wait_beads: list[str]
@@ -179,6 +181,17 @@ def extract_directives_and_write_meta(
         extra_xprompts=multi.local_xprompts or None,
     )
     _, directives = extract_prompt_directives(expanded_for_directives)
+    bead_id = directives.bead_id
+    if bead_id is not None:
+        from sase.bead.work import SASE_BEAD_ID_ENV
+
+        existing_bead_id = os.environ.get(SASE_BEAD_ID_ENV, "")
+        if existing_bead_id.strip() and existing_bead_id != bead_id:
+            raise RuntimeError(
+                f"%id bead association '{bead_id}' does not match "
+                f"{SASE_BEAD_ID_ENV}='{existing_bead_id}'"
+            )
+        os.environ[SASE_BEAD_ID_ENV] = bead_id
     from sase.agent.family_attach import load_family_attach_plan_from_env
 
     family_attach_plan = load_family_attach_plan_from_env()
@@ -430,6 +443,8 @@ def extract_directives_and_write_meta(
             agent_meta["output_path"] = output_path
         if agent_name:
             agent_meta["name"] = agent_name
+        if bead_id:
+            agent_meta["bead_id"] = bead_id
         if wait_names:
             agent_meta["wait_for"] = wait_names
         if wait_identity_deps:
@@ -609,6 +624,7 @@ def extract_directives_and_write_meta(
 
     return AgentInfo(
         name=agent_name,
+        bead_id=bead_id,
         wait_names=wait_names,
         wait_identity_deps=wait_identity_deps,
         wait_beads=wait_beads,

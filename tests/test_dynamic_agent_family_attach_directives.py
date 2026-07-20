@@ -50,7 +50,7 @@ def test_name_directive_rejects_positional_family_form_and_unknown_keywords() ->
 
     with pytest.raises(
         DirectiveError,
-        match=r"Only clan=, family=, and tribe= are supported",
+        match=r"Only bead=, clan=, family=, and tribe= are supported",
     ):
         extract_prompt_directives("%i(foo, run_status=DONE)\nDo work")
 

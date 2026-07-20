@@ -103,6 +103,8 @@ class PromptDirectives:
             the stored/threaded field is ``reasoning_effort`` everywhere.
         name: Agent name assigned via the %id directive, or None. The field
             remains ``name`` because it stores the resulting full agent name.
+        bead_id: Bead associated with this generic launch via ``%id(bead=...)``,
+            or None.
         clan: Clan name or name template requested via ``%clan``/``%c`` or
             the ``clan=`` keyword on ``%id``, or None when no clan membership
             was requested.
@@ -140,6 +142,7 @@ class PromptDirectives:
     )
     reasoning_effort: str | None = None
     name: str | None = None
+    bead_id: str | None = None
     name_explicit: bool = False
     name_force_reuse: bool = False
     clan: str | None = None

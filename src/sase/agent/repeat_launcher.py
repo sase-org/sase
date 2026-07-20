@@ -85,13 +85,24 @@ def extract_repeat_and_name(
     needed", and the original prompt is returned unchanged so callers can
     dispatch it through the single-agent path.
     """
+    count, explicit_name, _bead_id, stripped = _extract_repeat_identity(prompt)
+    if count is None:
+        return None, None, prompt
+    return count, explicit_name, stripped
+
+
+def _extract_repeat_identity(
+    prompt: str,
+) -> tuple[int | None, str | None, str | None, str]:
+    """Return repeat count, name, bead association, and stripped prompt."""
     from sase.core.agent_launch_facade import plan_agent_launch_fanout
 
     _validate_repeat_prompt_directives(prompt)
     plan = plan_agent_launch_fanout(prompt, launch_kind="repeat")
     if not plan.slots:
-        return None, None, prompt
-    return len(plan.slots), plan.slots[0].repeat_name, plan.slots[0].prompt
+        return None, None, None, prompt
+    first = plan.slots[0]
+    return len(plan.slots), first.repeat_name, first.bead_id, first.prompt
 
 
 def _validate_repeat_prompt_directives(prompt: str) -> None:
@@ -129,7 +140,7 @@ def spawn_repeat_batch(
     Raises :class:`NameCollisionError` if an explicit base name collides
     with a currently-active agent.
     """
-    count, explicit_base, prompt_stripped = extract_repeat_and_name(prompt)
+    count, explicit_base, bead_id, prompt_stripped = _extract_repeat_identity(prompt)
     if count is None:
         return []
     if timestamps is not None and len(timestamps) != count:
@@ -173,9 +184,12 @@ def spawn_repeat_batch(
             iteration=k,
             total=count,
             prompt=(
-                f"%i:{names[k - 1]}\n{prompt_stripped}"
+                f"{_repeat_id_directive(names[k - 1], bead_id)}\n{prompt_stripped}"
                 if k == 1
-                else f"%i:{names[k - 1]}\n%wait:{names[k - 2]}\n{prompt_stripped}"
+                else (
+                    f"{_repeat_id_directive(names[k - 1], bead_id)}\n"
+                    f"%wait:{names[k - 2]}\n{prompt_stripped}"
+                )
             ),
             timestamp=None if timestamps is None else timestamps[k - 1],
             prev_name=None if k == 1 else names[k - 2],
@@ -198,6 +212,12 @@ def spawn_repeat_batch(
 
     timer.finish(outcome="ok")
     return specs
+
+
+def _repeat_id_directive(name: str, bead_id: str | None) -> str:
+    if bead_id is None:
+        return f"%i:{name}"
+    return f"%i({name}, bead={bead_id})"
 
 
 def _agent_name_template_in_prompt(prompt: str) -> str | None:

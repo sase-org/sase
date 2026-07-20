@@ -337,7 +337,7 @@ class TestDeferredWorkspacePreparation:
         real_ws.mkdir()
         events: list[Any] = []
 
-        wait_info = AGENT_INFO._replace(wait_names=["dep"])
+        wait_info = AGENT_INFO._replace(wait_names=["dep"], bead_id="sase-8f.2")
         patches = base_patches(artifacts_dir)
         patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
             return_value=wait_info
@@ -348,9 +348,15 @@ class TestDeferredWorkspacePreparation:
             if meta_path.exists():
                 assert "run_started_at" not in json.loads(meta_path.read_text())
 
-        def wait_for_deps(*_args: Any, **_kwargs: Any) -> None:
+        def wait_for_deps(*_args: Any, **_kwargs: Any) -> bool:
             assert_no_run_started_at()
             events.append("wait")
+            return True
+
+        def refresh_code(*_args: Any, **kwargs: Any) -> None:
+            assert kwargs["blocking_wait_occurred"] is True
+            assert_no_run_started_at()
+            events.append("refresh")
 
         def wait_for_slot(*_args: Any, claim: Any, **kwargs: Any) -> str:
             assert kwargs["wait_runners"] is None
@@ -391,6 +397,22 @@ class TestDeferredWorkspacePreparation:
             resolution = kwargs["resolution"]
             events.append(("prepare-linked", resolution.repos[0].workspace_dir))
 
+        def claim_bead(**kwargs: Any) -> None:
+            assert_run_started_at()
+            assert kwargs == {
+                "agent_name": "test-agent",
+                "bead_id": "sase-8f.2",
+                "workspace_dir": str(real_ws),
+                "workspace_num": 3,
+                "artifacts_dir": artifacts_dir,
+            }
+            events.append("claim-bead")
+
+        def capture_sdd(workspace_dir: str, workspace_num: int) -> None:
+            assert workspace_dir == str(real_ws)
+            assert workspace_num == 3
+            events.append("capture-sdd")
+
         def run_loop(ctx: Any, _prompt: str) -> SimpleNamespace:
             meta = json.loads(meta_path.read_text())
             assert meta["run_started_at"] == ctx.agent_meta["run_started_at"]
@@ -398,6 +420,7 @@ class TestDeferredWorkspacePreparation:
             return exec_result(artifacts_dir)
 
         patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_deps
+        patches[f"{RUNNER}.refresh_runner_code_after_wait"] = refresh_code
         patches[f"{RUNNER}.wait_for_runner_slot"] = wait_for_slot
         patches[f"{RUNNER}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
         patches[f"{RUNNER}.claim_deferred_workspace"] = claim_deferred
@@ -406,6 +429,8 @@ class TestDeferredWorkspacePreparation:
         patches[f"{RUNNER}.prepare_linked_repo_workspaces_if_needed"] = (
             prepare_linked_repos
         )
+        patches[f"{RUNNER}.claim_bead_for_agent_launch"] = claim_bead
+        patches[f"{RUNNER}.capture_sdd_base_sha"] = capture_sdd
         patches[f"{RUNNER}.run_execution_loop"] = run_loop
 
         run_main(
@@ -419,11 +444,14 @@ class TestDeferredWorkspacePreparation:
 
         assert events == [
             "wait",
+            "refresh",
             "gate",
             "claim",
             ("prepare", str(real_ws)),
             "refresh-linked",
             ("prepare-linked", str(tmp_path / "sase-core_3")),
+            "claim-bead",
+            "capture-sdd",
             ("run", 3, str(real_ws)),
         ]
 
@@ -539,7 +567,7 @@ class TestDeferredWorkspacePreparation:
         placeholder_ws.mkdir()
         order: list[str] = []
 
-        wait_info = AGENT_INFO._replace(wait_names=["foo.1"])
+        wait_info = AGENT_INFO._replace(wait_names=["foo.1"], bead_id="sase-8f.2")
         patches = base_patches(artifacts_dir)
         patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
             return_value=wait_info
@@ -564,6 +592,10 @@ class TestDeferredWorkspacePreparation:
             side_effect=AssertionError("stopped slot must not claim a workspace")
         )
         patches[f"{RUNNER}.claim_deferred_workspace"] = claim_mock
+        claim_bead_mock = MagicMock(
+            side_effect=AssertionError("stopped slot must not claim a bead")
+        )
+        patches[f"{RUNNER}.claim_bead_for_agent_launch"] = claim_bead_mock
 
         notify_mock = MagicMock()
         patches[f"{RUNNER}.send_completion_notification"] = notify_mock
@@ -581,6 +613,7 @@ class TestDeferredWorkspacePreparation:
         run_loop.assert_not_called()
         gate_mock.assert_not_called()
         claim_mock.assert_not_called()
+        claim_bead_mock.assert_not_called()
         # Output variables are propagated before the completed done marker.
         assert order == ["set_vars", "write_done"]
         set_vars_mock.assert_called_once_with(artifacts_dir, {"STOP": "1"})
@@ -626,3 +659,63 @@ class TestDeferredWorkspacePreparation:
         assert (
             "SASE_AGENT_DEFERRED_WORKSPACE=1" in write_error.call_args.kwargs["error"]
         )
+
+    def test_bead_claim_failure_writes_error_and_skips_model_execution(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        run_loop = MagicMock(return_value=exec_result(artifacts_dir))
+        write_error = MagicMock()
+        claim_bead = MagicMock(side_effect=RuntimeError("claim failed"))
+
+        patches = base_patches(artifacts_dir)
+        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+            return_value=AGENT_INFO._replace(bead_id="sase-8f.2")
+        )
+        patches[f"{RUNNER}.claim_bead_for_agent_launch"] = claim_bead
+        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{RUNNER}.write_error_done_marker"] = write_error
+
+        run_main(patches, tmp_path)
+
+        claim_bead.assert_called_once()
+        run_loop.assert_not_called()
+        assert "claim failed" in write_error.call_args.kwargs["error"]
+
+    def test_bead_environment_mismatch_writes_error_and_skips_model_execution(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        run_loop = MagicMock(return_value=exec_result(artifacts_dir))
+        write_error = MagicMock()
+        patches = base_patches(artifacts_dir)
+        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+            side_effect=RuntimeError(
+                "%id bead association 'sase-8f.2' does not match "
+                "SASE_BEAD_ID='sase-other'"
+            )
+        )
+        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{RUNNER}.write_error_done_marker"] = write_error
+
+        run_main(patches, tmp_path)
+
+        run_loop.assert_not_called()
+        assert "does not match SASE_BEAD_ID" in write_error.call_args.kwargs["error"]
+
+    def test_launch_without_bead_never_invokes_claim_helper(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        claim_bead = MagicMock(
+            side_effect=AssertionError("legacy launches must not claim a bead")
+        )
+        run_loop = MagicMock(return_value=exec_result(artifacts_dir))
+        patches = base_patches(artifacts_dir)
+        patches[f"{RUNNER}.claim_bead_for_agent_launch"] = claim_bead
+        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+
+        run_main(patches, tmp_path)
+
+        claim_bead.assert_not_called()
+        run_loop.assert_called_once()

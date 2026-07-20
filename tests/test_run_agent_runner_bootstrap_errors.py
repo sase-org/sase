@@ -152,6 +152,7 @@ def test_refreshed_bootstrap_preserves_phase_launch_metadata(
         "epic_plan_ref": "sdd/plans/202607/epic.md",
         "epic_bead_id": "sase-6k",
         "phase_bead_id": "sase-6k.3",
+        "bead_id": "sase-6k.3",
         "plan_committed": True,
         "agent_family": "sase-6k",
         "agent_family_role": "phase",

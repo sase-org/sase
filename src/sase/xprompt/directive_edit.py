@@ -61,15 +61,19 @@ def set_prompt_name(
     *,
     directive_alias: Literal["id", "i"] = "id",
     preserve_kwargs: bool = True,
+    drop_kwargs: frozenset[str] = frozenset(),
 ) -> str:
     """Return *prompt* with a canonical ``%id`` and optional existing kwargs."""
     protected, restore = _protect_ignored_regions(prompt)
     directive = _find_prompt_id_directive(protected)
     if directive is None:
         return restore(_insert_directive(protected, f"%{directive_alias}:{name}"))
+    named = directive.named if preserve_kwargs else {}
+    if drop_kwargs:
+        named = {key: value for key, value in named.items() if key not in drop_kwargs}
     replacement = _format_id_directive(
         name,
-        directive.named if preserve_kwargs else {},
+        named,
         directive_alias=directive_alias,
     )
     rewritten = protected[: directive.start] + replacement + protected[directive.end :]
@@ -145,9 +149,13 @@ def rewrite_prompt_clan_member_name(
     member_id = agent_name.removeprefix(prefix)
     if force_reuse:
         member_id = f"!{member_id}"
-    replacement = (
-        f"%id({_format_wait_arg(member_id)}, clan={_format_wait_arg(clan_name)})"
-    )
+    replacement_parts = [
+        _format_wait_arg(member_id),
+        f"clan={_format_wait_arg(clan_name)}",
+    ]
+    if directives.bead_id:
+        replacement_parts.append(f"bead={_format_wait_arg(directives.bead_id)}")
+    replacement = f"%id({', '.join(replacement_parts)})"
     rewritten = (
         _set_prompt_directive(prompt, {"clan"}, None)
         if directives.clan_declared

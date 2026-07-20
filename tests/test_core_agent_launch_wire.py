@@ -342,6 +342,7 @@ def test_fanout_plan_round_trips_slots() -> None:
                 launch_kind="multi_prompt",
                 slot_index=0,
                 alt_id="first",
+                bead_id="sase-8f.2",
             ),
             LaunchFanoutSlotWire(
                 prompt="%wait\nsecond",
@@ -357,6 +358,7 @@ def test_fanout_plan_round_trips_slots() -> None:
 
     assert payload["schema_version"] == AGENT_LAUNCH_WIRE_SCHEMA_VERSION
     assert payload["slots"][0]["alt_id"] == "first"
+    assert payload["slots"][0]["bead_id"] == "sase-8f.2"
     assert payload["slots"][1]["prompt"] == "%wait\nsecond"
     assert launch_fanout_plan_from_dict(payload) == plan
 
@@ -521,6 +523,19 @@ def test_plan_agent_launch_fanout_rust_repeat_handles_id_aliases_and_literals() 
         "  %model:opus do work"
     )
     assert [slot.wait_for_previous for slot in plan.slots] == [False, True, True]
+
+
+def test_plan_agent_launch_fanout_rust_repeat_preserves_bead_association() -> None:
+    pytest.importorskip("sase_core_rs")
+
+    plan = plan_agent_launch_fanout(
+        "%r:2 %id(task, clan=research, bead=sase-8f.2) do work",
+        launch_kind="repeat",
+    )
+
+    assert [slot.repeat_name for slot in plan.slots] == ["task", "task"]
+    assert [slot.bead_id for slot in plan.slots] == ["sase-8f.2", "sase-8f.2"]
+    assert all("%id" not in slot.prompt for slot in plan.slots)
 
 
 def test_allocate_launch_timestamp_batch_uses_rust_unique_seconds() -> None:

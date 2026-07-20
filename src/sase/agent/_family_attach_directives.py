@@ -9,7 +9,8 @@ from sase.agent import _family_attach_types as _types
 from sase.plan_chain import AGENT_FAMILY_SEPARATOR
 
 _SUFFIX_TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
-_NAME_DIRECTIVE_KEYWORDS = frozenset({"clan", "family", "tribe"})
+_NAME_DIRECTIVE_KEYWORDS = frozenset({"bead", "clan", "family", "tribe"})
+_NAME_MEMBERSHIP_KEYWORDS = frozenset({"clan", "family", "tribe"})
 
 
 def parse_name_directive_args(
@@ -26,11 +27,11 @@ def parse_name_directive_args(
     if unknown_keys:
         keys = ", ".join(f"{key}=" for key in unknown_keys)
         raise ValueError(
-            f"Unsupported keyword on {source}: {keys}. Only clan=, family=, "
-            "and tribe= are supported."
+            f"Unsupported keyword on {source}: {keys}. Only bead=, clan=, "
+            "family=, and tribe= are supported."
         )
     selected_keywords = sorted(
-        key for key in _NAME_DIRECTIVE_KEYWORDS if key in named_args
+        key for key in _NAME_MEMBERSHIP_KEYWORDS if key in named_args
     )
     if len(selected_keywords) > 1:
         raise ValueError(
@@ -41,6 +42,12 @@ def parse_name_directive_args(
         raise ValueError(
             "The positional family form on %id is no longer supported; use "
             "%id(<suffix>, family=<parent>) instead."
+        )
+
+    bead_id = named_args.get("bead")
+    if bead_id is not None and (not bead_id or re.fullmatch(r"\S+", bead_id) is None):
+        raise ValueError(
+            "The bead= keyword on %id requires a non-empty, whitespace-free bead ID."
         )
 
     clan = named_args.get("clan")
@@ -64,6 +71,7 @@ def parse_name_directive_args(
             )
         return _types.ParsedNameDirective(
             plain_name=member_id,
+            bead_id=bead_id,
             clan=clan,
             force_reuse=force_reuse,
         )
@@ -88,6 +96,7 @@ def parse_name_directive_args(
             )
         normalize_family_suffix_arg(suffix)
         return _types.ParsedNameDirective(
+            bead_id=bead_id,
             family_parent=parent,
             family_suffix=suffix,
         )
@@ -105,12 +114,14 @@ def parse_name_directive_args(
             )
         return _types.ParsedNameDirective(
             plain_name=plain_name,
+            bead_id=bead_id,
             tribe=tribe,
             force_reuse=force_reuse,
         )
 
     return _types.ParsedNameDirective(
         plain_name=positional_args[0] if positional_args else "",
+        bead_id=bead_id,
     )
 
 

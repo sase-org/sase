@@ -85,10 +85,10 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     )
     assert directive_metadata(model).argument_hint == (":model or (model, alias=model)")
     assert directive_metadata(agent_id).description == (
-        "assign an agent id, clan, family, or user-managed tribe"
+        "assign an agent id with an optional bead, clan, family, or user-managed tribe"
     )
     assert directive_metadata(agent_id).argument_hint == (
-        ":agent-id, (id, clan=clan), (suffix, family=family), or ([id], tribe=tribe)"
+        ":agent-id or ([id], bead=bead, clan=/family=/tribe=)"
     )
     assert directive_metadata(wait).description == (
         "defer launch for agents, a time floor, or a runner threshold"
@@ -167,6 +167,8 @@ def test_clan_parenthesized_completion_advertises_summary_keywords() -> None:
 
 def test_id_parenthesized_completion_advertises_identity_keywords() -> None:
     for line, expected in (
+        ("%id(worker, be", "bead="),
+        ("%id(be", "bead="),
         ("%id(worker, cl", "clan="),
         ("%id(worker, fa", "family="),
         ("%id(fa", "family="),

@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from tests._agent_names_extract_fixtures import mock_provider, run_extract
 
 
@@ -20,6 +22,7 @@ class TestExtractDirectivesMetadata:
             "sdd_plan_path": "sdd/plans/202607/epic.md",
             "epic_bead_id": "sase-6k",
             "phase_bead_id": "sase-6k.3",
+            "bead_id": "sase-6k.3",
             "plan_committed": True,
             "agent_family": "sase-6k",
             "agent_family_role": "phase",
@@ -140,6 +143,66 @@ class TestExtractDirectivesMetadata:
         assert meta["name"] == "alpha"
         assert meta["changespec_name"] == "feature-branch"
         assert meta["cl_name"] == "feature-branch"
+
+    def test_id_bead_publishes_metadata_and_environment(self, tmp_path: Path) -> None:
+        result = run_extract(
+            tmp_path,
+            prompt="%id(bead=sase-8f.2)\nDo work",
+        )
+
+        assert result["info"].bead_id == "sase-8f.2"
+        assert result["meta"]["bead_id"] == "sase-8f.2"
+        assert result["bead_env"] == "sase-8f.2"
+
+    def test_id_bead_accepts_matching_environment(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_BEAD_ID", "sase-8f.2")
+
+        result = run_extract(
+            tmp_path,
+            prompt="%id(worker, bead=sase-8f.2)\nDo work",
+        )
+
+        assert result["bead_env"] == "sase-8f.2"
+
+    def test_id_bead_rejects_mismatching_environment(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_BEAD_ID", "sase-other")
+
+        with pytest.raises(RuntimeError, match="does not match SASE_BEAD_ID"):
+            run_extract(
+                tmp_path,
+                prompt="%id(worker, bead=sase-8f.2)\nDo work",
+            )
+
+    def test_legacy_bead_environment_does_not_publish_launch_association(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_BEAD_ID", "sase-legacy")
+
+        result = run_extract(tmp_path, prompt="%id:legacy-worker\nDo work")
+
+        assert result["info"].bead_id is None
+        assert "bead_id" not in result["meta"]
+
+    def test_id_bead_coexists_with_epic_role_metadata(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.bead.work import SASE_EPIC_BEAD_ID_ENV, SASE_PHASE_BEAD_ID_ENV
+
+        monkeypatch.setenv(SASE_EPIC_BEAD_ID_ENV, "sase-8f")
+        monkeypatch.setenv(SASE_PHASE_BEAD_ID_ENV, "sase-8f.2")
+
+        result = run_extract(
+            tmp_path,
+            prompt="%id(worker, bead=sase-8f.2)\nDo work",
+        )
+
+        assert result["meta"]["bead_id"] == "sase-8f.2"
+        assert result["meta"]["epic_bead_id"] == "sase-8f"
+        assert result["meta"]["phase_bead_id"] == "sase-8f.2"
 
     def test_unnamed_auto_dismiss_agent_writes_basic_metadata(
         self, tmp_path: Path

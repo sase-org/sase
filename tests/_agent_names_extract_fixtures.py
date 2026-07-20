@@ -76,6 +76,7 @@ def run_extract(
             cl_name=cl_name,
             raw_resolved_prompt=raw_resolved_prompt,
         )
+        bead_env = os.environ.get("SASE_BEAD_ID")
 
     meta_path = os.path.join(artifacts, "agent_meta.json")
     if os.path.exists(meta_path):
@@ -83,4 +84,9 @@ def run_extract(
             meta = json.load(f)
     else:
         meta = {}
-    return {"info": info, "meta": meta, "artifacts": artifacts}
+    return {
+        "info": info,
+        "meta": meta,
+        "artifacts": artifacts,
+        "bead_env": bead_env,
+    }

@@ -77,6 +77,7 @@ class LaunchFanoutSlotWire:
     workflow_name: str | None = None
     model: str | None = None
     repeat_name: str | None = None
+    bead_id: str | None = None
     wait_for_previous: bool = False
     name_generated: bool = False
 
@@ -170,6 +171,7 @@ def launch_fanout_plan_from_dict(data: dict[str, Any]) -> LaunchFanoutPlanWire:
                     if slot.get("repeat_name") is None
                     else str(slot["repeat_name"])
                 ),
+                bead_id=(None if slot.get("bead_id") is None else str(slot["bead_id"])),
                 wait_for_previous=bool(slot.get("wait_for_previous", False)),
                 name_generated=bool(slot.get("name_generated", False)),
             )

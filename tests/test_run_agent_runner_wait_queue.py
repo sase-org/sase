@@ -32,6 +32,7 @@ def _runner_args(tmp_path: Path) -> SimpleNamespace:
 def _agent_info() -> SimpleNamespace:
     return SimpleNamespace(
         name="foo--reviewer",
+        bead_id=None,
         wait_names=["foo"],
         wait_identity_deps=[
             {

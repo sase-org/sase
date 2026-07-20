@@ -291,6 +291,8 @@ def _collect_name_paren_args(
         raise DirectiveError(str(exc)) from exc
     if parsed_name.clan is not None:
         collected.name_clan_arg = parsed_name.clan
+    if parsed_name.bead_id is not None:
+        collected.seen["bead"] = parsed_name.bead_id
     if parsed_name.tribe is not None:
         collected.seen["tribe"] = parsed_name.tribe
     if parsed_name.force_reuse:
@@ -341,5 +343,5 @@ def _duplicate_id_message() -> str:
     return (
         "Duplicate directive '%id' in prompt; use "
         "%id(<id>, tribe=<tribe>) to assign a tribe to an explicitly named "
-        "agent."
+        "agent, and add bead=<bead> to that same directive when needed."
     )

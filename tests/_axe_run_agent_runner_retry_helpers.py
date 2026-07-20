@@ -28,6 +28,7 @@ def make_retry_config(
 
 AGENT_INFO = AgentInfo(
     name="test-agent",
+    bead_id=None,
     wait_names=[],
     wait_identity_deps=[],
     wait_beads=[],

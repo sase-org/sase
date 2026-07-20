@@ -56,6 +56,7 @@ from sase.axe.run_agent_runner_refresh import (
     refresh_runner_code_after_wait,
     runner_code_identity,
 )
+from sase.axe.run_agent_runner_bead import claim_bead_for_agent_launch
 from sase.axe.run_agent_runner_signals import (
     install_workspace_release_sigterm_handler,
     is_user_kill_exit,
@@ -455,6 +456,20 @@ def main() -> None:
                 output_variable_namespaces = build_output_variable_namespaces(
                     info.wait_names
                 )
+
+                if info.bead_id is not None:
+                    if agent_name is None:
+                        raise RuntimeError(
+                            f"Cannot claim bead '{info.bead_id}' without a resolved "
+                            "agent name"
+                        )
+                    claim_bead_for_agent_launch(
+                        agent_name=agent_name,
+                        bead_id=info.bead_id,
+                        workspace_dir=workspace_dir,
+                        workspace_num=workspace_num,
+                        artifacts_dir=artifacts_dir,
+                    )
 
                 sdd_base_sha = capture_sdd_base_sha(workspace_dir, workspace_num)
                 if sdd_base_sha:
