@@ -2,41 +2,39 @@
 
 from __future__ import annotations
 
-import fcntl
-import hashlib
-import json
-import os
-import shutil
-import subprocess
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
-from typing import Literal, TextIO
+from typing import Literal
 
-import sase.axe.state as _state
-
-from .desired_state import AxeDesiredState, read_desired_state
-from .lifecycle_journal import (
-    lifecycle_journal_path,
-    read_recent_successful_starts,
+from ._ensure_runtime import (
+    acquire_axe_ensure_lock as acquire_axe_ensure_lock,
+    clear_failure_notification_marker as _clear_failure_notification_marker,
+    estimated_downtime_seconds as _estimated_downtime_seconds,
+    maybe_notify_ensure_failure as _maybe_notify_ensure_failure,
+    maybe_notify_restart_storm as _maybe_notify_restart_storm,
+    published_orchestrator_running as _published_orchestrator_running,
+    rate_limit_active as _rate_limit_active,
+    recent_start_sources as _recent_start_sources,
+    recent_starts_for_damper as _recent_starts_for_damper,
+    release_axe_ensure_lock as release_axe_ensure_lock,
+    write_rate_limit_marker as _write_rate_limit_marker,
 )
-from .maintenance import clear_stale_maintenance
-from .process import canonical_axe_start_command
-from ._process_probe import get_pid_from_pid_files
+from ._ensure_timer import (
+    DEFAULT_ENSURE_CADENCE_SECONDS,
+    install_ensure_timer,
+    uninstall_ensure_timer,
+)
 from ._process_start import start_axe_daemon_result
 from ._process_types import AxeStartResult
+from .desired_state import AxeDesiredState, read_desired_state
+from .lifecycle_journal import lifecycle_journal_path
+from .maintenance import clear_stale_maintenance
 
 
-DEFAULT_ENSURE_CADENCE_SECONDS = 5 * 60
 DEFAULT_ENSURE_FAILURE_NOTIFICATION_CADENCE_SECONDS = 30 * 60
 DEFAULT_RESTART_STORM_THRESHOLD = 5
 DEFAULT_RESTART_STORM_WINDOW_SECONDS = 30 * 60
-_ENSURE_SERVICE = "sase-axe-ensure.service"
-_ENSURE_TIMER = "sase-axe-ensure.timer"
-_ENSURE_FAILURE_NOTIFICATION_MARKER = "ensure_failure_notification.json"
-_ENSURE_STORM_NOTIFICATION_MARKER = "ensure_storm_notification.json"
 
 EnsureStatus = Literal["failed", "healed", "healthy", "rate_limited", "stopped"]
 
@@ -54,20 +52,6 @@ class _AxeEnsureResult:
     @property
     def succeeded(self) -> bool:
         return self.status != "failed"
-
-
-@dataclass(frozen=True)
-class _EnsureTimerResult:
-    """Outcome of installing or uninstalling the user systemd timer."""
-
-    succeeded: bool
-    changed: bool
-    message: str
-
-
-def _published_orchestrator_running() -> bool:
-    """Return whether axe has published a live orchestrator PID."""
-    return get_pid_from_pid_files() is not None
 
 
 def ensure_axe(
@@ -137,7 +121,10 @@ def ensure_axe(
                 message="Axe is already running; no healing needed.",
             )
 
-        downtime_seconds = _estimated_downtime_seconds(desired_state, now=now)
+        downtime_seconds = _estimated_downtime_seconds(
+            desired_state,
+            now=now,
+        )
         recent_starts = _recent_starts_for_damper(
             now=now,
             window_seconds=restart_storm_window_seconds,
@@ -224,206 +211,6 @@ def ensure_axe(
         release_axe_ensure_lock(lock_file)
 
 
-def install_ensure_timer(
-    *,
-    executable: str | None = None,
-    unit_dir: Path | None = None,
-    systemctl: str | None = None,
-    run_fn: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
-) -> _EnsureTimerResult:
-    """Install and start the opt-in user-level axe ensure timer."""
-    executable = executable or canonical_axe_start_command()
-    if executable is None:
-        return _EnsureTimerResult(
-            succeeded=False,
-            changed=False,
-            message="Could not find a stable `sase` executable for the timer.",
-        )
-    systemctl = systemctl or shutil.which("systemctl")
-    if systemctl is None:
-        return _EnsureTimerResult(
-            succeeded=False,
-            changed=False,
-            message="Could not find `systemctl`; the ensure timer was not installed.",
-        )
-
-    resolved_unit_dir = unit_dir or _systemd_user_unit_dir()
-    service_path = resolved_unit_dir / _ENSURE_SERVICE
-    timer_path = resolved_unit_dir / _ENSURE_TIMER
-    service = _service_unit(executable)
-    timer = _timer_unit()
-    changed = (
-        _file_contents(service_path) != service or _file_contents(timer_path) != timer
-    )
-    try:
-        resolved_unit_dir.mkdir(parents=True, exist_ok=True)
-        service_path.write_text(service, encoding="utf-8")
-        timer_path.write_text(timer, encoding="utf-8")
-    except OSError as exc:
-        return _EnsureTimerResult(
-            succeeded=False,
-            changed=False,
-            message=f"Could not write axe ensure systemd units: {exc}",
-        )
-
-    error = _run_systemctl(
-        systemctl,
-        ("daemon-reload",),
-        run_fn=run_fn,
-    ) or _run_systemctl(
-        systemctl,
-        ("enable", "--now", _ENSURE_TIMER),
-        run_fn=run_fn,
-    )
-    if error is not None:
-        return _EnsureTimerResult(
-            succeeded=False,
-            changed=changed,
-            message=f"Installed ensure units, but systemd activation failed: {error}",
-        )
-    return _EnsureTimerResult(
-        succeeded=True,
-        changed=changed,
-        message=(f"Installed and started the axe ensure user timer ({timer_path})."),
-    )
-
-
-def uninstall_ensure_timer(
-    *,
-    unit_dir: Path | None = None,
-    systemctl: str | None = None,
-    run_fn: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
-) -> _EnsureTimerResult:
-    """Stop and remove the opt-in user-level axe ensure timer."""
-    resolved_unit_dir = unit_dir or _systemd_user_unit_dir()
-    paths = (
-        resolved_unit_dir / _ENSURE_SERVICE,
-        resolved_unit_dir / _ENSURE_TIMER,
-    )
-    changed = any(path.exists() for path in paths)
-    systemctl = systemctl or shutil.which("systemctl")
-    if systemctl is None and changed:
-        return _EnsureTimerResult(
-            succeeded=False,
-            changed=False,
-            message="Could not find `systemctl`; existing ensure units were not removed.",
-        )
-
-    if systemctl is not None:
-        error = _run_systemctl(
-            systemctl,
-            ("disable", "--now", _ENSURE_TIMER),
-            run_fn=run_fn,
-            tolerate_failure=not changed,
-        )
-        if error is not None:
-            return _EnsureTimerResult(
-                succeeded=False,
-                changed=False,
-                message=f"Could not stop the axe ensure timer: {error}",
-            )
-
-    try:
-        for path in paths:
-            path.unlink(missing_ok=True)
-    except OSError as exc:
-        return _EnsureTimerResult(
-            succeeded=False,
-            changed=False,
-            message=f"Could not remove axe ensure systemd units: {exc}",
-        )
-
-    if systemctl is not None:
-        error = _run_systemctl(
-            systemctl,
-            ("daemon-reload",),
-            run_fn=run_fn,
-        )
-        if error is not None:
-            return _EnsureTimerResult(
-                succeeded=False,
-                changed=changed,
-                message=f"Removed ensure units, but systemd reload failed: {error}",
-            )
-    return _EnsureTimerResult(
-        succeeded=True,
-        changed=changed,
-        message=(
-            "Stopped and removed the axe ensure user timer."
-            if changed
-            else "The axe ensure user timer is not installed."
-        ),
-    )
-
-
-def _ensure_lock_path() -> Path:
-    return _state.axe_state_dir() / "ensure.lock"
-
-
-def _ensure_marker_path() -> Path:
-    return _state.axe_state_dir() / "ensure.json"
-
-
-def _failure_notification_marker_path() -> Path:
-    return _state.axe_state_dir() / _ENSURE_FAILURE_NOTIFICATION_MARKER
-
-
-def _storm_notification_marker_path() -> Path:
-    return _state.axe_state_dir() / _ENSURE_STORM_NOTIFICATION_MARKER
-
-
-def acquire_axe_ensure_lock(*, blocking: bool = False) -> TextIO | None:
-    """Acquire the host-wide lock that serializes axe ensure with stop."""
-    path = _ensure_lock_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    lock_file = path.open("a+", encoding="utf-8")
-    try:
-        flags = fcntl.LOCK_EX
-        if not blocking:
-            flags |= fcntl.LOCK_NB
-        fcntl.flock(lock_file.fileno(), flags)
-    except BlockingIOError:
-        lock_file.close()
-        return None
-    except OSError:
-        lock_file.close()
-        raise
-    return lock_file
-
-
-def release_axe_ensure_lock(lock_file: TextIO) -> None:
-    """Release a lock returned by :func:`acquire_axe_ensure_lock`."""
-    try:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-    finally:
-        lock_file.close()
-
-
-def _rate_limit_active(now: float, rate_limit_seconds: float) -> bool:
-    if rate_limit_seconds <= 0:
-        return False
-    try:
-        data = json.loads(_ensure_marker_path().read_text(encoding="utf-8"))
-        checked_at = float(data["checked_at_epoch"])
-    except (
-        FileNotFoundError,
-        KeyError,
-        TypeError,
-        ValueError,
-        json.JSONDecodeError,
-        OSError,
-    ):
-        return False
-    return 0 <= now - checked_at < rate_limit_seconds
-
-
-def _write_rate_limit_marker(now: float, *, source: str) -> None:
-    _state.atomic_write_json(
-        _ensure_marker_path(),
-        {"checked_at_epoch": now, "source": source},
-    )
-
-
 def _ensure_failure_result(
     *,
     message: str,
@@ -448,255 +235,6 @@ def _ensure_failure_result(
         downtime_seconds=downtime_seconds,
         notification_id=notification_id,
     )
-
-
-def _maybe_notify_ensure_failure(
-    message: str,
-    *,
-    now: float,
-    source: str,
-    notify_failure_fn: Callable[[str, str], str] | None,
-    rate_limit_seconds: float,
-) -> str | None:
-    if _failure_notification_rate_limit_active(now, rate_limit_seconds):
-        return None
-    if notify_failure_fn is None:
-        from sase.notifications.senders import notify_axe_ensure_failed
-
-        notify_failure_fn = notify_axe_ensure_failed
-    try:
-        notification_id = notify_failure_fn(message, source)
-    except Exception:  # noqa: BLE001 - failure reporting must stay best-effort.
-        return None
-    _state.atomic_write_json(
-        _failure_notification_marker_path(),
-        {
-            "notified_at_epoch": now,
-            "source": source,
-            "message": message,
-            "notification_id": notification_id,
-        },
-    )
-    return notification_id
-
-
-def _failure_notification_rate_limit_active(
-    now: float,
-    rate_limit_seconds: float,
-) -> bool:
-    if rate_limit_seconds <= 0:
-        return False
-    try:
-        data = json.loads(
-            _failure_notification_marker_path().read_text(encoding="utf-8")
-        )
-        notified_at = float(data["notified_at_epoch"])
-    except (
-        FileNotFoundError,
-        KeyError,
-        TypeError,
-        ValueError,
-        json.JSONDecodeError,
-        OSError,
-    ):
-        return False
-    return 0 <= now - notified_at < rate_limit_seconds
-
-
-def _clear_failure_notification_marker() -> None:
-    try:
-        _failure_notification_marker_path().unlink(missing_ok=True)
-    except OSError:
-        pass
-
-
-def _recent_starts_for_damper(
-    *,
-    now: float,
-    window_seconds: float,
-) -> list[dict[str, object]]:
-    try:
-        return read_recent_successful_starts(
-            now=now,
-            window_seconds=window_seconds,
-        )
-    except Exception:  # noqa: BLE001 - unavailable audit data must not break ensure.
-        return []
-
-
-def _recent_start_sources(records: list[dict[str, object]]) -> list[str]:
-    sources: list[str] = []
-    for record in records:
-        source = record.get("source")
-        if isinstance(source, str) and source and source not in sources:
-            sources.append(source)
-    return sources
-
-
-def _restart_storm_signature(records: list[dict[str, object]]) -> str:
-    contributing_starts = [
-        {
-            "timestamp_epoch": record.get("timestamp_epoch"),
-            "source": record.get("source"),
-            "orchestrator_pid": record.get("orchestrator_pid"),
-        }
-        for record in records
-    ]
-    payload = json.dumps(
-        contributing_starts,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
-
-
-def _maybe_notify_restart_storm(
-    records: list[dict[str, object]],
-    *,
-    sources: list[str],
-    now: float,
-    notify_storm_fn: Callable[[list[str], str], str] | None,
-) -> str | None:
-    signature = _restart_storm_signature(records)
-    marker = _state.read_json(_storm_notification_marker_path())
-    if isinstance(marker, dict) and marker.get("signature") == signature:
-        return None
-
-    # Persist the signature first so a notification backend failure cannot
-    # turn every ensure poll into another alert attempt for the same episode.
-    _state.atomic_write_json(
-        _storm_notification_marker_path(),
-        {
-            "signature": signature,
-            "notified_at_epoch": now,
-            "sources": sources,
-        },
-    )
-    if notify_storm_fn is None:
-        from sase.notifications.senders import notify_axe_restart_storm
-
-        notify_storm_fn = notify_axe_restart_storm
-    try:
-        notification_id = notify_storm_fn(sources, str(lifecycle_journal_path()))
-    except Exception:  # noqa: BLE001 - damping must hold without notification I/O.
-        return None
-    _state.atomic_write_json(
-        _storm_notification_marker_path(),
-        {
-            "signature": signature,
-            "notified_at_epoch": now,
-            "sources": sources,
-            "notification_id": notification_id,
-        },
-    )
-    return notification_id
-
-
-def _estimated_downtime_seconds(
-    desired_state: AxeDesiredState | None,
-    *,
-    now: float,
-) -> float | None:
-    activity_epochs: list[float] = []
-    if desired_state is not None:
-        desired_epoch = _parse_timestamp(desired_state.timestamp)
-        if desired_epoch is not None:
-            activity_epochs.append(desired_epoch)
-
-    jack_root = _state.jack_state_dir()
-    try:
-        status_paths = tuple(jack_root.glob("*/status.json"))
-    except OSError:
-        status_paths = ()
-    for status_path in status_paths:
-        try:
-            data = json.loads(status_path.read_text(encoding="utf-8"))
-            last_cycle = data.get("last_cycle")
-        except (json.JSONDecodeError, OSError):
-            continue
-        if isinstance(last_cycle, str):
-            last_cycle_epoch = _parse_timestamp(last_cycle)
-            if last_cycle_epoch is not None:
-                activity_epochs.append(last_cycle_epoch)
-
-    if not activity_epochs:
-        return None
-    return max(0.0, now - max(activity_epochs))
-
-
-def _parse_timestamp(value: str) -> float | None:
-    try:
-        return datetime.fromisoformat(value).timestamp()
-    except (OverflowError, ValueError):
-        return None
-
-
-def _systemd_user_unit_dir() -> Path:
-    config_home = os.environ.get("XDG_CONFIG_HOME")
-    root = Path(config_home).expanduser() if config_home else Path.home() / ".config"
-    return root / "systemd" / "user"
-
-
-def _systemd_quote(value: str) -> str:
-    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-
-def _service_unit(executable: str) -> str:
-    environment = ""
-    sase_home = os.environ.get("SASE_HOME")
-    if sase_home:
-        environment = f"Environment=SASE_HOME={_systemd_quote(sase_home)}\n"
-    return (
-        "[Unit]\n"
-        "Description=Ensure the SASE axe daemon matches its desired state\n\n"
-        "[Service]\n"
-        "Type=oneshot\n"
-        f"{environment}"
-        f"ExecStart={_systemd_quote(executable)} axe ensure\n"
-    )
-
-
-def _timer_unit() -> str:
-    cadence = f"{DEFAULT_ENSURE_CADENCE_SECONDS}s"
-    return (
-        "[Unit]\n"
-        "Description=Periodically ensure the SASE axe daemon is healthy\n\n"
-        "[Timer]\n"
-        "OnBootSec=2min\n"
-        f"OnUnitActiveSec={cadence}\n"
-        "Persistent=true\n"
-        f"Unit={_ENSURE_SERVICE}\n\n"
-        "[Install]\n"
-        "WantedBy=timers.target\n"
-    )
-
-
-def _file_contents(path: Path) -> str | None:
-    try:
-        return path.read_text(encoding="utf-8")
-    except OSError:
-        return None
-
-
-def _run_systemctl(
-    systemctl: str,
-    arguments: tuple[str, ...],
-    *,
-    run_fn: Callable[..., subprocess.CompletedProcess[str]],
-    tolerate_failure: bool = False,
-) -> str | None:
-    try:
-        completed = run_fn(
-            [systemctl, "--user", *arguments],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except OSError as exc:
-        return str(exc)
-    if completed.returncode == 0 or tolerate_failure:
-        return None
-    return completed.stderr.strip() or completed.stdout.strip() or "unknown error"
 
 
 __all__ = [
