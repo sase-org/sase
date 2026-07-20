@@ -286,9 +286,10 @@ def test_embedded_family_fork_injects_each_completed_member_reply_once(
         tmp_path,
         "20260718010101",
         "cx--plan",
-        response_path=planner_chat,
+        response_path=coder_chat,
         meta={
             "agent_family": "cx",
+            "chat_path": str(planner_chat),
             "model": "gpt-5",
             "llm_provider": "openai",
         },

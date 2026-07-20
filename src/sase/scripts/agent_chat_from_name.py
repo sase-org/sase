@@ -12,6 +12,7 @@ from typing import Any
 
 from sase.agent.names import (
     AgentClan,
+    AgentFamilyMember,
     find_agent_clan,
     find_agent_family,
     find_named_agent,
@@ -31,6 +32,7 @@ from sase.core.wait_dependency_resolution import (
     WaitDependencyIndex,
     read_json_dict,
 )
+from sase.plan_chain import agent_family_base
 
 
 @dataclass(frozen=True)
@@ -120,15 +122,22 @@ class _ForkSource:
 def _resolve_agent_chat_path(name: str | None = None) -> str:
     """Return the chat path for an explicit or default resume target.
 
-    Explicit names preserve the legacy lookup order: completed agents use
-    ``done.json``'s ``response_path`` first, then any live/historical agent may
-    provide ``agent_meta.json``'s ``chat_path``. An omitted name resolves to the
+    Explicit family members use their member-owned ``agent_meta.json`` chat
+    before a successful ``done.json`` fallback. Other explicit names preserve
+    the legacy done-before-meta lookup order. An omitted name resolves to the
     most recently launched named agent, excluding ``SASE_ARTIFACTS_DIR`` so an
     agent cannot accidentally resume itself.
     """
     resolved_name = _normalize_name(name)
     if resolved_name is None:
         resolved_name = _resolve_default_agent_name()
+
+    family_member = _find_family_member(resolved_name)
+    if family_member is not None:
+        path, _status = _resolve_family_member_transcript(family_member)
+        if path:
+            return path
+        raise RuntimeError(f"No agent with chat history found for: {resolved_name}")
 
     response_path = _resolve_done_response_path(resolved_name)
     if response_path:
@@ -278,33 +287,12 @@ def _resolve_fork_source(name: str) -> _ForkSource:
         family_members: list[_ForkFamilyMemberSource] = []
         excluded: list[_ForkExcludedFamilyMember] = []
         for family_member in family.members:
-            if family_member.outcome != SUCCESS_OUTCOME:
-                excluded.append(
-                    _ForkExcludedFamilyMember(
-                        name=family_member.name,
-                        status=family_member.outcome or "running",
-                    )
-                )
-                continue
-
-            path = _read_json_string_field(
-                family_member.artifacts_dir / "done.json", "response_path"
-            )
+            path, status = _resolve_family_member_transcript(family_member)
             if path is None:
                 excluded.append(
                     _ForkExcludedFamilyMember(
                         name=family_member.name,
-                        status="missing transcript",
-                    )
-                )
-                continue
-            try:
-                _validate_readable_transcript(family_member.name, path)
-            except OSError:
-                excluded.append(
-                    _ForkExcludedFamilyMember(
-                        name=family_member.name,
-                        status="unreadable transcript",
+                        status=status,
                     )
                 )
                 continue
@@ -313,7 +301,7 @@ def _resolve_fork_source(name: str) -> _ForkSource:
                     name=family_member.name,
                     path=path,
                     artifact_dir=str(family_member.artifacts_dir),
-                    outcome=family_member.outcome,
+                    outcome=SUCCESS_OUTCOME,
                 )
             )
 
@@ -453,6 +441,52 @@ def _validate_readable_transcript(name: str, transcript_path: str) -> None:
         raise OSError(
             f"Transcript for agent '{name}' is not readable: {transcript_path}"
         ) from exc
+
+
+def _find_family_member(name: str) -> AgentFamilyMember | None:
+    """Return the exact member represented by a recognized family-child name."""
+    base_name = agent_family_base(name, include_legacy_dash=True)
+    if base_name is None:
+        return None
+    family = find_agent_family(base_name)
+    if family is None:
+        return None
+    return next((member for member in family.members if member.name == name), None)
+
+
+def _resolve_family_member_transcript(
+    member: AgentFamilyMember,
+) -> tuple[str | None, str]:
+    """Resolve one sequential member's owned transcript and display status.
+
+    A metadata chat path is written only after a phase saves its handoff, so it
+    identifies that member's conversation even when the root later receives an
+    aggregate done marker for the terminal child. Legacy and terminal members
+    without that metadata continue to use a successful done response.
+    """
+    meta_path = _read_json_string_field(
+        member.artifacts_dir / "agent_meta.json", "chat_path"
+    )
+    if meta_path is not None:
+        try:
+            _validate_readable_transcript(member.name, meta_path)
+        except OSError:
+            return None, "unreadable transcript"
+        return meta_path, SUCCESS_OUTCOME
+
+    if member.outcome != SUCCESS_OUTCOME:
+        return None, member.outcome or "running"
+
+    done_path = _read_json_string_field(
+        member.artifacts_dir / "done.json", "response_path"
+    )
+    if done_path is None:
+        return None, "missing transcript"
+    try:
+        _validate_readable_transcript(member.name, done_path)
+    except OSError:
+        return None, "unreadable transcript"
+    return done_path, SUCCESS_OUTCOME
 
 
 def _resolve_done_response_path(name: str) -> str | None:

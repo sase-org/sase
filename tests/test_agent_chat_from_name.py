@@ -146,7 +146,7 @@ def test_explicit_running_agent_falls_back_to_meta_chat_path(
     assert _resolve_agent_chat_path("bravo") == str(chat)
 
 
-def test_family_name_forks_from_latest_completed_member(
+def test_family_name_and_explicit_children_use_member_owned_transcripts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -156,12 +156,13 @@ def test_family_name_forks_from_latest_completed_member(
         tmp_path,
         "20260718010101",
         "cx--plan",
-        done={"response_path": str(planner_chat), "outcome": "completed"},
+        done={"response_path": str(coder_chat), "outcome": "completed"},
         meta={
             "workflow_name": "cx",
             "agent_family": "cx",
             "agent_family_role": "root",
             "role_suffix": "--plan",
+            "chat_path": str(planner_chat),
         },
     )
     _write_agent(
@@ -180,6 +181,7 @@ def test_family_name_forks_from_latest_completed_member(
 
     assert _resolve_agent_chat_path("cx") == str(coder_chat)
     assert _resolve_agent_chat_path("cx--plan") == str(planner_chat)
+    assert _resolve_agent_chat_path("cx--code") == str(coder_chat)
 
 
 def test_family_source_includes_completed_members_in_chain_order(
@@ -192,8 +194,8 @@ def test_family_source_includes_completed_members_in_chain_order(
         tmp_path,
         "20260718010101",
         "cx--plan",
-        done={"response_path": str(planner_chat), "outcome": "completed"},
-        meta={"agent_family": "cx"},
+        done={"response_path": str(coder_chat), "outcome": "completed"},
+        meta={"agent_family": "cx", "chat_path": str(planner_chat)},
     )
     coder_dir = _write_agent(
         tmp_path,
@@ -230,6 +232,40 @@ def test_family_source_includes_completed_members_in_chain_order(
     }
     assert explicit_member.kind == "agent"
     assert explicit_member.path == str(planner_chat)
+
+
+def test_family_source_includes_intermediate_handoff_without_done_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    planner_chat = tmp_path / "planner.md"
+    coder_chat = tmp_path / "coder.md"
+    _write_agent(
+        tmp_path,
+        "20260718010101",
+        "cx--plan",
+        meta={"agent_family": "cx", "chat_path": str(planner_chat)},
+    )
+    _write_agent(
+        tmp_path,
+        "20260718010202",
+        "cx--code",
+        done={"response_path": str(coder_chat), "outcome": "completed"},
+        meta={"agent_family": "cx", "parent_timestamp": "20260718010101"},
+    )
+
+    source = _resolve_agent_chat_sources(["cx"])[0]
+
+    assert [member.name for member in source.members] == ["cx--plan", "cx--code"]
+    assert [member.path for member in source.members] == [
+        str(planner_chat),
+        str(coder_chat),
+    ]
+    assert [member.outcome for member in source.members] == [
+        "completed",
+        "completed",
+    ]
+    assert source.excluded == ()
 
 
 def test_family_source_reports_running_tip_as_excluded(
