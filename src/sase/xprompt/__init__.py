@@ -75,6 +75,7 @@ from .output_validation import (
 )
 from ._trace import ExpansionRecord, ExpansionTrace, format_trace, print_trace
 from .processor import (
+    LAUNCH_DEFERRED_XPROMPT_NAMES,
     is_jinja2_template,
     prompt_may_reference_xprompt,
     process_xprompt_references,
@@ -174,6 +175,7 @@ __all__ = [
     "format_trace",
     "print_trace",
     # Processor
+    "LAUNCH_DEFERRED_XPROMPT_NAMES",
     "WorkflowResult",
     "execute_workflow",
     "expand_workflow_for_embedding",

@@ -273,7 +273,7 @@ def test_family_source_requires_at_least_one_completed_transcript(
         _resolve_agent_chat_sources(["cx"])
 
 
-def test_family_and_explicit_member_duplicate_transcript_are_rejected(
+def test_family_and_explicit_member_duplicate_transcript_are_coalesced(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -294,8 +294,44 @@ def test_family_and_explicit_member_duplicate_transcript_are_rejected(
         meta={"agent_family": "cx", "parent_timestamp": "20260718010101"},
     )
 
-    with pytest.raises(RuntimeError, match="same transcript"):
-        _resolve_agent_chat_sources(["cx", "cx--code"])
+    sources = _resolve_agent_chat_sources(["cx", "cx--code"])
+
+    assert [source.name for source in sources] == ["cx"]
+    assert [member.name for member in sources[0].members] == [
+        "cx--plan",
+        "cx--code",
+    ]
+
+
+def test_agent_then_overlapping_family_keeps_unique_later_member(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    planner_chat = tmp_path / "planner.md"
+    coder_chat = tmp_path / "coder.md"
+    write_agent(
+        tmp_path,
+        "20260718010101",
+        "cx--plan",
+        done={"response_path": str(planner_chat), "outcome": "completed"},
+        meta={"agent_family": "cx"},
+    )
+    write_agent(
+        tmp_path,
+        "20260718010202",
+        "cx--code",
+        done={"response_path": str(coder_chat), "outcome": "completed"},
+        meta={"agent_family": "cx", "parent_timestamp": "20260718010101"},
+    )
+
+    sources = _resolve_agent_chat_sources(["cx--code", "cx"])
+
+    assert [(source.kind, source.name) for source in sources] == [
+        ("agent", "cx--code"),
+        ("family", "cx"),
+    ]
+    assert [member.name for member in sources[1].members] == ["cx--plan"]
+    assert sources[1].path == str(planner_chat)
 
 
 def test_legacy_rootless_family_source_includes_all_completed_members(

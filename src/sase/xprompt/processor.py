@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Collection
 from typing import Any
 
 from sase.xprompt._disabled_regions import (
@@ -60,6 +61,11 @@ _XPROMPT_PATTERN = (
 )
 
 _COMMON_VCS_XPROMPT_NAMES = frozenset({"gh", "git", "p4"})
+
+# Launch analysis must discover metadata contributed by ordinary xprompts without
+# executing workflows whose expansion reads mutable agent state.  Callers retain
+# these references until the runner has admitted their dependency barrier.
+LAUNCH_DEFERRED_XPROMPT_NAMES: frozenset[str] = frozenset({"fork"})
 
 
 def _candidate_name(match: re.Match[str]) -> str:
@@ -145,6 +151,7 @@ def expand_single_xprompt(
     scope: dict[str, Any] | None = None,
     *,
     preserve_segment_separators: bool = False,
+    defer_xprompt_names: Collection[str] = frozenset(),
 ) -> str:
     """Expand a single xprompt with its arguments.
 
@@ -179,6 +186,7 @@ def expand_single_xprompt(
         conv_named,
         scope,
         preserve_segment_separators=preserve_segment_separators,
+        defer_xprompt_names=defer_xprompt_names,
     )
     if preserve_segment_separators:
         return rendered
@@ -249,6 +257,7 @@ def _expand_local_xprompt_references(
     scope: dict[str, Any] | None,
     *,
     preserve_segment_separators: bool,
+    defer_xprompt_names: Collection[str],
 ) -> str:
     """Expand helpers scoped to *xprompt* without consulting the global catalog."""
     if not xprompt.local_xprompts or "#" not in rendered:
@@ -261,6 +270,7 @@ def _expand_local_xprompt_references(
         scope=_scope_for_local_xprompts(scope, positional_args, named_args),
         aliases_resolved=True,
         preserve_segment_separators=preserve_segment_separators,
+        defer_xprompt_names=defer_xprompt_names,
     )
 
 
@@ -270,6 +280,7 @@ def process_xprompt_references(
     scope: dict[str, Any] | None = None,
     *,
     trace: ExpansionTrace | None = None,
+    defer_xprompt_names: Collection[str] = frozenset(),
 ) -> str:
     """Process xprompt references in the prompt.
 
@@ -298,6 +309,8 @@ def process_xprompt_references(
         trace: Optional ExpansionTrace to collect expansion records into.
             When provided, each xprompt expansion is recorded with its
             iteration, source, arguments, and result.
+        defer_xprompt_names: Xprompt names to leave verbatim while expanding all
+            other references, including references introduced recursively.
 
     Returns:
         The transformed prompt with xprompts expanded
@@ -327,6 +340,7 @@ def process_xprompt_references(
         scope=scope,
         trace=trace,
         aliases_resolved=True,
+        defer_xprompt_names=defer_xprompt_names,
     )
 
 
@@ -339,6 +353,7 @@ def process_xprompt_references_with_catalog(
     trace: ExpansionTrace | None = None,
     aliases_resolved: bool = False,
     preserve_segment_separators: bool = False,
+    defer_xprompt_names: Collection[str] = frozenset(),
 ) -> str:
     """Process xprompt references using an already-loaded xprompt catalog."""
     if "#" not in prompt:
@@ -357,6 +372,10 @@ def process_xprompt_references_with_catalog(
         xprompts = {**xprompts, **extra_xprompts}
     if not xprompts:
         return prompt  # No xprompts defined
+
+    expandable_names = set(xprompts).difference(defer_xprompt_names)
+    if not expandable_names:
+        return prompt
 
     # Check if there are any potential xprompt references
     if "#" not in prompt:
@@ -378,7 +397,7 @@ def process_xprompt_references_with_catalog(
     while iteration < _MAX_EXPANSION_ITERATIONS:
         # Pre-process shorthand syntax on each iteration
         # (expanded content may contain shorthand that needs processing)
-        prompt = preprocess_shorthand_syntax(prompt, set(xprompts.keys()))
+        prompt = preprocess_shorthand_syntax(prompt, expandable_names)
 
         # Find all xprompt references
         matches = list(re.finditer(_XPROMPT_PATTERN, prompt, re.MULTILINE))
@@ -390,7 +409,7 @@ def process_xprompt_references_with_catalog(
         has_known_xprompt = False
         for match in matches:
             name = match.group(1).replace("__", "/")
-            if name in xprompts:
+            if name in expandable_names:
                 has_known_xprompt = True
                 break
 
@@ -403,7 +422,7 @@ def process_xprompt_references_with_catalog(
                 name = match.group(1).replace("__", "/")
 
                 # Skip if this isn't a known xprompt
-                if name not in xprompts:
+                if name not in expandable_names:
                     continue
 
                 xprompt = xprompts[name]
@@ -485,6 +504,7 @@ def process_xprompt_references_with_catalog(
                     named_args,
                     scope=scope,
                     preserve_segment_separators=preserve_segment_separators,
+                    defer_xprompt_names=defer_xprompt_names,
                 )
 
                 if trace is not None:
@@ -562,6 +582,7 @@ def process_xprompt_references_with_catalog(
 
 
 __all__ = [
+    "LAUNCH_DEFERRED_XPROMPT_NAMES",
     "is_jinja2_template",
     "prompt_may_reference_xprompt",
     "process_xprompt_references",

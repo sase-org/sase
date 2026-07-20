@@ -108,12 +108,16 @@ def build_preview_plan(prompt: str) -> tuple[str, Any]:
     fanout_plan = plan_prompt_fanout_variants(query)
     if fanout_plan is None and "#" in query:
         from sase.xprompt.processor import (
+            LAUNCH_DEFERRED_XPROMPT_NAMES,
             process_xprompt_references,
             prompt_may_reference_xprompt,
         )
 
         if prompt_may_reference_xprompt(query):
-            expanded = process_xprompt_references(query)
+            expanded = process_xprompt_references(
+                query,
+                defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+            )
             fanout_plan = plan_prompt_fanout_variants(expanded)
     if fanout_plan is not None:
         return query, fanout_plan

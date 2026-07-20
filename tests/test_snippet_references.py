@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from sase.xprompt.models import XPrompt
 from sase.xprompt.processor import (
+    LAUNCH_DEFERRED_XPROMPT_NAMES,
     process_xprompt_references,
     prompt_may_reference_xprompt,
 )
@@ -68,6 +69,24 @@ def test_process_xprompt_references_no_snippets_defined() -> None:
     with patch("sase.xprompt.processor.get_all_xprompts", return_value={}):
         result = process_xprompt_references("Using #foo here")
     assert result == "Using #foo here"
+
+
+def test_process_xprompt_references_defers_fork_and_expands_other_refs() -> None:
+    snippets = {
+        "fork": "SIDE EFFECT",
+        "metadata": "%model:gpt-5",
+        "wrapper": "#fork:builder wrapped",
+    }
+    with patch(
+        "sase.xprompt.processor.get_all_xprompts",
+        return_value=_make_xprompts(snippets),
+    ):
+        result = process_xprompt_references(
+            "#metadata #fork:builder #wrapper",
+            defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+        )
+
+    assert result == "%model:gpt-5 #fork:builder #fork:builder wrapped"
 
 
 def test_process_xprompt_references_with_optional_arg_using_default() -> None:

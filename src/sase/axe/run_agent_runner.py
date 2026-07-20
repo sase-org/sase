@@ -68,6 +68,7 @@ from sase.axe.run_agent_runner_setup import (
     build_output_variable_namespaces,
     capture_sdd_base_sha,
     enter_agent_workspace,
+    expand_deferred_launch_xprompts,
     load_retry_handoff_from_env,
     prepare_linked_repo_workspaces_if_needed,
     prepare_workspace_if_needed,
@@ -367,6 +368,15 @@ def main() -> None:
                 exec_outcome = "completed"
                 suppress_completion_notification = True
             else:
+                # Fork resolution reads mutable parent transcripts. Keep it
+                # behind dependency admission, but run it before runner-slot
+                # admission or any real workspace claim/preparation.
+                prompt = expand_deferred_launch_xprompts(
+                    prompt,
+                    artifacts_dir,
+                    extra_xprompts=info.local_xprompts or None,
+                )
+
                 run_started_at = wait_for_runner_slot(
                     artifacts_dir,
                     cl_name,

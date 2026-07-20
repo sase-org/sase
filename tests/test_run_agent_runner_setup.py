@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.axe.run_agent_runner_setup import (
+    expand_deferred_launch_xprompts,
     enter_agent_workspace,
     preprocess_prompt_xprompts,
     setup_artifacts_directory,
@@ -89,8 +90,8 @@ def test_preprocess_prompt_xprompts_captures_launch_boundary_usage(
         patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
         patch(
             "sase.xprompt.processor.process_xprompt_references",
-            side_effect=lambda prompt: "expanded",
-        ),
+            side_effect=lambda prompt, **_kwargs: "expanded",
+        ) as process,
     ):
         expanded, _, _ = preprocess_prompt_xprompts("Make a #plan now", str(tmp_path))
 
@@ -104,6 +105,7 @@ def test_preprocess_prompt_xprompts_captures_launch_boundary_usage(
     assert (tmp_path / "raw_xprompt.md").read_text(
         encoding="utf-8"
     ) == "Make a #plan now"
+    assert process.call_args.kwargs["defer_xprompt_names"] == frozenset({"fork"})
 
 
 def test_runner_setup_artifacts_keep_project_alias_canonical(
@@ -122,7 +124,7 @@ def test_runner_setup_artifacts_keep_project_alias_canonical(
         patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
         patch(
             "sase.xprompt.processor.process_xprompt_references",
-            side_effect=lambda text: text,
+            side_effect=lambda text, **_kwargs: text,
         ),
     ):
         preprocess_prompt_xprompts(prompt, str(tmp_path))
@@ -133,6 +135,30 @@ def test_runner_setup_artifacts_keep_project_alias_canonical(
     assert raw == "#gh:bob-cli do it"
     assert "#gh:bob " not in submitted
     assert "#gh:bob " not in raw
+
+
+def test_expand_deferred_launch_xprompts_limits_embedded_expansion(
+    tmp_path: Path,
+) -> None:
+    with (
+        patch(
+            "sase.xprompt.processor.process_xprompt_references",
+            side_effect=lambda prompt, **_kwargs: prompt,
+        ),
+        patch(
+            "sase.main.query_handler.expand_embedded_workflows_in_query",
+            return_value=("injected history", []),
+        ) as expand_embedded,
+    ):
+        result = expand_deferred_launch_xprompts(
+            "#fork:review Continue",
+            str(tmp_path),
+        )
+
+    assert result == "injected history"
+    assert expand_embedded.call_args.kwargs["only_workflow_names"] == frozenset(
+        {"fork"}
+    )
 
 
 def test_setup_artifacts_directory_updates_artifact_index(tmp_path: Path) -> None:

@@ -134,6 +134,43 @@ def test_clan_and_agent_sources_preserve_parent_order(
     ]
 
 
+def test_agent_then_overlapping_clan_keeps_unique_later_member(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    alpha_chat = tmp_path / "alpha.md"
+    beta_chat = tmp_path / "beta.md"
+    write_agent(
+        tmp_path,
+        "20260718010101",
+        "review.alpha",
+        done={"response_path": str(alpha_chat), "outcome": "completed"},
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": "20260718010000",
+        },
+    )
+    write_agent(
+        tmp_path,
+        "20260718010202",
+        "review.beta",
+        done={"response_path": str(beta_chat), "outcome": "completed"},
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": "20260718010000",
+        },
+    )
+
+    sources = _resolve_agent_chat_sources(["review.beta", "review"])
+
+    assert [(source.kind, source.name) for source in sources] == [
+        ("agent", "review.beta"),
+        ("clan", "review"),
+    ]
+    assert [member.name for member in sources[1].members] == ["review.alpha"]
+    assert sources[1].path == str(alpha_chat)
+
+
 def test_clan_fork_includes_live_and_dismissed_member_transcripts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.axe.run_agent_runner_setup import expand_deferred_launch_xprompts
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 from sase.xprompt.models import UNSET
 from sase.xprompt.workflow_executor import WorkflowExecutor
@@ -263,6 +264,49 @@ def test_embedded_clan_fork_injects_prompts_without_member_replies(
     assert "BETA_SECRET" not in expanded_prompt
     assert expanded_prompt.count("**Reply summary:**") == 2
     assert expanded_prompt.endswith("# New Query\nContinue")
+
+
+def test_completed_clan_fork_expands_during_post_wait_runner_setup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    for suffix, name, prompt in (
+        ("20260718010101", "review.alpha", "Alpha prompt"),
+        ("20260718010202", "review.beta", "Beta prompt"),
+    ):
+        chat_path = tmp_path / f"{name}.md"
+        chat_path.write_text(
+            f"## Prompt\n\n{prompt}\n\n## Response\n\nsecret\n",
+            encoding="utf-8",
+        )
+        _write_completed_agent(
+            tmp_path,
+            suffix,
+            name,
+            response_path=chat_path,
+            meta={
+                "agent_clan": "review",
+                "agent_clan_generation": "20260718010000",
+            },
+        )
+
+    artifacts_dir = tmp_path / "runner-artifacts"
+    artifacts_dir.mkdir()
+    with patch(
+        "sase.xprompt.loader.get_all_workflows",
+        return_value={"fork": _load_fork_workflow()},
+    ):
+        expanded = expand_deferred_launch_xprompts(
+            "#fork:review\nContinue",
+            str(artifacts_dir),
+        )
+
+    assert "agent clan `review`" in expanded
+    assert "Alpha prompt" in expanded
+    assert "Beta prompt" in expanded
+    assert "#fork:review" not in expanded
+    assert expanded.endswith("# New Query\nContinue")
 
 
 def test_embedded_family_fork_injects_each_completed_member_reply_once(

@@ -455,6 +455,62 @@ class TestDeferredWorkspacePreparation:
             ("run", 3, str(real_ws)),
         ]
 
+    def test_incomplete_clan_fork_expands_after_wait_before_slot_and_claim(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        placeholder_ws = tmp_path / "placeholder"
+        real_ws = tmp_path / "real-ws"
+        placeholder_ws.mkdir()
+        real_ws.mkdir()
+        events: list[str] = []
+
+        patches = base_patches(artifacts_dir)
+        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+            return_value=AGENT_INFO._replace(wait_names=["review"])
+        )
+
+        def wait_for_deps(*_args: Any, **_kwargs: Any) -> None:
+            events.append("wait")
+
+        def expand_fork(prompt: str, *_args: Any, **_kwargs: Any) -> str:
+            assert events == ["wait"]
+            events.append("fork")
+            return prompt.replace("test prompt", "injected clan history")
+
+        def wait_for_slot(*_args: Any, claim: Any, **_kwargs: Any) -> str:
+            events.append("gate")
+            return claim()
+
+        def claim_deferred(*_args: Any, **_kwargs: Any) -> tuple[int, str]:
+            events.append("claim")
+            return 3, str(real_ws)
+
+        def run_loop(_ctx: Any, prompt: str) -> SimpleNamespace:
+            events.append("run")
+            assert prompt == "injected clan history"
+            return exec_result(artifacts_dir)
+
+        patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_deps
+        patches[f"{RUNNER}.expand_deferred_launch_xprompts"] = expand_fork
+        patches[f"{RUNNER}.wait_for_runner_slot"] = wait_for_slot
+        patches[f"{RUNNER}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
+        patches[f"{RUNNER}.claim_deferred_workspace"] = claim_deferred
+        patches[f"{RUNNER}.refresh_linked_repos_for_workspace"] = MagicMock(
+            return_value=LinkedRepoResolution(repos=())
+        )
+        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+
+        run_main(
+            patches,
+            tmp_path,
+            workspace_dir=placeholder_ws,
+            workspace_num="0",
+            env={"SASE_AGENT_DEFERRED_WORKSPACE": "1"},
+        )
+
+        assert events == ["wait", "fork", "gate", "claim", "run"]
+
     def test_combined_wait_runs_dependencies_then_gate_then_claim(
         self, tmp_path: Path
     ) -> None:

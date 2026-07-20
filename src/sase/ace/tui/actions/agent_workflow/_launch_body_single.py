@@ -278,6 +278,7 @@ def run_single_agent_launch_body(
     # %{%m:opus | %m:sonnet}, %alt(a,b), or %{a | b}).
     from sase.xprompt.directives import plan_prompt_fanout_variants
     from sase.xprompt.processor import (
+        LAUNCH_DEFERRED_XPROMPT_NAMES,
         process_xprompt_references,
         prompt_may_reference_xprompt,
     )
@@ -293,6 +294,7 @@ def run_single_agent_launch_body(
             planning_prompt = process_xprompt_references(
                 dispatch_prompt,
                 extra_xprompts=local_xprompts or None,
+                defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
             )
         else:
             planning_prompt = dispatch_prompt

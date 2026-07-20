@@ -302,12 +302,16 @@ def launch_agents_from_cwd_impl(
     alt_plan = plan_prompt_fanout_variants(query)
     if alt_plan is None and "#" in query:
         from sase.xprompt.processor import (
+            LAUNCH_DEFERRED_XPROMPT_NAMES,
             process_xprompt_references,
             prompt_may_reference_xprompt,
         )
 
         if prompt_may_reference_xprompt(query):
-            expanded = process_xprompt_references(query)
+            expanded = process_xprompt_references(
+                query,
+                defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+            )
             alt_plan = plan_prompt_fanout_variants(expanded)
     if alt_plan is not None:
         from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents

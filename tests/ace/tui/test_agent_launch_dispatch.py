@@ -50,6 +50,7 @@ def test_run_agent_launch_body_expands_possible_xprompt_for_model_dispatch() -> 
         _run_launch_body_with_common_patches(app, "Review this with #swarm")
 
     process.assert_called_once()
+    assert process.call_args.kwargs["defer_xprompt_names"] == frozenset({"fork"})
     assert app.launched == []
     multi_model_calls = [
         (fn, args) for fn, args in app.scheduled if fn == app._launch_multi_model_agents

@@ -202,7 +202,10 @@ def preprocess_prompt_xprompts(
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.xprompt import resolve_xprompt_aliases
     from sase.xprompt._parsing import extract_vcs_workflow_tag
-    from sase.xprompt.processor import process_xprompt_references
+    from sase.xprompt.processor import (
+        LAUNCH_DEFERRED_XPROMPT_NAMES,
+        process_xprompt_references,
+    )
 
     prompt = canonicalize_project_aliases_in_prompt(prompt)
     prompt = resolve_xprompt_aliases(prompt)
@@ -227,8 +230,48 @@ def preprocess_prompt_xprompts(
     except Exception as e:
         print(f"Warning: Failed to write xprompts.json: {e}", file=sys.stderr)
 
-    prompt = process_xprompt_references(prompt)
+    prompt = process_xprompt_references(
+        prompt,
+        defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+    )
     return prompt, vcs_tag, raw_resolved_prompt
+
+
+def expand_deferred_launch_xprompts(
+    prompt: str,
+    artifacts_dir: str,
+    *,
+    extra_xprompts: dict[str, Any] | None = None,
+) -> str:
+    """Expand launch-deferred fork references after dependency admission.
+
+    Ordinary xprompts are expanded first in case a refreshed definition now
+    introduces a fork.  Embedded workflow expansion is then restricted to the
+    launch-deferred set so VCS and completion workflows keep their established
+    execution timing inside the agent workflow.
+    """
+    from sase.main.query_handler import expand_embedded_workflows_in_query
+    from sase.xprompt.processor import (
+        LAUNCH_DEFERRED_XPROMPT_NAMES,
+        process_xprompt_references,
+    )
+
+    prompt = process_xprompt_references(
+        prompt,
+        extra_xprompts=extra_xprompts,
+    )
+    prompt, embedded_workflows = expand_embedded_workflows_in_query(
+        prompt,
+        artifacts_dir,
+        only_workflow_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+    )
+    workflows_with_post_steps = [
+        result.workflow_name for result in embedded_workflows if result.post_steps
+    ]
+    if workflows_with_post_steps:
+        names = ", ".join(sorted(set(workflows_with_post_steps)))
+        raise RuntimeError("Launch-deferred workflows cannot have post-steps: " + names)
+    return prompt
 
 
 def write_submitted_xprompt_artifact(artifacts_dir: str, submitted_xprompt: str) -> str:

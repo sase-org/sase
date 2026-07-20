@@ -107,7 +107,10 @@ def base_patches(artifacts_dir: str) -> dict[str, Any]:
         "sase.xprompt.resolve_xprompt_aliases": MagicMock(side_effect=lambda x: x),
         "sase.xprompt._parsing.extract_vcs_workflow_tag": MagicMock(return_value=None),
         "sase.xprompt.processor.process_xprompt_references": MagicMock(
-            side_effect=lambda x: x
+            side_effect=lambda x, **_kwargs: x
+        ),
+        f"{RUNNER}.expand_deferred_launch_xprompts": MagicMock(
+            side_effect=lambda prompt, *_args, **_kwargs: prompt
         ),
         "sase.xprompt.models.create_anonymous_workflow": MagicMock(),
     }

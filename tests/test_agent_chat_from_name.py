@@ -262,7 +262,7 @@ def test_multiple_agents_report_all_invalid_parents_atomically(
     assert "missing-two" in message
 
 
-def test_multiple_aliases_to_same_transcript_are_rejected(
+def test_multiple_aliases_to_same_transcript_are_coalesced(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -275,8 +275,32 @@ def test_multiple_aliases_to_same_transcript_are_rejected(
             done={"response_path": str(shared_chat), "outcome": "completed"},
         )
 
-    with pytest.raises(RuntimeError, match="same transcript"):
-        _resolve_agent_chat_sources(["planner", "planner-alias"])
+    sources = _resolve_agent_chat_sources(["planner", "planner-alias"])
+
+    assert [(source.name, source.path) for source in sources] == [
+        ("planner", str(shared_chat))
+    ]
+
+
+def test_repeated_textual_parent_is_rejected_atomically(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    chat = tmp_path / "planner.md"
+    write_agent(
+        tmp_path,
+        "20260504010101",
+        "planner",
+        done={"response_path": str(chat), "outcome": "completed"},
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        _resolve_agent_chat_sources(["planner", "planner", "missing"])
+
+    message = str(exc_info.value)
+    assert "repeated parent argument 'planner'" in message
+    assert "already requested as parent 1" in message
+    assert "missing" in message
 
 
 def test_unreadable_transcript_is_rejected_before_loading(

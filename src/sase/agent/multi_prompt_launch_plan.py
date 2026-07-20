@@ -73,11 +73,15 @@ def plan_segment_fanout(
         )
     )
     if fanout_plan is None and preplanned_fanout_plan is None and "#" in segment:
-        from sase.xprompt.processor import process_xprompt_references
+        from sase.xprompt.processor import (
+            LAUNCH_DEFERRED_XPROMPT_NAMES,
+            process_xprompt_references,
+        )
 
         expanded = process_xprompt_references(
             segment,
             extra_xprompts=segment_local_xprompts or None,
+            defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
         )
         fanout_plan = plan_prompt_fanout_variants(
             expanded,
@@ -141,7 +145,10 @@ def prepare_clan_launches(
     # introduced by an xprompt fails the whole batch before timestamp/workspace
     # allocation. Literal fenced/disabled regions remain protected by the
     # shared directive collector used by ``extract_static_clan_directive``.
-    from sase.xprompt import process_xprompt_references
+    from sase.xprompt import (
+        LAUNCH_DEFERRED_XPROMPT_NAMES,
+        process_xprompt_references,
+    )
 
     effective_segments: list[str] = []
     for segment in segments:
@@ -150,6 +157,7 @@ def prepare_clan_launches(
             process_xprompt_references(
                 segment,
                 extra_xprompts=segment_xprompts or None,
+                defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
             )
             if "#" in segment
             else segment

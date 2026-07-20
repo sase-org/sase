@@ -6,7 +6,7 @@ import argparse
 import json
 import os
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -116,12 +116,6 @@ class _ForkSource:
             ],
         }
 
-    def transcripts(self) -> tuple[tuple[str, str], ...]:
-        """Return labels and paths used for duplicate-source validation."""
-        if self.kind == "agent":
-            return ((self.name, self.path),)
-        return tuple((member.name, member.path) for member in self.members)
-
 
 def _resolve_agent_chat_path(name: str | None = None) -> str:
     """Return the chat path for an explicit or default resume target.
@@ -159,9 +153,21 @@ def _resolve_agent_chat_sources(names: Sequence[str]) -> list[_ForkSource]:
     requested_names: list[str | None] = list(names) or [None]
     sources: list[_ForkSource] = []
     errors: list[str] = []
+    first_parent_by_text: dict[str, int] = {}
 
     for index, requested_name in enumerate(requested_names, start=1):
         label = requested_name or "<default>"
+        if requested_name is not None:
+            parent_text = requested_name.strip()
+            previous_index = first_parent_by_text.get(parent_text)
+            if previous_index is not None:
+                errors.append(
+                    f"parent {index} ({label}): repeated parent argument "
+                    f"{parent_text!r} (already requested as parent "
+                    f"{previous_index})"
+                )
+            else:
+                first_parent_by_text[parent_text] = index
         try:
             resolved_name = _normalize_name(requested_name)
             if resolved_name is None:
@@ -172,22 +178,48 @@ def _resolve_agent_chat_sources(names: Sequence[str]) -> list[_ForkSource]:
         else:
             sources.append(source)
 
-    first_source_by_path: dict[str, str] = {}
-    for source in sources:
-        for label, path in source.transcripts():
-            canonical_path = str(Path(path).expanduser().resolve(strict=False))
-            previous = first_source_by_path.get(canonical_path)
-            if previous is not None:
-                errors.append(
-                    f"parents '{previous}' and '{label}' resolve to the "
-                    f"same transcript: {path}"
-                )
-            else:
-                first_source_by_path[canonical_path] = label
-
     if errors:
         raise RuntimeError("Invalid fork parents:\n- " + "\n- ".join(errors))
-    return sources
+    return _coalesce_fork_sources(sources)
+
+
+def _coalesce_fork_sources(sources: Sequence[_ForkSource]) -> list[_ForkSource]:
+    """Keep each canonical transcript once in stable parent/member order."""
+    coalesced: list[_ForkSource] = []
+    seen_transcripts: set[Path] = set()
+
+    for source in sources:
+        if source.kind == "agent":
+            canonical_path = _canonical_transcript_path(source.path)
+            if canonical_path in seen_transcripts:
+                continue
+            seen_transcripts.add(canonical_path)
+            coalesced.append(source)
+            continue
+
+        unique_members: list[_ForkClanMemberSource | _ForkFamilyMemberSource] = []
+        for member in source.members:
+            canonical_path = _canonical_transcript_path(member.path)
+            if canonical_path in seen_transcripts:
+                continue
+            seen_transcripts.add(canonical_path)
+            unique_members.append(member)
+
+        if not unique_members:
+            continue
+        coalesced.append(
+            replace(
+                source,
+                path=unique_members[-1].path,
+                members=tuple(unique_members),
+            )
+        )
+
+    return coalesced
+
+
+def _canonical_transcript_path(path: str) -> Path:
+    return Path(path).expanduser().resolve(strict=False)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

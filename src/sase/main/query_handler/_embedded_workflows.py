@@ -2,6 +2,7 @@
 
 import json
 import os
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -9,7 +10,6 @@ from sase.content import (
     apply_section_marker_handling,
     content_ends_with_markdown_heading,
 )
-from sase.xprompt.models import UNSET
 from sase.xprompt.workflow_models import WorkflowStep
 
 
@@ -32,6 +32,8 @@ class EmbeddedWorkflowResult:
 def expand_embedded_workflows_in_query(
     query: str,
     artifacts_dir: str | None = None,
+    *,
+    only_workflow_names: Collection[str] | None = None,
 ) -> tuple[str, list[EmbeddedWorkflowResult]]:
     """Detect and expand embedded workflows in a query.
 
@@ -43,6 +45,8 @@ def expand_embedded_workflows_in_query(
     Args:
         query: The query text that may contain workflow references.
         artifacts_dir: Optional directory for workflow artifacts.
+        only_workflow_names: If provided, expand only workflows in this set and
+            retain every other workflow reference verbatim.
 
     Returns:
         Tuple of (expanded_query, list of EmbeddedWorkflowResult objects).
@@ -59,6 +63,7 @@ def expand_embedded_workflows_in_query(
         normalize_vcs_underscore_refs,
     )
     from sase.xprompt.loader import get_all_workflows
+    from sase.xprompt.input_binding import InputBindingError, bind_input_args
     from sase.xprompt.processor import process_xprompt_references
     from sase.xprompt.workflow_executor_steps_embedded_types import (
         format_inline_workflow_reference_error,
@@ -92,6 +97,8 @@ def expand_embedded_workflows_in_query(
 
         # Skip if not a workflow
         name = ref.name
+        if only_workflow_names is not None and name not in only_workflow_names:
+            continue
         if name not in workflows:
             continue
 
@@ -109,13 +116,14 @@ def expand_embedded_workflows_in_query(
         positional_args, named_args = parse_workflow_reference_args(ref)
         match_end = ref.end
 
-        # Build args dict
-        args: dict[str, Any] = dict(named_args)
-        for i, value in enumerate(positional_args):
-            if i < len(workflow.inputs):
-                input_arg = workflow.inputs[i]
-                if input_arg.name not in args:
-                    args[input_arg.name] = value
+        try:
+            bound = bind_input_args(workflow.inputs, positional_args, named_args)
+        except InputBindingError as exc:
+            raise WorkflowExecutionError(
+                f"Workflow '#{name}' argument error: {exc}"
+            ) from exc
+
+        explicit_args = dict(bound.explicit_values)
 
         from sase.agent.family_attach import (
             default_with_feedback_parent_from_family_attach,
@@ -123,14 +131,12 @@ def expand_embedded_workflows_in_query(
 
         default_with_feedback_parent_from_family_attach(
             name,
-            args,
+            explicit_args,
             prompt=segment_source_query,
             reference_offset=ref.start,
             fenced_ranges=literal_ranges,
         )
 
-        # Capture explicit args before applying defaults
-        explicit_args = dict(args)
         expanded_metadata.append(
             {
                 "name": name,
@@ -139,10 +145,8 @@ def expand_embedded_workflows_in_query(
             }
         )
 
-        # Apply defaults
-        for input_arg in workflow.inputs:
-            if input_arg.name not in args and input_arg.default is not UNSET:
-                args[input_arg.name] = input_arg.default
+        args = dict(bound.values)
+        args.update(explicit_args)
 
         # Get pre and post steps
         pre_steps = workflow.get_pre_prompt_steps()

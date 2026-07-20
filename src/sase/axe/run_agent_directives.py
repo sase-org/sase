@@ -143,7 +143,10 @@ def extract_directives_and_write_meta(
         resolve_effective_default_provider_model,
     )
     from sase.vcs_provider._registry import detect_vcs
-    from sase.xprompt import process_xprompt_references
+    from sase.xprompt import (
+        LAUNCH_DEFERRED_XPROMPT_NAMES,
+        process_xprompt_references,
+    )
     from sase.xprompt.directives import extract_prompt_directives
 
     # Parse user-prompt frontmatter to extract local xprompts.
@@ -179,6 +182,7 @@ def extract_directives_and_write_meta(
     expanded_for_directives = process_xprompt_references(
         prompt_body,
         extra_xprompts=multi.local_xprompts or None,
+        defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
     )
     _, directives = extract_prompt_directives(expanded_for_directives)
     bead_id = directives.bead_id
@@ -192,6 +196,11 @@ def extract_directives_and_write_meta(
                 f"{SASE_BEAD_ID_ENV}='{existing_bead_id}'"
             )
         os.environ[SASE_BEAD_ID_ENV] = bead_id
+    fork_reference_prompt = expanded_for_directives
+    if "#fork" not in fork_reference_prompt and raw_resolved_prompt:
+        # Compatibility fallback for callers whose supplied catalog does not
+        # retain the built-in fork reference during analysis.
+        fork_reference_prompt = raw_resolved_prompt
     from sase.agent.family_attach import load_family_attach_plan_from_env
 
     family_attach_plan = load_family_attach_plan_from_env()
@@ -253,7 +262,7 @@ def extract_directives_and_write_meta(
     wait_names = list(directives.wait)
     wait_identity_deps: list[dict[str, str]] = []
     wait_beads = list(directives.wait_beads)
-    for fork_wait_target in fork_agent_names(raw_resolved_prompt):
+    for fork_wait_target in fork_agent_names(fork_reference_prompt):
         if fork_wait_target not in wait_names:
             wait_names.append(fork_wait_target)
     if family_attach_plan and family_attach_plan.parent_is_running:
@@ -278,7 +287,7 @@ def extract_directives_and_write_meta(
         from sase.agent.names import sole_resume_agent_name
         from sase.core.agent_tribe import parse_tribe_reference
 
-        resume_name = sole_resume_agent_name(raw_resolved_prompt)
+        resume_name = sole_resume_agent_name(fork_reference_prompt)
         if (
             resume_name is None
             and len(wait_names) == 1
