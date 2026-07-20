@@ -231,6 +231,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         incomplete_merge_already_applied: bool = False,
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,
+        configured_runner_limit: int | None = None,
     ) -> None:
         """UI-thread step that folds prepared filter output into ``self``.
 
@@ -262,6 +263,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 incomplete_merge_already_applied=incomplete_merge_already_applied,
                 precomputed_boundary=precomputed_boundary,
                 precomputed_fold_levels=precomputed_fold_levels,
+                configured_runner_limit=configured_runner_limit,
             )
 
     def _apply_loaded_agents_prepared_inner(
@@ -276,28 +278,18 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         incomplete_merge_already_applied: bool = False,
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,
+        configured_runner_limit: int | None = None,
     ) -> None:
         """Implementation for the traced prepared-apply UI continuation."""
-        # Clear the startup loading indicators (spinner on list panels,
-        # dim ellipsis on tab label / info panel) on the first completed
-        # load. Safe to call every refresh -- flag stays True and the
-        # widget setters are idempotent.
-        if not self._agents_first_load_done:
+        first_agents_load = not self._agents_first_load_done
+        if first_agents_load:
             self._agents_first_load_done = True
-            from ...widgets import AgentInfoPanel, AgentList
+            from ...widgets import AgentList
 
             try:
                 self.query_one("#agent-list-panel", AgentList).loading = False  # type: ignore[attr-defined]
             except Exception:
                 pass
-            try:
-                info_panel = self.query_one(  # type: ignore[attr-defined]
-                    "#agent-info-panel", AgentInfoPanel
-                )
-                info_panel.set_loading(False)
-            except Exception:
-                pass
-            self._maybe_end_startup_stopwatch()  # type: ignore[attr-defined]
 
         added_identities = (
             set(prep.recovered_bundle_identities) | prep.auto_dismissed_identities
@@ -350,6 +342,13 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 boundary = precomputed_boundary
 
         if boundary is None:
+            boundary_limit = configured_runner_limit
+            if boundary_limit is None and precomputed_boundary is not None:
+                precomputed_limit = (
+                    precomputed_boundary.runner_capacity.configured_limit
+                )
+                if precomputed_limit > 0:
+                    boundary_limit = precomputed_limit
             boundary = prepare_loaded_agents_apply_boundary(
                 prep,
                 self._make_prepared_apply_snapshot(
@@ -358,6 +357,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                     load_state=load_state,
                 ),
                 merge_incomplete=False,
+                configured_runner_limit=boundary_limit,
             )
         prep = boundary.prep
 
@@ -390,6 +390,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         self._hideable_agents = prep.hideable_agents
         previous_agents_with_children = list(getattr(self, "_agents_with_children", []))
         previous_agents = list(self._agents)
+        self._agent_runner_capacity = boundary.runner_capacity
         self._agents_with_children = boundary.fold.unfiltered_agents
         self._agents = boundary.fold.visible_agents
         carry_over_live_hints(
@@ -411,6 +412,19 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             precomputed_plan=finalize_plan,
             previous_agents=previous_agents,
         )
+        if first_agents_load:
+            # Keep the info panel's loading treatment until the coherent row,
+            # capacity, and metric snapshot has been installed and rendered.
+            from ...widgets import AgentInfoPanel
+
+            try:
+                info_panel = self.query_one(  # type: ignore[attr-defined]
+                    "#agent-info-panel", AgentInfoPanel
+                )
+                info_panel.set_loading(False)
+            except Exception:
+                pass
+            self._maybe_end_startup_stopwatch()  # type: ignore[attr-defined]
         from ...repro.capture import record_agents_tab_app_projection
 
         record_agents_tab_app_projection(

@@ -12,6 +12,7 @@ from datetime import datetime
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
     output_variable_family_agents,
     plan_handoff_status_agents,
@@ -129,6 +130,7 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 10)
     patch_startup_loaders(monkeypatch, agents=runner_slot_wait_agents())
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -145,6 +147,10 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
         assert_page_svg_contains(page, "global-cap")
         assert_page_svg_contains(page, "drain barrier")
         assert_page_svg_contains(page, "eligible")
+        info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
+        assert info._build_display_text().plain.startswith(
+            "2  [runners 0/10 · 1 queued]  [2 waiting]"
+        )
         ace_png_visual.assert_page_png(
             page,
             "agents_runner_slot_waits_120x40",

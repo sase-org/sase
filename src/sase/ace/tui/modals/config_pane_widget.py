@@ -503,6 +503,10 @@ class ConfigPane(Vertical):
         if result is not None:
             self._notify_write_success(result)
             self.action_refresh()
+            if tuple(result.key_path) == ("max_running_agents",):
+                request_refresh = getattr(self.app, "request_agents_refresh", None)
+                if callable(request_refresh):
+                    request_refresh("config")
 
     def _notify_write_success(self, result: AppliedResult) -> None:
         key_path = ".".join(result.key_path) if result.key_path else "(unknown)"

@@ -168,6 +168,7 @@ def prepare_loaded_agents_apply_boundary(
     snapshot: PreparedApplySnapshot,
     *,
     merge_incomplete: bool = True,
+    configured_runner_limit: int | None = None,
 ) -> PreparedApplyBoundary:
     """Prepare pure post-load apply data from an explicit app-state snapshot."""
     from ...util.trace import tui_trace
@@ -186,7 +187,10 @@ def prepare_loaded_agents_apply_boundary(
     # avoids a second artifact scan for display-only data.
     from ...models.agent_runner_slots import refresh_runner_slot_context
 
-    refresh_runner_slot_context(prep.filtered_agents)
+    runner_capacity = refresh_runner_slot_context(
+        prep.filtered_agents,
+        configured_limit=configured_runner_limit,
+    )
 
     unfiltered_agents = list(prep.filtered_agents)
     if snapshot.fold_levels is None:
@@ -206,6 +210,7 @@ def prepare_loaded_agents_apply_boundary(
             fold_counts=fold_counts,
         ),
         selection=snapshot.selection,
+        runner_capacity=runner_capacity,
     )
 
 
@@ -371,6 +376,8 @@ def prepare_loaded_agents_worker_boundary(
     snapshot: PreparedApplySnapshot,
 ) -> PreparedApplyBoundary:
     """Prepare async-loaded agents through the fold-filter boundary."""
+    from sase.config.core import get_max_running_agents
+
     prep = _prepare_loaded_agents_worker_prep(
         all_agents,
         dismissed_from_loader,
@@ -382,4 +389,5 @@ def prepare_loaded_agents_worker_boundary(
         prep,
         snapshot,
         merge_incomplete=False,
+        configured_runner_limit=get_max_running_agents(),
     )

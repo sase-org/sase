@@ -360,6 +360,34 @@ async def test_config_pane_successful_write_toast(
         assert messages == ["wrote timezone → /tmp/sase.yml (chezmoi applied)"]
 
 
+async def test_config_pane_runner_limit_write_requests_standard_agents_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch)
+    async with AcePage() as page:
+        pane = await _open_config_pane(page)
+        refresh_sources: list[str] = []
+        monkeypatch.setattr(page.app, "notify", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(pane, "action_refresh", lambda: None)
+        monkeypatch.setattr(
+            page.app,
+            "request_agents_refresh",
+            lambda source: refresh_sources.append(source),
+        )
+
+        pane._on_edit_dismissed(
+            AppliedResult(
+                path="/tmp/sase.yml",
+                op="set",
+                key_path=("max_running_agents",),
+                created=False,
+                used_chezmoi=False,
+            )
+        )
+
+        assert refresh_sources == ["config"]
+
+
 async def test_config_pane_ctrl_d_and_ctrl_u_scroll_detail_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     )
     from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.agent_loader import AgentLoadState
+    from ...models.agent_runner_slots import RunnerCapacitySnapshot
     from ...models.fold_state import FoldStateManager
     from ...models.fold_state import FoldLevel
     from ...util.nav_gate import NavigationGate
@@ -55,6 +56,7 @@ class AgentLoadingStateMixin:
     hide_non_run_agents: bool
     _agents: list[Agent]
     _agents_with_children: list[Agent]
+    _agent_runner_capacity: RunnerCapacitySnapshot
     _agents_last_idx: int
     _agents_last_identity: tuple[AgentType, str, str | None] | None
     _has_always_visible: bool
@@ -185,6 +187,7 @@ class AgentLoadingStateMixin:
         incomplete_merge_already_applied: bool = False,
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,
+        configured_runner_limit: int | None = None,
     ) -> None:
         raise NotImplementedError
 

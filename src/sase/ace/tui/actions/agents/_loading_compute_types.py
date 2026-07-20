@@ -19,6 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from ...models.agent_runner_slots import RunnerCapacitySnapshot
+
 if TYPE_CHECKING:
     from ....agent_query import QueryExpr
     from ...models import Agent
@@ -107,4 +109,7 @@ class PreparedApplyBoundary:
     prep: PreparedApplyData
     fold: PreparedFoldFiltering
     selection: PreparedApplySelectionInputs
+    runner_capacity: RunnerCapacitySnapshot = field(
+        default_factory=RunnerCapacitySnapshot
+    )
     finalize: PreparedFinalizePlan | None = None

@@ -53,6 +53,14 @@ def _style_for_plain_segment(text: Text, segment: str) -> str:
     return matching[-1]
 
 
+def _style_at_plain_index(text: Text, index: int) -> str:
+    matching = [
+        str(span.style) for span in text.spans if span.start <= index < span.end
+    ]
+    assert matching, f"no Rich style span found at index {index}"
+    return matching[-1]
+
+
 def test_grouping_badge_renders_by_project_when_unset() -> None:
     """The badge always renders, treating an empty label as ``by project``."""
     panel = AgentInfoPanel()
@@ -75,7 +83,8 @@ def test_agent_count_strip_renders_numeric_total_before_metrics() -> None:
     plain = _collect_text(panel)
 
     assert plain.startswith(
-        "12 [2 stopped · 5 running · 2 waiting · 1 failed · 3 unread]"
+        "12  [runners 0/0 · 0 queued]  "
+        "[2 stopped · 5 running · 2 waiting · 1 failed · 3 unread]"
     )
     assert "Agents: 2/12" not in plain
 
@@ -97,7 +106,8 @@ def test_agent_count_strip_reports_starting_separately() -> None:
     plain = _collect_text(panel)
 
     assert plain.startswith(
-        "12 [2 stopped · 7 starting · 3 running · "
+        "12  [runners 0/0 · 0 queued]  "
+        "[2 stopped · 7 starting · 3 running · "
         "4 waiting · 5 failed · 1 unread · 6 done]"
     )
 
@@ -170,7 +180,8 @@ def test_update_agent_counts_uses_plain_metric_text() -> None:
     plain = captured[-1]
 
     assert (
-        "10 [2 stopped · 3 running · 4 waiting · 5 failed · 1 unread · 6 done]"
+        "10  [runners 0/0 · 0 queued]  "
+        "[2 stopped · 3 running · 4 waiting · 5 failed · 1 unread · 6 done]"
     ) in plain
     assert "Agents(" not in plain
     assert "#FFAF5F" not in plain
@@ -193,7 +204,9 @@ def test_agent_count_strip_omits_zero_metric_types() -> None:
     plain = _collect_text(panel)
     counts_prefix = plain.split("   [group:", 1)[0]
 
-    assert plain.startswith("9 [3 running · 1 failed · 2 unread]")
+    assert plain.startswith(
+        "9  [runners 0/0 · 0 queued]  [3 running · 1 failed · 2 unread]"
+    )
     assert "stopped" not in counts_prefix
     assert "waiting" not in counts_prefix
     assert " done" not in counts_prefix
@@ -215,7 +228,61 @@ def test_agent_count_strip_omits_metrics_section_when_all_counts_are_zero() -> N
     plain = _collect_text(panel)
     counts_prefix = plain.split("   [group:", 1)[0]
 
-    assert counts_prefix == "5"
+    assert counts_prefix == "5  [runners 0/0 · 0 queued]"
+
+
+def test_runner_capacity_chip_exact_copy_and_zero_queue_visibility() -> None:
+    panel = AgentInfoPanel()
+    panel._visible_agent_count = 12
+    panel._runner_slots_in_use = 8
+    panel._runner_limit = 10
+    panel._runner_queue_count = 0
+
+    plain = _collect_text(panel)
+
+    assert plain.startswith("12  [runners 8/10 · 0 queued]")
+
+
+def test_runner_capacity_chip_uses_plural_neutral_queue_wording() -> None:
+    panel = AgentInfoPanel()
+    panel._runner_slots_in_use = 10
+    panel._runner_limit = 10
+    panel._runner_queue_count = 1
+
+    plain = _collect_text(panel)
+
+    assert "[runners 10/10 · 1 queued]" in plain
+    assert "1 queue" not in plain.replace("1 queued", "")
+
+
+def test_runner_capacity_chip_styles_below_at_and_above_limit() -> None:
+    panel = AgentInfoPanel()
+    panel._runner_limit = 10
+    panel._runner_queue_count = 7
+
+    expected_occupancy_styles = {
+        8: "bold #00D7AF",
+        10: "bold #FFD700",
+        12: "bold #FF5F5F",
+    }
+    for slots_in_use, expected_style in expected_occupancy_styles.items():
+        panel._runner_slots_in_use = slots_in_use
+        text = _collect_rich_text(panel)
+        chip_start = text.plain.index("runners ")
+        occupancy_index = chip_start + len("runners ")
+        slash_index = text.plain.index("/", occupancy_index)
+        limit_index = slash_index + 1
+        queue_index = text.plain.index("7 queued", limit_index)
+        assert _style_at_plain_index(text, occupancy_index) == expected_style
+        assert _style_at_plain_index(text, slash_index) == "dim"
+        assert _style_at_plain_index(text, limit_index) == "bold #87D7FF"
+        assert _style_at_plain_index(text, queue_index) == "bold #AF87FF"
+
+    panel._runner_slots_in_use = 8
+    panel._runner_queue_count = 0
+    zero_text = _collect_rich_text(panel)
+    zero_queue_index = zero_text.plain.index("0 queued")
+    assert _style_at_plain_index(zero_text, zero_queue_index) == "dim"
 
 
 def test_neighbor_badge_is_omitted_without_visible_neighbors() -> None:
@@ -332,6 +399,9 @@ def _stable_state_kwargs(**overrides: object) -> dict[str, object]:
         "view_mode": "",
         "grouping_mode": "by project",
         "search_query": "",
+        "runner_limit": 10,
+        "runner_slots_in_use": 2,
+        "runner_queue_count": 0,
     }
     base.update(overrides)
     return base
@@ -430,6 +500,32 @@ def test_update_state_full_rebuild_when_neighbor_count_changes() -> None:
 
     full_rebuild.assert_called_once()
     cheap_path.assert_not_called()
+
+
+def test_update_state_full_rebuild_when_runner_capacity_changes() -> None:
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.update_state(**_stable_state_kwargs(runner_queue_count=0))  # type: ignore[arg-type]
+
+    with (
+        patch.object(panel, "_update_display") as full_rebuild,
+        patch.object(panel, "update_countdown_only") as cheap_path,
+    ):
+        panel.update_state(**_stable_state_kwargs(runner_queue_count=1))  # type: ignore[arg-type]
+
+    full_rebuild.assert_called_once()
+    cheap_path.assert_not_called()
+
+
+def test_render_and_countdown_paths_do_not_read_runner_configuration() -> None:
+    panel = AgentInfoPanel()
+    with patch(
+        "sase.config.core.get_max_running_agents",
+        side_effect=AssertionError("render path read configuration"),
+    ):
+        _collect_text(panel)
+        with patch.object(panel, "update"):
+            panel.update_countdown_only(4, 5)
 
 
 def test_update_display_uses_layout_false() -> None:

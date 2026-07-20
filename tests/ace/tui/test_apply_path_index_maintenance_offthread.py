@@ -14,6 +14,7 @@ from sase.ace.tui.actions.agents._loading_compute import (
     PreparedFoldFiltering,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_runner_slots import RunnerCapacitySnapshot
 from sase.ace.tui.widgets._agent_list_render_cache import agent_file_change_hint
 from sase.ace.tui.widgets._agent_list_rendering import agent_render_key
 
@@ -45,12 +46,14 @@ class _ApplyHarness(AgentLoadingApplyMixin):
         self._agents_refresh_active_source = "test"
         self._agents_repro_capture = None
         self.finalize_calls = 0
+        self.capacity_at_finalize: list[RunnerCapacitySnapshot | None] = []
         self.maintenance_calls: list[dict[str, object]] = []
         self.live_hint_refresh_sources: list[str] = []
 
     def _finalize_agent_list(self, *args: object, **kwargs: object) -> None:
         del args, kwargs
         self.finalize_calls += 1
+        self.capacity_at_finalize.append(getattr(self, "_agent_runner_capacity", None))
 
     def _schedule_artifact_index_maintenance(
         self,
@@ -198,6 +201,7 @@ def test_apply_carries_live_hint_before_finalize_and_schedules_revalidation() ->
             selected_identity=None,
             prior_visual_row=None,
         ),
+        runner_capacity=RunnerCapacitySnapshot(10, 1, 2),
         finalize=None,
     )
 
@@ -216,6 +220,7 @@ def test_apply_carries_live_hint_before_finalize_and_schedules_revalidation() ->
     assert _row_render_key(fresh) == old_key
     assert app.live_hint_refresh_sources == ["apply"]
     assert app.finalize_calls == 1
+    assert app.capacity_at_finalize == [RunnerCapacitySnapshot(10, 1, 2)]
 
 
 def test_apply_carry_over_tolerates_missing_prior_unfiltered_list() -> None:

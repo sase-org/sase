@@ -20,6 +20,7 @@ from textual.worker import Worker
 
 from ...query import parse_query
 from ..exit_action import AceExitAction
+from ..models.agent_runner_slots import RunnerCapacitySnapshot
 from ..models.fold_state import FoldStateManager, SectionFoldStateManager
 from ..util.fs_watcher import ArtifactWatcher
 from ..util.nav_gate import NavigationGate
@@ -340,6 +341,7 @@ class StateInitMixin:
         self._agents_last_idx: int = 0
         self._agents_last_identity: tuple[AgentType, str, str | None] | None = None
         self._agents: list[Agent] = []
+        self._agent_runner_capacity = RunnerCapacitySnapshot()
         self._agents_loading: bool = False
         self._agents_refresh_pending: bool = False
         self._agents_refresh_pending_source: str = "unknown"

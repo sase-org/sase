@@ -97,6 +97,7 @@ def attach_finalize_plan_to_boundary(
         prep=boundary.prep,
         fold=boundary.fold,
         selection=boundary.selection,
+        runner_capacity=boundary.runner_capacity,
         finalize=finalize_plan,
     )
 

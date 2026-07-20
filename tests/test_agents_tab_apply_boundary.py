@@ -21,10 +21,12 @@ from sase.ace.tui.actions.agents._loading_compute import (
     compute_apply_loaded_agents,
     merge_incomplete_load_after_complete_history,
     prepare_loaded_agents_apply_boundary,
+    prepare_loaded_agents_worker_boundary,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_content_search import AgentContentSearchCache
 from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.ace.tui.models.agent_runner_slots import RunnerCapacitySnapshot
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.core.agent_scan_wire import AgentClanContextWire
 
@@ -193,6 +195,121 @@ def test_precomputed_fold_boundary_recomputes_when_fold_state_changes() -> None:
     assert app._agents_with_children == agents
     assert app._agents == [parent]
     assert app._fold_counts == {"ts1": (1, 0)}
+
+
+def test_runner_capacity_installs_atomically_and_survives_local_refilters() -> None:
+    """Fold/search presentation changes preserve the last global snapshot."""
+    holder = _make_agent(
+        cl_name="holder",
+        status="RUNNING",
+        raw_suffix="holder",
+        pid=101,
+        artifacts_dir="/tmp/artifacts/ace-run/holder",
+        run_start_time=datetime(2026, 7, 20, 10, 0),
+    )
+    implicit_waiter = _make_agent(
+        cl_name="implicit",
+        status="WAITING",
+        raw_suffix="implicit",
+        pid=102,
+        artifacts_dir="/tmp/artifacts/ace-run/implicit",
+        wait_runners=9,
+        wait_runners_explicit=False,
+        slot_requested_at="2026-07-20T10:01:00Z",
+    )
+    explicit_waiter = _make_agent(
+        cl_name="explicit",
+        status="WAITING",
+        raw_suffix="explicit",
+        pid=103,
+        artifacts_dir="/tmp/artifacts/ace-run/explicit",
+        wait_runners=0,
+        wait_runners_explicit=True,
+        slot_requested_at="2026-07-20T10:02:00Z",
+    )
+    parent = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="workflow",
+        status="DONE",
+        raw_suffix="workflow",
+    )
+    child = _make_agent(
+        cl_name="workflow-child",
+        status="DONE",
+        raw_suffix="workflow-child",
+        parent_workflow="workflow",
+        parent_timestamp="workflow",
+    )
+    agents = [holder, implicit_waiter, explicit_waiter, parent, child]
+    app = FakeAgentApp()
+    app._fold_manager.expand("workflow")
+    prep = PreparedApplyData(
+        filtered_agents=agents,
+        has_always_visible=True,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+    )
+    boundary = prepare_loaded_agents_apply_boundary(
+        prep,
+        snapshot,
+        configured_runner_limit=10,
+    )
+
+    assert boundary.runner_capacity == RunnerCapacitySnapshot(10, 1, 1)
+    assert implicit_waiter.runner_slot_queue_position == 1
+    assert explicit_waiter.runner_slot_queue_position is None
+    assert implicit_waiter.runner_slot_queue_size == 1
+    assert explicit_waiter.runner_slot_queue_size == 1
+
+    app._apply_loaded_agents_prepared(
+        prep,
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+        persist_dismissed_changes=False,
+        incomplete_merge_already_applied=True,
+        precomputed_boundary=boundary,
+        precomputed_fold_levels=snapshot.fold_levels,
+    )
+    expected_capacity = RunnerCapacitySnapshot(10, 1, 1)
+    assert app._agent_runner_capacity == expected_capacity
+
+    app._agent_search_query = "status:waiting"
+    app._agent_query_cache = None
+    app._refilter_agents(refresh_content_index=False)
+    assert app._agent_runner_capacity == expected_capacity
+
+    app._agent_search_query = ""
+    app._agent_query_cache = None
+    app._fold_manager.collapse("workflow")
+    app._refilter_agents(refresh_content_index=False)
+    assert app._agent_runner_capacity == expected_capacity
+    assert child not in app._agents
+
+
+def test_worker_boundary_observes_changed_configured_runner_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    limits = iter((10, 4))
+    monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: next(limits))
+    app = FakeAgentApp()
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+    )
+
+    first = prepare_loaded_agents_worker_boundary([], [], set(), False, snapshot)
+    second = prepare_loaded_agents_worker_boundary([], [], set(), False, snapshot)
+
+    assert first.runner_capacity == RunnerCapacitySnapshot(10, 0, 0)
+    assert second.runner_capacity == RunnerCapacitySnapshot(4, 0, 0)
 
 
 def test_incomplete_merge_refresh_preserves_child_derived_timestamps() -> None:

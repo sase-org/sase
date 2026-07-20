@@ -2,18 +2,34 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from .agent import Agent
 
 
-def refresh_runner_slot_context(agents: list[Agent]) -> None:
+@dataclass(frozen=True)
+class RunnerCapacitySnapshot:
+    """Immutable global user-agent runner capacity for one Agents load."""
+
+    configured_limit: int = 0
+    slots_in_use: int = 0
+    global_cap_queue_count: int = 0
+
+
+def refresh_runner_slot_context(
+    agents: list[Agent],
+    *,
+    configured_limit: int | None = None,
+) -> RunnerCapacitySnapshot:
     """Attach live count and eligible FIFO position from the loaded snapshot.
 
     The loader has already PID-filtered active rows. Deriving this context
     after the Tier-1/artifact-delta merge keeps the operation O(rows), pure,
-    and consistent across full and selective refreshes.
+    and consistent across full and selective refreshes. When the caller does
+    not supply a configured limit, row context is still refreshed while the
+    returned capacity snapshot remains the deterministic neutral fallback.
     """
     running_count = sum(1 for agent in agents if _holds_runner_slot(agent))
     waiters = sorted(
@@ -39,6 +55,16 @@ def refresh_runner_slot_context(agents: list[Agent]) -> None:
             agent.runner_slots_in_use = None
             agent.runner_slot_queue_position = None
             agent.runner_slot_queue_size = None
+
+    if configured_limit is None:
+        return RunnerCapacitySnapshot()
+    return RunnerCapacitySnapshot(
+        configured_limit=configured_limit,
+        slots_in_use=running_count,
+        global_cap_queue_count=sum(
+            1 for agent in waiters if not agent.wait_runners_explicit
+        ),
+    )
 
 
 def _is_ace_run_root(agent: Agent) -> bool:
@@ -95,4 +121,4 @@ def _waiter_sort_key(agent: Agent) -> tuple[int, datetime, str, str]:
     return invalid, parsed, agent.raw_suffix or "", artifacts_dir
 
 
-__all__ = ["refresh_runner_slot_context"]
+__all__ = ["RunnerCapacitySnapshot", "refresh_runner_slot_context"]

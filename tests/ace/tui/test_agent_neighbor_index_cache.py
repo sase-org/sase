@@ -8,6 +8,7 @@ from typing import Any
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_runner_slots import RunnerCapacitySnapshot
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_hoods import AgentNeighborRow
@@ -209,6 +210,7 @@ def test_agents_info_panel_update_uses_cached_neighbor_count() -> None:
             _agent("foo.review", suffix="c"),
         ]
     )
+    app._agent_runner_capacity = RunnerCapacitySnapshot(10, 3, 2)
 
     class _InfoPanel:
         kwargs: dict[str, Any]
@@ -235,4 +237,7 @@ def test_agents_info_panel_update_uses_cached_neighbor_count() -> None:
     app._update_agents_info_panel()
 
     assert info_panel.kwargs["neighbor_count"] == 2
+    assert info_panel.kwargs["runner_limit"] == 10
+    assert info_panel.kwargs["runner_slots_in_use"] == 3
+    assert info_panel.kwargs["runner_queue_count"] == 2
     assert app.visible_walk_count == 1

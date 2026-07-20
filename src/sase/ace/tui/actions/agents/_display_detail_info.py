@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from ...models._agent_clan import agent_summary_status_counts
 from ...models.agent_groups import GroupingMode
+from ...models.agent_runner_slots import RunnerCapacitySnapshot
 from ...util.trace import tui_trace
 
 if TYPE_CHECKING:
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 log = logging.getLogger(__name__)
+_NEUTRAL_RUNNER_CAPACITY = RunnerCapacitySnapshot()
 
 
 class AgentInfoDisplayMixin:
@@ -28,6 +30,7 @@ class AgentInfoDisplayMixin:
     _current_group_key: tuple[str, ...] | None
     _countdown_remaining: int
     _agent_info_metrics_cache: tuple[Any, ...] | None
+    _agent_runner_capacity: RunnerCapacitySnapshot
 
     def _update_agents_info_panel(self) -> None:
         """Update the agents info panel with current position and countdown."""
@@ -145,6 +148,9 @@ class AgentInfoDisplayMixin:
         grouping_mode = _MODE_LABELS.get(
             self._grouping_mode.name, self._grouping_mode.name
         )
+        runner_capacity = getattr(
+            self, "_agent_runner_capacity", _NEUTRAL_RUNNER_CAPACITY
+        )
         update_state = getattr(agent_info_panel, "update_state", None)
         if callable(update_state):
             update_state(
@@ -164,10 +170,22 @@ class AgentInfoDisplayMixin:
                 search_query=self._agent_search_query,
                 grouping_mode=grouping_mode,
                 view_mode=view_mode,
+                runner_limit=runner_capacity.configured_limit,
+                runner_slots_in_use=runner_capacity.slots_in_use,
+                runner_queue_count=runner_capacity.global_cap_queue_count,
             )
             return
 
         agent_info_panel.update_position(position, selectable_total)
+        update_runner_capacity = getattr(
+            agent_info_panel, "update_runner_capacity", None
+        )
+        if callable(update_runner_capacity):
+            update_runner_capacity(
+                runner_capacity.slots_in_use,
+                runner_capacity.configured_limit,
+                runner_capacity.global_cap_queue_count,
+            )
         agent_info_panel.update_agent_counts(
             unread_count,
             asking_count,

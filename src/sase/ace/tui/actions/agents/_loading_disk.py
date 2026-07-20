@@ -66,6 +66,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
                 about.
         """
         from ....changespec import find_all_changespecs_cached
+        from sase.config.core import get_max_running_agents
 
         source = normalize_refresh_source(source)
         on_agents_tab = self.current_tab == "agents"
@@ -131,6 +132,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
                 on_agents_tab,
                 selected_identity,
                 load_state=load_result.load_state,
+                configured_runner_limit=get_max_running_agents(),
             )
         finally:
             if installed_active_source:
