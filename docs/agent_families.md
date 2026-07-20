@@ -38,6 +38,51 @@ tribe to the entire clan generation; `tribe=` on `%id` cannot be combined with c
 dotted ids, and accepts a leading `!` for forced reuse. Static names and templates such as `%id(cld, clan=research.@)`
 work; the derived `research.@.cld` name flows through normal template allocation.
 
+### Launch-time clan summaries
+
+The declaring member can attach a short description to its clan generation. Use a literal for stable context, the
+double-colon shorthand for a larger text block, or an executable when the description depends on launch-time state. A
+literal keeps the work prompt immediately below the declaration:
+
+```text
+%id:research.lead
+%clan(research, tribe=study, summary="Audit authentication and authorization")
+Review the security boundary.
+```
+
+The text-block shorthand ends when the next top-level directive or xprompt reference begins:
+
+```text
+%id:release.lead
+%clan:release:: Coordinate the release checks and summarize blockers.
+#release_work
+```
+
+For a computed description, name an executable instead:
+
+```text
+%id:triage.lead
+%clan(triage, summary_script=./describe-triage)
+Triage the current failures.
+```
+
+`summary=` accepts quoted text or an xprompt `[[...]]` text block. The `::` shorthand captures text until the next
+top-level directive or xprompt reference, so use `summary=` if ordinary prompt text follows the description directly.
+`summary=` and `summary_script=` are mutually exclusive, and both belong only on the create-only `%clan` declaration;
+`%id(..., clan=...)` joiners cannot declare or replace a summary.
+
+A summary executable runs once, synchronously, in the declaring member's workspace. A bare executable name is resolved
+next to the running Python interpreter and then on `PATH`; a value containing `/` is resolved as an executable absolute
+path or a path relative to that workspace. The child receives `SASE_CLAN_NAME`, `SASE_CLAN_GENERATION`, and, when the
+declaration has one, `SASE_CLAN_TRIBE`. Its standard output becomes the summary and its standard error is appended to
+the agent log. Execution is capped at 10 seconds and output at 32 KiB. Missing executables, timeouts, nonzero exits, and
+empty output are logged and omit the optional summary without blocking the agent launch.
+
+SASE trims trailing whitespace and persists the result as `clan_summary` on the declaring agent's metadata. The scan
+contract resolves summaries within one clan generation deterministically, using the newest explicit declaration if it
+must read older or externally-authored artifacts with more than one. This launch-time description is metadata for the
+clan generation; it is distinct from the foldable `CLAN` document that ACE synthesizes from live member activity.
+
 Clan membership is execution-neutral. It does not add waits, change launch order, choose a workspace or model, or
 otherwise rewrite launch behavior. Use `%wait` explicitly wherever ordering is required. The `clan=`, `family=`, and
 `tribe=` keywords on `%id` are mutually exclusive, and none can be combined with `%clan` in the same segment.

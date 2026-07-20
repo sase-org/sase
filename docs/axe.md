@@ -51,6 +51,9 @@ operators can also manage it directly with `sase axe start` and `sase axe stop`.
 | ------------------------------------------ | ------------------------------------------------------ |
 | `sase axe start`                           | Start the orchestrator (spawns all lumberjacks)        |
 | `sase axe stop`                            | Stop the orchestrator gracefully                       |
+| `sase axe ensure`                          | Heal a missing daemon unless it was explicitly stopped |
+| `sase axe ensure install`                  | Install and start the optional user-systemd watchdog   |
+| `sase axe ensure uninstall`                | Stop and remove the optional user-systemd watchdog     |
 | `sase axe chop list`                       | List configured chops with status (`-a` adds scripts)  |
 | `sase axe chop doctor`                     | Diagnose configured/available chops and Telegram setup |
 | `sase axe chop run <name>`                 | Run a single chop in the foreground                    |
@@ -68,6 +71,13 @@ operators can also manage it directly with `sase axe start` and `sase axe stop`.
 # Start/stop the daemon
 sase axe start
 sase axe stop
+
+# Check desired state and heal an unexpected outage
+sase axe ensure
+
+# On a host with user systemd, check automatically every five minutes
+sase axe ensure install
+sase axe ensure uninstall
 
 # Run axe against only matching ChangeSpecs
 sase axe start --query '!!! OR @@@'
@@ -540,12 +550,40 @@ updates, moving workspace directories, or running one-off cleanup. `sase axe mai
 lumberjack tick clears stale markers automatically when they are older than 24 hours, malformed, or owned by a PID that
 is no longer running.
 
+## Watchdog and Recovery
+
+`sase axe ensure` is an idempotent health check for the whole orchestrator. SASE records the operator's requested state
+separately from the current process state: starting axe records `running`, while `sase axe stop` records `stopped`. If
+the desired state is running and no orchestrator is alive, `ensure` starts one and makes a best-effort attempt to write
+an **Axe self-healed** entry to the notification inbox. If axe is healthy, or was explicitly stopped, the command
+reports that state and does nothing. A missing desired-state marker preserves the historical default that axe should be
+running. `sase doctor -C axe.health` reports this desired/live-state comparison and points a down requested-running
+daemon to `sase axe ensure`; deep doctor mode includes the same mismatch in its broader AXE runtime check.
+
+This distinction prevents a watchdog from undoing an intentional stop. To resume healing after `sase axe stop`, start
+axe again with `sase axe start`; that both launches the daemon and restores the desired state to running. Installing or
+uninstalling the watchdog does not itself change the desired state, and uninstalling it does not stop a running daemon.
+
+On Linux hosts with user systemd, `sase axe ensure install` writes and enables `sase-axe-ensure.service` and
+`sase-axe-ensure.timer` under the user systemd directory. The timer first checks two minutes after boot, then every five
+minutes, and catches up after downtime. It invokes the stable SASE executable used at installation time and preserves
+`SASE_HOME` when that variable is set. `sase axe ensure uninstall` disables the timer and removes both units. On systems
+without `systemctl --user`, run bare `sase axe ensure` manually or from the host's scheduler instead.
+
+Managed restart paths, including ACE and update-triggered restarts, keep the desired state at running, retry startup,
+and require every configured lumberjack to publish a fresh running heartbeat before reporting success. If all attempts
+fail, SASE records the attempt summaries in `recent_errors.json` and sends a durable **Axe restart failed**
+notification; an installed watchdog can try a clean start on a later tick.
+
 ## State Directory
 
 ```
 ~/.sase/axe/
 ├── orchestrator.pid                # Orchestrator PID
 ├── orchestrator.lock               # Exclusive lifecycle lock held by the live orchestrator
+├── desired_state.json              # Last requested running/stopped state
+├── ensure.lock                     # Serializes concurrent health checks
+├── ensure.json                     # Timestamp/source of the latest health check
 ├── maintenance.json                # Optional maintenance marker that pauses lumberjack ticks
 ├── logs/
 │   ├── axe.log                     # Orchestrator startup log
@@ -587,7 +625,10 @@ is no longer running.
 4. Each lumberjack runs its chops on its configured interval, unless maintenance mode is active.
 5. The orchestrator monitors children and restarts any that exit unexpectedly.
 6. `sase axe stop` sends SIGTERM to the orchestrator, which forwards it to all children. If the orchestrator does not
-   exit within the stop timeout, the stopper escalates to SIGKILL and cleans up stale PID files.
+   exit within the stop timeout, the stopper escalates to SIGKILL and cleans up stale or owned PID files without
+   deleting a PID published by a concurrent successful restart.
+7. `sase axe ensure` compares this live state with `desired_state.json`; it heals unexpected downtime but honors an
+   explicit stop. See [Watchdog and Recovery](#watchdog-and-recovery).
 
 ## ACE Integration
 
