@@ -351,8 +351,8 @@ def test_finish_agent_launch_force_reuse_split_protects_fenced_separator() -> No
     assert outcome.success is True
 
 
-def test_finish_agent_launch_force_reuse_early_parse_failure_falls_back() -> None:
-    """Early split failures defer to the established prompt-parse error path."""
+def test_finish_agent_launch_force_reuse_early_parse_failure_does_not_wipe() -> None:
+    """Early split failures reach the prompt-parse error path before cleanup."""
     app = _SubmitLaunchBodyApp()
     prompt = (
         "---\nxprompts:\n  badname: content\n---\n"
@@ -371,8 +371,34 @@ def test_finish_agent_launch_force_reuse_early_parse_failure_falls_back() -> Non
         with pytest.raises(ValueError, match="must start with '_'"):
             app.launch_tasks[0]["task_callable"]()
 
-    wipe_names.assert_called_once_with(["foo"])
+    wipe_names.assert_not_called()
     assert app.scheduled == []
+
+
+def test_finish_agent_launch_invalid_forced_family_name_does_not_wipe() -> None:
+    """Reserved family separators are rejected before forced-reuse cleanup."""
+    app = _SubmitLaunchBodyApp()
+    prompt = "%id:!foo--plan\nDo work"
+
+    with (
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["forced-ts"],
+        ),
+        patch("sase.agent.launch_validation.wipe_names_for_forced_reuse") as wipe,
+        patch("sase.history.prompt.record_failed_launch_prompt") as record_failed,
+    ):
+        app._finish_agent_launch(prompt)
+        outcome = app.launch_tasks[0]["task_callable"]()
+
+    wipe.assert_not_called()
+    record_failed.assert_called_once_with(prompt)
+    assert app.launched == []
+    assert outcome.message == (
+        "Agent name 'foo--plan' cannot contain '--'; double dash is reserved "
+        "for agent-family phases."
+    )
+    assert outcome.severity == "error"
 
 
 def test_finish_agent_launch_force_reuse_wipe_failure_returns_worker_error() -> None:

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 from collections.abc import Mapping
+from dataclasses import dataclass
 
 from sase.plan_chain import AGENT_FAMILY_SEPARATOR
 
@@ -15,6 +15,7 @@ __all__ = [
     "AgentNameReuseConfirmationRequiredError",
     "force_reuse_owner_names",
     "internal_agent_name_bypass_enabled",
+    "preflight_launch_name_requests",
     "rewrite_force_reuse_name_directives",
     "validate_user_agent_name",
     "validate_launch_name_requests",
@@ -156,26 +157,21 @@ def validate_launch_name_requests(
     if allow_hyphenated_names is not None:
         allow_reserved_family_separator_names = allow_hyphenated_names
 
-    requests = _explicit_launch_name_requests(prompts)
+    requests = _preflight_launch_name_requests(
+        prompts,
+        allow_force_reuse=allow_force_reuse,
+        allow_reserved_family_separator_names=(allow_reserved_family_separator_names),
+    )
     if not requests:
         return
-
-    if not allow_reserved_family_separator_names:
-        for request in requests:
-            if request.name_template:
-                continue
-            validate_user_agent_name(request.name)
 
     from sase.agent.names import (
         agent_name_allocation_lock,
         get_reserved_agent_names,
         get_reserved_clan_names,
         get_reserved_family_names,
-        parse_agent_name_template,
-        render_agent_name_template,
         lowest_name_suggestion,
     )
-    from sase.agent.names import InvalidAgentNameTemplateError
 
     seen: set[str] = set()
     # Load the reserved-name set once per launch instead of per explicit name.
@@ -189,22 +185,7 @@ def validate_launch_name_requests(
     with agent_name_allocation_lock():
         for request in requests:
             if request.name_template:
-                if request.force_reuse:
-                    raise _AgentNameTemplateError(
-                        request.name,
-                        "forced reuse cannot be combined with templates",
-                    )
-                try:
-                    parse_agent_name_template(request.name)
-                    if not allow_reserved_family_separator_names:
-                        validate_user_agent_name(
-                            render_agent_name_template(request.name, "0")
-                        )
-                except InvalidAgentNameTemplateError as exc:
-                    raise _AgentNameTemplateError(request.name, exc.reason) from exc
                 continue
-            if request.force_reuse and not allow_force_reuse:
-                raise AgentNameReuseConfirmationRequiredError(request.name)
             if request.force_reuse:
                 if reserved_names is None:
                     reserved_names = get_reserved_agent_names()
@@ -228,6 +209,65 @@ def validate_launch_name_requests(
                     request.name, lowest_name_suggestion(request.name)
                 )
             seen.add(request.name)
+
+
+def preflight_launch_name_requests(
+    prompts: list[str],
+    *,
+    allow_force_reuse: bool = False,
+    allow_reserved_family_separator_names: bool = False,
+    allow_hyphenated_names: bool | None = None,
+) -> None:
+    """Validate launch-name syntax without reading or mutating name state."""
+    if allow_hyphenated_names is not None:
+        allow_reserved_family_separator_names = allow_hyphenated_names
+    _preflight_launch_name_requests(
+        prompts,
+        allow_force_reuse=allow_force_reuse,
+        allow_reserved_family_separator_names=(allow_reserved_family_separator_names),
+    )
+
+
+def _preflight_launch_name_requests(
+    prompts: list[str],
+    *,
+    allow_force_reuse: bool,
+    allow_reserved_family_separator_names: bool,
+) -> list[_LaunchNameRequest]:
+    """Return syntax-checked requests without consulting reservation state."""
+    requests = _explicit_launch_name_requests(prompts)
+
+    if not allow_reserved_family_separator_names:
+        for request in requests:
+            if not request.name_template:
+                validate_user_agent_name(request.name)
+
+    from sase.agent.names import (
+        InvalidAgentNameTemplateError,
+        parse_agent_name_template,
+        render_agent_name_template,
+    )
+
+    for request in requests:
+        if request.name_template:
+            if request.force_reuse:
+                raise _AgentNameTemplateError(
+                    request.name,
+                    "forced reuse cannot be combined with templates",
+                )
+            try:
+                parse_agent_name_template(request.name)
+                if not allow_reserved_family_separator_names:
+                    validate_user_agent_name(
+                        render_agent_name_template(request.name, "0")
+                    )
+            except InvalidAgentNameTemplateError as exc:
+                raise _AgentNameTemplateError(request.name, exc.reason) from exc
+            continue
+        if request.force_reuse and not allow_force_reuse:
+            raise AgentNameReuseConfirmationRequiredError(request.name)
+
+    return requests
 
 
 def rewrite_force_reuse_name_directives(prompt: str) -> str:

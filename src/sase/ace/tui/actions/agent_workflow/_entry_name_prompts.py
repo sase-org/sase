@@ -62,4 +62,7 @@ def prepare_kill_and_edit_prompt(
     aliases, templates, and already-forced directives cannot drift between
     the single- and multi-pane workflows.
     """
-    return force_name_reuse_in_prompt(raw_prompt, replacement_name=agent_name)
+    from sase.plan_chain import agent_family_base
+
+    replacement_name = agent_family_base(agent_name) or agent_name
+    return force_name_reuse_in_prompt(raw_prompt, replacement_name=replacement_name)

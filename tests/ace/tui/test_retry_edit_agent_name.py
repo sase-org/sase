@@ -236,6 +236,11 @@ def test_force_name_reuse_ignores_fenced_and_disabled_name_directives() -> None:
         ("%id:foo\nDo work", "foo", "%id:!foo\nDo work"),
         ("%id:@.cld\nDo work", "0.cld", "%id:!0.cld\nDo work"),
         ("%id:!foo\nDo work", "foo", "%id:!foo\nDo work"),
+        (
+            "%id:sase-8a.3\n%auto\nDo work",
+            "sase-8a.3--plan",
+            "%id:!sase-8a.3\n%auto\nDo work",
+        ),
         ("Do work", None, "Do work"),
     ],
 )
@@ -262,6 +267,31 @@ def test_retry_edit_agent_prepends_allocated_retry_name(
         False,
     )
     assert app.notifications == []
+
+
+@patch(
+    "sase.agent.names.allocate_retry_name",
+    return_value="sase-8a.3.r0",
+)
+def test_retry_edit_family_phase_allocates_from_base_name(
+    mock_allocate: Mock,
+) -> None:
+    app = _App(
+        _Agent(
+            "%id:sase-8a.3\n%auto\nDo work",
+            agent_name="sase-8a.3--plan",
+        )
+    )
+
+    app._retry_edit_agent()
+
+    mock_allocate.assert_called_once_with("sase-8a.3")
+    assert app.launched == (
+        "%id:sase-8a.3.r0\n%auto\nDo work",
+        "/tmp/proj/proj.sase",
+        "branch",
+        False,
+    )
 
 
 @patch("sase.agent.names.allocate_retry_name", return_value="foo.r0")
@@ -390,6 +420,24 @@ def test_kill_and_edit_agent_forces_name_reuse_for_done_agent() -> None:
         False,
     )
     assert app.notifications == []
+
+
+def test_kill_and_edit_family_phase_forces_base_name_reuse() -> None:
+    app = _App(
+        _Agent(
+            "%id:sase-8a.3\n%auto\nDo work",
+            agent_name="sase-8a.3--plan",
+        )
+    )
+
+    app._kill_and_edit_agent()
+
+    assert app.launched == (
+        "%id:!sase-8a.3\n%auto\nDo work",
+        "/tmp/proj/proj.sase",
+        "branch",
+        False,
+    )
 
 
 def test_kill_and_edit_agent_replaces_template_with_concrete_name() -> None:

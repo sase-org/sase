@@ -19,6 +19,7 @@ from sase.agent.launch_validation import (
     INTERNAL_AGENT_NAME_BYPASS_ENV,
     force_reuse_owner_names,
     internal_agent_name_bypass_enabled,
+    preflight_launch_name_requests,
     rewrite_force_reuse_name_directives,
     validate_user_agent_name,
     validate_launch_name_requests,
@@ -210,6 +211,26 @@ def test_force_reuse_owner_names_ignores_templates() -> None:
 def test_forced_reuse_name_directive_rejects_separator_after_bang_strip() -> None:
     with pytest.raises(AgentNameSyntaxError, match="foo--bar"):
         validate_launch_name_requests(["%id:!foo--bar\nDo work"])
+
+
+def test_forced_reuse_preflight_rejects_separator_before_cleanup() -> None:
+    with pytest.raises(AgentNameSyntaxError, match="foo--bar"):
+        preflight_launch_name_requests(
+            ["%id:!foo--bar\nDo work"],
+            allow_force_reuse=True,
+        )
+
+
+def test_forced_reuse_preflight_defers_existing_name_collision(
+    tmp_path: Path,
+) -> None:
+    _make_agent(tmp_path, "foo")
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        preflight_launch_name_requests(
+            ["%id:!foo\nDo work"],
+            allow_force_reuse=True,
+        )
 
 
 def test_internal_bypass_allows_reserved_family_separator_system_names(

@@ -51,6 +51,7 @@ def run_agent_launch_body(
 
     from sase.agent.launch_validation import (
         force_reuse_owner_names,
+        preflight_launch_name_requests,
         rewrite_force_reuse_name_directives,
         wipe_names_for_forced_reuse,
     )
@@ -58,12 +59,24 @@ def run_agent_launch_body(
 
     force_reuse_rewritten_prompt = rewrite_force_reuse_name_directives(prompt)
     if force_reuse_rewritten_prompt != prompt:
+        # Parsing and syntax validation are both non-mutating. Complete them
+        # before cleanup so malformed prompts and user-entered family phase
+        # names cannot erase an existing agent before launch is rejected.
+        force_reuse_prompts = parse_multi_prompt(prompt).segments
         try:
-            force_reuse_prompts = parse_multi_prompt(prompt).segments
-        except Exception:
-            # Preserve the existing prompt-parse error path below. This early
-            # parse only broadens forced-reuse cleanup to every swarm segment.
-            force_reuse_prompts = [prompt]
+            preflight_launch_name_requests(
+                force_reuse_prompts,
+                allow_force_reuse=True,
+            )
+        except RuntimeError as exc:
+            from sase.history.prompt import record_failed_launch_prompt
+
+            record_failed_launch_prompt(original_submitted_prompt)
+            if owns_context:
+                app._prompt_context = None
+            return _with_unresolved_warnings(
+                LaunchTaskOutcome(str(exc), severity="error")
+            )
         force_reuse_names = force_reuse_owner_names(force_reuse_prompts)
     else:
         force_reuse_names = []

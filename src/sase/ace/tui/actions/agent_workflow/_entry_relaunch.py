@@ -53,12 +53,16 @@ class EntryRelaunchMixin:
         if agent.agent_name:
             try:
                 from sase.agent.names import allocate_retry_name
+                from sase.plan_chain import agent_family_base
 
-                retry_name = allocate_retry_name(agent.agent_name)
+                retry_source_name = (
+                    agent_family_base(agent.agent_name) or agent.agent_name
+                )
+                retry_name = allocate_retry_name(retry_source_name)
                 raw_prompt = self._rewrite_retry_prompt_name(
                     raw_prompt,
                     retry_name,
-                    current_agent_name=agent.agent_name,
+                    current_agent_name=retry_source_name,
                 )
             except Exception:
                 self.notify(  # type: ignore[attr-defined]
