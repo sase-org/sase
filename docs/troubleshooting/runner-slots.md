@@ -5,9 +5,10 @@ waits, or it has received an answer after temporarily yielding its slot at `QUES
 globally using `max_running_agents` (default: 10). A prompt can use `%wait(runners=N)` to override the threshold for its
 initial launch.
 
-Admission is first-in, first-out among waiters that are eligible at the current running count, across all projects. An
-older low-threshold waiter does not block a later launch whose higher threshold currently permits it to run. Child
-agents are exempt so a running parent can safely wait for child work.
+Admission sorts eligible waiters by lower numeric `%wait(priority=N)` first, then first-in, first-out within the same
+priority, across all projects. Priority defaults to `10` and does not age, so sustained higher-priority arrivals can
+starve default- or lower-priority waiters. An older low-threshold waiter does not block a later launch whose higher
+threshold currently permits it to run. Child agents are exempt so a running parent can safely wait for child work.
 
 To diagnose a wait:
 
@@ -25,8 +26,9 @@ preparation; dependency, time, and fork waiters do not consume a slot until thos
 
 An unanswered root `QUESTION` does not consume a runner slot. Its `pending_question.json` remains authoritative while
 the user is deciding and while an answered root is queued to resume. On answer, the root uses the current global cap to
-reacquire through the same locked FIFO gate; a full cap therefore changes the row from `QUESTION`/`ANSWERED` to the
-normal runner-slot `WAITING` state. Killing it during either pause cleans up the question and queue markers.
+reacquire through the same locked priority/FIFO gate; a full cap therefore changes the row from `QUESTION`/`ANSWERED` to
+the normal runner-slot `WAITING` state. Killing it during either pause cleans up the question and queue markers.
+Question continuations keep their authored priority while reacquiring under the current global cap.
 
 A `%wait(runners=0)` launch is intentionally a drain barrier: it starts only at a true global lull. Newer immediate
 roots may start while the barrier is parked when their own thresholds permit it, and those roots keep the barrier

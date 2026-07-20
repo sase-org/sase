@@ -29,6 +29,7 @@ from sase.axe.run_agent_helpers import (
 )
 from sase.axe.run_agent_wait import wait_for_runner_slot
 from sase.axe.runner_signals import reset_killed
+from sase.core.runner_slots import normalize_wait_priority
 from sase.plan_chain import (
     AGENT_FAMILY_SEPARATOR,
     PLAN_CHAIN_PLAN_SUFFIX,
@@ -165,7 +166,7 @@ def handle_questions_marker(
             Path(state.current_artifacts_dir).name,
             base_meta,
             wait_runners=None,
-            wait_priority=None,
+            wait_priority=normalize_wait_priority(base_meta.get("wait_priority")),
             claim=claim,
         ),
         run_started_at=(

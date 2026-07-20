@@ -78,7 +78,7 @@ def live_runner_slot_waiters(
     records: Iterable[AgentArtifactRecordWire],
     is_live: RecordLiveness,
 ) -> tuple[RunnerSlotWaiter, ...]:
-    """Derive the live FIFO slot queue from waiting-marker projections."""
+    """Derive the live priority/FIFO queue from waiting-marker projections."""
     waiters: list[RunnerSlotWaiter] = []
     for record in records:
         waiting = record.waiting
@@ -112,7 +112,7 @@ def may_start(
     queue: Iterable[RunnerSlotWaiter],
     me: str,
 ) -> bool:
-    """Return whether *me* is the oldest currently eligible slot waiter."""
+    """Return whether *me* is the first currently eligible slot waiter."""
     if running_count > threshold:
         return False
 

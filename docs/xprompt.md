@@ -1070,6 +1070,7 @@ Directives use the same argument syntax as xprompt references:
 %wait(agent1, time=5m)       # Wait for agent1, then a 5-minute floor
 %wait(runners=3)             # Start when at most 3 agents are already running
 %wait(runners=0)             # Drain barrier: start after all running agents stop
+%wait(priority=1)            # Join the runner queue ahead of larger priorities
 %wait(agent1, time=5m, runners=1) # Dependencies, then time floor, then runner gate
 #t:5m                        # Shorthand for %wait(time=5m)
 %repeat:3                    # Run the prompt 3 times
@@ -1257,10 +1258,12 @@ preparation starts only after admission, so admitted runner counts include that 
 The `runners=N` keyword is a per-prompt threshold, not a reservation of future capacity: the agent starts only when at
 most `N` root user agents are already running. It overrides the configured `max_running_agents - 1` threshold for that
 launch, so it can either lower or raise the effective limit. Among waiters eligible at the current running count, the
-oldest live waiter starts first; an older waiter with a lower, currently ineligible threshold does not block eligible
-launches. `runners=0` is therefore a drain barrier that waits for true quiescence. Newer eligible root launches can
-start while it is parked and keep it waiting until they also finish. The value must be a non-negative integer and may
-appear only once across a prompt's `%wait` directives.
+lowest numeric `priority=N` starts first, with FIFO ordering among equal priorities. There is no priority aging, so a
+steady stream of higher-priority arrivals can starve default- or lower-priority waiters. An older waiter with a lower,
+currently ineligible threshold does not block eligible launches. `runners=0` is therefore a drain barrier that waits for
+true quiescence. Newer eligible root launches can start while it is parked and keep it waiting until they also finish.
+Both values must be non-negative integers and may each appear only once across a prompt's `%wait` directives; priority
+defaults to `10`.
 
 Without an explicit `runners=`, the global `max_running_agents` config limits concurrent root user agents (default
 `10`). Immediate root launches claim a slot before workspace preparation. Dependency, time, and fork waiters remain
@@ -1268,10 +1271,10 @@ uncounted until those prerequisites resolve. Child agents, workflow Python/bash 
 consume these slots.
 
 A root agent that pauses at `QUESTION` temporarily yields its slot while waiting for the user's answer. Answering does
-not bypass the cap: before follow-up work resumes, the root reacquires capacity through the same locked FIFO gate using
-the current global `max_running_agents` limit. If the cap is full, the answered root appears as a normal runner-slot
-`WAITING` row until admitted. Its original `%wait(runners=N)` threshold governed initial admission and is not reapplied
-to this resume.
+not bypass the cap: before follow-up work resumes, the root reacquires capacity through the same locked priority/FIFO
+gate using the current global `max_running_agents` limit. If the cap is full, the answered root appears as a normal
+runner-slot `WAITING` row until admitted. Its original `%wait(runners=N)` threshold governed initial admission and is
+not reapplied to this resume, while its authored `priority=N` is retained for admission under the current global cap.
 
 This temporary question yield does not make `%wait(runners=0)` exclusive. A drain-barrier launch may enter during the
 pause, and other work may still enter after that barrier is admitted whenever its own threshold permits; the answered

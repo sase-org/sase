@@ -26,6 +26,56 @@ pytestmark = pytest.mark.usefixtures(
 class TestPlanFollowupQuestions:
     """Verify feedback and question follow-up prompts."""
 
+    @pytest.mark.parametrize(
+        ("stored_priority", "expected_priority"),
+        [
+            (3, 3),
+            (None, 10),
+            (-1, 10),
+            ("3", 10),
+        ],
+    )
+    def test_question_reacquisition_keeps_normalized_authored_priority(
+        self,
+        tmp_path,
+        stored_priority,
+        expected_priority,
+    ) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        meta: dict[str, object] = {"role_suffix": ".plan"}
+        if stored_priority is not None:
+            meta["wait_priority"] = stored_priority
+        (tmp_path / "artifacts" / "agent_meta.json").write_text(json.dumps(meta))
+        captured: dict[str, object] = {}
+
+        def fake_wait_for_runner_slot(*_args, **kwargs):
+            captured["wait_runners"] = kwargs["wait_runners"]
+            captured["wait_priority"] = kwargs["wait_priority"]
+            return kwargs["claim"]()
+
+        def fake_questions_flow(_questions, _artifacts_dir, **kwargs):
+            kwargs["reacquire_runner_slot"](lambda: "claimed")
+            return {"answers": [], "global_note": ""}
+
+        with (
+            patch(
+                "sase.axe.run_agent_exec_questions.handle_questions_flow",
+                side_effect=fake_questions_flow,
+            ),
+            patch(
+                "sase.axe.run_agent_exec_questions.wait_for_runner_slot",
+                side_effect=fake_wait_for_runner_slot,
+            ),
+        ):
+            outcome = handle_questions_marker({"questions": []}, ctx, state)
+
+        assert outcome is None
+        assert captured == {
+            "wait_runners": None,
+            "wait_priority": expected_priority,
+        }
+
     def test_feedback_followup_stores_full_prompt_artifact(self, tmp_path) -> None:
         """Plan feedback follow-up exposes the rebuilt prompt as an artifact."""
         ctx = make_ctx(tmp_path)

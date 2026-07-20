@@ -319,15 +319,17 @@ def _try_claim_runner_slot(
             )
             if not isinstance(requested_at, str) or not requested_at:
                 requested_at = datetime.now(UTC).isoformat()
-            marker: dict[str, Any] = {
-                "waiting_for": [],
-                "cl_name": cl_name,
-                "timestamp": timestamp,
-                "wait_runners": threshold,
-                "wait_runners_explicit": explicit,
-                "wait_priority": priority,
-                "slot_requested_at": requested_at,
-            }
+            marker = dict(waiting_data or {})
+            marker.update(
+                {
+                    "cl_name": cl_name,
+                    "timestamp": timestamp,
+                    "wait_runners": threshold,
+                    "wait_runners_explicit": explicit,
+                    "wait_priority": priority,
+                    "slot_requested_at": requested_at,
+                }
+            )
             parked = waiting_data is None or "slot_requested_at" not in waiting_data
             if waiting_data != marker:
                 _write_waiting_marker(artifacts_dir, marker)

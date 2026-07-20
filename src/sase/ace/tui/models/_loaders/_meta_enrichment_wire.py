@@ -207,6 +207,12 @@ def enrich_agent_from_meta_wire(
         agent.wait_duration = meta.wait_duration
     if agent.wait_until is None and meta.wait_until:
         agent.wait_until = meta.wait_until
+    if (
+        agent.wait_priority is None
+        and type(meta.wait_priority) is int
+        and meta.wait_priority >= 0
+    ):
+        agent.wait_priority = meta.wait_priority
 
     # pending_question.json: marker presence flips active rows to QUESTION, or
     # ANSWERED once the user's question_response.json has landed. A simultaneous

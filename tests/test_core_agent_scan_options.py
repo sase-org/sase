@@ -125,6 +125,34 @@ def test_waiting_runner_slot_fields_match_filesystem_marker(tmp_path: Path) -> N
     assert waiting.slot_requested_at == raw["slot_requested_at"]
 
 
+def test_agent_meta_wait_priority_scan_preserves_explicit_and_legacy_values(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "projects"
+    explicit = root / "myproj" / "artifacts" / "ace-run" / "20260712192000"
+    legacy = root / "myproj" / "artifacts" / "ace-run" / "20260712192100"
+    explicit.mkdir(parents=True)
+    legacy.mkdir(parents=True)
+    (explicit / "agent_meta.json").write_text(
+        json.dumps({"name": "priority-waiter", "wait_priority": 4}),
+        encoding="utf-8",
+    )
+    (legacy / "agent_meta.json").write_text(
+        json.dumps({"name": "legacy-waiter"}),
+        encoding="utf-8",
+    )
+
+    snapshot = scan_agent_artifact_dirs(root, [explicit, legacy])
+    by_timestamp = {record.timestamp: record for record in snapshot.records}
+
+    explicit_meta = by_timestamp[explicit.name].agent_meta
+    legacy_meta = by_timestamp[legacy.name].agent_meta
+    assert explicit_meta is not None
+    assert explicit_meta.wait_priority == 4
+    assert legacy_meta is not None
+    assert legacy_meta.wait_priority is None
+
+
 def test_scan_agent_artifact_dirs_honors_project_and_workflow_filters(
     fixture_root: Path,
 ) -> None:

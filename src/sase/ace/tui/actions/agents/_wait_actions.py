@@ -123,6 +123,9 @@ class AgentWaitActionsMixin:
         result: WaitModalResult,
     ) -> None:
         """Apply a WAITING-agent wait result."""
+        if result.run_now and agent.slot_requested_at:
+            self._apply_live_runner_wait(artifacts_dir, agent, result)
+            return
         if (
             not result.run_now
             and agent.slot_requested_at
@@ -294,6 +297,10 @@ class AgentWaitActionsMixin:
         )
         prior_runners = agent.wait_runners
         prior_explicit = agent.wait_runners_explicit
+        prior_waiting_for = list(agent.waiting_for)
+        prior_waiting_for_beads = list(agent.waiting_for_beads)
+        prior_wait_duration = agent.wait_duration
+        prior_wait_until = agent.wait_until
 
         def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
             payload = persist_agent_directive_update(spec)
@@ -310,6 +317,10 @@ class AgentWaitActionsMixin:
                 return
             agent.wait_runners = prior_runners
             agent.wait_runners_explicit = prior_explicit
+            agent.waiting_for = prior_waiting_for
+            agent.waiting_for_beads = prior_waiting_for_beads
+            agent.wait_duration = prior_wait_duration
+            agent.wait_until = prior_wait_until
             self.notify(  # type: ignore[attr-defined]
                 f"Runner wait persist failed: {completion.message}",
                 severity="error",
@@ -332,8 +343,11 @@ class AgentWaitActionsMixin:
         )
         if task_info is None:
             return
-        if result.runners is not None:
-            agent.wait_runners = result.runners
+        agent.waiting_for = list(result.agents)
+        agent.waiting_for_beads = list(result.beads)
+        agent.wait_duration = None
+        agent.wait_until = None
+        agent.wait_runners = result.runners
         agent.wait_runners_explicit = result.runners is not None
         label = (
             f"runners ≤ {result.runners}"

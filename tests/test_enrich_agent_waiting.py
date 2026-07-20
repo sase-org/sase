@@ -49,6 +49,27 @@ def test_runner_slot_fields_from_waiting_json(tmp_path: Path) -> None:
     assert agent.slot_requested_at == "2026-07-12T12:00:00Z"
 
 
+def test_wait_priority_falls_back_to_agent_meta_in_filesystem_and_wire(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "wait_priority": 6})
+    )
+    filesystem_agent = make_agent(status="STARTING")
+    wire_agent = make_agent(status="STARTING")
+
+    enrich_agent_from_meta(filesystem_agent, str(tmp_path))
+    enrich_agent_from_meta_wire(
+        wire_agent,
+        AgentMetaWire(pid=1234, wait_priority=6),
+        None,
+        None,
+    )
+
+    assert filesystem_agent.wait_priority == 6
+    assert wire_agent.wait_priority == 6
+
+
 def test_linked_repos_from_agent_meta(tmp_path: Path) -> None:
     """linked_repos are parsed from agent_meta.json during enrichment."""
     (tmp_path / "agent_meta.json").write_text(
@@ -407,7 +428,7 @@ def test_runner_slot_fields_from_waiting_marker_wire() -> None:
     agent = make_agent(status="STARTING")
     enrich_agent_from_meta_wire(
         agent,
-        AgentMetaWire(),
+        AgentMetaWire(wait_priority=6),
         WaitingMarkerWire(
             wait_runners=9,
             wait_runners_explicit=False,

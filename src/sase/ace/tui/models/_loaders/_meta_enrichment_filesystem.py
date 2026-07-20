@@ -318,6 +318,13 @@ def enrich_agent_from_meta(
         if isinstance(raw_until, str) and raw_until:
             agent.wait_until = raw_until
 
+    # Fallback: an authored runner-slot priority remains useful after the
+    # live waiting marker has been removed or before it has been published.
+    if agent.wait_priority is None:
+        raw_priority = data.get("wait_priority")
+        if type(raw_priority) is int and raw_priority >= 0:
+            agent.wait_priority = raw_priority
+
     # Check for pending_question.json to set QUESTION/ANSWERED status. The
     # marker is written by handle_questions_flow() before the response-wait
     # poll loop and retained until a root has reacquired its runner slot. Its

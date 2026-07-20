@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.axe import run_agent_wait
 from sase.ace.tui.actions.agents._wait_resume import (
     _prompt_wait_spec,
     _wait_modal_candidates,
 )
 from sase.ace.tui.modals import WaitModalResult
+from sase.core.agent_scan_wire import (
+    AgentArtifactRecordWire,
+    AgentMetaWire,
+    WaitingMarkerWire,
+    WorkflowStateWire,
+)
 from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
 from tests._project_display_case import ProjectDisplayCase
 from tests.ace.tui._agent_wait_resume_helpers import (
@@ -170,17 +178,21 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
 
 def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
     (tmp_path / "raw_xprompt.md").write_text(
-        "%wait(runners=0)\nDo work", encoding="utf-8"
+        "%wait(runners=0, priority=3)\nDo work", encoding="utf-8"
     )
     (tmp_path / "agent_meta.json").write_text(
-        json.dumps({"wait_runners": 0}), encoding="utf-8"
+        json.dumps({"pid": 100, "wait_runners": 0, "wait_priority": 3}),
+        encoding="utf-8",
     )
     (tmp_path / "waiting.json").write_text(
         json.dumps(
             {
                 "waiting_for": [],
+                "cl_name": "test_cl",
+                "timestamp": "20240101120000",
                 "wait_runners": 0,
                 "wait_runners_explicit": True,
+                "wait_priority": 3,
                 "slot_requested_at": "2026-07-12T12:00:00Z",
             }
         ),
@@ -193,13 +205,62 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
         wait_until=None,
         wait_runners=0,
         wait_runners_explicit=True,
+        wait_priority=3,
         slot_requested_at="2026-07-12T12:00:00Z",
     )
     app = FakeWaitResumeApp()
 
-    with patch(
-        "sase.ace.tui.actions.agents._directive_persistence."
-        "update_agent_artifact_index_for_marker_mutation"
+    running_record = AgentArtifactRecordWire(
+        project_name="proj",
+        project_dir=str(tmp_path),
+        project_file=str(tmp_path / "proj.sase"),
+        workflow_dir_name="ace-run",
+        artifact_dir=str(tmp_path / "running"),
+        timestamp="20240101115959",
+        agent_meta=AgentMetaWire(
+            pid=200,
+            run_started_at="2026-07-12T11:59:59Z",
+        ),
+        workflow_state=WorkflowStateWire(appears_as_agent=True),
+    )
+
+    def scan_records() -> list[AgentArtifactRecordWire]:
+        waiting_data = json.loads((tmp_path / "waiting.json").read_text())
+        return [
+            running_record,
+            AgentArtifactRecordWire(
+                project_name="proj",
+                project_dir=str(tmp_path),
+                project_file=str(tmp_path / "proj.sase"),
+                workflow_dir_name="ace-run",
+                artifact_dir=str(tmp_path),
+                timestamp="20240101120000",
+                agent_meta=AgentMetaWire(pid=100),
+                waiting=WaitingMarkerWire(
+                    wait_runners=waiting_data.get("wait_runners"),
+                    wait_runners_explicit=bool(
+                        waiting_data.get("wait_runners_explicit", False)
+                    ),
+                    wait_priority=waiting_data.get("wait_priority"),
+                    slot_requested_at=waiting_data.get("slot_requested_at"),
+                ),
+                workflow_state=WorkflowStateWire(appears_as_agent=True),
+            ),
+        ]
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._directive_persistence."
+            "update_agent_artifact_index_for_marker_mutation"
+        ),
+        patch.object(run_agent_wait, "_scan_runner_slot_records", scan_records),
+        patch.object(run_agent_wait, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait, "get_max_running_agents", return_value=2),
+        patch.object(
+            run_agent_wait,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
     ):
         app._apply_wait(
             str(tmp_path),
@@ -207,15 +268,35 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
             WaitModalResult(agents=[], time_token=None, run_now=True),
         )
 
-    assert json.loads((tmp_path / "ready.json").read_text()) == {
-        "resolved_deps": [],
-        "unwait": True,
-    }
-    assert json.loads((tmp_path / "agent_meta.json").read_text()) == {}
-    assert (tmp_path / "raw_xprompt.md").read_text() == "Do work"
-    assert agent.wait_runners is None
-    assert agent.wait_runners_explicit is False
-    assert agent.slot_requested_at is None
+        waiting = json.loads((tmp_path / "waiting.json").read_text())
+        assert "wait_runners" not in waiting
+        assert waiting["wait_runners_explicit"] is False
+        assert waiting["wait_priority"] == 3
+        assert waiting["slot_requested_at"] == "2026-07-12T12:00:00Z"
+        assert not (tmp_path / "ready.json").exists()
+        assert json.loads((tmp_path / "agent_meta.json").read_text()) == {
+            "pid": 100,
+            "wait_priority": 3,
+        }
+        assert (tmp_path / "raw_xprompt.md").read_text() == "Do work"
+        assert agent.wait_runners is None
+        assert agent.wait_runners_explicit is False
+        assert agent.wait_priority == 3
+        assert agent.slot_requested_at == "2026-07-12T12:00:00Z"
+
+        claimed, parked = run_agent_wait._try_claim_runner_slot(
+            artifacts_dir=str(tmp_path),
+            cl_name="test_cl",
+            timestamp="20240101120000",
+            directive_threshold=0,
+            directive_priority=3,
+            claim=lambda: "started",
+        )
+
+    assert claimed == "started"
+    assert parked is False
+    assert not (tmp_path / "waiting.json").exists()
+    assert not (tmp_path / "ready.json").exists()
     assert app.killed_agents == []
 
 
