@@ -427,8 +427,23 @@ def render_plan_document(
     header = plan_lane_header(summary)
     header.rstrip()
     intro: list[Text] = [header]
-    for label, value in plan_field_rows(summary, hint_number=hint_number):
-        intro.extend(_render_field_lines(label, value, width=width))
+    field_rows = plan_field_rows(summary, hint_number=hint_number)
+    for index, (label, value) in enumerate(field_rows):
+        preferred_break_before: int | None = None
+        preferred_segment_width: int | None = None
+        if index == len(field_rows) - 1:
+            preferred_break_before, preferred_segment_width = _path_basename_wrap_hint(
+                summary, hint_number=hint_number
+            )
+        intro.extend(
+            _render_field_lines(
+                label,
+                value,
+                width=width,
+                preferred_break_before=preferred_break_before,
+                preferred_segment_width=preferred_segment_width,
+            )
+        )
 
     phase_blocks: list[tuple[Text, ...]] = []
     if summary.phase_availability == "available":
@@ -484,9 +499,37 @@ def _path_value(summary: PlanDisplay, *, hint_number: int | None) -> Text:
     return text
 
 
-def _render_field_lines(label: str, value: Text, *, width: int) -> tuple[Text, ...]:
+def _path_basename_wrap_hint(
+    summary: PlanDisplay,
+    *,
+    hint_number: int | None,
+) -> tuple[int, int]:
+    """Return the character offset and cell width of the displayed basename."""
+    hint_prefix = f"[{hint_number}] " if hint_number is not None else ""
+    dirname, basename = os.path.split(summary.display_path)
+    directory_prefix = dirname + "/" if dirname else ""
+    displayed_basename = basename or summary.display_path
+    return (
+        len(hint_prefix) + len(directory_prefix),
+        cell_len(displayed_basename),
+    )
+
+
+def _render_field_lines(
+    label: str,
+    value: Text,
+    *,
+    width: int,
+    preferred_break_before: int | None = None,
+    preferred_segment_width: int | None = None,
+) -> tuple[Text, ...]:
     value_width = max(width - PLAN_FIELD_LABEL_WIDTH, 1)
-    wrapped = _wrap(value, width=value_width)
+    wrapped = _wrap(
+        value,
+        width=value_width,
+        preferred_break_before=preferred_break_before,
+        preferred_segment_width=preferred_segment_width,
+    )
     if not wrapped:
         wrapped = [Text()]
     lines: list[Text] = []
@@ -550,7 +593,24 @@ def _render_indented_line(value: Text, *, width: int) -> tuple[Text, ...]:
     return tuple(lines)
 
 
-def _wrap(value: Text, *, width: int) -> list[Text]:
+def _wrap(
+    value: Text,
+    *,
+    width: int,
+    preferred_break_before: int | None = None,
+    preferred_segment_width: int | None = None,
+) -> list[Text]:
+    if (
+        preferred_break_before is not None
+        and preferred_segment_width is not None
+        and 0 < preferred_break_before < len(value)
+        and preferred_segment_width <= width
+        and cell_len(value.plain) > width
+    ):
+        before = _wrap(value[:preferred_break_before], width=width)
+        after = _wrap(value[preferred_break_before:], width=width)
+        return before + after
+
     copied = value.copy()
     copied.overflow = "fold"
     copied.no_wrap = False
