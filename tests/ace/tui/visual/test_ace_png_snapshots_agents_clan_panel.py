@@ -33,6 +33,15 @@ _RESEARCH_CLAN_SUMMARY = (
     "across every fold level?[/italic #D7D7FF]"
 )
 
+_EPIC_CLAN_SUMMARY = (
+    "[bold #D75FFF]EPIC sase-6n · Rich clan summaries[/bold #D75FFF]\n"
+    "[dim #D7D7FF]Share launch context without live lookups or render-time "
+    "subprocesses.[/dim #D7D7FF]\n"
+    "[bold #87D7FF]1.[/bold #87D7FF] Persist summaries at launch\n"
+    "[bold #87D7FF]2.[/bold #87D7FF] Render Rich markup safely\n"
+    "[bold #87D7FF]3.[/bold #87D7FF] Ship epic and research presets"
+)
+
 
 @pytest.fixture(autouse=True)
 def _isolate_clan_plan_enrichment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -56,7 +65,9 @@ async def test_epic_clan_panel_png_snapshots(
     _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 12, 15, 0))
     patch_startup_loaders(
         monkeypatch,
-        agents=_decorate_clan_panel_sections(_epic_clan_agents()),
+        agents=_decorate_clan_panel_sections(
+            _epic_clan_agents(clan_summary=_EPIC_CLAN_SUMMARY)
+        ),
     )
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -68,6 +79,8 @@ async def test_epic_clan_panel_png_snapshots(
 
         assert_page_svg_contains(page, "CLAN")
         assert_page_svg_contains(page, "sase-6n")
+        assert_page_svg_contains(page, "Rich clan summaries")
+        assert_page_svg_contains(page, "Render Rich markup safely")
         assert_page_svg_contains(page, "3 agents")
         assert_page_svg_contains(page, ".land")
         ace_png_visual.assert_page_png(

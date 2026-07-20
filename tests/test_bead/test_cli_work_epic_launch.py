@@ -28,6 +28,10 @@ from .cli_work_helpers import (
 pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
 
 
+def _epic_clan_declaration(epic_id: str) -> str:
+    return f"%clan({epic_id}, tribe=epic, summary_script=sase_clan_summary_epic)"
+
+
 def test_work_launches_and_passes_rendered_multi_prompt(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -68,7 +72,7 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     # Launcher was called exactly once with a multi-prompt referencing every phase.
     query = captured["query"]
     assert "---" in query
-    membership = f"%clan({epic_id}, tribe=epic)"
+    membership = _epic_clan_declaration(epic_id)
     assert query.count(membership) == 1
     assert "%family" not in query
     assert "%group:" not in query
@@ -257,7 +261,7 @@ def test_work_relaunch_after_failure_joins_existing_epic_clan(
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
 
     assert len(launched) == 2
-    declaration = f"%clan({epic_id}, tribe=epic)"
+    declaration = _epic_clan_declaration(epic_id)
     assert launched[0].count(declaration) == 1
     assert "%clan" not in launched[1]
     for phase_id in phase_ids:
@@ -422,7 +426,7 @@ def test_work_dry_run_never_mutates_or_launches(
     assert f"land agent ({epic_id}.land)" in out
     assert f"Clan: {epic_id} · Tribe: @epic" in out
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
-    assert out.count(f"%clan({epic_id}, tribe=epic)") == 1
+    assert out.count(_epic_clan_declaration(epic_id)) == 1
     assert "%family" not in out
     assert "%group:" not in out
 
@@ -451,14 +455,14 @@ def test_work_dry_run_renders_model_directives(
     bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
 
     out = capsys.readouterr().out
-    membership = f"%clan({epic_id}, tribe=epic)"
+    membership = _epic_clan_declaration(epic_id)
     assert f"%id:!{p1_id}\n{membership}\n%model:codex/gpt-5.6-sol\n%auto\n" in out
     # Phase without an explicit model defaults to the phase-worker role alias.
     p2_suffix = p2_id.removeprefix(f"{epic_id}.")
     assert f"%id(!{p2_suffix}, clan={epic_id})\n%model:@phase_worker\n%auto\n" in out
     # The epic's explicit land model still wins over the epic-lander alias.
     assert f"%id(!land, clan={epic_id})\n%model:claude/opus\n%auto\n" in out
-    assert out.count(f"%clan({epic_id}, tribe=epic)") == 1
+    assert out.count(_epic_clan_declaration(epic_id)) == 1
     assert "%family" not in out
     assert "%group:" not in out
     # Three %model directives: explicit phase, phase-worker phase, and land.
@@ -525,7 +529,7 @@ def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
 
     assert launch_calls == []
     out = capsys.readouterr().out
-    membership = f"%clan({epic_id}, tribe=epic)"
+    membership = _epic_clan_declaration(epic_id)
     assert f"#git:sase\n%id:!{phase_ids[0]}\n{membership}" in out
     for pid in phase_ids[1:]:
         suffix = pid.removeprefix(f"{epic_id}.")
@@ -534,7 +538,7 @@ def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
     assert f"#git:sase\n%id(!land, clan={epic_id})" in out
     assert f"#bd/land_epic:{epic_id}" in out
-    assert out.count(f"%clan({epic_id}, tribe=epic)") == 1
+    assert out.count(_epic_clan_declaration(epic_id)) == 1
     assert "%family" not in out
     assert "%group:" not in out
 
@@ -582,7 +586,7 @@ def test_work_dry_run_renders_changespec_launch_wrappers(
 
     assert launch_calls == []
     out = capsys.readouterr().out
-    membership = f"%clan({epic_id}, tribe=epic)"
+    membership = _epic_clan_declaration(epic_id)
     assert "#git:sase #pr(name=feature_epic, bug_id=12345)" in out
     assert (
         f"#git:sase #pr(name=feature_epic, bug_id=12345)\n"
@@ -593,7 +597,7 @@ def test_work_dry_run_renders_changespec_launch_wrappers(
     assert f"#git:feature_epic\n%id(!land, clan={epic_id})" in out
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
     assert f"#bd/land_epic:{epic_id}" in out
-    assert out.count(f"%clan({epic_id}, tribe=epic)") == 1
+    assert out.count(_epic_clan_declaration(epic_id)) == 1
     assert "%family" not in out
     assert "%group:" not in out
 

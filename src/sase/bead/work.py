@@ -31,6 +31,7 @@ SASE_BEAD_ID_ENV = "SASE_BEAD_ID"
 SASE_EPIC_PLAN_REF_ENV = "SASE_EPIC_PLAN_REF"
 SASE_EPIC_BEAD_ID_ENV = "SASE_EPIC_BEAD_ID"
 SASE_PHASE_BEAD_ID_ENV = "SASE_PHASE_BEAD_ID"
+EPIC_CLAN_SUMMARY_SCRIPT = "sase_clan_summary_epic"
 
 
 @dataclass(frozen=True)
@@ -370,7 +371,10 @@ def _clan_identity_directives(
     if declare:
         return [
             f"%id:!{agent_name}",
-            f"%clan({clan_name}, tribe=epic)",
+            (
+                f"%clan({clan_name}, tribe=epic, "
+                f"summary_script={EPIC_CLAN_SUMMARY_SCRIPT})"
+            ),
         ]
     return [f"%id(!{member_id}, clan={clan_name})"]
 

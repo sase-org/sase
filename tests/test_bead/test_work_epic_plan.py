@@ -109,7 +109,7 @@ class TestDiamond:
 
         expected = (
             "%id:!e1.p1\n"
-            "%clan(e1, tribe=epic)\n"
+            "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%model:@phase_worker\n"
             "%auto\n"
             "#bd/work_phase_bead:p1\n"
@@ -140,7 +140,10 @@ class TestDiamond:
         )
         assert rendered == expected
         segments = rendered.split("\n---\n")
-        assert "%clan(e1, tribe=epic)" in segments[0]
+        assert (
+            "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)"
+            in segments[0]
+        )
         assert all("%clan" not in segment for segment in segments[1:])
         assert all("%family" not in segment for segment in segments)
         assert all("%group:" not in segment for segment in segments)

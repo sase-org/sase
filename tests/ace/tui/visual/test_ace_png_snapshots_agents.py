@@ -346,7 +346,7 @@ def _clan_tree_agents(*, clan_summary: str | None = None) -> list[Agent]:
     )
 
 
-def _epic_clan_agents() -> list[Agent]:
+def _epic_clan_agents(*, clan_summary: str | None = None) -> list[Agent]:
     generation = "20260717120000"
 
     def member(
@@ -374,6 +374,7 @@ def _epic_clan_agents() -> list[Agent]:
             agent_name=f"sase-6n.{name}",
             agent_clan="sase-6n",
             agent_clan_generation=generation,
+            clan_summary=clan_summary if name == "phase-runtime" else None,
             agent_family_role="land" if name == "land" else "phase",
             tribe="epic",
             llm_provider=provider,

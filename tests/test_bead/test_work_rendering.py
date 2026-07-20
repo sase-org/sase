@@ -122,7 +122,10 @@ class TestRenderEdgeCases:
         assert land_directives.clan_tribe is None
 
         assert "%family" not in rendered
-        assert "%clan(sase-42.3, tribe=epic)" in phase_segment
+        assert (
+            "%clan(sase-42.3, tribe=epic, "
+            "summary_script=sase_clan_summary_epic)" in phase_segment
+        )
         assert "%id:!sase-42.3.1" in phase_segment
         assert "#bd/work_phase_bead:sase-42.3.1" in phase_segment
         assert "%id(!land, clan=sase-42.3)" in land_segment
@@ -212,7 +215,7 @@ class TestChangeSpecRendering:
         expected = (
             "#git:sase #pr:feature_epic\n"
             "%id:!e1.p1\n"
-            "%clan(e1, tribe=epic)\n"
+            "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%model:@phase_worker\n"
             "%auto\n"
             "#bd/work_phase_bead:p1\n"
@@ -249,7 +252,7 @@ class TestChangeSpecRendering:
         expected = (
             "#gh:sase #pr:feature_epic\n"
             "%id:!e1.p1\n"
-            "%clan(e1, tribe=epic)\n"
+            "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%model:@phase_worker\n"
             "%auto\n"
             "#custom/work:p1\n"
@@ -296,11 +299,11 @@ class TestChangeSpecRendering:
         )
 
         assert rendered.count("#pr:feature_epic") == 1
-        membership = "%clan(e1, tribe=epic)"
+        membership = "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)"
         assert f"#git:sase #pr:feature_epic\n%id:!e1.p1\n{membership}" in rendered
         assert "#git:feature_epic\n%id(!p2, clan=e1)" in rendered
         assert "#git:feature_epic\n%id(!land, clan=e1)" in rendered
-        assert rendered.count("%clan(e1, tribe=epic)") == 1
+        assert rendered.count(membership) == 1
         assert "%family" not in rendered
         assert "%group:" not in rendered
 
@@ -471,7 +474,7 @@ class TestModelDirective:
         _assert_bare_auto_directives(rendered)
         assert phase_segment == (
             "%id:!e1.p1\n"
-            "%clan(e1, tribe=epic)\n"
+            "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%model:claude/opus\n"
             "%auto\n"
             "#bd/work_phase_bead:p1"
@@ -569,7 +572,7 @@ class TestModelDirective:
 
         pre_model_baseline = (
             "%id:!e1.p1\n"
-            "%clan(e1, tribe=epic)\n"
+            "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
