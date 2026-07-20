@@ -1,6 +1,7 @@
 """Tests for the commit CLI: flag parsing -> payload dict -> workflow construction."""
 
 import argparse
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -32,18 +33,22 @@ def _run_handler(
     args = _parse_commit_args(argv)
     mock_workflow = MagicMock()
     mock_workflow.run.return_value = RunResult.OK
-    test_env = {"SASE_BEAD_ID": "", **(env or {})}
+    requested_env = env or {}
+    test_env = {"SASE_BEAD_ID": "", **requested_env}
 
-    with (
-        patch(
-            "sase.main.commit_handler.CommitWorkflow", return_value=mock_workflow
-        ) as cls,
-        patch.dict("os.environ", test_env, clear=False),
-        pytest.raises(SystemExit) as exc_info,
-    ):
-        from sase.main.commit_handler import handle_commit_command
+    with patch.dict("os.environ", test_env, clear=False):
+        if "SASE_COMMIT_METHOD" not in requested_env:
+            os.environ.pop("SASE_COMMIT_METHOD", None)
 
-        handle_commit_command(args)
+        with (
+            patch(
+                "sase.main.commit_handler.CommitWorkflow", return_value=mock_workflow
+            ) as cls,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            from sase.main.commit_handler import handle_commit_command
+
+            handle_commit_command(args)
 
     assert exc_info.value.code == 0
     call_kwargs = cls.call_args.kwargs

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 import json
 import os
 import sys
@@ -24,6 +25,12 @@ from sase.main.query_handler import EmbeddedWorkflowResult
 from sase.workflows import crs as crs_workflow_module
 
 
+_EMBEDDED_WORKFLOW_ENV_KEYS = (
+    "SASE_COMMIT_METHOD",
+    "SASE_ACTIVE_PROJECT_DIR",
+)
+
+
 def _clear_agent_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in (
         *WORKSPACE_PIN_ENV_VARS,
@@ -35,6 +42,24 @@ def _clear_agent_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "SASE_DISABLE_COMMIT_STOP_HOOK",
     ):
         monkeypatch.delenv(key, raising=False)
+
+
+def _embedded_workflow_env_snapshot() -> dict[str, str | None]:
+    return {key: os.environ.get(key) for key in _EMBEDDED_WORKFLOW_ENV_KEYS}
+
+
+@pytest.fixture
+def embedded_workflow_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[pytest.MonkeyPatch]:
+    """Provide reversible fake workflow env and verify exact restoration."""
+    _clear_agent_env(monkeypatch)
+    initial_env = _embedded_workflow_env_snapshot()
+
+    with pytest.MonkeyPatch.context() as embedded_env:
+        yield embedded_env
+
+    assert _embedded_workflow_env_snapshot() == initial_env
 
 
 def _patch_runner_plumbing(
@@ -133,8 +158,8 @@ def _assert_agent_env(
 def test_fix_hook_runner_publishes_env_and_reports_no_proposal(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    embedded_workflow_env: pytest.MonkeyPatch,
 ) -> None:
-    _clear_agent_env(monkeypatch)
     artifacts_dir = tmp_path / "artifacts" / "20260715120000"
     artifacts_dir.mkdir(parents=True)
     home_dir = tmp_path / "home"
@@ -177,8 +202,8 @@ def test_fix_hook_runner_publishes_env_and_reports_no_proposal(
         _prompt: str,
         _artifacts_dir: str,
     ) -> tuple[str, list[EmbeddedWorkflowResult]]:
-        os.environ["SASE_COMMIT_METHOD"] = "create_proposal"
-        os.environ["SASE_ACTIVE_PROJECT_DIR"] = str(workspace_dir)
+        embedded_workflow_env.setenv("SASE_COMMIT_METHOD", "create_proposal")
+        embedded_workflow_env.setenv("SASE_ACTIVE_PROJECT_DIR", str(workspace_dir))
         return "expanded prompt", [embedded]
 
     monkeypatch.setattr(
@@ -246,8 +271,8 @@ def test_fix_hook_runner_publishes_env_and_reports_no_proposal(
 def test_crs_runner_publishes_env_and_reports_no_proposal(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    embedded_workflow_env: pytest.MonkeyPatch,
 ) -> None:
-    _clear_agent_env(monkeypatch)
     artifacts_dir = tmp_path / "artifacts" / "20260715130000"
     artifacts_dir.mkdir(parents=True)
     workspace_dir = tmp_path / "claimed-workspace"
@@ -311,8 +336,8 @@ def test_crs_runner_publishes_env_and_reports_no_proposal(
         _prompt: str,
         _artifacts_dir: str,
     ) -> tuple[str, list[EmbeddedWorkflowResult]]:
-        os.environ["SASE_COMMIT_METHOD"] = "create_proposal"
-        os.environ["SASE_ACTIVE_PROJECT_DIR"] = str(workspace_dir)
+        embedded_workflow_env.setenv("SASE_COMMIT_METHOD", "create_proposal")
+        embedded_workflow_env.setenv("SASE_ACTIVE_PROJECT_DIR", str(workspace_dir))
         return "expanded prompt", [embedded]
 
     monkeypatch.setattr(
