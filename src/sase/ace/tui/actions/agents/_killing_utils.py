@@ -7,6 +7,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.bead.store_locator import closed_bead_ids_for_project
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.agent_artifact_index_lifecycle import (
     delete_agent_artifact_index_artifacts,
@@ -99,6 +100,8 @@ def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
         except Exception:
             dependency_index = None
 
+    closed_bead_ids: frozenset[str] | None = None
+    closed_bead_ids_resolved = False
     for waiter_dir in artifact_dirs:
         if _same_artifact_dir(waiter_dir, artifacts_path):
             continue
@@ -113,6 +116,9 @@ def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
         wait_for_artifacts = waiting_data.get("wait_for_artifacts")
         if not isinstance(wait_for_artifacts, list):
             wait_for_artifacts = []
+        wait_for_beads = waiting_data.get("wait_for_beads")
+        if not isinstance(wait_for_beads, list):
+            wait_for_beads = []
         if not _waiting_marker_references_deleted_dependency(
             waiting_for=waiting_for,
             wait_for_artifacts=wait_for_artifacts,
@@ -127,10 +133,15 @@ def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
         resolved_deps = waiting_data.get("resolved_deps")
         if not isinstance(resolved_deps, list):
             resolved_deps = []
+        if wait_for_beads and not closed_bead_ids_resolved:
+            closed_bead_ids = closed_bead_ids_for_project(project_name)
+            closed_bead_ids_resolved = True
         ready_data = _ready_data_for_completed_dependency(
             dependency_index,
             waiting_for=waiting_for,
             wait_for_artifacts=wait_for_artifacts,
+            wait_for_beads=wait_for_beads,
+            closed_bead_ids=closed_bead_ids,
             resolved_deps=resolved_deps,
             waiter_dir=waiter_dir,
         )
@@ -168,6 +179,8 @@ def _ready_data_for_completed_dependency(
     *,
     waiting_for: list[str],
     wait_for_artifacts: list[object],
+    wait_for_beads: list[object],
+    closed_bead_ids: frozenset[str] | None,
     resolved_deps: list[object],
     waiter_dir: Path,
 ) -> dict[str, object] | None:
@@ -179,6 +192,8 @@ def _ready_data_for_completed_dependency(
         waiting_for,
         wait_for_artifacts,
         resolved_deps,
+        wait_beads=wait_for_beads,
+        closed_bead_ids=closed_bead_ids,
         self_artifact_dir=waiter_dir,
     )
     if not status.resolved:

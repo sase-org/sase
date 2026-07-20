@@ -159,6 +159,136 @@ def test_delete_agent_artifacts_resolves_waiters_before_deleting_done_marker(  #
     assert not (parent_dir / "done.json").exists()
 
 
+def _write_bead_gated_waiter_fixture(tmp_path) -> tuple:  # type: ignore[no-untyped-def]
+    parent_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/20260706130831"
+    waiter_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/20260706131004"
+    parent_dir.mkdir(parents=True)
+    waiter_dir.mkdir(parents=True)
+    (parent_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "proj-1.1"}),
+        encoding="utf-8",
+    )
+    (parent_dir / "done.json").write_text(
+        json.dumps({"outcome": "completed"}),
+        encoding="utf-8",
+    )
+    (waiter_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "proj-1.2"}),
+        encoding="utf-8",
+    )
+    (waiter_dir / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": ["proj-1.1"],
+                "wait_for_artifacts": [
+                    {
+                        "project_name": "proj",
+                        "timestamp": parent_dir.name,
+                        "artifact_dir": str(parent_dir),
+                        "name": "proj-1.1",
+                    }
+                ],
+                "wait_for_beads": ["proj-1.1"],
+                "cl_name": "waiter-cl",
+                "timestamp": waiter_dir.name,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return parent_dir, waiter_dir
+
+
+def test_delete_agent_artifacts_keeps_bead_gated_waiter_parked(  # type: ignore[no-untyped-def]
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Dismissing a delegated phase agent must not bypass its open bead wait."""
+    from sase.ace.tui.actions.agents._killing_utils import delete_agent_artifacts
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    parent_dir, waiter_dir = _write_bead_gated_waiter_fixture(tmp_path)
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils."
+            "delete_agent_artifact_index_artifacts"
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils.try_delete_agent_artifacts",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils.closed_bead_ids_for_project",
+            return_value=frozenset(),
+        ) as mock_closed_ids,
+    ):
+        delete_agent_artifacts(str(parent_dir))
+
+    assert not (waiter_dir / "ready.json").exists()
+    waiting = json.loads((waiter_dir / "waiting.json").read_text(encoding="utf-8"))
+    assert waiting["wait_for_beads"] == ["proj-1.1"]
+    assert waiting["resolved_deps"]
+    mock_closed_ids.assert_called_once_with("proj")
+
+
+def test_delete_agent_artifacts_releases_bead_gated_waiter_when_bead_closed(  # type: ignore[no-untyped-def]
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from sase.ace.tui.actions.agents._killing_utils import delete_agent_artifacts
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    parent_dir, waiter_dir = _write_bead_gated_waiter_fixture(tmp_path)
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils."
+            "delete_agent_artifact_index_artifacts"
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils.try_delete_agent_artifacts",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils.closed_bead_ids_for_project",
+            return_value=frozenset({"proj-1.1"}),
+        ),
+    ):
+        delete_agent_artifacts(str(parent_dir))
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["proj-1.1"]}
+
+
+def test_delete_agent_artifacts_keeps_bead_gated_waiter_on_missing_store(  # type: ignore[no-untyped-def]
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """An unavailable bead store fails closed and keeps the waiter parked."""
+    from sase.ace.tui.actions.agents._killing_utils import delete_agent_artifacts
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    parent_dir, waiter_dir = _write_bead_gated_waiter_fixture(tmp_path)
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils."
+            "delete_agent_artifact_index_artifacts"
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils.try_delete_agent_artifacts",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils.closed_bead_ids_for_project",
+            return_value=None,
+        ),
+    ):
+        delete_agent_artifacts(str(parent_dir))
+
+    assert not (waiter_dir / "ready.json").exists()
+
+
 def test_delete_agent_artifacts_keeps_waiter_with_other_unresolved_dependency(  # type: ignore[no-untyped-def]
     tmp_path,
     monkeypatch,
