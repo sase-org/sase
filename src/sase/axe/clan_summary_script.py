@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import signal
 import subprocess
-import tempfile
+import threading
 from typing import BinaryIO
 
 from sase.axe.chop_script_runner import discover_chop_script
@@ -75,45 +75,54 @@ def resolve_clan_summary_script(
     timeout = (
         CLAN_SUMMARY_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
     )
+    raw_output = bytearray()
     try:
-        with tempfile.TemporaryFile() as stdout_file:
-            log_file = _open_agent_log(agent_log_path)
+        log_file = _open_agent_log(agent_log_path)
+        try:
+            process = subprocess.Popen(
+                [str(script_path)],
+                cwd=workspace_dir,
+                env=subprocess_env,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=log_file,
+                start_new_session=os.name == "posix",
+            )
+            assert process.stdout is not None
+            stdout_thread = threading.Thread(
+                target=_drain_bounded_stdout,
+                args=(process.stdout, raw_output),
+                daemon=True,
+            )
             try:
-                process = subprocess.Popen(
-                    [str(script_path)],
-                    cwd=workspace_dir,
-                    env=subprocess_env,
-                    stdin=subprocess.DEVNULL,
-                    stdout=stdout_file,
-                    stderr=log_file,
-                    start_new_session=os.name == "posix",
-                )
-                try:
-                    returncode = process.wait(timeout=timeout)
-                except subprocess.TimeoutExpired:
-                    _kill_process(process)
-                    log.warning(
-                        "Clan summary script %r timed out after %.1fs; "
-                        "omitting summary",
-                        script,
-                        timeout,
-                    )
-                    return None
-            finally:
-                if log_file is not None:
-                    log_file.close()
-
-            if returncode != 0:
+                stdout_thread.start()
+            except RuntimeError:
+                _kill_process(process)
+                raise
+            try:
+                returncode = process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                _kill_process(process)
+                _finish_stdout_thread(process, stdout_thread)
                 log.warning(
-                    "Clan summary script %r exited with status %s; omitting summary",
+                    "Clan summary script %r timed out after %.1fs; omitting summary",
                     script,
-                    returncode,
+                    timeout,
                 )
                 return None
+            _finish_stdout_thread(process, stdout_thread)
+        finally:
+            if log_file is not None:
+                log_file.close()
 
-            stdout_file.seek(0)
-            raw_output = stdout_file.read(CLAN_SUMMARY_MAX_BYTES + 1)
-    except (OSError, ValueError) as exc:
+        if returncode != 0:
+            log.warning(
+                "Clan summary script %r exited with status %s; omitting summary",
+                script,
+                returncode,
+            )
+            return None
+    except (OSError, RuntimeError, ValueError) as exc:
         log.warning(
             "Clan summary script %r could not run (%s); omitting summary",
             script,
@@ -121,7 +130,9 @@ def resolve_clan_summary_script(
         )
         return None
 
-    summary = normalize_clan_summary(raw_output.decode("utf-8", errors="replace"))
+    summary = normalize_clan_summary(
+        bytes(raw_output).decode("utf-8", errors="replace")
+    )
     if summary is None:
         log.warning(
             "Clan summary script %r produced no output; omitting summary", script
@@ -133,6 +144,31 @@ def resolve_clan_summary_script(
             script,
         )
     return summary
+
+
+def _drain_bounded_stdout(stdout: BinaryIO, captured: bytearray) -> None:
+    """Drain *stdout* while retaining at most the cap plus one sentinel byte."""
+    capture_limit = CLAN_SUMMARY_MAX_BYTES + 1
+    try:
+        while chunk := stdout.read(64 * 1024):
+            remaining = capture_limit - len(captured)
+            if remaining > 0:
+                captured.extend(chunk[:remaining])
+    except (OSError, ValueError):
+        pass
+
+
+def _finish_stdout_thread(
+    process: subprocess.Popen[bytes],
+    stdout_thread: threading.Thread,
+) -> None:
+    """Let the stdout drainer reach EOF, then close the parent pipe handle."""
+    stdout_thread.join(timeout=5)
+    if process.stdout is not None:
+        try:
+            process.stdout.close()
+        except (OSError, ValueError):
+            pass
 
 
 def _discover_summary_script(script: str, workspace_dir: str) -> Path | None:

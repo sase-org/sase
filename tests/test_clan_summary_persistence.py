@@ -196,10 +196,16 @@ def test_summary_script_output_is_capped(
     workspace_dir.mkdir()
     _write_script(
         workspace_dir / "make_summary",
-        "print('x' * 40000, end='')",
+        f"print('x' * {CLAN_SUMMARY_MAX_BYTES * 4}, end='')",
     )
 
-    with caplog.at_level("WARNING", logger="sase.axe.clan_summary_script"):
+    with (
+        caplog.at_level("WARNING", logger="sase.axe.clan_summary_script"),
+        patch(
+            "tempfile.TemporaryFile",
+            side_effect=AssertionError("summary output must not use an uncapped spool"),
+        ),
+    ):
         meta = _extract_clan_meta(
             tmp_path,
             "summary_script=./make_summary",
