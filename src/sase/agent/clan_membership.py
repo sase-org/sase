@@ -75,6 +75,31 @@ def declare_clan_membership(
     )
 
 
+def derive_clan_name_from_member(
+    target: str,
+    *,
+    member_name: str | None,
+    member_name_template: str | None,
+) -> str | None:
+    """Render a templated clan *target* with its member's template token."""
+    if not member_name or not member_name_template:
+        return None
+
+    from sase.agent.names import (
+        AgentNameTemplateError,
+        match_agent_name_template,
+        render_agent_name_template,
+    )
+
+    try:
+        token = match_agent_name_template(member_name_template, member_name)
+        if token is None:
+            return None
+        return render_agent_name_template(target, token)
+    except AgentNameTemplateError:
+        return None
+
+
 def _reserve_clan_membership(
     target: str,
     *,
@@ -85,33 +110,16 @@ def _reserve_clan_membership(
     member_name_template: str | None,
 ) -> ClanMembershipPlan:
     from sase.agent.names import (
-        AgentNameTemplateError,
         NameCollisionError,
-        get_reserved_clan_names,
-        match_agent_name_template,
-        render_agent_name_template,
         reserve_registered_clan_name,
-        resolve_agent_name_template_reference,
     )
 
-    try:
-        clan_name = resolve_agent_name_template_reference(
-            target,
-            names=get_reserved_clan_names(),
-        )
-    except AgentNameTemplateError as exc:
-        token = None
-        if member_name and member_name_template:
-            try:
-                token = match_agent_name_template(member_name_template, member_name)
-            except AgentNameTemplateError:
-                token = None
-        if token is None:
-            raise ClanMembershipError(
-                f"Cannot resolve clan target '{target}' from member name "
-                f"'{member_name or ''}'"
-            ) from exc
-        clan_name = render_agent_name_template(target, token)
+    clan_name = _resolve_clan_target(
+        target,
+        create_only=create_only,
+        member_name=member_name,
+        member_name_template=member_name_template,
+    )
 
     try:
         reserved_generation = reserve_registered_clan_name(
@@ -125,6 +133,55 @@ def _reserve_clan_membership(
     return ClanMembershipPlan(
         clan_name=clan_name,
         generation=reserved_generation,
+    )
+
+
+def _resolve_clan_target(
+    target: str,
+    *,
+    create_only: bool,
+    member_name: str | None,
+    member_name_template: str | None,
+) -> str:
+    from sase.agent.names import (
+        AgentNameTemplateError,
+        get_reserved_clan_names,
+        is_agent_name_template,
+        resolve_agent_name_template_reference,
+    )
+
+    if create_only and is_agent_name_template(target):
+        derived = derive_clan_name_from_member(
+            target,
+            member_name=member_name,
+            member_name_template=member_name_template,
+        )
+        if derived is not None:
+            return derived
+        raise _unresolved_clan_target_error(target, member_name)
+
+    try:
+        return resolve_agent_name_template_reference(
+            target,
+            names=get_reserved_clan_names(),
+        )
+    except AgentNameTemplateError as exc:
+        derived = derive_clan_name_from_member(
+            target,
+            member_name=member_name,
+            member_name_template=member_name_template,
+        )
+        if derived is not None:
+            return derived
+        raise _unresolved_clan_target_error(target, member_name) from exc
+
+
+def _unresolved_clan_target_error(
+    target: str,
+    member_name: str | None,
+) -> ClanMembershipError:
+    return ClanMembershipError(
+        f"Cannot resolve clan target '{target}' from member name '{member_name or ''}'"
     )
 
 
@@ -157,6 +214,7 @@ __all__ = [
     "consume_clan_membership_plan_from_env",
     "declare_clan_membership",
     "decode_clan_membership_plan",
+    "derive_clan_name_from_member",
     "encode_clan_membership_plan",
     "resolve_or_create_clan_membership",
 ]

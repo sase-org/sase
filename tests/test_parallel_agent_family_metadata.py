@@ -151,6 +151,59 @@ def test_runner_fallback_joins_existing_clan(
     assert info.meta[AGENT_CLAN_GENERATION_FIELD] == "20260716020000"
 
 
+def test_runner_fallback_template_joiner_uses_existing_clan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    from sase.agent.names import reserve_registered_clan_name
+
+    existing_dir = sase_home / "projects/sase/artifacts/ace-run/20260716020102"
+    existing_dir.mkdir(parents=True)
+    reserve_registered_clan_name(
+        "research.0",
+        "20260716020000",
+        existing_dir,
+    )
+
+    info = _extract_runner_metadata(
+        "%id(late, clan=research.@)\nWork",
+        artifacts_dir=(sase_home / "projects/sase/artifacts/ace-run/20260716020203"),
+    )
+
+    assert info.name == "research.0.late"
+    assert info.meta[AGENT_CLAN_FIELD] == "research.0"
+    assert info.meta[AGENT_CLAN_GENERATION_FIELD] == "20260716020000"
+
+
+def test_runner_fallback_template_declaration_uses_current_member_token(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    _write_artifact(
+        sase_home,
+        timestamp="20260716020204",
+        meta={
+            "name": "research.0.one",
+            AGENT_CLAN_FIELD: "research.0",
+            AGENT_CLAN_GENERATION_FIELD: "20260716020000",
+        },
+        outcome="completed",
+    )
+
+    info = _extract_runner_metadata(
+        "%id:research.@.lead\n%clan:research.@\nWork",
+        artifacts_dir=(sase_home / "projects/sase/artifacts/ace-run/20260716020205"),
+    )
+
+    assert info.name == "research.1.lead"
+    assert info.meta[AGENT_CLAN_FIELD] == "research.1"
+    assert info.meta[AGENT_CLAN_GENERATION_FIELD] == "20260716020205"
+
+
 def test_runner_fallback_joiner_creates_missing_clan(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -166,6 +219,24 @@ def test_runner_fallback_joiner_creates_missing_clan(
 
     assert info.meta[AGENT_CLAN_FIELD] == "implicit"
     assert info.meta[AGENT_CLAN_GENERATION_FIELD] == "20260716020303"
+
+
+def test_runner_fallback_template_joiner_creates_missing_clan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    artifacts_dir = sase_home / "projects/sase/artifacts/ace-run/20260716020304"
+
+    info = _extract_runner_metadata(
+        "%id(first, clan=research.@)\nWork",
+        artifacts_dir=artifacts_dir,
+    )
+
+    assert info.name == "research.0.first"
+    assert info.meta[AGENT_CLAN_FIELD] == "research.0"
+    assert info.meta[AGENT_CLAN_GENERATION_FIELD] == "20260716020304"
 
 
 def test_runner_releases_new_clan_reservation_when_member_is_outside_hood(

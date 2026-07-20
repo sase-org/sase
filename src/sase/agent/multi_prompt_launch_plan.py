@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sase.agent.clan_membership import (
     ClanMembershipPlan,
+    derive_clan_name_from_member,
     encode_clan_membership_plan,
 )
 from sase.agent.multi_prompt_references import (
@@ -257,8 +258,6 @@ def prepare_clan_launches(
         AgentNameTemplateError,
         get_reserved_clan_names,
         is_agent_name_template,
-        match_agent_name_template,
-        render_agent_name_template,
         reserve_registered_clan_name,
         resolve_agent_name_template_reference,
     )
@@ -267,14 +266,23 @@ def prepare_clan_launches(
     resolved_clans_by_raw: dict[str, str] = {}
     for raw_clan, member_indexes in members_by_raw_clan.items():
         resolved_clan = raw_clan
+        has_declaration = any(
+            directives[index].declared  # type: ignore[union-attr]
+            for index in member_indexes
+        )
         if is_agent_name_template(raw_clan):
-            try:
-                resolved_clan = resolve_agent_name_template_reference(
-                    raw_clan,
-                    names=get_reserved_clan_names(),
-                )
-            except AgentNameTemplateError:
+            if not has_declaration:
+                try:
+                    resolved_clan = resolve_agent_name_template_reference(
+                        raw_clan,
+                        names=get_reserved_clan_names(),
+                    )
+                except AgentNameTemplateError:
+                    resolved_clan = ""
+            else:
                 resolved_clan = ""
+
+            if not resolved_clan:
                 for index in member_indexes:
                     plan = plans_by_segment[index]
                     for slot in plan.slots:
@@ -284,9 +292,15 @@ def prepare_clan_launches(
                         ):
                             continue
                         planned_name = planned_names_by_slot[(index, slot.slot_index)]
-                        token = match_agent_name_template(name_template, planned_name)
-                        if token is not None:
-                            resolved_clan = render_agent_name_template(raw_clan, token)
+                        resolved_clan = (
+                            derive_clan_name_from_member(
+                                raw_clan,
+                                member_name=planned_name,
+                                member_name_template=name_template,
+                            )
+                            or ""
+                        )
+                        if resolved_clan:
                             break
                     if resolved_clan:
                         break

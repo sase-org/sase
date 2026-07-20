@@ -164,6 +164,57 @@ def test_research_swarm_style_launch_mixes_clan_and_standalone_tribe(
     assert [directive.tribe for directive in parsed] == [None, None, None, "research"]
 
 
+def test_repeated_template_clan_declaration_uses_new_member_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    segments = [
+        "%clan:research.@\n%id:research.@.lead\nLead",
+        "%id(worker, clan=research.@)\nInvestigate",
+        "%id(final, clan=research.@)\nSynthesize",
+    ]
+    template_groups = ["xprompt:research:0"] * len(segments)
+
+    first = _launch_with_captured_spawns(
+        segments,
+        template_groups=template_groups,
+    )
+    _persist_first_clan_member(sase_home, first[0])
+    second = _launch_with_captured_spawns(
+        segments,
+        template_groups=template_groups,
+    )
+
+    first_names = [
+        str(call["extra_env"]["SASE_AGENT_PLANNED_NAME"])  # type: ignore[index]
+        for call in first
+    ]
+    second_names = [
+        str(call["extra_env"]["SASE_AGENT_PLANNED_NAME"])  # type: ignore[index]
+        for call in second
+    ]
+    assert first_names == [
+        "research.0.lead",
+        "research.0.worker",
+        "research.0.final",
+    ]
+    assert second_names == [
+        "research.1.lead",
+        "research.1.worker",
+        "research.1.final",
+    ]
+
+    second_payloads = [
+        json.loads(str(call["extra_env"][CLAN_MEMBERSHIP_ENV]))  # type: ignore[index]
+        for call in second
+    ]
+    assert second_payloads[0] == second_payloads[1] == second_payloads[2]
+    assert second_payloads[0]["clan_name"] == "research.1"
+    assert all(payload["clan_name"] != "research.0" for payload in second_payloads)
+
+
 def test_clan_membership_is_execution_neutral(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
