@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
+from sase.agent_clis import operations
 from sase.agent_clis.models import (
     AgentCliNothingToUpdate,
     AgentCliStatus,
@@ -12,6 +15,7 @@ from sase.agent_clis.models import (
     UpdateStrategy,
 )
 from sase.agent_clis.operations import (
+    detect_agent_cli_statuses_for_names,
     execute_agent_cli_updates,
     plan_agent_cli_updates,
 )
@@ -51,6 +55,53 @@ def _planner(*statuses: AgentCliStatus):
         return statuses
 
     return load
+
+
+def test_named_local_detection_zero_names_skips_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        operations.llm_registry,
+        "get_llm_metadata_payload",
+        lambda: pytest.fail("empty candidate sets must not inspect the registry"),
+    )
+
+    assert detect_agent_cli_statuses_for_names(()) == ()
+
+
+def test_named_local_detection_filters_metadata_before_probing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[tuple[dict[str, object], object]] = []
+
+    def _detect(
+        providers: dict[str, object],
+        *,
+        env: object,
+        run_fn: object,
+    ) -> tuple[AgentCliStatus, ...]:
+        del run_fn
+        seen.append((providers, env))
+        return ()
+
+    monkeypatch.setattr(operations, "detect_agent_cli_statuses", _detect)
+    payload = {
+        "providers": {
+            "claude": {"autodetect_cli_name": "claude"},
+            "codex": {"autodetect_cli_name": "codex"},
+        }
+    }
+    env = {"PATH": "/bin"}
+
+    assert (
+        detect_agent_cli_statuses_for_names(
+            ("codex",),
+            metadata_payload=payload,
+            env=env,
+        )
+        == ()
+    )
+    assert seen == [({"codex": payload["providers"]["codex"]}, env)]
 
 
 def test_plan_includes_docs_for_not_installed_bundled_and_manual_skips() -> None:

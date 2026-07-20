@@ -41,21 +41,7 @@ def collect_agent_cli_statuses(
     latest_fn: LatestFn = get_latest_versions,
 ) -> tuple[AgentCliStatus, ...]:
     """Return detected CLIs enriched with cached/remote latest versions."""
-    payload = (
-        llm_registry.get_llm_metadata_payload()
-        if metadata_payload is None
-        else metadata_payload
-    )
-    raw_providers = payload.get("providers")
-    providers = (
-        {
-            str(name): metadata
-            for name, metadata in raw_providers.items()
-            if isinstance(metadata, Mapping)
-        }
-        if isinstance(raw_providers, Mapping)
-        else {}
-    )
+    providers = _provider_metadata(metadata_payload)
     detected = detect_agent_cli_statuses(providers, env=env, run_fn=run_fn)
     packages = tuple(
         status.latest_version_package
@@ -76,6 +62,47 @@ def collect_agent_cli_statuses(
             )
         )
     return tuple(enriched)
+
+
+def detect_agent_cli_statuses_for_names(
+    names: Sequence[str],
+    *,
+    env: Mapping[str, str] | None = None,
+    metadata_payload: Mapping[str, Any] | None = None,
+    run_fn: RunnerFn = run_command,
+) -> tuple[AgentCliStatus, ...]:
+    """Locally detect only the named providers, without latest-version work.
+
+    The empty-name fast path intentionally precedes registry inspection.  This
+    is the bounded detector used to revalidate durable update candidates.
+    """
+    wanted = frozenset(name for name in names if name)
+    if not wanted:
+        return ()
+    providers = {
+        name: metadata
+        for name, metadata in _provider_metadata(metadata_payload).items()
+        if name in wanted
+    }
+    return detect_agent_cli_statuses(providers, env=env, run_fn=run_fn)
+
+
+def _provider_metadata(
+    metadata_payload: Mapping[str, Any] | None,
+) -> dict[str, Mapping[str, Any]]:
+    payload = (
+        llm_registry.get_llm_metadata_payload()
+        if metadata_payload is None
+        else metadata_payload
+    )
+    raw_providers = payload.get("providers")
+    if not isinstance(raw_providers, Mapping):
+        return {}
+    return {
+        str(name): metadata
+        for name, metadata in raw_providers.items()
+        if isinstance(metadata, Mapping)
+    }
 
 
 def plan_agent_cli_updates(
@@ -346,6 +373,7 @@ list_agent_clis = collect_agent_cli_statuses
 
 __all__ = [
     "collect_agent_cli_statuses",
+    "detect_agent_cli_statuses_for_names",
     "execute_agent_cli_updates",
     "list_agent_clis",
     "plan_agent_cli_updates",

@@ -7,7 +7,7 @@ from collections.abc import Callable
 import pytest
 
 from sase.ace.tui.actions import update_toast
-from sase.updates import UpdateStatus
+from sase.updates import ProviderUpdateCandidate, UpdateStatus
 
 from tests.ace.tui._update_toast_helpers import (
     _AutomaticCheckApp,
@@ -194,6 +194,69 @@ def test_periodic_update_threads_core_state_to_indicator(
     assert app.indicator.core is True
 
 
+def test_periodic_update_threads_composite_aggregate_to_indicator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    status = UpdateStatus(
+        checked_at=100.0,
+        components=(),
+        provider_candidates=(
+            ProviderUpdateCandidate("claude", "Claude Code", "1.0.0", "1.1.0"),
+        ),
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(startup_toast=False),
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "get_cached_update_status",
+        lambda **_kwargs: status,
+    )
+    app = _AutomaticCheckApp()
+
+    app._on_periodic_update_check()
+    app.workers[0][0]()
+
+    assert app.indicator.count == 1
+    assert app.indicator.core is False
+
+
+def test_provider_only_status_updates_indicator_without_legacy_repo_toast(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    status = UpdateStatus(
+        checked_at=100.0,
+        components=(),
+        provider_candidates=(
+            ProviderUpdateCandidate("claude", "Claude Code", "1.0.0", "1.1.0"),
+        ),
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(),
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "get_cached_update_status",
+        lambda **_kwargs: status,
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "_build_startup_toast_sections",
+        lambda *_args: pytest.fail("provider toast presentation is a later phase"),
+    )
+    app = _AutomaticCheckApp()
+
+    app._on_periodic_update_check()
+    app.workers[0][0]()
+
+    assert app.indicator.count == 1
+    assert app.notifications == []
+
+
 def test_cached_revalidation_threads_core_state_to_indicator(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -204,13 +267,12 @@ def test_cached_revalidation_threads_core_state_to_indicator(
     )
     monkeypatch.setattr(
         update_toast,
-        "read_update_status_snapshot",
-        _core_status,
-    )
-    monkeypatch.setattr(
-        update_toast,
-        "revalidate_update_status",
-        lambda status: status,
+        "get_cached_update_status",
+        lambda **kwargs: (
+            _core_status()
+            if kwargs == {"revalidate_only": True}
+            else pytest.fail(f"unexpected cache args: {kwargs}")
+        ),
     )
     app = _AutomaticCheckApp()
 

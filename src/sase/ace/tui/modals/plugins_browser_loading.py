@@ -22,6 +22,8 @@ from sase.plugins.pypi_source import fetch_latest_version
 from sase.updates import (
     UpdateStatus,
     build_update_status,
+    merge_update_status,
+    read_update_status_snapshot,
     write_update_status_snapshot,
 )
 from sase.uv_tool.detect import (
@@ -112,7 +114,12 @@ def load_plugins_catalog_for_pane(
     uv_tool = probe_uv_tool()
     install_mode = _detect_install_mode(uv_tool)
     dev_root = str(config_dev_root(load_merged_config()))
-    core_versions = _collect_core_versions_for_pane(offline=offline)
+    core_error: str | None = None
+    try:
+        core_versions = _collect_core_versions_for_pane(offline=offline)
+    except Exception as exc:  # noqa: BLE001 - update sources degrade independently.
+        core_versions = CoreVersions(packages=())
+        core_error = _error_text(exc)
     agent_cli_statuses, agent_cli_error, agent_cli_colors = (
         _collect_agent_clis_for_pane(refresh=refresh, offline=offline)
     )
@@ -122,43 +129,52 @@ def load_plugins_catalog_for_pane(
         limit=incoming_commits_limit,
         offline=offline,
     )
+    catalog: PluginCatalog | None = None
+    catalog_error: str | None = None
     try:
         catalog = load_plugin_catalog(refresh=refresh, offline=offline, now=load_now)
     except PluginCatalogError as exc:
-        return PluginsLoadResult(
-            catalog=None,
-            error=str(exc),
-            now=load_now,
-            uv_tool=uv_tool,
-            core_versions=core_versions,
-            core_incoming_commits=core_incoming_commits,
-            install_mode=install_mode,
-            dev_root=dev_root,
-            agent_cli_statuses=agent_cli_statuses,
-            agent_cli_error=agent_cli_error,
-            agent_cli_colors=agent_cli_colors,
-        )
-    try:
-        catalog = enrich_with_latest(catalog, offline=offline, refresh=refresh)
-    except Exception:  # noqa: BLE001 - list stays read-only; markers degrade only.
-        pass
+        catalog_error = str(exc)
+    except Exception as exc:  # noqa: BLE001 - update sources degrade independently.
+        catalog_error = str(exc)
+    if catalog is not None:
+        try:
+            catalog = enrich_with_latest(catalog, offline=offline, refresh=refresh)
+        except Exception as exc:  # noqa: BLE001 - preserve prior plugin snapshot.
+            catalog_error = _error_text(exc)
     update_status: UpdateStatus | None = None
     if not offline:
-        update_status = build_update_status(core_versions, catalog, now=load_now)
+        update_status = build_update_status(
+            core_versions,
+            catalog,
+            agent_cli_statuses=agent_cli_statuses,
+            core_error=core_error,
+            plugin_error=catalog_error,
+            agent_cli_error=agent_cli_error,
+            now=load_now,
+        )
+        update_status = merge_update_status(
+            _read_update_status_snapshot(),
+            update_status,
+        )
         try:
             _write_update_status_snapshot(update_status)
         except Exception:  # noqa: BLE001 - the panel must survive cache failures.
             pass
     return PluginsLoadResult(
         catalog=catalog,
-        error=None,
+        error=catalog_error,
         now=load_now,
         uv_tool=uv_tool,
         core_versions=core_versions,
         core_incoming_commits=core_incoming_commits,
         install_mode=install_mode,
         dev_root=dev_root,
-        fresh_editable_roots=_fresh_editable_roots(core_versions, catalog),
+        fresh_editable_roots=(
+            _fresh_editable_roots(core_versions, catalog)
+            if catalog is not None
+            else frozenset()
+        ),
         update_status=update_status,
         agent_cli_statuses=agent_cli_statuses,
         agent_cli_error=agent_cli_error,
@@ -172,10 +188,18 @@ def _collect_agent_clis_for_pane(
     """Best-effort agent-CLI inventory collected on the pane worker thread."""
     try:
         statuses = collect_agent_cli_statuses(refresh=refresh, offline=offline)
-        colors = provider_cli_status_color_map()
     except Exception as exc:  # noqa: BLE001 - other update surfaces still load.
         return (), str(exc), {}
+    try:
+        colors = provider_cli_status_color_map()
+    except Exception:  # noqa: BLE001 - colors do not affect source freshness.
+        colors = {}
     return statuses, None, colors
+
+
+def _error_text(error: Exception) -> str:
+    message = str(error).strip()
+    return message or type(error).__name__
 
 
 def _fresh_editable_roots(
@@ -244,4 +268,5 @@ _PluginsLoadResult = PluginsLoadResult
 _collect_core_versions = _collect_core_versions_for_pane
 _probe_uv_tool = probe_uv_tool
 _load_plugins_catalog = load_plugins_catalog_for_pane
+_read_update_status_snapshot = read_update_status_snapshot
 _write_update_status_snapshot = write_update_status_snapshot

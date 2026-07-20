@@ -9,8 +9,13 @@ import pytest
 
 from sase.ace.tui.modals import plugins_browser_loading as loading
 from sase.plugins.latest import LatestInfo
+from sase.updates import ProviderUpdateCandidate, UpdateSourceStatus, UpdateStatus
 from sase.uv_tool.versions import CorePackageVersion, CoreVersions
-from tests.ace.tui._plugins_browser_pane_helpers import _catalog, _core_versions
+from tests.ace.tui._plugins_browser_pane_helpers import (
+    _agent_cli_statuses,
+    _catalog,
+    _core_versions,
+)
 
 
 def test_fresh_editable_roots_include_only_successful_online_checks() -> None:
@@ -138,6 +143,7 @@ def test_online_panel_load_writes_shared_update_status(
         "_write_update_status_snapshot",
         written.append,
     )
+    monkeypatch.setattr(loading, "_read_update_status_snapshot", lambda: None)
 
     result = loading.load_plugins_catalog_for_pane(
         incoming_commits_enabled=False,
@@ -153,6 +159,107 @@ def test_online_panel_load_writes_shared_update_status(
         ("github", "plugin"),
     ]
     assert written[0].has_core_update is True
+    assert written[0].agent_cli_source == UpdateSourceStatus.success(123.0)
+
+
+def test_online_panel_snapshot_reuses_already_collected_provider_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    statuses = _agent_cli_statuses()
+    written: list[UpdateStatus] = []
+    monkeypatch.setattr(loading, "probe_uv_tool", lambda: None)
+    monkeypatch.setattr(loading, "load_merged_config", dict)
+    monkeypatch.setattr(loading, "config_dev_root", lambda _config: Path("/tmp/dev"))
+    monkeypatch.setattr(
+        loading,
+        "_collect_core_versions_for_pane",
+        lambda **_kwargs: _core_versions(),
+    )
+    monkeypatch.setattr(
+        loading,
+        "_collect_agent_clis_for_pane",
+        lambda **_kwargs: (statuses, None, {}),
+    )
+    monkeypatch.setattr(loading, "load_plugin_catalog", lambda **_kwargs: _catalog())
+    monkeypatch.setattr(
+        loading,
+        "enrich_with_latest",
+        lambda catalog, **_kwargs: catalog,
+    )
+    monkeypatch.setattr(
+        loading,
+        "_fetch_core_incoming_commits_for_pane",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(loading, "_read_update_status_snapshot", lambda: None)
+    monkeypatch.setattr(loading, "_write_update_status_snapshot", written.append)
+
+    result = loading.load_plugins_catalog_for_pane(
+        incoming_commits_enabled=False,
+        now=123.0,
+    )
+
+    assert result.agent_cli_statuses is statuses
+    assert result.update_status is not None
+    assert [item.provider for item in result.update_status.provider_candidates] == [
+        "claude",
+        "codex",
+    ]
+    assert result.update_status.agent_cli_source == UpdateSourceStatus.success(123.0)
+    assert written == [result.update_status]
+
+
+def test_online_panel_provider_failure_preserves_last_known_good_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    previous = UpdateStatus(
+        checked_at=100.0,
+        components=(),
+        provider_candidates=(
+            ProviderUpdateCandidate("claude", "Claude Code", "1.0.0", "1.1.0"),
+        ),
+        agent_cli_source=UpdateSourceStatus.success(90.0),
+    )
+    written: list[UpdateStatus] = []
+    monkeypatch.setattr(loading, "probe_uv_tool", lambda: None)
+    monkeypatch.setattr(loading, "load_merged_config", dict)
+    monkeypatch.setattr(loading, "config_dev_root", lambda _config: Path("/tmp/dev"))
+    monkeypatch.setattr(
+        loading,
+        "_collect_core_versions_for_pane",
+        lambda **_kwargs: _core_versions(),
+    )
+    monkeypatch.setattr(
+        loading,
+        "_collect_agent_clis_for_pane",
+        lambda **_kwargs: ((), "provider probe failed", {}),
+    )
+    monkeypatch.setattr(loading, "load_plugin_catalog", lambda **_kwargs: _catalog())
+    monkeypatch.setattr(
+        loading,
+        "enrich_with_latest",
+        lambda catalog, **_kwargs: catalog,
+    )
+    monkeypatch.setattr(
+        loading,
+        "_fetch_core_incoming_commits_for_pane",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(loading, "_read_update_status_snapshot", lambda: previous)
+    monkeypatch.setattr(loading, "_write_update_status_snapshot", written.append)
+
+    result = loading.load_plugins_catalog_for_pane(
+        incoming_commits_enabled=False,
+        now=123.0,
+    )
+
+    assert result.update_status is not None
+    assert result.update_status.provider_candidates == previous.provider_candidates
+    assert result.update_status.agent_cli_source == UpdateSourceStatus(
+        checked_at=90.0,
+        error="provider probe failed",
+    )
+    assert written == [result.update_status]
 
 
 def test_offline_panel_load_does_not_replace_shared_snapshot(

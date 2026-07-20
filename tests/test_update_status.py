@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.agent_clis.models import AgentCliStatus, InstallMethod
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo
@@ -16,12 +17,16 @@ from sase.plugins.latest_cache import CachedLatest
 from sase.updates import (
     DEFAULT_UPDATE_STATUS_TTL_SECONDS,
     OutdatedComponent,
+    ProviderUpdateCandidate,
     SCHEMA_VERSION,
+    UpdateSourceStatus,
     UpdateStatus,
     build_update_status,
     compute_update_status,
     get_cached_update_status,
+    merge_update_status,
     read_update_status_snapshot,
+    revalidate_provider_candidates,
     revalidate_update_status,
     update_status_snapshot_is_fresh,
     write_update_status_snapshot,
@@ -121,6 +126,33 @@ def _git_status(
     )
 
 
+def _agent_cli_status(
+    name: str,
+    *,
+    installed_version: str | None = "1.0.0",
+    latest_version: str | None = "1.1.0",
+    installed: bool = True,
+    update_available: bool = True,
+    version_error: str | None = None,
+) -> AgentCliStatus:
+    return AgentCliStatus(
+        name=name,
+        display_name=f"{name.title()} CLI",
+        binary=name,
+        executable=f"/bin/{name}" if installed else None,
+        installed_version=installed_version,
+        latest_version=latest_version,
+        install_method=(
+            InstallMethod.NPM if installed else InstallMethod.NOT_INSTALLED
+        ),
+        update_available=update_available,
+        docs_url=None,
+        install_hint=f"install {name}",
+        package=f"@example/{name}",
+        version_error=version_error,
+    )
+
+
 def test_compute_update_status_reports_core_and_installed_plugins(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -146,6 +178,9 @@ def test_compute_update_status_reports_core_and_installed_plugins(
         "_enrich_with_latest",
         lambda catalog, **_kwargs: _catalog(plugin_update=True),
     )
+    monkeypatch.setattr(
+        status_module, "_collect_agent_cli_statuses", lambda **_kwargs: ()
+    )
 
     result = compute_update_status(now=123.0)
 
@@ -155,6 +190,11 @@ def test_compute_update_status_reports_core_and_installed_plugins(
         ("github", "plugin"),
     ]
     assert result.count == 2
+    assert result.component_count == 2
+    assert result.agent_cli_count == 0
+    assert result.core_source == UpdateSourceStatus.success(123.0)
+    assert result.plugin_source == UpdateSourceStatus.success(123.0)
+    assert result.agent_cli_source == UpdateSourceStatus.success(123.0)
 
 
 @pytest.mark.parametrize(
@@ -285,6 +325,9 @@ def test_compute_update_status_carries_install_context(
         "_enrich_with_latest",
         lambda catalog, **_kwargs: catalog,
     )
+    monkeypatch.setattr(
+        status_module, "_collect_agent_cli_statuses", lambda **_kwargs: ()
+    )
 
     result = compute_update_status(now=123.0)
 
@@ -316,12 +359,67 @@ def test_compute_update_status_sources_degrade_independently(
         "_enrich_with_latest",
         lambda catalog, **_kwargs: catalog,
     )
+    monkeypatch.setattr(
+        status_module, "_collect_agent_cli_statuses", lambda **_kwargs: ()
+    )
 
     result = compute_update_status(now=123.0)
 
     assert [(c.display_name, c.role) for c in result.components] == [
         ("github", "plugin")
     ]
+    assert result.core_source.error == "core unavailable"
+    assert result.core_source.checked_at is None
+    assert result.plugin_source == UpdateSourceStatus.success(123.0)
+
+
+def test_compute_update_status_discovers_only_installed_outdated_provider_clis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.updates.status as status_module
+
+    monkeypatch.setattr(
+        status_module,
+        "_collect_installed_core_versions",
+        lambda: _core_versions(update=False),
+    )
+    monkeypatch.setattr(
+        status_module,
+        "_enrich_core_versions_latest",
+        lambda versions, **_kwargs: versions,
+    )
+    monkeypatch.setattr(
+        status_module,
+        "_load_plugin_catalog",
+        lambda **_kwargs: _catalog(plugin_update=False),
+    )
+    monkeypatch.setattr(
+        status_module,
+        "_enrich_with_latest",
+        lambda catalog, **_kwargs: catalog,
+    )
+    calls: list[dict[str, object]] = []
+
+    def _collect(**kwargs: object) -> tuple[AgentCliStatus, ...]:
+        calls.append(kwargs)
+        return (
+            _agent_cli_status("claude"),
+            _agent_cli_status("codex", update_available=False),
+            _agent_cli_status("qwen", installed=False, update_available=False),
+        )
+
+    monkeypatch.setattr(status_module, "_collect_agent_cli_statuses", _collect)
+
+    result = compute_update_status(refresh=True, now=123.0)
+
+    assert calls == [{"refresh": True, "offline": False}]
+    assert result.provider_candidates == (
+        ProviderUpdateCandidate("claude", "Claude CLI", "1.0.0", "1.1.0"),
+    )
+    assert result.component_count == 0
+    assert result.agent_cli_count == 1
+    assert result.count == 1
+    assert result.has_agent_cli_updates is True
 
 
 def test_update_status_snapshot_round_trip_and_freshness(tmp_path: Path) -> None:
@@ -340,12 +438,23 @@ def test_update_status_snapshot_round_trip_and_freshness(tmp_path: Path) -> None
                 upstream_ref="origin/main",
             ),
         ),
+        provider_candidates=(
+            ProviderUpdateCandidate(
+                provider="claude",
+                display_name="Claude Code",
+                installed_version="1.0.0",
+                latest_version="1.1.0",
+            ),
+        ),
+        core_source=UpdateSourceStatus.success(90.0),
+        plugin_source=UpdateSourceStatus(checked_at=80.0, error="registry down"),
+        agent_cli_source=UpdateSourceStatus.success(100.0),
     )
 
     write_update_status_snapshot(status, path=path)
 
     assert read_update_status_snapshot(path=path) == status
-    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 2
+    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 3
     assert update_status_snapshot_is_fresh(status, now=110.0, ttl_seconds=20)
     assert not update_status_snapshot_is_fresh(status, now=130.0, ttl_seconds=20)
 
@@ -372,6 +481,79 @@ def test_update_status_snapshot_v1_is_treated_as_cache_miss(tmp_path: Path) -> N
     )
 
     assert read_update_status_snapshot(path=path) is None
+
+
+def test_update_status_snapshot_rejects_partially_invalid_rows(tmp_path: Path) -> None:
+    path = tmp_path / "status.json"
+    status = UpdateStatus(
+        checked_at=100.0,
+        components=(),
+        core_source=UpdateSourceStatus.success(100.0),
+        plugin_source=UpdateSourceStatus.success(100.0),
+        agent_cli_source=UpdateSourceStatus.success(100.0),
+    )
+    write_update_status_snapshot(status, path=path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["components"] = [{"display_name": "partial"}]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert read_update_status_snapshot(path=path) is None
+
+
+def test_merge_update_status_replaces_success_and_preserves_failed_sources() -> None:
+    old_core = OutdatedComponent("sase", "host", "1", "2", "sase")
+    old_plugin = OutdatedComponent("github", "plugin", "1", "2", "sase-github")
+    old_provider = ProviderUpdateCandidate("claude", "Claude", "1", "2")
+    previous = UpdateStatus(
+        checked_at=100.0,
+        components=(old_core, old_plugin),
+        provider_candidates=(old_provider,),
+        core_source=UpdateSourceStatus.success(100.0),
+        plugin_source=UpdateSourceStatus.success(90.0),
+        agent_cli_source=UpdateSourceStatus.success(80.0),
+    )
+    current_provider = ProviderUpdateCandidate("codex", "Codex", "3", "4")
+    current = UpdateStatus(
+        checked_at=200.0,
+        components=(),
+        provider_candidates=(current_provider,),
+        core_source=UpdateSourceStatus.success(200.0),
+        plugin_source=UpdateSourceStatus.failure("github unavailable"),
+        agent_cli_source=UpdateSourceStatus.failure("npm unavailable"),
+    )
+
+    merged = merge_update_status(previous, current)
+
+    assert merged.components == (old_plugin,)
+    assert merged.provider_candidates == (old_provider,)
+    assert merged.core_source == UpdateSourceStatus.success(200.0)
+    assert merged.plugin_source == UpdateSourceStatus(
+        checked_at=90.0,
+        error="github unavailable",
+    )
+    assert merged.agent_cli_source == UpdateSourceStatus(
+        checked_at=80.0,
+        error="npm unavailable",
+    )
+
+
+def test_merge_update_status_successful_empty_is_not_unknown() -> None:
+    previous = UpdateStatus(
+        checked_at=100.0,
+        components=(),
+        provider_candidates=(ProviderUpdateCandidate("claude", "Claude", "1", "2"),),
+        agent_cli_source=UpdateSourceStatus.success(100.0),
+    )
+    successful_empty = UpdateStatus(
+        checked_at=200.0,
+        components=(),
+        agent_cli_source=UpdateSourceStatus.success(200.0),
+    )
+
+    merged = merge_update_status(previous, successful_empty)
+
+    assert merged.provider_candidates == ()
+    assert merged.agent_cli_source == UpdateSourceStatus.success(200.0)
 
 
 def test_revalidate_update_status_drops_components_updated_locally() -> None:
@@ -405,6 +587,39 @@ def test_revalidate_update_status_drops_components_updated_locally() -> None:
     result = revalidate_update_status(status, version_fn=_version)
 
     assert [component.display_name for component in result.components] == ["github"]
+
+
+def test_revalidate_provider_candidates_zero_candidates_does_no_work() -> None:
+    def _status_fn(_names: tuple[str, ...]) -> tuple[AgentCliStatus, ...]:
+        raise AssertionError("zero candidates must not inspect provider metadata")
+
+    assert revalidate_provider_candidates((), status_fn=_status_fn) == ()
+
+
+def test_revalidate_provider_candidates_is_named_drop_only_and_conservative() -> None:
+    candidates = (
+        ProviderUpdateCandidate("claude", "Claude", "1.0.0", "2.0.0"),
+        ProviderUpdateCandidate("codex", "Codex", "1.0.0", "2.0.0"),
+        ProviderUpdateCandidate("qwen", "Qwen", "1.0.0", "2.0.0"),
+    )
+    calls: list[tuple[str, ...]] = []
+
+    def _status_fn(names: tuple[str, ...]) -> tuple[AgentCliStatus, ...]:
+        calls.append(names)
+        return (
+            _agent_cli_status(
+                "claude",
+                installed_version=None,
+                version_error="timed out",
+            ),
+            _agent_cli_status("codex", installed_version="2.0.0"),
+            _agent_cli_status("new-provider"),
+        )
+
+    result = revalidate_provider_candidates(candidates, status_fn=_status_fn)
+
+    assert calls == [("claude", "codex", "qwen")]
+    assert result == (candidates[0],)
 
 
 @pytest.mark.parametrize(
@@ -485,6 +700,28 @@ def test_revalidate_update_status_keeps_editable_component_on_git_error() -> Non
         status,
         version_fn=lambda _dist: "1.0.0",
         git_classifier_fn=_raise,
+    )
+
+    assert result == status
+
+
+def test_revalidate_update_status_keeps_component_on_transient_metadata_error() -> None:
+    status = UpdateStatus(
+        checked_at=100.0,
+        components=(
+            OutdatedComponent(
+                display_name="github",
+                role="plugin",
+                installed_version="0.5.0",
+                latest_version="0.6.0",
+                distribution_name="sase-github",
+            ),
+        ),
+    )
+
+    result = revalidate_update_status(
+        status,
+        version_fn=lambda _dist: (_ for _ in ()).throw(OSError("metadata busy")),
     )
 
     assert result == status
@@ -573,6 +810,32 @@ def test_get_cached_update_status_falls_back_to_snapshot_on_compute_failure(
         now=200.0,
         ttl_seconds=20,
         compute_fn=_compute,
+    )
+
+    assert result == status
+
+
+def test_get_cached_update_status_full_compute_does_not_redetect_providers(
+    tmp_path: Path,
+) -> None:
+    status = UpdateStatus(
+        checked_at=200.0,
+        components=(),
+        provider_candidates=(
+            ProviderUpdateCandidate("claude", "Claude", "1.0.0", "2.0.0"),
+        ),
+        core_source=UpdateSourceStatus.success(200.0),
+        plugin_source=UpdateSourceStatus.success(200.0),
+        agent_cli_source=UpdateSourceStatus.success(200.0),
+    )
+
+    result = get_cached_update_status(
+        path=tmp_path / "status.json",
+        now=200.0,
+        compute_fn=lambda **_kwargs: status,
+        provider_status_fn=lambda _names: (_ for _ in ()).throw(
+            AssertionError("a full inventory is already locally validated")
+        ),
     )
 
     assert result == status

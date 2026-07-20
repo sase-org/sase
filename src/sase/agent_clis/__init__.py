@@ -14,6 +14,7 @@ from .models import (
 )
 from .operations import (
     collect_agent_cli_statuses,
+    detect_agent_cli_statuses_for_names,
     execute_agent_cli_updates,
     list_agent_clis,
     plan_agent_cli_updates,
@@ -31,6 +32,7 @@ __all__ = [
     "UpdateResultStatus",
     "UpdateStrategy",
     "collect_agent_cli_statuses",
+    "detect_agent_cli_statuses_for_names",
     "execute_agent_cli_updates",
     "list_agent_clis",
     "plan_agent_cli_updates",

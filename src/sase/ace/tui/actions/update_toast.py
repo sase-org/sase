@@ -23,7 +23,6 @@ from sase.updates import (
     component_commit_spec,
     fetch_incoming_commits,
     get_cached_update_status,
-    read_update_status_snapshot,
     revalidate_update_status,
     update_status_snapshot_is_fresh,
 )
@@ -186,7 +185,7 @@ class UpdateToastMixin:
         sections = None
         should_build_toast = (
             config.startup_toast
-            and status.has_updates
+            and status.has_component_updates
             and not getattr(self, "_update_toast_shown", False)
         )
         if should_build_toast:
@@ -250,7 +249,7 @@ class UpdateToastMixin:
         """Show the automatic update toast once per TUI session."""
         if getattr(self, "_update_toast_shown", False):
             return
-        if not status.has_updates:
+        if not status.has_component_updates:
             return
         self._update_toast_shown = True
         self.notify(  # type: ignore[attr-defined]
@@ -294,8 +293,8 @@ class UpdateToastMixin:
                 )
                 return
             if status is None:
-                status = read_update_status_snapshot()
-            if status is not None:
+                status = get_cached_update_status(revalidate_only=True)
+            else:
                 status = revalidate_update_status(status)
             self.call_from_thread(  # type: ignore[attr-defined]
                 self._set_updates_indicator_state,
@@ -519,7 +518,7 @@ def _format_update_toast_message(
 ) -> str:
     """Build the Rich/Textual markup body for the update toast."""
     accent = center_tab_accent("updates") or "#AF87FF"
-    count = status.count
+    count = status.component_count
     noun = "update" if count == 1 else "updates"
     repo_sections = (
         tuple(sections)

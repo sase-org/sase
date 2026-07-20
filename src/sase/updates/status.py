@@ -1,12 +1,14 @@
-"""Aggregate installed/latest update status for SASE core and plugins."""
+"""Aggregate installed/latest update status for every supported update source."""
 
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from typing import Literal
 
+from sase.agent_clis.models import AgentCliStatus
+from sase.agent_clis.operations import collect_agent_cli_statuses
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry, load_plugin_catalog
 from sase.plugins.latest import enrich_with_latest, is_newer
 from sase.plugins.latest_cache import (
@@ -42,16 +44,80 @@ class OutdatedComponent:
 
 
 @dataclass(frozen=True)
+class ProviderUpdateCandidate:
+    """One installed provider CLI with durable evidence of an update.
+
+    Commands deliberately do not belong here.  A later update action must use
+    the provider name to build a fresh plan from live metadata.
+    """
+
+    provider: str
+    display_name: str
+    installed_version: str
+    latest_version: str
+
+    @property
+    def name(self) -> str:
+        """Return the stable provider registry name."""
+        return self.provider
+
+
+@dataclass(frozen=True)
+class UpdateSourceStatus:
+    """Last successful freshness plus the latest error for one source."""
+
+    checked_at: float | None = None
+    error: str | None = None
+
+    @property
+    def known(self) -> bool:
+        """Return whether this source has ever completed successfully."""
+        return self.checked_at is not None
+
+    @property
+    def successful(self) -> bool:
+        """Return whether the latest source attempt completed successfully."""
+        return self.known and self.error is None
+
+    @classmethod
+    def success(cls, checked_at: float) -> UpdateSourceStatus:
+        return cls(checked_at=checked_at)
+
+    @classmethod
+    def failure(cls, error: str) -> UpdateSourceStatus:
+        return cls(error=error)
+
+
+@dataclass(frozen=True)
 class UpdateStatus:
-    """Update-status snapshot for SASE core packages and installed plugins."""
+    """Composite update snapshot with independently truthful source state."""
 
     checked_at: float
     components: tuple[OutdatedComponent, ...]
+    provider_candidates: tuple[ProviderUpdateCandidate, ...] = ()
+    core_source: UpdateSourceStatus = field(default_factory=UpdateSourceStatus)
+    plugin_source: UpdateSourceStatus = field(default_factory=UpdateSourceStatus)
+    agent_cli_source: UpdateSourceStatus = field(default_factory=UpdateSourceStatus)
 
     @property
     def has_updates(self) -> bool:
-        """Return whether any component is currently known to be outdated."""
+        """Return whether any component or provider CLI is known outdated."""
+        return bool(self.components or self.provider_candidates)
+
+    @property
+    def has_component_updates(self) -> bool:
+        """Return whether SASE, core, or a plugin is known outdated."""
         return bool(self.components)
+
+    @property
+    def has_sase_updates(self) -> bool:
+        """Alias for the SASE/core/plugin update domain."""
+        return self.has_component_updates
+
+    @property
+    def has_agent_cli_updates(self) -> bool:
+        """Return whether any supported provider CLI is known outdated."""
+        return bool(self.provider_candidates)
 
     @property
     def has_core_update(self) -> bool:
@@ -60,8 +126,28 @@ class UpdateStatus:
 
     @property
     def count(self) -> int:
-        """Return the number of known outdated components."""
+        """Return the aggregate number of known updates."""
+        return self.component_count + self.agent_cli_count
+
+    @property
+    def component_count(self) -> int:
+        """Return the number of SASE/core/plugin updates."""
         return len(self.components)
+
+    @property
+    def sase_count(self) -> int:
+        """Alias for the SASE/core/plugin count."""
+        return self.component_count
+
+    @property
+    def agent_cli_count(self) -> int:
+        """Return the number of provider CLI updates."""
+        return len(self.provider_candidates)
+
+    @property
+    def provider_count(self) -> int:
+        """Alias for the provider CLI count."""
+        return self.agent_cli_count
 
 
 def compute_update_status(
@@ -77,46 +163,105 @@ def compute_update_status(
     found from the other source.
     """
     checked_at = time.time() if now is None else now
-    components: list[OutdatedComponent] = []
-    components.extend(_compute_core_components(offline=offline, now=checked_at))
-    components.extend(
-        _compute_plugin_components(
-            offline=offline,
-            refresh=refresh,
-            now=checked_at,
-        )
+    core_components, core_source = _compute_core_source(
+        offline=offline,
+        now=checked_at,
+    )
+    plugin_components, plugin_source = _compute_plugin_source(
+        offline=offline,
+        refresh=refresh,
+        now=checked_at,
+    )
+    provider_candidates, agent_cli_source = _compute_agent_cli_source(
+        offline=offline,
+        refresh=refresh,
+        now=checked_at,
     )
     return _build_update_status(
         checked_at=checked_at,
-        components=components,
+        components=[*core_components, *plugin_components],
+        provider_candidates=provider_candidates,
+        core_source=core_source,
+        plugin_source=plugin_source,
+        agent_cli_source=agent_cli_source,
     )
 
 
 def build_update_status(
     core_versions: CoreVersions,
-    catalog: PluginCatalog,
+    catalog: PluginCatalog | None,
     *,
+    agent_cli_statuses: Sequence[AgentCliStatus] | None = None,
+    core_error: str | None = None,
+    plugin_error: str | None = None,
+    agent_cli_error: str | None = None,
     now: float | None = None,
 ) -> UpdateStatus:
-    """Build status from an already-enriched core and plugin inventory."""
+    """Build status from inventories an existing background load already owns."""
     checked_at = time.time() if now is None else now
     components = [
         _core_component(package)
         for package in core_versions.packages
         if package.update_available
     ]
-    components.extend(
-        _plugin_component(entry)
-        for entry in catalog.entries
-        if entry.installed.installed and entry.update_available
+    if catalog is not None:
+        components.extend(
+            _plugin_component(entry)
+            for entry in catalog.entries
+            if entry.installed.installed and entry.update_available
+        )
+    core_error = core_error or _core_versions_error(core_versions)
+    plugin_error = plugin_error or (
+        _plugin_catalog_error(catalog) if catalog is not None else "unavailable"
     )
-    return _build_update_status(checked_at=checked_at, components=components)
+    provider_candidates: tuple[ProviderUpdateCandidate, ...] = ()
+    if agent_cli_statuses is not None:
+        provider_candidates = provider_update_candidates(agent_cli_statuses)
+        agent_cli_error = agent_cli_error or _agent_cli_statuses_error(
+            agent_cli_statuses
+        )
+    return _build_update_status(
+        checked_at=checked_at,
+        components=components,
+        provider_candidates=provider_candidates,
+        core_source=_completed_source(checked_at, core_error),
+        plugin_source=_completed_source(checked_at, plugin_error),
+        agent_cli_source=(
+            UpdateSourceStatus()
+            if agent_cli_statuses is None and agent_cli_error is None
+            else _completed_source(checked_at, agent_cli_error)
+        ),
+    )
+
+
+def provider_update_candidates(
+    statuses: Sequence[AgentCliStatus],
+) -> tuple[ProviderUpdateCandidate, ...]:
+    """Project installed, outdated provider statuses into durable evidence."""
+    candidates = [
+        ProviderUpdateCandidate(
+            provider=status.provider,
+            display_name=status.display_name,
+            installed_version=status.installed_version,
+            latest_version=status.latest_version,
+        )
+        for status in statuses
+        if status.installed
+        and status.update_available
+        and status.installed_version
+        and status.latest_version
+    ]
+    return tuple(sorted(candidates, key=lambda item: item.provider.casefold()))
 
 
 def _build_update_status(
     *,
     checked_at: float,
     components: list[OutdatedComponent],
+    provider_candidates: Sequence[ProviderUpdateCandidate] = (),
+    core_source: UpdateSourceStatus | None = None,
+    plugin_source: UpdateSourceStatus | None = None,
+    agent_cli_source: UpdateSourceStatus | None = None,
 ) -> UpdateStatus:
     return UpdateStatus(
         checked_at=checked_at,
@@ -129,12 +274,18 @@ def _build_update_status(
                 ),
             )
         ),
+        provider_candidates=tuple(
+            sorted(provider_candidates, key=lambda item: item.provider.casefold())
+        ),
+        core_source=core_source or UpdateSourceStatus(),
+        plugin_source=plugin_source or UpdateSourceStatus(),
+        agent_cli_source=agent_cli_source or UpdateSourceStatus(),
     )
 
 
-def _compute_core_components(
+def _compute_core_source(
     *, offline: bool, now: float
-) -> tuple[OutdatedComponent, ...]:
+) -> tuple[tuple[OutdatedComponent, ...], UpdateSourceStatus]:
     try:
         versions = _collect_installed_core_versions()
         versions = _enrich_core_versions_latest(
@@ -143,12 +294,15 @@ def _compute_core_components(
             fetch_fn=_make_cached_core_fetch_fn(now),
             is_newer=_is_newer,
         )
-    except Exception:  # noqa: BLE001 - startup update hints are best effort.
-        return ()
-    return tuple(
-        _core_component(package)
-        for package in versions.packages
-        if package.update_available
+    except Exception as exc:  # noqa: BLE001 - sources degrade independently.
+        return (), UpdateSourceStatus.failure(_error_text(exc))
+    return (
+        tuple(
+            _core_component(package)
+            for package in versions.packages
+            if package.update_available
+        ),
+        _completed_source(now, _core_versions_error(versions)),
     )
 
 
@@ -211,25 +365,89 @@ def _core_component(package: CorePackageVersion) -> OutdatedComponent:
     )
 
 
-def _compute_plugin_components(
+def _compute_plugin_source(
     *,
     offline: bool,
     refresh: bool,
     now: float,
-) -> tuple[OutdatedComponent, ...]:
+) -> tuple[tuple[OutdatedComponent, ...], UpdateSourceStatus]:
     try:
         catalog = _load_plugin_catalog(refresh=refresh, offline=offline, now=now)
-    except Exception:  # noqa: BLE001 - missing gh/offline catalog degrades only.
-        return ()
+    except Exception as exc:  # noqa: BLE001 - sources degrade independently.
+        return (), UpdateSourceStatus.failure(_error_text(exc))
     try:
         catalog = _enrich_with_latest(catalog, offline=offline, refresh=refresh)
-    except Exception:  # noqa: BLE001 - latest markers degrade only.
-        pass
-    return tuple(
-        _plugin_component(entry)
-        for entry in catalog.entries
-        if entry.installed.installed and entry.update_available
+    except Exception as exc:  # noqa: BLE001 - preserve last-known-good rows.
+        return (), UpdateSourceStatus.failure(_error_text(exc))
+    return (
+        tuple(
+            _plugin_component(entry)
+            for entry in catalog.entries
+            if entry.installed.installed and entry.update_available
+        ),
+        _completed_source(now, _plugin_catalog_error(catalog)),
     )
+
+
+def _compute_agent_cli_source(
+    *,
+    offline: bool,
+    refresh: bool,
+    now: float,
+) -> tuple[tuple[ProviderUpdateCandidate, ...], UpdateSourceStatus]:
+    try:
+        statuses = _collect_agent_cli_statuses(refresh=refresh, offline=offline)
+    except Exception as exc:  # noqa: BLE001 - sources degrade independently.
+        return (), UpdateSourceStatus.failure(_error_text(exc))
+    return (
+        provider_update_candidates(statuses),
+        _completed_source(now, _agent_cli_statuses_error(statuses)),
+    )
+
+
+def _completed_source(checked_at: float, error: str | None) -> UpdateSourceStatus:
+    if error is not None:
+        return UpdateSourceStatus.failure(error)
+    return UpdateSourceStatus.success(checked_at)
+
+
+def _core_versions_error(versions: CoreVersions) -> str | None:
+    errors = [
+        f"{package.name}: {package.latest_error}"
+        for package in versions.packages
+        if package.latest_error
+    ]
+    return _join_errors(errors)
+
+
+def _plugin_catalog_error(catalog: PluginCatalog) -> str | None:
+    errors = list(catalog.warnings)
+    errors.extend(
+        f"{entry.name}: {entry.latest.error}"
+        for entry in catalog.entries
+        if entry.installed.installed and entry.latest.error
+    )
+    return _join_errors(errors)
+
+
+def _agent_cli_statuses_error(statuses: Sequence[AgentCliStatus]) -> str | None:
+    errors: list[str] = []
+    for status in statuses:
+        if status.version_error:
+            errors.append(f"{status.provider}: {status.version_error}")
+        if status.latest_error:
+            errors.append(f"{status.provider}: {status.latest_error}")
+    return _join_errors(errors)
+
+
+def _join_errors(errors: Sequence[str]) -> str | None:
+    values = tuple(dict.fromkeys(error.strip() for error in errors if error.strip()))
+    return "; ".join(values) if values else None
+
+
+def _error_text(error: Exception) -> str:
+    message = str(error).strip()
+    return message or type(error).__name__
 
 
 def _plugin_component(entry: PluginCatalogEntry) -> OutdatedComponent:
@@ -266,11 +484,15 @@ _is_newer = is_newer
 _read_latest_cache = read_cache
 _write_latest_cache = write_cache
 _latest_cache_is_fresh = is_fresh
+_collect_agent_cli_statuses = collect_agent_cli_statuses
 
 __all__ = [
     "ComponentRole",
     "OutdatedComponent",
+    "ProviderUpdateCandidate",
+    "UpdateSourceStatus",
     "UpdateStatus",
     "build_update_status",
     "compute_update_status",
+    "provider_update_candidates",
 ]

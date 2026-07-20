@@ -4,7 +4,9 @@ from .cache import (
     DEFAULT_UPDATE_STATUS_TTL_SECONDS,
     SCHEMA_VERSION,
     get_cached_update_status,
+    merge_update_status,
     read_update_status_snapshot,
+    revalidate_provider_candidates,
     revalidate_update_status,
     update_status_snapshot_is_fresh,
     write_update_status_snapshot,
@@ -22,9 +24,12 @@ from .incoming_commits import (
 )
 from .status import (
     OutdatedComponent,
+    ProviderUpdateCandidate,
+    UpdateSourceStatus,
     UpdateStatus,
     build_update_status,
     compute_update_status,
+    provider_update_candidates,
 )
 
 __all__ = [
@@ -34,8 +39,10 @@ __all__ = [
     "IncomingCommits",
     "IncomingCommitsCacheKey",
     "OutdatedComponent",
+    "ProviderUpdateCandidate",
     "SCHEMA_VERSION",
     "UpdateStatus",
+    "UpdateSourceStatus",
     "allocate_commit_budget",
     "build_update_status",
     "component_commit_spec",
@@ -43,8 +50,11 @@ __all__ = [
     "core_package_commit_spec",
     "fetch_incoming_commits",
     "get_cached_update_status",
+    "merge_update_status",
     "plugin_entry_commit_spec",
     "read_update_status_snapshot",
+    "provider_update_candidates",
+    "revalidate_provider_candidates",
     "revalidate_update_status",
     "update_status_snapshot_is_fresh",
     "write_update_status_snapshot",
