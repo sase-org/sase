@@ -78,6 +78,24 @@ def update(
     return _issue_payload(payload), payload
 
 
+def claim_for_agent_launch(
+    beads_dir: Path | str,
+    bead_id: str,
+    agent_name: str,
+    *,
+    now: str | None = None,
+) -> tuple[Issue, dict[str, Any]]:
+    binding = require_rust_binding("bead_claim_for_agent_launch")
+    payload = _call_issue_operation(
+        binding,
+        str(beads_dir),
+        bead_id,
+        agent_name,
+        now,
+    )
+    return _issue_payload(payload), payload
+
+
 def preclaim_epic_work(
     beads_dir: Path | str,
     epic_id: str,
@@ -205,6 +223,7 @@ def _optional_text(value: str | int | None) -> str:
 
 __all__ = [
     "add_dependency",
+    "claim_for_agent_launch",
     "close",
     "create",
     "export_jsonl",

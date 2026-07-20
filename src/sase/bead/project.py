@@ -232,6 +232,19 @@ class BeadProject:
         self._refresh_db_from_jsonl()
         return rollback
 
+    def claim_for_agent_launch(self, bead_id: str, agent_name: str) -> Issue:
+        """Atomically claim one non-closed bead for an agent launch."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        issue, _outcome = rust_beads.claim_for_agent_launch(
+            self.beads_dir,
+            bead_id,
+            agent_name,
+            now=_now(),
+        )
+        self._refresh_db_from_jsonl()
+        return issue
+
     def close(self, issue_ids: list[str], reason: str | None = None) -> list[Issue]:
         """Close one or more issues.
 

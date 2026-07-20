@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from sase.bead.model import BeadSearchMatch, Issue, IssueType, Status
 from sase.bead.project import BeadProject
 from sase.core import bead_mutation_facade, bead_read_facade
@@ -46,6 +48,76 @@ def test_bead_project_create_delegates_to_rust_mutation(
         assert calls[0]["title"] == "Delegated"
         assert calls[0]["issue_type"] == IssueType.PLAN
         assert "workspace_beads_dirs" not in calls[0]
+
+
+def test_bead_project_claim_for_agent_launch_delegates_and_refreshes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with BeadProject.init(tmp_path) as project:
+        expected = Issue(
+            id="delegated-1",
+            title="Delegated",
+            issue_type=IssueType.PHASE,
+            status=Status.IN_PROGRESS,
+            assignee="agent-1",
+        )
+        calls: list[dict[str, Any]] = []
+        refreshes: list[bool] = []
+
+        def fake_claim(
+            beads_dir: Path | str,
+            bead_id: str,
+            agent_name: str,
+            *,
+            now: str | None = None,
+        ) -> tuple[Issue, dict[str, Any]]:
+            calls.append(
+                {
+                    "beads_dir": beads_dir,
+                    "bead_id": bead_id,
+                    "agent_name": agent_name,
+                    "now": now,
+                }
+            )
+            return expected, {"operation": "claim_for_agent_launch"}
+
+        monkeypatch.setattr(bead_mutation_facade, "claim_for_agent_launch", fake_claim)
+        monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:00:00Z")
+        monkeypatch.setattr(
+            project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
+        )
+
+        assert project.claim_for_agent_launch("delegated-1", "agent-1") is expected
+        assert calls == [
+            {
+                "beads_dir": project.beads_dir,
+                "bead_id": "delegated-1",
+                "agent_name": "agent-1",
+                "now": "2026-01-01T00:00:00Z",
+            }
+        ]
+        assert refreshes == [True]
+
+
+def test_bead_project_claim_failure_does_not_refresh_compatibility_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with BeadProject.init(tmp_path) as project:
+        refreshes: list[bool] = []
+
+        def fail_claim(
+            *_args: object, **_kwargs: object
+        ) -> tuple[Issue, dict[str, Any]]:
+            raise ValueError("closed: cannot claim closed bead")
+
+        monkeypatch.setattr(bead_mutation_facade, "claim_for_agent_launch", fail_claim)
+        monkeypatch.setattr(
+            project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
+        )
+
+        with pytest.raises(ValueError, match="closed"):
+            project.claim_for_agent_launch("delegated-1", "agent-1")
+        assert refreshes == []
 
 
 def test_bead_project_show_returns_issue_with_model(

@@ -239,6 +239,76 @@ def test_preclaim_epic_work_validation_is_all_or_nothing(tmp_path: Path) -> None
         assert project.show(second.id).status == Status.CLOSED
 
 
+def test_claim_for_agent_launch_converts_issue_and_reassigns(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "rust"
+    _init_store(root)
+    epic, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Epic",
+        issue_type=IssueType.PLAN,
+        now="2026-01-01T00:00:00Z",
+    )
+    phase, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Phase",
+        issue_type=IssueType.PHASE,
+        parent_id=epic.id,
+        now="2026-01-01T00:01:00Z",
+    )
+
+    claimed, outcome = rust_beads.claim_for_agent_launch(
+        root / "sdd/beads",
+        phase.id,
+        "agent-1",
+        now="2026-01-01T00:02:00Z",
+    )
+
+    assert outcome["operation"] == "claim_for_agent_launch"
+    assert outcome["changed"] is True
+    assert outcome["issue_ids"] == [phase.id]
+    assert claimed.id == phase.id
+    assert claimed.status == Status.IN_PROGRESS
+    assert claimed.assignee == "agent-1"
+    assert claimed.updated_at == "2026-01-01T00:02:00Z"
+
+    reassigned, _ = rust_beads.claim_for_agent_launch(
+        root / "sdd/beads",
+        phase.id,
+        "agent-2",
+        now="2026-01-01T00:03:00Z",
+    )
+    assert reassigned.status == Status.IN_PROGRESS
+    assert reassigned.assignee == "agent-2"
+    assert reassigned.updated_at == "2026-01-01T00:03:00Z"
+
+
+def test_claim_for_agent_launch_maps_missing_and_preserves_specific_failures(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "rust"
+    _init_store(root)
+    epic, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Epic",
+        issue_type=IssueType.PLAN,
+        now="2026-01-01T00:00:00Z",
+    )
+    rust_beads.close(
+        root / "sdd/beads",
+        [epic.id],
+        now="2026-01-01T00:01:00Z",
+    )
+
+    with pytest.raises(KeyError, match="Issue not found: missing"):
+        rust_beads.claim_for_agent_launch(root / "sdd/beads", "missing", "agent")
+    with pytest.raises(ValueError, match="closed: cannot claim closed bead"):
+        rust_beads.claim_for_agent_launch(root / "sdd/beads", epic.id, "agent")
+    with pytest.raises(ValueError, match="validation: agent name"):
+        rust_beads.claim_for_agent_launch(root / "sdd/beads", epic.id, "  ")
+
+
 def test_mutation_facade_writes_events_and_repairs_jsonl_projection(
     tmp_path: Path,
 ) -> None:
