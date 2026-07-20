@@ -102,6 +102,7 @@ class WaitDependencyIndexQueries:
             members = self._aggregate_candidates(
                 generation_members,
                 exclude_artifact_dir=None,
+                exclude_queued=False,
             )
             if members and all(
                 member.is_resolved and member.is_done for member in members
@@ -145,6 +146,7 @@ class WaitDependencyIndexQueries:
         members = self._aggregate_candidates(
             generations[generation],
             exclude_artifact_dir=exclude_artifact_dir,
+            exclude_queued=False,
         )
         if not members:
             return None
@@ -240,6 +242,8 @@ class WaitDependencyIndexQueries:
         *,
         exclude_artifact_dir: str | Path | None = None,
     ) -> WaitCandidate | None:
+        # Workflow-name aggregates intentionally retain the queued exclusion:
+        # including sequential workflow steps here can deadlock their promotion.
         workflow_agents = self._aggregate_candidates(
             self.workflows.get(name),
             exclude_artifact_dir=exclude_artifact_dir,

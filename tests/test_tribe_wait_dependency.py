@@ -22,6 +22,7 @@ def _agent(
     clan: str | None = None,
     generation: str | None = None,
     clan_tribe: str | None = None,
+    queued: bool = False,
 ) -> Path:
     artifact_dir = projects_root / "proj/artifacts/ace-run" / timestamp
     artifact_dir.mkdir(parents=True)
@@ -42,6 +43,11 @@ def _agent(
     if outcome is not None:
         (artifact_dir / "done.json").write_text(
             json.dumps({"outcome": outcome}),
+            encoding="utf-8",
+        )
+    if queued:
+        (artifact_dir / "waiting.json").write_text(
+            json.dumps({"waiting_for": ["review.predecessor"]}),
             encoding="utf-8",
         )
     return artifact_dir
@@ -149,6 +155,46 @@ def test_tagged_clan_member_enrolls_complete_generation(tmp_path: Path) -> None:
         )
         is None
     )
+
+
+def test_tribe_clan_entity_counts_queued_members_as_unfinished(
+    tmp_path: Path,
+) -> None:
+    generation = "20260718030000"
+    _agent(
+        tmp_path,
+        "20260718030100",
+        "review.one",
+        clan="review",
+        generation=generation,
+        clan_tribe="epic",
+    )
+    queued = _agent(
+        tmp_path,
+        "20260718030200",
+        "review.two",
+        outcome=None,
+        clan="review",
+        generation=generation,
+        queued=True,
+    )
+
+    index = _index(tmp_path)
+
+    assert index.tribe_candidate("epic", newer_than="20260718020000") is None
+
+    (queued / "done.json").write_text(
+        json.dumps({"outcome": "completed"}),
+        encoding="utf-8",
+    )
+    index = _index(tmp_path)
+    candidate = index.tribe_candidate("epic", newer_than="20260718020000")
+
+    assert candidate is not None
+    assert [member.name for member in candidate.members] == [
+        "review.one",
+        "review.two",
+    ]
 
 
 def test_effective_clan_tribe_uses_shared_precedence_facade(tmp_path: Path) -> None:

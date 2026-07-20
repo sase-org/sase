@@ -91,7 +91,10 @@ def test_incomplete_clan_is_rejected_as_a_fork_parent(
             },
         )
 
-    with pytest.raises(RuntimeError, match="No agent with chat history found"):
+    with pytest.raises(
+        RuntimeError,
+        match=r"Clan 'review' is not complete: 1/2 members done",
+    ):
         _resolve_agent_chat_sources(["review"])
 
 

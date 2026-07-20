@@ -250,7 +250,13 @@ def _resolve_fork_source(name: str) -> _ForkSource:
     clan = find_agent_clan(name)
     if clan is not None:
         if not clan.is_complete:
-            raise RuntimeError(f"No agent with chat history found for: {name}")
+            done_count = sum(
+                member.outcome == SUCCESS_OUTCOME for member in clan.members
+            )
+            raise RuntimeError(
+                f"Clan '{name}' is not complete: "
+                f"{done_count}/{len(clan.members)} members done"
+            )
 
         clan_members: list[_ForkClanMemberSource] = []
         for member in clan.members:

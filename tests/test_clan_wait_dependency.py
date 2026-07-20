@@ -15,6 +15,7 @@ def _member(
     *,
     generation: str,
     done: bool,
+    queued: bool = False,
 ) -> Path:
     artifact_dir = projects_root / "proj/artifacts/ace-run" / timestamp
     artifact_dir.mkdir(parents=True)
@@ -29,6 +30,10 @@ def _member(
     )
     if done:
         (artifact_dir / "done.json").write_text(json.dumps({"outcome": "completed"}))
+    if queued:
+        (artifact_dir / "waiting.json").write_text(
+            json.dumps({"waiting_for": ["research.predecessor"]})
+        )
     return artifact_dir
 
 
@@ -73,6 +78,39 @@ def test_wait_on_clan_uses_newest_generation(tmp_path: Path) -> None:
         done=True,
     )
 
+    index = build_wait_dependency_index("proj", projects_root=tmp_path)
+
+    assert index.is_resolved("research")
+
+
+def test_wait_on_clan_counts_queued_members_as_unfinished(tmp_path: Path) -> None:
+    generation = "20260717030000"
+    for index in range(6):
+        _member(
+            tmp_path,
+            f"20260717030{index + 1}00",
+            f"research.done-{index + 1}",
+            generation=generation,
+            done=True,
+        )
+    queued_members = [
+        _member(
+            tmp_path,
+            f"20260717031{index + 1}00",
+            f"research.queued-{index + 1}",
+            generation=generation,
+            done=False,
+            queued=True,
+        )
+        for index in range(3)
+    ]
+
+    index = build_wait_dependency_index("proj", projects_root=tmp_path)
+
+    assert not index.is_resolved("research")
+
+    for member in queued_members:
+        (member / "done.json").write_text(json.dumps({"outcome": "completed"}))
     index = build_wait_dependency_index("proj", projects_root=tmp_path)
 
     assert index.is_resolved("research")
