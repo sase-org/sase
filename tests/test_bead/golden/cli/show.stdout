@@ -2,8 +2,9 @@
 Type: plan · Tier: epic · Owner: owner@example.com
 
 CHILDREN
-  ○ beads-1.1: Build Alpha
-  ○ beads-1.2: Review Alpha
+  PHASES
+    ○ beads-1.1: Build Alpha   [OPEN] · Size: small
+    ○ beads-1.2: Review Alpha   [OPEN] · Size: small
 
 DESCRIPTION
   Parent description

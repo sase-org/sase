@@ -22,6 +22,12 @@ class BeadTier(Enum):
     EPIC = "epic"
 
 
+class PhaseSize(Enum):
+    SMALL = "small"
+    MEDIUM = "medium"
+    LARGE = "large"
+
+
 @dataclass
 class Dependency:
     issue_id: str
@@ -49,6 +55,7 @@ class Issue:
     notes: str = ""
     design: str = ""
     model: str = ""
+    size: PhaseSize | None = None
     is_ready_to_work: bool = False
     changespec_name: str = ""
     changespec_bug_id: str = ""
@@ -60,6 +67,7 @@ class Issue:
         Raises ValueError if:
         - A phase issue has no parent_id
         - A phase issue has is_ready_to_work=True (only plans carry the flag)
+        - A plan issue carries phase size metadata
         """
         if self.issue_type == IssueType.PHASE and self.parent_id is None:
             raise ValueError("Phase issues must have a parent_id")
@@ -67,6 +75,8 @@ class Issue:
             raise ValueError("Phase issues cannot carry plan tier metadata")
         if self.issue_type == IssueType.PHASE and self.is_ready_to_work:
             raise ValueError("Only plan issues can be marked is_ready_to_work")
+        if self.issue_type == IssueType.PLAN and self.size is not None:
+            raise ValueError("Plan issues cannot carry phase size metadata")
         if self.issue_type == IssueType.PHASE and (
             self.changespec_name or self.changespec_bug_id
         ):

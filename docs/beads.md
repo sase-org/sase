@@ -194,8 +194,9 @@ omitted, only the newest 20 beads print; pass `--limit 0` for the full closed hi
 
 Find beads whose indexed text fields contain a case-insensitive literal substring. This is substring search, not regex
 or glob matching. Current indexed fields include ID, title, description, notes, design/plan path, owner, assignee,
-model, ChangeSpec name/bug ID, status, type, and tier; timestamps are not searched. Unlike `sase bead list`, search
-includes `open`, `in_progress`, and `closed` beads by default, so it is the quickest way to recover older context.
+model, phase size, ChangeSpec name/bug ID, status, type, and tier; timestamps are not searched. Unlike `sase bead list`,
+search includes `open`, `in_progress`, and `closed` beads by default, so it is the quickest way to recover older
+context.
 
 Compact output prints each matching bead with a short snippet. For multi-line fields such as descriptions or notes, the
 snippet uses the line that matched the query when possible instead of always showing the first line. JSON output exposes
@@ -220,8 +221,10 @@ sase bead search auth --type plan --tier epic
 
 ### `sase bead show <id>`
 
-Display complete details for an issue including status, type, tier, epic count, parent/children, dependencies, blockers,
-description, notes, ChangeSpec metadata, model, and linked plan path.
+Display complete details for an issue including status, type, tier, parent lineage, dependencies, blockers, description,
+notes, ChangeSpec metadata, model, and linked plan path. Phase beads show their effective size (`small` for legacy beads
+without a stored size). A plan's children are grouped as phases (with status and size) and child epics (with tier and
+status), and nested beads show their complete lineage back to the root plan.
 
 ### `sase bead ready`
 

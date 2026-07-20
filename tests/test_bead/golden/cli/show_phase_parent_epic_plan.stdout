@@ -1,9 +1,10 @@
 ○ beads-1.1 · Build Alpha   [OPEN]
 Type: phase · Owner: owner@example.com
 Assignee: alice
+Size: small
 
 PARENT
-  ↑ beads-1 · Alpha Epic   [OPEN]
+  ↑ beads-1.1 ← epic beads-1
 
 BLOCKS
   ← ○ beads-1.2: Review Alpha   [OPEN]

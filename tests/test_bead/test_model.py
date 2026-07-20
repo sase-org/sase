@@ -2,7 +2,14 @@
 
 import pytest
 
-from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
+from sase.bead.model import (
+    BeadTier,
+    Dependency,
+    Issue,
+    IssueType,
+    PhaseSize,
+    Status,
+)
 
 
 class TestIssueValidation:
@@ -58,6 +65,31 @@ class TestIssueValidation:
     def test_default_model_empty(self) -> None:
         issue = Issue(id="test-1", title="Test")
         assert issue.model == ""
+
+    def test_default_size_none(self) -> None:
+        issue = Issue(id="test-1", title="Test")
+        assert issue.size is None
+
+    def test_phase_size_assignment(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="Test",
+            issue_type=IssueType.PHASE,
+            parent_id="test-0",
+            size=PhaseSize.LARGE,
+        )
+        assert issue.size == PhaseSize.LARGE
+        issue.validate()
+
+    def test_plan_with_phase_size_raises(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="Test",
+            issue_type=IssueType.PLAN,
+            size=PhaseSize.SMALL,
+        )
+        with pytest.raises(ValueError, match="cannot carry phase size"):
+            issue.validate()
 
     def test_model_assignment(self) -> None:
         issue = Issue(

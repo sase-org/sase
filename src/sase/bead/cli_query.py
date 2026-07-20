@@ -19,6 +19,7 @@ from sase.bead.model import (
     IssueType,
     Status,
 )
+from sase.bead.project import BeadProject
 
 # Closed bead listings can grow without bound, so default to the newest few
 # rows when the user did not request an explicit ``--limit``.
@@ -79,23 +80,47 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             print(f"Assignee: {issue.assignee}")
         if issue.model:
             print(f"Model: {issue.model}")
-        resolved_parent: Issue | None = None
+        if issue.issue_type == IssueType.PHASE:
+            print(f"Size: {_phase_size_value(issue)}")
+        ancestors: list[Issue] = []
+        unresolved_parent_id: str | None = None
         if issue.parent_id:
-            try:
-                resolved_parent = view.show(issue.parent_id)
-                print(
-                    f"\nPARENT\n  ↑ {resolved_parent.id} · {resolved_parent.title}"
-                    f"   [{resolved_parent.status.value.upper()}]"
-                )
-            except KeyError:
-                print(f"\nPARENT\n  ↑ {issue.parent_id}")
+            ancestors, unresolved_parent_id = _parent_lineage(view, issue)
+            lineage = [issue.id]
+            lineage.extend(
+                f"{_lineage_kind(parent)} {parent.id}" for parent in ancestors
+            )
+            if unresolved_parent_id is not None:
+                lineage.append(f"{unresolved_parent_id} (not found)")
+            print(f"\nPARENT\n  ↑ {' ← '.join(lineage)}")
         if issue.issue_type == IssueType.PLAN:
             children = view.get_epic_children(issue.id)
             if children:
                 print("\nCHILDREN")
-                for c in children:
-                    ci = status_icon(c.status)
-                    print(f"  {ci} {c.id}: {c.title}")
+                phases = [
+                    child for child in children if child.issue_type == IssueType.PHASE
+                ]
+                child_epics = [
+                    child for child in children if child.issue_type == IssueType.PLAN
+                ]
+                if phases:
+                    print("  PHASES")
+                    for child in phases:
+                        ci = status_icon(child.status)
+                        print(
+                            f"    {ci} {child.id}: {child.title}"
+                            f"   [{child.status.value.upper()}]"
+                            f" · Size: {_phase_size_value(child)}"
+                        )
+                if child_epics:
+                    print("  CHILD EPICS")
+                    for child in child_epics:
+                        ci = status_icon(child.status)
+                        tier = child.tier.value if child.tier else "(none)"
+                        print(
+                            f"    {ci} {child.id}: {child.title}"
+                            f"   [{child.status.value.upper()}] · Tier: {tier}"
+                        )
         deps_on = list(issue.dependencies)
         if deps_on:
             print("\nDEPENDS ON")
@@ -137,13 +162,19 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             if issue.changespec_bug_id:
                 print(f"  Bug ID: {issue.changespec_bug_id}")
         if issue.design:
-            print(f"\nPLAN\n  {_display_design_path(issue.design)}")
+            section = (
+                "EPIC PLAN"
+                if issue.parent_id and issue.tier == BeadTier.EPIC
+                else "PLAN"
+            )
+            print(f"\n{section}\n  {_display_design_path(issue.design)}")
         elif (
             issue.issue_type == IssueType.PHASE
-            and resolved_parent is not None
-            and resolved_parent.issue_type == IssueType.PLAN
-            and resolved_parent.design
+            and ancestors
+            and ancestors[0].issue_type == IssueType.PLAN
+            and ancestors[0].design
         ):
+            resolved_parent = ancestors[0]
             is_epic_parent = resolved_parent.tier == BeadTier.EPIC
             section = "EPIC PLAN" if is_epic_parent else "PARENT PLAN"
             parent_kind = "epic" if is_epic_parent else "plan"
@@ -153,6 +184,36 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                 f"{resolved_parent.id} · {resolved_parent.title}\n"
                 f"  {_display_design_path(resolved_parent.design)}"
             )
+
+
+def _parent_lineage(
+    view: BeadProject,
+    issue: Issue,
+) -> tuple[list[Issue], str | None]:
+    ancestors: list[Issue] = []
+    parent_id = issue.parent_id
+    seen = {issue.id}
+    while parent_id is not None:
+        if parent_id in seen:
+            return ancestors, parent_id
+        seen.add(parent_id)
+        try:
+            parent = view.show(parent_id)
+        except KeyError:
+            return ancestors, parent_id
+        ancestors.append(parent)
+        parent_id = parent.parent_id
+    return ancestors, None
+
+
+def _lineage_kind(issue: Issue) -> str:
+    if issue.issue_type == IssueType.PHASE:
+        return "phase"
+    return "epic" if issue.tier == BeadTier.EPIC else "plan"
+
+
+def _phase_size_value(issue: Issue) -> str:
+    return issue.size.value if issue.size else "small"
 
 
 def _display_design_path(design: str) -> str:
@@ -295,6 +356,7 @@ def _search_field_value(issue: Issue, field: str) -> str:
         "owner": issue.owner,
         "assignee": issue.assignee,
         "model": issue.model,
+        "size": issue.size.value if issue.size else "",
         "changespec_name": issue.changespec_name,
         "changespec_bug_id": issue.changespec_bug_id,
         "status": issue.status.value,
@@ -333,7 +395,7 @@ def _render_search_full(matches: list[BeadSearchMatch], query: str) -> str:
 
 
 def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "id": issue.id,
         "title": issue.title,
         "status": issue.status.value,
@@ -356,6 +418,9 @@ def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "changespec_bug_id": issue.changespec_bug_id,
         "dependencies": [_dependency_to_wire_dict(dep) for dep in issue.dependencies],
     }
+    if issue.size is not None:
+        payload["size"] = issue.size.value
+    return payload
 
 
 def _dependency_to_wire_dict(dep: Dependency) -> dict[str, str]:
