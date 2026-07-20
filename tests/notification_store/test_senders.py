@@ -95,6 +95,32 @@ class TestNotifyMentorsComplete:
         assert len(loaded) == 1
         assert "no mentor profiles matched" in loaded[0].notes
 
+    def test_humanizes_note_but_keeps_jump_identity(
+        self, temp_notifications_dir: Path, monkeypatch
+    ) -> None:
+        from sase.notifications import senders
+
+        canonical = "gh_acme__widgets_review"
+        monkeypatch.setattr(
+            senders,
+            "humanize_cl_name",
+            lambda value: "widgets_review" if value == canonical else value,
+        )
+
+        senders.notify_mentors_complete(
+            cl_name=canonical,
+            project_file="/canonical/project.sase",
+            entry_id="3",
+            mentor_summary="done",
+            has_comments=False,
+        )
+
+        notification = load_notifications()[0]
+        assert "widgets_review" in notification.notes[0]
+        assert canonical not in notification.notes[0]
+        assert notification.action_data["changespec_name"] == canonical
+        assert notification.action_data["project_file"] == "/canonical/project.sase"
+
 
 class TestNotifyMemoryProposed:
     def test_emits_memory_review_action_data(

@@ -8,6 +8,8 @@ import pytest
 
 from sase.ace.tui.actions.agent_workflow import _entry_points
 from sase.ace.tui.modals import ProjectSelectModal, SelectionItem
+from sase.ace.tui.modals.project_select_modal import _ProjectSelectData
+from sase.project_display_names import ProjectDisplayProjection, ProjectDisplaySnapshot
 
 from ._entry_points_vcs_prefix_helpers import (
     _App,
@@ -173,12 +175,17 @@ def test_start_custom_agent_selector_hides_home_project_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_select_modal.list_launchable_projects",
-        lambda: ["home", "sase"],
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.project_select_modal.find_all_changespecs",
-        lambda: [],
+        "sase.ace.tui.modals.project_select_modal._load_project_select_data",
+        lambda: _ProjectSelectData(
+            projects=(
+                ProjectDisplayProjection("home", "home"),
+                ProjectDisplayProjection("sase", "sase"),
+            ),
+            changespecs=(),
+            project_display_snapshot=ProjectDisplaySnapshot(
+                {"home": "home", "sase": "sase"}
+            ),
+        ),
     )
     app = _App()
 

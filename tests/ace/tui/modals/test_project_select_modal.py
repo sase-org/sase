@@ -14,9 +14,11 @@ from sase.ace.tui.modals.project_discovery import (
     list_launchable_projects,
 )
 from sase.ace.tui.modals.project_select_modal import (
+    _ProjectSelectData,
     ProjectSelectModal,
     ProjectSelectResult,
 )
+from sase.project_display_names import ProjectDisplayProjection, ProjectDisplaySnapshot
 
 
 class _TestApp(App[ProjectSelectResult | None]):
@@ -27,14 +29,19 @@ def _static_text(modal: ProjectSelectModal, selector: str) -> str:
     return str(modal.query_one(selector, Static).render())
 
 
-def _patch_loaders(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.project_select_modal.list_launchable_projects",
-        lambda: ["home", "valid"],
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.project_select_modal.find_all_changespecs",
-        lambda: [_changespec("valid_active", "Ready")],
+def _data(
+    *,
+    projects: tuple[tuple[str, str], ...] = (("home", "home"), ("valid", "valid")),
+    changespecs: tuple[ChangeSpec, ...] = (),
+) -> _ProjectSelectData:
+    snapshot = ProjectDisplaySnapshot(dict(projects))
+    return _ProjectSelectData(
+        projects=tuple(
+            ProjectDisplayProjection(project_key=key, project_label=label)
+            for key, label in projects
+        ),
+        changespecs=changespecs,
+        project_display_snapshot=snapshot,
     )
 
 
@@ -110,7 +117,10 @@ def test_list_launchable_projects_filters_invalid_entries(
 
     projects = list_launchable_projects(projects_dir)
 
-    assert projects == ["home", "valid"]
+    assert [(item.project_key, item.project_label) for item in projects] == [
+        ("home", "home"),
+        ("valid", "valid"),
+    ]
     assert is_launchable_project("valid", projects_dir) is True
     assert is_launchable_project("disabled", projects_dir) is False
     assert is_launchable_project("sibling", projects_dir) is False
@@ -147,22 +157,18 @@ def test_home_project_must_be_real_enabled_and_launchable(
     assert is_launchable_project("home", projects_dir) is False
 
 
-def test_project_select_modal_loads_launchable_projects_and_active_changespecs(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.project_select_modal.list_launchable_projects",
-        lambda: ["home", "valid"],
+def test_project_select_modal_loads_launchable_projects_and_active_changespecs() -> (
+    None
+):
+    modal = ProjectSelectModal(
+        _data(
+            changespecs=(
+                _changespec("valid_active", "Ready"),
+                _changespec("valid_submitted", "Submitted"),
+            )
+        ),
+        include_all=True,
     )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.project_select_modal.find_all_changespecs",
-        lambda: [
-            _changespec("valid_active", "Ready"),
-            _changespec("valid_submitted", "Submitted"),
-        ],
-    )
-
-    modal = ProjectSelectModal(include_all=True)
 
     assert [item.display_name for item in modal.all_items] == [
         "[*] ALL",
@@ -172,22 +178,14 @@ def test_project_select_modal_loads_launchable_projects_and_active_changespecs(
     ]
 
 
-def test_project_select_modal_excludes_named_project_rows_only(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.project_select_modal.list_launchable_projects",
-        lambda: ["home", "valid"],
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.project_select_modal.find_all_changespecs",
-        lambda: [
-            _changespec("home_active", "WIP", project_name="home"),
-            _changespec("valid_active", "Ready"),
-        ],
-    )
-
+def test_project_select_modal_excludes_named_project_rows_only() -> None:
     modal = ProjectSelectModal(
+        _data(
+            changespecs=(
+                _changespec("home_active", "WIP", project_name="home"),
+                _changespec("valid_active", "Ready"),
+            )
+        ),
         include_all=True,
         exclude_project_names={"home"},
     )
@@ -200,11 +198,10 @@ def test_project_select_modal_excludes_named_project_rows_only(
     ]
 
 
-async def test_filter_updates_match_count_and_highlights_first(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_loaders(monkeypatch)
-    modal = ProjectSelectModal()
+async def test_filter_updates_match_count_and_highlights_first() -> None:
+    modal = ProjectSelectModal(
+        _data(changespecs=(_changespec("valid_active", "Ready"),))
+    )
 
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(modal)
@@ -224,11 +221,10 @@ async def test_filter_updates_match_count_and_highlights_first(
         assert option_list.highlighted == 0
 
 
-async def test_empty_state_toggles_with_no_matches(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_loaders(monkeypatch)
-    modal = ProjectSelectModal()
+async def test_empty_state_toggles_with_no_matches() -> None:
+    modal = ProjectSelectModal(
+        _data(changespecs=(_changespec("valid_active", "Ready"),))
+    )
 
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(modal)
@@ -251,3 +247,33 @@ async def test_empty_state_toggles_with_no_matches(
         empty_text = _static_text(modal, "#project-select-empty")
         assert "zzz-no-such-thing" in empty_text
         assert "custom name" in empty_text
+
+
+def test_picker_separates_labels_from_canonical_identity_and_duplicates() -> None:
+    canonical_a = "gh_acme__widgets"
+    canonical_b = "gh_other__widgets"
+    modal = ProjectSelectModal(
+        _data(
+            projects=((canonical_b, "widgets"), (canonical_a, "widgets")),
+            changespecs=(
+                _changespec(
+                    f"{canonical_a}_feature",
+                    "Ready",
+                    project_name=canonical_a,
+                ),
+            ),
+        )
+    )
+
+    assert [item.display_name for item in modal.all_items] == [
+        "[P] widgets",
+        "[P] widgets",
+        "[PR] widgets_feature [Ready]",
+    ]
+    assert [item.project_name for item in modal.all_items[:2]] == [
+        canonical_a,
+        canonical_b,
+    ]
+    assert modal.all_items[2].project_name == canonical_a
+    assert modal.all_items[2].cl_name == f"{canonical_a}_feature"
+    assert len({item.option_id for item in modal.all_items}) == 3

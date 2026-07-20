@@ -7,6 +7,7 @@ from rich.text import Text
 from sase.ace.tui.prompt_stash_entries import entry_prompt_segments
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 from sase.notifications.models import format_relative_time
+from sase.project_display_names import ProjectDisplaySnapshot
 
 # The fallback preserves the fixed 96-column modal's historical row layout.
 # Split-pane callers derive a smaller/larger budget from the laid-out list.
@@ -85,6 +86,7 @@ def stash_row_label(
     age: str,
     prompt_count: int = 1,
     preview_width: int = DEFAULT_STASH_PREVIEW_WIDTH,
+    project_display_snapshot: ProjectDisplaySnapshot | None = None,
 ) -> Text:
     """Build the styled single-line label for one stash row.
 
@@ -110,8 +112,11 @@ def stash_row_label(
         age.rjust(_AGE_WIDTH), style="dim" if not marked_for_delete else row_style
     )
     text.append("  ")
+    project = entry.project
+    if project and project_display_snapshot is not None:
+        project = project_display_snapshot.label_for(project)
     text.append(
-        _project_chip(entry.project),
+        _project_chip(project),
         style="cyan" if not marked_for_delete else row_style,
     )
     text.append("  ")

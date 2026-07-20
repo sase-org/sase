@@ -14,6 +14,7 @@ from sase.diagnostics import (
 from sase.doctor.runner import DoctorContext, build_doctor_registry
 from sase.main import doctor_handler
 from sase.main.parser import create_parser
+from sase.project_display_names import ProjectDisplaySnapshot
 
 
 def _report(status: str = "OK", *, strict: bool = False) -> DiagnosticReport:
@@ -102,6 +103,44 @@ def test_doctor_json_output_returns_report_exit_code(monkeypatch, capsys) -> Non
     assert payload["command"] == "doctor"
     assert payload["status"] == "WARN"
     assert payload["checks"][0]["id"] == "runtime.version"
+
+
+def test_doctor_humanizes_project_only_in_human_report(monkeypatch, capsys) -> None:
+    canonical = "gh_acme__widgets"
+    report = DiagnosticReport(
+        generated_at="2026-07-20T12:00:00Z",
+        cwd="/workspace",
+        project=canonical,
+        sase_home="/home/user/.sase",
+        checks=(
+            DiagnosticCheck(
+                id="project.current",
+                group="project",
+                status="OK",
+                title="Current project",
+                summary=f"{canonical}: state=enabled; launchable; 0 active claim(s)",
+                data={"project_name": canonical},
+            ),
+        ),
+    )
+    monkeypatch.setattr(doctor_handler, "run_doctor", lambda **_kwargs: report)
+    monkeypatch.setattr(
+        "sase.project_display_names.load_project_display_snapshot",
+        lambda: ProjectDisplaySnapshot({canonical: "widgets"}),
+    )
+
+    human_args = create_parser().parse_args(["doctor"])
+    assert doctor_handler.handle_doctor_command(human_args) == 0
+    human = capsys.readouterr().out
+    assert "widgets" in human
+    assert canonical not in human
+
+    json_args = create_parser().parse_args(["doctor", "--json"])
+    assert doctor_handler.handle_doctor_command(json_args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["project"] == canonical
+    assert payload["checks"][0]["summary"].startswith(canonical)
+    assert payload["checks"][0]["data"]["project_name"] == canonical
 
 
 def test_doctor_strict_warning_exits_nonzero(monkeypatch, capsys) -> None:

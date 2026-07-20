@@ -51,6 +51,8 @@ def _sync_task(
         release_workspace,
     )
 
+    display_name = humanize_cl_name(changespec_name)
+
     workspace_num = get_first_available_axe_workspace(changespec_file_path)
     workflow_name = f"sync-{changespec_name}"
 
@@ -80,8 +82,9 @@ def _sync_task(
             print(f"Warning: sase_hg_clean failed: {clean_error}")
 
         # Checkout the ChangeSpec
-        print(f"Checking out {changespec_name}...")
+        print(f"Checking out {display_name}...")
         provider = get_vcs_provider(workspace_dir)
+        # Keep canonical identity for revision resolution and all persistence.
         resolved = provider.resolve_revision(
             changespec_name, project_basename, workspace_dir
         )
@@ -141,7 +144,7 @@ def _sync_task(
                         changespec_name,
                         workspace_dir,
                     )
-                    return (True, f"Synced {changespec_name}: {message}")
+                    return (True, f"Synced {display_name}: {message}")
                 else:
                     from sase.notifications.senders import notify_sync_result
 

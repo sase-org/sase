@@ -1,10 +1,17 @@
 """Handler for the 'sase changespec search' command."""
 
+from __future__ import annotations
+
 import argparse
 import sys
 from pathlib import Path
 
 from sase.ace.query import QueryParseError
+from sase.project_display_names import (
+    ProjectDisplaySnapshot,
+    humanize_cl_name,
+    load_project_display_snapshot,
+)
 
 
 def handle_search_command(args: argparse.Namespace) -> None:
@@ -30,7 +37,11 @@ def handle_search_command(args: argparse.Namespace) -> None:
     if args.format == "rich":
         _display_rich(matching)
     elif args.format == "markdown":
-        _display_markdown(matching, query=args.query)
+        _display_markdown(
+            matching,
+            query=args.query,
+            project_display_snapshot=load_project_display_snapshot(),
+        )
     else:
         _display_plain(matching)
 
@@ -211,19 +222,39 @@ def _md_table(headers: list[str], rows: list[list[str]]) -> list[str]:
     return lines
 
 
-def _md_changespec(cs: "ChangeSpec") -> list[str]:  # type: ignore[name-defined]  # noqa: F821
+def _md_changespec(
+    cs: ChangeSpec,  # type: ignore[name-defined]  # noqa: F821
+    *,
+    project_display_snapshot: ProjectDisplaySnapshot | None = None,
+    heading: str | None = None,
+) -> list[str]:
     """Render a single ChangeSpec as markdown lines."""
     lines: list[str] = []
 
     # Heading
-    lines.append(f"## {cs.name}")
+    display_heading = heading or humanize_cl_name(
+        cs.name,
+        snapshot=project_display_snapshot,
+    )
+    lines.append(f"## {display_heading}")
     lines.append("")
 
     # Metadata line
     meta_parts: list[str] = [f"**Status:** {cs.status}"]
-    meta_parts.append(f"**Project:** {cs.project_basename}")
+    project = (
+        project_display_snapshot.label_for(cs.project_basename)
+        if project_display_snapshot is not None
+        else cs.project_basename
+    )
+    meta_parts.append(f"**Project:** {project}")
     if cs.parent:
-        meta_parts.append(f"**Parent:** {cs.parent}")
+        meta_parts.append(
+            "**Parent:** "
+            + humanize_cl_name(
+                cs.parent,
+                snapshot=project_display_snapshot,
+            )
+        )
     meta = " · ".join(meta_parts)
     # Bug and PR on same line if present
     extras: list[str] = []
@@ -250,7 +281,10 @@ def _md_changespec(cs: "ChangeSpec") -> list[str]:  # type: ignore[name-defined]
                     f"#{claim.workspace_num}",
                     str(claim.pid),
                     claim.workflow,
-                    claim.cl_name or "",
+                    humanize_cl_name(
+                        claim.cl_name or "",
+                        snapshot=project_display_snapshot,
+                    ),
                 ]
             )
         lines.extend(_md_table(["Workspace", "PID", "Workflow", "ChangeSpec"], ws_rows))
@@ -358,13 +392,22 @@ def _md_changespec(cs: "ChangeSpec") -> list[str]:  # type: ignore[name-defined]
     return lines
 
 
-def _display_markdown(matching: list, *, query: str = "") -> None:  # type: ignore[type-arg]
+def _display_markdown(
+    matching: list,  # type: ignore[type-arg]
+    *,
+    query: str = "",
+    project_display_snapshot: ProjectDisplaySnapshot | None = None,
+) -> None:
     """Display search results as agent-friendly markdown."""
     from collections import Counter
 
     from sase.ace.changespec import ChangeSpec
 
     changespecs: list[ChangeSpec] = matching
+    headings = [
+        humanize_cl_name(cs.name, snapshot=project_display_snapshot)
+        for cs in changespecs
+    ]
 
     # Summary header
     status_counts = Counter(cs.status for cs in changespecs)
@@ -378,15 +421,21 @@ def _display_markdown(matching: list, *, query: str = "") -> None:  # type: igno
         print("")
     print(f"Found {len(changespecs)} change(s): {breakdown}")
     if len(changespecs) > 1:
-        links = " · ".join(f"[{cs.name}](#{cs.name})" for cs in changespecs)
+        # Reuse the exact projected heading for link text and destination so
+        # display-name substitution cannot make the quick links drift.
+        links = " · ".join(f"[{heading}](#{heading})" for heading in headings)
         print("")
         print(links)
     print("")
 
     # Render each ChangeSpec separated by horizontal rules
-    for i, cs in enumerate(changespecs):
+    for i, (cs, heading) in enumerate(zip(changespecs, headings, strict=True)):
         if i > 0:
             print("---")
             print("")
-        for line in _md_changespec(cs):
+        for line in _md_changespec(
+            cs,
+            project_display_snapshot=project_display_snapshot,
+            heading=heading,
+        ):
             print(line)

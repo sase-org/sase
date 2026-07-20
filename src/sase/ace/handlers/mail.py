@@ -12,6 +12,7 @@ from rich.markup import escape as _esc
 from ..changespec import ChangeSpec
 from ..mail_ops import MailPrepResult, execute_mail, prepare_mail
 from ..operations import update_to_changespec
+from sase.project_display_names import humanize_cl_name
 
 if TYPE_CHECKING:
     from ..tui._workflow_context import WorkflowContext
@@ -69,12 +70,13 @@ def mail_execute_task(
     from sase.status_state_machine import transition_changespec_status
 
     console = Console()
+    display_name = humanize_cl_name(changespec.name)
 
     try:
         # Execute the mail command
         success = execute_mail(changespec, workspace_dir, console)
         if not success:
-            return (False, f"Mail failed for {changespec.name}")
+            return (False, f"Mail failed for {display_name}")
 
         # Update status to "Mailed"
         status_success, old_status, status_error, _ = transition_changespec_status(
@@ -86,13 +88,13 @@ def mail_execute_task(
         if status_success:
             return (
                 True,
-                f"Mailed {changespec.name}: {old_status or 'Ready'} → Mailed",
+                f"Mailed {display_name}: {old_status or 'Ready'} → Mailed",
             )
         else:
             # Mailing succeeded but status update failed
             return (
                 True,
-                f"Mailed {changespec.name} "
+                f"Mailed {display_name} "
                 f"(status update failed: {status_error or 'Unknown'})",
             )
 

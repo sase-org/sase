@@ -10,6 +10,7 @@ from rich.markup import escape as _esc
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from sase.vcs_provider import get_vcs_provider
+from sase.project_display_names import humanize_cl_name
 
 from .changespec import ChangeSpec
 
@@ -97,8 +98,12 @@ def execute_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> b
     Returns:
         True if mailing succeeded, False otherwise
     """
-    console.print(f"[cyan]Sending change for review: {_esc(changespec.name)}[/cyan]")
+    console.print(
+        "[cyan]Sending change for review: "
+        f"{_esc(humanize_cl_name(changespec.name))}[/cyan]"
+    )
     provider = get_vcs_provider(target_dir)
+    # Provider operations keep canonical revision identity.
     resolved = provider.resolve_revision(
         changespec.name, changespec.project_basename, target_dir
     )

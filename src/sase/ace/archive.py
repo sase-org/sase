@@ -18,6 +18,7 @@ from sase.running_field import (
 )
 from sase.status_state_machine import transition_changespec_status
 from sase.vcs_provider import get_vcs_provider
+from sase.project_display_names import humanize_cl_name
 
 from .changespec import (
     ChangeSpec,
@@ -119,9 +120,12 @@ def archive_changespec(
     try:
         # Checkout the ChangeSpec branch
         if console:
-            console.print(f"[cyan]Checking out {changespec.name}...[/cyan]")
+            console.print(
+                f"[cyan]Checking out {humanize_cl_name(changespec.name)}...[/cyan]"
+            )
 
         provider = get_vcs_provider(workspace_dir)
+        # Revision resolution is an identity boundary; keep the canonical name.
         resolved = provider.resolve_revision(
             changespec.name, project_basename, workspace_dir
         )
@@ -130,13 +134,17 @@ def archive_changespec(
             return (False, f"Failed to checkout ChangeSpec branch: {error}")
 
         if console:
-            console.print(f"[green]Checked out: {changespec.name}[/green]")
+            console.print(
+                f"[green]Checked out: {humanize_cl_name(changespec.name)}[/green]"
+            )
 
         # Calculate new name with suffix
         new_name = calculate_lifecycle_new_name(changespec, all_changespecs)
 
         if console:
-            console.print(f"[cyan]Renaming ChangeSpec to: {new_name}[/cyan]")
+            console.print(
+                f"[cyan]Renaming ChangeSpec to: {humanize_cl_name(new_name)}[/cyan]"
+            )
 
         # Save diff to file
         success, error = save_diff_to_file(
@@ -146,6 +154,7 @@ def archive_changespec(
             return (False, f"Failed to save diff: {error}")
 
         if console:
+            # Paths remain canonical/copyable even though nearby prose is projected.
             diff_path = sase_subdir("archived") / f"{new_name}.diff"
             console.print(f"[green]Saved diff to: {diff_path}[/green]")
 
@@ -172,7 +181,9 @@ def archive_changespec(
         remove_branch_alias(project_basename, changespec.name)
 
         if console:
-            console.print(f"[green]Archived revision: {changespec.name}[/green]")
+            console.print(
+                f"[green]Archived revision: {humanize_cl_name(changespec.name)}[/green]"
+            )
 
         # Rename the ChangeSpec (skip if name is unchanged, e.g., WIP with existing suffix)
         if new_name != changespec.name:
@@ -185,7 +196,9 @@ def archive_changespec(
 
             if console:
                 console.print(
-                    f"[green]Renamed ChangeSpec: {changespec.name} -> {new_name}[/green]"
+                    "[green]Renamed ChangeSpec: "
+                    f"{humanize_cl_name(changespec.name)} -> "
+                    f"{humanize_cl_name(new_name)}[/green]"
                 )
 
         # Update STATUS to Archived

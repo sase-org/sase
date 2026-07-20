@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from sase.project_display_names import ProjectDisplaySnapshot
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets import PromptInputBar
@@ -10,6 +13,14 @@ if TYPE_CHECKING:
         PromptStashEntryWire,
         PromptStashSnapshotWire,
     )
+
+
+@dataclass(frozen=True)
+class _PromptStashPresentationSnapshot:
+    """Canonical stash entries paired with one display-only project snapshot."""
+
+    entries: tuple[PromptStashEntryWire, ...]
+    project_display_snapshot: ProjectDisplaySnapshot
 
 
 class PromptBarStashStoreMixin:
@@ -39,6 +50,17 @@ class PromptBarStashStoreMixin:
         except Exception:
             return []
         return list(snapshot.entries)
+
+    def _read_prompt_stash_presentation_snapshot(
+        self,
+    ) -> _PromptStashPresentationSnapshot:
+        """Read canonical stash rows and project labels in one worker boundary."""
+        from sase.project_display_names import load_project_display_snapshot
+
+        return _PromptStashPresentationSnapshot(
+            entries=tuple(self._read_prompt_stash_entries()),
+            project_display_snapshot=load_project_display_snapshot(),
+        )
 
     def _has_stashed_prompts(self) -> bool:
         """Whether any restorable stash exists (drives the footer keymap).

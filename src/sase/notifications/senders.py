@@ -9,6 +9,7 @@ from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
 from sase.notifications.models import Notification, normalize_notification_tags
 from sase.notifications.store import append_notification
+from sase.project_display_names import humanize_cl_name
 
 
 def notify_memory_proposed(proposal: Any) -> str:
@@ -76,11 +77,12 @@ def notify_sync_result(
     project_file: str,
 ) -> None:
     """Send a notification after a sync action completes."""
+    display_name = humanize_cl_name(cl_name)
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(get_timezone()).isoformat(),
         sender="sync",
-        notes=[f"Sync {status} for {cl_name}"],
+        notes=[f"Sync {status} for {display_name}"],
         files=[project_file],
         action="JumpToChangeSpec",
         action_data={"changespec_name": cl_name, "project_file": project_file},
@@ -114,11 +116,12 @@ def notify_mentors_complete(
         sender: Notification sender label.
     """
     del has_comments  # Reflected in mentor_summary; truth re-read at action time.
+    display_name = humanize_cl_name(cl_name)
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(get_timezone()).isoformat(),
         sender=sender,
-        notes=[f"Mentors done for {cl_name} entry {entry_id}", mentor_summary],
+        notes=[f"Mentors done for {display_name} entry {entry_id}", mentor_summary],
         files=[project_file],
         action="JumpToMentorReview",
         action_data={

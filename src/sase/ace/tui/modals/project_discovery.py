@@ -7,11 +7,12 @@ from pathlib import Path
 
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
-from sase.core.project_lifecycle_wire import (
-    effective_project_name,
-    normalize_project_lifecycle_state_filter,
-)
+from sase.core.project_lifecycle_wire import normalize_project_lifecycle_state_filter
 from sase.project_aliases import resolve_project_alias_ref
+from sase.project_display_names import (
+    ProjectDisplayProjection,
+    ProjectDisplaySnapshot,
+)
 from sase.workspace_provider import detect_workflow_type
 from sase.workspace_provider.utils import parse_workspace_dir
 
@@ -20,30 +21,44 @@ def _states_for_project_records(include_states: Sequence[str] | str) -> list[str
     return normalize_project_lifecycle_state_filter(include_states)
 
 
-def list_launchable_projects(
+def load_launchable_project_snapshot(
     projects_dir: Path | None = None,
     include_states: Sequence[str] | str = ("enabled",),
-) -> list[str]:
-    """Return project entries that are valid project-scoped launch targets."""
+) -> tuple[ProjectDisplaySnapshot, tuple[ProjectDisplayProjection, ...]]:
+    """Return one lifecycle snapshot and its launchable project projections."""
     projects_base = projects_dir or sase_projects_dir()
     if not projects_base.exists():
-        return []
+        return ProjectDisplaySnapshot(), ()
 
-    projects: list[str] = []
     records = list_project_records(
         projects_base,
         _states_for_project_records(include_states),
         include_home=True,
     )
+    display_snapshot = ProjectDisplaySnapshot.from_records(records)
+    projects: list[ProjectDisplayProjection] = []
     for record in records:
         if record.state != "enabled":
             continue
         if not record.project_file:
             continue
         if _is_launchable_project_file(Path(record.project_file)):
-            projects.append(effective_project_name(record))
+            projects.append(display_snapshot.projection_for(record.project_name))
 
-    return projects
+    projects.sort(key=lambda project: project.sort_key)
+    return display_snapshot, tuple(projects)
+
+
+def list_launchable_projects(
+    projects_dir: Path | None = None,
+    include_states: Sequence[str] | str = ("enabled",),
+) -> list[ProjectDisplayProjection]:
+    """Return explicit canonical-key/display-label launch projections."""
+    _snapshot, projects = load_launchable_project_snapshot(
+        projects_dir,
+        include_states,
+    )
+    return list(projects)
 
 
 def is_launchable_project(

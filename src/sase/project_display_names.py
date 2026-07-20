@@ -216,7 +216,7 @@ def attach_project_display_names(
         agent.project_display_name = display if display and display != key else None
 
 
-def project_display_for(
+def _project_display_for(
     project_key: str,
     projects_root: Path | str | None = None,
     *,
@@ -242,7 +242,7 @@ def project_display_name_for(
     Renderers should supply a preloaded *snapshot*. Omitting it uses the
     explicitly managed convenience cache for non-rendering callers.
     """
-    return project_display_for(
+    return _project_display_for(
         key,
         projects_root,
         snapshot=snapshot,
@@ -365,7 +365,6 @@ __all__ = [
     "humanize_vcs_refs_in_text",
     "invalidate_project_display_snapshot",
     "load_project_display_snapshot",
-    "project_display_for",
     "project_display_name_map_signature",
     "project_display_name_for",
 ]

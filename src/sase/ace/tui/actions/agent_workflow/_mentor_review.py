@@ -466,6 +466,9 @@ class MentorReviewMixin:
         ok = update_changespec_comments_field(
             changespec.file_path, changespec.name, None
         )
+        from sase.project_display_names import humanize_cl_name
+
+        display_name = humanize_cl_name(changespec.name)
         if ok:
             changespec.comments = None
             if changespec.commits and deleted_proposals:
@@ -474,7 +477,7 @@ class MentorReviewMixin:
                     for c in changespec.commits
                     if not (c.is_proposed and c.note.startswith("[crs"))
                 ]
-            msg = f"Cleared COMMENTS for {changespec.name}"
+            msg = f"Cleared COMMENTS for {display_name}"
             details = []
             if killed_agents:
                 details.append(f"killed {killed_agents} CRS agent(s)")
@@ -485,5 +488,5 @@ class MentorReviewMixin:
             self.notify(msg)  # type: ignore[attr-defined]
         else:
             self.notify(  # type: ignore[attr-defined]
-                f"Failed to clear COMMENTS for {changespec.name}", severity="error"
+                f"Failed to clear COMMENTS for {display_name}", severity="error"
             )

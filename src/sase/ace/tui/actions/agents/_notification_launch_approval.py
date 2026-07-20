@@ -215,6 +215,12 @@ def _read_launch_approval_task_metadata(
 
     workspace = _first_launch_workspace(data)
     if workspace is not None:
+        from sase.project_display_names import (
+            humanize_cl_name,
+            load_project_display_snapshot,
+        )
+
+        display_snapshot = load_project_display_snapshot()
         raw_cl_name = workspace.get("cl_name")
         raw_project_file = workspace.get("project_file")
         project_name = workspace.get("project_name")
@@ -223,7 +229,15 @@ def _read_launch_approval_task_metadata(
         if isinstance(raw_project_file, str) and raw_project_file:
             project_file = raw_project_file
         if isinstance(project_name, str) and project_name:
-            display_name = f"{action} launch {project_name}"
+            display_target = display_snapshot.label_for(project_name)
+            if isinstance(raw_cl_name, str) and raw_cl_name:
+                display_cl_name = humanize_cl_name(
+                    raw_cl_name,
+                    snapshot=display_snapshot,
+                )
+                if display_cl_name != raw_cl_name:
+                    display_target = display_cl_name
+            display_name = f"{action} launch {display_target}"
     return _LaunchApprovalTaskMetadata(display_name, cl_name, project_file)
 
 

@@ -29,6 +29,7 @@ from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
 from sase.ace.tui.prompt_stash_entries import entry_prompt_segments
 from sase.core.prompt_stash_wire import PromptStashEntryWire
+from sase.project_display_names import ProjectDisplaySnapshot
 
 from ._prompt_stash_preview import PromptStashPreviewPane
 from .base import OptionListNavigationMixin
@@ -90,7 +91,12 @@ class StashedPromptsModal(
         ],
     ]
 
-    def __init__(self, entries: list[PromptStashEntryWire]) -> None:
+    def __init__(
+        self,
+        entries: list[PromptStashEntryWire],
+        *,
+        project_display_snapshot: ProjectDisplaySnapshot | None = None,
+    ) -> None:
         super().__init__()
         # Newest first; ISO timestamps sort lexicographically, ties broken by
         # pane order so a "stash all" group keeps a stable display order.
@@ -98,6 +104,9 @@ class StashedPromptsModal(
             entries,
             key=lambda e: (e.created_at, e.pane_index),
             reverse=True,
+        )
+        self._project_display_snapshot = (
+            project_display_snapshot or ProjectDisplaySnapshot()
         )
         self._prompt_counts = {
             entry.id: len(entry_prompt_segments(entry)) for entry in self._entries
@@ -173,6 +182,7 @@ class StashedPromptsModal(
                     age=stash_row_age(entry),
                     prompt_count=self._prompt_counts[entry.id],
                     preview_width=preview_width,
+                    project_display_snapshot=self._project_display_snapshot,
                 )
             )
             options.append(Option(label, id=str(idx)))
@@ -268,6 +278,7 @@ class StashedPromptsModal(
             entry,
             prompt_count=self._prompt_counts[entry.id],
             highlighted_body=highlighted,
+            project_display_snapshot=self._project_display_snapshot,
         )
 
     def on_option_list_option_highlighted(

@@ -59,8 +59,11 @@ def revert_sibling_draft_changespecs(
         if cs_base == base_name and cs.status in ("WIP", "Draft"):
             logger.info(f"Auto-reverting sibling ChangeSpec: {cs.name} ({cs.status})")
             if console:
+                from sase.project_display_names import humanize_cl_name
+
                 console.print(
-                    f"[yellow]Auto-reverting sibling {cs.status}:[/] {cs.name}"
+                    f"[yellow]Auto-reverting sibling {cs.status}:[/] "
+                    f"{humanize_cl_name(cs.name)}"
                 )
             success, error = revert_changespec(cs, console=console)
             if not success:

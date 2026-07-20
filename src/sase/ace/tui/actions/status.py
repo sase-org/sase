@@ -24,13 +24,14 @@ def _revert_task(file_path: str, name: str) -> tuple[bool, str]:
 
     changespecs = parse_project_file(file_path)
     cs = next((c for c in changespecs if c.name == name), None)
+    display_name = humanize_cl_name(name)
     if cs is None:
-        return (False, f"ChangeSpec '{name}' not found")
+        return (False, f"ChangeSpec '{display_name}' not found")
 
     success, error_msg = revert_changespec(cs, Console())
     if success:
-        return (True, f"Reverted {name}")
-    return (False, error_msg or f"Failed to revert {name}")
+        return (True, f"Reverted {display_name}")
+    return (False, error_msg or f"Failed to revert {display_name}")
 
 
 def _submit_task(file_path: str, name: str, project_basename: str) -> tuple[bool, str]:
@@ -40,9 +41,10 @@ def _submit_task(file_path: str, name: str, project_basename: str) -> tuple[bool
     from sase.workspace_provider import submit_changespec
 
     success, error_msg = submit_changespec(file_path, name, project_basename, Console())
+    display_name = humanize_cl_name(name)
     if success:
-        return (True, f"Submitted {name}")
-    return (False, error_msg or f"Failed to submit {name}")
+        return (True, f"Submitted {display_name}")
+    return (False, error_msg or f"Failed to submit {display_name}")
 
 
 def _archive_task(file_path: str, name: str) -> tuple[bool, str]:
@@ -54,13 +56,14 @@ def _archive_task(file_path: str, name: str) -> tuple[bool, str]:
 
     changespecs = parse_project_file(file_path)
     cs = next((c for c in changespecs if c.name == name), None)
+    display_name = humanize_cl_name(name)
     if cs is None:
-        return (False, f"ChangeSpec '{name}' not found")
+        return (False, f"ChangeSpec '{display_name}' not found")
 
     success, error_msg = archive_changespec(cs, Console())
     if success:
-        return (True, f"Archived {name}")
-    return (False, error_msg or f"Failed to archive {name}")
+        return (True, f"Archived {display_name}")
+    return (False, error_msg or f"Failed to archive {display_name}")
 
 
 def _restore_task(file_path: str, name: str, target_status: str) -> tuple[bool, str]:
@@ -78,12 +81,13 @@ def _restore_task(file_path: str, name: str, target_status: str) -> tuple[bool, 
 
     changespecs = parse_project_file(file_path)
     cs = next((c for c in changespecs if c.name == name), None)
+    display_name = humanize_cl_name(name)
     if cs is None:
-        return (False, f"ChangeSpec '{name}' not found")
+        return (False, f"ChangeSpec '{display_name}' not found")
 
     success, error_msg = restore_changespec(cs, Console())
     if not success:
-        return (False, error_msg or f"Failed to restore {name}")
+        return (False, error_msg or f"Failed to restore {display_name}")
 
     if target_status in ("Draft", "Ready"):
         base_name = strip_reverted_suffix(name)
@@ -106,9 +110,9 @@ def _restore_task(file_path: str, name: str, target_status: str) -> tuple[bool, 
                     f"Restored but failed to transition to {target_status}: {error_msg}",
                 )
             return (True, f"Restored and set to {target_status}")
-        return (True, f"Restored {name} to WIP")
+        return (True, f"Restored {display_name} to WIP")
 
-    return (True, f"Restored {name}")
+    return (True, f"Restored {display_name}")
 
 
 def _transition_with_siblings_task(
@@ -125,8 +129,8 @@ def _transition_with_siblings_task(
 
     if success:
         msg_parts = [f"Status updated: {old_status} -> {new_status}"]
-        reverted = [r.name for r in sibling_results if r.success]
-        failed = [r.name for r in sibling_results if not r.success]
+        reverted = [humanize_cl_name(r.name) for r in sibling_results if r.success]
+        failed = [humanize_cl_name(r.name) for r in sibling_results if not r.success]
         if reverted:
             msg_parts.append(f"Auto-reverted siblings: {', '.join(reverted)}")
         if failed:
@@ -281,8 +285,10 @@ class StatusActionsMixin:
             msg_parts = [f"Status updated: {old_status} -> {new_status}"]
 
             # Add info about reverted siblings
-            reverted = [r.name for r in sibling_results if r.success]
-            failed = [r.name for r in sibling_results if not r.success]
+            reverted = [humanize_cl_name(r.name) for r in sibling_results if r.success]
+            failed = [
+                humanize_cl_name(r.name) for r in sibling_results if not r.success
+            ]
 
             if reverted:
                 msg_parts.append(f"Auto-reverted siblings: {', '.join(reverted)}")

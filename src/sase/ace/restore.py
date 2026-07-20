@@ -19,6 +19,7 @@ from sase.running_field import (
     update_running_field_cl_name,
 )
 from sase.vcs_provider import get_vcs_provider
+from sase.project_display_names import humanize_cl_name
 
 from .changespec import ChangeSpec, find_all_changespecs
 from .revert import update_changespec_name_atomic
@@ -145,7 +146,7 @@ def restore_changespec(
     # Extract base name (without __<N> suffix)
     base_name = strip_reverted_suffix(changespec.name)
     if console:
-        console.print(f"[cyan]Base name: {_esc(base_name)}[/cyan]")
+        console.print(f"[cyan]Base name: {_esc(humanize_cl_name(base_name))}[/cyan]")
 
     # Rename the ChangeSpec to remove the __<N> suffix
     # This allows sase commit to find it and use its description
@@ -156,7 +157,9 @@ def restore_changespec(
             )
             if console:
                 console.print(
-                    f"[green]Renamed ChangeSpec: {_esc(changespec.name)} → {_esc(base_name)}[/green]"
+                    "[green]Renamed ChangeSpec: "
+                    f"{_esc(humanize_cl_name(changespec.name))} → "
+                    f"{_esc(humanize_cl_name(base_name))}[/green]"
                 )
             # Also update any RUNNING field entries that reference the old name
             update_running_field_cl_name(
@@ -179,6 +182,7 @@ def restore_changespec(
         if changespec.parent
         else provider.get_default_parent_revision(workspace_dir)
     )
+    # Checkout and command arguments below are canonical execution values.
     update_target = provider.resolve_revision(
         update_target, changespec.project_basename, workspace_dir
     )
@@ -212,6 +216,7 @@ def restore_changespec(
 
     # Run sase commit - it will find the renamed ChangeSpec and use its description
     if console:
+        # Keep the exact command argument visible and copyable.
         console.print(f"[cyan]Running sase commit {base_name}...[/cyan]")
 
     success, error = run_workspace_command(

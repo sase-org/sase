@@ -55,7 +55,13 @@ def handle_doctor_command(args: argparse.Namespace) -> int:
     if getattr(args, "json", False):
         print(diagnostic_report_to_json(report))
     else:
-        render_diagnostic_report(report, verbose=bool(getattr(args, "verbose", False)))
+        from sase.project_display_names import load_project_display_snapshot
+
+        render_diagnostic_report(
+            report,
+            verbose=bool(getattr(args, "verbose", False)),
+            project_display_snapshot=load_project_display_snapshot(),
+        )
     return report.exit_code()
 
 

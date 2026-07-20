@@ -271,7 +271,9 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
             return
 
         try:
-            entries = await asyncio.to_thread(self._read_prompt_stash_entries)
+            presentation = await asyncio.to_thread(
+                self._read_prompt_stash_presentation_snapshot
+            )
         except Exception as exc:
             self.notify(  # type: ignore[attr-defined]
                 self._prompt_stash_error_message(
@@ -281,7 +283,7 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
                 severity="error",
             )
             return
-        pinned = [entry for entry in entries if entry.pinned]
+        pinned = [entry for entry in presentation.entries if entry.pinned]
         if not pinned:
             self.notify(  # type: ignore[attr-defined]
                 "No pinned prompt stash to update — pin one with space in the "
@@ -309,7 +311,10 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
             )
 
         self.push_screen(  # type: ignore[attr-defined]
-            UpdatePinnedStashModal(pinned),
+            UpdatePinnedStashModal(
+                pinned,
+                project_display_snapshot=presentation.project_display_snapshot,
+            ),
             _on_picked,
         )
 

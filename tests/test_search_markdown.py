@@ -1,6 +1,7 @@
 """Tests for sase changespec search --format markdown output."""
 
 from io import StringIO
+from types import SimpleNamespace
 
 from inline_snapshot import snapshot
 
@@ -14,6 +15,7 @@ from sase.ace.changespec import (
     MentorStatusLine,
 )
 from sase.main.search_handler import _display_markdown, _md_status_indicator
+from sase.project_display_names import ProjectDisplaySnapshot
 
 
 def _cs(
@@ -27,6 +29,7 @@ def _cs(
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
     mentors: list[MentorEntry] | None = None,
+    project_name: str = "myproject",
 ) -> ChangeSpec:
     return ChangeSpec(
         name=name,
@@ -34,7 +37,7 @@ def _cs(
         parent=parent,
         cl=cl,
         status=status,
-        file_path="/home/user/.sase/projects/myproject/myproject.sase",
+        file_path=(f"/home/user/.sase/projects/{project_name}/{project_name}.sase"),
         line_number=1,
         bug=bug,
         commits=commits,
@@ -44,14 +47,23 @@ def _cs(
     )
 
 
-def _capture_markdown(changespecs: list[ChangeSpec], *, query: str = "") -> str:
+def _capture_markdown(
+    changespecs: list[ChangeSpec],
+    *,
+    query: str = "",
+    project_display_snapshot: ProjectDisplaySnapshot | None = None,
+) -> str:
     """Capture _display_markdown output as a string."""
     import sys
 
     old_stdout = sys.stdout
     sys.stdout = buf = StringIO()
     try:
-        _display_markdown(changespecs, query=query)
+        _display_markdown(
+            changespecs,
+            query=query,
+            project_display_snapshot=project_display_snapshot,
+        )
     finally:
         sys.stdout = old_stdout
     return buf.getvalue()
@@ -276,6 +288,47 @@ Found 2 change(s): 1 Draft, 1 WIP
 > Second change
 
 """)
+
+    def test_projected_headings_links_parents_projects_and_claims(
+        self,
+        monkeypatch,
+    ) -> None:
+        canonical = "gh_acme__widgets"
+        display = ProjectDisplaySnapshot({canonical: "widgets"})
+        changespecs = [
+            _cs(
+                name=f"{canonical}_child",
+                parent=f"{canonical}_parent",
+                project_name=canonical,
+            ),
+            _cs(
+                name=f"{canonical}_other",
+                project_name=canonical,
+            ),
+        ]
+        monkeypatch.setattr(
+            "sase.running_field.get_claimed_workspaces",
+            lambda _path: [
+                SimpleNamespace(
+                    workspace_num=7,
+                    pid=123,
+                    workflow="axe",
+                    cl_name=f"{canonical}_child",
+                )
+            ],
+        )
+
+        out = _capture_markdown(
+            changespecs,
+            project_display_snapshot=display,
+        )
+
+        assert "[widgets_child](#widgets_child)" in out
+        assert "## widgets_child" in out
+        assert "**Project:** widgets" in out
+        assert "**Parent:** widgets_parent" in out
+        assert "| #7 | 123 | axe | widgets_child |" in out
+        assert canonical not in out
 
 
 # ---------------------------------------------------------------------------

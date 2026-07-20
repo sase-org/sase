@@ -2,9 +2,8 @@
 
 Locks in the compact, centered pop-up layout introduced for the custom-agent
 picker: icon'd title with a live match count, prominent filter bar, hint line,
-color-coded option list, and footer. Projects and ChangeSpecs are injected
-deterministically by patching ``list_launchable_projects`` and
-``find_all_changespecs`` in the modal module, so no real project state is read.
+color-coded option list, and footer. Projects and ChangeSpecs are injected as
+one preloaded snapshot, so no real project state is read by the modal.
 """
 
 from __future__ import annotations
@@ -13,7 +12,11 @@ import pytest
 
 from sase.ace.changespec import ChangeSpec
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals.project_select_modal import ProjectSelectModal
+from sase.ace.tui.modals.project_select_modal import (
+    _ProjectSelectData,
+    ProjectSelectModal,
+)
+from sase.project_display_names import ProjectDisplayProjection, ProjectDisplaySnapshot
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -25,8 +28,11 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-def _select_projects() -> list[str]:
-    return ["home", "ace-tui", "rust-core", "telegram-bridge"]
+def _select_projects() -> tuple[ProjectDisplayProjection, ...]:
+    return tuple(
+        ProjectDisplayProjection(name, name)
+        for name in ("home", "ace-tui", "rust-core", "telegram-bridge")
+    )
 
 
 def _select_changespecs() -> list[ChangeSpec]:
@@ -61,19 +67,19 @@ def _select_changespecs() -> list[ChangeSpec]:
     ]
 
 
-def _patch_select_sources(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.project_select_modal.list_launchable_projects",
-        _select_projects,
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.project_select_modal.find_all_changespecs",
-        _select_changespecs,
+def _select_data() -> _ProjectSelectData:
+    projects = _select_projects()
+    return _ProjectSelectData(
+        projects=projects,
+        changespecs=tuple(_select_changespecs()),
+        project_display_snapshot=ProjectDisplaySnapshot(
+            {item.project_key: item.project_label for item in projects}
+        ),
     )
 
 
 async def _open_modal(page: AcePage) -> ProjectSelectModal:
-    modal = ProjectSelectModal(include_all=True)
+    modal = ProjectSelectModal(_select_data(), include_all=True)
     page.app.push_screen(modal)
     await page.expect_modal("ProjectSelectModal")
     await wait_for_visual_idle(page)
@@ -85,8 +91,6 @@ async def test_project_select_modal_default_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_select_sources(monkeypatch)
-
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         await _open_modal(page)
@@ -103,8 +107,6 @@ async def test_project_select_modal_filtered_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    _patch_select_sources(monkeypatch)
-
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         await _open_modal(page)

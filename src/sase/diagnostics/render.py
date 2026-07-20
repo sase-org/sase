@@ -18,6 +18,10 @@ from sase.diagnostics.models import (
     diagnostic_report_to_dict,
     redact_string,
 )
+from sase.project_display_names import (
+    ProjectDisplaySnapshot,
+    humanize_cl_names_in_text,
+)
 
 _STATUS_STYLES: dict[CheckStatus, str] = {
     "OK": "green",
@@ -37,14 +41,28 @@ def render_diagnostic_report(
     *,
     verbose: bool = False,
     console: Console | None = None,
+    project_display_snapshot: ProjectDisplaySnapshot | None = None,
 ) -> None:
     """Render a compact grouped Rich report."""
     target = console or Console()
-    renderables: list[RenderableType] = [_summary_panel(report, verbose=verbose)]
+    renderables: list[RenderableType] = [
+        _summary_panel(
+            report,
+            verbose=verbose,
+            project_display_snapshot=project_display_snapshot,
+        )
+    ]
     grouped = _group_checks(_visible_checks(tuple(report.checks), verbose=verbose))
     if grouped:
         for group, checks in grouped.items():
-            renderables.append(_checks_table(group, checks, verbose=verbose))
+            renderables.append(
+                _checks_table(
+                    group,
+                    checks,
+                    verbose=verbose,
+                    project_display_snapshot=project_display_snapshot,
+                )
+            )
     else:
         renderables.append(
             Panel(
@@ -57,12 +75,20 @@ def render_diagnostic_report(
     target.print(Group(*renderables))
 
 
-def _summary_panel(report: DiagnosticReport, *, verbose: bool) -> Panel:
+def _summary_panel(
+    report: DiagnosticReport,
+    *,
+    verbose: bool,
+    project_display_snapshot: ProjectDisplaySnapshot | None,
+) -> Panel:
     table = Table.grid(padding=(0, 2))
     table.add_column(style="bold", no_wrap=True)
     table.add_column(overflow="fold")
     table.add_row("Status", _status_text(report.status))
-    table.add_row("Project", Text(report.project or "-", overflow="fold"))
+    project = report.project or "-"
+    if report.project and project_display_snapshot is not None:
+        project = project_display_snapshot.label_for(report.project)
+    table.add_row("Project", Text(project, overflow="fold"))
     if verbose:
         table.add_row("Generated", Text(report.generated_at, overflow="fold"))
         table.add_row("CWD", Text(redact_string(report.cwd), overflow="fold"))
@@ -86,6 +112,7 @@ def _checks_table(
     checks: Sequence[DiagnosticCheck],
     *,
     verbose: bool,
+    project_display_snapshot: ProjectDisplaySnapshot | None,
 ) -> Table:
     table = Table(title=_group_title(group), show_header=True, header_style="bold")
     table.add_column("Status", no_wrap=True)
@@ -97,10 +124,19 @@ def _checks_table(
         table.add_column("ms", justify="right", no_wrap=True)
 
     for check in checks:
+        summary = check.summary
+        if check.id == "project.current" and project_display_snapshot is not None:
+            # ``project.current`` embeds the canonical project key in its
+            # otherwise human-facing summary.  Its data and next-step command
+            # arguments intentionally remain exact/canonical.
+            summary = humanize_cl_names_in_text(
+                summary,
+                snapshot=project_display_snapshot,
+            )
         row: list[RenderableType] = [
             _status_text(check.status),
             Text(check.id, overflow="fold"),
-            Text(redact_string(check.summary), overflow="fold"),
+            Text(redact_string(summary), overflow="fold"),
             Text(_join_lines(check.next_steps), overflow="fold"),
         ]
         if verbose:

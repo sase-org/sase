@@ -150,8 +150,10 @@ def handle_restore_command(args: argparse.Namespace) -> NoReturn:
             console.print("[yellow]No reverted ChangeSpecs found.[/yellow]")
         else:
             console.print("[bold]Reverted ChangeSpecs:[/bold]")
+            from sase.project_display_names import humanize_cl_name
+
             for cs in reverted:
-                console.print(f"  {cs.name}")
+                console.print(f"  {humanize_cl_name(cs.name)}")
         sys.exit(0)
 
     # Validate required argument when not using --list

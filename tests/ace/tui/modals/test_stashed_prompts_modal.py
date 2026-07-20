@@ -27,6 +27,7 @@ from sase.ace.tui.modals.stashed_prompts_modal import (
     StashedPromptsModal,
 )
 from sase.core.prompt_stash_wire import PromptStashEntryWire
+from sase.project_display_names import ProjectDisplaySnapshot
 
 
 def _entry(
@@ -80,6 +81,23 @@ def test_project_chip_pads_and_placeholders() -> None:
             age="2m ago",
         ).plain
     )
+
+
+def test_project_chip_uses_preloaded_label_without_changing_entry() -> None:
+    canonical = "gh_acme__widgets"
+    entry = _entry("display", project=canonical)
+    label = stash_row_label(
+        entry,
+        marked_for_pop=False,
+        marked_for_delete=False,
+        pinned=False,
+        age="2m ago",
+        project_display_snapshot=ProjectDisplaySnapshot({canonical: "widgets"}),
+    ).plain
+
+    assert "widgets" in label
+    assert canonical not in label
+    assert entry.project == canonical
     assert (
         "a-very-long-p…"
         in stash_row_label(

@@ -13,6 +13,7 @@ from textual.widgets import Label, Static
 from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 from sase.history.prompt_metadata import summarize_prompt_for_preview
+from sase.project_display_names import ProjectDisplaySnapshot
 
 from ._prompt_history_preview import append_metadata_row
 from .prompt_stash_row import stash_row_age
@@ -44,12 +45,16 @@ def _build_prompt_stash_metadata(
     entry: PromptStashEntryWire,
     *,
     prompt_count: int,
+    project_display_snapshot: ProjectDisplaySnapshot | None = None,
 ) -> Text:
     """Build the metadata footer for one stash entry."""
     summary = summarize_prompt_for_preview(entry.text)
     metadata = Text()
     metadata.append("\n--- Metadata ---\n", style="dim")
-    append_metadata_row(metadata, "Project", entry.project or _PROJECT_PLACEHOLDER)
+    project = entry.project
+    if project and project_display_snapshot is not None:
+        project = project_display_snapshot.label_for(project)
+    append_metadata_row(metadata, "Project", project or _PROJECT_PLACEHOLDER)
     if summary.xprompts:
         append_metadata_row(
             metadata,
@@ -79,6 +84,7 @@ def _build_prompt_stash_preview(
     *,
     prompt_count: int,
     highlighted_body: Text | None = None,
+    project_display_snapshot: ProjectDisplaySnapshot | None = None,
 ) -> _PromptStashPreviewContent:
     """Build all renderable pieces for one stash entry."""
     return _PromptStashPreviewContent(
@@ -88,7 +94,11 @@ def _build_prompt_stash_preview(
             if highlighted_body is not None
             else highlight_prompt_text(entry.text)
         ),
-        metadata=_build_prompt_stash_metadata(entry, prompt_count=prompt_count),
+        metadata=_build_prompt_stash_metadata(
+            entry,
+            prompt_count=prompt_count,
+            project_display_snapshot=project_display_snapshot,
+        ),
     )
 
 
@@ -117,12 +127,14 @@ class PromptStashPreviewPane(Vertical):
         *,
         prompt_count: int,
         highlighted_body: Text | None = None,
+        project_display_snapshot: ProjectDisplaySnapshot | None = None,
     ) -> None:
         """Render *entry* and reset the preview scroll position."""
         content = _build_prompt_stash_preview(
             entry,
             prompt_count=prompt_count,
             highlighted_body=highlighted_body,
+            project_display_snapshot=project_display_snapshot,
         )
         placeholder = self.query_one(".prompt-stash-preview-placeholder", Static)
         frontmatter = self.query_one(".prompt-stash-preview-frontmatter", Static)

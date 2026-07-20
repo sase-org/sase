@@ -82,7 +82,9 @@ class PromptBarStashRestoreMixin(PromptBarStashStoreMixin):
             return
 
         try:
-            entries = await asyncio.to_thread(self._read_prompt_stash_entries)
+            presentation = await asyncio.to_thread(
+                self._read_prompt_stash_presentation_snapshot
+            )
         except Exception as exc:
             self.notify(  # type: ignore[attr-defined]
                 self._prompt_stash_error_message(
@@ -92,6 +94,7 @@ class PromptBarStashRestoreMixin(PromptBarStashStoreMixin):
                 severity="error",
             )
             return
+        entries = list(presentation.entries)
         if not entries:
             self.notify("No stashed prompts to restore")  # type: ignore[attr-defined]
             return
@@ -101,7 +104,10 @@ class PromptBarStashRestoreMixin(PromptBarStashStoreMixin):
             return
 
         self.push_screen(  # type: ignore[attr-defined]
-            StashedPromptsModal(entries),
+            StashedPromptsModal(
+                entries,
+                project_display_snapshot=presentation.project_display_snapshot,
+            ),
             self._on_prompt_stash_restore_confirmed,
         )
 

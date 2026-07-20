@@ -152,3 +152,75 @@ def test_save_if_launchable_accepts_launchable_project(
     data = json.loads(selection_file.read_text(encoding="utf-8"))
     assert data["project_name"] == "proj"
     assert data["cl_name"] == "branch"
+
+
+def test_persisted_project_identity_survives_display_label_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    canonical = "gh_acme__widgets"
+    projects = tmp_path / "sase-home" / "projects"
+    project_dir = projects / canonical
+    project_dir.mkdir(parents=True)
+    project_file = project_dir / f"{canonical}.sase"
+    project_file.write_text("PROJECT_NAME: widgets\n", encoding="utf-8")
+    selection_file = tmp_path / "last_agent_selection.json"
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
+    monkeypatch.setattr(
+        "sase.ace.last_agent_selection._LAST_SELECTION_FILE", selection_file
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.is_launchable_project",
+        lambda name, projects_dir=None: name == canonical,
+    )
+
+    assert save_last_agent_selection_if_launchable(
+        SelectionItem(
+            display_name="[P] widgets",
+            item_type="project",
+            project_name=canonical,
+            cl_name=None,
+        )
+    )
+    stored = json.loads(selection_file.read_text(encoding="utf-8"))
+    assert stored["project_name"] == canonical
+
+    project_file.write_text("PROJECT_NAME: gadgets\n", encoding="utf-8")
+    loaded = load_last_agent_selection()
+
+    assert loaded is not None
+    assert loaded.project_name == canonical
+    assert loaded.display_name == "[P] gadgets"
+
+
+def test_load_normalizes_legacy_display_form_project_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    canonical = "gh_acme__widgets"
+    project_dir = tmp_path / "sase-home" / "projects" / canonical
+    project_dir.mkdir(parents=True)
+    (project_dir / f"{canonical}.sase").write_text(
+        "PROJECT_NAME: widgets\n",
+        encoding="utf-8",
+    )
+    selection_file = tmp_path / "last_agent_selection.json"
+    selection_file.write_text(
+        json.dumps(
+            {
+                "display_name": "[P] widgets",
+                "item_type": "project",
+                "project_name": "widgets",
+                "cl_name": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
+
+    with patch("sase.ace.last_agent_selection._LAST_SELECTION_FILE", selection_file):
+        loaded = load_last_agent_selection()
+
+    assert loaded is not None
+    assert loaded.project_name == canonical
+    assert loaded.display_name == "[P] widgets"

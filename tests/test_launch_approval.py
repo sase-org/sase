@@ -126,6 +126,8 @@ def _write_tui_launch_request(
     *,
     request_id: str = "launch-dispatch",
     prompt: str = "%i(reviewer, family=foo)\nDo work",
+    project_name: str = "demo",
+    cl_name: str = "demo",
 ) -> None:
     response_dir.mkdir()
     launch_cwd.mkdir()
@@ -140,9 +142,9 @@ def _write_tui_launch_request(
                 "slots": [
                     {
                         "workspace": {
-                            "cl_name": "demo",
-                            "project_file": str(launch_cwd / "demo.sase"),
-                            "project_name": "demo",
+                            "cl_name": cl_name,
+                            "project_file": str(launch_cwd / f"{project_name}.sase"),
+                            "project_name": project_name,
                         }
                     }
                 ],
@@ -724,6 +726,66 @@ def test_tui_launch_approval_approve_dispatches_stored_request(
     ]
     assert app.refresh_count == 1
     assert app.agent_refresh_sources == ["launch"]
+
+
+def test_tui_launch_approval_projects_completed_task_label_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    canonical = "gh_acme__widgets"
+    canonical_cl = f"{canonical}_feature"
+    response_dir = tmp_path / "launch"
+    launch_cwd = tmp_path / "workspace"
+    _write_tui_launch_request(
+        response_dir,
+        launch_cwd,
+        project_name=canonical,
+        cl_name=canonical_cl,
+    )
+    project_dir = tmp_path / "sase-home" / "projects" / canonical
+    project_dir.mkdir(parents=True)
+    (project_dir / f"{canonical}.sase").write_text(
+        "PROJECT_NAME: widgets\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
+    notification = _launch_notification(response_dir)
+    app = _TuiLaunchApprovalApp()
+    notifications_path, pending_path = _isolated_notification_paths(tmp_path)
+
+    from sase.notifications import store as notification_store
+
+    with (
+        patch(
+            "sase.agent.launcher.launch_agents_from_cwd",
+            return_value=[
+                AgentLaunchResult(
+                    pid=123,
+                    workspace_num=1,
+                    workspace_dir=str(launch_cwd),
+                    output_path="/tmp/out",
+                )
+            ],
+        ),
+        patch.object(notification_store, "NOTIFICATIONS_FILE", str(notifications_path)),
+        patch.object(pending_actions, "PENDING_ACTIONS_PATH", pending_path),
+    ):
+        _drive_tui_launch_approval(
+            app,
+            notification,
+            LaunchApprovalResult(action="approve"),
+        )
+
+    task_info = app.tracked_tasks[0]["task_info"]
+    assert task_info.display_name == "approve launch widgets_feature"
+    assert task_info.cl_name == canonical_cl
+    assert task_info.project_file == str(launch_cwd / f"{canonical}.sase")
+    stored_request = json.loads(
+        (response_dir / LAUNCH_REQUEST_FILE).read_text(encoding="utf-8")
+    )
+    workspace = stored_request["slots"][0]["workspace"]
+    assert workspace["project_name"] == canonical
+    assert workspace["cl_name"] == canonical_cl
 
 
 def test_tui_launch_approval_reject_does_not_dispatch(

@@ -55,12 +55,13 @@ def load_last_agent_selection() -> SelectionItem | None:
         ):
             return None
         item_type = cast(_SelectionItemType, item_type)
-        return SelectionItem(
+        selection = SelectionItem(
             display_name=display_name,
             item_type=item_type,
             project_name=project_name,
             cl_name=cl_name,
         )
+        return _normalize_selection(selection)
     except (OSError, json.JSONDecodeError, TypeError, KeyError):
         return None
 
@@ -75,10 +76,22 @@ def _save_last_agent_selection(selection: SelectionItem) -> bool:
         True if saved successfully, False otherwise.
     """
     try:
+        selection = _normalize_selection(selection)
         path = _last_selection_file()
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
-            json.dump(dataclasses.asdict(selection), f, indent=2)
+            # Preserve the existing wire shape. Identity fields are canonical;
+            # the compatibility ``display_name`` is recomputed on load/replay.
+            json.dump(
+                {
+                    "display_name": selection.display_name,
+                    "item_type": selection.item_type,
+                    "project_name": selection.project_name,
+                    "cl_name": selection.cl_name,
+                },
+                f,
+                indent=2,
+            )
         return True
     except OSError:
         return False
@@ -97,9 +110,42 @@ def save_last_agent_selection_if_launchable(selection: SelectionItem) -> bool:
         return _save_last_agent_selection(selection)
     from sase.ace.tui.modals.project_discovery import is_launchable_project
 
-    if not is_launchable_project(selection.project_name):
+    normalized_selection = _normalize_selection(selection)
+    if not is_launchable_project(normalized_selection.project_name):
         return False
     return _save_last_agent_selection(selection)
+
+
+def _normalize_selection(selection: SelectionItem) -> SelectionItem:
+    """Canonicalize persisted identity and refresh its presentation label."""
+    if selection.item_type in ("home", "all"):
+        return selection
+
+    from sase.project_aliases import resolve_project_alias_ref
+    from sase.project_display_names import (
+        humanize_cl_name,
+        load_project_display_snapshot,
+    )
+
+    project_name = resolve_project_alias_ref(selection.project_name)
+    display_snapshot = load_project_display_snapshot()
+    project_label = display_snapshot.label_for(project_name)
+    if selection.item_type == "project":
+        selection_label = project_label
+        display_name = f"[P] {selection_label}"
+    else:
+        selection_label = humanize_cl_name(
+            selection.cl_name or "",
+            snapshot=display_snapshot,
+        )
+        display_name = f"[PR] {selection_label}"
+    return dataclasses.replace(
+        selection,
+        display_name=display_name,
+        project_name=project_name,
+        project_label=project_label,
+        selection_label=selection_label,
+    )
 
 
 def clear_last_agent_selection() -> bool:

@@ -70,10 +70,10 @@ class EntryCustomMixin:
     def action_start_custom_agent(self) -> None:
         """Start a custom agent by selecting project or PR (works on all tabs)."""
         from ...modals import (
-            ProjectSelectModal,
             ProjectSelectResult,
             SelectionItem,
         )
+        from ...modals.project_select_modal import show_project_select_modal
 
         def on_project_select(result: ProjectSelectResult | None) -> None:
             if result is None:
@@ -111,8 +111,10 @@ class EntryCustomMixin:
                 selection, open_in_editor=open_in_editor
             )
 
-        self.push_screen(  # type: ignore[attr-defined]
-            ProjectSelectModal(exclude_project_names={"home"}), on_project_select
+        show_project_select_modal(
+            self,
+            on_project_select,
+            exclude_project_names={"home"},
         )
 
     def _start_custom_agent_from_selection(
@@ -146,19 +148,24 @@ class EntryCustomMixin:
         project_file = preferred_project_spec_path(project_dir, project_name)
 
         if selection.item_type == "cl" and selection.cl_name:
-            prefix = self._vcs_prompt_prefix_or_notify(project_file, selection.cl_name)
+            from sase.project_display_names import humanize_cl_name
+
+            display_name = selection.selection_label or humanize_cl_name(
+                selection.cl_name
+            )
+            prefix = self._vcs_prompt_prefix_or_notify(project_file, display_name)
             if prefix is None:
                 return
             if open_in_editor:
                 self._select_and_open_editor_for_home(  # type: ignore[attr-defined]
                     initial_text=prefix,
-                    display_name=selection.cl_name,
+                    display_name=display_name,
                     history_sort_key=selection.cl_name,
                 )
             else:
                 self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
                     initial_text=prefix,
-                    display_name=selection.cl_name,
+                    display_name=display_name,
                     history_sort_key=selection.cl_name,
                 )
         else:
@@ -168,7 +175,11 @@ class EntryCustomMixin:
             # key stays the canonical directory key.
             from sase.project_display_names import project_display_name_for
 
-            display_name = project_display_name_for(project_name)
+            display_name = (
+                selection.selection_label
+                or selection.project_label
+                or project_display_name_for(project_name)
+            )
             prefix = self._vcs_prompt_prefix_or_notify(project_file, display_name)
             if prefix is None:
                 return

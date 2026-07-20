@@ -68,6 +68,38 @@ class TestList:
         assert payload["project"] == project_name
         assert payload["root_policy"] == "absolute"
 
+    def test_human_list_uses_configured_label_but_json_keeps_identity(
+        self,
+        project_layout: tuple[str, str, Path],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        project_name, project_file, _primary = project_layout
+        path = Path(project_file)
+        path.write_text(
+            f"PROJECT_NAME: widgets\n{path.read_text(encoding='utf-8')}",
+            encoding="utf-8",
+        )
+
+        human_args = make_args(
+            workspace_subcommand="list",
+            project=project_name,
+            json=False,
+        )
+        with pytest.raises(SystemExit, match="0"):
+            handle_workspace_command(human_args)
+        assert "Project: widgets" in capsys.readouterr().out
+
+        json_args = make_args(
+            workspace_subcommand="list",
+            project=project_name,
+            json=True,
+        )
+        with pytest.raises(SystemExit, match="0"):
+            handle_workspace_command(json_args)
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["project"] == project_name
+        assert payload["project_key"] == "demo-key"
+
     def test_list_does_not_auto_initialize_sdd(
         self,
         project_layout: tuple[str, str, Path],

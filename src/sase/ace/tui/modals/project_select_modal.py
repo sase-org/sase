@@ -1,5 +1,6 @@
 """Project/PR selection modal with filtering for the ace TUI."""
 
+import asyncio
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -17,15 +18,82 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.core.paths import sase_projects_dir
+from sase.project_display_names import (
+    ProjectDisplayProjection,
+    ProjectDisplaySnapshot,
+    humanize_cl_name,
+)
 
-from ...changespec import find_all_changespecs, parse_project_file
+from ...changespec import ChangeSpec, find_all_changespecs, parse_project_file
 from ...changespec.project_spec_path import (
     archive_project_spec_filename,
     preferred_project_spec_path,
 )
 from .base import FilterInput, OptionListNavigationMixin
 from .confirm_delete_modal import ConfirmDeleteModal
-from .project_discovery import list_launchable_projects
+from .project_discovery import load_launchable_project_snapshot
+
+
+@dataclass(frozen=True)
+class _ProjectSelectData:
+    """Worker-loaded identity and presentation snapshot for the picker."""
+
+    projects: tuple[ProjectDisplayProjection, ...]
+    changespecs: tuple[ChangeSpec, ...]
+    project_display_snapshot: ProjectDisplaySnapshot
+
+
+def _load_project_select_data() -> _ProjectSelectData:
+    """Load all picker inputs off the Textual UI thread."""
+    project_display_snapshot, projects = load_launchable_project_snapshot()
+    return _ProjectSelectData(
+        projects=projects,
+        changespecs=tuple(find_all_changespecs()),
+        project_display_snapshot=project_display_snapshot,
+    )
+
+
+def show_project_select_modal(
+    owner: object,
+    callback: object,
+    *,
+    include_all: bool = False,
+    exclude_project_names: Iterable[str] = (),
+) -> None:
+    """Worker-load picker data, then mount the pure presentation modal."""
+    exclusions = tuple(exclude_project_names)
+
+    async def _load_and_show() -> None:
+        data = await asyncio.to_thread(_load_project_select_data)
+        owner.push_screen(  # type: ignore[attr-defined]
+            ProjectSelectModal(
+                data,
+                include_all=include_all,
+                exclude_project_names=exclusions,
+            ),
+            callback,
+        )
+
+    from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
+
+    task = spawn_pump_free_task(
+        owner,
+        _load_and_show(),
+        name="project-select-load",
+        registry_attr="_project_select_tasks",
+    )
+    if task is None:
+        # Narrow non-running-loop callers (primarily unit-test adapters) still
+        # get deterministic behavior. Real Textual actions always take the
+        # worker path above.
+        owner.push_screen(  # type: ignore[attr-defined]
+            ProjectSelectModal(
+                _load_project_select_data(),
+                include_all=include_all,
+                exclude_project_names=exclusions,
+            ),
+            callback,
+        )
 
 
 @dataclass
@@ -36,6 +104,15 @@ class SelectionItem:
     item_type: Literal["project", "cl", "home", "all"]  # Type for processing
     project_name: str  # Project name
     cl_name: str | None  # ChangeSpec name if type is "cl", None for projects/home
+    project_label: str | None = None
+    selection_label: str | None = None
+
+    @property
+    def option_id(self) -> str:
+        """Return a canonical identity for the interactive option row."""
+        if self.item_type == "cl":
+            return f"cl:{self.project_name}:{self.cl_name or ''}"
+        return f"{self.item_type}:{self.project_name}"
 
 
 @dataclass
@@ -60,6 +137,7 @@ class ProjectSelectModal(
 
     def __init__(
         self,
+        data: _ProjectSelectData,
         *,
         include_all: bool = False,
         exclude_project_names: Iterable[str] = (),
@@ -74,6 +152,7 @@ class ProjectSelectModal(
         self.all_items: list[SelectionItem] = []
         self._include_all = include_all
         self._exclude_project_names = frozenset(exclude_project_names)
+        self._data = data
         self._load_items()
 
     def _load_items(self) -> None:
@@ -89,30 +168,49 @@ class ProjectSelectModal(
                 )
             )
 
-        for project_name in list_launchable_projects():
-            if project_name in self._exclude_project_names:
+        for project in sorted(self._data.projects, key=lambda item: item.sort_key):
+            if project.project_key in self._exclude_project_names:
                 continue
             self.all_items.append(
                 SelectionItem(
-                    display_name=f"[P] {project_name}",
+                    display_name=f"[P] {project.project_label}",
                     item_type="project",
-                    project_name=project_name,
+                    project_name=project.project_key,
                     cl_name=None,
+                    project_label=project.project_label,
+                    selection_label=project.project_label,
                 )
             )
 
         # Load PRs with WIP, Draft, Ready, or Mailed status
-        for cs in find_all_changespecs():
+        changespec_items: list[SelectionItem] = []
+        for cs in self._data.changespecs:
             base_status = remove_workspace_suffix(cs.status)
             if base_status in ("WIP", "Draft", "Ready", "Mailed"):
-                self.all_items.append(
+                display_cl_name = humanize_cl_name(
+                    cs.name,
+                    snapshot=self._data.project_display_snapshot,
+                )
+                changespec_items.append(
                     SelectionItem(
-                        display_name=f"[PR] {cs.name} [{base_status}]",
+                        display_name=(f"[PR] {display_cl_name} [{base_status}]"),
                         item_type="cl",
                         project_name=cs.project_basename,
                         cl_name=cs.name,
+                        project_label=self._data.project_display_snapshot.label_for(
+                            cs.project_basename
+                        ),
+                        selection_label=display_cl_name,
                     )
                 )
+        changespec_items.sort(
+            key=lambda item: (
+                item.display_name.casefold(),
+                item.project_name,
+                item.cl_name or "",
+            )
+        )
+        self.all_items.extend(changespec_items)
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -164,8 +262,8 @@ class ProjectSelectModal(
     def _create_options(self, items: list[SelectionItem]) -> list[Option]:
         """Create options from items."""
         return [
-            Option(self._create_styled_label(item.display_name), id=str(i))
-            for i, item in enumerate(items)
+            Option(self._create_styled_label(item.display_name), id=item.option_id)
+            for item in items
         ]
 
     def _build_title(self, count: int) -> Text:
@@ -210,9 +308,9 @@ class ProjectSelectModal(
         filtered_items = self._get_filtered_items(query)
         option_list = self.query_one("#selection-list", OptionList)
         option_list.clear_options()
-        for i, item in enumerate(filtered_items):
+        for item in filtered_items:
             option_list.add_option(
-                Option(self._create_styled_label(item.display_name), id=str(i))
+                Option(self._create_styled_label(item.display_name), id=item.option_id)
             )
         if filtered_items:
             option_list.highlighted = 0
@@ -286,9 +384,12 @@ class ProjectSelectModal(
             # Get the current filtered items
             filter_input = self.query_one("#filter-input", FilterInput)
             filtered_items = self._get_filtered_items(filter_input.value)
-            idx = int(event.option.id)
-            if 0 <= idx < len(filtered_items):
-                self._dismiss_selection(filtered_items[idx])
+            selected = next(
+                (item for item in filtered_items if item.option_id == event.option.id),
+                None,
+            )
+            if selected is not None:
+                self._dismiss_selection(selected)
 
     def _get_highlighted_item(self) -> SelectionItem | None:
         """Get the currently highlighted SelectionItem."""
@@ -336,6 +437,8 @@ class ProjectSelectModal(
             return
 
         # Check if project file or archive file contains any ChangeSpecs
+        project_label = self._data.project_display_snapshot.label_for(item.project_name)
+        # File paths and deletion targets stay canonical.
         project_dir = sase_projects_dir() / item.project_name
         active_path = Path(
             preferred_project_spec_path(str(project_dir), item.project_name)
@@ -354,7 +457,7 @@ class ProjectSelectModal(
             changespecs.extend(parse_project_file(str(archive_path)))
         if changespecs:
             self.notify(
-                f"Cannot delete project '{item.project_name}': file contains ChangeSpecs",
+                f"Cannot delete project '{project_label}': file contains ChangeSpecs",
                 severity="error",
             )
             return
@@ -375,8 +478,6 @@ class ProjectSelectModal(
             self.all_items.remove(item)
             filter_input = self.query_one("#filter-input", FilterInput)
             self._apply_filter(filter_input.value)
-            self.notify(
-                f"Deleted project '{item.project_name}'", severity="information"
-            )
+            self.notify(f"Deleted project '{project_label}'", severity="information")
 
-        self.app.push_screen(ConfirmDeleteModal(item.project_name), _on_confirm)
+        self.app.push_screen(ConfirmDeleteModal(project_label), _on_confirm)

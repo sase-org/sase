@@ -107,7 +107,7 @@ def test_supplied_snapshot_helpers_do_not_reload_lifecycle_inventory(
     assert (
         pdn.project_display_name_for("gh_acme__widgets", snapshot=snapshot) == "widgets"
     )
-    assert pdn.project_display_for(
+    assert pdn._project_display_for(
         "missing", snapshot=snapshot
     ) == pdn.ProjectDisplayProjection("missing", "missing")
     assert (

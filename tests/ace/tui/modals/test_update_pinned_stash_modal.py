@@ -8,6 +8,7 @@ from textual.widgets import Static
 
 from sase.ace.tui.modals.update_pinned_stash_modal import UpdatePinnedStashModal
 from sase.core.prompt_stash_wire import PromptStashEntryWire
+from sase.project_display_names import ProjectDisplaySnapshot
 
 
 def _entry(
@@ -141,6 +142,21 @@ def test_rows_render_pin_glyph_preview_and_digit_gutter() -> None:
     assert plain.startswith(" 1  ")
     assert "📌" in plain
     assert "preview line" in plain
+
+
+def test_rows_use_project_label_but_keep_canonical_entry() -> None:
+    canonical = "gh_acme__widgets"
+    entry = _entry("a", project=canonical)
+    modal = UpdatePinnedStashModal(
+        [entry],
+        project_display_snapshot=ProjectDisplaySnapshot({canonical: "widgets"}),
+    )
+
+    option = modal._build_options()[0]
+    assert isinstance(option.prompt, Text)
+    assert "widgets" in option.prompt.plain
+    assert canonical not in option.prompt.plain
+    assert modal._entries[0].project == canonical
 
 
 def test_newest_first_ordering() -> None:

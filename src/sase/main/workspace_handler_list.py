@@ -82,7 +82,13 @@ def _print_single_project_human(
     ctx: ProjectContext,
     inventory: WorkspaceInventory,
 ) -> None:
-    print(f"Project: {ctx.project_name}  policy={ctx.store.root_policy}")
+    # The inventory already joins the canonical project key to its configured
+    # lifecycle label.  Keep ``ctx.project_name`` for resolution/JSON identity,
+    # but use that joined label at this presentation-only boundary.
+    project_label = (
+        inventory.projects[0].project if inventory.projects else ctx.project_name
+    )
+    print(f"Project: {project_label}  policy={ctx.store.root_policy}")
     print(f"Root: {ctx.store.root_dir}")
     print()
     print(

@@ -18,6 +18,7 @@ from sase.status_state_machine import (
     transition_changespec_status,
 )
 from sase.vcs_provider import get_vcs_provider
+from sase.project_display_names import humanize_cl_name
 
 from .changespec import (
     ChangeSpec,
@@ -127,7 +128,9 @@ def revert_changespec(
     new_name = calculate_lifecycle_new_name(changespec, all_changespecs)
 
     if console:
-        console.print(f"[cyan]Renaming ChangeSpec to: {new_name}[/cyan]")
+        console.print(
+            f"[cyan]Renaming ChangeSpec to: {humanize_cl_name(new_name)}[/cyan]"
+        )
 
     # PR-dependent operations: save diff, prune VCS revision, reset PR URL.
     if changespec.pr_url is not None:
@@ -147,11 +150,13 @@ def revert_changespec(
             return (False, f"Failed to save diff: {error}")
 
         if console:
+            # This is a copyable storage path, so its canonical stem is intentional.
             diff_path = sase_subdir("reverted") / f"{new_name}.diff"
             console.print(f"[green]Saved diff to: {diff_path}[/green]")
 
         # Run sase_hg_prune
         provider = get_vcs_provider(workspace_dir)
+        # Provider revision matching must retain canonical ChangeSpec identity.
         resolved = provider.resolve_revision(
             changespec.name, changespec.project_basename, workspace_dir
         )
@@ -178,7 +183,9 @@ def revert_changespec(
         remove_branch_alias(changespec.project_basename, changespec.name)
 
         if console:
-            console.print(f"[green]Pruned revision: {changespec.name}[/green]")
+            console.print(
+                f"[green]Pruned revision: {humanize_cl_name(changespec.name)}[/green]"
+            )
 
     # Rename the ChangeSpec (skip if name is unchanged, e.g., WIP with existing suffix)
     if new_name != changespec.name:
@@ -191,7 +198,9 @@ def revert_changespec(
 
         if console:
             console.print(
-                f"[green]Renamed ChangeSpec: {changespec.name} → {new_name}[/green]"
+                "[green]Renamed ChangeSpec: "
+                f"{humanize_cl_name(changespec.name)} → "
+                f"{humanize_cl_name(new_name)}[/green]"
             )
 
     # Update STATUS to Reverted

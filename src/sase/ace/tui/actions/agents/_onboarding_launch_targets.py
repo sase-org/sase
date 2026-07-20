@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Protocol
 
+from sase.project_display_names import ProjectDisplayProjection
 from sase.status_state_machine import remove_workspace_suffix
 
 _DEFAULT_EXCLUDED_PROJECT_NAMES = frozenset({"home"})
@@ -16,13 +17,21 @@ class _ChangeSpecLike(Protocol):
 
 
 def _launch_targets_available(
-    projects: Iterable[str],
+    projects: Iterable[str | ProjectDisplayProjection],
     changespecs: Iterable[_ChangeSpecLike],
     *,
     exclude_project_names: frozenset[str] = _DEFAULT_EXCLUDED_PROJECT_NAMES,
 ) -> bool:
     """Return whether the ``+`` modal would have a selectable launch row."""
-    if any(project_name not in exclude_project_names for project_name in projects):
+    if any(
+        (
+            project.project_key
+            if isinstance(project, ProjectDisplayProjection)
+            else project
+        )
+        not in exclude_project_names
+        for project in projects
+    ):
         return True
     return any(
         remove_workspace_suffix(changespec.status) in _ELIGIBLE_CHANGESPEC_STATUSES

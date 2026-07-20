@@ -95,8 +95,9 @@ class AxeBgCmdMixin:
             self.notify("Maximum background commands reached", severity="error")  # type: ignore[attr-defined]
             return
 
-        # Show project select modal
-        from ..modals import ProjectSelectModal
+        # Show project select modal. Its lifecycle/ChangeSpec snapshot is loaded
+        # off-thread before the pure modal is mounted.
+        from ..modals.project_select_modal import show_project_select_modal
 
         def on_project_selected(
             result: ProjectSelectResult | None,
@@ -114,10 +115,18 @@ class AxeBgCmdMixin:
                 project = selection.project_name
                 cl_name = selection.cl_name
 
+            slot = find_first_available_slot()
+            if slot is None:
+                self.notify(  # type: ignore[attr-defined]
+                    "Maximum background commands reached",
+                    severity="error",
+                )
+                return
+
             # Show workspace input modal
             self._show_workspace_input(slot, project, cl_name)
 
-        self.push_screen(ProjectSelectModal(), on_project_selected)  # type: ignore[attr-defined]
+        show_project_select_modal(self, on_project_selected)
 
     def _start_bgcmd_from_changespec(self) -> None:
         """Start background command from current ChangeSpec (ChangeSpecs tab only).
