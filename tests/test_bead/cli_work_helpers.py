@@ -20,6 +20,14 @@ class FakeLaunchResult:
         self.output_path = "/tmp/fake_output"
 
 
+def epic_clan_declaration(epic_id: str) -> str:
+    return f"%clan({epic_id}, tribe=epic, summary_script=sase_clan_summary_epic)"
+
+
+def bead_wait_lines(rendered: str) -> list[str]:
+    return [line for line in rendered.splitlines() if line.startswith("%w(bead=")]
+
+
 def seed_diamond(project_dir: Path) -> tuple[str, list[str]]:
     """Seed a diamond DAG: p1 -> {p2, p3} -> p4. Returns (epic_id, phase_ids)."""
     with BeadProject(project_dir) as proj:
