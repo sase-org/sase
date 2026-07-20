@@ -257,8 +257,19 @@ class TestDeferredWorkspacePreparation:
         )
         chdir_mock.assert_not_called()
 
-    def test_runners_only_deferred_wait_gates_then_claims_workspace(
-        self, tmp_path: Path
+    @pytest.mark.parametrize(
+        ("wait_info", "expected_runners", "expected_priority"),
+        [
+            (AGENT_INFO._replace(wait_runners=0), 0, None),
+            (AGENT_INFO._replace(wait_priority=20), None, 20),
+        ],
+    )
+    def test_runner_slot_only_deferred_wait_gates_then_claims_workspace(
+        self,
+        tmp_path: Path,
+        wait_info: Any,
+        expected_runners: int | None,
+        expected_priority: int | None,
     ) -> None:
         artifacts_dir = str(tmp_path / "artifacts")
         placeholder_ws = tmp_path / "placeholder"
@@ -267,7 +278,6 @@ class TestDeferredWorkspacePreparation:
         real_ws.mkdir()
         events: list[str] = []
 
-        wait_info = AGENT_INFO._replace(wait_runners=0)
         patches = base_patches(artifacts_dir)
         patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
             return_value=wait_info
@@ -277,7 +287,8 @@ class TestDeferredWorkspacePreparation:
         write_error = MagicMock()
 
         def wait_for_slot(*_args: Any, claim: Any, **kwargs: Any) -> str:
-            assert kwargs["wait_runners"] == 0
+            assert kwargs["wait_runners"] == expected_runners
+            assert kwargs["wait_priority"] == expected_priority
             events.append("gate")
             return claim()
 

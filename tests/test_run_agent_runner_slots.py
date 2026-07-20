@@ -47,6 +47,7 @@ def _record(path: Path, *, started: bool = False) -> AgentArtifactRecordWire:
                 wait_runners_explicit=bool(
                     waiting_data.get("wait_runners_explicit", False)
                 ),
+                wait_priority=waiting_data.get("wait_priority"),
                 slot_requested_at=waiting_data.get("slot_requested_at"),
             )
             if waiting_data is not None
@@ -125,6 +126,7 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
             cl_name="cl",
             timestamp=waiter.name,
             directive_threshold=None,
+            directive_priority=7,
             claim=claim,
         )
         assert first is None
@@ -132,6 +134,7 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
         marker = json.loads((waiter / "waiting.json").read_text())
         assert marker["wait_runners"] == 0
         assert marker["wait_runners_explicit"] is False
+        assert marker["wait_priority"] == 7
 
         config_cap = 2
         second, parked = run_agent_wait._try_claim_runner_slot(
@@ -139,6 +142,7 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
             cl_name="cl",
             timestamp=waiter.name,
             directive_threshold=None,
+            directive_priority=7,
             claim=claim,
         )
 
@@ -193,6 +197,82 @@ def test_parked_marker_edit_overrides_original_directive(tmp_path: Path) -> None
     assert result == "started"
     assert not parked
     get_config.assert_not_called()
+
+
+def test_parked_priority_edit_overrides_original_directive(tmp_path: Path) -> None:
+    waiter = _artifact(tmp_path, "20260712120001", 101)
+    competitor = _artifact(tmp_path, "20260712120002", 102)
+    (waiter / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": [],
+                "cl_name": "cl",
+                "timestamp": waiter.name,
+                "wait_runners": 9,
+                "wait_runners_explicit": True,
+                "wait_priority": 1,
+                "slot_requested_at": "2026-07-12T12:00:01+00:00",
+            }
+        )
+    )
+    (competitor / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": [],
+                "cl_name": "cl",
+                "timestamp": competitor.name,
+                "wait_runners": 9,
+                "wait_runners_explicit": True,
+                "wait_priority": 5,
+                "slot_requested_at": "2026-07-12T12:00:00+00:00",
+            }
+        )
+    )
+
+    with (
+        patch.object(
+            run_agent_wait,
+            "_scan_runner_slot_records",
+            return_value=[_record(waiter), _record(competitor)],
+        ),
+        patch.object(run_agent_wait, "is_process_alive", return_value=True),
+        patch.object(
+            run_agent_wait,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        result, parked = run_agent_wait._try_claim_runner_slot(
+            artifacts_dir=str(waiter),
+            cl_name="cl",
+            timestamp=waiter.name,
+            directive_threshold=9,
+            directive_priority=20,
+            claim=lambda: "started",
+        )
+
+    assert result == "started"
+    assert not parked
+    assert not (waiter / "waiting.json").exists()
+
+
+def test_marker_priority_resolution_rejects_boolean_and_invalid_values() -> None:
+    assert run_agent_wait._marker_priority(None, None) == 10
+    assert run_agent_wait._marker_priority({"slot_requested_at": "now"}, 3) == 3
+    assert (
+        run_agent_wait._marker_priority(
+            {"slot_requested_at": "now", "wait_priority": True},
+            None,
+        )
+        == 10
+    )
+    assert (
+        run_agent_wait._marker_priority(
+            {"slot_requested_at": "now", "wait_priority": -1},
+            4,
+        )
+        == 4
+    )
 
 
 def test_concurrent_claimants_cannot_overshoot_threshold(tmp_path: Path) -> None:

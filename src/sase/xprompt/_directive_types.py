@@ -121,6 +121,8 @@ class PromptDirectives:
         wait_until: Absolute target datetime from the %wait(time=...) keyword.
         wait_runners: Existing-runner threshold from the
             %wait(runners=...) keyword.
+        wait_priority: Runner-slot queue priority from the
+            %wait(priority=...) keyword. Lower values start first.
         auto_mode: Compatibility rendering of the raw ``%auto`` argument;
             bare ``%auto`` is ``"plan"`` and absence is None.
         auto_enabled: Whether ``%auto``/``%a`` was present.
@@ -158,6 +160,7 @@ class PromptDirectives:
     wait_duration: float | None = None
     wait_until: str | None = None
     wait_runners: int | None = None
+    wait_priority: int | None = None
 
     def __post_init__(self) -> None:
         self.model_alias_overrides = MappingProxyType(dict(self.model_alias_overrides))

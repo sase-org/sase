@@ -242,6 +242,38 @@ def test_wait_runners_keyword_rejects_duplicate_in_one_directive() -> None:
         extract_prompt_directives(prompt)
 
 
+@pytest.mark.parametrize(("directive", "value"), [("wait", 0), ("w", 20)])
+def test_wait_priority_keyword_sets_priority(directive: str, value: int) -> None:
+    cleaned, directives = extract_prompt_directives(
+        f"%{directive}(agent_a, priority={value})\nDo work"
+    )
+
+    assert cleaned == "Do work"
+    assert directives.wait == ["agent_a"]
+    assert directives.wait_priority == value
+
+
+@pytest.mark.parametrize("value", ["-1", "1.5", "many", ""])
+def test_wait_priority_keyword_rejects_non_negative_non_integer(value: str) -> None:
+    with pytest.raises(
+        DirectiveError,
+        match=r"%wait\(priority=\.\.\.\).*non-negative integer",
+    ):
+        extract_prompt_directives(f"%wait(priority={value})\nDo work")
+
+
+def test_wait_priority_keyword_rejects_multiple_occurrences() -> None:
+    prompt = "%wait(priority=1)\n%w(priority=2)\nDo work"
+    with pytest.raises(DirectiveError, match="Multiple %wait.*priority"):
+        extract_prompt_directives(prompt)
+
+
+def test_wait_priority_keyword_rejects_duplicate_in_one_directive() -> None:
+    prompt = "%wait(priority=1, priority=2)\nDo work"
+    with pytest.raises(DirectiveError, match="Duplicate keyword argument 'priority'"):
+        extract_prompt_directives(prompt)
+
+
 @pytest.mark.parametrize("directive", ["wait", "w"])
 def test_wait_bead_keyword_sets_bead_only_condition(directive: str) -> None:
     prompt = f"%{directive}(bead=sase-87.1)\nDo work"
@@ -264,7 +296,7 @@ def test_wait_bead_keyword_sets_bead_only_condition(directive: str) -> None:
 
 def test_wait_bead_keywords_mix_and_deduplicate_in_source_order() -> None:
     prompt = (
-        "%wait(builder, bead=sase-87.2, time=5m, runners=0)\n"
+        "%wait(builder, bead=sase-87.2, time=5m, runners=0, priority=3)\n"
         "%w(bead=sase-87.1)\n"
         "%wait(bead=sase-87.2)\n"
         "Do work"
@@ -277,6 +309,7 @@ def test_wait_bead_keywords_mix_and_deduplicate_in_source_order() -> None:
     assert directives.wait_beads == ["sase-87.2", "sase-87.1"]
     assert directives.wait_duration == 300.0
     assert directives.wait_runners == 0
+    assert directives.wait_priority == 3
 
 
 def test_wait_bead_value_does_not_resolve_agent_name_template() -> None:
@@ -341,7 +374,7 @@ def test_wait_unknown_keyword_raises() -> None:
         DirectiveError,
         match=(
             r"Unsupported keyword on %wait: foo=\. "
-            r"Only bead=, runners=, and time= are supported\."
+            r"Only bead=, priority=, runners=, and time= are supported\."
         ),
     ):
         extract_prompt_directives(prompt)

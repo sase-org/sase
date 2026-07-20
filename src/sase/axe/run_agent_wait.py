@@ -23,6 +23,7 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.paths import sase_home, sase_projects_dir
 from sase.core.runner_slots import (
+    DEFAULT_WAIT_PRIORITY,
     live_runner_slot_waiters,
     may_start,
     running_root_agent_count,
@@ -258,6 +259,19 @@ def _marker_threshold(
     return get_max_running_agents() - 1, False
 
 
+def _marker_priority(
+    waiting_data: dict[str, Any] | None,
+    directive_priority: int | None,
+) -> int:
+    if waiting_data is not None and "slot_requested_at" in waiting_data:
+        marker_value = waiting_data.get("wait_priority")
+        if type(marker_value) is int and marker_value >= 0:
+            return marker_value
+    if type(directive_priority) is int and directive_priority >= 0:
+        return directive_priority
+    return DEFAULT_WAIT_PRIORITY
+
+
 def _remove_waiting_marker(artifacts_dir: str) -> None:
     try:
         os.unlink(os.path.join(artifacts_dir, "waiting.json"))
@@ -272,6 +286,7 @@ def _try_claim_runner_slot(
     cl_name: str,
     timestamp: str,
     directive_threshold: int | None,
+    directive_priority: int | None = None,
     claim: Callable[[], str],
 ) -> tuple[str | None, bool]:
     """Try one check-and-claim under the global lock.
@@ -287,6 +302,7 @@ def _try_claim_runner_slot(
             waiting_path = Path(artifacts_dir) / "waiting.json"
             waiting_data = _read_json_dict(waiting_path)
             threshold, explicit = _marker_threshold(waiting_data, directive_threshold)
+            priority = _marker_priority(waiting_data, directive_priority)
             records = _scan_runner_slot_records()
             is_live = _record_liveness_probe()
             queue = live_runner_slot_waiters(records, is_live)
@@ -309,6 +325,7 @@ def _try_claim_runner_slot(
                 "timestamp": timestamp,
                 "wait_runners": threshold,
                 "wait_runners_explicit": explicit,
+                "wait_priority": priority,
                 "slot_requested_at": requested_at,
             }
             parked = waiting_data is None or "slot_requested_at" not in waiting_data
@@ -326,6 +343,7 @@ def wait_for_runner_slot(
     agent_meta: dict[str, Any],
     *,
     wait_runners: int | None,
+    wait_priority: int | None = None,
     claim: Callable[[], str],
 ) -> str:
     """Pass the final root-agent runner-slot gate and atomically claim RUNNING.
@@ -342,6 +360,7 @@ def wait_for_runner_slot(
             cl_name=cl_name,
             timestamp=timestamp,
             directive_threshold=wait_runners,
+            directive_priority=wait_priority,
             claim=claim,
         )
         if run_started_at is not None:

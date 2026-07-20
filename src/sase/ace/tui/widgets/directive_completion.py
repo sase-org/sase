@@ -60,7 +60,7 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
         ":agent-id, (id, clan=clan), (suffix, family=family), or ([id], tribe=tribe)"
     ),
     "repeat": ":count",
-    "wait": ":agent or (agent, time=5m, runners=1)",
+    "wait": ":agent or (agent, time=5m, runners=1, priority=10)",
 }
 
 
@@ -103,6 +103,7 @@ _DIRECTIVE_ARGUMENT_DESCRIPTIONS: dict[str, dict[str, str]] = {
 }
 
 _WAIT_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
+    ("priority=", "lower values start first; the default is 10"),
     ("runners=", "start when at most this many agents are already running"),
     ("time=", "start after a duration or absolute wall-clock time"),
 )

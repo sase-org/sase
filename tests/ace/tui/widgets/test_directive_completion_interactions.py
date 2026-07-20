@@ -184,6 +184,7 @@ async def test_colon_after_wait_auto_opens_wait_targets_panel() -> None:
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
         ] == [
+            "priority=",
             "runners=",
             "time=",
             "@builders",
@@ -307,6 +308,7 @@ async def test_wait_arg_completion_excludes_selected_agent_and_groups() -> None:
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
         ] == [
+            "priority=",
             "runners=",
             "time=",
             "ship",
@@ -335,7 +337,7 @@ async def test_wait_arg_completion_excludes_selected_keyword_in_paren_form() -> 
 
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
-        ] == ["runners=", "planner", "coder"]
+        ] == ["priority=", "runners=", "planner", "coder"]
 
 
 async def test_wait_arg_completion_excludes_selected_keyword_to_cursor_right() -> None:
@@ -359,7 +361,7 @@ async def test_wait_arg_completion_excludes_selected_keyword_to_cursor_right() -
 
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
-        ] == ["time=", "planner"]
+        ] == ["priority=", "time=", "planner"]
 
 
 async def test_wait_arg_completion_inserts_tribe_target() -> None:

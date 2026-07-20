@@ -45,6 +45,7 @@ def _agent_info() -> SimpleNamespace:
         wait_duration=None,
         wait_until=None,
         wait_runners=None,
+        wait_priority=None,
         model="gpt-5",
         llm_provider="codex",
         vcs_provider=None,

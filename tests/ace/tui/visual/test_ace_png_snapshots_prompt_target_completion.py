@@ -130,11 +130,14 @@ async def test_wait_target_completion_png_snapshot(
         bar.show_file_completions(
             "%wait:",
             [
+                _wait_keyword(
+                    "priority=", "lower values start first; the default is 10"
+                ),
                 _wait_keyword("runners=", "wait for an available runner"),
                 _wait_keyword("time=", "wait until a time floor"),
                 *_TARGET_ROWS,
             ],
-            selected_index=2,
+            selected_index=3,
             completion_kind="directive_arg",
         )
         await wait_for_svg_contains(page, "@builders")

@@ -38,6 +38,7 @@ class _Agent:
     started: Path
     release: Path
     wait_runners: int | None = None
+    wait_priority: int | None = None
     crash: bool = False
     killed: bool = False
     thread: threading.Thread | None = None
@@ -97,6 +98,7 @@ class _RunnerSlotFakeyHarness:
         *,
         name: str | None = None,
         wait_runners: int | None = None,
+        wait_priority: int | None = None,
         parent_timestamp: str | None = None,
         crash: bool = False,
     ) -> _Agent:
@@ -119,6 +121,7 @@ class _RunnerSlotFakeyHarness:
             started=self.root / "signals" / f"{timestamp}.started",
             release=self.root / "signals" / f"{timestamp}.release",
             wait_runners=wait_runners,
+            wait_priority=wait_priority,
             crash=crash,
         )
 
@@ -202,6 +205,7 @@ class _RunnerSlotFakeyHarness:
                 agent.artifacts_dir.name,
                 agent.meta,
                 wait_runners=agent.wait_runners,
+                wait_priority=agent.wait_priority,
                 claim=lambda: self._claim(agent),
             )
             try:
@@ -334,6 +338,36 @@ def test_fakey_drain_barrier_waits_for_later_eligible_launch(
     assert isinstance(barrier_meta.get("run_started_at"), str)
     harness.release_agent(barrier)
     harness.join(barrier)
+
+
+def test_fakey_priority_admission_differs_from_park_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
+    running = harness.create_agent(0, name="running")
+    older = harness.create_agent(1, name="older", wait_priority=20)
+    newer = harness.create_agent(2, name="newer", wait_priority=1)
+
+    harness.start(running)
+    harness.wait_started(running)
+    harness.start(older)
+    harness.wait_parked(older)
+    harness.start(newer)
+    harness.wait_parked(newer)
+
+    harness.release_agent(running)
+    harness.join(running)
+    harness.wait_started(newer)
+    assert not older.started.exists()
+
+    harness.release_agent(newer)
+    harness.join(newer)
+    harness.wait_started(older)
+    harness.release_agent(older)
+    harness.join(older)
+
+    assert harness.claim_order == ["running", "newer", "older"]
 
 
 def test_live_config_raise_releases_fakey_waiter_without_axe(

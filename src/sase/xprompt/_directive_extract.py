@@ -25,6 +25,7 @@ from ._directive_values import (
     resolve_reasoning_effort,
     resolve_wait_agent_args,
     resolve_wait_bead_args,
+    resolve_wait_priority_args,
     resolve_wait_templates,
     resolve_wait_runners_args,
     resolve_wait_time_args,
@@ -84,6 +85,7 @@ def extract_prompt_directives(
     wait_beads = resolve_wait_bead_args(collected.wait_bead_args)
     wait_duration, wait_until = resolve_wait_time_args(collected.wait_time_args)
     wait_runners = resolve_wait_runners_args(collected.wait_runners_args)
+    wait_priority = resolve_wait_priority_args(collected.wait_priority_args)
 
     cleaned = _remove_directive_regions(prompt, collected.regions_to_remove)
 
@@ -202,6 +204,7 @@ def extract_prompt_directives(
         wait_duration=wait_duration,
         wait_until=wait_until,
         wait_runners=wait_runners,
+        wait_priority=wait_priority,
     )
 
     cleaned = unprotect_disabled_regions(cleaned, disabled_regions)

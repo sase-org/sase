@@ -32,6 +32,7 @@ class _CollectedDirectives:
     wait_bead_args: list[str] = field(default_factory=list)
     wait_time_args: list[str] = field(default_factory=list)
     wait_runners_args: list[str] = field(default_factory=list)
+    wait_priority_args: list[str] = field(default_factory=list)
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
     clan_tribe_arg: str | None = None
     clan_tribe_present: bool = False
@@ -101,7 +102,7 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         continue
                     positional_args = raw_args
                 if name == "wait":
-                    supported_keys = {"bead", "runners", "time"}
+                    supported_keys = {"bead", "priority", "runners", "time"}
                     unknown_keys = sorted(
                         key for key in named_args if key not in supported_keys
                     )
@@ -109,7 +110,8 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         keys = ", ".join(f"{key}=" for key in unknown_keys)
                         raise DirectiveError(
                             f"Unsupported keyword on %wait: {keys}. "
-                            "Only bead=, runners=, and time= are supported."
+                            "Only bead=, priority=, runners=, and time= are "
+                            "supported."
                         )
                     if "bead" in named_args:
                         collected.wait_bead_args.append(named_args["bead"])
@@ -117,6 +119,8 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         collected.wait_time_args.append(named_args["time"])
                     if "runners" in named_args:
                         collected.wait_runners_args.append(named_args["runners"])
+                    if "priority" in named_args:
+                        collected.wait_priority_args.append(named_args["priority"])
                 if name == "model":
                     collected.model_alias_overrides = dict(named_args)
                 if name == "clan":

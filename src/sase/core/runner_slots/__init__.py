@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ._admission import (
+    DEFAULT_WAIT_PRIORITY,
     RunnerSlotWaiter,
     is_root_user_agent_record,
     is_runner_slot_user_agent_record,
@@ -12,6 +13,7 @@ from ._admission import (
 )
 
 __all__ = [
+    "DEFAULT_WAIT_PRIORITY",
     "RunnerSlotWaiter",
     "is_root_user_agent_record",
     "is_runner_slot_user_agent_record",

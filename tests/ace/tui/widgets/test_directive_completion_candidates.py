@@ -93,6 +93,9 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     assert directive_metadata(wait).description == (
         "defer launch for agents, a time floor, or a runner threshold"
     )
+    assert directive_metadata(wait).argument_hint == (
+        ":agent or (agent, time=5m, runners=1, priority=10)"
+    )
     assert directive_metadata(alt).description == (
         "split a prompt into variants; shorthand %{A | B}"
     )

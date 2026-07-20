@@ -10,6 +10,7 @@ from sase.core.agent_scan_wire import (
     WorkflowStateWire,
 )
 from sase.core.runner_slots import (
+    DEFAULT_WAIT_PRIORITY,
     RunnerSlotWaiter,
     is_runner_slot_user_agent_record,
     live_runner_slot_waiters,
@@ -25,6 +26,7 @@ def _record(
     run_started: bool = False,
     requested_at: str | None = None,
     wait_runners: int | None = None,
+    wait_priority: int | None = None,
     parent_timestamp: str | None = None,
     agent_family_parallel: bool = False,
     appears_as_agent: bool = True,
@@ -47,6 +49,7 @@ def _record(
         waiting=(
             WaitingMarkerWire(
                 wait_runners=wait_runners,
+                wait_priority=wait_priority,
                 slot_requested_at=requested_at,
             )
             if requested_at is not None
@@ -130,6 +133,66 @@ def test_live_waiter_queue_is_fifo_and_filters_stale_processes() -> None:
 
     assert [waiter.artifact_dir for waiter in queue] == ["/earlier", "/later"]
     assert [waiter.threshold for waiter in queue] == [0, 0]
+    assert [waiter.priority for waiter in queue] == [
+        DEFAULT_WAIT_PRIORITY,
+        DEFAULT_WAIT_PRIORITY,
+    ]
+
+
+def test_live_waiter_queue_orders_priority_before_fifo() -> None:
+    records = [
+        _record(
+            "/older-default",
+            requested_at="2026-07-12T12:00:00+00:00",
+            wait_priority=DEFAULT_WAIT_PRIORITY,
+        ),
+        _record(
+            "/newer-urgent",
+            requested_at="2026-07-12T12:00:01+00:00",
+            wait_priority=1,
+        ),
+    ]
+
+    queue = live_runner_slot_waiters(records, lambda _record: True)
+
+    assert [waiter.artifact_dir for waiter in queue] == [
+        "/newer-urgent",
+        "/older-default",
+    ]
+
+
+def test_live_waiter_queue_preserves_fifo_within_priority() -> None:
+    records = [
+        _record(
+            "/later",
+            requested_at="2026-07-12T12:00:02+00:00",
+            wait_priority=4,
+        ),
+        _record(
+            "/earlier",
+            requested_at="2026-07-12T12:00:01+00:00",
+            wait_priority=4,
+        ),
+    ]
+
+    queue = live_runner_slot_waiters(records, lambda _record: True)
+
+    assert [waiter.artifact_dir for waiter in queue] == ["/earlier", "/later"]
+
+
+def test_live_waiter_queue_defaults_missing_or_invalid_priorities() -> None:
+    requested_at = "2026-07-12T12:00:00+00:00"
+    records = [
+        _record("/missing", requested_at=requested_at),
+        _record("/boolean", requested_at=requested_at, wait_priority=True),
+        _record("/negative", requested_at=requested_at, wait_priority=-1),
+        _record("/explicit", requested_at=requested_at, wait_priority=2),
+    ]
+
+    queue = live_runner_slot_waiters(records, lambda _record: True)
+
+    assert queue[0].artifact_dir == "/explicit"
+    assert {waiter.priority for waiter in queue[1:]} == {DEFAULT_WAIT_PRIORITY}
 
 
 def test_queue_ties_have_deterministic_timestamp_then_path_order() -> None:
@@ -150,9 +213,19 @@ def test_queue_ties_have_deterministic_timestamp_then_path_order() -> None:
 
 
 def test_older_ineligible_drain_waiter_does_not_block_eligible_waiter() -> None:
-    drain = RunnerSlotWaiter("/drain", "2026-07-12T12:00:00+00:00", "1", threshold=0)
+    drain = RunnerSlotWaiter(
+        "/drain",
+        "2026-07-12T12:00:00+00:00",
+        "1",
+        threshold=0,
+        priority=1,
+    )
     immediate = RunnerSlotWaiter(
-        "/immediate", "2026-07-12T12:00:01+00:00", "2", threshold=9
+        "/immediate",
+        "2026-07-12T12:00:01+00:00",
+        "2",
+        threshold=9,
+        priority=20,
     )
 
     assert not may_start(1, 0, (drain, immediate), "/drain")

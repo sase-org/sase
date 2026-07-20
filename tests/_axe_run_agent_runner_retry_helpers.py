@@ -34,6 +34,7 @@ AGENT_INFO = AgentInfo(
     wait_duration=None,
     wait_until=None,
     wait_runners=None,
+    wait_priority=None,
     model="test-model",
     llm_provider="test-provider",
     vcs_provider=None,

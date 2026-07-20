@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 
 RecordLiveness = Callable[[AgentArtifactRecordWire], bool]
+DEFAULT_WAIT_PRIORITY = 10
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,7 @@ class RunnerSlotWaiter:
     slot_requested_at: str
     timestamp: str
     threshold: int = 0
+    priority: int = DEFAULT_WAIT_PRIORITY
 
 
 def is_root_user_agent_record(record: AgentArtifactRecordWire) -> bool:
@@ -90,6 +92,11 @@ def live_runner_slot_waiters(
                     if type(waiting.wait_runners) is int and waiting.wait_runners >= 0
                     else 0
                 ),
+                priority=(
+                    waiting.wait_priority
+                    if type(waiting.wait_priority) is int and waiting.wait_priority >= 0
+                    else DEFAULT_WAIT_PRIORITY
+                ),
             )
         )
     waiters.sort(key=_waiter_sort_key)
@@ -118,7 +125,9 @@ def may_start(
     return first_eligible is None or first_eligible.artifact_dir == me
 
 
-def _waiter_sort_key(waiter: RunnerSlotWaiter) -> tuple[int, datetime, str, str]:
+def _waiter_sort_key(
+    waiter: RunnerSlotWaiter,
+) -> tuple[int, int, datetime, str, str]:
     try:
         requested_at = datetime.fromisoformat(
             waiter.slot_requested_at.replace("Z", "+00:00")
@@ -130,4 +139,10 @@ def _waiter_sort_key(waiter: RunnerSlotWaiter) -> tuple[int, datetime, str, str]
     except ValueError:
         requested_at = datetime.max.replace(tzinfo=UTC)
         invalid = 1
-    return invalid, requested_at, waiter.timestamp, waiter.artifact_dir
+    return (
+        waiter.priority,
+        invalid,
+        requested_at,
+        waiter.timestamp,
+        waiter.artifact_dir,
+    )

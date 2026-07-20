@@ -125,6 +125,7 @@ def test_wait_arg_completion_orders_kinds_and_matches_bare_tribe() -> None:
     )
 
     assert [candidate.insertion for candidate in candidates] == [
+        "priority=",
         "runners=",
         "time=",
         "@builders",
@@ -153,6 +154,7 @@ def test_wait_arg_completion_excludes_groups_and_deduplicates_insertions() -> No
         ],
     )
     assert [candidate.insertion for candidate in candidates] == [
+        "priority=",
         "runners=",
         "time=",
         "@builders",
@@ -205,10 +207,20 @@ def test_wait_arg_completion_excludes_selected_keywords_case_insensitively() -> 
     )
 
     assert [candidate.insertion for candidate in candidates] == [
+        "priority=",
         "runners=",
         "coder",
     ]
     assert shared == ""
+
+
+def test_wait_priority_completion_describes_order_and_default() -> None:
+    candidates, _ = build_directive_arg_completion_candidates("wait", "pri")
+
+    assert [candidate.insertion for candidate in candidates] == ["priority="]
+    assert directive_arg_metadata(candidates[0]).description == (
+        "lower values start first; the default is 10"
+    )
 
 
 def test_directive_arg_completion_builds_model_candidates_from_catalog() -> None:

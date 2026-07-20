@@ -203,6 +203,7 @@ class WaitingMarkerWire:
     wait_until: str | None = None
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
+    wait_priority: int | None = None
     slot_requested_at: str | None = None
 
 

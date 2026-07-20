@@ -165,6 +165,7 @@ def handle_questions_marker(
             Path(state.current_artifacts_dir).name,
             base_meta,
             wait_runners=None,
+            wait_priority=None,
             claim=claim,
         ),
         run_started_at=(

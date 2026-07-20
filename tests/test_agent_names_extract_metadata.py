@@ -51,6 +51,22 @@ class TestExtractDirectivesMetadata:
         assert result["info"].wait_runners == 0
         assert result["meta"]["wait_runners"] == 0
 
+    def test_persists_explicit_wait_priority_metadata(self, tmp_path: Path) -> None:
+        result = run_extract(
+            tmp_path,
+            env_auto_dismiss=True,
+            prompt="%wait(priority=20)\ndo stuff",
+        )
+
+        assert result["info"].wait_priority == 20
+        assert result["meta"]["wait_priority"] == 20
+
+    def test_omitted_wait_priority_is_not_persisted(self, tmp_path: Path) -> None:
+        result = run_extract(tmp_path, env_auto_dismiss=True)
+
+        assert result["info"].wait_priority is None
+        assert "wait_priority" not in result["meta"]
+
     def test_persists_wait_beads_metadata(self, tmp_path: Path) -> None:
         result = run_extract(
             tmp_path,

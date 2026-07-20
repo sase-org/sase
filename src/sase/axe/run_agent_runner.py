@@ -293,7 +293,11 @@ def main() -> None:
                 or info.wait_duration is not None
                 or info.wait_until is not None
             )
-            has_wait = has_dependency_wait or info.wait_runners is not None
+            has_wait = (
+                has_dependency_wait
+                or info.wait_runners is not None
+                or info.wait_priority is not None
+            )
             if deferred_workspace and not is_home_mode and not has_wait:
                 raise RuntimeError(
                     "SASE_AGENT_DEFERRED_WORKSPACE=1 but extracted wait metadata "
@@ -368,6 +372,7 @@ def main() -> None:
                     timestamp,
                     agent_meta,
                     wait_runners=info.wait_runners,
+                    wait_priority=info.wait_priority,
                     claim=lambda: record_run_started_at(artifacts_dir, agent_meta),
                 )
 
