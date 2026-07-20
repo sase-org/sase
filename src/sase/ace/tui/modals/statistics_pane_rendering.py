@@ -62,7 +62,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             self._loading_panel(
                 "Loading statistics",
                 width=max(48, int(self.size.width or 100) - 2),
-                height=max(8, int(self.size.height or 24) - 11),
+                height=max(8, int(self.size.height or 24) - 12),
             ),
         )
 
@@ -87,7 +87,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                     ),
                     title="Statistics",
                     border_style="#444444",
-                    height=max(8, int(self.size.height or 24) - 10),
+                    height=max(8, int(self.size.height or 24) - 11),
                 ),
             )
             return
@@ -160,7 +160,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 Align.center(Text(message, style="red"), vertical="middle"),
                 title="Statistics unavailable",
                 border_style="red",
-                height=max(8, int(self.size.height or 24) - 10),
+                height=max(8, int(self.size.height or 24) - 11),
             ),
         )
 
@@ -174,7 +174,6 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         elif self._view == "projects":
             view_label += f" · {_PROJECTS_GROUP_LABELS[self._projects_group_by]}"
         heading.append(view_label, style="bold")
-        heading.append(f"  ·  {self._range.label}", style=f"bold {_CYAN}")
         if self._project_filter is not None:
             heading.append(f"  ·  {self._project_filter}", style=f"bold {_GOLD}")
         if self._loading:
@@ -189,6 +188,14 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             )
             heading.append(f"  ·  updated {updated}", style="dim")
         return heading
+
+    def _range_text(self) -> Text:
+        selected_range = Text(justify="center", no_wrap=True, overflow="ellipsis")
+        selected_range.append("Range: ", style="bold")
+        selected_range.append(self._range.display_label, style=f"bold {_CYAN}")
+        selected_range.append("  ·  ", style="dim")
+        selected_range.append(self._range.label, style=_CYAN)
+        return selected_range
 
     def _hints_text(self) -> Text:
         bindings = statistics_help_bindings(self._keymaps)
@@ -213,6 +220,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
 
     def _update_heading(self) -> None:
         self._update_static("#statistics-title", self._heading_text())
+        self._update_static("#statistics-range", self._range_text())
 
     def _update_hints(self) -> None:
         self._update_static("#statistics-hints", self._hints_text())

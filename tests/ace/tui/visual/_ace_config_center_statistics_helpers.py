@@ -15,6 +15,7 @@ _STATISTICS_RANGE = StatsRange(
     int(_STATISTICS_NOW - 7 * 86_400),
     int(_STATISTICS_NOW),
     "2024-07-01 18:20 EDT – 2024-07-08 18:20 EDT",
+    "Last 7 days",
 )
 
 

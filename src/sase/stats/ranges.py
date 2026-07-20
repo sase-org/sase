@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 from typing import Literal, NamedTuple
 
 from sase.core.time import get_timezone
@@ -27,22 +27,24 @@ class RangePreset:
 
 
 class StatsRange(NamedTuple):
-    """Resolved inclusive/exclusive timestamps plus an absolute label."""
+    """Resolved inclusive/exclusive timestamps plus concise and absolute labels."""
 
     start_ts: int
     end_ts: int
     label: str
+    display_label: str
 
 
 PRESETS: tuple[RangePreset, ...] = (
     RangePreset("today", "Today"),
-    RangePreset("24h", "24h"),
-    RangePreset("7d", "7d"),
-    RangePreset("30d", "30d"),
-    RangePreset("90d", "90d"),
-    RangePreset("all", "All"),
+    RangePreset("24h", "Last 24 hours"),
+    RangePreset("7d", "Last 7 days"),
+    RangePreset("30d", "Last 30 days"),
+    RangePreset("90d", "Last 90 days"),
+    RangePreset("all", "All time"),
 )
 PRESET_ORDER: tuple[PresetKey, ...] = tuple(preset.key for preset in PRESETS)
+_PRESET_LABELS: dict[PresetKey, str] = {preset.key: preset.label for preset in PRESETS}
 DEFAULT_PRESET: PresetKey = "7d"
 
 _RELATIVE_RE = re.compile(r"(?P<count>[1-9]\d*)(?P<unit>[hdw])")
@@ -70,7 +72,10 @@ def resolve_preset(
         ]
         start_ts = end_ts - seconds
     return StatsRange(
-        start_ts, end_ts, _absolute_label(start_ts, end_ts, current.tzinfo)
+        start_ts,
+        end_ts,
+        _absolute_label(start_ts, end_ts, current.tzinfo),
+        _PRESET_LABELS[key],
     )
 
 
@@ -101,6 +106,10 @@ def parse_custom_range(
             start_ts,
             end_now_ts,
             _absolute_label(start_ts, end_now_ts, current.tzinfo),
+            _relative_display_label(
+                count,
+                relative.group("unit"),
+            ),
         )
 
     if _MONTH_RE.fullmatch(text):
@@ -109,7 +118,13 @@ def parse_custom_range(
             end = start.replace(year=start.year + 1, month=1)
         else:
             end = start.replace(month=start.month + 1)
-        return _calendar_range(start, end, current, closed_end=True)
+        return _calendar_range(
+            start,
+            end,
+            current,
+            range_kind="month",
+            closed_end=True,
+        )
 
     if text.count("..") == 1:
         start_text, end_text = text.split("..")
@@ -121,8 +136,20 @@ def parse_custom_range(
         if end_text:
             final_day = _parse_calendar(end_text, "%Y-%m-%d", current.tzinfo)
             end = final_day + timedelta(days=1)
-            return _calendar_range(start, end, current, closed_end=True)
-        return _calendar_range(start, current, current, closed_end=False)
+            return _calendar_range(
+                start,
+                end,
+                current,
+                range_kind="closed",
+                closed_end=True,
+            )
+        return _calendar_range(
+            start,
+            current,
+            current,
+            range_kind="open",
+            closed_end=False,
+        )
 
     raise ValueError(f"Invalid custom range: {value!r}")
 
@@ -137,6 +164,7 @@ def _calendar_range(
     requested_end: datetime,
     current: datetime,
     *,
+    range_kind: Literal["month", "closed", "open"],
     closed_end: bool,
 ) -> StatsRange:
     current_end_ts = _exclusive_now_ts(current)
@@ -156,7 +184,60 @@ def _calendar_range(
         start_ts,
         end_ts,
         _absolute_label(start_ts, display_end_ts, current.tzinfo),
+        _calendar_display_label(
+            start,
+            end_ts,
+            current.tzinfo,
+            range_kind=range_kind,
+            capped=requested_end_ts > current_end_ts,
+        ),
     )
+
+
+def _relative_display_label(count: int, unit: str) -> str:
+    unit_name = {"h": "hour", "d": "day", "w": "week"}[unit]
+    suffix = "" if count == 1 else "s"
+    return f"Last {count} {unit_name}{suffix}"
+
+
+def _calendar_display_label(
+    start: datetime,
+    end_ts: int,
+    timezone: tzinfo | None,
+    *,
+    range_kind: Literal["month", "closed", "open"],
+    capped: bool,
+) -> str:
+    if range_kind == "open":
+        return f"Since {_format_date(start)}"
+    if range_kind == "month":
+        suffix = " to date" if capped else ""
+        return f"{start:%B %Y}{suffix}"
+
+    end = datetime.fromtimestamp(end_ts, timezone)
+    final_day = end.date()
+    if end == end.replace(hour=0, minute=0, second=0, microsecond=0):
+        final_day -= timedelta(days=1)
+    suffix = " to date" if capped else ""
+    return f"{_format_date_span(start.date(), final_day)}{suffix}"
+
+
+def _format_date(value: datetime) -> str:
+    return f"{value:%b} {value.day}, {value.year}"
+
+
+def _format_date_span(start: date, end: date) -> str:
+    start_month = start.strftime("%b")
+    end_month = end.strftime("%b")
+    if start == end:
+        return f"{start_month} {start.day}, {start.year}"
+    if start.year != end.year:
+        return (
+            f"{start_month} {start.day}, {start.year}–{end_month} {end.day}, {end.year}"
+        )
+    if start.month != end.month:
+        return f"{start_month} {start.day}–{end_month} {end.day}, {start.year}"
+    return f"{start_month} {start.day}–{end.day}, {start.year}"
 
 
 def _configured_now(now: datetime | None) -> datetime:

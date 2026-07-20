@@ -3,7 +3,9 @@
 from sase.stats.query import query_activity_stats, query_run_stats
 from sase.stats.ranges import (
     DEFAULT_PRESET,
+    PRESETS,
     PRESET_ORDER,
+    PresetKey,
     RangePreset,
     StatsRange,
     parse_custom_range,
@@ -13,7 +15,9 @@ from sase.stats.views import StatisticsViews, build_statistics_views
 
 __all__ = [
     "DEFAULT_PRESET",
+    "PRESETS",
     "PRESET_ORDER",
+    "PresetKey",
     "RangePreset",
     "StatisticsViews",
     "StatsRange",

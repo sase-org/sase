@@ -242,6 +242,16 @@ async def _open_statistics(
     return modal, pane
 
 
+def _range_row_plain(pane: StatisticsPane) -> str:
+    return pane.query_one("#statistics-range", Static).render().plain
+
+
+def _assert_range_row_matches_selection(pane: StatisticsPane) -> None:
+    assert _range_row_plain(pane) == (
+        f"Range: {pane._range.display_label}  ·  {pane._range.label}"
+    )
+
+
 async def test_statistics_loads_only_after_its_tab_becomes_active(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -266,6 +276,11 @@ async def test_statistics_loads_only_after_its_tab_becomes_active(
         assert len(calls) == 1
         assert calls[0][0] == "overview"
         assert calls[0][2] == "tribe"
+        _assert_range_row_matches_selection(pane)
+        assert pane._range.display_label == "Last 7 days"
+        assert pane._range.label not in (
+            pane.query_one("#statistics-title", Static).render().plain
+        )
 
 
 async def test_range_and_group_switches_coalesce_to_latest_selection(
@@ -293,8 +308,11 @@ async def test_range_and_group_switches_coalesce_to_latest_selection(
         assert len(calls) == 2
         assert calls[-1][0] == "runtime"
         assert calls[-1][1].label == pane._range.label
+        assert calls[-1][1].display_label == pane._range.display_label
         assert pane._preset_key == "90d"
+        assert pane._range.display_label == "Last 90 days"
         assert pane._runtime_group_by == "clan"
+        _assert_range_row_matches_selection(pane)
 
 
 async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
@@ -347,7 +365,9 @@ async def test_project_filter_cycles_ranked_projects_and_survives_range_change(
         pane.action_cycle_range()
         await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
         assert calls[-1][1].label == pane._range.label
+        assert calls[-1][1].display_label == pane._range.display_label
         assert calls[-1][3] == "sase"
+        _assert_range_row_matches_selection(pane)
 
         pane.action_cycle_project_filter()
         await page.wait_for(lambda _state: len(calls) == 4 and not pane._loading)
@@ -459,6 +479,7 @@ async def test_refresh_preserves_selection_and_hidden_tick_is_inert(
 
         assert calls[-1][0] == "runtime"
         assert calls[-1][2] == "clan"
+        _assert_range_row_matches_selection(pane)
         await modal._switch_to("config")
         pane._on_refresh_tick()
         await page.pause()
@@ -485,6 +506,8 @@ async def test_custom_range_accepts_valid_input_and_rejects_invalid_input(
         assert pane._preset_key is None
         assert pane._custom_range_value == "14d"
         assert custom_input.display is False
+        assert pane._range.display_label == "Last 14 days"
+        _assert_range_row_matches_selection(pane)
 
         accepted_range = pane._range
         await page.press("c")
@@ -495,6 +518,7 @@ async def test_custom_range_accepts_valid_input_and_rejects_invalid_input(
         assert pane._range == accepted_range
         assert len(calls) == 2
         assert custom_input.display is True
+        _assert_range_row_matches_selection(pane)
 
 
 async def test_configured_bindings_dispatch_and_render_effective_help(
@@ -601,7 +625,7 @@ def test_loader_queries_current_activity_and_previous_equal_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[str, int, int, str | None]] = []
-    selected_range = StatsRange(10, 20, "absolute")
+    selected_range = StatsRange(10, 20, "absolute", "Last 10 seconds")
 
     def run_query(**kwargs: int | str | None) -> dict:
         calls.append(

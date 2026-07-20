@@ -4662,6 +4662,14 @@ StatisticsPane #statistics-title {
     text-overflow: ellipsis;
 }
 
+StatisticsPane #statistics-range {
+    width: 100%;
+    height: 1;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
 StatisticsPane #statistics-views {
     width: 100%;
     height: 1;

@@ -101,6 +101,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
 
     def compose(self) -> ComposeResult:
         yield Static(self._heading_text(), id="statistics-title", markup=False)
+        yield Static(self._range_text(), id="statistics-range", markup=False)
         yield PanelTabStrip(
             _VIEW_TABS,
             self._view,
