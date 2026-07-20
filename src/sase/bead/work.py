@@ -307,11 +307,12 @@ def render_multi_prompt(
     """Render *plan* as a ``---``-separated multi-prompt string.
 
     The first phase declares ``%clan(<epic_id>, tribe=epic)`` when
-    ``declare_clan`` is true. Every later phase and the final land segment use
-    ``%id(<suffix>, clan=<epic_id>)`` to join the same clan. When re-working an
-    existing epic clan, callers pass ``declare_clan=False`` so every segment
-    uses the join form. Segments invoke the corresponding work xprompt, and
-    the final land segment invokes
+    ``declare_clan`` is true. Its full-name ``%id`` associates the phase bead;
+    every later phase combines its suffix, clan membership, and phase bead in
+    one ``%id``. The final land segment similarly joins the clan while
+    associating the epic bead. When re-working an existing epic clan, callers
+    pass ``declare_clan=False`` so every segment uses the join form. Segments
+    invoke the corresponding work xprompt, and the final land segment invokes
     ``#<land_epic_xprompt.name>:<epic_id>``, and waits on every launched phase
     agent. Tag-resolved xprompt names are substituted into the ``#...``
     references so user overrides flow through unchanged.
@@ -347,6 +348,7 @@ def render_multi_prompt(
                 _clan_identity_directives(
                     plan.epic_id,
                     assignment.agent_name,
+                    bead_id=assignment.bead_id,
                     declare=declares_clan,
                 )
             )
@@ -371,6 +373,7 @@ def render_multi_prompt(
         _clan_identity_directives(
             plan.epic_id,
             plan.land_agent_name,
+            bead_id=plan.epic_id,
             declare=declare_clan and is_first_phase,
         )
     )
@@ -400,6 +403,7 @@ def _clan_identity_directives(
     clan_name: str,
     agent_name: str,
     *,
+    bead_id: str,
     declare: bool,
 ) -> list[str]:
     prefix = f"{clan_name}."
@@ -411,13 +415,13 @@ def _clan_identity_directives(
         )
     if declare:
         return [
-            f"%id:!{agent_name}",
+            f"%id(!{agent_name}, bead={bead_id})",
             (
                 f"%clan({clan_name}, tribe={EPIC_CLAN_TRIBE}, "
                 f"summary_script={EPIC_CLAN_SUMMARY_SCRIPT})"
             ),
         ]
-    return [f"%id(!{member_id}, clan={clan_name})"]
+    return [f"%id(!{member_id}, clan={clan_name}, bead={bead_id})"]
 
 
 def epic_work_segment_env(

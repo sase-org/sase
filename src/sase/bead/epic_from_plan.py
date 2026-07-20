@@ -44,9 +44,10 @@ def create_and_launch_epic_from_plan(
 
     The plan is validated again at the consumption boundary. Creation order is
     exactly frontmatter order, and dependency references are resolved through
-    the frontmatter phase IDs. Any failure before a complete agent launch
-    removes the newly-created epic (cascading to its phases), restores the plan
-    file, and records the rollback in non-in-tree bead stores.
+    the frontmatter phase IDs. Any failure before the first agent spawn removes
+    the newly-created epic (cascading to its phases), restores the plan file,
+    and records the rollback in non-in-tree bead stores. Once a runner has
+    spawned, the linked epic remains available for an explicit resume.
     """
     from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
     from sase.sdd.plan_validate import validate_plan_file
@@ -145,10 +146,10 @@ def create_and_launch_epic_from_plan(
             )
         return result
     except Exception as exc:
-        if isinstance(exc, BeadWorkError) and exc.agents_launched:
-            # Every requested agent is already running. Removing their beads
-            # would make those live agents orphaned; preserve the successful
-            # launch and surface the post-launch commit failure as actionable.
+        if isinstance(exc, BeadWorkError) and exc.agents_spawned:
+            # A runner may already have durably claimed its bead. Removing the
+            # epic would discard the recoverable launch state, even when the
+            # partial runners were terminated during cleanup.
             raise _EpicFromPlanError(str(exc)) from exc
 
         rollback_errors = _rollback_epic_creation(

@@ -37,14 +37,14 @@ def test_rollback_work_launch_uses_identity_aware_result_cleanup() -> None:
         rollback_work_launch(
             proj,
             "epic-1",
-            [],
-            unmark_ready=False,
+            marked_ready_this_run=True,
             launched_pids=[result.pid],
             launched_results=[result],
         )
 
     rollback_results.assert_called_once_with([result])
     kill.assert_not_called()
+    proj.unmark_ready_to_work.assert_not_called()
 
 
 def test_rollback_work_launch_keeps_pid_fallback() -> None:
@@ -54,9 +54,9 @@ def test_rollback_work_launch_keeps_pid_fallback() -> None:
         rollback_work_launch(
             proj,
             "epic-1",
-            [],
-            unmark_ready=False,
+            marked_ready_this_run=True,
             launched_pids=[1234],
         )
 
     kill.assert_called_once_with(1234, signal.SIGTERM)
+    proj.unmark_ready_to_work.assert_not_called()

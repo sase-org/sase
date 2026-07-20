@@ -264,7 +264,8 @@ def test_work_rolls_back_on_launch_failure(
 
     err = capsys.readouterr().err
     assert "launch failed" in err
-    assert "Rolling back" in err
+    assert "No agents were spawned" in err
+    assert "restoring the epic's prior is_ready_to_work state" in err
 
 
 def test_work_commit_failure_reports_after_successful_launch(
@@ -294,8 +295,8 @@ def test_work_commit_failure_reports_after_successful_launch(
         assert proj.show(epic_id).is_ready_to_work is True
         for pid in phase_ids:
             phase = proj.show(pid)
-            assert phase.status == Status.IN_PROGRESS
-            assert phase.assignee == pid
+            assert phase.status == Status.OPEN
+            assert phase.assignee == ""
 
     captured = capsys.readouterr()
     assert "Launched" in captured.out
@@ -338,10 +339,13 @@ def test_work_allows_already_ready_epic_and_launches_remaining_phases(
     with BeadProject(project_dir) as proj:
         assert proj.show(epic_id).is_ready_to_work is True
         assert proj.show(phase_ids[0]).status == Status.CLOSED
-        for pid in phase_ids[1:]:
+        reassigned = proj.show(phase_ids[1])
+        assert reassigned.status == Status.IN_PROGRESS
+        assert reassigned.assignee == "previous"
+        for pid in phase_ids[2:]:
             phase = proj.show(pid)
-            assert phase.status == Status.IN_PROGRESS
-            assert phase.assignee == pid
+            assert phase.status == Status.OPEN
+            assert phase.assignee == ""
 
     out = capsys.readouterr().out
     assert "already ready; retrying remaining non-closed phases" in out
@@ -385,7 +389,8 @@ def test_work_retry_does_not_unmark_already_ready_epic_on_launch_failure(
 
     err = capsys.readouterr().err
     assert "launch failed" in err
-    assert "Rolling back pre-claims" in err
+    assert "No agents were spawned" in err
+    assert "preserving the epic's existing is_ready_to_work state" in err
 
 
 def test_work_rollback_restores_prior_in_progress_status(
@@ -470,6 +475,8 @@ def test_rollback_kills_partially_launched_agents(
             extra_env: Any = None,
             segment_extra_env: Any = None,
         ) -> Any:
+            with BeadProject(project_dir) as project:
+                project.claim_for_agent_launch(epic_id, f"{epic_id}.land")
             raise _MultiPromptPartialLaunchError([partial_result], RuntimeError("boom"))
 
         monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
@@ -489,4 +496,10 @@ def test_rollback_kills_partially_launched_agents(
             child.wait(timeout=5)
 
     err = capsys.readouterr().err
-    assert "Rolling back" in err
+    assert "Terminated the partially launched agents" in err
+    assert "preserving is_ready_to_work and any runner-owned bead claims" in err
+    with BeadProject(project_dir) as project:
+        epic = project.show(epic_id)
+        assert epic.is_ready_to_work is True
+        assert epic.status == Status.IN_PROGRESS
+        assert epic.assignee == f"{epic_id}.land"

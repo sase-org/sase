@@ -147,9 +147,9 @@ class TestRenderEdgeCases:
             "%clan(sase-42.3, tribe=epic, "
             "summary_script=sase_clan_summary_epic)" in phase_segment
         )
-        assert "%id:!sase-42.3.1" in phase_segment
+        assert "%id(!sase-42.3.1, bead=sase-42.3.1)" in phase_segment
         assert "#bd/work_phase_bead:sase-42.3.1" in phase_segment
-        assert "%id(!land, clan=sase-42.3)" in land_segment
+        assert "%id(!land, clan=sase-42.3, bead=sase-42.3)" in land_segment
         assert "%clan" not in land_segment
         assert "%w:sase-42.3.1" in land_segment
         assert "#bd/land_epic:sase-42.3" in land_segment
@@ -184,8 +184,8 @@ class TestRenderEdgeCases:
 
         phase_segment, land_segment = rendered.split("\n---\n")
         assert "%clan" not in rendered
-        assert "%id(!1, clan=sase-42)" in phase_segment
-        assert "%id(!land, clan=sase-42)" in land_segment
+        assert "%id(!1, clan=sase-42, bead=sase-42.1)" in phase_segment
+        assert "%id(!land, clan=sase-42, bead=sase-42)" in land_segment
 
     def test_epic_work_segment_env_tracks_phase_then_land_bead_ids(
         self,

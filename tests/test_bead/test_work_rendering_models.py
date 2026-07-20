@@ -218,7 +218,7 @@ class TestModelDirective:
         phase_segment, land_segment = rendered.split("\n---\n")
         assert_bare_auto_directives(rendered)
         assert phase_segment == (
-            "%id:!e1.p1\n"
+            "%id(!e1.p1, bead=p1)\n"
             "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%model:claude/opus\n"
             "%auto\n"
@@ -292,7 +292,7 @@ class TestModelDirective:
         assert "%model:@phase_worker" in phase_segment
         # An explicit per-epic land model still wins over the epic-lander alias.
         assert land_segment == (
-            "%id(!land, clan=e1)\n"
+            "%id(!land, clan=e1, bead=e1)\n"
             "%model:claude/opus\n"
             "%auto\n"
             "%w:e1.p1\n"
@@ -321,16 +321,16 @@ class TestModelDirective:
         )
 
         pre_model_baseline = (
-            "%id:!e1.p1\n"
+            "%id(!e1.p1, bead=p1)\n"
             "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
-            "%id(!p2, clan=e1)\n"
+            "%id(!p2, clan=e1, bead=p2)\n"
             "%auto\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
-            "%id(!land, clan=e1)\n"
+            "%id(!land, clan=e1, bead=e1)\n"
             "%auto\n"
             "%w:e1.p1,e1.p2\n"
             "%w(bead=p1)\n"

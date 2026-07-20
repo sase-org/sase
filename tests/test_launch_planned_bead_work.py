@@ -12,16 +12,17 @@ import pytest
 
 def _bead_segments() -> tuple[list[str], list[dict[str, str]], set[str]]:
     segments = [
-        "#git:proj\n%id:proj-epic.1\n"
-        "%family(proj-epic, role=phase)\n%model:@worker\n"
+        "#git:proj\n%id(proj-epic.1, bead=proj-epic.1)\n"
+        "%clan(proj-epic, tribe=epic)\n%model:@worker\n"
         "%auto\n#bd/work_phase_bead:proj-epic.1",
-        "#git:proj\n%id:proj-epic\n%auto\n%w:proj-epic.1\n#bd/land_epic:proj-epic",
+        "#git:proj\n%id(land, clan=proj-epic, bead=proj-epic)\n"
+        "%auto\n%w:proj-epic.1\n#bd/land_epic:proj-epic",
     ]
     envs = [
         {"SASE_BEAD_ID": "proj-epic.1", "SASE_INTERNAL_AGENT_NAME_BYPASS": "1"},
         {"SASE_BEAD_ID": "proj-epic", "SASE_INTERNAL_AGENT_NAME_BYPASS": "1"},
     ]
-    return segments, envs, {"proj-epic.1", "proj-epic"}
+    return segments, envs, {"proj-epic.1", "proj-epic.land"}
 
 
 def test_adapter_passes_one_slot_preplanned_plans(

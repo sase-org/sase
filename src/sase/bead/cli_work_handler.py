@@ -29,7 +29,7 @@ from sase.bead.cli_work_plan import (
     legacy_epic_cleanup_names,
     print_work_plan_summary,
 )
-from sase.bead.model import BeadTier, IssueType, Status
+from sase.bead.model import BeadTier, IssueType
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 from sase.bead.sync import BeadWorkLaunchCommitError
 
@@ -47,14 +47,21 @@ BEAD_WORK_TIMING_ENV = "SASE_BEAD_WORK_TIMING"
 class BeadWorkError(RuntimeError):
     """A recoverable ``sase bead work`` orchestration failure.
 
+    ``agents_spawned`` records that at least one runner crossed the spawn
+    boundary, so plan-file callers must preserve the recoverable epic state.
     ``agents_launched`` distinguishes failures after every requested agent was
-    successfully started (currently the final bead-state commit) from failures
-    where the existing rollback path already terminated partial launches and
-    restored pre-claims.
+    successfully started (currently the final bead-state commit).
     """
 
-    def __init__(self, message: str, *, agents_launched: bool = False) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        agents_spawned: bool = False,
+        agents_launched: bool = False,
+    ) -> None:
         super().__init__(message)
+        self.agents_spawned = agents_spawned or agents_launched
         self.agents_launched = agents_launched
 
 
@@ -351,27 +358,6 @@ def launch_epic_bead_work(
             except (KeyError, NotAPlanError) as e:
                 raise BeadWorkError(str(e)) from e
 
-    claimed: list[tuple[str, Status, str]] = []
-    with timer.stage("preclaim"):
-        try:
-            claimed = proj.preclaim_epic_work(
-                epic_id,
-                [
-                    (assignment.bead_id, assignment.agent_name)
-                    for wave in plan.waves
-                    for assignment in wave
-                ],
-            )
-        except (KeyError, ValueError) as e:
-            rollback_work_launch(
-                proj,
-                epic_id,
-                claimed,
-                unmark_ready=marked_ready_this_run,
-                no_push=no_push or defer_push,
-            )
-            raise BeadWorkError(f"pre-claim failed for epic {epic_id}: {e}") from e
-
     try:
         with timer.stage("agent_launch"):
             results = launch_bead_work_agents(
@@ -389,15 +375,15 @@ def launch_epic_bead_work(
         rollback_work_launch(
             proj,
             epic_id,
-            claimed,
-            unmark_ready=marked_ready_this_run,
+            marked_ready_this_run=marked_ready_this_run,
             no_push=no_push or defer_push,
             launched_pids=launched_pids,
             launched_results=launched_results,
         )
         raise BeadWorkError(
             f"agent launch failed for epic {epic_id}: {e}\n"
-            "For broader diagnostics, run `sase doctor -v`."
+            "For broader diagnostics, run `sase doctor -v`.",
+            agents_spawned=bool(launched_results or launched_pids),
         ) from e
 
     agent_count = sum(len(w) for w in plan.waves) + 1

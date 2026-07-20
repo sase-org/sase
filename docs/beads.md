@@ -316,7 +316,7 @@ Display a quick-start guide with common command examples.
 
 Create or resume an epic from a validated Markdown plan, or launch an existing epic-tier plan bead. A target is treated
 as a plan file when it ends in `.md`, contains a path separator, or names an existing file; other targets are bead IDs.
-Both modes use the same launcher to run one agent per open phase plus a final land agent.
+Both modes use the same launcher to run one agent per non-closed, non-delegated phase plus a final land agent.
 
 Plan-file mode is the canonical epic-approval entry point. It:
 
@@ -330,10 +330,10 @@ Plan-file mode is the canonical epic-approval entry point. It:
 6. Invokes the existing bead-ID launch path.
 
 A missing phase description becomes a deterministic pointer to the plan and phase ID. A linked `bead_id` that no longer
-exists fails with instructions to remove the stale link or restore the bead store. Failures before a complete launch
-remove the newly-created epic and children and restore the plan link. Partial agent launches are terminated by the
-normal bead-work rollback before that creation rollback runs. A failure committing bead state after all agents started
-is reported without deleting the live agents or their beads. Every plan-file failure after archiving prints the exact
+exists fails with instructions to remove the stale link or restore the bead store. Failures before any runner is spawned
+remove the newly-created epic and children and restore the plan link. Once a runner has spawned, the linked epic and its
+readiness state are preserved for recovery; partial runners are terminated, while a failure committing bead state after
+all agents started leaves them running. Every plan-file failure after archiving prints the exact
 `sase bead work ... --yes` command to resume.
 
 When an epic-tier plan is proposed from bead work, `sase plan propose` automatically stamps `parent_bead` from the phase
@@ -363,7 +363,10 @@ Once an epic bead exists, the shared launch path:
 4. Builds a Kahn-wave schedule from the epic's schedulable open phase children, respecting dependencies and excluding
    delegated phases with an open child plan/epic. When every remaining phase is delegated, only the land agent is
    launched and remains parked behind the phase beads.
-5. Pre-claims each phase bead — sets `status=in_progress` and `assignee=<phase_bead_id>` (i.e. `<epic_id>.<N>`).
+5. Associates each rendered worker with exactly one bead in its `%id`: the first phase uses its full agent name plus
+   `bead=<phase-id>` beside the separate clan declaration, later phases combine their suffix, `clan=<epic-id>`, and
+   `bead=<phase-id>`, and the land agent combines `land`, the clan, and `bead=<epic-id>`. Rendering and launch approval
+   do not change phase or epic status.
 6. Hands a single `---`-separated multi-prompt to the agent launcher. Each per-phase agent is spawned with name
    `<epic_id>.<N>` and references the [`work_phase_bead`](xprompt.md#available-tags) xprompt; a final land agent named
    `<epic_id>.land` references the [`land_epic`](xprompt.md#available-tags) xprompt. Every segment joins clan
@@ -383,8 +386,11 @@ Once an epic bead exists, the shared launch path:
    `@default` unless explicitly configured under `llm_provider.model_aliases.builtin`. Each phase segment and the final
    land-epic segment carries bare `%auto`, so submitted implementation and landing plans are auto-approved. An agent may
    author a tale or an epic as needed; the plan's authored `tier` selects the corresponding automatic follow-up path.
-   Each segment uses the force-reuse `%id:!<agent_name>` form so re-running `sase bead work` after a killed or failed
-   run wipes the stale name owners before the relaunch — the command is safe to retry.
+   Each runner waits for its agent and bead dependencies, prepares its workspace, then atomically claims its associated
+   bead immediately before model execution. The claim sets `status=in_progress` and assigns the runner name; parallel
+   workers claim independently, and the land runner claims the epic only after all phase waits. Each segment uses a
+   force-reuse `%id(!<agent_name>, bead=<bead-id>)` form (with `clan=` on join segments), so re-running `sase bead work`
+   after a killed or failed run wipes stale name owners before relaunch — the command is safe to retry.
 
 When a phase agent auto-approves an epic-tier implementation plan, that child epic is created beneath the phase and the
 phase remains open while delegated work runs. Landing the child epic triggers the upward close cascade described above,
@@ -412,14 +418,15 @@ non-ChangeSpec epics launched from a known SASE workspace, each segment is still
 and project name (for example `#git:sase` or `#gh:sase-org/sase`). If the current directory is not associated with a
 SASE project, the prompts are left unprefixed and run in the caller's normal launch context.
 
-If launching the multi-prompt fails partway through, the launcher SIGTERMs any already-spawned children before rolling
-back the pre-claims and the `is_ready_to_work` flag when this run set it (best-effort), so the epic can be retried
-without leaving zombie agents behind.
+If launching fails before any runner is spawned, the command restores `is_ready_to_work` only when this attempt set it
+and commits that recovery using the selected push policy. If launching fails partway through, it SIGTERMs spawned
+children through identity-aware cleanup, keeps readiness and any durable runner-owned claims, and commits the
+recoverable state. An epic that was already ready remains ready in either case.
 
-After the agents launch successfully, `sase bead work` commits the resulting bead-state mutation when the beads
-directory belongs to a git repository and canonical/projection files changed. This commit records the bead launch state
-only; it does not commit any code produced later by the spawned agents. Epic launches use the subject
-`chore: mark bead work launched for <id>`. If the git commit fails, the command reports that agents were already
+After the agents launch successfully, `sase bead work` commits readiness and other launch-owned bead metadata when the
+beads directory belongs to a git repository and canonical/projection files changed. Runner-owned claims are committed by
+the runners instead. This commit does not include code produced later by the spawned agents. Epic launches use the
+subject `chore: mark bead work launched for <id>`. If the git commit fails, the command reports that agents were already
 launched and exits non-zero so the operator can commit or repair the bead state explicitly. Dry runs and stores outside
 git do not create a commit.
 

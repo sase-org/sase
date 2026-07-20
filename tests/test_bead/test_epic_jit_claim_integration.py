@@ -1,0 +1,226 @@
+"""Integration coverage for rendered epic work and runner-side bead claims."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+from unittest.mock import patch
+
+import pytest
+
+from sase.agent.launch_types import AgentLaunchResult
+from sase.axe.run_agent_runner_bead import claim_bead_for_agent_launch
+from sase.bead.cli_work_launch import launch_bead_work_agents
+from sase.bead.cli_work_plan import expected_agent_names
+from sase.bead.model import Status
+from sase.bead.project import BeadProject
+from sase.bead.work import (
+    VCSLaunchContext,
+    build_epic_work_plan_from_beads_dir,
+    epic_work_segment_env,
+    render_multi_prompt,
+)
+from sase.sdd.store import SddStore
+from sase.xprompt.directives import extract_prompt_directives
+from sase.xprompt.workflow_models import Workflow
+
+from .cli_work_helpers import seed_diamond
+
+
+def _launch_result(name: str) -> AgentLaunchResult:
+    return AgentLaunchResult(
+        pid=1234,
+        workspace_num=1,
+        workspace_dir="/workspace/1",
+        output_path="/tmp/output",
+        agent_name=name,
+    )
+
+
+@pytest.mark.parametrize("planned", [False, True], ids=["generic-cwd", "planned"])
+def test_rendered_waves_claim_only_when_each_runner_reaches_execution(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    planned: bool,
+) -> None:
+    epic_id, phase_ids = seed_diamond(project_dir)
+    with BeadProject(project_dir) as project:
+        project.mark_ready_to_work(epic_id)
+        plan = build_epic_work_plan_from_beads_dir(project.beads_dir, epic_id)
+
+    launch_context = (
+        VCSLaunchContext(vcs_workflow="git", project_name="proj") if planned else None
+    )
+    query = render_multi_prompt(
+        plan,
+        Workflow(name="bd/work_phase_bead"),
+        Workflow(name="bd/land_epic"),
+        vcs_context=launch_context,
+    )
+    envs = epic_work_segment_env(plan, plan_ref="sdd/plans/epic.md")
+    dispatched: dict[str, Any] = {}
+
+    if planned:
+        monkeypatch.setattr(
+            "sase.agent.launcher.launch_agent_from_cwd",
+            lambda *args, **kwargs: pytest.fail("planned work must use the adapter"),
+        )
+
+        def launch_planned(**kwargs: Any) -> list[AgentLaunchResult]:
+            dispatched.update(kwargs)
+            return [_launch_result(name) for name in sorted(expected_agent_names(plan))]
+
+        monkeypatch.setattr(
+            "sase.agent.launcher.launch_planned_bead_work_agents",
+            launch_planned,
+        )
+    else:
+        monkeypatch.setattr(
+            "sase.agent.launcher.launch_planned_bead_work_agents",
+            lambda **kwargs: pytest.fail("generic work must use the CWD launcher"),
+        )
+
+        def launch_generic(
+            rendered: str,
+            extra_env: object = None,
+            segment_extra_env: object = None,
+        ) -> AgentLaunchResult:
+            dispatched.update(
+                query=rendered,
+                extra_env=extra_env,
+                segment_extra_env=segment_extra_env,
+            )
+            return _launch_result(plan.waves[0][0].agent_name)
+
+        monkeypatch.setattr(
+            "sase.agent.launcher.launch_agent_from_cwd",
+            launch_generic,
+        )
+
+    launch_bead_work_agents(
+        query,
+        segment_extra_env=envs,
+        expected_names=expected_agent_names(plan),
+        launch_context=launch_context,
+    )
+
+    segments = (
+        list(dispatched["segments"])
+        if planned
+        else str(dispatched["query"]).split("\n---\n")
+    )
+    dispatched_envs = tuple(dispatched["segment_extra_env"])
+    directives_by_bead = {}
+    for segment, env in zip(segments, dispatched_envs, strict=True):
+        assert segment.count("%id") == 1
+        _, directives = extract_prompt_directives(segment)
+        assert directives.bead_id == env["SASE_BEAD_ID"]
+        directives_by_bead[directives.bead_id] = directives
+
+    store = SddStore(
+        storage="in_tree",
+        sdd_dir=project_dir / "sdd",
+        repo_root=project_dir,
+    )
+    model_callbacks: list[str] = []
+
+    def cross_runner_claim(bead_id: str) -> None:
+        directives = directives_by_bead[bead_id]
+        assert directives.name is not None
+        with BeadProject(project_dir) as project:
+            before = project.show(bead_id)
+            assert before.status == Status.OPEN
+            assert all(
+                project.show(blocker).status == Status.CLOSED
+                for blocker in directives.wait_beads
+            )
+        claimed = claim_bead_for_agent_launch(
+            agent_name=directives.name,
+            bead_id=bead_id,
+            workspace_dir=str(project_dir),
+            workspace_num=0,
+            artifacts_dir=str(project_dir / "artifacts"),
+        )
+        assert claimed.status == Status.IN_PROGRESS
+        assert claimed.assignee == directives.name
+        model_callbacks.append(bead_id)
+
+    with patch("sase.sdd.store.resolve_sdd_store", return_value=store):
+        first, parallel_a, parallel_b, downstream = phase_ids
+
+        # Launching and waiting do not mutate downstream work.
+        with BeadProject(project_dir) as project:
+            assert all(project.show(bead).status == Status.OPEN for bead in phase_ids)
+            assert project.show(epic_id).status == Status.OPEN
+
+        cross_runner_claim(first)
+        with BeadProject(project_dir) as project:
+            assert project.show(parallel_a).status == Status.OPEN
+            assert project.show(parallel_b).status == Status.OPEN
+            project.close([first])
+
+        # Parallel workers claim independently immediately before their models.
+        cross_runner_claim(parallel_a)
+        with BeadProject(project_dir) as project:
+            assert project.show(parallel_b).status == Status.OPEN
+        cross_runner_claim(parallel_b)
+        with BeadProject(project_dir) as project:
+            assert project.show(downstream).status == Status.OPEN
+            project.close([parallel_a, parallel_b])
+
+        cross_runner_claim(downstream)
+        with BeadProject(project_dir) as project:
+            assert project.show(epic_id).status == Status.OPEN
+            project.close([downstream])
+
+        cross_runner_claim(epic_id)
+
+    assert model_callbacks == [*phase_ids, epic_id]
+    with BeadProject(project_dir) as project:
+        assert project.show(epic_id).status == Status.IN_PROGRESS
+        assert project.show(epic_id).assignee == plan.land_agent_name
+
+
+@pytest.mark.parametrize("target", ["phase", "epic"])
+def test_closed_rendered_bead_fails_before_model_callback(
+    project_dir: Path,
+    target: str,
+) -> None:
+    epic_id, phase_ids = seed_diamond(project_dir)
+    with BeadProject(project_dir) as project:
+        plan = build_epic_work_plan_from_beads_dir(project.beads_dir, epic_id)
+    query = render_multi_prompt(
+        plan,
+        Workflow(name="bd/work_phase_bead"),
+        Workflow(name="bd/land_epic"),
+    )
+    target_id = phase_ids[0] if target == "phase" else epic_id
+    segment = next(
+        segment for segment in query.split("\n---\n") if f"bead={target_id})" in segment
+    )
+    _, directives = extract_prompt_directives(segment)
+    assert directives.name is not None
+
+    with BeadProject(project_dir) as project:
+        project.close([target_id])
+    store = SddStore(
+        storage="in_tree",
+        sdd_dir=project_dir / "sdd",
+        repo_root=project_dir,
+    )
+    model_callbacks: list[str] = []
+
+    with (
+        patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+        pytest.raises(RuntimeError, match=rf"Failed to claim bead '{target_id}'"),
+    ):
+        claim_bead_for_agent_launch(
+            agent_name=directives.name,
+            bead_id=target_id,
+            workspace_dir=str(project_dir),
+            workspace_num=0,
+            artifacts_dir=str(project_dir / "artifacts"),
+        )
+        model_callbacks.append(target_id)
+
+    assert model_callbacks == []

@@ -10,7 +10,6 @@ from sase.bead.cli_common import auto_commit_bead_store
 
 if TYPE_CHECKING:
     from sase.agent.launch_types import AgentLaunchResult
-    from sase.bead.model import Status
     from sase.bead.project import BeadProject
 
 
@@ -43,46 +42,51 @@ def _rollback_launched_agents(
 def rollback_work_launch(
     proj: BeadProject,
     epic_id: str,
-    claimed: list[tuple[str, Status, str]],
     *,
-    unmark_ready: bool,
+    marked_ready_this_run: bool,
     no_push: bool = False,
     launched_pids: list[int] | None = None,
     launched_results: list[AgentLaunchResult] | None = None,
 ) -> None:
-    """Best-effort: terminate already-spawned agents and revert pre-claims."""
+    """Persist recoverable state after a failed epic-work agent launch.
+
+    A zero-spawn failure may undo readiness when this launch set it. Once any
+    runner has spawned, readiness and runner-owned claims are retained; only
+    the partial launch is terminated.
+    """
+    spawned_any = bool(launched_results or launched_pids)
     _rollback_launched_agents(
         launched_results=launched_results,
         launched_pids=launched_pids,
     )
 
-    target = "pre-claims and is_ready_to_work flag" if unmark_ready else "pre-claims"
-    print(
-        f"Rolling back {target}. If rollback also fails, fix the affected "
-        "bead status/assignee fields manually.",
-        file=sys.stderr,
-    )
-    for bead_id, prior_status, prior_assignee in reversed(claimed):
-        try:
-            proj.update(
-                bead_id,
-                status=prior_status.value,
-                assignee=prior_assignee,
-            )
-        except Exception as exc:  # noqa: BLE001
-            print(
-                f"Warning: failed to roll back pre-claim on {bead_id}: {exc}",
-                file=sys.stderr,
-            )
-    if unmark_ready:
+    if spawned_any:
+        print(
+            "Terminated the partially launched agents; preserving "
+            "is_ready_to_work and any runner-owned bead claims for recovery.",
+            file=sys.stderr,
+        )
+    elif marked_ready_this_run:
+        print(
+            "No agents were spawned; restoring the epic's prior "
+            "is_ready_to_work state.",
+            file=sys.stderr,
+        )
         try:
             proj.unmark_ready_to_work(epic_id)
         except Exception as exc:  # noqa: BLE001
             print(
-                f"Warning: failed to roll back is_ready_to_work on {epic_id}: {exc}",
+                f"Warning: failed to restore is_ready_to_work on {epic_id}: {exc}",
                 file=sys.stderr,
             )
-    message = f"chore(beads): rollback work launch {epic_id}"
+    else:
+        print(
+            "No agents were spawned; preserving the epic's existing "
+            "is_ready_to_work state.",
+            file=sys.stderr,
+        )
+
+    message = f"chore(beads): recover failed work launch {epic_id}"
     if no_push:
         auto_commit_bead_store(message, push_after_commit=False)
     else:

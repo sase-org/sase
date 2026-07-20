@@ -271,17 +271,14 @@ def test_rollback_work_launch_auto_commits_cleanup() -> None:
         rollback_work_launch(
             proj,
             "epic-1",
-            [("phase-1", Status.IN_PROGRESS, "agent")],
-            unmark_ready=True,
+            marked_ready_this_run=True,
         )
 
-    proj.update.assert_called_once_with(
-        "phase-1",
-        status=Status.IN_PROGRESS.value,
-        assignee="agent",
-    )
+    proj.update.assert_not_called()
     proj.unmark_ready_to_work.assert_called_once_with("epic-1")
-    auto_commit.assert_called_once_with("chore(beads): rollback work launch epic-1")
+    auto_commit.assert_called_once_with(
+        "chore(beads): recover failed work launch epic-1"
+    )
 
 
 def test_rollback_work_launch_suppresses_push_when_requested() -> None:
@@ -293,13 +290,12 @@ def test_rollback_work_launch_suppresses_push_when_requested() -> None:
         rollback_work_launch(
             proj,
             "epic-1",
-            [],
-            unmark_ready=False,
+            marked_ready_this_run=False,
             no_push=True,
         )
 
     auto_commit.assert_called_once_with(
-        "chore(beads): rollback work launch epic-1",
+        "chore(beads): recover failed work launch epic-1",
         push_after_commit=False,
     )
 

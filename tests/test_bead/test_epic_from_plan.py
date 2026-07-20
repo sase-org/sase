@@ -151,9 +151,30 @@ def test_creation_failure_removes_epic_and_restores_plan(
     assert plan_path.read_text(encoding="utf-8") == EPIC_PLAN
 
 
-def test_launch_failure_rolls_back_but_post_launch_commit_failure_does_not(
+@pytest.mark.parametrize(
+    ("message", "error_kwargs", "preserves_epic"),
+    [
+        pytest.param("launch failed", {}, False, id="zero-spawn"),
+        pytest.param(
+            "partial launch failed",
+            {"agents_spawned": True},
+            True,
+            id="partial-spawn",
+        ),
+        pytest.param(
+            "commit failed",
+            {"agents_launched": True},
+            True,
+            id="post-launch-commit",
+        ),
+    ],
+)
+def test_epic_creation_rollback_respects_runner_spawn_boundary(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
+    message: str,
+    error_kwargs: dict[str, bool],
+    preserves_epic: bool,
 ) -> None:
     plan_path = project_dir / "rollout.md"
     plan_path.write_text(EPIC_PLAN, encoding="utf-8")
@@ -163,40 +184,32 @@ def test_launch_failure_rolls_back_but_post_launch_commit_failure_does_not(
     )
 
     with BeadProject(project_dir) as proj:
-        with pytest.raises(RuntimeError, match="launch failed"):
+        with pytest.raises(RuntimeError, match=message):
             create_and_launch_epic_from_plan(
                 proj,
                 plan_path=plan_path,
                 plan_ref="rollout.md",
                 commit_plan_update=lambda _path: True,
                 launch_work=lambda _project, _epic_id: (_ for _ in ()).throw(
-                    BeadWorkError("launch failed")
-                ),
-            )
-        assert proj.list_issues() == []
-    assert plan_path.read_text(encoding="utf-8") == EPIC_PLAN
-
-    with BeadProject(project_dir) as proj:
-        with pytest.raises(RuntimeError, match="commit failed"):
-            create_and_launch_epic_from_plan(
-                proj,
-                plan_path=plan_path,
-                plan_ref="rollout.md",
-                commit_plan_update=lambda _path: True,
-                launch_work=lambda _project, _epic_id: (_ for _ in ()).throw(
-                    BeadWorkError("commit failed", agents_launched=True)
+                    BeadWorkError(message, **error_kwargs)
                 ),
             )
         issues = proj.list_issues()
-        assert len(issues) == 4
-        assert (
-            len([issue for issue in issues if issue.issue_type is IssueType.PLAN]) == 1
-        )
+        if preserves_epic:
+            assert len(issues) == 4
+            assert (
+                len([issue for issue in issues if issue.issue_type is IssueType.PLAN])
+                == 1
+            )
+        else:
+            assert issues == []
 
-    linked_frontmatter, _body, _had_frontmatter = parse_frontmatter(
-        plan_path.read_text(encoding="utf-8")
-    )
-    assert linked_frontmatter["bead_id"]
+    content = plan_path.read_text(encoding="utf-8")
+    if preserves_epic:
+        linked_frontmatter, _body, _had_frontmatter = parse_frontmatter(content)
+        assert linked_frontmatter["bead_id"]
+    else:
+        assert content == EPIC_PLAN
 
 
 def test_existing_bead_link_refuses_duplicate_creation(project_dir: Path) -> None:
@@ -252,7 +265,7 @@ def test_valid_plan_runs_real_bead_work_wave_path(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A valid epic reaches the real wave renderer, preclaim, and launcher path."""
+    """A valid epic reaches the real wave renderer and JIT launcher path."""
     from sase.agent.names import AgentNameWipeResult
     from sase.bead.model import Status
 
@@ -300,12 +313,14 @@ def test_valid_plan_runs_real_bead_work_wave_path(
 
         assert proj.show(result.epic.id).is_ready_to_work is True
         launched_phases = [proj.show(phase.id) for phase in result.phases]
-        assert all(phase.status is Status.IN_PROGRESS for phase in launched_phases)
-        assert all(phase.assignee == phase.id for phase in launched_phases)
+        assert all(phase.status is Status.OPEN for phase in launched_phases)
+        assert all(phase.assignee == "" for phase in launched_phases)
 
     query = captured["query"]
     for phase in result.phases:
         assert f"#bd/work_phase_bead:{phase.id}" in query
+        assert f"bead={phase.id}" in query
     assert f"#bd/land_epic:{result.epic.id}" in query
+    assert f"bead={result.epic.id}" in query
     assert f"%w:{result.phases[0].id}" in query
     assert f"%w:{result.phases[0].id},{result.phases[1].id}" in query

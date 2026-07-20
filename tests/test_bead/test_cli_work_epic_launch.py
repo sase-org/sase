@@ -18,6 +18,7 @@ from sase.bead.work import (
     SASE_EPIC_PLAN_REF_ENV,
     SASE_PHASE_BEAD_ID_ENV,
 )
+from sase.xprompt.directives import extract_prompt_directives
 
 from .cli_work_helpers import (
     FakeLaunchResult,
@@ -84,12 +85,12 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     for index, pid in enumerate(phase_ids):
         assert f"#bd/work_phase_bead:{pid}" in query
         if index == 0:
-            assert f"%id:{pid}\n{membership}" in query
+            assert f"%id({pid}, bead={pid})\n{membership}" in query
         else:
             suffix = pid.removeprefix(f"{epic_id}.")
-            assert f"%id({suffix}, clan={epic_id})" in query
+            assert f"%id({suffix}, clan={epic_id}, bead={pid})" in query
     land_segment = query.split("\n---\n")[-1]
-    assert f"%id(land, clan={epic_id})" in land_segment
+    assert f"%id(land, clan={epic_id}, bead={epic_id})" in land_segment
     assert membership not in land_segment
     assert f"#bd/land_epic:{epic_id}" in query
     assert _bead_wait_lines(land_segment) == [
@@ -118,18 +119,24 @@ def test_work_launches_and_passes_rendered_multi_prompt(
             }
         ]
     )
+    for segment, env in zip(
+        query.split("\n---\n"), captured["segment_extra_env"], strict=True
+    ):
+        _, directives = extract_prompt_directives(segment)
+        assert directives.bead_id == env[SASE_BEAD_ID_ENV]
     assert commit_calls == [
         (project_dir / "sdd/beads", epic_id, "Diamond epic", "epic")
     ]
 
-    # Each phase was pre-claimed.
+    # Launch approval owns readiness; mocked runners have not claimed anything.
     with BeadProject(project_dir) as proj:
         epic = proj.show(epic_id)
         assert epic.is_ready_to_work is True
+        assert epic.status == Status.OPEN
         for pid in phase_ids:
             phase = proj.show(pid)
-            assert phase.status == Status.IN_PROGRESS
-            assert phase.assignee == pid
+            assert phase.status == Status.OPEN
+            assert phase.assignee == ""
 
     out = capsys.readouterr().out
     assert "Launched" in out
@@ -167,13 +174,13 @@ def test_work_stale_owner_round_trip_wipes_and_rewrites(
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
 
     query = captured["query"]
-    # Launcher receives the rewritten prompt: ordinary %id:<n> (no '!').
-    assert "%id:!" not in query
-    assert f"%id:{phase_ids[0]}\n" in query
+    # Launcher receives ordinary identities while retaining bead associations.
+    assert "%id(!" not in query
+    assert f"%id({phase_ids[0]}, bead={phase_ids[0]})\n" in query
     for pid in phase_ids[1:]:
         suffix = pid.removeprefix(f"{epic_id}.")
-        assert f"%id({suffix}, clan={epic_id})" in query
-    assert f"%id(land, clan={epic_id})" in query
+        assert f"%id({suffix}, clan={epic_id}, bead={pid})" in query
+    assert f"%id(land, clan={epic_id}, bead={epic_id})" in query
 
     # Every planned phase and land name is force-reused before launch, plus the
     # legacy ``<epic_id>`` owner the new prompt no longer names.
@@ -226,14 +233,14 @@ def test_work_retry_allows_legacy_epic_clan_container_skip(
     assert epic_id in wiped
     assert len(launched) == 1
     query, segment_env = launched[0]
-    assert "%id:!" not in query
+    assert "%id(!" not in query
     assert "%clan" not in query
     assert f"#bd/work_phase_bead:{phase_ids[0]}" not in query
     for phase_id in phase_ids[1:]:
         assert f"#bd/work_phase_bead:{phase_id}" in query
         suffix = phase_id.removeprefix(f"{epic_id}.")
-        assert f"%id({suffix}, clan={epic_id})" in query
-    assert f"%id(land, clan={epic_id})" in query
+        assert f"%id({suffix}, clan={epic_id}, bead={phase_id})" in query
+    assert f"%id(land, clan={epic_id}, bead={epic_id})" in query
     assert all(env[SASE_EPIC_CLAN_TRIBE_ENV] == "epic" for env in segment_env)
     assert [env[SASE_BEAD_ID_ENV] for env in segment_env] == [
         *phase_ids[1:],
@@ -289,8 +296,8 @@ def test_work_relaunch_after_failure_joins_existing_epic_clan(
     assert "%clan" not in retry_query
     for phase_id in phase_ids:
         suffix = phase_id.removeprefix(f"{epic_id}.")
-        assert f"%id({suffix}, clan={epic_id})" in retry_query
-    assert f"%id(land, clan={epic_id})" in retry_query
+        assert f"%id({suffix}, clan={epic_id}, bead={phase_id})" in retry_query
+    assert f"%id(land, clan={epic_id}, bead={epic_id})" in retry_query
     for segment_env in (first_segment_env, retry_segment_env):
         assert all(env[SASE_EPIC_CLAN_TRIBE_ENV] == "epic" for env in segment_env)
 
@@ -513,12 +520,21 @@ def test_work_dry_run_renders_model_directives(
 
     out = capsys.readouterr().out
     membership = _epic_clan_declaration(epic_id)
-    assert f"%id:!{p1_id}\n{membership}\n%model:codex/gpt-5.6-sol\n%auto\n" in out
+    assert (
+        f"%id(!{p1_id}, bead={p1_id})\n{membership}\n"
+        "%model:codex/gpt-5.6-sol\n%auto\n" in out
+    )
     # Phase without an explicit model defaults to the phase-worker role alias.
     p2_suffix = p2_id.removeprefix(f"{epic_id}.")
-    assert f"%id(!{p2_suffix}, clan={epic_id})\n%model:@phase_worker\n%auto\n" in out
+    assert (
+        f"%id(!{p2_suffix}, clan={epic_id}, bead={p2_id})\n"
+        "%model:@phase_worker\n%auto\n" in out
+    )
     # The epic's explicit land model still wins over the epic-lander alias.
-    assert f"%id(!land, clan={epic_id})\n%model:claude/opus\n%auto\n" in out
+    assert (
+        f"%id(!land, clan={epic_id}, bead={epic_id})\n"
+        "%model:claude/opus\n%auto\n" in out
+    )
     assert out.count(_epic_clan_declaration(epic_id)) == 1
     assert "%family" not in out
     assert "%group:" not in out
@@ -593,7 +609,7 @@ def test_work_dry_run_uses_custom_big_epic_threshold(
 
     out = capsys.readouterr().out
     land_segment = out.split("\n---\n")[-1]
-    assert f"%id(!land, clan={epic.id})" in land_segment
+    assert f"%id(!land, clan={epic.id}, bead={epic.id})" in land_segment
     assert "%model:@big_epic_lander" in land_segment
 
 
@@ -634,13 +650,13 @@ def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
     assert launch_calls == []
     out = capsys.readouterr().out
     membership = _epic_clan_declaration(epic_id)
-    assert f"#git:sase\n%id:!{phase_ids[0]}\n{membership}" in out
+    assert f"#git:sase\n%id(!{phase_ids[0]}, bead={phase_ids[0]})\n{membership}" in out
     for pid in phase_ids[1:]:
         suffix = pid.removeprefix(f"{epic_id}.")
-        assert f"#git:sase\n%id(!{suffix}, clan={epic_id})" in out
+        assert f"#git:sase\n%id(!{suffix}, clan={epic_id}, bead={pid})" in out
         assert f"#bd/work_phase_bead:{pid}" in out
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
-    assert f"#git:sase\n%id(!land, clan={epic_id})" in out
+    assert f"#git:sase\n%id(!land, clan={epic_id}, bead={epic_id})" in out
     assert f"#bd/land_epic:{epic_id}" in out
     assert out.count(_epic_clan_declaration(epic_id)) == 1
     assert "%family" not in out
@@ -701,11 +717,14 @@ def test_work_dry_run_renders_changespec_launch_wrappers(
     assert "#git:sase #pr(name=feature_epic, bug_id=12345)" in out
     assert (
         f"#git:sase #pr(name=feature_epic, bug_id=12345)\n"
-        f"%id:!{phase_ids[0]}\n{membership}" in out
+        f"%id(!{phase_ids[0]}, bead={phase_ids[0]})\n{membership}" in out
     )
     phase_suffix = phase_ids[1].removeprefix(f"{epic_id}.")
-    assert f"#git:feature_epic\n%id(!{phase_suffix}, clan={epic_id})" in out
-    assert f"#git:feature_epic\n%id(!land, clan={epic_id})" in out
+    assert (
+        f"#git:feature_epic\n"
+        f"%id(!{phase_suffix}, clan={epic_id}, bead={phase_ids[1]})" in out
+    )
+    assert f"#git:feature_epic\n%id(!land, clan={epic_id}, bead={epic_id})" in out
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
     assert f"#bd/land_epic:{epic_id}" in out
     assert out.count(_epic_clan_declaration(epic_id)) == 1
