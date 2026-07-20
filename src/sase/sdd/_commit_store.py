@@ -319,8 +319,9 @@ def push_sdd_store_after_commit(
 
     from sase.bead.sync import push_bead_work_launch, push_bead_work_launch_async
 
+    beads_dir = store.kind_root("beads")
     if mode == "async":
-        handle = push_bead_work_launch_async(store.repo_root)
+        handle = push_bead_work_launch_async(beads_dir)
         if handle is not None:
             _logger.info(
                 "Started async SDD push pid=%s log=%s",
@@ -329,7 +330,7 @@ def push_sdd_store_after_commit(
             )
         return
 
-    outcome = push_bead_work_launch(store.repo_root)
+    outcome = push_bead_work_launch(beads_dir)
     if outcome.error:
         _logger.warning("SDD git push failed after local commit: %s", outcome.error)
 

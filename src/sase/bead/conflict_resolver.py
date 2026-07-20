@@ -37,9 +37,12 @@ def resolve_bead_conflicts(
     conflicted = _conflicted_files(repo_root)
     if not conflicted:
         return _BeadConflictResolution(True, "no conflicted bead files")
-    resolved_beads_dir = _resolve_beads_dir(repo_root, beads_dir)
+    resolved_beads_dir = resolve_beads_dir(repo_root, beads_dir)
     if resolved_beads_dir is None:
-        return _BeadConflictResolution(False, "bead store not found")
+        return _BeadConflictResolution(
+            False,
+            "non-bead conflicts remain: " + ", ".join(conflicted),
+        )
     bead_prefix = resolved_beads_dir.relative_to(repo_root).as_posix()
 
     bead_conflicts = [path for path in conflicted if _is_bead_path(path, bead_prefix)]
@@ -132,19 +135,26 @@ def _conflicted_files(repo_root: Path) -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
-def _resolve_beads_dir(repo_root: Path, beads_dir: str | Path | None) -> Path | None:
+def resolve_beads_dir(
+    repo_root: Path, beads_dir: str | Path | None = None
+) -> Path | None:
+    root = repo_root.expanduser().resolve()
+    canonical_relpaths = {BEADS_DIRNAME, BEADS_DIRNAME_NON_VC}
     if beads_dir is not None:
         resolved = Path(beads_dir).expanduser().resolve()
         try:
-            resolved.relative_to(repo_root.resolve())
+            relative = resolved.relative_to(root).as_posix()
         except ValueError:
             return None
+        if relative not in canonical_relpaths or not resolved.is_dir():
+            return None
         return resolved
-    for dirname in (BEADS_DIRNAME, BEADS_DIRNAME_NON_VC):
-        candidate = repo_root / dirname
-        if candidate.is_dir():
-            return candidate
-    return None
+    candidates = [
+        (root / dirname).resolve()
+        for dirname in (BEADS_DIRNAME, BEADS_DIRNAME_NON_VC)
+        if (root / dirname).is_dir()
+    ]
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def _is_bead_path(path: str, bead_prefix: str) -> bool:
@@ -266,7 +276,7 @@ def _write_resolved_store(
 
 def _git_add(repo_root: Path, paths: list[str]) -> None:
     if paths:
-        run_with_git_lock_retry(
+        result, _outcome = run_with_git_lock_retry(
             lambda: subprocess.run(
                 ["git", "add", "--", *paths],
                 cwd=repo_root,
@@ -276,6 +286,9 @@ def _git_add(repo_root: Path, paths: list[str]) -> None:
             ),
             cwd=repo_root,
         )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(detail or f"git add failed with {result.returncode}")
 
 
 def handle_resolve_conflicts_command() -> int:
@@ -298,5 +311,6 @@ def handle_resolve_conflicts_command() -> int:
 
 __all__ = [
     "handle_resolve_conflicts_command",
+    "resolve_beads_dir",
     "resolve_bead_conflicts",
 ]

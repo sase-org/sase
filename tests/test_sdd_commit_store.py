@@ -59,8 +59,8 @@ def test_commit_sdd_store_files_push_matrix(
     monkeypatch.setattr("sase.bead.sync.push_bead_work_launch_async", fake_async)
 
     assert commit_sdd_store_files(store, "Commit SDD") is True
-    assert sync_calls == [tmp_path] * expected_sync
-    assert async_calls == [tmp_path] * expected_async
+    assert sync_calls == [tmp_path / "beads"] * expected_sync
+    assert async_calls == [tmp_path / "beads"] * expected_async
 
 
 def test_commit_sdd_store_files_does_not_push_local_store(
@@ -158,4 +158,4 @@ def test_commit_sdd_store_files_pushes_each_changed_sidecar(
         push_after_commit=True,
     )
     assert commit_roots == [plans, research]
-    assert pushed_roots == [plans, research]
+    assert pushed_roots == [plans / "beads", research / "beads"]

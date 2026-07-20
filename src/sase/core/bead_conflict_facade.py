@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from sase.core.rust import require_rust_binding
@@ -24,3 +25,8 @@ def reduce_event_streams(streams: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def event_store_manifest(streams: list[dict[str, Any]]) -> dict[str, Any]:
     binding = require_rust_binding("bead_event_store_manifest")
     return dict(binding(streams))
+
+
+def repair_event_store_manifest(beads_dir: str | Path) -> dict[str, Any]:
+    binding = require_rust_binding("bead_repair_event_store_manifest")
+    return dict(binding(str(Path(beads_dir))))

@@ -330,9 +330,18 @@ def integrate_sdd_repository_transaction(
             op=f"{op_prefix}.ancestor",
         )
         if ancestor.returncode == 0:
-            return SddIntegrationOutcome(
-                SddIntegrationStatus.SUCCESS,
+            return _successful_integration(
+                root,
+                starting,
+                runner,
+                beads_dir=beads_dir,
+                upstream=upstream,
                 upstream_present=True,
+                integrated=False,
+                repaired=False,
+                resolved_files=(),
+                op_prefix=op_prefix,
+                event_logger=event_logger,
             )
         if ancestor.returncode != 1:
             return SddIntegrationOutcome(
@@ -348,19 +357,24 @@ def integrate_sdd_repository_transaction(
             op=f"{op_prefix}.rebase",
         )
         if rebased.returncode == 0:
-            return _successful_rebase(
+            return _successful_integration(
                 root,
                 starting,
                 runner,
+                beads_dir=beads_dir,
+                upstream=upstream,
                 upstream_present=True,
+                integrated=True,
                 repaired=False,
                 resolved_files=(),
                 op_prefix=op_prefix,
+                event_logger=event_logger,
             )
 
         return _repair_or_abort_rebase(
             root,
             beads_dir=beads_dir,
+            upstream=upstream,
             starting=starting,
             primary_failure=format_git_error("git rebase failed", rebased),
             runner=runner,
@@ -373,6 +387,7 @@ def _repair_or_abort_rebase(
     repo_root: Path,
     *,
     beads_dir: Path | None,
+    upstream: str,
     starting: SddRepositoryState,
     primary_failure: str,
     runner: GitRunner,
@@ -428,14 +443,18 @@ def _repair_or_abort_rebase(
             op=f"{op_prefix}.rebase_continue",
         )
         if continued.returncode == 0:
-            return _successful_rebase(
+            return _successful_integration(
                 repo_root,
                 starting,
                 runner,
+                beads_dir=beads_dir,
+                upstream=upstream,
                 upstream_present=True,
+                integrated=True,
                 repaired=True,
                 resolved_files=tuple(sorted(dict.fromkeys(resolved))),
                 op_prefix=op_prefix,
+                event_logger=event_logger,
             )
         primary_failure = format_git_error("git rebase --continue failed", continued)
 
@@ -448,16 +467,61 @@ def _repair_or_abort_rebase(
     )
 
 
-def _successful_rebase(
+def _successful_integration(
     repo_root: Path,
     starting: SddRepositoryState,
     runner: GitRunner,
     *,
+    beads_dir: Path | None,
+    upstream: str,
     upstream_present: bool,
+    integrated: bool,
     repaired: bool,
     resolved_files: tuple[str, ...],
     op_prefix: str,
+    event_logger: EventLogger | None,
 ) -> SddIntegrationOutcome:
+    from sase.sdd._bead_manifest_repair import (
+        repair_event_manifest_after_integration,
+    )
+
+    manifest_repaired, manifest_files, manifest_error = (
+        repair_event_manifest_after_integration(
+            repo_root,
+            beads_dir=beads_dir,
+            runner=runner,
+            op_prefix=op_prefix,
+            event_logger=event_logger,
+        )
+    )
+    if manifest_error is not None:
+        return _abort_and_verify(
+            repo_root,
+            starting=starting,
+            primary_failure=manifest_error,
+            runner=runner,
+            op_prefix=op_prefix,
+        )
+    repaired = repaired or manifest_repaired
+    integrated = integrated or manifest_repaired
+    resolved_files = tuple(sorted(dict.fromkeys((*resolved_files, *manifest_files))))
+
+    ancestor = runner(
+        repo_root,
+        ["merge-base", "--is-ancestor", upstream, "HEAD"],
+        op=f"{op_prefix}.verify_ancestor",
+    )
+    if ancestor.returncode != 0:
+        return _abort_and_verify(
+            repo_root,
+            starting=starting,
+            primary_failure=format_git_error(
+                "completed SDD integration does not contain upstream", ancestor
+            ),
+            runner=runner,
+            op_prefix=op_prefix,
+        )
+
     try:
         final = inspect_sdd_repository(repo_root, runner)
     except Exception as exc:  # noqa: BLE001 - attempt rollback below
@@ -487,13 +551,24 @@ def _successful_rebase(
             runner=runner,
             op_prefix=op_prefix,
         )
+    dirty_error = _tracked_changes_error(repo_root, runner, op_prefix)
+    if dirty_error is not None:
+        return _abort_and_verify(
+            repo_root,
+            starting=starting,
+            primary_failure=(
+                f"completed SDD integration left repository changes: {dirty_error}"
+            ),
+            runner=runner,
+            op_prefix=op_prefix,
+        )
     return SddIntegrationOutcome(
         (
             SddIntegrationStatus.REPAIRED_BEAD_CONFLICTS
             if repaired
             else SddIntegrationStatus.SUCCESS
         ),
-        integrated=True,
+        integrated=integrated,
         upstream_present=upstream_present,
         resolved_files=resolved_files,
     )
@@ -508,6 +583,7 @@ def _abort_and_verify(
     op_prefix: str,
 ) -> SddIntegrationOutcome:
     abort_failure: str | None = None
+    current: SddRepositoryState | None = None
     try:
         current = inspect_sdd_repository(repo_root, runner)
         rebase_active = any(marker == "rebase" for marker in current.operation_markers)
@@ -521,6 +597,21 @@ def _abort_and_verify(
         )
         if aborted.returncode != 0:
             abort_failure = format_git_error("git rebase --abort failed", aborted)
+    elif (
+        current is not None
+        and current.branch == starting.branch
+        and starting.head is not None
+        and sdd_rollback_mismatch(starting, current) is not None
+    ):
+        restored = runner(
+            repo_root,
+            ["reset", "--hard", starting.head],
+            op=f"{op_prefix}.rollback_reset",
+        )
+        if restored.returncode != 0:
+            abort_failure = format_git_error(
+                "git reset failed while restoring completed integration", restored
+            )
 
     verify_failure: str | None
     try:
