@@ -87,11 +87,12 @@ def test_fast_mode_selects_non_slow_marker_to_include_visual_tests(
 ) -> None:
     runner = _load_run_pytest()
     monkeypatch.delenv(runner.EXCLUDE_VISUAL_ENV, raising=False)
+    monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
 
     result = runner._pytest_command("fast", [])
 
     assert "-n" in result
-    assert "--dist=loadfile" in result
+    assert "--dist=worksteal" in result
     assert result[-2:] == ["-m", runner.FAST_MARKER_EXPRESSION]
     assert result[-1] == "not slow"
 
@@ -193,12 +194,40 @@ def test_disabled_gate_skips_acquisition(monkeypatch: pytest.MonkeyPatch) -> Non
     assert runner._parallel_worker_grant() == (5, None)
 
 
-def test_command_uses_granted_worker_count() -> None:
+def test_command_uses_granted_worker_count_and_worksteal_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     runner = _load_run_pytest()
+    monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
+
+    result = runner._pytest_command("fast", [], worker_count=7)
+
+    assert result[3:6] == ["-n", "7", "--dist=worksteal"]
+
+
+def test_loadfile_distribution_environment_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.setenv(runner.PYTEST_DIST_ENV, "loadfile")
 
     result = runner._pytest_command("fast", [], worker_count=7)
 
     assert result[3:6] == ["-n", "7", "--dist=loadfile"]
+
+
+@pytest.mark.parametrize("invalid", ["", "load", "work-steal", "each"])
+def test_distribution_override_rejects_unsupported_modes(
+    monkeypatch: pytest.MonkeyPatch, invalid: str
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.setenv(runner.PYTEST_DIST_ENV, invalid)
+
+    with pytest.raises(
+        pytest.UsageError,
+        match=r"SASE_PYTEST_DIST must be one of: loadfile, worksteal",
+    ):
+        runner._configured_distribution_mode()
 
 
 def test_rejects_xdist_count_that_could_bypass_grant() -> None:
@@ -216,7 +245,7 @@ def test_inline_snapshot_fix_disables_default_xdist() -> None:
     )
 
     assert "-n" not in result
-    assert "--dist=loadfile" not in result
+    assert not any(arg.startswith("--dist") for arg in result)
     assert result[-2:] == ["--inline-snapshot=fix", "tests/test_run_pytest_tool.py"]
 
 
@@ -228,18 +257,21 @@ def test_inline_snapshot_separate_value_disables_default_xdist() -> None:
     )
 
     assert "-n" not in result
-    assert "--dist=loadfile" not in result
+    assert not any(arg.startswith("--dist") for arg in result)
 
 
-def test_inline_snapshot_disable_preserves_default_xdist() -> None:
+def test_inline_snapshot_disable_preserves_default_xdist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     runner = _load_run_pytest()
+    monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
 
     result = runner._pytest_command(
         "fast", ["--inline-snapshot=disable", "tests/test_run_pytest_tool.py"]
     )
 
     assert "-n" in result
-    assert "--dist=loadfile" in result
+    assert "--dist=worksteal" in result
 
 
 def test_inline_snapshot_fix_shortcut_disables_default_xdist() -> None:
@@ -248,7 +280,7 @@ def test_inline_snapshot_fix_shortcut_disables_default_xdist() -> None:
     result = runner._pytest_command("fast", ["--fix", "tests/test_run_pytest_tool.py"])
 
     assert "-n" not in result
-    assert "--dist=loadfile" not in result
+    assert not any(arg.startswith("--dist") for arg in result)
 
 
 def test_slow_mode_selects_slow_marker() -> None:
@@ -327,6 +359,7 @@ def test_main_prepares_governed_environment_and_descriptors_before_exec(
     monkeypatch.setenv("SASE_PYTEST_WORKER_FLOOR", "2")
     monkeypatch.setenv("SASE_PYTEST_WORKER_CEILING", "3")
     monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
+    monkeypatch.delenv(runner.PYTEST_DIST_ENV, raising=False)
     monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
     monkeypatch.delenv("SASE_TEST_GATE_GOVERNED", raising=False)
     monkeypatch.setenv("SASE_COMMIT_METHOD", "create_pull_request")
@@ -352,7 +385,7 @@ def test_main_prepares_governed_environment_and_descriptors_before_exec(
 
     command = observed["command"]
     assert isinstance(command, list)
-    assert command[3:6] == ["-n", "3", "--dist=loadfile"]
+    assert command[3:6] == ["-n", "3", "--dist=worksteal"]
     assert observed["disabled"] == "1"
     assert observed["governed"] == "1"
     assert observed["workflow"] is None
@@ -365,6 +398,7 @@ def test_main_serial_snapshot_mode_never_acquires(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runner = _load_run_pytest()
+    monkeypatch.setenv(runner.PYTEST_DIST_ENV, "invalid-but-unused")
     observed: dict[str, list[str]] = {}
 
     class ExecCalled(Exception):
@@ -390,7 +424,27 @@ def test_main_serial_snapshot_mode_never_acquires(
         )
 
     assert "-n" not in observed["command"]
-    assert "--dist=loadfile" not in observed["command"]
+    assert not any(arg.startswith("--dist") for arg in observed["command"])
+
+
+def test_main_rejects_invalid_distribution_before_worker_acquisition(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.setenv(runner.PYTEST_DIST_ENV, "loadscope")
+
+    def _unexpected_grant() -> None:
+        raise AssertionError("invalid distribution attempted token acquisition")
+
+    monkeypatch.setattr(runner, "_parallel_worker_grant", _unexpected_grant)
+
+    result = runner.main(["fast", "tests/test_run_pytest_tool.py"])
+
+    assert result == int(pytest.ExitCode.USAGE_ERROR)
+    assert (
+        "pytest runner configuration error: SASE_PYTEST_DIST must be one of: "
+        "loadfile, worksteal; got 'loadscope'"
+    ) in capsys.readouterr().err
 
 
 def _token_descriptors(directory: Path) -> list[int]:

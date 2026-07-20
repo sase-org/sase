@@ -35,6 +35,9 @@ FAST_NON_VISUAL_MARKER_EXPRESSION = "not slow and not visual"
 SLOW_MARKER_EXPRESSION = "slow"
 VISUAL_MARKER_EXPRESSION = "visual"
 EXCLUDE_VISUAL_ENV = "SASE_PYTEST_EXCLUDE_VISUAL"
+PYTEST_DIST_ENV = "SASE_PYTEST_DIST"
+DEFAULT_PYTEST_DIST = "worksteal"
+SUPPORTED_PYTEST_DIST_MODES = ("loadfile", "worksteal")
 INLINE_SNAPSHOT_OPTION = "--inline-snapshot"
 INLINE_SNAPSHOT_SERIAL_SHORTCUTS = frozenset({"--fix", "--review"})
 NON_PATH_VALUE_OPTIONS = frozenset(
@@ -162,7 +165,27 @@ def _requires_serial_pytest(args: list[str]) -> bool:
     return False
 
 
-def _pytest_command(mode: str, args: list[str], *, worker_count: int = 1) -> list[str]:
+def _configured_distribution_mode() -> str:
+    raw_value = os.environ.get(PYTEST_DIST_ENV)
+    if raw_value is None:
+        return DEFAULT_PYTEST_DIST
+
+    distribution_mode = raw_value.strip()
+    if distribution_mode not in SUPPORTED_PYTEST_DIST_MODES:
+        accepted = ", ".join(SUPPORTED_PYTEST_DIST_MODES)
+        raise pytest.UsageError(
+            f"{PYTEST_DIST_ENV} must be one of: {accepted}; got {raw_value!r}"
+        )
+    return distribution_mode
+
+
+def _pytest_command(
+    mode: str,
+    args: list[str],
+    *,
+    worker_count: int = 1,
+    distribution_mode: str | None = None,
+) -> list[str]:
     command = [
         sys.executable,
         "-m",
@@ -171,7 +194,9 @@ def _pytest_command(mode: str, args: list[str], *, worker_count: int = 1) -> lis
     if not _requires_serial_pytest(args):
         if worker_count < 1:
             raise ValueError("worker_count must be positive for a parallel run")
-        command.extend(["-n", str(worker_count), "--dist=loadfile"])
+        if distribution_mode is None:
+            distribution_mode = _configured_distribution_mode()
+        command.extend(["-n", str(worker_count), f"--dist={distribution_mode}"])
 
     if mode == "slow":
         command.extend(["-m", SLOW_MARKER_EXPRESSION])
@@ -276,17 +301,24 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if _requires_serial_pytest(pytest_args):
             worker_count = 1
+            distribution_mode = None
         else:
+            distribution_mode = _configured_distribution_mode()
             _reject_numprocesses_args(pytest_args)
             worker_count, lease = _parallel_worker_grant()
-        command = _pytest_command(mode, pytest_args, worker_count=worker_count)
+        command = _pytest_command(
+            mode,
+            pytest_args,
+            worker_count=worker_count,
+            distribution_mode=distribution_mode,
+        )
 
         _sanitize_pytest_environment()
         os.chdir(REPO_ROOT)
         os.execv(sys.executable, command)
         raise AssertionError("unreachable")
     except pytest.UsageError as error:
-        print(f"pytest worker-token configuration error: {error}", file=sys.stderr)
+        print(f"pytest runner configuration error: {error}", file=sys.stderr)
         return int(pytest.ExitCode.USAGE_ERROR)
     finally:
         if lease is not None:

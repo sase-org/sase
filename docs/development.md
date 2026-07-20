@@ -55,7 +55,33 @@ The default host budget reserves four CPUs and 8 GiB of available memory, allows
 32 tokens (the prior safe aggregate ceiling). The memory allowance was calibrated from a representative eight-worker
 suite run that peaked at approximately 0.65 GiB RSS per worker and 0.13 GiB for the controller, leaving nearly 2x
 per-worker headroom. Missing memory information falls back to a conservative four-token limit, and small hosts clamp to
-at least one token. These capacity safeguards are separate from later work on xdist scheduling and individual test cost.
+at least one token. These capacity safeguards are independent of xdist scheduling and individual test cost.
+
+The runner defaults to pytest-xdist's `worksteal` scheduler. Workers begin with evenly divided queues and can reclaim
+pending tests from a worker with a long queue, avoiding the idle-worker tail caused by keeping an entire heavy test file
+on one worker. The fallback is a one-variable change:
+
+```bash
+SASE_PYTEST_DIST=loadfile just test
+```
+
+`SASE_PYTEST_DIST` accepts only `worksteal` and `loadfile`; unsupported values fail with a pytest usage error before the
+runner leases worker tokens. Inline-snapshot update and review modes remain serial and omit both `-n` and `--dist`
+regardless of this setting. Test selectors and other pytest options continue to pass through normally.
+
+A post-change comparison on 2026-07-20 used the same 19,883-item fast-suite selection, refreshed dependencies, and an
+exact governed grant of 28 workers. Aggregate CPU is reported as the mean utilized cores divided by the 28-worker grant;
+the tail is wall time from the first 99% progress report through completion.
+
+| Scheduler   | Pytest time | Wall time | Grant utilization | 99%-finish tail |
+| ----------- | ----------- | --------- | ----------------- | --------------- |
+| `loadfile`  | 109.68s     | 111.93s   | 59.1%             | 41s             |
+| `worksteal` | 102.34s     | 104.66s   | 61.8%             | 39s             |
+
+`worksteal` reduced wall time by 7.27s (6.5%) while running the same assertions. The slowest calls remained the two
+tests in `test_agents_zoom_panel_search.py` (roughly 16-20s each), so the improvement reflects better pending-work
+distribution rather than removed test cost. Three complete `worksteal` runs at governed grants of 11, 16, and 28 workers
+passed while auditing for within-file order and shared-state assumptions.
 
 Set `SASE_PYTEST_WORKERS=<N>` to request exactly that many governed workers; the request must fit the shared capacity.
 Direct parallel `pytest -n ...` controllers use the same pool and lease their resolved numeric, `auto`, or `logical`
