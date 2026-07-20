@@ -29,7 +29,7 @@ def bead_refresh_mode() -> BeadRefreshMode:
     return raw if raw in {"background", "blocking", "off"} else "background"
 
 
-def _bead_refresh_ttl_seconds() -> float:
+def bead_refresh_ttl_seconds() -> float:
     """Return the minimum age before another background sync is launched."""
     try:
         from sase.config import load_merged_config
@@ -60,7 +60,7 @@ def integration_is_fresh(repo_root: Path) -> bool:
         age = time.time() - marker.stat().st_mtime
     except OSError:
         return False
-    return age < _bead_refresh_ttl_seconds()
+    return age < bead_refresh_ttl_seconds()
 
 
 def git_state_path(repo_root: Path, name: str) -> Path:

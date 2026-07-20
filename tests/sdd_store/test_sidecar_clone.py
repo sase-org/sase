@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 import subprocess
-from types import SimpleNamespace
 
 import pytest
 
@@ -58,8 +57,13 @@ def test_pull_sdd_clone_ttl_gate(
     integrations: list[Path] = []
 
     def integrate(repo_root: Path, **_kwargs):
+        from sase.sdd._repository_transaction import (
+            SddIntegrationOutcome,
+            SddIntegrationStatus,
+        )
+
         integrations.append(repo_root)
-        return SimpleNamespace(succeeded=True)
+        return SddIntegrationOutcome(SddIntegrationStatus.SUCCESS)
 
     monkeypatch.setattr("sase.sdd._integration_marker.bead_refresh_mode", lambda: mode)
     monkeypatch.setattr(
@@ -67,11 +71,86 @@ def test_pull_sdd_clone_ttl_gate(
         lambda _repo: marker_fresh,
     )
     monkeypatch.setattr(
-        "sase.sdd._repository_transaction.integrate_sdd_repository", integrate
+        "sase.sdd._repository_transaction.integrate_machine_managed_sdd_repository",
+        integrate,
     )
 
     assert _pull_sdd_clone(tmp_path, fresh=force_fresh) is True
     assert len(integrations) == expected_integrations
+
+
+def test_pull_failure_warning_and_axe_report_are_durably_rate_limited(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    clone_dir = tmp_path / "plans"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("seed\n", encoding="utf-8")
+    commit_all(seed, "seed")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, clone_dir)
+
+    from sase.sdd import _repository_recovery, _repository_transaction
+    from sase.sdd._repository_transaction import (
+        SddIntegrationOutcome,
+        SddIntegrationStatus,
+    )
+
+    outcome = SddIntegrationOutcome(
+        SddIntegrationStatus.RECOVERY_FAILED,
+        error="injected durable recovery failure",
+    )
+    monkeypatch.setattr(
+        _repository_transaction,
+        "integrate_machine_managed_sdd_repository",
+        lambda *_args, **_kwargs: outcome,
+    )
+    now = [100.0]
+    real_admit = _repository_recovery.admit_recovery_notice
+
+    def controlled_admit(repo_root: Path, signature: str, **kwargs) -> bool:
+        return real_admit(
+            repo_root,
+            signature,
+            clock=lambda: now[0],
+            **kwargs,
+        )
+
+    monkeypatch.setattr(
+        _repository_recovery,
+        "admit_recovery_notice",
+        controlled_admit,
+    )
+    errors: list[dict] = []
+    monkeypatch.setattr("sase.axe.state.append_error", errors.append)
+
+    assert _pull_sdd_clone(clone_dir) is False
+    assert _pull_sdd_clone(clone_dir) is False
+
+    warnings = [
+        record
+        for record in caplog.records
+        if "Failed to pull workspace SDD clone" in record.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert len(errors) == 1
+    assert errors[0]["job"] == "workspace_sdd_clone_recovery"
+    assert errors[0]["clone_path"] == str(clone_dir.resolve())
+    assert errors[0]["failure_signature"]
+
+    now[0] += 3601
+    assert _pull_sdd_clone(clone_dir) is False
+    warnings = [
+        record
+        for record in caplog.records
+        if "Failed to pull workspace SDD clone" in record.getMessage()
+    ]
+    assert len(warnings) == 2
+    assert len(errors) == 2
 
 
 def test_sidecar_clone_fetches_once_within_ttl_and_refetches_on_demand(
@@ -98,7 +177,7 @@ def test_sidecar_clone_fetches_once_within_ttl_and_refetches_on_demand(
     from sase.sdd._integration_marker import git_state_path
 
     fetches: list[str] = []
-    real_runner = _repository_transaction._default_git_runner
+    real_runner = _repository_transaction.default_git_runner
 
     def recording_runner(
         repo_root: Path,
@@ -111,9 +190,7 @@ def test_sidecar_clone_fetches_once_within_ttl_and_refetches_on_demand(
             fetches.append(op)
         return real_runner(repo_root, args, op=op, network=network)
 
-    monkeypatch.setattr(
-        _repository_transaction, "_default_git_runner", recording_runner
-    )
+    monkeypatch.setattr(_repository_transaction, "default_git_runner", recording_runner)
     marker = git_state_path(clone_dir, "sase-bead-sync.integration")
     assert not marker.exists()
 

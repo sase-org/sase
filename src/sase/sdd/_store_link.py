@@ -277,33 +277,95 @@ def _pull_sdd_clone(
     ):
         return True
 
+    from sase.sdd._repository_recovery import (
+        admit_recovery_notice,
+        recovery_failure_signature,
+    )
     from sase.sdd._repository_transaction import (
         SddIntegrationStatus,
-        integrate_sdd_repository,
+        integrate_machine_managed_sdd_repository,
     )
 
-    outcome = integrate_sdd_repository(
+    outcome = integrate_machine_managed_sdd_repository(
         workspace_sdd,
         beads_dir=(workspace_sdd / "beads"),
         op_prefix="sdd.clone",
     )
     if outcome.succeeded:
+        if (
+            outcome.status is SddIntegrationStatus.RECOVERED
+            and outcome.recovery_ref is not None
+        ):
+            _logger.warning(
+                "Recovered workspace SDD clone %s; retained local state at %s",
+                workspace_sdd,
+                outcome.recovery_ref,
+            )
         return True
+    if outcome.status is SddIntegrationStatus.RECOVERY_COOLDOWN:
+        return False
+
     detail = outcome.error or f"SDD integration ended with {outcome.status.value}"
+    signature = recovery_failure_signature(workspace_sdd, outcome)
+    if admit_recovery_notice(workspace_sdd, signature):
+        _logger.warning(
+            "Failed to pull workspace SDD clone %s: %s",
+            workspace_sdd,
+            detail,
+        )
+    if outcome.status in {
+        SddIntegrationStatus.RECOVERY_FAILED,
+        SddIntegrationStatus.UNRECOVERABLE,
+    } and admit_recovery_notice(workspace_sdd, signature, report=True):
+        _append_recovery_error(
+            workspace_sdd,
+            detail=detail,
+            signature=signature,
+            recovery_ref=outcome.recovery_ref,
+        )
+
     if outcome.status is SddIntegrationStatus.UNRECOVERABLE:
         from sase.sdd._repository_transaction import SddRepositoryHealthError
 
-        raise SddRepositoryHealthError(detail)
+        if strict:
+            raise SddRepositoryHealthError(detail)
+        return False
     if strict and outcome.status not in {
         SddIntegrationStatus.REMOTE_UNAVAILABLE,
     }:
         raise SddMaterializationError(detail)
-    _logger.warning(
-        "Failed to pull workspace SDD clone %s: %s",
-        workspace_sdd,
-        detail,
-    )
     return False
+
+
+def _append_recovery_error(
+    workspace_sdd: Path,
+    *,
+    detail: str,
+    signature: str,
+    recovery_ref: str | None,
+) -> None:
+    """Best-effort bridge from terminal clone recovery into axe digests."""
+    try:
+        from sase.axe.state import append_error, get_timestamp
+
+        append_error(
+            {
+                "timestamp": get_timestamp(),
+                "lumberjack": "sdd-sidecar",
+                "job": "workspace_sdd_clone_recovery",
+                "error": detail,
+                "traceback": "[repository recovery outcome; no traceback]",
+                "clone_path": str(workspace_sdd.expanduser().resolve()),
+                "failure_signature": signature,
+                "recovery_ref": recovery_ref,
+            }
+        )
+    except Exception:  # noqa: BLE001 - reporting must not replace the Git outcome
+        _logger.debug(
+            "Failed to append workspace SDD recovery error for %s",
+            workspace_sdd,
+            exc_info=True,
+        )
 
 
 def _clone_sdd_store(

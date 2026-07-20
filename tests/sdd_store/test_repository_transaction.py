@@ -9,12 +9,11 @@ import pytest
 
 from sase.sdd._repository_transaction import (
     SddIntegrationStatus,
+    integrate_machine_managed_sdd_repository,
     integrate_sdd_repository,
     require_sdd_repository_health,
 )
 from sase.sdd._integration_marker import integration_is_fresh
-from sase.sdd._store_link import ensure_sidecar_sdd_clone
-from sase.sdd._store_types import SddMaterializationError
 from tests.sdd_store._helpers import (
     clone,
     commit_all,
@@ -188,35 +187,247 @@ def test_rebase_recovers_planted_index_lock(
     require_sdd_repository_health(left)
 
 
-def test_strict_clone_refuses_preexisting_rebase_without_modifying_it(
+@pytest.mark.parametrize("backend", ["merge", "apply"])
+def test_machine_managed_clone_recovers_preexisting_rebase(
     tmp_path: Path,
+    backend: str,
 ) -> None:
-    remote, left, _right = _build_diverged_clones(tmp_path)
+    _remote, left, right = _build_diverged_clones(tmp_path)
     git(["fetch", "origin"], left)
     started = subprocess.run(
-        ["git", "rebase", "origin/main"],
+        ["git", "rebase", f"--{backend}", "origin/main"],
         cwd=left,
         check=False,
         capture_output=True,
         text=True,
     )
     assert started.returncode != 0
-    before_head = git(["rev-parse", "HEAD"], left).stdout
-    before_status = git(
-        ["status", "--porcelain=v1", "-z", "--untracked-files=all"], left
-    ).stdout
+    original_branch_head = git(["rev-parse", "refs/heads/main"], left).stdout.strip()
+    marker = left / ".git" / f"rebase-{backend}"
+    assert marker.exists()
 
-    with pytest.raises(SddMaterializationError, match="not safe to write"):
-        ensure_sidecar_sdd_clone(left, str(remote), strict=True)
+    outcome = integrate_machine_managed_sdd_repository(left)
 
-    assert git(["rev-parse", "HEAD"], left).stdout == before_head
-    assert (
-        git(["status", "--porcelain=v1", "-z", "--untracked-files=all"], left).stdout
-        == before_status
+    assert outcome.status is SddIntegrationStatus.RECOVERED
+    assert outcome.recovery_ref is not None
+    assert git(["rev-parse", outcome.recovery_ref], left).stdout.strip() == (
+        original_branch_head
     )
-    assert (left / ".git/rebase-merge").exists() or (
-        left / ".git/rebase-apply"
-    ).exists()
+    assert git(["show", f"{outcome.recovery_ref}:plans/shared.md"], left).stdout == (
+        "local\n"
+    )
+    assert (
+        git(["rev-parse", "HEAD"], left).stdout
+        == git(["rev-parse", "HEAD"], right).stdout
+    )
+    assert git(["symbolic-ref", "--short", "HEAD"], left).stdout.strip() == "main"
+    assert not (left / ".git/rebase-merge").exists()
+    assert not (left / ".git/rebase-apply").exists()
+    assert git(["diff", "--name-only", "--diff-filter=U"], left).stdout == ""
+    assert git(["status", "--porcelain"], left).stdout == ""
+    require_sdd_repository_health(left)
+
+
+def test_machine_managed_recovery_snapshots_dirty_index_and_untracked_files(
+    tmp_path: Path,
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    clone_dir = tmp_path / "plans"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("base\n", encoding="utf-8")
+    commit_all(seed, "seed")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, clone_dir)
+
+    (seed / "remote.md").write_text("remote\n", encoding="utf-8")
+    commit_all(seed, "advance remote")
+    git(["push"], seed)
+    remote_head = git(["rev-parse", "HEAD"], seed).stdout.strip()
+
+    (clone_dir / "README.md").write_text("dirty tracked\n", encoding="utf-8")
+    (clone_dir / "staged.md").write_text("dirty staged\n", encoding="utf-8")
+    git(["add", "staged.md"], clone_dir)
+    (clone_dir / "untracked.md").write_text("dirty untracked\n", encoding="utf-8")
+
+    outcome = integrate_machine_managed_sdd_repository(clone_dir)
+
+    assert outcome.status is SddIntegrationStatus.RECOVERED
+    assert outcome.recovery_ref is not None
+    assert git(["rev-parse", "HEAD"], clone_dir).stdout.strip() == remote_head
+    assert git(["status", "--porcelain"], clone_dir).stdout == ""
+    assert git(["show", f"{outcome.recovery_ref}:README.md"], clone_dir).stdout == (
+        "dirty tracked\n"
+    )
+    assert git(["show", f"{outcome.recovery_ref}:staged.md"], clone_dir).stdout == (
+        "dirty staged\n"
+    )
+    assert (
+        git(["show", f"{outcome.recovery_ref}^3:untracked.md"], clone_dir).stdout
+        == "dirty untracked\n"
+    )
+    assert outcome.recovery_ref in git(["stash", "list"], clone_dir).stdout
+    require_sdd_repository_health(clone_dir)
+
+
+def test_generic_integration_preserves_dirty_state_without_recovery(
+    tmp_path: Path,
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    clone_dir = tmp_path / "plans"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("base\n", encoding="utf-8")
+    commit_all(seed, "seed")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, clone_dir)
+    (seed / "remote.md").write_text("remote\n", encoding="utf-8")
+    commit_all(seed, "advance remote")
+    git(["push"], seed)
+
+    (clone_dir / "README.md").write_text("keep dirty\n", encoding="utf-8")
+    starting = _snapshot(clone_dir)
+
+    outcome = integrate_sdd_repository(clone_dir)
+
+    assert outcome.status is SddIntegrationStatus.LOCAL_CHANGES
+    assert _snapshot(clone_dir) == starting
+    assert git(["for-each-ref", "refs/sase/recovery"], clone_dir).stdout == ""
+
+
+@pytest.mark.parametrize("failure_stage", ["create", "verify", "verify_after_stash"])
+def test_failed_recovery_snapshot_does_not_reset_managed_branch(
+    tmp_path: Path,
+    failure_stage: str,
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    clone_dir = tmp_path / "plans"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("base\n", encoding="utf-8")
+    commit_all(seed, "seed")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, clone_dir)
+    (seed / "remote.md").write_text("remote\n", encoding="utf-8")
+    commit_all(seed, "advance remote")
+    git(["push"], seed)
+    (clone_dir / "README.md").write_text("keep dirty\n", encoding="utf-8")
+    starting = _snapshot(clone_dir)
+
+    recovery_verifications = 0
+
+    def fail_snapshot_ref(
+        repo_root: Path,
+        args: list[str],
+        *,
+        op: str,
+        network: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal recovery_verifications
+        fail_create = failure_stage == "create" and args[:1] == ["update-ref"]
+        recovery_verify = args[:2] == ["rev-parse", "--verify"] and args[-1].startswith(
+            "refs/sase/recovery/"
+        )
+        if recovery_verify:
+            recovery_verifications += 1
+        fail_verify = recovery_verify and (
+            (failure_stage == "verify" and recovery_verifications == 1)
+            or (failure_stage == "verify_after_stash" and recovery_verifications == 2)
+        )
+        if fail_create or fail_verify:
+            return subprocess.CompletedProcess(
+                ["git", *args], 1, stdout="", stderr="injected snapshot failure"
+            )
+        return _runner(repo_root, args, op=op, network=network)
+
+    outcome = integrate_machine_managed_sdd_repository(
+        clone_dir,
+        git_runner=fail_snapshot_ref,
+        recovery_cooldown_seconds=0,
+    )
+
+    assert outcome.status is SddIntegrationStatus.RECOVERY_FAILED
+    if failure_stage == "create":
+        assert "injected snapshot failure" in (outcome.error or "")
+    else:
+        assert "could not verify the recovery ref" in (outcome.error or "")
+    assert _snapshot(clone_dir) == starting
+
+
+def test_recovery_attempt_cooldown_is_durable_and_reopens_after_window(
+    tmp_path: Path,
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    clone_dir = tmp_path / "plans"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("base\n", encoding="utf-8")
+    commit_all(seed, "seed")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, clone_dir)
+    (clone_dir / "README.md").write_text("keep dirty\n", encoding="utf-8")
+
+    attempts: list[list[str]] = []
+    now = [100.0]
+
+    def fail_snapshot_ref(
+        repo_root: Path,
+        args: list[str],
+        *,
+        op: str,
+        network: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        if args[:1] == ["update-ref"]:
+            attempts.append(args)
+            return subprocess.CompletedProcess(
+                ["git", *args], 1, stdout="", stderr="injected snapshot failure"
+            )
+        return _runner(repo_root, args, op=op, network=network)
+
+    def recover():
+        return integrate_machine_managed_sdd_repository(
+            clone_dir,
+            git_runner=fail_snapshot_ref,
+            clock=lambda: now[0],
+            recovery_cooldown_seconds=10,
+        )
+
+    assert recover().status is SddIntegrationStatus.RECOVERY_FAILED
+    assert recover().status is SddIntegrationStatus.RECOVERY_COOLDOWN
+    assert len(attempts) == 1
+
+    now[0] = 111.0
+    assert recover().status is SddIntegrationStatus.RECOVERY_FAILED
+    assert len(attempts) == 2
+
+
+def test_machine_managed_recovery_refuses_unrelated_git_operation(
+    tmp_path: Path,
+) -> None:
+    _remote, left, _right = _build_diverged_clones(tmp_path)
+    git(["fetch", "origin"], left)
+    started = subprocess.run(
+        ["git", "merge", "origin/main"],
+        cwd=left,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert started.returncode != 0
+    assert (left / ".git/MERGE_HEAD").exists()
+    starting = _snapshot(left)
+
+    outcome = integrate_machine_managed_sdd_repository(left)
+
+    assert outcome.status is SddIntegrationStatus.UNRECOVERABLE
+    assert "refuses unrelated Git operations: merge" in (outcome.error or "")
+    assert _snapshot(left) == starting
+    assert (left / ".git/MERGE_HEAD").exists()
+    assert git(["for-each-ref", "refs/sase/recovery"], left).stdout == ""
 
 
 def test_injected_rebase_failure_without_operation_restores_cleanly(
