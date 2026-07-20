@@ -472,8 +472,15 @@ async def test_on_alias_edited_offers_commit_when_in_repo(monkeypatch: Any) -> N
         pilot.app.push_screen(panel)
         await pilot.pause()
         panel._on_alias_edited(_outcome())
-        await pilot.pause()
-        assert isinstance(pilot.app.screen, ConfirmActionModal)
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, ConfirmActionModal))
+        modal = pilot.app.screen
+        assert isinstance(modal, ConfirmActionModal)
+        assert modal._title == "Commit & Push"
+        assert modal._message == "Commit and push your model-alias change?"
+        assert modal._subject == "sase.yml"
+        assert modal._confirm_label == "Commit & push"
+        assert modal._cancel_label == "Skip"
+        assert modal._default == "confirm"
 
 
 async def test_submit_commit_task_uses_app_queue(monkeypatch: Any) -> None:

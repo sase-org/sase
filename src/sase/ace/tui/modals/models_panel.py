@@ -108,6 +108,7 @@ class ModelsPanel(
             Worker[tuple[TemporaryLLMOverride | None, str | None]] | None
         ) = None
         self._clear_worker: Worker[tuple[bool | None, str | None]] | None = None
+        self._config_commit_offer_worker: Worker[AliasCommitOffer | None] | None = None
         self._override_write_result: (
             RelativeOverrideDuration
             | OverrideUntilCleared
@@ -149,3 +150,11 @@ class ModelsPanel(
         self, path: str, *, op: str, alias: str
     ) -> AliasCommitOffer | None:
         return build_alias_commit_offer(path, op=op, alias=alias)
+
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if self._on_config_commit_offer_worker_state(event):
+            return
+        ModelsPanelOverrideMixin.on_worker_state_changed(self, event)
+
+    def on_unmount(self) -> None:
+        self._cancel_config_commit_offer()

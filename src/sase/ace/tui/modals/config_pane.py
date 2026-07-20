@@ -8,6 +8,10 @@ from typing import Any
 from sase.config import build_config_inventory, config_field_model
 from sase.config.core import clear_config_cache, current_config_token
 
+from .config_commit import (
+    ConfigCommitOffer,
+    build_config_commit_offer as _build_config_commit_offer,
+)
 from .config_pane_rendering import (
     abbreviate_path as _abbreviate_path,
     ancestor_paths as _ancestor_paths,
@@ -106,6 +110,7 @@ def _clear_view_cache() -> None:
 __all__ = [
     "ConfigPane",
     "ConfigPaneView",
+    "ConfigCommitOffer",
     "InputMode",
     "_ConfigFilterInput",
     "_DEPRECATED_COLOR",
@@ -119,6 +124,7 @@ __all__ = [
     "_ancestor_paths",
     "_append_value_block",
     "_clear_view_cache",
+    "_build_config_commit_offer",
     "_format_value",
     "_format_row_value_summary",
     "_format_value_block",

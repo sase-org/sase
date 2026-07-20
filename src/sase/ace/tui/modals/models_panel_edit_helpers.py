@@ -23,7 +23,6 @@ No Textual imports: callable from a worker thread or a plain unit test.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
 from sase.llm_provider import AliasKind
@@ -38,6 +37,8 @@ from sase.config import (
     default_target_layer,
     plan_config_edit,
 )
+
+from .config_commit import ConfigCommitOffer, build_config_commit_offer
 
 #: Dotted config paths to the ``additionalProperties`` maps of model aliases.
 MODEL_ALIASES_FIELD_PREFIX = "llm_provider.model_aliases.builtin"
@@ -134,14 +135,7 @@ class AliasEditOutcome:
     applied: AppliedResult
 
 
-@dataclass(frozen=True)
-class AliasCommitOffer:
-    """A ready-to-run commit+push offer for a written alias edit."""
-
-    git_root: str
-    file_path: str
-    rel_path: str
-    message: str
+AliasCommitOffer = ConfigCommitOffer
 
 
 def build_alias_commit_offer(
@@ -163,25 +157,9 @@ def build_alias_commit_offer(
         op: The write op — ``"set"`` (Edit) or ``"unset"`` (Reset).
         alias: The bare alias name, used in the commit subject.
     """
-    from sase.ace.tui.modals.xprompt_browser_helpers import (
-        get_git_root,
-        has_git_changes,
-    )
-    from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
-
-    git_root = get_git_root(target_path)
-    if git_root is None or not has_git_changes(git_root, target_path):
-        return None
-    rel_path = os.path.relpath(target_path, git_root)
     verb = "Reset" if op == "unset" else "Update"
     subject = f"chore: {verb} model alias @{alias}"
-    message = apply_auto_commit_type_tag(subject, "config")
-    return AliasCommitOffer(
-        git_root=git_root,
-        file_path=target_path,
-        rel_path=rel_path,
-        message=message,
-    )
+    return build_config_commit_offer(target_path, subject=subject)
 
 
 __all__ = [

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from textual.worker import Worker, WorkerState
+
 from sase.config import ConfigEditOp
 from sase.llm_provider import AliasView
 
+from .config_commit import push_config_commit_prompt, submit_config_commit_task
 from .custom_model_input_modal import CustomModelInputModal
 from .model_picker_modal import (
     CUSTOM_SENTINEL,
@@ -34,6 +37,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
     if TYPE_CHECKING:
         _pending_edit_view: AliasView | None
         _pending_alias_selection: AliasSelectionContext | None
+        _config_commit_offer_worker: Worker[AliasCommitOffer | None] | None
         _views: list[AliasView]
 
         def _selected_alias(self) -> AliasView | None: ...
@@ -168,85 +172,55 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         self._offer_commit_push(outcome)
 
     def _offer_commit_push(self, outcome: AliasEditOutcome) -> None:
-        offer = self._build_alias_commit_offer(
-            outcome.applied.path,
-            op=outcome.applied.op,
-            alias=outcome.alias,
-        )
-        if offer is None:
-            return
-        from .confirm_action_modal import ConfirmActionModal
+        worker = self._config_commit_offer_worker
+        if worker is not None and not worker.is_finished:
+            worker.cancel()
+        path = outcome.applied.path
+        op = outcome.applied.op
+        alias = outcome.alias
 
-        def _on_answer(confirmed: bool | None) -> None:
-            if confirmed:
-                self._submit_commit_task(offer)
+        def task() -> AliasCommitOffer | None:
+            return self._build_alias_commit_offer(path, op=op, alias=alias)
 
-        self.app.push_screen(
-            ConfirmActionModal(
-                "Commit & Push",
-                "Commit and push your model-alias change?",
-                subject=offer.rel_path,
-                icon="↑",
-                confirm_label="Commit & push",
-                cancel_label="Skip",
-                default="confirm",
-            ),
-            _on_answer,
+        self._config_commit_offer_worker = self.run_worker(  # type: ignore[attr-defined]
+            task,
+            thread=True,
+            exclusive=True,
+            group="models-config-commit-offer",
         )
+
+    def _on_config_commit_offer_worker_state(self, event: Worker.StateChanged) -> bool:
+        """Handle alias commit discovery, returning whether it owned *event*."""
+        if event.worker is not self._config_commit_offer_worker:
+            return False
+        if event.state not in (
+            WorkerState.SUCCESS,
+            WorkerState.ERROR,
+            WorkerState.CANCELLED,
+        ):
+            return True
+        self._config_commit_offer_worker = None
+        if event.state != WorkerState.SUCCESS or not self.is_mounted:  # type: ignore[attr-defined]
+            return True
+        offer = event.worker.result
+        if offer is not None:
+            push_config_commit_prompt(
+                self.app,  # type: ignore[attr-defined]
+                offer,
+                message="Commit and push your model-alias change?",
+                on_confirm=self._submit_commit_task,
+            )
+        return True
+
+    def _cancel_config_commit_offer(self) -> None:
+        worker = self._config_commit_offer_worker
+        self._config_commit_offer_worker = None
+        if worker is not None and not worker.is_finished:
+            worker.cancel()
 
     def _submit_commit_task(self, offer: AliasCommitOffer) -> None:
-        from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
-            GitCommitPushResult,
-            git_index_lock_retry_message,
-            run_git_commit_push_sync,
-        )
-        from sase.ace.tui.actions.task_actions import (
-            TrackedTaskCompletion,
-            TrackedTaskResult,
-        )
-
-        def _task() -> TrackedTaskResult[bool]:
-            result: GitCommitPushResult = run_git_commit_push_sync(
-                git_root=offer.git_root,
-                file_path=offer.file_path,
-                commit_message=offer.message,
-            )
-            return TrackedTaskResult(
-                success=result.success,
-                message=result.message,
-                payload=result.index_lock_removed,
-                error=None if result.success else result.message,
-            )
-
-        def _on_complete(completion: TrackedTaskCompletion[bool]) -> None:
-            self.notify(
-                completion.message,
-                severity="information" if completion.success else "error",
-            )
-            if completion.payload:
-                self.notify(
-                    git_index_lock_retry_message(offer.git_root),
-                    severity="warning",
-                )
-
-        submit = getattr(self.app, "_submit_tracked_task", None)
-        if submit is None:
-            self.notify(
-                "Could not commit: background task queue unavailable.",
-                severity="error",
-            )
-            return
-        submit(
-            "config-commit",
-            offer.rel_path,
-            offer.git_root,
-            _task,
+        submit_config_commit_task(
+            self.app,  # type: ignore[attr-defined]
+            offer,
             display_name=f"commit alias {offer.rel_path}",
-            dedup_key=f"config-commit:{offer.git_root}:{offer.rel_path}",
-            duplicate_message=(
-                f"Another config commit is already running for {offer.rel_path}."
-            ),
-            on_complete=_on_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
         )
