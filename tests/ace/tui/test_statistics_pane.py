@@ -422,6 +422,50 @@ async def test_project_filter_cycles_ranked_projects_and_survives_range_change(
         assert calls[-1][3] is None
 
 
+async def test_empty_project_filter_clears_to_all_projects_with_one_keypress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    snapshot = ProjectDisplaySnapshot({"sase": "SASE", "core": "Core"})
+
+    def load(
+        view: StatisticsView,
+        selected_range: StatsRange,
+        group_by: RuntimeGroupBy,
+        project_filter: str | None = None,
+    ) -> StatisticsViewData:
+        calls.append((view, selected_range, group_by, project_filter))
+        return _result(
+            view,
+            selected_range,
+            group_by,
+            empty=project_filter is not None,
+            project_filter=project_filter,
+            project_display_snapshot=snapshot,
+        )
+
+    monkeypatch.setattr(sp, "load_statistics_view", load)
+
+    async with AcePage() as page:
+        _, pane = await _open_statistics(page)
+        assert pane._project_filter_options == ("sase", "core")
+
+        await page.press("p")
+        await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
+        assert pane._project_filter == "sase"
+        assert pane._last_result is not None
+        empty_state = _render_plain(pane._empty_state_renderable(pane._last_result))
+        assert "Press p to clear the SASE project filter." in empty_state
+
+        await page.press("p")
+        await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
+        assert pane._project_filter is None
+        assert calls[-1][3] is None
+        assert "All projects" in _scope_plain(pane, "project")
+
+
 async def test_project_filter_label_submits_canonical_key_across_reload_paths(
     monkeypatch: pytest.MonkeyPatch,
     project_display_case: ProjectDisplayCase,

@@ -275,7 +275,16 @@ class StatisticsPane(StatisticsPanePresentationBase):
             self._selection_changed(reload=False)
 
     def action_cycle_project_filter(self) -> None:
-        """Cycle All → ranked projects in range → All."""
+        """Cycle projects, or clear an active filter with an empty result."""
+        if (
+            self._project_filter is not None
+            and self._last_result is not None
+            and self._last_result.project_filter == self._project_filter
+            and self._last_result.views.empty
+        ):
+            self._project_filter = None
+            self._selection_changed(reload=True)
+            return
         options = self._project_filter_options
         if not options and self._last_result is not None:
             options = tuple(
