@@ -2,6 +2,7 @@
 
 from ...keymaps import KeymapRegistry, key_display_name, leader_key_display
 from .binding_common import (
+    ADMIN_CENTER_UPDATES_SECTION,
     PROMPT_INPUT_SECTION,
     Sections,
     custom_mode_sections,
@@ -372,6 +373,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
     # Insert custom mode sections before "General".
     sections.extend(custom_mode_sections(km))
     sections.append(PROMPT_INPUT_SECTION)
+    sections.append(ADMIN_CENTER_UPDATES_SECTION)
     sections.append(
         (
             "General",

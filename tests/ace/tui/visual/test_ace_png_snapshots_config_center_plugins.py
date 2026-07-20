@@ -29,6 +29,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
@@ -74,8 +75,8 @@ async def test_config_center_updates_core_update_available_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         _, pane = await _open_plugins_modal(page)
-        await page.wait_for(lambda _s: pane._detail_name == "github")
-        await _wait_for_plugins_detail(page, pane)
+        pane._switch_to_subtab("core")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -101,13 +102,62 @@ async def test_config_center_updates_all_current_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         _, pane = await _open_plugins_modal(page)
-        await page.wait_for(lambda _s: pane._detail_name == "github")
-        await _wait_for_plugins_detail(page, pane)
+        pane._switch_to_subtab("core")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "config_center_updates_all_current_120x40",
             title="ACE SASE Admin Center — Updates tab (all current)",
+        )
+
+
+async def test_config_center_agent_clis_marked_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Agent CLIs master/detail browser shows provider colors and update marks."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        pane._switch_to_subtab("agent-clis")
+        await page.wait_for(lambda _s: pane._agent_cli_detail_name == "claude")
+        pane.action_toggle_mark()
+        await _wait_for_plugins_detail(page, pane)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_agent_clis_marked_120x40",
+            title="ACE SASE Admin Center — Agent CLIs sub-tab (marked update)",
+        )
+
+
+async def test_config_center_agent_clis_update_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Agent CLI update confirmation previews exact commands and all skips."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        pane._switch_to_subtab("agent-clis")
+        pane.action_update_agent_clis()
+        await page.expect_modal("PluginActionConfirmModal")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_agent_clis_update_preview_120x40",
+            title="ACE SASE Admin Center — Agent CLI update preview",
         )
 
 

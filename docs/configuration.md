@@ -129,45 +129,47 @@ and project-filter caveats.
 
 ### Updates tab
 
-The Updates tab keeps SASE itself and its plugins current without leaving the TUI. It leads with a **SASE Core** panel
-showing the installed and latest versions of the `sase` and `sase-core` packages (with an `↑` marker when a newer
-version is available), then brings the full [`sase plugin`](plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show)
-experience into the TUI — browse the catalog, inspect a plugin, install, update, or uninstall one — staying visually
-consistent with the CLI by reusing the same catalog loader and Rich renderables. It is a master/detail layout: a header
-summary line (`N plugins · M installed · K updates available · cached <age>`), a filter, a grouped list split into
-**Built-in** and **Community** (third-party, shown with a warning) sections, and a detail panel mirroring
-`sase plugin show`. Status glyphs match the CLI exactly: `●` installed, `○` available, `↑` update available. Editable /
-dev installs (both the core packages and plugins) carry a lowercase `dev` source marker and are compared against their
-git upstream instead of PyPI, so a local checkout can surface an `↑ dev update available` hint. Update actions route
-editable packages through the [dev-update](plugins.md#dev-editable-installs) planner — git fast-forward plus in-place
-reconcile — and route managed packages through the `uv` path. Blocked editable checkout states are shown as dim reasons
-instead of update arrows, such as `dev · local changes`, `dev · diverged`, `dev · detached HEAD`, `dev · no upstream`,
-or `dev · offline`.
+The Updates tab keeps SASE, its plugins, and its supported agent CLIs current without leaving the TUI. Use `]` / `[` to
+cycle its three pane-local sub-tabs:
+
+- **Core** (the default) shows the installed and latest versions of `sase` and `sase-core`, incoming commits, and the
+  all-current banner.
+- **Plugins** brings the full [`sase plugin`](plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show) experience
+  into the TUI: filter the catalog, inspect a plugin, and install, update, uninstall, or switch install mode.
+- **Agent CLIs** is a provider-colored master/detail browser for Claude Code, Codex CLI, OpenCode, Qwen Code, and
+  Antigravity. Rows show installed → latest versions, install method, `↑` availability, and update marks. Details show
+  the resolved executable, exact automatic or manual update command, skip reason, canonical vendor docs URL, and the
+  last result.
+
+The Plugins browser stays visually consistent with the CLI by reusing the same catalog loader and Rich renderables. Its
+list is split into **Built-in** and **Community** (third-party, shown with a warning) sections; status glyphs match the
+CLI exactly: `●` installed, `○` available, `↑` update available. Editable / dev installs (both core packages and
+plugins) carry a lowercase `dev` marker and are compared against their git upstream instead of PyPI. Update actions
+route editable packages through the [dev-update](plugins.md#dev-editable-installs) planner and managed packages through
+the `uv` path. Blocked editable states appear as dim reasons such as `dev · local changes`, `dev · diverged`,
+`dev · detached HEAD`, `dev · no upstream`, or `dev · offline`.
 
 The persistent top-bar update badge is purple for routine host/plugin updates. When the available set includes
 `sase-core-rs`, the badge turns amber and adds `*`; its tooltip explains that the update needs a Rust rebuild and may
 take longer. Clicking either badge opens this tab.
 
-Every mutation **previews first**: install and managed update actions open a confirm-preview modal showing the
-underlying `uv` command and resolved package set; editable-checkout dev updates preview the git fetch/fast-forward and
-reconcile steps. The confirmation _is_ the dry-run. Installable plugins can also be marked with `I` / `Space`; pressing
-`i` with marks installs the marked set in one combined `uv` operation and clears successful marks, while `Esc` clears
-marks before closing the Admin Center. Mutations run as tracked background tasks so a multi-second `uv`, git, or Rust
-rebuild never blocks the UI. A successful update that changed code automatically restarts ACE and axe through the same
-restart path as the `Q` restart action; no-op and failed updates leave the current UI running and refresh the catalog
-when appropriate. When `sase` is not a managed `uv tool install`, browsing still works but install/update are disabled
-with the same actionable message the CLI gives. When incoming commit previews are enabled, the SASE Core panel and
-plugin detail panes can show the newest upstream commit subjects for repositories with update metadata; offline mode
-skips those remote checks. A single-plugin install preview can offer both index and git sources; press `g` inside the
-confirmation modal to switch variants before confirming. The context-sensitive keymaps are:
+Every mutation **previews first**. Plugin and core actions show the underlying `uv` or editable-checkout plan. `A`
+previews every exact agent-CLI command and every skip with its reason and docs URL; on the Agent CLIs sub-tab it uses
+the marked subset, otherwise it targets every safely updatable installed CLI. Agent-CLI commands execute sequentially as
+one tracked task and refresh the browser without restarting ACE; new agent launches naturally use the updated binaries.
+Installable plugins use `I` / `Space` marks, while updatable agent CLIs use `Space`; `Esc` clears marks in the active
+sub-tab before closing. All slow work runs off the event loop. Core/plugin code changes retain the existing automatic
+ACE/axe restart behavior. The context-sensitive keymaps are:
 
 | Key                 | Action                                                                                                      |
 | ------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `j` / `k`           | Move the highlight down / up                                                                                |
-| `I` / `Space`       | Mark / unmark the highlighted installable plugin and advance to the next installable row                    |
+| `]` / `[`           | Cycle Core / Plugins / Agent CLIs sub-tabs                                                                  |
+| `j` / `k`           | Move the highlight down / up in Plugins or Agent CLIs                                                       |
+| `I` / `Space`       | Mark / unmark an installable plugin; `Space` marks an updatable agent CLI on that sub-tab                   |
 | `i`                 | Open the install preview for the marked set, or for the highlighted plugin when no install marks are active |
 | `x`                 | Uninstall the highlighted plugin (only when installed)                                                      |
 | `u`                 | Run `sase update` for SASE core plus all installed plugins                                                  |
+| `A`                 | Update marked agent CLIs on that sub-tab, or every safely updatable installed agent CLI otherwise           |
 | `U`                 | Update the highlighted installed plugin when that row has an update available                               |
 | `m`                 | Switch install mode (PyPI managed ↔ dev editable; the `sase update --to` analog)                            |
 | `r`                 | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)                               |
@@ -179,7 +181,8 @@ confirmation modal to switch variants before confirming. The context-sensitive k
 | `v`                 | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                              |
 | `/`                 | Focus the filter input (matches name / description / topics)                                                |
 | `Tab` / `Shift+Tab` | Switch SASE Admin Center tabs (number keys `1`–`7` jump directly)                                           |
-| `Esc` / `q`         | Clear install marks first; close SASE Admin Center when no install marks are active                         |
+| `Esc`               | Clear active plugin/agent-CLI marks first; close when no marks are active                                   |
+| `q`                 | Close SASE Admin Center                                                                                     |
 
 These keymaps are widget-local and are not configurable through `default_config.yml`.
 

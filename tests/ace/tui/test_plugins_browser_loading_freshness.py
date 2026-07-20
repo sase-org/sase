@@ -117,6 +117,11 @@ def test_online_panel_load_writes_shared_update_status(
         "_collect_core_versions_for_pane",
         lambda **_kwargs: versions,
     )
+    monkeypatch.setattr(
+        loading,
+        "_collect_agent_clis_for_pane",
+        lambda **_kwargs: ((), None, {}),
+    )
     monkeypatch.setattr(loading, "load_plugin_catalog", lambda **_kwargs: catalog)
     monkeypatch.setattr(
         loading,
@@ -160,6 +165,11 @@ def test_offline_panel_load_does_not_replace_shared_snapshot(
         loading,
         "_collect_core_versions_for_pane",
         lambda **_kwargs: _core_versions(),
+    )
+    monkeypatch.setattr(
+        loading,
+        "_collect_agent_clis_for_pane",
+        lambda **_kwargs: ((), None, {}),
     )
     monkeypatch.setattr(
         loading,

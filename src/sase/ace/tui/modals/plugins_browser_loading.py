@@ -6,7 +6,10 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from sase.agent_clis.models import AgentCliStatus
+from sase.agent_clis.operations import collect_agent_cli_statuses
 from sase.config import load_merged_config
+from sase.llm_provider.registry import provider_cli_status_color_map
 from sase.main.update_routing import update_mode
 from sase.mode_switch.repos import config_dev_root
 from sase.plugins.catalog import (
@@ -64,6 +67,9 @@ class PluginsLoadResult:
     dev_root: str | None = None
     fresh_editable_roots: frozenset[str] = frozenset()
     update_status: UpdateStatus | None = None
+    agent_cli_statuses: tuple[AgentCliStatus, ...] = ()
+    agent_cli_error: str | None = None
+    agent_cli_colors: dict[str, str] = field(default_factory=dict)
 
 
 def probe_uv_tool() -> UvToolInstall | NotUvToolInstall | None:
@@ -107,6 +113,9 @@ def load_plugins_catalog_for_pane(
     install_mode = _detect_install_mode(uv_tool)
     dev_root = str(config_dev_root(load_merged_config()))
     core_versions = _collect_core_versions_for_pane(offline=offline)
+    agent_cli_statuses, agent_cli_error, agent_cli_colors = (
+        _collect_agent_clis_for_pane(refresh=refresh, offline=offline)
+    )
     core_incoming_commits = _fetch_core_incoming_commits_for_pane(
         core_versions,
         enabled=incoming_commits_enabled,
@@ -125,6 +134,9 @@ def load_plugins_catalog_for_pane(
             core_incoming_commits=core_incoming_commits,
             install_mode=install_mode,
             dev_root=dev_root,
+            agent_cli_statuses=agent_cli_statuses,
+            agent_cli_error=agent_cli_error,
+            agent_cli_colors=agent_cli_colors,
         )
     try:
         catalog = enrich_with_latest(catalog, offline=offline, refresh=refresh)
@@ -148,7 +160,22 @@ def load_plugins_catalog_for_pane(
         dev_root=dev_root,
         fresh_editable_roots=_fresh_editable_roots(core_versions, catalog),
         update_status=update_status,
+        agent_cli_statuses=agent_cli_statuses,
+        agent_cli_error=agent_cli_error,
+        agent_cli_colors=agent_cli_colors,
     )
+
+
+def _collect_agent_clis_for_pane(
+    *, refresh: bool, offline: bool
+) -> tuple[tuple[AgentCliStatus, ...], str | None, dict[str, str]]:
+    """Best-effort agent-CLI inventory collected on the pane worker thread."""
+    try:
+        statuses = collect_agent_cli_statuses(refresh=refresh, offline=offline)
+        colors = provider_cli_status_color_map()
+    except Exception as exc:  # noqa: BLE001 - other update surfaces still load.
+        return (), str(exc), {}
+    return statuses, None, colors
 
 
 def _fresh_editable_roots(

@@ -14,18 +14,27 @@ if TYPE_CHECKING:
 class PluginsFilterInput(Input):
     """Filter input with pane-local escape handling.
 
-    Brackets remain ordinary filter text; ``escape`` returns focus to the list
-    without leaving a stale filter applied. The Admin Center's priority
-    ``Tab`` / ``Shift+Tab`` bindings handle main-tab navigation.
+    Brackets cycle the pane-local sub-tabs even while the filter owns focus;
+    ``escape`` returns focus to the list without leaving a stale filter applied.
+    The Admin Center's priority ``Tab`` / ``Shift+Tab`` bindings handle main-tab
+    navigation.
     """
 
     def on_key(self, event: events.Key) -> None:
+        pane = self._pane()
+        if pane is None:
+            return
         if event.key == "escape":
-            pane = self._pane()
-            if pane is not None:
-                event.stop()
-                event.prevent_default()
-                pane.cancel_input()
+            event.stop()
+            event.prevent_default()
+            pane.cancel_input()
+        elif event.key in ("left_square_bracket", "right_square_bracket"):
+            event.stop()
+            event.prevent_default()
+            if event.key == "left_square_bracket":
+                pane.action_cycle_subtab_reverse()
+            else:
+                pane.action_cycle_subtab()
 
     def _pane(self) -> PluginsBrowserPane | None:
         from .plugins_browser_pane import PluginsBrowserPane

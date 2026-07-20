@@ -210,7 +210,8 @@ class PluginsBrowserStatusMixin:
         if self._can_mark_highlighted():
             parts.append("I/space mark")
         if self._can_update_sase():
-            parts.append("u update")
+            parts.append("u update core + plugins")
+        parts.append("A update agent CLIs")
         if self._can_switch_mode():
             parts.append("m switch")
         if self._can_update_highlighted():
@@ -224,6 +225,7 @@ class PluginsBrowserStatusMixin:
                 f"o{offline}",
                 f"v{verbose}",
                 "/ filter",
+                "]/[ sub-tab",
                 "Tab/Shift+Tab tab",
             ]
         )

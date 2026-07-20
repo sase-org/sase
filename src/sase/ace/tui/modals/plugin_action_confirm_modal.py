@@ -53,6 +53,7 @@ class PluginActionVariant:
     summary: str
     details: tuple[str, ...] = ()
     items: tuple[str, ...] = ()
+    items_label: str = "Plugins"
     skipped: tuple[str, ...] = ()
 
 
@@ -176,17 +177,17 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
             parts.append(Text(self._intro, style="dim"))
             parts.append(Text(""))
 
-        command = Text()
-        command.append("Would run  ", style="dim")
-        command.append(" ".join(variant.argv), style="cyan")
-        parts.append(command)
-
-        parts.append(Text(""))
+        if variant.argv:
+            command = Text()
+            command.append("Would run  ", style="dim")
+            command.append(" ".join(variant.argv), style="cyan")
+            parts.append(command)
+            parts.append(Text(""))
         parts.append(Text(variant.summary, style="bold"))
 
         if variant.items:
             parts.append(Text(""))
-            parts.append(Text("Plugins", style="dim"))
+            parts.append(Text(variant.items_label, style="dim"))
             for item in variant.items:
                 line = Text()
                 line.append("- ", style="dim")

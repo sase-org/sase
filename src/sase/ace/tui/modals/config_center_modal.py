@@ -13,9 +13,9 @@ alphabetical tabs over a :class:`ContentSwitcher`:
   (:class:`StatisticsPane`).
 - **Tasks** (tab 5) — the canonical background-task monitor (:class:`TasksPane`),
   replacing the standalone ``,t`` modal.
-- **Updates** (tab 6) — SASE core + plugin updates
-  (:class:`PluginsBrowserPane`), mirroring ``sase update`` and
-  ``sase plugin list``.
+- **Updates** (tab 6) — Core / Plugins / Agent CLIs update sub-tabs
+  (:class:`PluginsBrowserPane`), mirroring ``sase update``, ``sase plugin``,
+  and the shared agent-CLI update service.
 - **XPrompts** (tab 7) — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
 
 ``#`` opens the modal on the last persisted Admin Center tab (Config before a
@@ -88,7 +88,7 @@ _TAB_DESCRIPTIONS: dict[CenterTab, str] = {
     "projects": "Manage projects, repos, and workspace directories",
     "statistics": "Aggregate SASE agent activity over any time range",
     "tasks": "Monitor background tasks and live output",
-    "updates": "Update SASE core and plugins with incoming commit previews",
+    "updates": "Update SASE core, plugins, and supported agent CLIs",
     "xprompts": "Browse and preview xprompt definitions",
 }
 _TITLE_LABEL = "SASE Admin Center"

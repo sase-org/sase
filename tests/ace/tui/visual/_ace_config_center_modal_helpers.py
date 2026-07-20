@@ -90,6 +90,7 @@ async def _open_plugins_modal(
     await page.wait_for(lambda _s: bool(modal.query("#updates")))
     pane = modal.query_one("#updates", PluginsBrowserPane)
     await page.wait_for(lambda _s: not pane._loading)
+    pane._switch_to_subtab("plugins")
     await wait_for_visual_idle(page)
     return modal, pane
 

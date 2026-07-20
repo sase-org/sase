@@ -1,20 +1,26 @@
 """Updates pane for the Config Center modal.
 
-This widget hosts the **Updates** tab of :class:`ConfigCenterModal`: a compact
-SASE core update surface plus the plugin master/detail browser mirroring the
-``sase plugin list`` and ``sase plugin show`` experience in the TUI.
+This widget hosts the **Updates** tab of :class:`ConfigCenterModal`: pane-local
+Core / Plugins / Agent CLIs sub-tabs sharing one threaded inventory load and
+the same update services used by the CLI.
 """
 
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Literal, cast
 
+from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Static
+from textual.widgets import ContentSwitcher, OptionList, Static
 from textual.worker import Worker, WorkerState
 
+from sase.agent_clis.models import AgentCliUpdateResult
+from sase.agent_clis.operations import (
+    execute_agent_cli_updates,
+    plan_agent_cli_updates,
+)
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.operations import (
@@ -33,6 +39,7 @@ from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
 from sase.uv_tool.versions import CoreVersions, collect_installed_core_versions
 
 from .plugins_browser_constants import _DETAIL_PLACEHOLDER
+from .plugins_browser_agent_clis import AgentCliBrowserMixin
 from .plugins_browser_controls import PluginsBrowserControlsMixin
 from .plugins_browser_dev_update import (
     DevUpdatePreview,
@@ -84,6 +91,7 @@ from .plugins_browser_sase_update import (
     sase_update_success_message,
 )
 from .plugins_browser_status import PluginsBrowserStatusMixin
+from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 from .plugins_browser_uninstall import (
     PluginUninstallActionsMixin,
     UninstallPreview,
@@ -145,9 +153,26 @@ _fetch_incoming_commits = fetch_incoming_commits
 _fetch_incoming_commit_groups = fetch_incoming_commit_groups
 _load_incoming_commits_config = load_incoming_commits_config
 _callable_accepts_keyword = callable_accepts_keyword
+_plan_agent_cli_updates = plan_agent_cli_updates
+_execute_agent_cli_updates = execute_agent_cli_updates
+
+UpdatesSubTab = Literal["core", "plugins", "agent-clis"]
+_DEFAULT_SUBTAB: UpdatesSubTab = "core"
+_SUBTAB_ORDER: tuple[UpdatesSubTab, ...] = ("core", "plugins", "agent-clis")
+_SUBTAB_WIDGET_IDS: dict[UpdatesSubTab, str] = {
+    "core": "updates-subtab-core",
+    "plugins": "updates-subtab-plugins",
+    "agent-clis": "updates-subtab-agent-clis",
+}
+_SUBTABS: tuple[PanelTab, ...] = (
+    PanelTab("core", "Core", "#AF87FF"),
+    PanelTab("plugins", "Plugins", "#AF87FF"),
+    PanelTab("agent-clis", "Agent CLIs", "#AF87FF"),
+)
 
 
 class PluginsBrowserPane(
+    AgentCliBrowserMixin,
     ModeSwitchActionsMixin,
     SaseUpdateActionsMixin,
     PluginInstallActionsMixin,
@@ -160,19 +185,22 @@ class PluginsBrowserPane(
     PluginsBrowserRenderingMixin,
     Vertical,
 ):
-    """Browser for SASE core + plugin updates (Config Center -> Updates)."""
+    """Browser for SASE core, plugin, and agent-CLI updates."""
 
     can_focus = False
 
     BINDINGS = [
         ("j", "next_option", "Next"),
         ("k", "prev_option", "Previous"),
+        ("right_square_bracket", "cycle_subtab", "Next Sub-tab"),
+        ("left_square_bracket", "cycle_subtab_reverse", "Previous Sub-tab"),
         ("i", "install", "Install"),
         ("I", "toggle_install_mark", "Mark"),
-        ("space", "toggle_install_mark", "Mark"),
+        ("space", "toggle_mark", "Mark"),
         ("x", "uninstall", "Uninstall"),
         ("m", "switch_mode", "Switch mode"),
-        ("u", "update_sase", "Update"),
+        ("u", "update_sase", "Update core + plugins"),
+        ("A", "update_agent_clis", "Update agent CLIs"),
         ("U", "update", "Update plugin"),
         ("r", "refresh", "Refresh"),
         ("ctrl+d", "scroll_detail_down", "Scroll Down"),
@@ -183,7 +211,7 @@ class PluginsBrowserPane(
         ("o", "toggle_offline", "Offline"),
         ("v", "toggle_verbose", "Verbose"),
         ("slash", "focus_filter", "Filter"),
-        ("escape", "clear_install_marks_or_close", "Close"),
+        ("escape", "clear_marks_or_close", "Close"),
     ]
 
     def __init__(
@@ -196,6 +224,7 @@ class PluginsBrowserPane(
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._auto_load = auto_load
         self._auto_update_on_load = auto_update_on_load
+        self._active_subtab: UpdatesSubTab = _DEFAULT_SUBTAB
         self._catalog: PluginCatalog | None = None
         self._core_versions: CoreVersions = _collect_installed_core_versions()
         self._error: str | None = None
@@ -205,6 +234,12 @@ class PluginsBrowserPane(
         self._marked_install: set[str] = set()
         self._offline = False
         self._verbose = False
+        self._agent_cli_statuses = ()
+        self._agent_cli_error: str | None = None
+        self._agent_cli_colors: dict[str, str] = {}
+        self._marked_agent_clis: set[str] = set()
+        self._agent_cli_results: dict[str, AgentCliUpdateResult] = {}
+        self._agent_cli_detail_name: str | None = None
         self._grouped: list[tuple[str, str, list[PluginCatalogEntry]]] = []
         self._worker: Worker[Any] | None = None
         #: Worker computing an install plan/preview before the confirm modal.
@@ -217,6 +252,8 @@ class PluginsBrowserPane(
         self._sase_update_plan_worker: Worker[Any] | None = None
         #: Worker computing a PyPI/dev install-mode switch plan.
         self._mode_switch_plan_worker: Worker[Any] | None = None
+        #: Worker computing the pane-wide agent-CLI update preview.
+        self._agent_cli_plan_worker: Worker[Any] | None = None
         #: One-shot uv-tool detection: gates whether mutations are possible.
         #: ``None`` until the first real load probes it.
         self._uv_tool: UvToolInstall | NotUvToolInstall | None = None
@@ -239,22 +276,63 @@ class PluginsBrowserPane(
         self._dev_root: str | None = None
 
     def compose(self) -> ComposeResult:
-        banner = Static(self._all_current_banner(), id="updates-current-banner")
-        banner.display = False
-        yield banner
-        yield Static(self._core_versions_panel(), id="sase-core-versions")
-        yield Static(self._summary_text(), id="plugins-summary", markup=False)
-        yield _PluginsFilterInput(
-            placeholder="/ filter plugins…", id="plugins-filter-input"
+        yield PanelTabStrip(
+            _SUBTABS,
+            self._active_subtab,
+            uppercase_active=True,
+            id="updates-subtabs",
         )
-        with Horizontal(id="plugins-panels"):
-            with Vertical(id="plugins-list-panel"):
-                yield Static(self._status_message(), id="plugins-status", markup=False)
-                yield _PluginList(*self._create_options(), id="plugins-list")
-            with Vertical(id="plugins-detail-panel"):
-                with VerticalScroll(id="plugins-detail-scroll"):
-                    yield Static(_DETAIL_PLACEHOLDER, id="plugins-detail", markup=False)
-        yield Static(self._hints(), id="plugins-hints", markup=False)
+        with ContentSwitcher(
+            initial=_SUBTAB_WIDGET_IDS[self._active_subtab],
+            id="updates-subtab-switcher",
+        ):
+            with Vertical(id=_SUBTAB_WIDGET_IDS["core"]):
+                banner = Static(self._all_current_banner(), id="updates-current-banner")
+                banner.display = False
+                yield banner
+                yield Static(self._core_versions_panel(), id="sase-core-versions")
+                yield Static(self._core_hints(), id="updates-core-hints", markup=False)
+            with Vertical(id=_SUBTAB_WIDGET_IDS["plugins"]):
+                yield Static(self._summary_text(), id="plugins-summary", markup=False)
+                yield _PluginsFilterInput(
+                    placeholder="/ filter plugins…", id="plugins-filter-input"
+                )
+                with Horizontal(id="plugins-panels"):
+                    with Vertical(id="plugins-list-panel"):
+                        yield Static(
+                            self._status_message(), id="plugins-status", markup=False
+                        )
+                        yield _PluginList(*self._create_options(), id="plugins-list")
+                    with Vertical(id="plugins-detail-panel"):
+                        with VerticalScroll(id="plugins-detail-scroll"):
+                            yield Static(
+                                _DETAIL_PLACEHOLDER,
+                                id="plugins-detail",
+                                markup=False,
+                            )
+                yield Static(self._hints(), id="plugins-hints", markup=False)
+            with Vertical(id=_SUBTAB_WIDGET_IDS["agent-clis"]):
+                yield Static(
+                    self._agent_cli_summary(), id="agent-clis-summary", markup=False
+                )
+                with Horizontal(id="agent-clis-panels"):
+                    with Vertical(id="agent-clis-list-panel"):
+                        yield Static(
+                            self._agent_cli_status_message(),
+                            id="agent-clis-status",
+                            markup=False,
+                        )
+                        yield _PluginList(id="agent-clis-list")
+                    with Vertical(id="agent-clis-detail-panel"):
+                        with VerticalScroll(id="agent-clis-detail-scroll"):
+                            yield Static(
+                                "Select an agent CLI to view its update details.",
+                                id="agent-clis-detail",
+                                markup=False,
+                            )
+                yield Static(
+                    self._agent_cli_hints(), id="agent-clis-hints", markup=False
+                )
 
     def on_mount(self) -> None:
         self._detail_debouncer = DetailPanelDebouncer(self.app)
@@ -263,10 +341,80 @@ class PluginsBrowserPane(
         if self._auto_load:
             self._start_load(force=False)
 
+    def on_unmount(self) -> None:
+        if self._detail_debouncer is not None:
+            self._detail_debouncer.cancel()
+
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action == "update_sase":
             return self._can_update_sase()
+        if action == "update_agent_clis":
+            return not self._loading and self._agent_cli_plan_worker is None
+        plugin_only = {
+            "install",
+            "toggle_install_mark",
+            "uninstall",
+            "switch_mode",
+            "update",
+            "toggle_verbose",
+            "focus_filter",
+        }
+        if action in plugin_only and self._active_subtab != "plugins":
+            return False
+        browse_only = {
+            "next_option",
+            "prev_option",
+            "toggle_mark",
+            "scroll_detail_down",
+            "scroll_detail_up",
+            "scroll_to_top",
+            "scroll_to_bottom",
+        }
+        if action in browse_only and self._active_subtab == "core":
+            return False
         return super().check_action(action, parameters)
+
+    @on(PanelTabStrip.TabClicked)
+    def _on_subtab_clicked(self, event: PanelTabStrip.TabClicked) -> None:
+        event.stop()
+        if event.tab_id in _SUBTAB_ORDER:
+            self._switch_to_subtab(cast(UpdatesSubTab, event.tab_id))
+
+    def _switch_to_subtab(self, subtab: UpdatesSubTab) -> None:
+        self._active_subtab = subtab
+        if self._detail_debouncer is not None:
+            self._detail_debouncer.cancel()
+        try:
+            self.query_one(
+                "#updates-subtab-switcher", ContentSwitcher
+            ).current = _SUBTAB_WIDGET_IDS[subtab]
+            self.query_one("#updates-subtabs", PanelTabStrip).set_active_tab(subtab)
+        except Exception:
+            return
+        self.focus_default()
+
+    def _cycle_subtab(self, step: int) -> None:
+        index = _SUBTAB_ORDER.index(self._active_subtab)
+        self._switch_to_subtab(_SUBTAB_ORDER[(index + step) % len(_SUBTAB_ORDER)])
+
+    def action_cycle_subtab(self) -> None:
+        self._cycle_subtab(1)
+
+    def action_cycle_subtab_reverse(self) -> None:
+        self._cycle_subtab(-1)
+
+    def _core_hints(self) -> str:
+        offline = " (on)" if self._offline else " off"
+        return " · ".join(
+            (
+                "u core+plugins",
+                "A agent CLIs",
+                "r reload",
+                f"o{offline}",
+                "]/[ sub-tab",
+                "esc",
+            )
+        )
 
     def _start_load(self, *, force: bool) -> None:
         self._loading = True
@@ -279,6 +427,9 @@ class PluginsBrowserPane(
         self._sync_current_banner()
         self._update_static("#plugins-summary", self._summary_text())
         self._update_static("#plugins-hints", self._hints())
+        self._update_static("#updates-core-hints", self._core_hints())
+        self._update_static("#agent-clis-summary", self._agent_cli_summary())
+        self._update_static("#agent-clis-hints", self._agent_cli_hints())
         self._update_static("#sase-core-versions", self._core_versions_panel())
         refresh = force
         offline = self._offline
@@ -354,6 +505,17 @@ class PluginsBrowserPane(
                     severity="error",
                 )
             return
+        if event.worker is self._agent_cli_plan_worker:
+            if event.state == WorkerState.SUCCESS:
+                self._agent_cli_plan_worker = None
+                self._on_agent_cli_update_preview(event.worker.result)
+            elif event.state == WorkerState.ERROR:
+                self._agent_cli_plan_worker = None
+                self._notify(
+                    self._worker_error_text(event.worker, kind="agent CLI update"),
+                    severity="error",
+                )
+            return
         if event.worker is not self._worker:
             return
         if event.state == WorkerState.SUCCESS:
@@ -379,6 +541,11 @@ class PluginsBrowserPane(
             self._core_incoming_commits = dict(
                 getattr(result, "core_incoming_commits", {}) or {}
             )
+            self._agent_cli_statuses = tuple(
+                getattr(result, "agent_cli_statuses", ()) or ()
+            )
+            self._agent_cli_error = getattr(result, "agent_cli_error", None)
+            self._agent_cli_colors = dict(getattr(result, "agent_cli_colors", {}) or {})
             self._render_all()
             update_status = getattr(result, "update_status", None)
             refresh_indicator = getattr(

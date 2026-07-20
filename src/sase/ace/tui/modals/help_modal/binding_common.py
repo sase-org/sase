@@ -45,6 +45,18 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
     ],
 )
 
+ADMIN_CENTER_UPDATES_SECTION: tuple[str, list[tuple[str, str]]] = (
+    "Admin Center Updates",
+    [
+        ("Core / Plugins / Agent CLIs", "Three update sub-tabs"),
+        ("] / [", "Next / previous sub-tab"),
+        ("u", "Update SASE core + plugins"),
+        ("A", "Update agent CLIs"),
+        ("Space", "Mark plugin / agent CLI"),
+        ("r / o", "Refresh / offline mode"),
+    ],
+)
+
 
 def sk(keys: dict[str, str | dict[str, str]], name: str) -> str:
     """Extract a string value from a mode keys dict."""

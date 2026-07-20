@@ -2693,21 +2693,17 @@ output every second while the Tasks tab is visible.
 
 ## Updates Tab
 
-Open the SASE Admin Center with `#`, then press `6` (or switch tabs until you reach **Updates**). The Updates tab keeps
-SASE itself and its installed plugins current without leaving the TUI: a **SASE Core** panel shows the installed and
-latest versions of the `sase` and `sase-core` packages, and below it the full plugin catalog lets you browse, inspect,
-install, update, or uninstall plugins. Press `I` or `Space` to mark installable rows, `i` to install the marked set in
-one combined operation (or the highlighted plugin when nothing is marked), `u` to run the full SASE update for core plus
-installed plugins, `U` to update the highlighted installed plugin when that row has an update available, `x` to
-uninstall, and `r` to refresh the catalog and latest versions. Editable / dev installs are labeled with a lowercase
-`dev` source marker and compared against their git upstream rather than PyPI, so a local checkout can surface an
-`↑ dev update available` hint. The SASE Core panel and plugin details can show incoming commit subjects when update
-metadata is available. The top-bar update badge is purple for routine updates; it turns amber and adds `*` when the
-available set includes `sase-core-rs`, warning that the update will rebuild Rust code and take longer. A single-plugin
-install preview can offer both index and git sources; press `g` inside that confirmation modal to switch variants before
-confirming. Every mutation previews the underlying `uv` command or editable-checkout plan first and then runs as a
-tracked background task. See the [Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior,
-and [Plugins](plugins.md) for the equivalent `sase plugin` CLI.
+Open the SASE Admin Center with `#`, then press `6`. The Updates tab has **Core**, **Plugins**, and **Agent CLIs**
+sub-tabs; cycle them with `]` / `[`. Core shows SASE package versions and incoming commits. Plugins hosts the catalog
+browser and its install/update/uninstall/mode-switch actions. Agent CLIs shows provider-colored installed → latest rows,
+exact update or manual commands, vendor docs links, and update marks.
+
+`u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate pane-wide agent-CLI action: on
+the Agent CLIs sub-tab it updates the marked `Space` selection, and elsewhere it targets every safely updatable
+installed CLI. Both flows preview first and run as tracked background tasks. Core/plugin code changes retain the ACE/axe
+restart path; agent-CLI updates refresh in place because those binaries are external and newly launched agents pick up
+their new versions. See the [Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior, and
+[Plugins](plugins.md) for the equivalent `sase plugin` CLI.
 
 ## Snippets
 

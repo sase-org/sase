@@ -17,6 +17,7 @@ from tests.ace.tui.test_plugins_browser_pane import (
     _catalog,
     _core_versions,
 )
+from tests.ace.tui._plugins_browser_pane_helpers import _agent_cli_statuses
 
 
 def _patch_plugins_catalog(
@@ -27,6 +28,7 @@ def _patch_plugins_catalog(
     uv_tool: Any | None = None,
     core_versions: Any | None = None,
     core_incoming_commits: dict[str, IncomingCommits] | None = None,
+    agent_cli_statuses: Any | None = None,
 ) -> None:
     """Stub the Updates pane's plugin catalog load with a deterministic result."""
     resolved = _catalog() if catalog == "default" else catalog
@@ -40,6 +42,12 @@ def _patch_plugins_catalog(
         core_incoming_commits=core_incoming_commits
         if core_incoming_commits is not None
         else _default_core_incoming_commits(resolved_core_versions),
+        agent_cli_statuses=(
+            _agent_cli_statuses()
+            if agent_cli_statuses is None
+            else tuple(agent_cli_statuses)
+        ),
+        agent_cli_colors={"claude": "#D97757", "codex": "#10A37F"},
     )
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
     monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)

@@ -85,6 +85,8 @@ class PluginsBrowserRenderingMixin:
 
         def _sync_state_visibility(self) -> None: ...
 
+        def _render_agent_clis(self) -> None: ...
+
         def _update_static(self, selector: str, content: RenderableType) -> None: ...
 
     def _render_all(self) -> None:
@@ -96,6 +98,7 @@ class PluginsBrowserRenderingMixin:
         self._sync_current_banner()
         self._rebuild_options()
         self._sync_state_visibility()
+        self._render_agent_clis()
         # A fresh load may have changed the highlighted plugin's data (e.g. a
         # new latest version), so force the detail to repaint immediately.
         self._render_detail_now(force=True)
@@ -235,8 +238,12 @@ class PluginsBrowserRenderingMixin:
         hints line (which gates ``i install`` on the highlighted row) is cheap,
         so it refreshes immediately.
         """
-        self._update_static("#plugins-hints", self._hints())
-        self._schedule_detail()
+        if event.option_list.id == "agent-clis-list":
+            self._on_agent_cli_highlighted()  # type: ignore[attr-defined]
+            return
+        if event.option_list.id == "plugins-list":
+            self._update_static("#plugins-hints", self._hints())
+            self._schedule_detail()
 
     def _schedule_detail(self) -> None:
         debouncer = self._detail_debouncer
@@ -311,11 +318,6 @@ class PluginsBrowserRenderingMixin:
                 cta.append("u", style="bold #AF87FF")
                 cta.append("  run `sase update`", style="cyan")
                 cta.append("  ·  upgrades sase core + all plugins", style="dim")
-            if self._can_switch_mode():
-                if cta.plain:
-                    cta.append("  ·  ", style="dim")
-                cta.append("m", style="bold #AF87FF")
-                cta.append(" switch", style="cyan")
             if cta.plain:
                 body.append(cta)
         return Panel(Group(*body), title="SASE Core", border_style="#AF87FF")
@@ -336,7 +338,6 @@ class PluginsBrowserRenderingMixin:
         line.append(labels.get(mode, mode), style="bold #AF87FF")
         if mode == "dev" and self._dev_root:
             line.append(f" · {self._dev_root}", style="dim")
-        line.append("     m  switch", style="dim")
         return line
 
     def _core_incoming_sections(self) -> list[RenderableType]:

@@ -211,9 +211,9 @@ Axe restarted (pid 12345) to load the updated code.
 - **Restart behavior is automatic after real code changes.** In the CLI, SASE restarts axe when it is running so the
   daemon loads the new code. In the Admin Center Updates tab, SASE restarts ACE and axe through the same restart path as
   the `Q` restart action. No-op and failed updates do not restart anything.
-- **The Admin Center mirrors the split.** In the Updates tab, `u` runs the full SASE update for core plus installed
-  plugins, `U` updates the highlighted installed plugin when that row has an update available, and `m` switches the
-  install mode (see [Install mode switching](#install-mode-switching)).
+- **The Admin Center mirrors the split.** In the Updates tab's **Plugins** sub-tab, `U` updates the highlighted
+  installed plugin and `m` switches install mode. The pane-wide `u` still runs the full SASE core + plugins update;
+  pane-wide `A` is deliberately separate and updates supported agent CLIs.
 - **`-n|--dry-run`** prints the exact `uv` command or editable-checkout plan that would run and exits `0` without
   changing anything. uv itself has no dry-run, so sase resolves and prints the managed plan itself.
 - **`-j|--json`** emits `schema_version: 2` with a stable, sorted payload. Managed outcomes are reported under
@@ -261,8 +261,8 @@ same one-command update. `-n|--dry-run` previews the planned git/uv commands for
 - Switching to the mode you are already in is a no-op. `-n|--dry-run` previews the plan; without `-y|--yes` an
   interactive confirmation is required, and cancelling exits non-zero. A changed switch restarts axe (and ACE plus axe
   when driven from the Updates tab) through the shared restart path.
-- **In the Admin Center Updates tab, press `m`** to switch mode interactively: it shows the current mode and dev root,
-  confirms, runs the switch as a background task, and shows a restart toast.
+- **In the Admin Center Updates tab's Plugins sub-tab, press `m`** to switch mode interactively: it shows the current
+  mode and dev root, confirms, runs the switch as a background task, and shows a restart toast.
 
 ## Installing and updating plugins (`sase plugin install` / `sase plugin update`)
 

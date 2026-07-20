@@ -20,6 +20,7 @@ class PluginsBrowserControlsMixin:
 
     if TYPE_CHECKING:
         _filter_text: str
+        _active_subtab: str
         _loading: bool
         _offline: bool
         _verbose: bool
@@ -38,14 +39,14 @@ class PluginsBrowserControlsMixin:
         def _sync_state_visibility(self) -> None: ...
 
     def focus_default(self) -> None:
-        """Focus the list (browse-first) when the Updates tab activates."""
-        option_list = self._option_list()
+        """Focus the active browser list; Core intentionally has no focus target."""
+        option_list = self._active_option_list()
         if option_list is not None:
             option_list.focus()
 
     def action_next_option(self) -> None:
         """Move to the next non-header option."""
-        option_list = self._option_list()
+        option_list = self._active_option_list()
         if option_list is None:
             return
         current = option_list.highlighted
@@ -57,7 +58,7 @@ class PluginsBrowserControlsMixin:
 
     def action_prev_option(self) -> None:
         """Move to the previous non-header option."""
-        option_list = self._option_list()
+        option_list = self._active_option_list()
         if option_list is None or option_list.highlighted is None:
             return
         for index in range(option_list.highlighted - 1, -1, -1):
@@ -121,7 +122,12 @@ class PluginsBrowserControlsMixin:
 
     def _detail_scroll(self) -> VerticalScroll | None:
         try:
-            return self.query_one("#plugins-detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
+            selector = (
+                "#agent-clis-detail-scroll"
+                if self._active_subtab == "agent-clis"
+                else "#plugins-detail-scroll"
+            )
+            return self.query_one(selector, VerticalScroll)  # type: ignore[attr-defined]
         except Exception:
             return None
 
@@ -176,6 +182,16 @@ class PluginsBrowserControlsMixin:
             return self.query_one("#plugins-list", OptionList)  # type: ignore[attr-defined]
         except Exception:
             return None
+
+    def _active_option_list(self) -> OptionList | None:
+        if self._active_subtab == "agent-clis":
+            try:
+                return self.query_one("#agent-clis-list", OptionList)  # type: ignore[attr-defined]
+            except Exception:
+                return None
+        if self._active_subtab == "plugins":
+            return self._option_list()
+        return None
 
     def _detail_widget(self) -> Static | None:
         try:

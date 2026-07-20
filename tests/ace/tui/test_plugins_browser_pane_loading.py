@@ -213,7 +213,7 @@ async def test_plugins_pane_filter_narrows_list(
         )
 
 
-async def test_updates_filter_accepts_brackets_and_tab_switches_main_tab(
+async def test_updates_filter_forwards_brackets_and_tab_switches_main_tab(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -226,13 +226,15 @@ async def test_updates_filter_accepts_brackets_and_tab_switches_main_tab(
         filter_input = pane.query_one("#plugins-filter-input", Input)
         await page.wait_for(lambda _s: filter_input.has_focus)
 
-        await page.press("left_square_bracket", "right_square_bracket")
-        await page.wait_for(lambda _s: filter_input.value == "[]")
+        await page.press("left_square_bracket")
+        await page.wait_for(lambda _s: pane._active_subtab == "core")
+        assert filter_input.value == ""
         assert modal._active_tab == "updates"
 
+        pane._switch_to_subtab("plugins")
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "xprompts")
-        assert filter_input.value == "[]"
+        assert filter_input.value == ""
         assert page.app.current_tab == "changespecs"
 
 

@@ -10,6 +10,7 @@ import pytest
 from rich.console import Console
 from textual.widgets import OptionList
 
+from sase.agent_clis.models import AgentCliStatus, InstallMethod
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
@@ -176,6 +177,9 @@ def _patch_catalog(
     core_incoming_commits: dict[str, IncomingCommits] | None = None,
     fresh_editable_roots: frozenset[str] = frozenset(),
     update_status: UpdateStatus | None = None,
+    agent_cli_statuses: tuple[AgentCliStatus, ...] = (),
+    agent_cli_error: str | None = None,
+    agent_cli_colors: dict[str, str] | None = None,
 ) -> None:
     result = pbp._PluginsLoadResult(
         catalog=catalog,
@@ -186,6 +190,9 @@ def _patch_catalog(
         core_incoming_commits=core_incoming_commits or {},
         fresh_editable_roots=fresh_editable_roots,
         update_status=update_status,
+        agent_cli_statuses=agent_cli_statuses,
+        agent_cli_error=agent_cli_error,
+        agent_cli_colors=agent_cli_colors or {},
     )
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
     monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)
@@ -284,6 +291,7 @@ async def _open_plugins_pane(page: AcePage) -> PluginsBrowserPane:
     await page.wait_for(lambda _s: bool(modal.query("#updates")))
     pane = modal.query_one("#updates", PluginsBrowserPane)
     await page.wait_for(lambda _s: not pane._loading)
+    pane._switch_to_subtab("plugins")
     return pane
 
 
@@ -355,6 +363,50 @@ def _uv_tool() -> UvToolInstall:
         tool_dir=Path("/home/dev/.local/share/uv/tools"),
         sase_dir=Path("/home/dev/.local/share/uv/tools/sase"),
         receipt_path=Path("/home/dev/.local/share/uv/tools/sase/uv-receipt.toml"),
+    )
+
+
+def _agent_cli_statuses() -> tuple[AgentCliStatus, ...]:
+    """Deterministic installed, manual, and absent agent CLI rows."""
+    return (
+        AgentCliStatus(
+            name="claude",
+            display_name="Claude Code",
+            binary="claude",
+            executable="/home/dev/.local/bin/claude",
+            installed_version="1.0.0",
+            latest_version="1.1.0",
+            install_method=InstallMethod.SELF_MANAGED,
+            update_available=True,
+            docs_url="https://code.claude.com/docs/en/setup",
+            install_hint="Install Claude Code from vendor docs",
+            self_update_argv=("update",),
+        ),
+        AgentCliStatus(
+            name="codex",
+            display_name="Codex CLI",
+            binary="codex",
+            executable="/usr/local/bin/codex",
+            installed_version="0.9.0",
+            latest_version="1.0.0",
+            install_method=InstallMethod.HOMEBREW,
+            update_available=True,
+            docs_url="https://developers.openai.com/codex/cli",
+            install_hint="npm install -g @openai/codex",
+            brew_package="codex",
+        ),
+        AgentCliStatus(
+            name="qwen",
+            display_name="Qwen Code",
+            binary="qwen",
+            executable=None,
+            installed_version=None,
+            latest_version="0.8.0",
+            install_method=InstallMethod.NOT_INSTALLED,
+            update_available=False,
+            docs_url="https://github.com/QwenLM/qwen-code",
+            install_hint="npm install -g @qwen-code/qwen-code",
+        ),
     )
 
 
