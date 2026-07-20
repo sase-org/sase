@@ -19,6 +19,7 @@ from sase.ace.tui.models.agent import AgentType
 from sase.axe.run_agent_phases import AgentInfo, extract_directives_and_write_meta
 from sase.bead.work import (
     SASE_EPIC_BEAD_ID_ENV,
+    SASE_EPIC_CLAN_TRIBE_ENV,
     SASE_EPIC_PLAN_REF_ENV,
     SASE_PHASE_BEAD_ID_ENV,
 )
@@ -157,6 +158,55 @@ def test_extract_directives_preserves_epic_work_metadata_on_reexec(
     assert info.meta["agent_clan_generation"] == "20260718090000"
     assert info.meta["clan_tribe"] == "epic"
     assert info.meta["clan_summary"] == "[bold]EPIC sase-7[/bold]"
+
+
+def test_join_only_epic_member_persists_launch_clan_tribe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace_dir = tmp_path / "workspace"
+    artifacts_dir = tmp_path / "artifacts"
+    workspace_dir.mkdir()
+    artifacts_dir.mkdir()
+    plan_ref = "sase/repos/plans/202607/epic.md"
+    membership = ClanMembershipPlan(clan_name="sase-7", generation="g1")
+    monkeypatch.setenv(
+        CLAN_MEMBERSHIP_ENV,
+        encode_clan_membership_plan(membership),
+    )
+    monkeypatch.setenv(SASE_EPIC_PLAN_REF_ENV, plan_ref)
+    monkeypatch.setenv(SASE_EPIC_BEAD_ID_ENV, "sase-7")
+    monkeypatch.setenv(SASE_PHASE_BEAD_ID_ENV, "sase-7.2")
+    monkeypatch.setenv(SASE_EPIC_CLAN_TRIBE_ENV, "epic")
+
+    with (
+        patch(
+            "sase.llm_provider.temporary_override."
+            "resolve_effective_default_provider_model",
+            return_value=("codex", "gpt-5"),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        patch("sase.agent.names.claim_agent_name"),
+    ):
+        info = extract_directives_and_write_meta(
+            "%id(!2, clan=sase-7)\nDo work",
+            str(workspace_dir),
+            str(artifacts_dir),
+        )
+
+    assert info.meta["agent_clan"] == "sase-7"
+    assert info.meta["agent_clan_generation"] == "g1"
+    assert info.meta["clan_tribe"] == "epic"
+    assert info.meta["sdd_plan_path"] == plan_ref
+    assert info.meta["epic_bead_id"] == "sase-7"
+    assert info.meta["phase_bead_id"] == "sase-7.2"
+    for env_name in (
+        SASE_EPIC_PLAN_REF_ENV,
+        SASE_EPIC_BEAD_ID_ENV,
+        SASE_PHASE_BEAD_ID_ENV,
+        SASE_EPIC_CLAN_TRIBE_ENV,
+    ):
+        assert env_name not in os.environ
 
 
 def test_extract_directives_persists_tribe_with_atomic_helper(

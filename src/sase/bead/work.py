@@ -31,7 +31,9 @@ if TYPE_CHECKING:
 SASE_BEAD_ID_ENV = "SASE_BEAD_ID"
 SASE_EPIC_PLAN_REF_ENV = "SASE_EPIC_PLAN_REF"
 SASE_EPIC_BEAD_ID_ENV = "SASE_EPIC_BEAD_ID"
+SASE_EPIC_CLAN_TRIBE_ENV = "SASE_EPIC_CLAN_TRIBE"
 SASE_PHASE_BEAD_ID_ENV = "SASE_PHASE_BEAD_ID"
+EPIC_CLAN_TRIBE = "epic"
 EPIC_CLAN_SUMMARY_SCRIPT = "sase_clan_summary_epic"
 
 
@@ -401,7 +403,7 @@ def _clan_identity_directives(
         return [
             f"%id:!{agent_name}",
             (
-                f"%clan({clan_name}, tribe=epic, "
+                f"%clan({clan_name}, tribe={EPIC_CLAN_TRIBE}, "
                 f"summary_script={EPIC_CLAN_SUMMARY_SCRIPT})"
             ),
         ]
@@ -474,6 +476,7 @@ def _bead_env(
     env = {
         SASE_BEAD_ID_ENV: bead_id,
         SASE_EPIC_BEAD_ID_ENV: epic_id,
+        SASE_EPIC_CLAN_TRIBE_ENV: EPIC_CLAN_TRIBE,
         INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
     }
     if plan_ref:

@@ -13,6 +13,7 @@ from sase.bead.work import (
     _PhaseAssignment as PhaseAssignment,
     SASE_BEAD_ID_ENV,
     SASE_EPIC_BEAD_ID_ENV,
+    SASE_EPIC_CLAN_TRIBE_ENV,
     SASE_EPIC_PLAN_REF_ENV,
     SASE_PHASE_BEAD_ID_ENV,
     VCSLaunchContext,
@@ -176,6 +177,7 @@ class TestRenderEdgeCases:
             {
                 SASE_BEAD_ID_ENV: "p1",
                 SASE_EPIC_BEAD_ID_ENV: "e1",
+                SASE_EPIC_CLAN_TRIBE_ENV: "epic",
                 SASE_EPIC_PLAN_REF_ENV: plan_ref,
                 SASE_PHASE_BEAD_ID_ENV: "p1",
                 INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
@@ -183,6 +185,7 @@ class TestRenderEdgeCases:
             {
                 SASE_BEAD_ID_ENV: "p2",
                 SASE_EPIC_BEAD_ID_ENV: "e1",
+                SASE_EPIC_CLAN_TRIBE_ENV: "epic",
                 SASE_EPIC_PLAN_REF_ENV: plan_ref,
                 SASE_PHASE_BEAD_ID_ENV: "p2",
                 INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
@@ -190,6 +193,7 @@ class TestRenderEdgeCases:
             {
                 SASE_BEAD_ID_ENV: "e1",
                 SASE_EPIC_BEAD_ID_ENV: "e1",
+                SASE_EPIC_CLAN_TRIBE_ENV: "epic",
                 SASE_EPIC_PLAN_REF_ENV: plan_ref,
                 INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
             },

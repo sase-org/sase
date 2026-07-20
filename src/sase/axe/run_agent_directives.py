@@ -66,6 +66,7 @@ def _epic_work_metadata_from_env() -> dict[str, Any]:
     """
     from sase.bead.work import (
         SASE_EPIC_BEAD_ID_ENV,
+        SASE_EPIC_CLAN_TRIBE_ENV,
         SASE_EPIC_PLAN_REF_ENV,
         SASE_PHASE_BEAD_ID_ENV,
     )
@@ -75,6 +76,7 @@ def _epic_work_metadata_from_env() -> dict[str, Any]:
         (SASE_EPIC_PLAN_REF_ENV, "sdd_plan_path"),
         (SASE_EPIC_BEAD_ID_ENV, "epic_bead_id"),
         (SASE_PHASE_BEAD_ID_ENV, "phase_bead_id"),
+        (SASE_EPIC_CLAN_TRIBE_ENV, "clan_tribe"),
     ):
         value = os.environ.pop(env_name, "").strip()
         if value:

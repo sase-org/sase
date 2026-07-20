@@ -14,6 +14,7 @@ from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.bead.work import (
     SASE_BEAD_ID_ENV,
     SASE_EPIC_BEAD_ID_ENV,
+    SASE_EPIC_CLAN_TRIBE_ENV,
     SASE_EPIC_PLAN_REF_ENV,
     SASE_PHASE_BEAD_ID_ENV,
 )
@@ -93,6 +94,7 @@ def test_work_launches_and_passes_rendered_multi_prompt(
             {
                 SASE_BEAD_ID_ENV: phase_id,
                 SASE_EPIC_BEAD_ID_ENV: epic_id,
+                SASE_EPIC_CLAN_TRIBE_ENV: "epic",
                 SASE_EPIC_PLAN_REF_ENV: plan_ref,
                 SASE_PHASE_BEAD_ID_ENV: phase_id,
                 INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
@@ -103,6 +105,7 @@ def test_work_launches_and_passes_rendered_multi_prompt(
             {
                 SASE_BEAD_ID_ENV: epic_id,
                 SASE_EPIC_BEAD_ID_ENV: epic_id,
+                SASE_EPIC_CLAN_TRIBE_ENV: "epic",
                 SASE_EPIC_PLAN_REF_ENV: plan_ref,
                 INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
             }
@@ -199,25 +202,36 @@ def test_work_retry_allows_legacy_epic_clan_container_skip(
         "sase.agent.names.get_reserved_clan_names",
         lambda: {epic_id},
     )
-    launched: list[str] = []
-    monkeypatch.setattr(
-        "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
-            launched.append(query) or FakeLaunchResult()
-        ),
-    )
+    launched: list[tuple[str, Any]] = []
+
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
+        launched.append((query, segment_extra_env))
+        return FakeLaunchResult()
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
 
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
 
     assert epic_id in wiped
     assert len(launched) == 1
-    assert "%id:!" not in launched[0]
-    assert "%clan" not in launched[0]
-    assert f"#bd/work_phase_bead:{phase_ids[0]}" not in launched[0]
+    query, segment_env = launched[0]
+    assert "%id:!" not in query
+    assert "%clan" not in query
+    assert f"#bd/work_phase_bead:{phase_ids[0]}" not in query
     for phase_id in phase_ids[1:]:
-        assert f"#bd/work_phase_bead:{phase_id}" in launched[0]
+        assert f"#bd/work_phase_bead:{phase_id}" in query
         suffix = phase_id.removeprefix(f"{epic_id}.")
-        assert f"%id({suffix}, clan={epic_id})" in launched[0]
+        assert f"%id({suffix}, clan={epic_id})" in query
+    assert f"%id(land, clan={epic_id})" in query
+    assert all(env[SASE_EPIC_CLAN_TRIBE_ENV] == "epic" for env in segment_env)
+    assert [env[SASE_BEAD_ID_ENV] for env in segment_env] == [
+        *phase_ids[1:],
+        epic_id,
+    ]
 
 
 def test_work_relaunch_after_failure_joins_existing_epic_clan(
@@ -229,7 +243,7 @@ def test_work_relaunch_after_failure_joins_existing_epic_clan(
 
     epic_id, phase_ids = seed_diamond(project_dir)
     reserved_clans: set[str] = set()
-    launched: list[str] = []
+    launched: list[tuple[str, Any]] = []
 
     monkeypatch.setattr(
         "sase.agent.names.get_reserved_clan_names",
@@ -245,7 +259,7 @@ def test_work_relaunch_after_failure_joins_existing_epic_clan(
         extra_env: Any = None,
         segment_extra_env: Any = None,
     ) -> FakeLaunchResult:
-        launched.append(query)
+        launched.append((query, segment_extra_env))
         reserved_clans.add(epic_id)
         return FakeLaunchResult()
 
@@ -262,12 +276,16 @@ def test_work_relaunch_after_failure_joins_existing_epic_clan(
 
     assert len(launched) == 2
     declaration = _epic_clan_declaration(epic_id)
-    assert launched[0].count(declaration) == 1
-    assert "%clan" not in launched[1]
+    first_query, first_segment_env = launched[0]
+    retry_query, retry_segment_env = launched[1]
+    assert first_query.count(declaration) == 1
+    assert "%clan" not in retry_query
     for phase_id in phase_ids:
         suffix = phase_id.removeprefix(f"{epic_id}.")
-        assert f"%id({suffix}, clan={epic_id})" in launched[1]
-    assert f"%id(land, clan={epic_id})" in launched[1]
+        assert f"%id({suffix}, clan={epic_id})" in retry_query
+    assert f"%id(land, clan={epic_id})" in retry_query
+    for segment_env in (first_segment_env, retry_segment_env):
+        assert all(env[SASE_EPIC_CLAN_TRIBE_ENV] == "epic" for env in segment_env)
 
 
 @pytest.mark.parametrize(
