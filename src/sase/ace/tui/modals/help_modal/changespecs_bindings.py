@@ -46,15 +46,15 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             [
                 (
                     "1 / 2 / 3 / 4",
-                    "Jump: PRs, Commits, Bugs, Plans",
+                    "Jump: Commits, Plans, Bugs, PRs",
                 ),
                 (
                     f"{d(a.cycle_artifacts_subtab_reverse)} / {d(a.cycle_artifacts_subtab)}",
-                    "Previous / next: PRs, Commits, Bugs, Plans",
+                    "Cycle: Commits, Plans, Bugs, PRs",
                 ),
                 (
                     d(a.pick_artifacts_project),
-                    "Pick scope for Commits, Bugs, or Plans",
+                    "Pick scope for Commits, Plans, or Bugs",
                 ),
                 (
                     d(a.open_command_palette),

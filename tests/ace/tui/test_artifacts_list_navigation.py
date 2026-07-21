@@ -242,7 +242,7 @@ async def test_plans_fast_navigation_skips_headings_and_includes_expanded_phases
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("[")
+        await page.press("2")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         pane._expanded_epics.add(("alpha", "alpha-1"))

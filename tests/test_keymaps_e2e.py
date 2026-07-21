@@ -45,9 +45,9 @@ async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
             edits: list[str] = []
             for subtab, subtab_key, expected_edit in (
                 ("prs", None, True),
-                ("commits", "2", True),
+                ("commits", "1", True),
                 ("bugs", "3", False),
-                ("plans", "4", True),
+                ("plans", "2", True),
             ):
                 if subtab_key is not None:
                     await page.press(subtab_key)

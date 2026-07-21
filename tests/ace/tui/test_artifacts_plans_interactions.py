@@ -36,7 +36,7 @@ async def test_plans_pane_renders_groups_and_expands_phase_tree(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("[")
+        await page.press("2")
         await page.expect_state("artifacts_subtab", "plans")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
@@ -84,7 +84,7 @@ async def test_proposal_keys_reuse_approval_flow(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("[")
+        await page.press("2")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
 
@@ -120,7 +120,7 @@ async def test_status_change_runs_as_tracked_task(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("[")
+        await page.press("2")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         await page.press("j", "s")
@@ -154,7 +154,7 @@ async def test_default_scope_loads_all_projects_and_namespaces_rows(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("[")
+        await page.press("2")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
 
@@ -196,7 +196,7 @@ async def test_picker_round_trip_back_to_all_projects(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("[")
+        await page.press("2")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(
             lambda _state: (
@@ -236,7 +236,7 @@ async def test_all_project_bead_actions_route_to_selected_row_project(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("[")
+        await page.press("2")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         await page.press("j")

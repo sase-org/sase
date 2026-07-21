@@ -12,10 +12,10 @@ ArtifactsSubTab = Literal["prs", "commits", "bugs", "plans"]
 
 DEFAULT_ARTIFACTS_SUBTAB: ArtifactsSubTab = "prs"
 ARTIFACTS_SUBTAB_ORDER: tuple[ArtifactsSubTab, ...] = (
-    "prs",
     "commits",
-    "bugs",
     "plans",
+    "bugs",
+    "prs",
 )
 ARTIFACTS_PANE_IDS: dict[ArtifactsSubTab, str] = {
     "prs": "artifacts-prs-pane",

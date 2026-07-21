@@ -77,9 +77,9 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         assert commits.deactivation_count == 1
 
         await page.press("[")
-        await page.expect_state("artifacts_subtab", "plans")
+        await page.expect_state("artifacts_subtab", "bugs")
         assert page.app.check_action("start_leader_mode", ()) is not False
-        assert page.app.check_action("plans_filters", ()) is True
+        assert page.app.check_action("refresh_bugs", ()) is True
 
 
 async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
@@ -91,7 +91,7 @@ async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
 
         page.app.action_start_agent_from_changespec = record_repeat_agent  # type: ignore[method-assign]
 
-        expected = ("prs", "commits", "bugs", "plans")
+        expected = ("commits", "plans", "bugs", "prs")
         for index, (key, subtab) in enumerate(
             zip(("1", "2", "3", "4"), expected, strict=True),
             start=1,
@@ -107,7 +107,7 @@ async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
 async def test_number_keys_jump_artifacts_without_entering_from_other_tabs() -> None:
     async with AcePage(initial_tab="changespecs") as page:
         switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)
-        expected = ("prs", "commits", "bugs", "plans")
+        expected = ("commits", "plans", "bugs", "prs")
 
         for start_key in ("1", "2", "3", "4"):
             await page.press(start_key)
@@ -143,14 +143,14 @@ async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
         commits = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         assert (
             strip._build_content().plain
-            == " 1 PRS  │  2 Commits  │  3 Bugs  │  4 Plans "
+            == " 1 Commits  │  2 Plans  │  3 Bugs  │  4 PRS "
         )
 
         strip.post_message(PanelTabStrip.TabClicked("commits"))
         await page.expect_state("artifacts_subtab", "commits")
         assert (
             strip._build_content().plain
-            == " 1 PRs  │  2 COMMITS  │  3 Bugs  │  4 Plans "
+            == " 1 COMMITS  │  2 Plans  │  3 Bugs  │  4 PRs "
         )
         commits.set_class(True, "test-selection-state")
 
@@ -158,13 +158,13 @@ async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
         await page.expect_state("artifacts_subtab", "bugs")
         assert (
             strip._build_content().plain
-            == " 1 PRs  │  2 Commits  │  3 BUGS  │  4 Plans "
+            == " 1 Commits  │  2 Plans  │  3 BUGS  │  4 PRs "
         )
         strip.post_message(PanelTabStrip.TabClicked("commits"))
         await page.expect_state("artifacts_subtab", "commits")
         assert (
             strip._build_content().plain
-            == " 1 PRs  │  2 COMMITS  │  3 Bugs  │  4 Plans "
+            == " 1 COMMITS  │  2 Plans  │  3 Bugs  │  4 PRs "
         )
 
         assert commits.first_activation_count == 1
@@ -262,10 +262,10 @@ async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
         assert [
             by_id[f"artifacts.{subtab}"].key_display
             for subtab in (
-                "prs",
                 "commits",
-                "bugs",
                 "plans",
+                "bugs",
+                "prs",
             )
         ] == ["1", "2", "3", "4"]
 

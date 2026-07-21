@@ -31,6 +31,8 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "[*1]" in left
     assert "*1-9 / *0" in right
     assert "1 / 2 / 3 / 4" in left
+    assert "Jump: Commits, Plans, Bugs, PRs" in left
+    assert "Cycle: Commits, Plans, Bugs, PRs" in left
     combined = left + right
     assert "Select first / last entry" in combined
     assert "Scroll right detail down / up" in combined

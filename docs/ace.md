@@ -51,7 +51,7 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | Tab           | Description                                                   |
 | ------------- | ------------------------------------------------------------- |
 | **Agents**    | View running and completed agents, their files and prompts    |
-| **Artifacts** | Browse PRs, commits, bugs, and plans in four focused sub-tabs |
+| **Artifacts** | Browse commits, plans, bugs, and PRs in four focused sub-tabs |
 | **Axe**       | Monitor the Axe daemon and background commands                |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press `,?` (leader mode) to open the Help
@@ -65,12 +65,12 @@ project/ChangeSpec launch hint appears only when a launchable target exists — 
 the Admin Center when no third-party plugins are installed. Onboarding cards carry "learn more" links into the published
 docs.
 
-Within Artifacts, the strip is numbered **1 PRs · 2 Commits · 3 Bugs · 4 Plans**. Press `1`–`4` to jump directly to a
-sub-tab, or use `[` / `]` to cycle. These digits act only while Artifacts is visible. Press `p` in Commits, Bugs, or
-Plans to change the shared project scope, or use the command palette to jump directly to any sub-tab. PRs remains
+Within Artifacts, the strip is numbered **1 Commits · 2 Plans · 3 Bugs · 4 PRs**. Press `1`–`4` to jump directly to a
+sub-tab, or use `[` / `]` to cycle. These digits act only while Artifacts is visible. Press `p` in Commits, Plans, or
+Bugs to change the shared project scope, or use the command palette to jump directly to any sub-tab. PRs remains
 query-scoped and retains the existing ChangeSpec workflow.
 
-### Navigation in Commits, Bugs, and Plans
+### Navigation in Commits, Plans, and Bugs
 
 The three non-PR panes share fast navigation over their selectable left-panel entries. Commits skip day headings, Plans
 skip section and empty-state rows, and Bugs always targets the issue list rather than its separately focusable Linked
@@ -84,7 +84,7 @@ work list. Movement clamps at the first or last entry and silently does nothing 
 | `'`                       | Show adaptive entry hints; press `'` again for the first entry or the last jump origin  |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the pane's jump stack; back falls through to first hint |
 
-Hint keys select an entry without activating it. Jump-back history is kept separately for Commits, Bugs, and Plans, and
+Hint keys select an entry without activating it. Jump-back history is kept separately for Commits, Plans, and Bugs, and
 stale origins disappear automatically after filtering, changing project scope, refreshing data, or collapsing an
 expanded plan tree. Escape or an invalid hint exits jump mode. These actions use the configured keymap values; the keys
 above are the defaults.
@@ -1182,7 +1182,7 @@ To save a query, prefix with `#`:
 On the PRs sub-tab, press `*` to open the saved-query chooser. Press a populated slot (`1`–`9`, then `0`), move with
 `j`/`k` or the arrow keys and press `Enter`, or click a row. `q`/`Esc` closes the chooser without changing the query.
 The chooser shows the saved query text and marks the active query; an empty chooser also repeats the save syntax. Bare
-digits no longer load saved queries, and the chooser is unavailable from Agents, Axe, Commits, Bugs, and Plans.
+digits no longer load saved queries, and the chooser is unavailable from Agents, Axe, Commits, Plans, and Bugs.
 
 ### Query History
 

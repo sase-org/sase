@@ -281,7 +281,7 @@ async def test_bead_details_append_current_plan_after_description_and_notes(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("[")
+        await page.press("2")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         detail = pane.query_one("#plans-detail", Markdown)

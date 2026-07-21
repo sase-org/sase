@@ -150,16 +150,16 @@ async def test_picker_is_pr_only_and_bare_digits_only_switch_artifacts() -> None
     async with AcePage(query='"feature"') as page:
         page.app._saved_queries = {"2": '"saved"'}
 
-        await page.press("2")
+        await page.press("1")
         await page.expect_state("artifacts_subtab", "commits")
         assert page.app.canonical_query_string == '"feature"'
 
-        for subtab_key in ("2", "3", "4"):
+        for subtab_key in ("1", "2", "3"):
             await page.press(subtab_key, "asterisk")
             await page.pause()
             assert page.state["modal"] is None
 
-        await page.press("1", "asterisk")
+        await page.press("4", "asterisk")
         await page.expect_modal("SavedQueryPickerModal")
 
 

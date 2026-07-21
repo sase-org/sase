@@ -7,7 +7,7 @@ pdf: false
 !!! warning "Historical review"
 
     This critique records the pre-Artifacts ACE layout and the state of the asset before its 2026-05-10 regeneration.
-    Current ACE navigation is **Agents · Artifacts · Axe**, with **PRs · Commits · Bugs · Plans** inside Artifacts. The
+    Current ACE navigation is **Agents · Artifacts · Axe**, with **Commits · Plans · Bugs · PRs** inside Artifacts. The
     PNG is no longer embedded in active documentation, and claims below about current code paths or a missing prompt
     sidecar should be read only as historical context.
 
