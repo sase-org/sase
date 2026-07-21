@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -306,3 +309,53 @@ class TestVcsHandlerDispatch:
 
         assert _handle_log(ns) == 2
         assert "--since/--after" in capsys.readouterr().err
+
+    def test_log_handler_propagates_inclusive_end_of_day_bounds(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from sase.core.time import get_timezone
+        from sase.main.vcs_handler import _handle_log
+        import sase.vcs_log.collect as collect_module
+        import sase.vcs_log.dates as dates_module
+        import sase.vcs_log.progress as progress_module
+        import sase.vcs_log.render as render_module
+
+        tz = get_timezone()
+        reference = datetime(2026, 7, 18, 12, 0, tzinfo=tz)
+        captured: dict[str, Any] = {}
+
+        def run_vcs_log(**kwargs: Any) -> SimpleNamespace:
+            captured.update(kwargs)
+            return SimpleNamespace(repos=("sase",))
+
+        monkeypatch.setattr(
+            dates_module,
+            "normalize_reference_time",
+            lambda now=None: reference,
+        )
+        monkeypatch.setattr(collect_module, "run_vcs_log", run_vcs_log)
+        monkeypatch.setattr(progress_module, "make_fetch_progress", lambda _color: None)
+        monkeypatch.setattr(render_module, "render", lambda *_args, **_kwargs: None)
+        ns = argparse.Namespace(
+            all=False,
+            authors=[],
+            color="auto",
+            current_only=False,
+            force_fetch=False,
+            format="pretty",
+            limit=20,
+            no_fetch=True,
+            remote_ref=None,
+            repos=[],
+            reverse=False,
+            sdd=False,
+            show_tags=True,
+            since="2026-07-18",
+            until="2026-07-18",
+        )
+
+        assert _handle_log(ns) == 0
+        filters = captured["filters"]
+        assert filters.since == int(datetime(2026, 7, 18, tzinfo=tz).timestamp())
+        assert filters.until == int(datetime(2026, 7, 19, tzinfo=tz).timestamp()) - 1

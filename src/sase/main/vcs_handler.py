@@ -32,17 +32,33 @@ def _handle_log(args: argparse.Namespace) -> int:
     format.
     """
     from sase.vcs_log.collect import run_vcs_log
-    from sase.vcs_log.dates import VcsLogDateError, parse_time_bound
+    from sase.vcs_log.dates import (
+        VcsLogDateError,
+        normalize_reference_time,
+        parse_time_bound,
+    )
     from sase.vcs_log.models import CommitFilters
     from sase.vcs_log.progress import make_fetch_progress
     from sase.vcs_log.render import render
 
     try:
-        since = parse_time_bound(args.since) if args.since else None
-        until = parse_time_bound(args.until) if args.until else None
+        since_bound = parse_time_bound(args.since) if args.since else None
+        until_bound = parse_time_bound(args.until) if args.until else None
     except VcsLogDateError as exc:
         print(f"sase vcs log: {exc}", file=sys.stderr)
         return 2
+
+    reference = normalize_reference_time()
+    since = (
+        since_bound.resolve(now=reference, boundary="since")
+        if since_bound is not None
+        else None
+    )
+    until = (
+        until_bound.resolve(now=reference, boundary="until")
+        if until_bound is not None
+        else None
+    )
 
     if since is not None and until is not None and since > until:
         print(

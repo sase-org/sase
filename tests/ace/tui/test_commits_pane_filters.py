@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
@@ -16,8 +17,12 @@ from sase.ace.tui.widgets.artifacts.commits_collection import (
     snapshot_covers,
 )
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.core.time import get_timezone
 import sase.ace.tui.widgets.artifacts.commits as commits_module
-from sase.vcs_log.filter_query import CommitLogFilterValues
+from sase.vcs_log.filter_query import (
+    CommitLogFilterValues,
+    parse_commit_filter_query,
+)
 from sase.vcs_log.models import VcsLogResult
 from tests.ace.tui._commits_pane_helpers import _result, _result_with_sidecar
 
@@ -158,6 +163,23 @@ def test_sidecar_snapshot_coverage_is_directional() -> None:
     assert snapshot_covers(narrow, narrow_values) is True
     assert snapshot_covers(narrow, broad_values) is False
     assert snapshot_covers(broad, narrow_values) is True
+
+
+def test_relative_filter_reparse_reuses_snapshot_cache_key() -> None:
+    tz = get_timezone()
+    first_now = datetime(2026, 7, 18, 12, 0, tzinfo=tz)
+    first = parse_commit_filter_query("sidecar:false since:24h", now=first_now)
+    reparsed = parse_commit_filter_query(
+        "sidecar:false since:24h",
+        now=first_now + timedelta(hours=3),
+    )
+    scope = (None, False)
+    result = _result()
+    snapshot = AuthoritativeCommitSnapshot(scope, first, 40, result)
+    cache = {(scope, first): result}
+
+    assert snapshot_covers(snapshot, reparsed) is True
+    assert cache[(scope, reparsed)] is result
 
 
 async def test_sidecar_filter_and_compatibility_toggle_share_collection_scope(

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, cast
 
 from textual.worker import Worker, WorkerState
 
+from sase.vcs_log.dates import normalize_reference_time
 from sase.vcs_log.models import VcsLogResult
 
 from .commit_filter_bar import CommitFilterBar
@@ -138,10 +139,11 @@ class CommitsCollectionMixin(_MixinBase):
         # author/date/repo-filtered set before the UI applies the row cap.
         # Otherwise older subject matches can be hidden behind newer misses.
         collection_limit = _backend_collection_limit(spec.filters)
+        reference = normalize_reference_time()
         return self._collector(
             cwd=os.getcwd(),
             limit=collection_limit,
-            filters=spec.filters.backend_filters(),
+            filters=spec.filters.backend_filters(now=reference),
             repo_filters=spec.filters.repos,
             exclude_repo_filters=spec.filters.excluded_repos,
             all_projects=spec.all_projects,

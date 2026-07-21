@@ -15,7 +15,6 @@ from sase.ace.tui.widgets.artifacts.commit_filter_bar import CommitFilterBar
 from sase.ace.tui.widgets.artifacts.commits_timeline import CommitsTimeline
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 import sase.ace.tui.widgets.artifacts.commits as commits_module
-from sase.vcs_log.dates import parse_time_bound as _real_parse_time_bound
 from sase.vcs_log.filter_query import parse_commit_filter_query, to_query_string
 from tests.ace.tui._commits_pane_helpers import _DIFF, _result, _result_with_sidecar
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -34,10 +33,11 @@ pytestmark = pytest.mark.visual
 def _pin_rolling_default_query_time(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep fixed visual commits inside the bundled rolling 24-hour query."""
     reference = datetime(2026, 7, 7, 12, tzinfo=UTC)
-    monkeypatch.setattr(
-        "sase.vcs_log.filter_query.parse_time_bound",
-        lambda value: _real_parse_time_bound(value, now=reference),
-    )
+    for target in (
+        "sase.ace.tui.widgets.artifacts.commits_collection.normalize_reference_time",
+        "sase.ace.tui.widgets.artifacts.commits_filtering.normalize_reference_time",
+    ):
+        monkeypatch.setattr(target, lambda: reference)
 
 
 async def _open_commits(

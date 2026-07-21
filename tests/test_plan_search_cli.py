@@ -359,6 +359,32 @@ def test_search_json_kind_filter(
     assert [result["plan"]["name"] for result in payload["results"]] == ["unified_auth"]
 
 
+def test_search_json_until_includes_plans_created_later_that_day(
+    corpus: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    handle_plan_search_command(
+        _run(
+            [
+                "plan",
+                "search",
+                "Refresh auth tokens",
+                "--format",
+                "json",
+                "--source",
+                "repo",
+                "--until",
+                "2026-06-18",
+            ]
+        )
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert [result["plan"]["name"] for result in payload["results"]] == [
+        "auth_token_refresh"
+    ]
+
+
 def test_search_json_prompt_kind(
     corpus: Path,
     capsys: pytest.CaptureFixture[str],

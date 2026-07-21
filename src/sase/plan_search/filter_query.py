@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal
 
 from sase.filter_tokens import (
@@ -17,7 +18,12 @@ from sase.filter_tokens import (
     unknown_key_error,
     unquoted_index,
 )
-from sase.vcs_log.dates import VcsLogDateError, parse_time_bound
+from sase.vcs_log.dates import (
+    TimeBoundary,
+    VcsLogDateError,
+    normalize_reference_time,
+    parse_time_bound,
+)
 
 PlanCompletionKind = Literal[
     "key",
@@ -82,7 +88,11 @@ class PlanFilterQueryError(FilterQueryError):
     """A plan-filter parse failure tied to an exact token span."""
 
 
-def parse_plan_filter_query(text: str) -> PlanFilterValues:
+def parse_plan_filter_query(
+    text: str,
+    *,
+    now: datetime | None = None,
+) -> PlanFilterValues:
     """Parse a plans-filter query into validated filter values."""
     repeated: dict[str, list[str]] = {key: [] for key in _REPEATABLE_KEYS}
     excluded_repeated: dict[str, list[str]] = {key: [] for key in _REPEATABLE_KEYS}
@@ -138,8 +148,19 @@ def parse_plan_filter_query(text: str) -> PlanFilterValues:
             raise _error(f"{key}: may only appear once", token)
         singles[key] = (value, token)
 
-    since_text, since, _since_token = _parse_date_value("since", singles)
-    until_text, until, until_token = _parse_date_value("until", singles)
+    reference = normalize_reference_time(now)
+    since_text, since, _since_token = _parse_date_value(
+        "since",
+        singles,
+        now=reference,
+        boundary="since",
+    )
+    until_text, until, until_token = _parse_date_value(
+        "until",
+        singles,
+        now=reference,
+        boundary="until",
+    )
     if since is not None and until is not None and since > until:
         assert until_token is not None
         raise _error("since: value must not be later than until: value", until_token)
@@ -207,12 +228,15 @@ def plan_completion_context(
 def _parse_date_value(
     key: str,
     singles: Mapping[str, tuple[str, FilterToken]],
+    *,
+    now: datetime,
+    boundary: TimeBoundary,
 ) -> tuple[str, int | None, FilterToken | None]:
     if key not in singles:
         return ("", None, None)
     value, token = singles[key]
     try:
-        parsed = parse_time_bound(value)
+        parsed = parse_time_bound(value).resolve(now=now, boundary=boundary)
     except VcsLogDateError as exc:
         raise _error(str(exc), token) from exc
     return (value, parsed, token)

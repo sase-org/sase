@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal
 
 from sase.core.vcs_log_wire import AggregatedCommitWire
@@ -19,7 +20,12 @@ from sase.filter_tokens import (
     unknown_key_error,
     unquoted_index,
 )
-from sase.vcs_log.dates import VcsLogDateError, parse_time_bound
+from sase.vcs_log.dates import (
+    TimeBound,
+    VcsLogDateError,
+    normalize_reference_time,
+    parse_time_bound,
+)
 from sase.vcs_log.models import CommitFilters
 
 DEFAULT_COMMIT_LOG_LIMIT = 40
@@ -54,8 +60,8 @@ class CommitLogFilterValues:
     excluded_authors: tuple[str, ...] = ()
     since_text: str = ""
     until_text: str = ""
-    since: int | None = None
-    until: int | None = None
+    since: TimeBound | None = None
+    until: TimeBound | None = None
     repos: tuple[str, ...] = ()
     excluded_repos: tuple[str, ...] = ()
     sidecar: bool = True
@@ -63,16 +69,21 @@ class CommitLogFilterValues:
     text: tuple[str, ...] = ()
     excluded_text: tuple[str, ...] = ()
 
-    def backend_filters(self) -> CommitFilters:
+    def backend_filters(self, *, now: datetime | None = None) -> CommitFilters:
         """Return the provider-neutral filters pushed into ``run_vcs_log``."""
+        since, until = _resolve_bounds(self, now=now)
         return CommitFilters(
-            since=self.since,
-            until=self.until,
+            since=since,
+            until=until,
             authors=self.authors,
         )
 
 
-def parse_commit_filter_query(text: str) -> CommitLogFilterValues:
+def parse_commit_filter_query(
+    text: str,
+    *,
+    now: datetime | None = None,
+) -> CommitLogFilterValues:
     """Parse a commit-filter query into validated filter values."""
     repos: list[str] = []
     excluded_repos: list[str] = []
@@ -124,9 +135,17 @@ def parse_commit_filter_query(text: str) -> CommitLogFilterValues:
 
     since_text, since, _since_token = _parse_date_value("since", singles)
     until_text, until, until_token = _parse_date_value("until", singles)
-    if since is not None and until is not None and since > until:
-        assert until_token is not None
-        raise _error("since: value must not be later than until: value", until_token)
+    if since is not None and until is not None:
+        reference = normalize_reference_time(now)
+        if since.resolve(now=reference, boundary="since") > until.resolve(
+            now=reference,
+            boundary="until",
+        ):
+            assert until_token is not None
+            raise _error(
+                "since: value must not be later than until: value",
+                until_token,
+            )
 
     limit = DEFAULT_COMMIT_LOG_LIMIT
     if "limit" in singles:
@@ -195,6 +214,7 @@ def compile_commit_matcher(
     values: CommitLogFilterValues,
     *,
     repo_aliases: RepoAliases | None = None,
+    now: datetime | None = None,
 ) -> Callable[[AggregatedCommitWire], bool]:
     """Compile *values* into a cheap, reusable in-memory predicate."""
     wanted_repos = frozenset(value.casefold() for value in values.repos)
@@ -207,8 +227,7 @@ def compile_commit_matcher(
         name.casefold(): frozenset(alias.casefold() for alias in aliases)
         for name, aliases in (repo_aliases or {}).items()
     }
-    since = values.since
-    until = values.until
+    since, until = _resolve_bounds(values, now=now)
 
     def matches(entry: AggregatedCommitWire) -> bool:
         commit = entry.commit
@@ -276,7 +295,7 @@ def completion_context(
 def _parse_date_value(
     key: str,
     singles: Mapping[str, tuple[str, FilterToken]],
-) -> tuple[str, int | None, FilterToken | None]:
+) -> tuple[str, TimeBound | None, FilterToken | None]:
     if key not in singles:
         return ("", None, None)
     value, token = singles[key]
@@ -285,6 +304,27 @@ def _parse_date_value(
     except VcsLogDateError as exc:
         raise _error(str(exc), token) from exc
     return (value, parsed, token)
+
+
+def _resolve_bounds(
+    values: CommitLogFilterValues,
+    *,
+    now: datetime | None,
+) -> tuple[int | None, int | None]:
+    if values.since is None and values.until is None:
+        return (None, None)
+    reference = normalize_reference_time(now)
+    since = (
+        values.since.resolve(now=reference, boundary="since")
+        if values.since is not None
+        else None
+    )
+    until = (
+        values.until.resolve(now=reference, boundary="until")
+        if values.until is not None
+        else None
+    )
+    return (since, until)
 
 
 def _error(message: str, token: FilterToken) -> CommitFilterQueryError:

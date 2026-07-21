@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from textual.worker import Worker
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.vcs_log.dates import normalize_reference_time
 from sase.vcs_log.filter_query import (
     CommitFilterQueryError,
     commit_repo_matches,
@@ -91,7 +92,12 @@ class CommitsFilteringMixin(_MixinBase):
         values: CommitLogFilterValues,
     ) -> VcsLogResult:
         aliases = {repo.name: repo.aliases for repo in result.repos}
-        matcher = compile_commit_matcher(values, repo_aliases=aliases)
+        reference = normalize_reference_time()
+        matcher = compile_commit_matcher(
+            values,
+            repo_aliases=aliases,
+            now=reference,
+        )
         repos = tuple(
             repo
             for repo in result.repos

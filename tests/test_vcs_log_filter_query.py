@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 import pytest
 from hypothesis import given, strategies as st
 
 from sase.ace.tui.widgets.artifacts.commits_rendering import commit_filter_chips
+from sase.core.time import get_timezone
 from sase.core.vcs_log_wire import AggregatedCommitWire, VcsCommitWire
 from sase.vcs_log.dates import parse_time_bound
 from sase.vcs_log.filter_query import (
@@ -65,6 +68,23 @@ def test_parse_every_token_kind_and_case_insensitive_keys() -> None:
     assert values.sidecar is True
     assert values.limit == 0
     assert values.text == ("fix", "live preview")
+
+
+def test_relative_query_values_are_stable_across_delayed_reparses() -> None:
+    tz = get_timezone()
+    first_now = datetime(2026, 7, 8, 15, 30, tzinfo=tz)
+    later_now = first_now + timedelta(days=1, hours=2)
+    query = "sidecar:false since:24h until:today"
+
+    first = parse_commit_filter_query(query, now=first_now)
+    reparsed = parse_commit_filter_query(query, now=later_now)
+
+    assert reparsed == first
+    assert hash(reparsed) == hash(first)
+    assert to_query_string(reparsed) == query
+    assert first.backend_filters(now=first_now) != reparsed.backend_filters(
+        now=later_now
+    )
 
 
 def test_quoted_commas_are_values_while_unquoted_commas_are_lists() -> None:
@@ -145,6 +165,22 @@ def test_since_must_not_be_later_than_until() -> None:
 
     assert exc_info.value.token == "until:2026-07-01"
     assert exc_info.value.span == (17, 33)
+
+
+@pytest.mark.parametrize("value", ["2026-07-18", "today", "yesterday"])
+def test_same_day_window_is_valid(value: str) -> None:
+    tz = get_timezone()
+    now = datetime(2026, 7, 18, 12, 0, tzinfo=tz)
+
+    values = parse_commit_filter_query(
+        f"since:{value} until:{value}",
+        now=now,
+    )
+
+    filters = values.backend_filters(now=now)
+    assert filters.since is not None
+    assert filters.until is not None
+    assert filters.since < filters.until
 
 
 def test_quoted_key_shaped_term_remains_free_text() -> None:
@@ -238,11 +274,13 @@ def test_canonical_query_round_trip_property(
 
 
 def test_backend_filters_exclude_repo_text_and_limit() -> None:
+    tz = get_timezone()
+    now = datetime(2026, 7, 18, 12, 0, tzinfo=tz)
     values = CommitLogFilterValues(
         authors=("Ada",),
         excluded_authors=("bot",),
-        since=10,
-        until=20,
+        since=parse_time_bound("24h"),
+        until=parse_time_bound("2026-07-18"),
         repos=("sase",),
         excluded_repos=("plans",),
         limit=5,
@@ -250,8 +288,10 @@ def test_backend_filters_exclude_repo_text_and_limit() -> None:
         excluded_text=("generated",),
     )
 
-    assert values.backend_filters() == CommitFilters(
-        authors=("Ada",), since=10, until=20
+    assert values.backend_filters(now=now) == CommitFilters(
+        authors=("Ada",),
+        since=int((now - timedelta(hours=24)).timestamp()),
+        until=int(datetime(2026, 7, 19, tzinfo=tz).timestamp()) - 1,
     )
 
 
@@ -265,8 +305,6 @@ def test_backend_filters_exclude_repo_text_and_limit() -> None:
             False,
         ),
         ({"author_email": "ADA@EXAMPLE.COM"}, True),
-        ({"timestamp": 99}, False),
-        ({"timestamp": 301}, False),
         ({"subject": "fix timeline only"}, False),
         ({"subject": "LIVE preview needs a FIX"}, True),
     ),
@@ -285,13 +323,35 @@ def test_commit_matcher_ands_kinds_and_text_but_ors_authors(
     values = CommitLogFilterValues(
         repos=("sase", "sase-core"),
         authors=("grace", "ADA@EXAMPLE"),
-        since=100,
-        until=300,
         text=("fix", "preview"),
     )
 
     matcher = compile_commit_matcher(values)
     assert matcher(_entry(**entry_kwargs)) is expected  # type: ignore[arg-type]
+
+
+def test_commit_matcher_resolves_bounds_once_against_explicit_time() -> None:
+    tz = get_timezone()
+    now = datetime(2026, 7, 18, 16, 0, tzinfo=tz)
+    values = CommitLogFilterValues(
+        since=parse_time_bound("2h"),
+        until=parse_time_bound("2026-07-18T15:00"),
+    )
+
+    matcher = compile_commit_matcher(values, now=now)
+
+    assert matcher(
+        _entry(timestamp=int(datetime(2026, 7, 18, 14, 0, tzinfo=tz).timestamp()))
+    )
+    assert matcher(
+        _entry(timestamp=int(datetime(2026, 7, 18, 15, 0, tzinfo=tz).timestamp()))
+    )
+    assert not matcher(
+        _entry(timestamp=int(datetime(2026, 7, 18, 13, 59, tzinfo=tz).timestamp()))
+    )
+    assert not matcher(
+        _entry(timestamp=int(datetime(2026, 7, 18, 15, 1, tzinfo=tz).timestamp()))
+    )
 
 
 def test_compiled_matcher_accepts_repo_aliases_case_insensitively() -> None:

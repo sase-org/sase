@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.artifacts.plans_filtering import (
     compile_plan_matcher,
 )
 from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.core.time import get_timezone
 from sase.notifications.models import Notification
 from sase.plan_search.filter_query import (
     PlanFilterQueryError,
@@ -156,12 +157,15 @@ def test_parse_empty_query_uses_defaults() -> None:
 
 
 def test_parse_every_token_kind_and_case_insensitive_keys() -> None:
+    tz = get_timezone()
+    now = datetime(2026, 7, 18, 12, 0, tzinfo=tz)
     values = parse_plan_filter_query(
         'KIND:epic,phase kind:"archive" '
         'STATUS:open,ready status:"Needs Review" '
         'tier:epic,plan project:sase project:"SASE Core" '
         "since:2026-07-01 until:2026-07-18T08:30 "
-        'filter "live preview"'
+        'filter "live preview"',
+        now=now,
     )
 
     assert values.kinds == ("epic", "phase", "archive")
@@ -169,9 +173,15 @@ def test_parse_every_token_kind_and_case_insensitive_keys() -> None:
     assert values.tiers == ("epic", "plan")
     assert values.projects == ("sase", "SASE Core")
     assert values.since_text == "2026-07-01"
-    assert values.since == parse_time_bound("2026-07-01")
+    assert values.since == parse_time_bound("2026-07-01").resolve(
+        now=now,
+        boundary="since",
+    )
     assert values.until_text == "2026-07-18T08:30"
-    assert values.until == parse_time_bound("2026-07-18T08:30")
+    assert values.until == parse_time_bound("2026-07-18T08:30").resolve(
+        now=now,
+        boundary="until",
+    )
     assert values.text == ("filter", "live preview")
     assert values.is_empty is False
 
@@ -250,6 +260,23 @@ def test_since_must_not_be_later_than_until() -> None:
 
     assert exc_info.value.token == "until:2026-07-01"
     assert exc_info.value.span == (17, 33)
+
+
+def test_same_day_plan_window_is_valid_and_until_includes_full_day() -> None:
+    tz = get_timezone()
+    now = datetime(2026, 7, 18, 12, 0, tzinfo=tz)
+
+    values = parse_plan_filter_query(
+        "since:2026-07-18 until:2026-07-18",
+        now=now,
+    )
+
+    assert values.since == int(datetime(2026, 7, 18, tzinfo=tz).timestamp())
+    assert values.until == int(datetime(2026, 7, 19, tzinfo=tz).timestamp()) - 1
+    late_record = _record(
+        timestamp=int(datetime(2026, 7, 18, 23, 59, 59, tzinfo=tz).timestamp())
+    )
+    assert compile_plan_matcher(values)(late_record)
 
 
 def test_quoted_key_shaped_term_remains_free_text() -> None:
@@ -342,6 +369,8 @@ def test_canonical_query_round_trip_property(
     bounds: tuple[str, str],
 ) -> None:
     since_text, until_text = bounds
+    tz = get_timezone()
+    now = datetime(2026, 7, 18, 12, 0, tzinfo=tz)
     values = PlanFilterValues(
         kinds=kinds,
         excluded_kinds=excluded_kinds,
@@ -353,13 +382,21 @@ def test_canonical_query_round_trip_property(
         excluded_projects=excluded_projects,
         since_text=since_text,
         until_text=until_text,
-        since=parse_time_bound(since_text) if since_text else None,
-        until=parse_time_bound(until_text) if until_text else None,
+        since=(
+            parse_time_bound(since_text).resolve(now=now, boundary="since")
+            if since_text
+            else None
+        ),
+        until=(
+            parse_time_bound(until_text).resolve(now=now, boundary="until")
+            if until_text
+            else None
+        ),
         text=text_terms,
         excluded_text=excluded_text,
     )
 
-    assert parse_plan_filter_query(to_query_string(values)) == values
+    assert parse_plan_filter_query(to_query_string(values), now=now) == values
 
 
 @pytest.mark.parametrize(
