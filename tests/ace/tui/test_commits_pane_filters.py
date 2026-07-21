@@ -27,6 +27,35 @@ from sase.vcs_log.models import VcsLogResult
 from tests.ace.tui._commits_pane_helpers import _result, _result_with_sidecar
 
 
+def _result_with_commit_count(
+    count: int,
+    *,
+    timestamp: int | None = None,
+    aggregate_truncated: bool = False,
+    provider_truncation_possible: bool = False,
+) -> VcsLogResult:
+    base = _result(timestamp)
+    template = base.commits[0]
+    commits = tuple(
+        replace(
+            template,
+            commit=replace(
+                template.commit,
+                full_id=f"{index:040x}",
+                short_id=f"{index:07x}",
+                timestamp=template.commit.timestamp - index,
+            ),
+        )
+        for index in range(count)
+    )
+    return replace(
+        base,
+        commits=commits,
+        aggregate_truncated=aggregate_truncated,
+        provider_truncation_possible=provider_truncation_possible,
+    )
+
+
 async def test_custom_default_query_controls_first_collection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -165,6 +194,83 @@ def test_sidecar_snapshot_coverage_is_directional() -> None:
     assert snapshot_covers(broad, narrow_values) is True
 
 
+def test_snapshot_coverage_trusts_truncation_metadata_not_row_count() -> None:
+    scope = (None, False)
+    values = CommitLogFilterValues()
+    complete_at_limit = AuthoritativeCommitSnapshot(
+        scope,
+        values,
+        40,
+        _result_with_commit_count(40),
+    )
+    provider_capped = replace(
+        complete_at_limit,
+        result=replace(
+            complete_at_limit.result,
+            provider_truncation_possible=True,
+        ),
+    )
+    aggregate_capped = replace(
+        complete_at_limit,
+        result=replace(
+            complete_at_limit.result,
+            aggregate_truncated=True,
+        ),
+    )
+
+    assert snapshot_covers(complete_at_limit, values) is True
+    assert snapshot_covers(provider_capped, values) is False
+    assert snapshot_covers(aggregate_capped, values) is False
+
+
+@pytest.mark.parametrize(
+    ("result", "expected_count", "capped"),
+    (
+        (_result_with_commit_count(2), 2, False),
+        (
+            _result_with_commit_count(2, provider_truncation_possible=True),
+            2,
+            True,
+        ),
+        (_result_with_commit_count(2, aggregate_truncated=True), 2, True),
+        (_result_with_commit_count(41), 40, True),
+    ),
+    ids=("exact", "provider-cap", "aggregate-cap", "visible-limit"),
+)
+async def test_commits_status_and_active_limit_follow_displayed_coverage(
+    monkeypatch: pytest.MonkeyPatch,
+    result: VcsLogResult,
+    expected_count: int,
+    capped: bool,
+) -> None:
+    monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("1")
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        bar = pane.query_one(CommitFilterBar)
+        status = bar.query_one("#commit-filter-status", Static)
+        editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
+        await page.wait_for(
+            lambda _state: (
+                pane.result is not None
+                and len(pane.result.commits) == expected_count
+                and ("capped" in status.content.plain) is capped
+            )
+        )
+
+        marker = "+" if capped else ""
+        coverage = "capped" if capped else "exact"
+        assert f"{expected_count}{marker} matches" in status.content.plain
+        assert coverage in status.content.plain
+        assert ("limit:40" in editor.text) is capped
+        assert (
+            "limit:40" in pane.query_one("#commits-info", Static).content.plain
+        ) is capped
+        assert ("limit:40" in pane._filter_chips()) is capped
+
+
 def test_relative_filter_reparse_reuses_snapshot_cache_key() -> None:
     tz = get_timezone()
     first_now = datetime(2026, 7, 18, 12, 0, tzinfo=tz)
@@ -180,6 +286,105 @@ def test_relative_filter_reparse_reuses_snapshot_cache_key() -> None:
 
     assert snapshot_covers(snapshot, reparsed) is True
     assert cache[(scope, reparsed)] is result
+
+
+async def test_unchanged_relative_query_reuses_cache_and_refreshes_its_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tz = get_timezone()
+    initial_now = datetime(2026, 7, 21, 12, 0, tzinfo=tz)
+    clock = [initial_now]
+    base = _result_with_commit_count(2, timestamp=int(initial_now.timestamp()))
+    recent, aging = base.commits
+    aging = replace(
+        aging,
+        commit=replace(
+            aging.commit,
+            timestamp=int((initial_now - timedelta(hours=23)).timestamp()),
+        ),
+    )
+    raw = replace(base, commits=(recent, aging))
+    calls: list[dict[str, Any]] = []
+    resolved_windows: list[tuple[int | None, int | None]] = []
+
+    def collect(**kwargs: Any) -> VcsLogResult:
+        calls.append(kwargs)
+        filter_spec = kwargs["filter_spec"]
+        resolved = filter_spec.resolve(now=clock[0])
+        resolved_windows.append((resolved.since, resolved.until))
+        commits = tuple(
+            entry
+            for entry in raw.commits
+            if resolved.since is None or entry.commit.timestamp >= resolved.since
+        )
+        return replace(
+            raw,
+            commits=commits,
+            resolved_filters=resolved,
+            filter_spec=filter_spec,
+        )
+
+    monkeypatch.setattr(commits_module, "run_vcs_log", collect)
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.commits_filtering.normalize_reference_time",
+        lambda: clock[0],
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("1")
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.wait_for(
+            lambda _state: (
+                len(calls) == 1
+                and pane.result is not None
+                and len(pane.result.commits) == 2
+            )
+        )
+        values = pane.filters
+        generation = pane._generation
+        cache_key = (pane._scope_key(), values)
+        assert cache_key in pane._authoritative_results
+
+        clock[0] = initial_now + timedelta(hours=2)
+        await page.press("slash")
+        await page.wait_for(
+            lambda _state: pane.result is not None and len(pane.result.commits) == 1
+        )
+        assert len(calls) == 1
+        assert pane._generation == generation
+        assert pane.filters == values
+        assert cache_key in pane._authoritative_results
+
+        await page.press("escape", "escape")
+        await page.wait_for(
+            lambda _state: pane.result is not None and len(pane.result.commits) == 2
+        )
+        assert len(calls) == 1
+        assert pane._generation == generation
+
+        await page.press("slash", "enter")
+        await page.wait_for(
+            lambda _state: (
+                page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+            )
+        )
+        assert len(calls) == 1
+        assert pane._generation == generation
+        assert pane.filters == values
+
+        await page.press("R")
+        await page.wait_for(
+            lambda _state: (
+                len(calls) == 2
+                and pane.result is not None
+                and len(pane.result.commits) == 1
+            )
+        )
+        assert calls[0]["filter_spec"] == calls[1]["filter_spec"]
+        assert resolved_windows[1][0] is not None
+        assert resolved_windows[0][0] is not None
+        assert resolved_windows[1][0] > resolved_windows[0][0]
 
 
 async def test_sidecar_filter_and_compatibility_toggle_share_collection_scope(

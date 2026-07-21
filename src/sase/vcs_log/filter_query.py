@@ -189,7 +189,11 @@ def parse_commit_filter_query(
     )
 
 
-def to_query_tokens(values: CommitLogFilterValues) -> tuple[str, ...]:
+def to_query_tokens(
+    values: CommitLogFilterValues,
+    *,
+    include_default_limit: bool = False,
+) -> tuple[str, ...]:
     """Render *values* as canonical tokens in stable filter order."""
     tokens = [f"repo:{quote_value(value, keyed=True)}" for value in values.repos]
     tokens.extend(
@@ -206,7 +210,7 @@ def to_query_tokens(values: CommitLogFilterValues) -> tuple[str, ...]:
         tokens.append(f"since:{quote_value(values.since_text, keyed=True)}")
     if values.until_text:
         tokens.append(f"until:{quote_value(values.until_text, keyed=True)}")
-    if values.limit != DEFAULT_COMMIT_LOG_LIMIT:
+    if include_default_limit or values.limit != DEFAULT_COMMIT_LOG_LIMIT:
         tokens.append(f"limit:{values.limit or 'all'}")
     tokens.extend(quote_value(term, keyed=False) for term in values.text)
     tokens.extend(f"-{quote_value(term, keyed=False)}" for term in values.excluded_text)

@@ -165,6 +165,7 @@ class FilterBar(Static):
         error: str | Exception | None,
         *,
         coverage_label: str | None = None,
+        lower_bound: bool = False,
     ) -> None:
         """Render the current live-result count, coverage state, or parse error."""
         status = self.query_one(f"#{self.STATUS_ID}", Static)
@@ -176,8 +177,9 @@ class FilterBar(Static):
         else:
             status.set_class(False, "error")
             if match_count is not None:
-                noun = "match" if match_count == 1 else "matches"
-                content.append(f"{match_count} {noun}", style="bold")
+                noun = "match" if match_count == 1 and not lower_bound else "matches"
+                marker = "+" if lower_bound else ""
+                content.append(f"{match_count}{marker} {noun}", style="bold")
                 content.append("  ·  ", style="dim")
             label = coverage_label or ("exact" if exact else "preview")
             content.append(label, style=self.ACCENT if exact else "dim #FFD75F")

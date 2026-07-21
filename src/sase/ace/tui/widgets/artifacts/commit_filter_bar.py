@@ -38,10 +38,10 @@ class CommitFilterBar(FilterBar):
     KEY_COMPLETIONS = (
         ("repo", "repository name or alias"),
         ("author", "name or email substring"),
-        ("since", "Nh/Nd/Nw, today, YYYY-MM-DD"),
-        ("until", "Nh/Nd/Nw, today, YYYY-MM-DD"),
+        ("since", "from an instant or the start of a named day"),
+        ("until", "through an instant or the full named day"),
         ("sidecar", "include sidecar repositories"),
-        ("limit", "N or all"),
+        ("limit", "row cap; all removes it"),
     )
     STATIC_VALUE_COMPLETIONS = {
         "since": _DATE_COMPLETIONS,
@@ -53,9 +53,9 @@ class CommitFilterBar(FilterBar):
         "repo": "repository",
         "author": "author",
         "since": "date bound",
-        "until": "date bound",
+        "until": "named days include the full day",
         "sidecar": "true or false",
-        "limit": "row limit",
+        "limit": "row cap or all",
     }
     REPEATABLE_VALUE_KINDS = frozenset(("repo", "author"))
     NEGATABLE_KEYS = frozenset(("repo", "author"))

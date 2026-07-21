@@ -80,9 +80,11 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Focus persistent commit filter",
                 ),
                 ("repo: / author:", "Filter repository / author substring"),
-                ("since: / until:", "Filter dates (7d, today, YYYY-MM-DD)"),
+                ("since: / until:", "until:DAY includes the full day"),
                 ("sidecar:true / false", "Include / exclude sidecars"),
-                ("limit: / bare text", "Cap rows / match subject words"),
+                ("limit:N / limit:all", "Set / remove the row cap"),
+                ("N+ matches · capped", "Count is a lower bound; raise/remove cap"),
+                ("bare text", "Match subject words"),
                 ("Enter / Esc", "Commit / restore; row stays"),
                 (
                     f"{d(a.commits_toggle_sdd)} / {d(a.commits_toggle_all_projects)}",

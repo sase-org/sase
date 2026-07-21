@@ -37,6 +37,7 @@ def build_commits_info(
     all_projects: bool,
     result: VcsLogResult | None,
     refreshing: bool,
+    active_limit: int | None = None,
 ) -> Text:
     """Build the scope and collection-status header."""
     accent = ARTIFACTS_ACCENTS["commits"]
@@ -49,6 +50,9 @@ def build_commits_info(
     text.append(" Commits ", style=f"bold #1a1a1a on {accent}")
     text.append("  Scope ", style="dim")
     text.append(scope, style=f"bold {accent}")
+    if active_limit is not None:
+        text.append("  ·  ", style="dim")
+        text.append(f"limit:{active_limit}", style=f"bold {accent}")
     if refreshing:
         text.append("  ·  refreshing…", style="italic #FFD700")
     if result is not None:
@@ -97,9 +101,13 @@ def build_commits_hints(registry: KeymapRegistry) -> Text:
     return text
 
 
-def commit_filter_chips(filters: CommitLogFilterValues) -> tuple[str, ...]:
+def commit_filter_chips(
+    filters: CommitLogFilterValues,
+    *,
+    show_active_limit: bool = False,
+) -> tuple[str, ...]:
     """Return active filters in the same vocabulary as the query language."""
-    return to_query_tokens(filters)
+    return to_query_tokens(filters, include_default_limit=show_active_limit)
 
 
 def build_commit_view_spec(

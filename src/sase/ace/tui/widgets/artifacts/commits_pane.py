@@ -145,19 +145,33 @@ class CommitsPane(
 
     def _build_info(self) -> Text:
         worker = self._collection_worker
+        result = self.result
+        active_limit = None
+        if result is not None and result.potentially_truncated:
+            values = (
+                self._live_filter_values
+                if self._filter_session_open and self._live_filter_values is not None
+                else self.filters
+            )
+            active_limit = values.limit or None
         return build_commits_info(
             project_display_name=self._project_display_name,
             project_scope=self.project_scope,
             all_projects=self.all_projects,
-            result=self.result,
+            result=result,
             refreshing=worker is not None and worker.is_running,
+            active_limit=active_limit,
         )
 
     def _hints_text(self) -> Text:
         return build_commits_hints(self._registry)
 
     def _filter_chips(self) -> tuple[str, ...]:
-        return commit_filter_chips(self.filters)
+        result = self.result
+        return commit_filter_chips(
+            self.filters,
+            show_active_limit=bool(result is not None and result.potentially_truncated),
+        )
 
     def toggle_sdd(self) -> None:
         self._commit_filter_values(

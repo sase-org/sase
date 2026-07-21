@@ -81,6 +81,29 @@ def test_commits_info_legend_only_lists_repositories_with_displayed_rows() -> No
     assert "↑3 ↓2" not in info
 
 
+def test_commits_info_only_renders_active_cap_when_supplied() -> None:
+    result = _result()
+
+    exact = build_commits_info(
+        project_display_name=None,
+        project_scope=None,
+        all_projects=False,
+        result=result,
+        refreshing=False,
+    ).plain
+    capped = build_commits_info(
+        project_display_name=None,
+        project_scope=None,
+        all_projects=False,
+        result=result,
+        refreshing=False,
+        active_limit=40,
+    ).plain
+
+    assert "limit:" not in exact
+    assert "limit:40" in capped
+
+
 @pytest.mark.parametrize(
     ("presence", "indicator"),
     (

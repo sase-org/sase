@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -154,9 +155,15 @@ async def test_commits_persistent_filter_small_terminal_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     timestamp = int(datetime(2026, 7, 6, 14, 30, tzinfo=UTC).timestamp())
-    result = _result(timestamp)
+    result = replace(
+        _result(timestamp),
+        provider_truncation_possible=True,
+    )
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
-    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
+    # This snapshot covers the persistent filter and capped-state chrome. Keep
+    # the unrelated detail pane on its stable no-diff path so lazy syntax
+    # layout cannot race the screenshot under a heavily parallel full run.
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: None)
 
     async with AcePage(
         query='"visual"',
@@ -164,13 +171,22 @@ async def test_commits_persistent_filter_small_terminal_png_snapshot(
         changespecs=changespecs(),
         initial_tab="changespecs",
     ) as page:
-        _pane, bar = await _open_commits(page, result)
+        pane, bar = await _open_commits(page, result)
         assert (
             bar.query_one("#commit-filter-input", SingleLineVimTextArea).text
-            == "sidecar:false since:24h"
+            == "sidecar:false since:24h limit:40"
         )
+        assert (
+            bar.query_one("#commit-filter-status").content.plain
+            == "2+ matches  ·  capped"
+        )
+        await page.wait_for(lambda _state: bool(pane._diff_cache))
         await wait_for_visual_idle(page)
         page.app.query_one(HeaderIcon).display = True
+        # The detail content is incidental here, and Textual's proportional
+        # thumb can differ by a few raster pixels as its async layout settles.
+        # Hide that scrollbar so this snapshot measures the capped filter UI.
+        pane.query_one("#commits-detail-scroll").styles.overflow_y = "hidden"
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

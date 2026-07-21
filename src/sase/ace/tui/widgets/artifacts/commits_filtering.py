@@ -26,6 +26,7 @@ from .commits_collection import (
     CommitScopeKey,
     snapshot_covers,
 )
+from .commits_rendering import commit_filter_chips
 from .commits_timeline import CommitsTimeline
 
 if TYPE_CHECKING:
@@ -71,6 +72,8 @@ class CommitsFilteringMixin(_MixinBase):
             live_preview: bool = False,
         ) -> None: ...
 
+        def _filter_chips(self) -> tuple[str, ...]: ...
+
         def _refresh_info(self) -> None: ...
 
         def _schedule_collection(self) -> None: ...
@@ -90,13 +93,16 @@ class CommitsFilteringMixin(_MixinBase):
         self,
         result: VcsLogResult,
         values: CommitLogFilterValues,
+        *,
+        resolve_fresh_bounds: bool = False,
     ) -> VcsLogResult:
         aliases = {repo.name: repo.aliases for repo in result.repos}
         wanted_spec = values.backend_filter_spec()
         collected_spec = result.filter_spec
         resolved_filters = None
         if (
-            collected_spec is not None
+            not resolve_fresh_bounds
+            and collected_spec is not None
             and collected_spec.since == wanted_spec.since
             and collected_spec.until == wanted_spec.until
         ):
@@ -115,11 +121,13 @@ class CommitsFilteringMixin(_MixinBase):
             and commit_repo_matches(values, repo.name, repo.aliases)
         )
         repo_names = frozenset(repo.name for repo in repos)
-        commits = tuple(
+        matching_commits = tuple(
             entry
             for entry in result.commits
             if entry.repo in repo_names and matcher(entry)
         )
+        visible_truncated = values.limit > 0 and len(matching_commits) > values.limit
+        commits = matching_commits
         if values.limit > 0:
             commits = commits[: values.limit]
         remote_states = tuple(
@@ -129,6 +137,7 @@ class CommitsFilteringMixin(_MixinBase):
             commits == result.commits
             and repos == result.repos
             and remote_states == result.remote_states
+            and not visible_truncated
         ):
             return result
         return replace(
@@ -136,7 +145,35 @@ class CommitsFilteringMixin(_MixinBase):
             repos=repos,
             commits=commits,
             remote_states=remote_states,
+            aggregate_truncated=result.aggregate_truncated or visible_truncated,
         )
+
+    def _set_result_status(
+        self,
+        result: VcsLogResult,
+        *,
+        exact: bool,
+        values: CommitLogFilterValues,
+    ) -> None:
+        """Render one truthful coverage state for previews and final results."""
+        capped = result.potentially_truncated
+        bar = self.query_one(CommitFilterBar)
+        bar.set_status(
+            len(result.commits),
+            exact=exact and not capped,
+            error=None,
+            coverage_label="capped" if capped else None,
+            lower_bound=capped,
+        )
+        if not self._filter_session_open:
+            bar.set_query(
+                " ".join(
+                    commit_filter_chips(
+                        values,
+                        show_active_limit=capped and values.limit > 0,
+                    )
+                )
+            )
 
     def _apply_live_preview(self, values: CommitLogFilterValues) -> None:
         snapshot = self._authoritative_snapshot(values)
@@ -144,12 +181,16 @@ class CommitsFilteringMixin(_MixinBase):
         if snapshot is None:
             bar.set_status(None, exact=False, error=None)
             return
-        preview = self._filtered_result(snapshot.result, values)
+        preview = self._filtered_result(
+            snapshot.result,
+            values,
+            resolve_fresh_bounds=True,
+        )
         self._display_result(preview, live_preview=True)
-        bar.set_status(
-            len(preview.commits),
+        self._set_result_status(
+            preview,
             exact=snapshot_covers(snapshot, values),
-            error=None,
+            values=values,
         )
 
     def _set_filter_completion_sources(self, result: VcsLogResult) -> None:
@@ -195,7 +236,13 @@ class CommitsFilteringMixin(_MixinBase):
                 (self._scope_key(), restore_values)
             )
             if cached is not None:
-                self._display_result(self._filtered_result(cached, restore_values))
+                displayed = self._filtered_result(cached, restore_values)
+                self._display_result(displayed)
+                self._set_result_status(
+                    displayed,
+                    exact=True,
+                    values=restore_values,
+                )
             elif restore_result is not None:
                 self._display_result(restore_result)
             else:
@@ -222,7 +269,7 @@ class CommitsFilteringMixin(_MixinBase):
         snapshot = self._authoritative_snapshot(self.filters)
         if snapshot is not None:
             self._set_filter_completion_sources(snapshot.result)
-        bar.open(to_query_string(self.filters))
+        bar.open(" ".join(self._filter_chips()))
         self._apply_live_preview(self.filters)
 
     def on_commit_filter_bar_query_changed(
@@ -325,14 +372,26 @@ class CommitsFilteringMixin(_MixinBase):
 
         cached = self._authoritative_results.get((self._scope_key(), values))
         if cached is not None:
-            self._display_result(self._filtered_result(cached, values))
+            displayed = self._filtered_result(cached, values)
+            self._display_result(displayed)
+            self._set_result_status(displayed, exact=True, values=values)
             return
 
         snapshot = self._authoritative_snapshot(values)
         if snapshot is not None:
+            displayed = self._filtered_result(
+                snapshot.result,
+                values,
+                resolve_fresh_bounds=True,
+            )
             self._display_result(
-                self._filtered_result(snapshot.result, values),
-                live_preview=not close_session,
+                displayed,
+                live_preview=True,
+            )
+            self._set_result_status(
+                displayed,
+                exact=snapshot_covers(snapshot, values),
+                values=values,
             )
         if not self._collection_matches(values):
             self._schedule_collection()
@@ -344,16 +403,31 @@ class CommitsFilteringMixin(_MixinBase):
         event.stop()
         restore_values = self._filter_restore_values or self.filters
         restore_result = self._filter_restore_result
-        self._generation += 1
+        if (
+            self._filter_query_error is not None
+            or self._live_filter_values != restore_values
+        ):
+            self._generation += 1
         self.filters = restore_values
         self._close_filter_session()
         self.query_one("#commits-timeline", CommitsTimeline).focus()
 
         cached = self._authoritative_results.get((self._scope_key(), restore_values))
         if cached is not None:
-            self._display_result(self._filtered_result(cached, restore_values))
+            displayed = self._filtered_result(cached, restore_values)
+            self._display_result(displayed)
+            self._set_result_status(
+                displayed,
+                exact=True,
+                values=restore_values,
+            )
         elif restore_result is not None:
             self._display_result(restore_result)
+            self._set_result_status(
+                restore_result,
+                exact=True,
+                values=restore_values,
+            )
             self._schedule_collection()
         else:
             self._refresh_info()
@@ -363,7 +437,7 @@ class CommitsFilteringMixin(_MixinBase):
         if self._filter_debouncer is not None:
             self._filter_debouncer.cancel()
         bar = self.query_one(CommitFilterBar)
-        bar.set_query(to_query_string(self.filters))
+        bar.set_query(" ".join(self._filter_chips()))
         bar.close()
         self._filter_session_open = False
         self._filter_restore_values = None

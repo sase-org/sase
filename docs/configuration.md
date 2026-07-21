@@ -428,13 +428,16 @@ ace:
 
 #### `ace.artifacts.commits`
 
-| Field           | Type | Default                   | Description                                                                                                  |
-| --------------- | ---- | ------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `default_query` | str  | `sidecar:false since:24h` | Initial persistent Commits query. It is parsed at ACE startup, so configuration changes apply on next start. |
+| Field           | Type | Default                   | Description                                                                                                         |
+| --------------- | ---- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `default_query` | str  | `sidecar:false since:24h` | Initial persistent Commits query. Relative windows re-anchor on refresh; configuration changes apply on next start. |
 
 The Commits pane validates this value with its live query parser. Invalid runtime configuration produces a warning and
 falls back to the bundled query. An empty configured query is valid and includes sidecars; the visible canonical row
-renders that state as `sidecar:true`. This setting is independent of the `sase vcs log` CLI's sidecar opt-in.
+renders that state as `sidecar:true`. The default row limit is 40; when it clips the result, ACE reveals `limit:40` and
+reports a lower bound such as `40+ matches · capped`. Set `limit:N` in the query to raise the cap or `limit:all` to
+remove it. Day-granular `until:` values include the full named day. This setting is independent of the `sase vcs log`
+CLI's sidecar opt-in.
 
 #### `ace.tribes`
 
@@ -1936,12 +1939,13 @@ linked history by default; add `-S/--sdd` to include materialized separate SDD r
 | `log`      | `-a/--all`, `-A/--author`, `-b/--branch/--ref`, `-c/--color`, `-o/--current-only`, `-F/--fetch`, `-f/--format pretty\|full\|oneline\|json`, `-n/--limit`, `-N/--no-fetch`, `-T/--no-tags`, `-r/--repo`, `-R/--reverse`, `-S/--sdd`, `-s/--since/--after`, `-u/--until/--before` | Show a merged commit timeline with local/remote presence markers.                                |
 
 `sase vcs log` date filters accept relative offsets (`Nh`, `Nd`, `Nw`), `today`, `yesterday`, `YYYY-MM-DD`, or
-`YYYY-MM-DDTHH:MM`. See [VCS Providers](vcs.md#per-command-vcs-usage) for output examples and provider notes. `--all`
-spans every registered enabled or disabled project and deduplicates shared physical checkouts. Internal sibling backing
-checkouts remain visible as linked repositories of their owning projects. Global scope can be combined with repeatable
-`--repo` filters but not `--current-only`. Add `--sdd` to either scope before selecting SDD history with `--repo sdd`;
-without the opt-in, that repo filter does not expand the eligible set. `--all --sdd` includes materialized separate SDD
-repositories across registered projects. The `--limit` is the cap on the final merged timeline.
+`YYYY-MM-DDTHH:MM`. Day-granular `--until` / `--before` values include the full named day; relative and minute-precise
+values remain instant bounds. See [VCS Providers](vcs.md#per-command-vcs-usage) for output examples and provider notes.
+`--all` spans every registered enabled or disabled project and deduplicates shared physical checkouts. Internal sibling
+backing checkouts remain visible as linked repositories of their owning projects. Global scope can be combined with
+repeatable `--repo` filters but not `--current-only`. Add `--sdd` to either scope before selecting SDD history with
+`--repo sdd`; without the opt-in, that repo filter does not expand the eligible set. `--all --sdd` includes materialized
+separate SDD repositories across registered projects. The `--limit` is the cap on the final merged timeline.
 
 ### `sase changespec search`
 

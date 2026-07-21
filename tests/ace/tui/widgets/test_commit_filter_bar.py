@@ -249,9 +249,47 @@ async def test_status_renders_count_state_and_parse_error() -> None:
         bar.set_status(1, True, None)
         assert status.render().plain == "1 match  ·  exact"
 
+        bar.set_status(
+            40,
+            False,
+            None,
+            coverage_label="capped",
+            lower_bound=True,
+        )
+        assert status.render().plain == "40+ matches  ·  capped"
+
+        bar.set_status(
+            1,
+            False,
+            None,
+            coverage_label="capped",
+            lower_bound=True,
+        )
+        assert status.render().plain == "1+ matches  ·  capped"
+
         bar.set_status(None, False, "repo: requires a value")
         assert status.render().plain == "repo: requires a value"
         assert status.has_class("error")
+
+
+async def test_until_and_limit_completion_explain_inclusive_days_and_caps() -> None:
+    app = _FilterBarApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(CommitFilterBar)
+        bar.open("until:")
+        await pilot.pause()
+
+        completion = app.query_one("#commit-filter-completion", OptionList)
+        assert all(
+            "named days include the full day" in label
+            for label in _option_labels(completion)
+        )
+
+        editor = app.query_one("#commit-filter-input", SingleLineVimTextArea)
+        editor.load_text("limit:")
+        editor.cursor_position = len(editor.text)
+        await pilot.pause()
+        assert all("row cap or all" in label for label in _option_labels(completion))
 
 
 async def test_close_leaves_persistent_bar_visible_and_hides_completion() -> None:

@@ -51,6 +51,7 @@ ace:
   snippets: {}
   artifacts:
     commits:
+      # Relative date windows re-anchor whenever the pane refreshes.
       default_query: "sidecar:false since:24h"
   # Per-tribe Agents-tab panel display. Keys are bare tribe names (no "@").
   # The special "default" entry styles the untagged panel.

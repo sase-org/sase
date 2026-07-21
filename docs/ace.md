@@ -110,6 +110,13 @@ repositories. Canonical rendering always includes either `sidecar:true` or `side
 action rewrites that same visible token. Selecting a sidecar with `repo:` therefore requires `sidecar:true`. For
 example, `repo:sase author:Ada since:7d sidecar:false fix` shows recent SASE commits by Ada whose subjects contain
 `fix`, `repo:plans sidecar:true` shows only plans-sidecar history, and `limit:all` removes the final row cap.
+Day-granular `until:` values (`today`, `yesterday`, and `YYYY-MM-DD`) include the full named day; relative and
+minute-precise values remain instant bounds. Relative windows such as `since:24h` re-anchor whenever the pane refreshes.
+
+The default row cap is 40. When collection or the visible limit may have omitted rows, the status uses a lower-bound
+count such as `40+ matches · capped` and reveals the active `limit:40` in the persistent filter row and pane header. Use
+`limit:N` to raise the cap or `limit:all` to remove it. A bounded query that collected every row keeps an exact count
+and does not add a hidden-cap indicator.
 
 Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, and `until:` plus free text matched across plan and
 bead metadata. Kinds are `proposal`, `epic`, `phase`, and `archive`. For example,

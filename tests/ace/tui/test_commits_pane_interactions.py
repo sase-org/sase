@@ -221,3 +221,5 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
         assert "F / f2" in help_text
         assert "sidecar:true" in help_text
         assert "Toggle sidecar history" in help_text
+        assert "until:DAY includes the full day" in help_text
+        assert "N+ matches · capped" in help_text

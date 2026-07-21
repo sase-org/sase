@@ -11,7 +11,6 @@ from textual.worker import Worker, WorkerState
 
 from sase.vcs_log.models import VcsLogResult
 
-from .commit_filter_bar import CommitFilterBar
 from .commit_filters import CommitLogFilterValues
 from .commits_timeline import CommitsTimeline
 
@@ -85,11 +84,21 @@ class CommitsCollectionMixin(_MixinBase):
             self,
             result: VcsLogResult,
             values: CommitLogFilterValues,
+            *,
+            resolve_fresh_bounds: bool = False,
         ) -> VcsLogResult: ...
 
         def _refresh_info(self) -> None: ...
 
         def _set_filter_completion_sources(self, result: VcsLogResult) -> None: ...
+
+        def _set_result_status(
+            self,
+            result: VcsLogResult,
+            *,
+            exact: bool,
+            values: CommitLogFilterValues,
+        ) -> None: ...
 
     def _init_commits_collection(
         self,
@@ -210,18 +219,18 @@ class CommitsCollectionMixin(_MixinBase):
         displayed = self._filtered_result(result, spec.filters)
         self._display_result(displayed)
         if not self._filter_session_open:
-            self.query_one(CommitFilterBar).set_status(
-                len(displayed.commits),
+            self._set_result_status(
+                displayed,
                 exact=True,
-                error=None,
+                values=spec.filters,
             )
         else:
             self._set_filter_completion_sources(result)
             if self._live_filter_values == spec.filters:
-                self.query_one(CommitFilterBar).set_status(
-                    len(displayed.commits),
+                self._set_result_status(
+                    displayed,
                     exact=True,
-                    error=None,
+                    values=spec.filters,
                 )
             elif self._live_filter_values is not None:
                 self._apply_live_preview(self._live_filter_values)
@@ -300,6 +309,8 @@ def snapshot_covers(
     snapshot: AuthoritativeCommitSnapshot,
     values: CommitLogFilterValues,
 ) -> bool:
+    if snapshot.result.potentially_truncated:
+        return False
     if snapshot.filters == values:
         return True
     base = snapshot.filters
@@ -312,11 +323,7 @@ def snapshot_covers(
         or base.since is not None
         or base.until is not None
     )
-    truncated = (
-        snapshot.collection_limit > 0
-        and len(snapshot.result.commits) >= snapshot.collection_limit
-    )
-    return backend_unfiltered and not truncated
+    return backend_unfiltered
 
 
 def _backend_collection_limit(values: CommitLogFilterValues) -> int:

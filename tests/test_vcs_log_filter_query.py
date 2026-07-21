@@ -455,3 +455,11 @@ def test_filter_chips_use_canonical_query_tokens() -> None:
         "limit:all",
         '"fix live"',
     )
+
+    default = parse_commit_filter_query("sidecar:false since:24h")
+    assert "limit:40" not in commit_filter_chips(default)
+    assert commit_filter_chips(default, show_active_limit=True) == (
+        "sidecar:false",
+        "since:24h",
+        "limit:40",
+    )
