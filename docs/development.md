@@ -44,11 +44,13 @@ just clean         # Remove build artifacts
 just build         # Build wheel and sdist
 ```
 
-Pytest processes are blocked from writing telemetry or axe state into the OS account's real `~/.sase` tree. Tests that
-exercise those writers must set `SASE_HOME` to a per-test temporary directory; SASE preserves pytest's isolation marker
-when it starts runner subprocesses. Direct telemetry writes fail with an actionable error, while best-effort daemon log
-writes are suppressed and warn once per target. This guard is a last line of defense—fixtures should still isolate all
-state explicitly. If an older test run already polluted the telemetry store, preview the exact-label cleanup with
+SASE places a pytest safety boundary around its telemetry mutations and common axe state/log writers when they target
+the OS account's real `~/.sase` tree. Telemetry flushes and deletions fail with an actionable error; guarded best-effort
+daemon writes are suppressed and warn once per target and category; and axe start, stop, and restart requests are
+refused unless their test-only override is set. SASE preserves pytest's isolation marker when it starts runner and
+daemon subprocesses. This guard is not a substitute for isolation: tests that exercise persistence should point
+`SASE_HOME` at a per-test temporary directory or otherwise direct each target outside the real tree. If an older test
+run already polluted the telemetry store, preview the exact-label cleanup with
 `sase telemetry cleanup-test-data --dry-run` before deciding whether to rerun it with `--yes`.
 
 `just test`, `just test-slow`, `just test-visual`, and `just test-cov` share a host-global pytest-xdist worker-token

@@ -99,11 +99,14 @@ will go, and whether it validates:
   effective merged value, and schema validation of the candidate config. The write is source-preserving (comments, key
   order, and quoting are kept) and is remapped to the chezmoi source tree when `use_chezmoi` is enabled.
 
-After a successful write, ACE checks the file that was actually changed. If that file is dirty inside a git repository,
-it offers to **commit and push** the change as a tracked background task. Confirming stages that config file, commits
-the repository's current index, pulls with rebase, and pushes; pre-existing staged changes are therefore included in the
-same commit. When `use_chezmoi` is enabled, the task works in the chezmoi source repository and runs `chezmoi apply`
-after the push. Skipping the offer—or editing a file outside git—leaves the successful write in place. The
+For a chezmoi-remapped write, ACE first applies the changed target; an apply failure leaves the source edit in place and
+keeps the editor open. After a successful write and any targeted apply, ACE checks the file that was actually changed.
+If that file is dirty inside a git repository, it offers to **commit and push** the change as a tracked background task.
+Confirming stages that config file, commits the repository's current index, pulls with rebase, and pushes; pre-existing
+staged changes are therefore included in the same commit. The repository is discovered from the written file, so a
+remapped edit uses the chezmoi source repository. When `use_chezmoi` is enabled, a successful push is followed by a full
+`chezmoi apply`. Each failure stops the sequence at that step, without undoing the written config change. Skipping the
+offer—or editing a file outside git—also leaves the successful write in place. The
 [Models panel](ace.md#persistent-edits) uses the same workflow for persistent alias edits.
 
 The deprecated `linked_repos` and `sibling_repos` keys remain readable as compatibility aliases for
@@ -140,11 +143,13 @@ apply the same scope to the other views.
 The pane loads only while visible, refreshes every 30 seconds, and performs its queries off the UI thread. Use `[` / `]`
 to change views, `t` or `c` to choose a preset or custom range, `g` to change the Projects or Runtime grouping, `p` to
 cycle the project filter, and `r` to refresh immediately. Keyed scope chips keep the effective range, grouping, and
-project visible; project scopes use configured display names while retaining canonical keys internally. The filter
-cycles through projects ranked by the most recent unfiltered result; return to **All** after changing the range to
-rebuild that list for the new range. If a selected project produces an empty result, one `p` clears directly to **All
-projects**. Every view includes a compact metric legend, `?` opens the complete glossary and current scope, and
-empty/error states show the effective keys for widening, clearing, or retrying. See
+project visible; **Group** shows the selected dimension in the Projects and Runtime views and an em dash elsewhere.
+Project scopes use configured display names while retaining canonical keys internally. The filter cycles through
+projects ranked by run count in the most recently loaded unfiltered result; return to **All** after changing the range
+to rebuild that list for the new range. If a selected project produces an empty result, one `p` clears directly to **All
+projects**. Every populated view includes a compact metric legend, `?` opens the complete glossary and current scope,
+and empty/error states show the effective keys for widening, clearing, or retrying. The Overview plan and question tiles
+remain all-project values even when a project is selected; see
 [Telemetry: Admin Center Statistics tab](telemetry.md#admin-center-statistics-tab) for the view contents, range syntax,
 and project-filter caveats.
 
@@ -2459,11 +2464,11 @@ Supported date range formats:
 - **Relative**: `-Nd` (days ago), `-Nh` (hours ago), `-Nm` (minutes ago), `0d` (today)
 - **Ranges**: `START..END` (e.g., `-7d..0d`); single point means "from that point to now"
 
-The run and event inputs at `~/.sase/logs/runs.jsonl` and `events.jsonl` rotate independently before a write would make
-either file exceed 2 MiB. Rotation keeps one `.1` generation and replaces an older backup; set `SASE_RUN_LOG_MAX_BYTES`
-to another byte limit, or `0` for no size rotation. Malformed historical lines are skipped. The current `sase logs`
-collector reads only the active `.jsonl` files, so copy the matching `.1` files separately when a support bundle must
-include records from the previous generation.
+The run and event inputs at `~/.sase/logs/runs.jsonl` and `events.jsonl` rotate independently before appending a record
+would make a non-empty file exceed 2 MiB. Rotation keeps one `.1` generation and replaces an older backup; set
+`SASE_RUN_LOG_MAX_BYTES` to another byte limit, or `0` for no size rotation. The current `sase logs` collector reads
+only the active `.jsonl` files and skips malformed lines there, so copy the matching `.1` files separately when a
+support bundle must include records from the previous generation.
 
 ### `sase editor`
 

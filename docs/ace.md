@@ -826,11 +826,12 @@ visually.
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
 session mode is always visible after the cycle toast fades. After the first scan, the header starts with the top-level
 agent total `N`, followed by an always-visible capacity chip in the form `[R/L · Q queued]`: `R` is the global number of
-independent user agent processes currently holding runner slots, `L` is the current `max_running_agents` limit, and `Q`
-counts live waiters using that configured cap. Waits with an explicit `%wait(runners=N)` threshold are intentionally
-excluded from `Q`. Independent parallel family members participate even though ACE nests them under a family; serial
-follow-up children, workflow Python/bash steps, and axe ChangeSpec runners do not. Occupancy is green below the limit,
-gold at the limit, and red above it; a nonzero queue count is violet.
+slot-participating user agents currently holding runner slots, `L` is the current `max_running_agents` limit, and `Q`
+counts live waiters governed by that configured cap. Slot participants are top-level user agents—including every clan
+member launched independently—plus parallel family members. Serial family follow-ups, workflow Python/bash steps, and
+axe ChangeSpec runners do not participate. Waits with an explicit `%wait(runners=N)` threshold are intentionally
+excluded from `Q`. Occupancy is green below the limit, gold at the limit, and red above it; a nonzero queue count is
+violet.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with numeric counts in place of the

@@ -572,8 +572,8 @@ Use maintenance mode before operations that temporarily make scheduled work unsa
 updates, moving workspace directories, or running one-off cleanup. `sase axe maintenance exit` removes the marker.
 `sase axe maintenance status` exits 0 when active and 1 when inactive, so scripts can use it as a guard. The next
 lumberjack tick clears stale markers automatically when they are older than 24 hours, malformed, or owned by a PID that
-is no longer running. On Linux, new markers also record the owner's process start identity and boot ID, so a recycled
-PID cannot keep another process's stale maintenance marker alive.
+is no longer running. When Linux `/proc` identity data is readable, new markers also record the owner's process start
+identity and, when available, the boot ID. Those fields let SASE reject a stale marker after its PID has been recycled.
 
 ## Watchdog and Recovery
 
@@ -606,12 +606,14 @@ Agent runners blocked on dependency waits also make best-effort ensure calls. Th
 are limited to at most one actual check every five minutes. The optional timer is useful when no waiting agent is alive
 to make those checks.
 
-Every explicit start, stop, and restart appends a source-attributed record to the bounded `~/.sase/axe/lifecycle.jsonl`
-journal. Before healing a down daemon, `ensure` checks that journal for restart churn. By default, five successful
-starts within the preceding 30 minutes damp further automatic healing: the command returns a rate-limited result without
-starting axe and emits one durable **Axe restart storm damped** notification for that episode. The notification
-identifies the contributing sources and attaches the lifecycle journal; healing becomes eligible again after enough
-starts age out of the window. Explicit lifecycle commands remain available to the operator.
+SASE maintains a best-effort `~/.sase/axe/lifecycle.jsonl` journal capped at 256 KiB. It appends every successful
+orchestrator start—including automatic healing—and each completed stop or restart request, with its source. A start
+attempt that fails or exits before the PID is published has no start entry. Before healing a down daemon, `ensure`
+checks this journal for restart churn. By default, five successful starts within the preceding 30 minutes damp further
+automatic healing: the command returns a rate-limited result without starting axe and emits a durable **Axe restart
+storm damped** notification. Repeated alerts are suppressed while the set of contributing starts is unchanged. The
+notification identifies their sources and attaches the journal; healing becomes eligible again after enough starts age
+out of the window. Explicit lifecycle commands remain available to the operator.
 
 On Linux hosts with user systemd, `sase axe ensure install` writes and enables `sase-axe-ensure.service` and
 `sase-axe-ensure.timer` under the user systemd directory. Its first activation is scheduled for two minutes after boot

@@ -144,9 +144,9 @@ servicing the watchdog beacon. Disable the compact tiers independently with `SAS
 `SASE_TUI_PUMP_STALL_DISABLE=1`.
 
 The persistent TUI diagnostic JSONL files under `~/.sase/logs/`—stall, git-operation, launch-timing, external-tool, and
-agent-load records—rotate independently before a write would make a file exceed 2 MiB. Each keeps one `.1` generation.
-Set `SASE_TUI_TELEMETRY_MAX_BYTES` to another byte limit, or `0` for no size rotation. This bound is separate from the
-opt-in trace files under `~/.sase/perf/`.
+agent-load records—rotate independently before appending a record would make a non-empty file exceed 2 MiB. Each keeps
+one `.1` generation. Set `SASE_TUI_TELEMETRY_MAX_BYTES` to another per-file byte limit, or `0` for no size rotation.
+This bound is separate from the opt-in trace files under `~/.sase/perf/`.
 
 ## Synthetic-data benchmark harness
 

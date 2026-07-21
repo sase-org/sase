@@ -156,10 +156,10 @@ performs aggregation off the UI thread, refreshes every 30 seconds, and shows lo
 states in place.
 
 The scope header makes the current controls explicit: **Range** shows a friendly summary and, when space permits, its
-absolute span; **Group** names the active Projects or Runtime dimension; and **Project** shows **All projects** or the
-configured display name and color of the selected project. A custom range is labeled **Custom**, and narrow terminals
-compact the chips without changing the selection. Project keys remain canonical internally even when every visible label
-is humanized.
+absolute span; **Group** names the active dimension in the Projects and Runtime views and shows an em dash elsewhere;
+and **Project** shows **All projects** or the selected project's display name (falling back to its canonical key),
+preceded by a categorical color swatch. A custom range is labeled **Custom**, and narrow terminals compact the chips
+without changing the selection. Project keys remain canonical internally even when a configured display name is shown.
 
 The seven views answer different questions:
 
@@ -173,9 +173,10 @@ The seven views answer different questions:
 | **Activity**          | Skill, memory, and workspace use.                                                                                                                       |
 | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                     |
 
-Each view ends with a compact legend defining its calculated metrics. Press `?` for the complete per-view glossary,
-control list, active range/group/project scope, and freshness notes. On Overview, the Agents Run, Success Rate, and
-Commits tiles open Runs when clicked; Plans Proposed and Questions open Plans & Questions without another data load.
+Each populated view ends with a compact legend defining its calculated metrics. Press `?` for the complete per-view
+glossary, control list, active range/group/project scope, and freshness notes. On Overview, the Agents Run, Success
+Rate, and Commits tiles open Runs when clicked; Plans Proposed and Questions open Plans & Questions without another data
+load.
 
 | Key     | Action                                                              |
 | ------- | ------------------------------------------------------------------- |
@@ -191,15 +192,17 @@ Custom ranges accept elapsed windows such as `12h`, `14d`, or `8w`; a calendar m
 range such as `2026-07-01..2026-07-18`; or an open-ended range such as `2026-07-01..`. Calendar inputs use the
 configured SASE timezone, closed ranges include the final date, and future time is excluded.
 
-The project choices come from the most recent unfiltered result. If you change the range while a project remains
-selected, `p` continues to use that cached list; cycle back to **All** and let the pane reload to rank projects for the
-new range. When the selected project has no rows in the range, one `p` clears the filter directly to **All projects**.
+The project choices are ranked by run count in the most recently loaded unfiltered result. If you change the range while
+a project remains selected, `p` continues to use that cached list; cycle back to **All** and let the pane reload to rank
+projects for the new range. When the selected project has no rows in the range, one `p` clears the filter directly to
+**All projects**.
 
-The project filter applies to run-backed totals, project-attributed activity, plan lifecycle counts, and question
-session counts. Some distributions are derived from global plan and question documents rather than project-attributed
-runs: while a project filter is active, the pane labels plan tiers, phases per epic, total questions, and questions per
-session as **all projects** so their scope is explicit. The Projects view also retains an `(no ChangeSpec)` row for runs
-that have a project but no ChangeSpec attribution.
+The project filter applies to run-backed metrics, project-attributed activity, and—in Plans & Questions—the run-backed
+plan lifecycle, Sessions, and Asking agents summaries. Plan tiers and phases, plus total-question counts and
+questions-per-session distributions, come from global documents rather than project-attributed runs. The detailed Plans
+& Questions view labels those fields **all projects** while a project is selected. The Overview Plans Proposed and
+Questions tiles also use all-project document aggregates, but their tile faces do not append that scope label. The
+Projects view retains an `(no ChangeSpec)` row for runs that have a project but no ChangeSpec attribution.
 
 Override these focused-pane bindings under `ace.keymaps.statistics`; the effective keys are reflected in the pane's hint
 bar:
