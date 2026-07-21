@@ -34,7 +34,7 @@ from .config import (
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
-    ModelAliasPoolMember,
+    ModelAliasSelectorMember,
     get_model_aliases,
     implicit_model_alias_value,
     implicit_model_alias_fallback,
@@ -44,8 +44,9 @@ from .config import (
     model_alias_description,
     model_alias_kind,
     model_alias_names,
-    model_alias_pool_members,
+    model_alias_selector_details,
 )
+from .load_balancing import ModelAliasSelectorMode
 from .temporary_override import TemporaryLLMOverride, get_active_alias_overrides
 
 #: The kind of an alias, used for badge styling and grouping.
@@ -139,9 +140,11 @@ class AliasView:
             while its machine-wide temporary override is active: nested
             ``@default`` references intentionally ignore that override.
         reference_model: Model represented by an explicit ``@name`` reference.
-        implicit_value: Raw non-fallback value supplied by an implicit alias.
-        pool_members: Parsed/resolved member and availability details when the
-            alias owns a load-balanced pool.
+        implicit_value: Raw concrete/selector value supplied by an implicit alias.
+        selector_mode: ``round_robin`` or ``fallback`` when the alias owns a
+            selector expression.
+        selector_members: Parsed/resolved member, availability, and selection
+            details for an owned selector expression.
     """
 
     name: str
@@ -157,7 +160,8 @@ class AliasView:
     reference_provider: str | None = None
     reference_model: str | None = None
     implicit_value: str | None = None
-    pool_members: tuple[ModelAliasPoolMember, ...] = ()
+    selector_mode: ModelAliasSelectorMode | None = None
+    selector_members: tuple[ModelAliasSelectorMember, ...] = ()
 
     @property
     def is_overridden(self) -> bool:
@@ -323,6 +327,7 @@ def build_alias_views(now: float | None = None) -> list[AliasView]:
     for name in names:
         override = overrides.get(name)
         provider, model = _effective_provider_model(name, override)
+        selector = model_alias_selector_details(name)
         reference_provider: str | None = None
         reference_model: str | None = None
         if name == DEFAULT_MODEL_ALIAS_NAME and override is not None:
@@ -351,7 +356,8 @@ def build_alias_views(now: float | None = None) -> list[AliasView]:
                 reference_provider=reference_provider,
                 reference_model=reference_model,
                 implicit_value=implicit_model_alias_value(name),
-                pool_members=model_alias_pool_members(name),
+                selector_mode=selector.mode if selector is not None else None,
+                selector_members=selector.members if selector is not None else (),
             )
         )
 

@@ -437,9 +437,10 @@ llm_provider:
   default_effort: ""
   # Model aliases for no-%model launches, delegated work, and reusable prompts.
   # Builtin role overrides live under builtin. Most roles fall back through
-  # another role alias (ultimately @default), while `cheaper` and `cheapest`
-  # own independent load-balanced pools. Values may be a bare known model
-  # (opus), an explicit
+  # another role alias (ultimately @default), while `smartest` owns an ordered
+  # provider fallback and `cheaper` / `cheapest` own independent load-balanced
+  # pools. Use `A | B` for round-robin or `A || B` for ordered fallback; do not
+  # mix the operators. Values may be a bare known model (opus), an explicit
   # provider/model (codex/gpt-5.6-sol), a nested provider-local path
   # (opencode/anthropic/claude-sonnet-4-5), or an @<alias> reference.
   # User-invented aliases live under custom and must include a description for
@@ -459,7 +460,7 @@ llm_provider:
   #     small_phase_worker: "@cheaper"  # small bead phase agents
   #     medium_phase_worker: "@default" # medium bead phase agents
   #     large_phase_worker: "@smartest"  # large bead phase agents
-  #     smartest: "@default"        # highest-capability role
+  #     smartest: "claude/claude-fable-5 || codex/gpt-5.6-sol" # implicit default
   #   custom:
   #     blogger:
   #       model: claude/opus

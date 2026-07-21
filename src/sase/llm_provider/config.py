@@ -12,9 +12,11 @@ from sase.config.core import current_config_token
 from sase.xprompt.effort import is_valid_effort, split_model_effort
 
 from .load_balancing import (
-    ModelAliasPool,
-    ModelAliasPoolError,
-    parse_model_alias_pool,
+    ModelAliasSelector,
+    ModelAliasSelectorError,
+    ModelAliasSelectorMode,
+    parse_model_alias_selector,
+    select_model_alias_fallback_member,
     select_model_alias_pool_member,
 )
 
@@ -41,10 +43,11 @@ ModelAliasConfigSource = Literal["builtin", "custom"]
 #     ``<size>_phase_worker`` / ``smartest`` / ``cheaper`` / ``cheapest``:
 #     bead/epic roles.
 #
-# Each role falls back to another alias (ultimately ``@default``) when it is not
-# explicitly configured. ``default`` itself falls back to the configured or
-# autodetected provider's tier default (see :func:`_resolve_default_alias_target`
-# and :func:`sase.llm_provider.registry.resolve_default_alias_provider_model`).
+# Most roles fall back to another alias (ultimately ``@default``) when they are
+# not explicitly configured. ``smartest`` instead owns an ordered provider
+# fallback. ``default`` itself falls back to the configured or autodetected
+# provider's tier default (see :func:`_resolve_default_alias_target` and
+# :func:`sase.llm_provider.registry.resolve_default_alias_provider_model`).
 #
 # Alias *values* may reference other aliases with an ``@`` marker (for example
 # ``coder: "@default"`` or ``codex_coder: "@coder"``); :func:`resolve_model_alias`
@@ -81,6 +84,9 @@ LARGE_PHASE_WORKER_MODEL_ALIAS_NAME = "large_phase_worker"
 #: The implicit "smartest" highest-capability alias.
 SMARTEST_MODEL_ALIAS_NAME = "smartest"
 
+#: Provider-aware ordered fallback for the implicit smartest alias.
+SMARTEST_MODEL_ALIAS_DEFAULT = "claude/claude-fable-5 || codex/gpt-5.6-sol"
+
 #: The implicit load-balanced small-phase alias.
 CHEAPER_MODEL_ALIAS_NAME = "cheaper"
 
@@ -102,10 +108,10 @@ _ROLE_ALIAS_FALLBACKS: dict[str, str] = {
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{CHEAPER_MODEL_ALIAS_NAME}",
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{SMARTEST_MODEL_ALIAS_NAME}",
-    SMARTEST_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
 }
 
 _IMPLICIT_ALIAS_TARGETS: dict[str, str] = {
+    SMARTEST_MODEL_ALIAS_NAME: SMARTEST_MODEL_ALIAS_DEFAULT,
     CHEAPER_MODEL_ALIAS_NAME: CHEAPER_MODEL_ALIAS_DEFAULT,
     CHEAPEST_MODEL_ALIAS_NAME: CHEAPEST_MODEL_ALIAS_DEFAULT,
 }
@@ -512,7 +518,7 @@ def implicit_model_alias_fallback(name: str) -> str | None:
 
 
 def implicit_model_alias_value(name: str) -> str | None:
-    """Return a non-fallback implicit target value for *name*, if any."""
+    """Return a concrete/selector implicit target value for *name*, if any."""
     return _IMPLICIT_ALIAS_TARGETS.get(name.strip())
 
 
@@ -566,17 +572,17 @@ def _resolve_default_alias_target() -> str:
 
 @dataclass(frozen=True, slots=True)
 class _ResolvedModelAlias:
-    """Concrete alias target plus config-derived effort and pool provenance."""
+    """Concrete target plus config-derived effort and selector provenance."""
 
     target: str
     effort: str | None = None
-    pool_alias: str | None = None
+    selector_alias: str | None = None
     valid: bool = True
 
 
 @dataclass(frozen=True, slots=True)
-class ModelAliasPoolMember:
-    """Display/diagnostic information for one configured pool member."""
+class ModelAliasSelectorMember:
+    """Display/diagnostic information for one alias-selector member."""
 
     value: str
     target: str
@@ -584,6 +590,15 @@ class ModelAliasPoolMember:
     provider: str | None
     available: bool
     valid: bool = True
+    selected: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _ModelAliasSelectorDetails:
+    """Selector mode and resolved member metadata for one alias."""
+
+    mode: ModelAliasSelectorMode
+    members: tuple[ModelAliasSelectorMember, ...]
 
 
 def _provider_for_resolved_target(target: str) -> str | None:
@@ -615,9 +630,9 @@ def _resolve_model_alias_result(
     *,
     consume: bool = False,
     initial_seen: set[str] | None = None,
-    active_pool: str | None = None,
+    active_selector: str | None = None,
 ) -> _ResolvedModelAlias:
-    """Internal alias resolver retaining effort and pool provenance."""
+    """Internal alias resolver retaining effort and selector provenance."""
     from .launch_alias_overrides import active_launch_alias_overrides
 
     aliases = _get_model_aliases()
@@ -634,7 +649,7 @@ def _resolve_model_alias_result(
         *,
         seen: set[str],
         steps: int,
-        pool_owner: str | None,
+        selector_owner: str | None,
         inherited_effort: str | None,
     ) -> _ResolvedModelAlias:
         nonlocal overrides
@@ -667,7 +682,7 @@ def _resolve_model_alias_result(
                 steps += 1
                 continue
 
-            # A temporary override suspends load balancing for that alias.
+            # A temporary override suspends selector behavior for that alias.
             if known_alias and bare != DEFAULT_MODEL_ALIAS_NAME:
                 if overrides is None:
                     overrides = _active_alias_overrides()
@@ -676,7 +691,7 @@ def _resolve_model_alias_result(
                     return _ResolvedModelAlias(
                         f"{override.provider}/{override.model}",
                         effort,
-                        pool_owner,
+                        selector_owner,
                     )
 
             target: str | None = None
@@ -690,23 +705,23 @@ def _resolve_model_alias_result(
                     return fail()
                 seen.add(bare)
                 try:
-                    pool = parse_model_alias_pool(target)
-                except ModelAliasPoolError:
+                    selector = parse_model_alias_selector(target)
+                except ModelAliasSelectorError:
                     return fail()
-                if pool is not None:
-                    # A pool reached from a member of another pool is invalid,
-                    # matching cycle/depth fail-closed behavior.
-                    if pool_owner is not None:
+                if selector is not None:
+                    # A selector reached from a member of another selector is
+                    # invalid, matching cycle/depth fail-closed behavior.
+                    if selector_owner is not None:
                         return fail()
                     member_results = [
                         resolve(
                             member,
                             seen=set(seen),
                             steps=steps + 1,
-                            pool_owner=bare,
+                            selector_owner=bare,
                             inherited_effort=effort,
                         )
-                        for member in pool.members
+                        for member in selector.members
                     ]
                     if any(not result.valid for result in member_results):
                         return fail()
@@ -714,9 +729,12 @@ def _resolve_model_alias_result(
                         _resolved_target_is_available(result.target)
                         for result in member_results
                     ]
-                    index = select_model_alias_pool_member(
-                        bare, pool, availability, consume=consume
-                    )
+                    if selector.mode == "round_robin":
+                        index = select_model_alias_pool_member(
+                            bare, selector, availability, consume=consume
+                        )
+                    else:
+                        index = select_model_alias_fallback_member(availability)
                     return member_results[index]
                 current = target
                 steps += 1
@@ -729,7 +747,7 @@ def _resolve_model_alias_result(
                 return _ResolvedModelAlias(
                     target,
                     effort or target_effort,
-                    pool_owner,
+                    selector_owner,
                 )
 
             fallback = implicit_model_alias_fallback(bare)
@@ -745,7 +763,7 @@ def _resolve_model_alias_result(
             return _ResolvedModelAlias(
                 bare if current.startswith("@") else current,
                 effort,
-                pool_owner,
+                selector_owner,
             )
         return fail()
 
@@ -753,7 +771,7 @@ def _resolve_model_alias_result(
         model,
         seen=set() if initial_seen is None else set(initial_seen),
         steps=0,
-        pool_owner=active_pool,
+        selector_owner=active_selector,
         inherited_effort=None,
     )
 
@@ -764,11 +782,12 @@ def resolve_model_alias_with_effort(
     *,
     consume: bool = False,
 ) -> _ResolvedModelAlias:
-    """Resolve *model*, retaining alias-borne effort and pool provenance.
+    """Resolve *model*, retaining alias-borne effort and selector provenance.
 
     ``consume=False`` is the safe default for display, completion, doctor, and
     preview callers.  Authoritative launch lanes pass ``consume=True`` so each
-    launched agent advances a pool cursor exactly once.
+    launched agent advances a round-robin cursor exactly once. Ordered
+    fallbacks never consume state.
     """
     return _resolve_model_alias_result(
         model,
@@ -785,17 +804,19 @@ def resolve_model_alias(
 ) -> str:
     """Resolve a model alias to its concrete target string.
 
-    Configured alias values may be pipe-separated pools.  Pool resolution skips
-    unavailable providers and peeks by default; launch callers opt into cursor
-    advancement with ``consume=True``.  Known trailing ``@<effort>`` suffixes
-    are removed from alias-resolved targets and exposed by
+    Configured alias values may be ``|``-separated round-robin pools or
+    ``||``-separated ordered fallback chains. Both skip unavailable providers;
+    round-robin pools peek by default and launch callers opt into cursor
+    advancement with ``consume=True``, while fallbacks are always stateless.
+    Known trailing ``@<effort>`` suffixes are removed from alias-resolved
+    targets and exposed by
     :func:`resolve_model_alias_with_effort`.
 
     Launch-scoped overrides win first, followed by machine-global temporary
-    overrides, configured aliases, and implicit role fallbacks.  Pools are
+    overrides, configured aliases, and implicit role fallbacks. Selectors are
     recognized only in configured/implicit alias values, never in directive or
-    temporary override values.  Cycles, nested pools, malformed pools, and
-    overly deep chains fail closed to the original input.
+    temporary override values. Cycles, nested selectors, malformed selectors,
+    and overly deep chains fail closed to the original input.
     """
     return resolve_model_alias_with_effort(
         model,
@@ -804,8 +825,8 @@ def resolve_model_alias(
     ).target
 
 
-def _model_alias_pool(name: str) -> ModelAliasPool | None:
-    """Return the configured/implicit pool owned by alias *name*, if any."""
+def _model_alias_selector(name: str) -> ModelAliasSelector | None:
+    """Return the configured/implicit selector owned by alias *name*, if any."""
     alias = name.strip()
     value = _get_model_aliases().get(alias)
     if value is None:
@@ -813,70 +834,87 @@ def _model_alias_pool(name: str) -> ModelAliasPool | None:
     if value is None:
         return None
     try:
-        return parse_model_alias_pool(value)
-    except ModelAliasPoolError:
+        return parse_model_alias_selector(value)
+    except ModelAliasSelectorError:
         return None
 
 
-def model_alias_pool_members(name: str) -> tuple[ModelAliasPoolMember, ...]:
-    """Return resolved member/availability details for alias *name*'s pool."""
+def model_alias_selector_details(name: str) -> _ModelAliasSelectorDetails | None:
+    """Return selector mode and resolved member details for alias *name*."""
     alias = name.strip()
-    pool = _model_alias_pool(alias)
-    if pool is None:
-        return ()
-    members: list[ModelAliasPoolMember] = []
-    for value in pool.members:
+    selector = _model_alias_selector(alias)
+    if selector is None:
+        return None
+    resolved: list[tuple[str, _ResolvedModelAlias, str | None, bool]] = []
+    for value in selector.members:
         result = _resolve_model_alias_result(
             value,
             initial_seen={alias},
-            active_pool=alias,
+            active_selector=alias,
         )
         provider = (
             _provider_for_resolved_target(result.target) if result.valid else None
         )
+        available = result.valid and _resolved_target_is_available(result.target)
+        resolved.append((value, result, provider, available))
+
+    availability = [item[3] for item in resolved]
+    if selector.mode == "round_robin":
+        selected_index = select_model_alias_pool_member(
+            alias, selector, availability, consume=False
+        )
+    else:
+        selected_index = select_model_alias_fallback_member(availability)
+
+    members: list[ModelAliasSelectorMember] = []
+    for index, (value, result, provider, available) in enumerate(resolved):
         members.append(
-            ModelAliasPoolMember(
+            ModelAliasSelectorMember(
                 value=value,
                 target=result.target,
                 effort=result.effort,
                 provider=provider,
-                available=(
-                    result.valid and _resolved_target_is_available(result.target)
-                ),
+                available=available,
                 valid=result.valid,
+                selected=index == selected_index,
             )
         )
-    return tuple(members)
+    return _ModelAliasSelectorDetails(mode=selector.mode, members=tuple(members))
 
 
-def validate_model_alias_pool_value(name: str, value: str) -> tuple[str, ...]:
-    """Return actionable validation errors for an alias value's pool syntax."""
+def validate_model_alias_selector_value(name: str, value: str) -> tuple[str, ...]:
+    """Return actionable validation errors for an alias selector value."""
     try:
-        pool = parse_model_alias_pool(value)
-    except ModelAliasPoolError as exc:
+        selector = parse_model_alias_selector(value)
+    except ModelAliasSelectorError as exc:
         return (str(exc),)
-    if pool is None:
+    if selector is None:
         return ()
 
     aliases = _get_model_aliases()
     errors: list[str] = []
     owner = name.strip() or "<alias>"
-    for position, member in enumerate(pool.members, start=1):
+    member_label = (
+        "pool member" if selector.mode == "round_robin" else "fallback candidate"
+    )
+    for position, member in enumerate(selector.members, start=1):
         current, _ = split_model_effort(member)
         seen = {owner}
         for _ in range(_ALIAS_RESOLUTION_DEPTH_LIMIT):
             if not current.startswith("@"):
                 if not current.strip():
-                    errors.append(f"pool member {position} resolves to an empty target")
+                    errors.append(
+                        f"{member_label} {position} resolves to an empty target"
+                    )
                 break
             referenced = current[1:].strip()
             referenced, _ = split_model_effort(referenced)
             if not referenced:
-                errors.append(f"pool member {position} has an empty alias reference")
+                errors.append(f"{member_label} {position} has an empty alias reference")
                 break
             if referenced in seen:
                 errors.append(
-                    f"pool member {position} creates an alias cycle through "
+                    f"{member_label} {position} creates an alias cycle through "
                     f"'@{referenced}'"
                 )
                 break
@@ -889,26 +927,33 @@ def validate_model_alias_pool_value(name: str, value: str) -> tuple[str, ...]:
                 target = f"@{fallback}" if fallback is not None else None
             if target is None:
                 errors.append(
-                    f"pool member {position} references unknown alias '@{referenced}'"
+                    f"{member_label} {position} references unknown alias "
+                    f"'@{referenced}'"
                 )
                 break
             try:
-                nested = parse_model_alias_pool(target)
-            except ModelAliasPoolError as exc:
+                nested = parse_model_alias_selector(target)
+            except ModelAliasSelectorError as exc:
                 errors.append(
-                    f"pool member {position} reaches malformed alias "
+                    f"{member_label} {position} reaches malformed alias "
                     f"'@{referenced}': {exc}"
                 )
                 break
             if nested is not None:
+                nested_name = (
+                    "load-balanced pool"
+                    if nested.mode == "round_robin"
+                    else "ordered fallback"
+                )
                 errors.append(
-                    f"pool member {position} reaches nested pool "
-                    f"'@{referenced}'; pool members must resolve to a single target"
+                    f"{member_label} {position} reaches nested {nested_name} "
+                    f"'@{referenced}'; selector members must resolve to a single "
+                    "target"
                 )
                 break
             current, _ = split_model_effort(target.strip())
         else:
             errors.append(
-                f"pool member {position} exceeds the alias resolution depth limit"
+                f"{member_label} {position} exceeds the alias resolution depth limit"
             )
     return tuple(dict.fromkeys(errors))

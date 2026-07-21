@@ -6,6 +6,8 @@ from textual.app import App, ComposeResult
 
 import sase.ace.tui.modals.models_panel as models_panel
 from sase.llm_provider import AliasKind, AliasView, TemporaryLLMOverride
+from sase.llm_provider.config import ModelAliasSelectorMember
+from sase.llm_provider.load_balancing import ModelAliasSelectorMode
 
 _ROOT = Path(__file__).resolve().parents[1]
 
@@ -35,6 +37,8 @@ def make_alias_view(
     configured_source: str | None = None,
     description: str | None = None,
     bucket: str | None = None,
+    selector_mode: ModelAliasSelectorMode | None = None,
+    selector_members: tuple[ModelAliasSelectorMember, ...] = (),
 ) -> AliasView:
     return AliasView(
         name=name,
@@ -47,6 +51,8 @@ def make_alias_view(
         configured_source=configured_source,
         description=description,
         bucket=bucket,
+        selector_mode=selector_mode,
+        selector_members=selector_members,
     )
 
 

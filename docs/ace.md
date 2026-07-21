@@ -1353,8 +1353,9 @@ the matching row.
 
 The two-line strip below the list explains the highlighted alias. Builtin aliases use fixed descriptions. User aliases
 use `llm_provider.model_aliases.custom.<name>.description`; a malformed user alias without one shows that config path as
-the fix. For a pool-valued alias, the strip also lists every parsed member with an available/unavailable marker, while
-the row's provider/model badge shows the next peeked selection without advancing its cursor.
+the fix. For a selector-valued alias, the strip lists every parsed member with an available/unavailable marker. A
+round-robin pool's provider/model badge shows the next peeked selection without advancing its cursor; an ordered
+fallback labels candidates in priority order, marks the current winner, and never reads rotation state.
 
 If a builtin alias is mistakenly configured under `llm_provider.model_aliases.custom`, opening the panel emits one
 warning toast listing every affected `@alias`. A gold warning glyph remains on each affected alias row even while a
@@ -1398,9 +1399,10 @@ independent:
 - An override on **`default`** drives the no-`%model` launch default and renders in the existing gold top-bar pill — its
   behavior is unchanged.
 - An override on **any other alias** takes effect wherever that alias is resolved. A size-specific phase override
-  affects only that alias. Overrides on `@cheaper` and `@cheapest` suspend their independent load-balanced rotations
-  until the override expires or is cleared. It is surfaced by a distinct, concise violet top-bar pill: a single active
-  override renders as `Override @<alias> <time-left>`, and several render as an `Overrides ×N` count.
+  affects only that alias. Overrides on `@smartest`, `@cheaper`, and `@cheapest` suspend their ordered fallback or
+  independent load-balanced rotation until the override expires or is cleared. It is surfaced by a distinct, concise
+  violet top-bar pill: a single active override renders as `Override @<alias> <time-left>`, and several render as an
+  `Overrides ×N` count.
 
 Overrides apply only to default selection: explicit prompt directives (`%model:codex/o3`,
 `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win, already-running
@@ -1433,8 +1435,9 @@ referenced alias do not change the active override.
 
 Builtin aliases edit under `llm_provider.model_aliases.builtin.<name>`. User aliases under
 `llm_provider.model_aliases.custom.<name>` edit their `model` field and reset by deleting the whole custom alias entry.
-The custom input also accepts a `|`-separated load-balanced pool. The editor rejects empty members and alias references
-that would reach a nested pool before opening the write preview.
+The custom input also accepts a `|`-separated load-balanced pool or a `||`-separated ordered fallback. The editor
+rejects empty or mixed selectors and alias references that would reach any nested selector before opening the write
+preview.
 
 ### Examples
 
@@ -1449,6 +1452,8 @@ that would reach a nested pool before opening the write preview.
   without an explicit model use that target; small and medium phase routing is unchanged.
 - Highlight `smartest`, `e`, pick `claude/opus`, and confirm — large phases reach that target through
   `@large_phase_worker` → `@smartest`.
+- Leave `smartest` implicit — its `claude/claude-fable-5 || codex/gpt-5.6-sol` fallback prefers Claude when installed
+  and otherwise selects Codex without changing load-balancing state.
 - Highlight `cheaper`, `e`, choose `Custom...`, enter `claude/opus@medium | codex/gpt-5.5`, and confirm — small phases
   round-robin across installed providers while the panel continues to show the next selection without consuming it.
 - Highlight `cheapest`, `e`, choose `Custom...`, enter `claude/sonnet | codex/gpt-5.3-codex-spark`, and confirm —

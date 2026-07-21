@@ -292,6 +292,37 @@ async def test_on_edit_custom_rejects_unknown_and_cyclic_aliases(
         assert "would create a cycle" in messages[1]
 
 
+async def test_on_edit_custom_accepts_fallback_and_rejects_mixed_selector(
+    monkeypatch: Any,
+) -> None:
+    view = _view("smartest", "role")
+    _patch_views(monkeypatch, [view])
+    monkeypatch.setattr(
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        panel._pending_edit_view = view
+
+        panel._on_edit_custom_picked("claude/claude-fable-5 || codex/gpt-5.6-sol")
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, AliasEditPreviewModal)
+        assert pilot.app.screen._op.value == (
+            "claude/claude-fable-5 || codex/gpt-5.6-sol"
+        )
+
+        pilot.app.pop_screen()
+        await pilot.pause()
+        panel._on_edit_custom_picked("claude/opus | codex/o3 || claude/sonnet")
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, ModelsPanel)
+        assert "cannot mix" in panel.notify.call_args.args[0]
+
+
 async def test_on_edit_model_picked_cancel_is_noop(monkeypatch: Any) -> None:
     _patch_views(monkeypatch, [_view("coder", "role")])
 

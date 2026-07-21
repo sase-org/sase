@@ -327,11 +327,11 @@ def resolve_model_provider_with_effort(
 ) -> tuple[str | None, str, str | None]:
     """Resolve a model override to provider/model plus alias-borne effort.
 
-    Pool-backed targets retain their explicit provider prefix even when that
-    provider is not registered.  That lets authoritative launches fail at the
-    normal provider lookup with an actionable diagnostic when every pool member
-    is unavailable, instead of silently rerouting the model to the default
-    provider.
+    Selector-backed targets retain their explicit provider prefix even when
+    that provider is not registered. That lets authoritative launches fail at
+    the normal provider lookup with an actionable diagnostic when every pool or
+    fallback member is unavailable, instead of silently rerouting the model to
+    the default provider.
     """
     resolved = resolve_model_alias_with_effort(
         model_override,
@@ -343,7 +343,7 @@ def resolve_model_provider_with_effort(
     # 1. Check for explicit provider/model syntax
     if "/" in model_override:
         prefix, rest = model_override.split("/", 1)
-        if prefix in _provider_names() or resolved.pool_alias is not None:
+        if prefix in _provider_names() or resolved.selector_alias is not None:
             return prefix, rest, resolved.effort
 
     # 2. Check the plugin-supplied model-to-provider map

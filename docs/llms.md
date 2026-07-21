@@ -564,7 +564,7 @@ llm_provider:
       small_phase_worker: "@cheaper"
       medium_phase_worker: codex/gpt-5.6-sol
       large_phase_worker: "@smartest"
-      smartest: codex/gpt-5.6-sol # highest-capability role
+      smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # ordered fallback
     custom:
       blogger:
         model: claude/opus
@@ -578,15 +578,15 @@ llm_provider:
 
 ### Config Fields
 
-| Field                                | Type   | Default     | Description                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------ | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; real built-ins default to claude → codex → qwen → opencode → agy, with fakey last as a testing-only fallback.                                                                                                                    |
-| `llm_provider.default_effort`        | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                                                                                   |
-| `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                                                                                        |
-| `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                                                                                        |
-| `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides only (`default`, `coder`, `<provider>_coder`, `epic_lander`, `big_epic_lander`, `<size>_phase_worker`, `smartest`, `cheaper`, `cheapest`). Values use the single-target grammar below or a pipe-separated load-balanced pool. Legacy `epic_creator` entries are accepted but unused. |
-| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; `model` may also be a pipe-separated pool. Descriptions are shown in completions and the Models panel.                                                                   |
-| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                                                                                                                                                                                                  |
+| Field                                | Type   | Default     | Description                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------ | ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; real built-ins default to claude → codex → qwen → opencode → agy, with fakey last as a testing-only fallback.                                                                                                                                    |
+| `llm_provider.default_effort`        | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                                                                                                   |
+| `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                                                                                                        |
+| `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                                                                                                        |
+| `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides only (`default`, `coder`, `<provider>_coder`, `epic_lander`, `big_epic_lander`, `<size>_phase_worker`, `smartest`, `cheaper`, `cheapest`). Values use the single-target grammar below, a `\|` round-robin pool, or a `\|\|` ordered fallback. Legacy `epic_creator` entries are accepted but unused. |
+| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; `model` accepts the same single-target and selector grammar. Descriptions are shown in completions and the Models panel.                                                                 |
+| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                                                                                                                                                                                                                  |
 
 ## Per-Prompt Provider Switching
 
@@ -632,22 +632,28 @@ unresolved reference falls back to the raw input rather than crashing a launch. 
 syntax: alias keys and xprompt values stay bare. A bare configured/implicit alias raises with a migration hint, and `@`
 in front of a non-alias raises.
 
-An alias value can instead contain a `|`-separated pool, such as `claude/opus@medium | codex/gpt-5.5`. Members are
-trimmed, empty members are invalid, and every member uses the same single-target grammar (including an optional trailing
-reasoning-effort suffix). Real launches round-robin through the pool using machine-global state in
-`~/.sase/llm_lb.json`. Provider CLIs that are not installed are skipped (including the `SASE_<PROVIDER>_PATH` override);
-if none is installed, SASE retains the full pool so the ordinary provider error explains the failure. Display,
-completion, doctor, dry-run, and preview callers only peek at the next member and never advance the cursor. Nested pools
-are invalid. Pools are config-only: `%model` values, launch-scoped alias overrides, and temporary overrides remain
-single targets.
+An alias value can instead use one of two selector operators. `A | B` is an availability-filtered round-robin pool: real
+launches advance machine-global state in `~/.sase/llm_lb.json`, while display, completion, doctor, dry-run, and preview
+callers only peek. `A || B` is an ordered fallback chain: the first member whose registered provider CLI is installed
+always wins, and resolution never reads or changes the round-robin cursor, including during a real launch. Fallback is
+based only on the cached CLI-installation probe (including `SASE_<PROVIDER>_PATH`), not a later model or runtime
+failure; SASE does not relaunch with the next candidate after such a failure. If every provider is unavailable, both
+modes preserve a candidate for the ordinary provider lookup to report: fallback preserves its first member, while the
+pool preserves its current rotation choice.
+
+Both selectors accept two or more members using the same single-target grammar, including candidate-specific trailing
+reasoning effort. Whitespace is trimmed and empty members are invalid. `|` and `||` cannot be mixed in one value, and a
+member may follow an ordinary alias chain but cannot reach another pool or fallback. Selector expressions are
+config-only: `%model` values, launch-scoped alias overrides, and temporary overrides remain single targets. An override
+on the alias that owns a selector bypasses that expression for the override's lifetime.
 
 When the same name appears in both maps, `model_aliases.custom` wins. `sase doctor -C config.model_aliases` warns about
 legacy flat keys in `model_aliases`, removed top-level `custom_model_aliases`, custom names under
 `model_aliases.builtin`, builtin names under `model_aliases.custom`, collisions between the two maps, missing custom
-descriptions/models, dangling `@alias` references, empty pool members, and nested pools. Unavailable pool providers are
-reported as informational notes because skipping them is expected fallback behavior. In ACE, the Models panel shows
-descriptions from config; a user alias without one shows the `llm_provider.model_aliases.custom.<name>.description` path
-to fix.
+descriptions/models, dangling `@alias` references, empty or mixed selectors, and nested selectors. Unavailable selector
+providers are reported as informational notes; for an ordered fallback the note also identifies the current winner. In
+ACE, the Models panel shows descriptions from config; a user alias without one shows the
+`llm_provider.model_aliases.custom.<name>.description` path to fix.
 
 The ACE Models panel supplies two built-in buckets without changing resolution, completion, launch routing, or config
 paths. `coders` folds together `@coder` and all registered `@<provider>_coder` aliases; `phase_worker` folds together
@@ -666,8 +672,8 @@ provider-neutral and read-only.
 #### Implicit role aliases
 
 On top of any aliases you configure, SASE always exposes a fixed set of **implicit role aliases** that resolve even when
-you have not defined them. Most fall back through other aliases to `@default`; `@cheaper` and `@cheapest` instead own
-independent built-in pools:
+you have not defined them. Most fall back through other aliases to `@default`; `@smartest` owns an ordered provider
+fallback, while `@cheaper` and `@cheapest` own independent built-in pools:
 
 | Alias                  | Role                                                                                                    | Fallback when not configured                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -679,7 +685,7 @@ independent built-in pools:
 | `@small_phase_worker`  | Small bead phase agent with no explicit per-bead model.                                                 | `@cheaper`                                                                              |
 | `@medium_phase_worker` | Medium bead phase agent with no explicit per-bead model.                                                | `@default`                                                                              |
 | `@large_phase_worker`  | Large bead phase agent with no explicit per-bead model.                                                 | `@smartest`                                                                             |
-| `@smartest`            | Highest-capability model selected automatically for large phases.                                       | `@default`                                                                              |
+| `@smartest`            | Highest-capability model selected automatically for large phases.                                       | `claude/claude-fable-5 \|\| codex/gpt-5.6-sol`                                          |
 | `@cheaper`             | Load-balanced pool selected automatically for small phase agents.                                       | `claude/opus@medium \| codex/gpt-5.5`                                                   |
 | `@cheapest`            | Lowest-cost load-balanced pool available for explicit use.                                              | `claude/sonnet \| codex/gpt-5.3-codex-spark`                                            |
 
@@ -687,8 +693,9 @@ Override any role by configuring an alias of the same name. A common setup route
 while everything else tracks `@default`. The deliberate two-step `@big_epic_lander` → `@epic_lander` → `@default`
 fallback means an `epic_lander` override continues to cover epics of every size; set `big_epic_lander` only when large
 epics should use a different target. Phase sizes deliberately diverge: small uses `@cheaper`, medium uses `@default`,
-and large uses `@smartest`. The standalone `@cheapest` pool has no automatic consumer and is available for explicit
-launches:
+and large uses `@smartest`. The implicit `@smartest` value prefers Claude Fable 5 whenever the Claude CLI is installed
+and otherwise selects Codex GPT-5.6 SOL; a configured or temporary override bypasses that fallback. The standalone
+`@cheapest` pool has no automatic consumer and is available for explicit launches:
 
 ```yaml
 llm_provider:
@@ -703,7 +710,7 @@ llm_provider:
       medium_phase_worker: codex/gpt-5.6-sol
       small_phase_worker: "@cheaper"
       large_phase_worker: "@smartest"
-      smartest: claude/opus
+      smartest: claude/claude-fable-5 || codex/gpt-5.6-sol
 ```
 
 #### Launch-scoped alias overrides
@@ -898,7 +905,7 @@ llm_provider:
       cheaper: claude/opus@medium | codex/gpt-5.5
       cheapest: claude/sonnet | codex/gpt-5.3-codex-spark
       medium_phase_worker: codex/gpt-5.6-sol # medium bead phases run on Codex
-      smartest: claude/opus # large bead phases use @large_phase_worker -> @smartest
+      smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # large phase fallback
       big_epic_lander: codex/gpt-5.6-sol # threshold-selected epic landers run on Codex
 ```
 
@@ -916,15 +923,15 @@ of a model alias. The ACE `,m` chord opens the [**Models** panel](ace.md#models-
 clearing these overrides — for the `default` alias or any role/user alias.
 
 The panel also shows a two-line description for the highlighted alias or bucket. Builtin aliases have fixed
-descriptions, custom aliases read `llm_provider.model_aliases.custom.<name>.description`, pool aliases list each member
-and its current availability, and the built-in `coders` and `phase_worker` buckets report their aggregate
-effective-model mix and active override count.
+descriptions, custom aliases read `llm_provider.model_aliases.custom.<name>.description`, selector aliases list each
+member and its current availability (with the ordered-fallback winner marked), and the built-in `coders` and
+`phase_worker` buckets report their aggregate effective-model mix and active override count.
 
 Overrides are **per-alias** and independent. The `default` override only changes the _default_ provider/model selection
 for new agent launches; an override on any other alias takes effect wherever that alias is resolved. For example, an
-override on `@medium_phase_worker` affects only that size alias. Active overrides on pool-owning aliases such as
-`@cheaper` and `@cheapest` suspend their independent rotations for the override's duration. Machine-wide temporary
-overrides do not change:
+override on `@medium_phase_worker` affects only that size alias. Active overrides on selector-owning aliases such as
+`@smartest`, `@cheaper`, and `@cheapest` suspend their ordered fallback or independent rotation for the override's
+duration. Machine-wide temporary overrides do not change:
 
 - Already-running agents — they keep whatever provider/model they were launched with.
 - Explicit concrete `%model` prompt targets — they still take precedence. A `%model(...)` alias keyword is a separate,

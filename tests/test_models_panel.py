@@ -24,6 +24,7 @@ from sase.ace.tui.modals.models_panel_rendering import (
     render_bucket_row,
 )
 from sase.llm_provider import BucketView
+from sase.llm_provider.config import ModelAliasSelectorMember
 from tests._models_panel_helpers import make_alias_view, make_override
 
 
@@ -294,6 +295,70 @@ def test_description_text_for_custom_alias() -> None:
     )
 
     assert text.plain == "Draft and edit blog posts."
+
+
+def test_description_text_distinguishes_fallback_and_selected_candidate() -> None:
+    members = (
+        ModelAliasSelectorMember(
+            value="claude/claude-fable-5",
+            target="claude/claude-fable-5",
+            effort=None,
+            provider="claude",
+            available=False,
+        ),
+        ModelAliasSelectorMember(
+            value="codex/gpt-5.6-sol",
+            target="codex/gpt-5.6-sol",
+            effort=None,
+            provider="codex",
+            available=True,
+            selected=True,
+        ),
+    )
+    text = _description_text_for_view(
+        make_alias_view(
+            "smartest",
+            "role",
+            description="Highest-capability model used by large phases.",
+            selector_mode="fallback",
+            selector_members=members,
+        )
+    )
+
+    assert text.plain.splitlines() == [
+        "Highest-capability model used by large phases.",
+        "fallback: × claude/claude-fable-5 · → ✓ codex/gpt-5.6-sol",
+    ]
+
+
+def test_description_text_preserves_pool_rendering() -> None:
+    members = (
+        ModelAliasSelectorMember(
+            value="claude/opus",
+            target="claude/opus",
+            effort="medium",
+            provider="claude",
+            available=True,
+            selected=True,
+        ),
+        ModelAliasSelectorMember(
+            value="codex/gpt-5.5",
+            target="codex/gpt-5.5",
+            effort=None,
+            provider="codex",
+            available=False,
+        ),
+    )
+    text = _description_text_for_view(
+        make_alias_view(
+            "cheaper",
+            "role",
+            selector_mode="round_robin",
+            selector_members=members,
+        )
+    )
+
+    assert text.plain == "pool: ✓ claude/opus@medium · × codex/gpt-5.5"
 
 
 def test_description_text_for_user_alias_without_description_hints_config_path() -> (

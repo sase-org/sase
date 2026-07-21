@@ -8,7 +8,7 @@ from textual.worker import Worker, WorkerState
 
 from sase.config import ConfigEditOp
 from sase.llm_provider import AliasView
-from sase.llm_provider.config import validate_model_alias_pool_value
+from sase.llm_provider.config import validate_model_alias_selector_value
 
 from .config_commit import push_config_commit_prompt, submit_config_commit_task
 from .custom_model_input_modal import CustomModelInputModal
@@ -109,9 +109,10 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                 CustomModelInputModal(
                     title="Custom Alias Value",
                     hint=(
-                        "Format: provider/model, model, @alias, or a | separated pool"
+                        "Format: provider/model, model, @alias, A | B pool, or "
+                        "A || B fallback"
                     ),
-                    placeholder=("e.g. claude/opus@medium | codex/gpt-5.5"),
+                    placeholder=("e.g. claude/fable || codex/gpt-5.6-sol"),
                 ),
                 callback=self._on_edit_custom_picked,
             )
@@ -134,10 +135,10 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         self._open_model_edit_preview(view, result)
 
     def _open_model_edit_preview(self, view: AliasView, model: str) -> None:
-        pool_errors = validate_model_alias_pool_value(view.name, model)
-        if pool_errors:
+        selector_errors = validate_model_alias_selector_value(view.name, model)
+        if selector_errors:
             self.notify(
-                f"Cannot set @{view.name}: {pool_errors[0]}",
+                f"Cannot set @{view.name}: {selector_errors[0]}",
                 severity="warning",
             )
             return

@@ -38,9 +38,9 @@ def check_config_model_aliases() -> DiagnosticCheck:
         model_alias_bucket_names,
         model_alias_kind,
         model_alias_names,
-        model_alias_pool_members,
+        model_alias_selector_details,
         strip_model_alias_prefix,
-        validate_model_alias_pool_value,
+        validate_model_alias_selector_value,
     )
 
     config = get_llm_provider_config()
@@ -273,22 +273,63 @@ def check_config_model_aliases() -> DiagnosticCheck:
             if alias in custom_aliases
             else f"model_aliases.builtin.{alias}"
         )
-        pool_errors = validate_model_alias_pool_value(alias, target)
+        selector_errors = validate_model_alias_selector_value(alias, target)
         if "|" in target:
-            for message in pool_errors:
+            for message in selector_errors:
                 problems.append(
                     {
                         "key": target_key,
                         "message": f"{target_key}: {message}",
                     }
                 )
-            if not pool_errors:
-                for member in model_alias_pool_members(alias):
-                    if not member.available:
+            if not selector_errors:
+                selector = model_alias_selector_details(alias)
+                if selector is None:
+                    continue
+                if selector.mode == "round_robin":
+                    available = [
+                        member for member in selector.members if member.available
+                    ]
+                    if available:
+                        for member in selector.members:
+                            if member.available:
+                                continue
+                            notes.append(
+                                f"{target_key} pool member '{member.value}' is "
+                                "currently unavailable and will be skipped while "
+                                "another member is available"
+                            )
+                    else:
+                        selected = next(
+                            member for member in selector.members if member.selected
+                        )
                         notes.append(
-                            f"{target_key} pool member '{member.value}' is "
-                            "currently unavailable and will be skipped while "
-                            "another member is available"
+                            f"{target_key} has no available load-balanced pool "
+                            f"members; current member '{selected.value}' is retained "
+                            "for provider diagnostics"
+                        )
+                else:
+                    selected = next(
+                        member for member in selector.members if member.selected
+                    )
+                    available = [
+                        member for member in selector.members if member.available
+                    ]
+                    if available:
+                        for member in selector.members:
+                            if member.available:
+                                continue
+                            notes.append(
+                                f"{target_key} fallback candidate "
+                                f"'{member.value}' is currently unavailable; "
+                                "ordered fallback currently selects "
+                                f"'{selected.value}'"
+                            )
+                    else:
+                        notes.append(
+                            f"{target_key} has no available ordered fallback "
+                            f"candidates; first candidate '{selected.value}' is "
+                            "retained for provider diagnostics"
                         )
             continue
         if not target.startswith("@"):
@@ -324,8 +365,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
         summary = f"{len(problems)} model alias migration issue(s) found"
     elif notes:
         summary = (
-            "model alias config is current; "
-            f"{len(notes)} unavailable pool member(s) will be skipped"
+            f"model alias config is current; {len(notes)} selector availability note(s)"
         )
     else:
         summary = "model alias config is current"

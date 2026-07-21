@@ -29,7 +29,6 @@ def test_override_on_role_alias_changes_resolution(
             "model_aliases": {"builtin": {"default": "claude/opus"}},
         },
     )
-
     set_alias_override("coder", "codex/o3", None, source="panel")
 
     assert resolve_model_alias("coder") == "codex/o3"
@@ -63,12 +62,19 @@ def test_stale_override_on_phase_worker_has_no_builtin_effect(
             "model_aliases": {"builtin": {"default": "claude/opus"}},
         },
     )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda target: target.startswith("claude/"),
+    )
 
     set_alias_override("phase_worker", "codex/o3", None, source="panel")
     assert resolve_model_alias("@phase_worker") == "phase_worker"
     assert resolve_model_provider("small_phase_worker") == ("claude", "opus")
     assert resolve_model_provider("medium_phase_worker") == ("claude", "opus")
-    assert resolve_model_provider("large_phase_worker") == ("claude", "opus")
+    assert resolve_model_provider("large_phase_worker") == (
+        "claude",
+        "claude-fable-5",
+    )
 
 
 def test_size_specific_phase_override_is_independent(

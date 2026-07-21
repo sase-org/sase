@@ -68,6 +68,7 @@ def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> Non
                     "small_phase_worker": "@cheaper",
                     "medium_phase_worker": "@default",
                     "large_phase_worker": "@smartest",
+                    "smartest": ("claude/claude-fable-5 || codex/gpt-5.6-sol"),
                 }
             }
         }

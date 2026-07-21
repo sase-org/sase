@@ -257,7 +257,7 @@ def test_model_aliases_warns_on_malformed_and_nested_pools(
         lambda: {
             "model_aliases": {
                 "builtin": {
-                    "cheapest": "claude/opus || codex/gpt-5.5",
+                    "cheapest": "claude/opus || || codex/gpt-5.5",
                     "medium_phase_worker": "@nested | claude/sonnet",
                 },
                 "custom": {
@@ -275,7 +275,7 @@ def test_model_aliases_warns_on_malformed_and_nested_pools(
     assert check.status == "WARN"
     messages = " ".join(row["message"] for row in check.data["problems"])
     assert "empty members" in messages
-    assert "nested pool '@nested'" in messages
+    assert "nested load-balanced pool '@nested'" in messages
 
 
 def test_model_aliases_notes_unavailable_pool_members_without_warning(
@@ -298,5 +298,55 @@ def test_model_aliases_notes_unavailable_pool_members_without_warning(
 
     assert check.status == "OK"
     assert check.data["problems"] == ()
-    assert len(check.data["notes"]) == 2
-    assert "will be skipped" in " ".join(check.details)
+    assert len(check.data["notes"]) == 1
+    assert "current member 'claude/opus@medium' is retained" in check.details[0]
+
+
+def test_model_aliases_reports_ordered_fallback_winner_as_information(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "builtin": {"smartest": ("claude/claude-fable-5 || codex/gpt-5.6-sol")}
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda target: target.startswith("codex/"),
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "OK"
+    assert check.data["problems"] == ()
+    assert check.data["notes"] == (
+        "model_aliases.builtin.smartest fallback candidate "
+        "'claude/claude-fable-5' is currently unavailable; ordered fallback "
+        "currently selects 'codex/gpt-5.6-sol'",
+    )
+
+
+def test_model_aliases_reports_all_unavailable_fallback_diagnostic_choice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "builtin": {"smartest": ("claude/claude-fable-5 || codex/gpt-5.6-sol")}
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: False,
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "OK"
+    assert check.data["problems"] == ()
+    assert "first candidate 'claude/claude-fable-5' is retained" in check.details[0]

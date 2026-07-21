@@ -207,11 +207,17 @@ def test_launch_phase_worker_override_has_no_builtin_effect(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda target: target.startswith("claude/"),
+    )
 
     overrides = {"phase_worker": "codex/o3"}
     assert resolve_model_alias("@small_phase_worker", overrides) == "claude/opus"
     assert resolve_model_alias("@medium_phase_worker", overrides) == "claude/opus"
-    assert resolve_model_alias("@large_phase_worker", overrides) == "claude/opus"
+    assert resolve_model_alias("@large_phase_worker", overrides) == (
+        "claude/claude-fable-5"
+    )
     assert resolve_model_alias("@phase_worker", overrides) == "phase_worker"
 
 

@@ -29,6 +29,10 @@ def _patch_providers(monkeypatch: pytest.MonkeyPatch) -> None:
         "sase.llm_provider.registry.registered_provider_names",
         lambda: ["claude", "codex"],
     )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
 
 
 def test_includes_default_role_provider_coder_and_user_aliases(
@@ -62,10 +66,26 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["medium_phase_worker"].kind == "role"
     assert by_name["large_phase_worker"].kind == "role"
     assert by_name["smartest"].kind == "role"
+    assert by_name["smartest"].configured is False
+    assert by_name["smartest"].configured_source is None
+    assert by_name["smartest"].implicit_fallback is None
+    assert by_name["smartest"].implicit_value == (
+        "claude/claude-fable-5 || codex/gpt-5.6-sol"
+    )
+    assert by_name["smartest"].selector_mode == "fallback"
+    assert [member.value for member in by_name["smartest"].selector_members] == [
+        "claude/claude-fable-5",
+        "codex/gpt-5.6-sol",
+    ]
+    assert [member.selected for member in by_name["smartest"].selector_members] == [
+        True,
+        False,
+    ]
     assert by_name["cheapest"].kind == "role"
     assert by_name["cheaper"].kind == "role"
     assert by_name["cheaper"].implicit_value == ("claude/opus@medium | codex/gpt-5.5")
-    assert [member.value for member in by_name["cheaper"].pool_members] == [
+    assert by_name["cheaper"].selector_mode == "round_robin"
+    assert [member.value for member in by_name["cheaper"].selector_members] == [
         "claude/opus@medium",
         "codex/gpt-5.5",
     ]
@@ -73,7 +93,8 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["cheapest"].implicit_value == (
         "claude/sonnet | codex/gpt-5.3-codex-spark"
     )
-    assert [member.value for member in by_name["cheapest"].pool_members] == [
+    assert by_name["cheapest"].selector_mode == "round_robin"
+    assert [member.value for member in by_name["cheapest"].selector_members] == [
         "claude/sonnet",
         "codex/gpt-5.3-codex-spark",
     ]
@@ -124,6 +145,25 @@ def test_default_is_first_and_groups_are_ordered(
     assert names.index("codex_coder") < names.index("alpha")
     # user aliases come last, alphabetically
     assert names.index("alpha") < names.index("zeta")
+
+
+def test_smartest_view_selects_codex_when_claude_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    _patch_providers(monkeypatch)
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda target: target.startswith("codex/"),
+    )
+
+    smartest = {view.name: view for view in build_alias_views()}["smartest"]
+
+    assert (smartest.provider, smartest.model) == ("codex", "gpt-5.6-sol")
+    assert [member.selected for member in smartest.selector_members] == [
+        False,
+        True,
+    ]
 
 
 def test_configured_value_shadows_role_alias(

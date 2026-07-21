@@ -1,8 +1,10 @@
-"""Load-balanced model-alias pool parsing, availability, and rotation state.
+"""Model-alias selector parsing and load-balancing rotation state.
 
-Alias values may opt into a round-robin pool with ``|`` separators.  This
-module deliberately knows nothing about alias-chain resolution: callers pass
-the already-resolved provider/model target for each member when asking about
+Alias values may opt into a round-robin pool with ``|`` separators or an
+ordered fallback chain with ``||`` separators.  Parsing lives here so runtime,
+validation, diagnostics, and display callers share one grammar.  This module
+deliberately knows nothing about alias-chain resolution: callers pass the
+already-resolved provider/model target for each member when asking about
 availability, then select from the resulting boolean mask.
 
 Rotation state is machine-global and best-effort.  A missing, corrupt, locked,
@@ -21,7 +23,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
-from typing import Any
+from typing import Any, Literal
 
 from sase.core.paths import sase_home
 
@@ -30,44 +32,67 @@ _LOCK_FILENAME = "llm_lb.lock"
 _STATE_VERSION = 1
 
 
-class ModelAliasPoolError(ValueError):
-    """Raised when a pipe-separated alias value has invalid pool syntax."""
+ModelAliasSelectorMode = Literal["round_robin", "fallback"]
+
+
+class ModelAliasSelectorError(ValueError):
+    """Raised when a selector-valued alias has invalid syntax."""
 
 
 @dataclass(frozen=True, slots=True)
-class ModelAliasPool:
-    """A normalized, non-empty sequence of alias-pool members."""
+class ModelAliasSelector:
+    """A normalized selector mode and its ordered, non-empty members."""
 
+    mode: ModelAliasSelectorMode
     members: tuple[str, ...]
 
     @property
     def normalized(self) -> str:
-        """Return the canonical display/fingerprint spelling for this pool."""
-        return " | ".join(self.members)
+        """Return the canonical display/fingerprint spelling."""
+        operator = " | " if self.mode == "round_robin" else " || "
+        return operator.join(self.members)
 
     @property
     def fingerprint(self) -> str:
         """Return a stable fingerprint that changes whenever membership does."""
+        # Keep the historical round-robin fingerprint stable across the parser
+        # generalization. Fallback selectors never persist a fingerprint.
         payload = json.dumps(self.members, ensure_ascii=False, separators=(",", ":"))
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def parse_model_alias_pool(value: str) -> ModelAliasPool | None:
-    """Parse *value* when it contains pool syntax, otherwise return ``None``.
+def parse_model_alias_selector(value: str) -> ModelAliasSelector | None:
+    """Parse *value* when it contains selector syntax, else return ``None``.
 
     Whitespace around members is ignored.  Leading, trailing, or consecutive
     separators are rejected rather than silently discarding an empty member.
-    A value without ``|`` retains the historical single-target behavior.
+    Mixing ``|`` and ``||`` in one value is rejected.  A value without either
+    operator retains the historical single-target behavior.
     """
     if "|" not in value:
         return None
-    members = tuple(part.strip() for part in value.split("|"))
+
+    if "||" in value:
+        if "|" in value.replace("||", ""):
+            raise ModelAliasSelectorError(
+                "model alias values cannot mix '|' load balancing with '||' "
+                "ordered fallback"
+            )
+        mode: ModelAliasSelectorMode = "fallback"
+        operator = "||"
+        selector_name = "ordered fallback chains"
+    else:
+        mode = "round_robin"
+        operator = "|"
+        selector_name = "load-balanced alias pools"
+
+    members = tuple(part.strip() for part in value.split(operator))
     if any(not member for member in members):
-        raise ModelAliasPoolError(
-            "load-balanced alias pools cannot contain empty members; remove "
-            "leading, trailing, or consecutive '|' separators"
+        raise ModelAliasSelectorError(
+            f"{selector_name} cannot contain empty members; remove leading, "
+            f"trailing, or consecutive '{operator}' separators"
         )
-    return ModelAliasPool(members)
+    return ModelAliasSelector(mode=mode, members=members)
 
 
 def _state_path() -> Path:
@@ -186,7 +211,7 @@ def _selection_index(cursor: int, availability: Sequence[bool]) -> int:
 
 def select_model_alias_pool_member(
     alias: str,
-    pool: ModelAliasPool,
+    selector: ModelAliasSelector,
     availability: Sequence[bool],
     *,
     consume: bool = False,
@@ -198,7 +223,9 @@ def select_model_alias_pool_member(
     the unfiltered pool is retained, allowing normal provider diagnostics to
     explain why the selected launch cannot run.
     """
-    if len(availability) != len(pool.members):
+    if selector.mode != "round_robin":
+        raise ValueError("cursor selection requires a load-balanced alias pool")
+    if len(availability) != len(selector.members):
         raise ValueError("availability mask does not match alias pool")
     cleaned_alias = alias.strip()
     if not cleaned_alias:
@@ -209,14 +236,14 @@ def select_model_alias_pool_member(
             entries, changed = _read_entries_unlocked()
             entry = entries.get(cleaned_alias)
             cursor = 0
-            if entry is not None and entry.get("fingerprint") == pool.fingerprint:
+            if entry is not None and entry.get("fingerprint") == selector.fingerprint:
                 cursor = int(entry["cursor"])
             index = _selection_index(cursor, availability)
             if consume:
                 entries[cleaned_alias] = {
                     "alias": cleaned_alias,
-                    "fingerprint": pool.fingerprint,
-                    "cursor": (index + 1) % len(pool.members),
+                    "fingerprint": selector.fingerprint,
+                    "cursor": (index + 1) % len(selector.members),
                 }
                 _write_entries_unlocked(entries)
             elif changed:
@@ -226,3 +253,15 @@ def select_model_alias_pool_member(
         # Cursor accounting is advisory.  Resolution and launch diagnostics are
         # more important than surfacing a state-file/lock failure here.
         return _selection_index(0, availability)
+
+
+def select_model_alias_fallback_member(availability: Sequence[bool]) -> int:
+    """Return the first available fallback member, preserving member zero.
+
+    Ordered fallback selection is deliberately stateless.  When no provider is
+    available, member zero remains selected so normal provider diagnostics can
+    explain the failed launch.
+    """
+    if not availability:
+        raise ValueError("ordered fallback chain is empty")
+    return next((index for index, available in enumerate(availability) if available), 0)

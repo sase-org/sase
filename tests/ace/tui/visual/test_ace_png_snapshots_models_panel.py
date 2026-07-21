@@ -24,6 +24,8 @@ from sase.ace.tui.modals import ModelsPanel
 from sase.ace.tui.modals.models_panel_duration import DurationPickerModal
 from sase.ace.tui.modals.models_panel_time import OverrideUntilModal
 from sase.llm_provider import AliasView, TemporaryLLMOverride
+from sase.llm_provider.config import ModelAliasSelectorMember
+from sase.llm_provider.load_balancing import ModelAliasSelectorMode
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -59,6 +61,8 @@ def _view(
     configured_source: str | None = None,
     description: str | None = None,
     bucket: str | None = None,
+    selector_mode: ModelAliasSelectorMode | None = None,
+    selector_members: tuple[ModelAliasSelectorMember, ...] = (),
 ) -> AliasView:
     return AliasView(
         name=name,
@@ -71,6 +75,8 @@ def _view(
         configured_source=configured_source,
         description=description,
         bucket=bucket,
+        selector_mode=selector_mode,
+        selector_members=selector_members,
     )
 
 
@@ -132,8 +138,26 @@ def _calm_views() -> list[AliasView]:
             "smartest",
             "role",
             provider="claude",
-            model="opus",
+            model="claude-fable-5",
             description="Highest-capability alias for explicit use.",
+            selector_mode="fallback",
+            selector_members=(
+                ModelAliasSelectorMember(
+                    value="claude/claude-fable-5",
+                    target="claude/claude-fable-5",
+                    effort=None,
+                    provider="claude",
+                    available=True,
+                    selected=True,
+                ),
+                ModelAliasSelectorMember(
+                    value="codex/gpt-5.6-sol",
+                    target="codex/gpt-5.6-sol",
+                    effort=None,
+                    provider="codex",
+                    available=True,
+                ),
+            ),
         ),
         _view(
             "cheaper",
@@ -321,6 +345,32 @@ async def test_models_panel_default_png_snapshot(
             page,
             "models_panel_default_120x40",
             title="ACE models panel (no overrides)",
+        )
+
+
+async def test_models_panel_smartest_fallback_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        models_panel, "build_alias_views", lambda *a, **k: _calm_views()
+    )
+    monkeypatch.setattr(models_panel, "_now", lambda: _FROZEN_NOW)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(ModelsPanel())
+        await page.expect_modal("ModelsPanel")
+        await page.press("j", "j", "j", "j", "j")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_smartest_fallback_120x40",
+            title="ACE models panel (ordered smartest fallback)",
         )
 
 

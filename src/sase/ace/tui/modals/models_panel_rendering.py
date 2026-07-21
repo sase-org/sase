@@ -223,14 +223,17 @@ def description_text_for_view(view: AliasView | None) -> Text:
             f"llm_provider.model_aliases.custom.{view.name}.description",
             style=_DESCRIPTION_MISSING_STYLE,
         )
-    if view.pool_members:
+    if view.selector_members:
         if text:
             text.append("\n")
-        text.append("pool: ", style="dim")
-        for index, member in enumerate(view.pool_members):
+        label = "pool" if view.selector_mode == "round_robin" else "fallback"
+        text.append(f"{label}: ", style="dim")
+        for index, member in enumerate(view.selector_members):
             if index:
                 text.append(" · ", style="dim")
             marker = "✓" if member.available else "×"
+            if view.selector_mode == "fallback" and member.selected:
+                marker = f"→ {marker}"
             target = member.target
             if member.effort:
                 target = f"{target}@{member.effort}"
