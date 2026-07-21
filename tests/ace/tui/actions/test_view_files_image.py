@@ -68,6 +68,19 @@ class _PendingAgentDetail:
         )
 
 
+class _ReadyFamilyAgentDetail:
+    def update_display_with_hints(self, _agent: object) -> AgentHintRender:
+        return AgentHintRender(
+            file_hints={1: "/tmp/family-report.txt"},
+            tool_call_reports={},
+        )
+
+
+class _EmptyAgentDetail:
+    def update_display_with_hints(self, _agent: object) -> AgentHintRender:
+        return AgentHintRender(file_hints={}, tool_call_reports={})
+
+
 class _PendingAgentViewApp(FileViewingMixin):
     def __init__(self) -> None:
         self.agent = SimpleNamespace(cl_name="pending-agent")
@@ -112,6 +125,38 @@ def test_cold_agent_hint_render_keeps_view_mode_open_for_enrichment() -> None:
     assert app._hint_changespec_name == "pending-agent"
     assert len(app.container.mounted) == 1
     assert isinstance(app.container.mounted[0], HintInputBar)
+
+
+def test_family_with_displayed_artifact_mounts_view_hint_input() -> None:
+    app = _PendingAgentViewApp()
+    app.agent = SimpleNamespace(
+        cl_name="family",
+        is_family_container_row=True,
+    )
+    app.detail = _ReadyFamilyAgentDetail()
+
+    app._view_agent_files()
+
+    app.notify.assert_not_called()
+    app._refresh_agents_display.assert_not_called()
+    assert app._hint_mappings == {1: "/tmp/family-report.txt"}
+    assert len(app.container.mounted) == 1
+    assert isinstance(app.container.mounted[0], HintInputBar)
+
+
+def test_ordinary_agent_empty_hint_render_keeps_warning_behavior() -> None:
+    app = _PendingAgentViewApp()
+    app.detail = _EmptyAgentDetail()
+
+    app._view_agent_files()
+
+    app.notify.assert_called_once_with(
+        "No files or commits found in agent details",
+        severity="warning",
+    )
+    app._refresh_agents_display.assert_called_once_with()
+    assert not app._hint_mode_active
+    assert app.container.mounted == []
 
 
 def _commit_spec(

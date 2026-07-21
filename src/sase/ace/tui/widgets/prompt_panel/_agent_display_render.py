@@ -17,7 +17,7 @@ from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, AgentType
 from ...tools.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.lazy_syntax import LazySyntaxRenderCache, lazy_renderable
-from ...util.xprompt_syntax import highlight_prompt_text
+from ...util.xprompt_syntax import apply_xprompt_overlays, highlight_prompt_text
 from ._agent_display_attempts import (
     AgentAttemptDisplayMixin,
     render_merged_attempt_history,
@@ -51,7 +51,13 @@ from ._agent_display_header_summary import (
     get_cached_detail_header_summary,
     publish_opened_workspaces_cache,
 )
+from ._agent_display_state import HeaderHintState
 from ._agent_xprompt_highlighting import known_xprompt_skill_names
+from ._file_path_hints import (
+    FILE_PATH_RE,
+    append_text_with_file_hints,
+    resolve_agent_workspace_dir,
+)
 from ._helpers import append_section_heading, format_output
 from ._member_roster import member_jump_map_publisher_for
 
@@ -443,8 +449,13 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         *,
         panel_level: object,
         section_fold_overrides: object,
+        hint_state: HeaderHintState | None = None,
     ) -> None:
-        """Render every family section at its effective two-level fold."""
+        """Render every family section at its effective two-level fold.
+
+        ``hint_state`` only changes how already-visible content is annotated;
+        both normal and hint mode intentionally share this layout path.
+        """
         from collections.abc import Mapping
 
         from ...models.fold_state import FoldLevel
@@ -480,15 +491,30 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             )
             humanized_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
             if xprompt_level == FoldLevel.EXPANDED:
-                header_text.append_text(bounded_content_preview(humanized_xprompt))
+                xprompt = bounded_content_preview(humanized_xprompt)
             else:
-                header_text.append_text(
+                xprompt = (
                     self._render_xprompt(
                         agent,
                         raw_xprompt,
                         humanized_xprompt,
                     )
+                    if hint_state is None
+                    else Text(humanized_xprompt)
                 )
+            if hint_state is None:
+                header_text.append_text(xprompt)
+            else:
+                header_text.append_text(
+                    self._family_text_with_hints(
+                        xprompt,
+                        hint_state,
+                        workspace_dir=hint_state.workspace_dir,
+                        xprompt_agent=agent,
+                        raw_xprompt=raw_xprompt,
+                    )
+                )
+            if xprompt_level != FoldLevel.EXPANDED:
                 header_text.append("\n")
             rendered_content_section = True
 
@@ -510,11 +536,30 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
                 level=prompt_level,
             )
             if prompt_level == FoldLevel.EXPANDED:
-                header_text.append_text(
-                    bounded_content_preview(self._humanize_display_text(prompt_content))
+                prompt = bounded_content_preview(
+                    self._humanize_display_text(prompt_content)
                 )
+                if hint_state is None:
+                    header_text.append_text(prompt)
+                else:
+                    header_text.append_text(
+                        self._family_text_with_hints(
+                            prompt,
+                            hint_state,
+                            workspace_dir=hint_state.workspace_dir,
+                        )
+                    )
             else:
-                renderables.append(self._render_markdown(prompt_content))
+                if hint_state is None:
+                    renderables.append(self._render_markdown(prompt_content))
+                else:
+                    renderables.append(
+                        self._family_text_with_hints(
+                            self._humanize_display_text(prompt_content),
+                            hint_state,
+                            workspace_dir=hint_state.workspace_dir,
+                        )
+                    )
             rendered_content_section = True
 
         reply_header = Text()
@@ -544,7 +589,20 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
                         phase.run_start_time or phase.start_time,
                     )
                 )
-                renderables.append(reply_tail_preview(self._family_reply_text(phase)))
+                reply_preview = reply_tail_preview(self._family_reply_text(phase))
+                if hint_state is None:
+                    renderables.append(reply_preview)
+                else:
+                    renderables.append(
+                        self._family_text_with_hints(
+                            reply_preview,
+                            hint_state,
+                            workspace_dir=self._family_member_hint_workspace(
+                                phase,
+                                reply_preview.plain,
+                            ),
+                        )
+                    )
         else:
             renderables.append(reply_header)
             for phase in phases:
@@ -554,11 +612,131 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
                         phase.run_start_time or phase.start_time,
                     )
                 )
-                renderables.extend(
-                    render_agent_reply_content(phase, self._render_markdown)
-                )
+                if hint_state is None:
+                    renderables.extend(
+                        render_agent_reply_content(phase, self._render_markdown)
+                    )
+                else:
+                    renderables.extend(
+                        self._family_reply_renderables_with_hints(
+                            phase,
+                            hint_state,
+                        )
+                    )
 
         self.update(Group(*renderables))  # type: ignore[attr-defined]
+
+    def _family_text_with_hints(
+        self,
+        content: str | Text,
+        hint_state: HeaderHintState,
+        *,
+        workspace_dir: str | None,
+        xprompt_agent: Agent | None = None,
+        raw_xprompt: str | None = None,
+    ) -> Text:
+        """Return one visible family content fragment with numbered paths."""
+        source = content if isinstance(content, Text) else Text(content)
+        source_text = source.plain
+        counter = hint_state.hint_counter
+        insertions = tuple(
+            (
+                match.start(1) if match.group(1) else match.start(2),
+                len(f"[{counter + index}] "),
+            )
+            for index, match in enumerate(FILE_PATH_RE.finditer(source_text))
+        )
+        text = Text(style=source.style)
+        hint_state.hint_counter = append_text_with_file_hints(
+            text,
+            source_text,
+            hint_state.hint_counter,
+            hint_state.hint_mappings,
+            workspace_dir,
+        )
+        for span in source.spans:
+            start = span.start + sum(
+                width for position, width in insertions if position <= span.start
+            )
+            end = span.end + sum(
+                width for position, width in insertions if position < span.end
+            )
+            text.stylize(span.style, start, end)
+        if xprompt_agent is None or raw_xprompt is None:
+            return text
+
+        hint_spans = list(text.spans)
+        try:
+            apply_xprompt_overlays(
+                text,
+                text.plain,
+                known_skills=known_xprompt_skill_names(
+                    self,
+                    xprompt_agent,
+                    raw_xprompt,
+                ),
+            )
+            for span in hint_spans:
+                text.stylize(span.style, span.start, span.end)
+        except Exception:
+            pass
+        return text
+
+    @staticmethod
+    def _family_member_hint_workspace(agent: Agent, content: str) -> str | None:
+        """Resolve a phase workspace only when its visible text has a path."""
+        if FILE_PATH_RE.search(content) is None:
+            return None
+        return resolve_agent_workspace_dir(
+            agent.effective_workspace_num,
+            agent.project_file,
+            agent.workspace_dir,
+        )
+
+    def _family_reply_renderables_with_hints(
+        self,
+        agent: Agent,
+        hint_state: HeaderHintState,
+    ) -> list[object]:
+        """Render one fully-open family phase reply with phase-local hints."""
+        renderables: list[object] = []
+        chunks = agent.get_timestamped_reply_chunks()
+        if chunks:
+            for timestamp, chunk_text in chunks:
+                renderables.append(render_timestamp_divider(timestamp))
+                content = chunk_text.strip()
+                if content:
+                    content = self._humanize_display_text(content)
+                    renderables.append(
+                        self._family_text_with_hints(
+                            content,
+                            hint_state,
+                            workspace_dir=self._family_member_hint_workspace(
+                                agent,
+                                content,
+                            ),
+                        )
+                    )
+            return renderables
+
+        reply_content = (
+            agent.get_live_reply_content()
+            or agent.get_response_content()
+            or agent.get_chat_response_content()
+        )
+        if reply_content:
+            reply_content = self._humanize_display_text(reply_content)
+            renderables.append(
+                self._family_text_with_hints(
+                    reply_content,
+                    hint_state,
+                    workspace_dir=self._family_member_hint_workspace(
+                        agent,
+                        reply_content,
+                    ),
+                )
+            )
+        return renderables
 
     @staticmethod
     def _family_reply_text(agent: Agent) -> str:

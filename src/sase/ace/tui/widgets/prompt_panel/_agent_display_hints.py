@@ -17,6 +17,7 @@ from ._agent_display_content import (
     render_phase_divider,
     render_timestamp_divider,
 )
+from ._agent_display_clan import panel_fold_state_from_widget
 from ._agent_display_header import AgentHeader, build_header_text
 from ._agent_display_header_summary import (
     get_cached_detail_header_summary,
@@ -29,6 +30,7 @@ from ._file_path_hints import (
     resolve_agent_workspace_dir,
 )
 from ._helpers import append_section_heading, format_output
+from ._member_roster import member_jump_map_publisher_for
 
 
 def _render_reply_with_hints(
@@ -122,13 +124,6 @@ class AgentHintsDisplayMixin:
             self.update_display(agent)  # type: ignore[attr-defined]
             return AgentHintRender(file_hints={}, tool_call_reports={})
 
-        # Container documents own their fold-aware rendering contract.  Their
-        # compact default must not be replaced with the regular agent's full
-        # prompt/reply path merely because file-hint mode was requested.
-        if agent.is_family_container_row:
-            self.update_display(agent)  # type: ignore[attr-defined]
-            return AgentHintRender(file_hints={}, tool_call_reports={})
-
         self._agent_hint_mode_rendered = True  # type: ignore[attr-defined]
         cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
         if callable(cancel_slow_tick):
@@ -163,15 +158,49 @@ class AgentHintsDisplayMixin:
             None,
             None,
         )
-        header_text, _ = build_header_text(
+        family_fold_level, family_fold_overrides = panel_fold_state_from_widget(self)
+        try:
+            app = self.app  # type: ignore[attr-defined]
+        except Exception:
+            app = None
+        header_text, error_tb_syntax = build_header_text(
             agent,
             hint_state=header_hint_state,
             summary=summary,
             agent_status_buckets=agent_status_buckets,
             clan_wait_member_statuses=clan_wait_member_statuses,
             slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(self),
+            family_fold_level=(
+                family_fold_level if agent.is_family_container_row else None
+            ),
+            family_section_fold_overrides=(
+                family_fold_overrides if agent.is_family_container_row else None
+            ),
+            member_jump_map_publisher=(
+                member_jump_map_publisher_for(app)
+                if agent.is_family_container_row
+                else None
+            ),
         )
         hint_counter = header_hint_state.hint_counter
+
+        if agent.is_family_container_row:
+            self._update_family_display(  # type: ignore[attr-defined]
+                agent,
+                header_text,
+                error_tb_syntax,
+                panel_level=family_fold_level,
+                section_fold_overrides=family_fold_overrides,
+                hint_state=header_hint_state,
+            )
+            if summary is None:
+                self._start_agent_detail_header_enrichment_from_context(agent)  # type: ignore[attr-defined]
+            return AgentHintRender(
+                file_hints=hint_mappings,
+                tool_call_reports=tool_call_reports,
+                commit_views=header_hint_state.commit_views,
+                header_enrichment_pending=summary is None,
+            )
 
         # Error traceback as text with hints (not Syntax)
         if agent.error_traceback:

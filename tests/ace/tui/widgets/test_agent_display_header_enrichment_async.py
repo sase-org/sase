@@ -123,6 +123,27 @@ def _phase_summary(bead_id: str) -> PhaseBeadSummary:
     )
 
 
+def _family_agent() -> Agent:
+    root = make_agent(
+        raw_suffix="family-root",
+        agent_name="family--plan",
+        agent_family="family",
+        agent_family_role="plan",
+        role_suffix="--plan",
+        plan_chain_root=True,
+    )
+    child = make_agent(
+        raw_suffix="family-child",
+        agent_name="family--code",
+        agent_family="family",
+        agent_family_role="code",
+        role_suffix="--code",
+    )
+    root.followup_agents = [child]
+    assert root.is_family_container_row
+    return root
+
+
 def test_update_display_schedules_header_enrichment_without_sync_build(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -335,6 +356,55 @@ def test_cold_hint_render_schedules_enrichment_without_sync_build(
     assert panel.worker_fn is not None
     assert result.header_enrichment_pending
     assert "Deltas:" not in plain_of(panel.captured[-1])
+
+
+def test_cold_family_hint_render_stays_active_and_gains_enriched_mapping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = _family_agent()
+    panel = _MessageHeaderEnrichmentPanel()
+    _set_context(panel, agent.identity, current=True)
+    calls: list[Agent] = []
+    summary = _DetailHeaderSummary(
+        artifact_file_paths=[
+            ArtifactFilePath(
+                display_path="family-report.txt",
+                actual_path="/tmp/family-report.txt",
+            )
+        ]
+    )
+
+    def build(agent_arg: Agent) -> _DetailHeaderSummary:
+        calls.append(agent_arg)
+        return summary
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
+        "build_detail_header_summary",
+        build,
+    )
+
+    cold = panel.update_display_with_hints(agent)
+
+    assert calls == []
+    assert cold.header_enrichment_pending
+    assert panel._agent_hint_mode_rendered
+    assert panel.worker_fn is not None
+    assert "FAMILY MEMBERS" in plain_of(panel.captured[-1])
+
+    panel.worker.result = panel.worker_fn()
+    panel._apply_agent_detail_header_enrichment_result(
+        cast(Worker[Any], panel.worker),
+        WorkerState.SUCCESS,
+    )
+    assert calls == [agent]
+    assert isinstance(panel.messages[-1], AgentDetailHeaderEnriched)
+
+    enriched = panel.update_display_with_hints(agent)
+
+    assert enriched.file_hints == {1: "/tmp/family-report.txt"}
+    assert not enriched.header_enrichment_pending
+    assert "[1] family-report.txt" in plain_of(panel.captured[-1])
 
 
 def test_hint_request_replaces_same_agent_in_flight_render_context(
