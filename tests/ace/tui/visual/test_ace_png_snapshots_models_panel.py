@@ -310,6 +310,8 @@ async def test_models_panel_default_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
 
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -335,6 +337,8 @@ async def test_models_panel_alias_picker_filtered_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         # default -> coders bucket -> epic_lander -> big_epic_lander ->
@@ -375,6 +379,8 @@ async def test_models_panel_overrides_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
 
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -401,6 +407,8 @@ async def test_models_panel_custom_builtin_warning_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         await page.press("j")
@@ -425,6 +433,8 @@ async def test_models_panel_coders_drilled_in_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         await page.press("j", "l")
@@ -449,6 +459,8 @@ async def test_models_panel_phase_worker_drilled_in_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         await page.press("j", "j", "j", "j", "l")
@@ -477,6 +489,8 @@ async def test_models_panel_bucket_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         await page.press("j", "j")
@@ -505,6 +519,8 @@ async def test_models_panel_bucket_drilled_in_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         await page.press("j", "j", "l")
@@ -525,6 +541,8 @@ async def test_models_panel_duration_picker_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(DurationPickerModal())
         await page.expect_modal("DurationPickerModal")
         await wait_for_visual_idle(page)
@@ -559,6 +577,8 @@ async def test_models_panel_override_until_png_snapshots(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         modal = OverrideUntilModal(timezone=_EASTERN, clock=_time_modal_clock)
         page.app.push_screen(modal)
         await page.expect_modal("OverrideUntilModal")

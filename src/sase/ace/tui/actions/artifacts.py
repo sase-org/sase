@@ -156,6 +156,21 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
             "plans",
         }
 
+    def _sync_active_artifacts_entry_state(self) -> None:
+        """Align footer and lazy scope setup with the visible Artifacts pane."""
+        if self.current_tab != ARTIFACTS_TAB:
+            return
+        if self.current_artifacts_subtab == "prs":
+            self._refresh_display()  # type: ignore[attr-defined]
+            return
+
+        self._ensure_artifacts_project_choices()
+        from ..widgets import KeybindingFooter
+
+        self.query_one(  # type: ignore[attr-defined]
+            "#keybinding-footer", KeybindingFooter
+        ).show_artifacts_pane()
+
     def _artifacts_entry_navigator(
         self,
         subtab: ArtifactsSubTab | None = None,

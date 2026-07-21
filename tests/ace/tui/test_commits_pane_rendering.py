@@ -169,7 +169,7 @@ async def test_commits_timeline_mounted_rows_stay_one_line_with_jump_hints(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="changespecs", size=(80, 30)) as page:
-        await page.press("]")
+        await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         timeline = pane.query_one("#commits-timeline", CommitsTimeline)

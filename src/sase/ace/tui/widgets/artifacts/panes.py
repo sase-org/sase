@@ -41,6 +41,11 @@ class ArtifactsPrsPane(ArtifactsPaneLifecycle, Horizontal):
                 classes="hidden",
             )
 
+    def on_activate(self) -> None:
+        """Restore focus to the PR surface after another pane owned it."""
+        if self.is_mounted:
+            self.query_one("#list-panel", ChangeSpecList).focus()
+
 
 _PLACEHOLDER_COPY: dict[ArtifactsSubTab, tuple[str, str, str]] = {
     "commits": (

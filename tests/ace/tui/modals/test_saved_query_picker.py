@@ -15,6 +15,8 @@ async def _open_picker(
     page: AcePage,
     queries: dict[str, str],
 ) -> SavedQueryPickerModal:
+    await page.press("4")
+    await page.expect_state("artifacts_subtab", "prs")
     page.app._saved_queries = dict(queries)
     await page.press("asterisk")
     await page.expect_modal("SavedQueryPickerModal")
@@ -187,6 +189,8 @@ async def test_malformed_cached_query_reports_error_without_crashing(
 
 async def test_focused_query_input_can_type_artifact_file_digits_and_star() -> None:
     async with AcePage(query='"feature"') as page:
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.press("slash")
         await page.expect_modal("QueryEditModal")
         query_input = page.app.screen.query_one(

@@ -66,6 +66,8 @@ async def test_config_center_edit_modal_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await _open_edit_modal(page, "timezone")
         await wait_for_visual_idle(page)
 
@@ -89,6 +91,8 @@ async def test_config_center_edit_preview_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         modal = await _open_edit_modal(page, "timezone")
         modal.query_one("#config-edit-input", SingleLineVimTextArea).text = "UTC"
         modal.action_confirm()  # plan -> preview
@@ -119,6 +123,8 @@ async def test_config_center_edit_normal_mode_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         modal = await _open_edit_modal(page, "timezone")
         editor = modal.query_one("#config-edit-input", SingleLineVimTextArea)
         editor.focus()
@@ -150,6 +156,8 @@ async def test_config_center_edit_enum_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await _open_edit_modal(page, "mode")
         await wait_for_visual_idle(page)
 
@@ -178,6 +186,8 @@ async def test_config_center_edit_object_value_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await _open_edit_modal(page, "ace.lumberjack")
         await wait_for_visual_idle(page)
 

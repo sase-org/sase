@@ -45,18 +45,14 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         prs = page.query_one_widget("#artifacts-prs-pane", ArtifactsPrsPane)
         commits = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
 
-        assert view.current_subtab == "prs"
-        assert prs.first_activation_count == 1
-        assert prs.artifacts_active is True
-
-        await page.press("]")
-        await page.expect_state("artifacts_subtab", "commits")
-
-        switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)
-        assert switcher.current == ARTIFACTS_PANE_IDS["commits"]
+        assert view.current_subtab == "commits"
+        assert prs.first_activation_count == 0
         assert prs.artifacts_active is False
         assert commits.first_activation_count == 1
         assert commits.artifacts_active is True
+
+        switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)
+        assert switcher.current == ARTIFACTS_PANE_IDS["commits"]
         assert page.app.check_action("change_status", ()) is False
         assert page.app.check_action("next_changespec", ()) is False
         assert page.app.check_action("commits_refresh", ()) is True
@@ -70,11 +66,21 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         await page.press("j")
         assert page.app.current_idx == old_idx
 
+        await page.press("]")
+        await page.expect_state("artifacts_subtab", "plans")
+        assert commits.deactivation_count == 1
+
+        await page.press("[")
+        await page.expect_state("artifacts_subtab", "commits")
+        assert commits.activation_count == 2
+
         await page.press("[")
         await page.expect_state("artifacts_subtab", "prs")
         assert page.app.check_action("commits_refresh", ()) is False
-        assert prs.activation_count == 2
-        assert commits.deactivation_count == 1
+        assert prs.activation_count == 1
+        assert commits.deactivation_count == 2
+        assert page.app.focused is not None
+        assert page.app.focused.id == "list-panel"
 
         await page.press("[")
         await page.expect_state("artifacts_subtab", "bugs")
@@ -143,15 +149,9 @@ async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
         commits = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         assert (
             strip._build_content().plain
-            == " 1 Commits  │  2 Plans  │  3 Bugs  │  4 PRS "
-        )
-
-        strip.post_message(PanelTabStrip.TabClicked("commits"))
-        await page.expect_state("artifacts_subtab", "commits")
-        assert (
-            strip._build_content().plain
             == " 1 COMMITS  │  2 Plans  │  3 Bugs  │  4 PRs "
         )
+
         commits.set_class(True, "test-selection-state")
 
         strip.post_message(PanelTabStrip.TabClicked("bugs"))
@@ -172,7 +172,7 @@ async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
         assert commits.has_class("test-selection-state")
 
 
-async def test_non_pr_panes_do_not_collect_during_pr_startup(
+async def test_first_artifacts_entry_activates_default_without_hidden_collection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
@@ -190,10 +190,62 @@ async def test_non_pr_panes_do_not_collect_during_pr_startup(
         lambda *_args, **_kwargs: calls.append("plans"),
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="agents") as page:
         await page.pause()
-        assert page.app.current_artifacts_subtab == "prs"
+        view = page.query_one_widget("#changespecs-view", ArtifactsView)
+        commits = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)
+        strip = page.query_one_widget("#artifacts-subtabs", PanelTabStrip)
+
+        assert page.app.current_artifacts_subtab == "commits"
+        assert view.current_subtab == "commits"
+        assert switcher.current == ARTIFACTS_PANE_IDS["commits"]
+        assert "1 COMMITS" in strip._build_content().plain
+        assert commits.first_activation_count == 0
+        assert commits.artifacts_active is False
         assert calls == []
+
+        await page.press("tab")
+        await page.expect_state("tab", "changespecs")
+        await page.wait_for(lambda _state: calls == ["commits"])
+
+        assert page.app.current_artifacts_subtab == "commits"
+        assert view.current_subtab == "commits"
+        assert switcher.current == ARTIFACTS_PANE_IDS["commits"]
+        assert commits.first_activation_count == 1
+        assert commits.artifacts_active is True
+        assert page.app.check_action("commits_refresh", ()) is True
+        assert page.app.check_action("change_status", ()) is False
+        assert page.query_one_widget("#keybinding-content", Static).content.plain == ""
+
+
+async def test_direct_artifacts_start_initializes_default_non_pr_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _ArtifactsProjectChoices((), (), {})
+    inventory_calls = 0
+
+    def collect() -> _ArtifactsProjectChoices:
+        nonlocal inventory_calls
+        inventory_calls += 1
+        return result
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        collect,
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        commits = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.wait_for(
+            lambda _state: page.app._artifacts_project_choices is result
+        )
+
+        assert page.app.current_artifacts_subtab == "commits"
+        assert commits.first_activation_count == 1
+        assert commits.artifacts_active is True
+        assert inventory_calls == 1
+        assert page.query_one_widget("#keybinding-content", Static).content.plain == ""
 
 
 async def test_scope_inventory_is_lazy_and_picker_updates_all_placeholders(
@@ -222,11 +274,11 @@ async def test_scope_inventory_is_lazy_and_picker_updates_all_placeholders(
         collect,
     )
 
-    async with AcePage(initial_tab="changespecs") as page:
+    async with AcePage(initial_tab="agents") as page:
         await page.pause()
         assert calls == 0
 
-        await page.press("]")
+        await page.press("tab")
         await page.wait_for(
             lambda _state: page.app._artifacts_project_choices is result
         )
@@ -297,4 +349,4 @@ def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
         "bugs": "#FF5F5F",
         "plans": "#AF87FF",
     }
-    assert view.current_subtab == "prs"
+    assert view.current_subtab == "commits"

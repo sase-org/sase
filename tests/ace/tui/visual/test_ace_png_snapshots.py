@@ -32,6 +32,8 @@ async def test_changespec_initial_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await page.expect_state("selected.name", "visual_auth")
         await wait_for_visual_idle(page)
@@ -51,6 +53,8 @@ async def test_changespec_selected_row_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await page.press("j")
         await page.expect_state("selected.name", "visual_billing")
@@ -72,6 +76,8 @@ async def test_query_edit_modal_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await page.press("slash")
         await page.expect_modal("QueryEditModal")
@@ -106,6 +112,8 @@ async def test_footer_leader_overflow_wide_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await _render_leader_footer(page)
 
         ace_png_visual.assert_page_png(
@@ -126,6 +134,8 @@ async def test_footer_leader_overflow_narrow_png_snapshot(
         query='"visual"', changespecs=changespecs(), size=(80, 30)
     ) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await _render_leader_footer(page)
 
         ace_png_visual.assert_page_png(

@@ -51,6 +51,7 @@ from .actions import (
     WorkspaceActionsMixin,
 )
 from .bindings import DEFAULT_BINDINGS
+from .artifact_tabs import DEFAULT_ARTIFACTS_SUBTAB
 from .exit_action import AceExitAction
 from .util.perf import JKPerfTimer, is_enabled as _perf_enabled
 from .widgets import (
@@ -155,7 +156,7 @@ class AceApp(
     )
     current_tab: reactive[TabName] = reactive("changespecs", recompose=False)
     current_artifacts_subtab: reactive[ArtifactsSubTab] = reactive(
-        "prs", recompose=False
+        DEFAULT_ARTIFACTS_SUBTAB, recompose=False
     )
     axe_running: reactive[bool] = reactive(False, recompose=False)
     hide_reverted: reactive[bool] = reactive(True, recompose=False)
@@ -549,13 +550,7 @@ class AceApp(
             agents_view.add_class("hidden")
             axe_view.add_class("hidden")
             changespecs_view.activate_current()
-            if self.current_artifacts_subtab == "prs":
-                self._refresh_display()
-            else:
-                self._ensure_artifacts_project_choices()
-                self.query_one(
-                    "#keybinding-footer", KeybindingFooter
-                ).show_artifacts_pane()
+            self._sync_active_artifacts_entry_state()
         elif new_tab == "agents":
             changespecs_view.add_class("hidden")
             agents_view.remove_class("hidden")
@@ -630,8 +625,4 @@ class AceApp(
         view.switch_to(new_subtab)
         if self.current_tab != ARTIFACTS_TAB:
             return
-        if new_subtab == "prs":
-            self._refresh_display()
-        else:
-            self._ensure_artifacts_project_choices()
-            self.query_one("#keybinding-footer", KeybindingFooter).show_artifacts_pane()
+        self._sync_active_artifacts_entry_state()

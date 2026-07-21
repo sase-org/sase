@@ -47,6 +47,10 @@ class StartupMountMixin:
             artifacts_view = self.query_one("#changespecs-view", ArtifactsView)
             artifacts_view.set_keymap_registry(self._keymap_registry)
             artifacts_view.set_project_scope(self.artifacts_project_scope)
+            if self.current_tab == "changespecs":
+                # The view's mount hook owns lifecycle activation; share the
+                # same footer/scope entry behavior as top-level navigation.
+                self._sync_active_artifacts_entry_state()
             if self._commits_default_query_diagnostic is not None:
                 self.notify(
                     self._commits_default_query_diagnostic,

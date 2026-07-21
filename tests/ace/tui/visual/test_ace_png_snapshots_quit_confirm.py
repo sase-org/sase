@@ -105,6 +105,8 @@ async def test_quit_confirm_modal_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
 
         page.app.push_screen(QuitConfirmModal(_tasks()))
         await page.expect_modal("QuitConfirmModal")

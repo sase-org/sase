@@ -26,6 +26,11 @@ def _search_query_plain(page: AcePage) -> str:
     return getattr(search_query_panel.render(), "plain", "")
 
 
+async def _open_prs(page: AcePage) -> None:
+    await page.press("4")
+    await page.expect_state("artifacts_subtab", "prs")
+
+
 def _assert_changespecs_onboarding_layout(page: AcePage, *, active: bool) -> None:
     changespecs_view = page.query_one_widget("#changespecs-view")
     list_container = page.query_one_widget("#list-container")
@@ -97,6 +102,7 @@ async def test_changespecs_onboarding_visible_after_empty_startup(
         initial_tab="changespecs",
     ) as page:
         await wait_for_startup(page)
+        await _open_prs(page)
         await page.expect_state("tab", "changespecs")
         await page.expect_state("total", 0)
 
@@ -121,6 +127,7 @@ async def test_changespecs_onboarding_visible_when_saved_queries_exist(
         initial_tab="changespecs",
     ) as page:
         await wait_for_startup(page)
+        await _open_prs(page)
         await page.expect_state("total", 0)
 
         onboarding = page.query_one_widget("#changespec-quickstart-panel")
@@ -139,6 +146,7 @@ async def test_changespecs_onboarding_hidden_when_changespecs_exist(
         initial_tab="changespecs",
     ) as page:
         await wait_for_startup(page)
+        await _open_prs(page)
         await page.expect_state("total", 1)
 
         onboarding = page.query_one_widget("#changespec-quickstart-panel")
@@ -157,6 +165,7 @@ async def test_changespecs_onboarding_visible_when_specs_are_filtered_out(
         initial_tab="changespecs",
     ) as page:
         await wait_for_startup(page)
+        await _open_prs(page)
         await page.expect_state("total", 0)
         assert page.app._all_changespecs
 
@@ -179,6 +188,7 @@ async def test_changespecs_onboarding_hides_after_first_changespec_arrives(
         initial_tab="changespecs",
     ) as page:
         await wait_for_startup(page)
+        await _open_prs(page)
         assert "Every PR your agents produce" in _mounted_onboarding_plain(page)
 
         page.app._apply_reloaded_changespecs(
@@ -204,6 +214,7 @@ async def test_changespecs_onboarding_reappears_after_last_changespec_disappears
         initial_tab="changespecs",
     ) as page:
         await wait_for_startup(page)
+        await _open_prs(page)
         await page.expect_state("total", 1)
 
         page.app._apply_reloaded_changespecs([], current_name="visual_first")
@@ -226,6 +237,7 @@ async def test_changespecs_onboarding_ignores_saved_query_cache_invalidates(
         initial_tab="changespecs",
     ) as page:
         await wait_for_startup(page)
+        await _open_prs(page)
         _assert_changespecs_onboarding_layout(page, active=True)
 
         assert save_query("1", '"visual"')

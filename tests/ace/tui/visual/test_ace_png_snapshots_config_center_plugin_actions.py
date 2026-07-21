@@ -63,6 +63,8 @@ async def test_config_center_plugins_install_preview_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         _highlight(pane, "nvim")  # a not-installed plugin
         await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
@@ -92,6 +94,8 @@ async def test_config_center_plugins_marked_install_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         _highlight(pane, "nvim")
         await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
@@ -120,6 +124,8 @@ async def test_config_center_plugins_not_uv_tool_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         await page.wait_for(lambda _s: pane._detail_name == "github")
         await _wait_for_plugins_detail(page, pane)
@@ -154,6 +160,8 @@ async def test_config_center_plugins_update_preview_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         _highlight(pane, "github")  # installed + update available
         await page.wait_for(lambda _s: pane._highlighted_name() == "github")
@@ -204,6 +212,8 @@ async def test_config_center_plugins_long_update_preview_png_snapshot(
         query='"visual"', changespecs=changespecs(), size=(100, 24)
     ) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         _highlight(pane, "github")
         await page.wait_for(lambda _s: pane._highlighted_name() == "github")
@@ -240,6 +250,8 @@ async def test_config_center_plugins_uninstall_preview_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         _highlight(pane, "github")  # installed
         await page.wait_for(lambda _s: pane._highlighted_name() == "github")
@@ -269,6 +281,8 @@ async def test_config_center_comprehensive_update_preview_png_snapshot(
         query='"visual"', changespecs=changespecs(), size=(120, 32)
     ) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await _open_plugins_modal(page)
         modal = PluginActionConfirmModal(
             title="Comprehensive update",

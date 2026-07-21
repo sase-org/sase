@@ -10,7 +10,7 @@ from typing import Literal
 
 ArtifactsSubTab = Literal["prs", "commits", "bugs", "plans"]
 
-DEFAULT_ARTIFACTS_SUBTAB: ArtifactsSubTab = "prs"
+DEFAULT_ARTIFACTS_SUBTAB: ArtifactsSubTab = "commits"
 ARTIFACTS_SUBTAB_ORDER: tuple[ArtifactsSubTab, ...] = (
     "commits",
     "plans",

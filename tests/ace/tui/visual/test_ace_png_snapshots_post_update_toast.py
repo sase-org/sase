@@ -11,6 +11,7 @@ from textual.widgets._toast import Toast
 from sase.ace import update_receipt
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions import update_toast
+from sase.ace.tui.actions.post_update_toast import PostUpdateToastMixin
 from sase.ace.update_receipt import (
     UpdateToastReceipt,
     UpdateVersionTransition,
@@ -93,14 +94,24 @@ async def test_post_update_toast_png_snapshot(
         "_load_update_toast_config",
         lambda: update_toast._UpdateToastConfig(post_update_toast=True),
     )
+    maybe_show_toast = PostUpdateToastMixin._maybe_show_post_update_toast
+    monkeypatch.setattr(
+        PostUpdateToastMixin,
+        "_maybe_show_post_update_toast",
+        lambda _self: None,
+    )
 
     async with AcePage(
         query='"visual"',
         changespecs=changespecs(),
         notifications=True,
     ) as page:
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        maybe_show_toast(page.app)
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
         await page.wait_for(lambda _s: _toast_is_mounted(page))
+        page.app.screen.set_focus(None)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -125,14 +136,24 @@ async def test_post_update_toast_diffstat_png_snapshot(
         "_load_update_toast_config",
         lambda: update_toast._UpdateToastConfig(post_update_toast=True),
     )
+    maybe_show_toast = PostUpdateToastMixin._maybe_show_post_update_toast
+    monkeypatch.setattr(
+        PostUpdateToastMixin,
+        "_maybe_show_post_update_toast",
+        lambda _self: None,
+    )
 
     async with AcePage(
         query='"visual"',
         changespecs=changespecs(),
         notifications=True,
     ) as page:
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        maybe_show_toast(page.app)
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
         await page.wait_for(lambda _s: _toast_is_mounted(page))
+        page.app.screen.set_focus(None)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

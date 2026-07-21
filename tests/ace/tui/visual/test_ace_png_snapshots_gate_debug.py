@@ -201,6 +201,8 @@ async def _snapshot_modal(
         changespecs=changespecs(),
     ) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         modal = GateDebugModal(_context())
         page.app.push_screen(modal)
         await page.expect_modal("GateDebugModal")

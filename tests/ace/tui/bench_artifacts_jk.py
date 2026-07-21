@@ -103,12 +103,14 @@ async def test_artifacts_subtabs_jk_p95(
         initial_tab="changespecs",
     ) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
 
         await _press_burst(page, "j")
         await _press_burst(page, "k")
         await _press_fast_navigation_bursts(page)
 
-        await page.press("]")
+        await page.press("1")
         await page.expect_state("artifacts_subtab", "commits")
         commits_pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(

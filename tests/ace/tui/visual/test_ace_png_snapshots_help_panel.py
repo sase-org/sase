@@ -41,6 +41,8 @@ async def test_help_panel_keymaps_png_snapshot(
         changespecs=changespecs(),
     ) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
 
         page.app.push_screen(
@@ -72,6 +74,8 @@ async def test_help_guide_axe_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.press("tab")
         await page.expect_state("tab", "axe")
 
@@ -103,6 +107,8 @@ async def test_help_guide_agents_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
 
@@ -136,6 +142,8 @@ async def test_help_guide_changespecs_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
 
         await _open_help_guide(

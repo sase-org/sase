@@ -84,12 +84,10 @@ class ArtifactsView(Vertical):
             yield ArtifactsPlansPane(id=ARTIFACTS_PANE_IDS["plans"])
 
     def on_mount(self) -> None:
-        # The PR pane is the only eager lifecycle. Its existing widgets are
-        # loaded by the app's established startup path.
-        prs = self._pane("prs")
-        prs.activate()
-        if getattr(self.app, "current_tab", None) != ARTIFACTS_TAB:
-            prs.deactivate()
+        # Pane work stays lazy while Artifacts is hidden. Direct-on-Artifacts
+        # startup activates the same shared selection as normal navigation.
+        if getattr(self.app, "current_tab", None) == ARTIFACTS_TAB:
+            self._pane(self._current_subtab).activate()
 
     @property
     def current_subtab(self) -> ArtifactsSubTab:

@@ -41,6 +41,8 @@ async def test_config_center_home_png_snapshot(
         size=size,
     ) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         page.app._last_admin_center_tab = resume_tab
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")

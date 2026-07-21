@@ -105,6 +105,8 @@ async def test_frontmatter_panel_populated_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, _POPULATED_PROMPT)
 
@@ -126,6 +128,8 @@ async def test_frontmatter_panel_empty_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, "")
 
@@ -147,6 +151,8 @@ async def test_frontmatter_panel_error_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, _ERROR_PROMPT)
 
@@ -168,6 +174,8 @@ async def test_frontmatter_panel_cell_edit_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         bar = await _mount_prompt_bar(page, _POPULATED_PROMPT)
         panel = await _focus_frontmatter_panel(page, bar)
         panel._select_nav(("input", "service"))
@@ -195,6 +203,8 @@ async def test_frontmatter_panel_ghost_row_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         bar = await _mount_prompt_bar(page, _POPULATED_PROMPT)
         panel = await _focus_frontmatter_panel(page, bar)
         panel._select_nav(("field", "input"))
@@ -227,6 +237,8 @@ async def test_frontmatter_panel_raw_diagnostics_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         bar = await _mount_prompt_bar(page, _POPULATED_PROMPT)
         panel = await _focus_frontmatter_panel(page, bar)
         panel._begin_raw()
@@ -261,6 +273,8 @@ async def test_frontmatter_input_item_modal_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
 
         # The structured ``input`` editor, prefilled from an existing input so
@@ -294,6 +308,8 @@ async def test_frontmatter_xprompt_item_modal_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
 
         # The structured ``xprompts`` editor, prefilled with a local helper that

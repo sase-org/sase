@@ -115,7 +115,7 @@ async def test_commits_fast_navigation_skips_day_banners_and_jumps_without_openi
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("]")
+        await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         assert len(pane.entry_targets()) == 15
@@ -297,7 +297,7 @@ async def test_non_pr_jump_history_is_isolated_and_model_changes_cancel_hints(
 
     async with AcePage(initial_tab="changespecs") as page:
         page.app._set_artifacts_project_scope("alpha", picked=True)
-        await page.press("]")
+        await page.press("1")
         commits_pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: commits_pane.result is commits)
         await page.press("apostrophe", "1")
@@ -350,7 +350,7 @@ async def test_configured_navigation_actions_route_to_non_pr_list(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("]")
+        await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         await page.press("G")

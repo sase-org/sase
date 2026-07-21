@@ -18,6 +18,7 @@ async def test_default_keys_still_work() -> None:
     """With no config override, default 'j' key navigates down."""
     with _patch_config():
         async with AcePage() as page:
+            await page.press("4")
             await page.press("j")
             await page.expect_state("idx", 1)
 
@@ -29,12 +30,14 @@ async def test_remapped_navigation_key() -> None:
     # 'B' should navigate
     with _patch_config(keymap_cfg):
         async with AcePage() as page:
+            await page.press("4")
             await page.press("B")
             await page.expect_state("idx", 1)
 
     # 'j' should no longer navigate
     with _patch_config(keymap_cfg):
         async with AcePage() as page:
+            await page.press("4")
             await page.press("j")
             await page.expect_state("idx", 0)
 

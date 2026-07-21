@@ -50,6 +50,8 @@ async def test_preview_panel_xprompt_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(PreviewPanelModal(payload))
         await page.expect_modal("PreviewPanelModal")
         await wait_for_svg_contains(page, "Review Checklist")
@@ -97,6 +99,8 @@ async def test_preview_panel_file_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(PreviewPanelModal(payload))
         await page.expect_modal("PreviewPanelModal")
         await wait_for_svg_contains(page, "Prompt text area preview fixture")
@@ -182,6 +186,8 @@ new file mode 100644
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         modal = CommitViewModal([spec, second_spec], initial_index=1)
         page.app.push_screen(modal)
         await page.expect_modal("CommitViewModal")

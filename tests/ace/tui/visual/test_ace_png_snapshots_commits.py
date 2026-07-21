@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from textual.widgets._header import HeaderIcon
 from textual.widgets import OptionList
 
 from sase.ace.testing import AcePage
@@ -44,7 +45,6 @@ async def _open_commits(
     result: commits_module.VcsLogResult,
 ) -> tuple[CommitsPane, CommitFilterBar]:
     await wait_for_startup(page)
-    await page.press("]")
     await page.expect_state("artifacts_subtab", "commits")
     pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
     await page.wait_for(lambda _state: pane.result is result)
@@ -98,7 +98,6 @@ async def test_commits_timeline_and_detail_png_snapshot(
         initial_tab="changespecs",
     ) as page:
         await wait_for_startup(page)
-        await page.press("]")
         await page.expect_state("artifacts_subtab", "commits")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
@@ -131,7 +130,6 @@ async def test_commits_empty_png_snapshot(
         initial_tab="changespecs",
     ) as page:
         await wait_for_startup(page)
-        await page.press("]")
         await page.expect_state("artifacts_subtab", "commits")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
@@ -173,6 +171,8 @@ async def test_commits_persistent_filter_small_terminal_png_snapshot(
             == "sidecar:false since:24h"
         )
         await wait_for_visual_idle(page)
+        page.app.query_one(HeaderIcon).display = True
+        await page.app.wait_for_refresh()
 
         ace_png_visual.assert_page_png(
             page,
@@ -205,7 +205,6 @@ async def test_commits_jump_hints_png_snapshot(
         initial_tab="changespecs",
     ) as page:
         await wait_for_startup(page)
-        await page.press("]")
         await page.expect_state("artifacts_subtab", "commits")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)

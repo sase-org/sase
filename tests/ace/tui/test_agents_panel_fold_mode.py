@@ -579,6 +579,8 @@ async def test_mounted_clan_fold_chords_zoom_and_changespec_isolation(
         changespecs=changespecs(),
     ) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         changespec_folds = (
             page.app.commits_collapsed,
             page.app.hooks_collapsed,

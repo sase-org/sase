@@ -46,7 +46,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("]")
+        await page.press("1")
         await page.expect_state("artifacts_subtab", "commits")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
@@ -196,7 +196,7 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("]")
+        await page.press("1")
         await page.expect_state("artifacts_subtab", "commits")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)

@@ -93,6 +93,8 @@ async def test_project_select_modal_default_png_snapshot(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await _open_modal(page)
 
         ace_png_visual.assert_page_png(
@@ -109,6 +111,8 @@ async def test_project_select_modal_filtered_png_snapshot(
     patch_startup_loaders(monkeypatch)
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await _open_modal(page)
         # The filter input auto-focuses on mount; type a query that narrows
         # the list to a single match to exercise the live count + highlight.

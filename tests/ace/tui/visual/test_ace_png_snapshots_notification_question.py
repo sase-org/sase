@@ -113,6 +113,8 @@ async def test_notification_question_summary_png_snapshot(
         changespecs=changespecs(),
     ) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(NotificationModal([notification]))
         await page.expect_modal("NotificationModal")
         await wait_for_visual_idle(page)

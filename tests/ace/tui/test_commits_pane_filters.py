@@ -50,9 +50,6 @@ async def test_custom_default_query_controls_first_collection(
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
         assert bar.display is True
         assert editor.text == "repo:plans sidecar:true limit:5"
-        assert calls == []
-
-        await page.press("]")
         await page.wait_for(lambda _state: bool(calls) and pane.result is not None)
 
         assert calls[0]["repo_filters"] == ("plans",)
@@ -68,7 +65,7 @@ async def test_commits_filter_bar_rejects_invalid_submit(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="changespecs", notifications=True) as page:
-        await page.press("]")
+        await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         bar = pane.query_one(CommitFilterBar)
@@ -101,7 +98,7 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("]")
+        await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         bar = pane.query_one(CommitFilterBar)
@@ -188,7 +185,7 @@ async def test_sidecar_filter_and_compatibility_toggle_share_collection_scope(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("]")
+        await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is narrow)
         assert calls[-1]["include_sidecars"] is False

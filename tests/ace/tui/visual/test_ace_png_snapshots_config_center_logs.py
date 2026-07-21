@@ -35,6 +35,8 @@ async def test_config_center_logs_tab_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_logs_modal(page)
         assert "Launch & Fan-out Failures" in pane._last_detail_text.plain
         assert "provider exited before writing metadata" in pane._last_detail_text.plain
@@ -59,6 +61,8 @@ async def test_config_center_logs_tab_toasts_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_logs_modal(page)
 
         await page.press("j")

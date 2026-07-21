@@ -173,6 +173,8 @@ async def test_prompt_stack_two_panes_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await _mount_prompt_bar(page, _TWO_PANE_PROMPT)
 
@@ -191,6 +193,8 @@ async def test_prompt_stack_active_upper_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, _TWO_PANE_PROMPT)
 
@@ -219,6 +223,8 @@ async def test_prompt_submit_choice_modal_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await _mount_prompt_bar(page, _TWO_PANE_PROMPT)
 
@@ -244,6 +250,8 @@ async def test_prompt_stack_compact_inactive_png_snapshot(
         query='"visual"', changespecs=changespecs(), size=(80, 30)
     ) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await _mount_prompt_bar(page, _COMPACT_PROMPT)
 
@@ -262,6 +270,8 @@ async def test_prompt_stack_completion_panel_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, _TWO_PANE_PROMPT)
 
@@ -298,6 +308,8 @@ async def test_prompt_stack_g_prefix_hints_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         indicator = page.app.query_one(
             "#stashed-prompts-indicator", StashedPromptsIndicator
@@ -333,6 +345,8 @@ async def test_prompt_search_highlight_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, _SEARCH_PROMPT)
 
@@ -366,6 +380,8 @@ async def test_prompt_xprompt_highlight_solo_light_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         page.app.theme = "textual-light"
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await _mount_prompt_bar(page, _XPROMPT_HIGHLIGHT_SOLO)
 
@@ -385,6 +401,8 @@ async def test_prompt_xprompt_highlight_stack_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await _mount_prompt_bar(page, _XPROMPT_HIGHLIGHT_STACK)
 
@@ -422,6 +440,8 @@ async def test_prompt_codeblock_highlight_solo_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         page.app.theme = theme
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await _mount_prompt_bar(page, _CODEBLOCK_HIGHLIGHT_SOLO)
 
@@ -459,6 +479,8 @@ async def test_prompt_codeblock_highlight_stack_png_snapshot(
     ) as page:
         page.app.theme = theme
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await _mount_prompt_bar(page, _CODEBLOCK_HIGHLIGHT_STACK)
 
@@ -473,6 +495,8 @@ async def test_prompt_vim_cursor_insert_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, _CURSOR_PROMPT)
         text_area = bar.active_text_area()
@@ -503,6 +527,8 @@ async def test_prompt_vim_cursor_normal_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, _CURSOR_PROMPT)
         text_area = bar.active_text_area()
@@ -534,6 +560,8 @@ async def test_prompt_vim_cursor_visual_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, _CURSOR_PROMPT)
         text_area = bar.active_text_area()
@@ -566,6 +594,8 @@ async def test_prompt_jinja_valid_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, _JINJA_VALID_PROMPT)
         text_area = bar.active_text_area()
@@ -588,6 +618,8 @@ async def test_prompt_jinja_invalid_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         bar = await _mount_prompt_bar(page, _JINJA_INVALID_PROMPT)
         text_area = bar.active_text_area()

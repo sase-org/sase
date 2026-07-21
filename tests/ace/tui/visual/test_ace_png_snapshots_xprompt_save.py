@@ -140,6 +140,8 @@ async def test_xprompt_save_create_png_snapshot(
     )
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await _open(page, modal)
         ace_png_visual.assert_page_png(
             page,
@@ -168,6 +170,8 @@ async def test_xprompt_save_collision_armed_diff_png_snapshot(
     )
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await _open(page, modal)
         identity = modal._identity()
         assert identity is not None
@@ -198,6 +202,8 @@ async def test_xprompt_save_snippet_mode_png_snapshot(
     )
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await _open(page, modal)
         modal.action_toggle_mode()
         modal.query_one("#unified-save-name", UnifiedSaveInput).value = "review_pane"
@@ -231,6 +237,8 @@ async def test_xprompt_save_no_writable_locations_png_snapshot(
     )
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
         await _open(page, modal)
         ace_png_visual.assert_page_png(
             page,

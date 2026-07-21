@@ -7,6 +7,7 @@ from textual.widgets._toast import Toast
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions import update_toast
+from sase.ace.tui.actions.update_toast import UpdateToastMixin
 from sase.updates import (
     CommitSourceSpec,
     CommitSummary,
@@ -157,6 +158,12 @@ async def test_startup_update_toast_png_snapshot(
         "get_cached_update_status",
         lambda **_kwargs: status,
     )
+    schedule_toast = UpdateToastMixin._schedule_startup_update_toast_check
+    monkeypatch.setattr(
+        UpdateToastMixin,
+        "_schedule_startup_update_toast_check",
+        lambda _self: None,
+    )
 
     async with AcePage(
         query='"visual"',
@@ -164,8 +171,12 @@ async def test_startup_update_toast_png_snapshot(
         notifications=True,
         startup_policy="real",
     ) as page:
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        schedule_toast(page.app)
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
         await page.wait_for(lambda _s: _toast_is_mounted(page))
+        page.app.screen.set_focus(None)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -197,6 +208,12 @@ async def test_startup_update_toast_grouped_commits_png_snapshot(
         "_fetch_incoming_commits",
         lambda spec, **_kwargs: _visual_incoming_commits(spec),
     )
+    schedule_toast = UpdateToastMixin._schedule_startup_update_toast_check
+    monkeypatch.setattr(
+        UpdateToastMixin,
+        "_schedule_startup_update_toast_check",
+        lambda _self: None,
+    )
 
     async with AcePage(
         query='"visual"',
@@ -204,8 +221,12 @@ async def test_startup_update_toast_grouped_commits_png_snapshot(
         notifications=True,
         startup_policy="real",
     ) as page:
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        schedule_toast(page.app)
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
         await page.wait_for(lambda _s: _toast_is_mounted(page))
+        page.app.screen.set_focus(None)
         await wait_for_visual_idle(page)
         # The wider core-rebuild badge changes the top-bar layout after the
         # toast worker lands. Force a full repaint before exporting so Textual
