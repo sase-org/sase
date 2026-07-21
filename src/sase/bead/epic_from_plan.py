@@ -5,20 +5,33 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
-from sase.bead.cli_common import auto_commit_bead_store
 from sase.bead.cli_work_handler import BeadWorkError
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType
 from sase.bead.phase_description import generated_phase_description
 from sase.bead.project import BeadProject
 
-type PlanUpdateCommitter = Callable[[Path], bool]
+type PlanUpdateCommitter = Callable[[Path, str], bool]
 type EpicWorkLauncher = Callable[[BeadProject, str], bool]
 
 
-class _EpicFromPlanError(RuntimeError):
+class EpicFromPlanError(RuntimeError):
     """Deterministic epic creation or kickoff failed."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        graph_published: bool = False,
+        state_preserved: bool = False,
+        rollback_performed: bool = False,
+        retry_requires_push: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.graph_published = graph_published
+        self.state_preserved = state_preserved
+        self.rollback_performed = rollback_performed
+        self.retry_requires_push = retry_requires_push
 
 
 @dataclass(frozen=True)
@@ -38,16 +51,16 @@ def create_and_launch_epic_from_plan(
     commit_plan_update: PlanUpdateCommitter,
     launch_work: EpicWorkLauncher,
     parent_override: str | None = None,
-    rollback_push_after_commit: bool | Literal["async"] | None = None,
 ) -> _EpicFromPlanResult:
     """Create an epic DAG, link the plan, and launch ``sase bead work``.
 
     The plan is validated again at the consumption boundary. Creation order is
     exactly frontmatter order, and dependency references are resolved through
-    the frontmatter phase IDs. Any failure before the first agent spawn removes
-    the newly-created epic (cascading to its phases), restores the plan file,
-    and records the rollback in non-in-tree bead stores. Once a runner has
-    spawned, the linked epic remains available for an explicit resume.
+    the frontmatter phase IDs. Failures before publication remove the newly
+    created epic (cascading to its phases) and restore the plan file. A failed
+    publication preserves its locally committed graph for a safe retry. Once
+    a runner has spawned, the linked epic likewise remains available for an
+    explicit resume.
     """
     from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
     from sase.sdd.plan_validate import validate_plan_file
@@ -61,14 +74,14 @@ def create_and_launch_epic_from_plan(
             for diagnostic in validation.diagnostics
             if diagnostic.is_error
         )
-        raise _EpicFromPlanError(
+        raise EpicFromPlanError(
             f"approved epic plan failed deterministic validation: {details}"
         )
 
     frontmatter, _body, _had_frontmatter = parse_frontmatter(original_content)
     existing_bead_id = frontmatter.get("bead_id")
     if existing_bead_id not in (None, ""):
-        raise _EpicFromPlanError(
+        raise EpicFromPlanError(
             f"approved epic plan already links bead_id {existing_bead_id!r}; "
             "refusing to create a duplicate epic"
         )
@@ -78,12 +91,13 @@ def create_and_launch_epic_from_plan(
         # The Rust epic schema makes this unreachable, but keeping the host
         # boundary explicit avoids creating an untitled bead if wire contracts
         # ever drift.
-        raise _EpicFromPlanError("validated epic plan is missing its title")
+        raise EpicFromPlanError("validated epic plan is missing its title")
     parent_id = selected_epic_parent_id(plan.parent_bead, parent_override)
     require_epic_parent(proj, parent_id, plan_path=plan_path)
 
     epic: Issue | None = None
     plan_link_written = False
+    plan_link_committed = False
     try:
         epic = proj.create(
             title=plan.title,
@@ -103,11 +117,6 @@ def create_and_launch_epic_from_plan(
         )
         plan_path.write_text(linked_content, encoding="utf-8")
         plan_link_written = True
-        if not commit_plan_update(plan_path):
-            raise _EpicFromPlanError(
-                f"failed to commit bead_id {epic.id} to approved plan {plan_path}"
-            )
-
         phase_by_frontmatter_id: dict[str, Issue] = {}
         phases: list[Issue] = []
         for phase_spec in plan.phases:
@@ -139,18 +148,34 @@ def create_and_launch_epic_from_plan(
             phases=tuple(phases),
             dependencies=tuple(dependencies),
         )
+        if not commit_plan_update(
+            plan_path,
+            f"Link approved epic plan to its bead: {plan_path.stem}",
+        ):
+            raise EpicFromPlanError(
+                f"failed to commit bead_id {epic.id} to approved plan {plan_path}"
+            )
+        plan_link_committed = True
         launched = launch_work(proj, epic.id)
         if not launched:
-            raise _EpicFromPlanError(
+            raise EpicFromPlanError(
                 f"automatic bead work launch for epic {epic.id} was aborted"
             )
         return result
     except Exception as exc:
-        if isinstance(exc, BeadWorkError) and exc.agents_spawned:
+        if isinstance(exc, BeadWorkError) and (
+            exc.agents_spawned or exc.preserve_epic_state
+        ):
             # A runner may already have durably claimed its bead. Removing the
-            # epic would discard the recoverable launch state, even when the
-            # partial runners were terminated during cleanup.
-            raise _EpicFromPlanError(str(exc)) from exc
+            # epic would discard the recoverable launch state. Publication
+            # failures also preserve the locally committed graph as the retry
+            # point even though their spawn boundary remains false.
+            raise EpicFromPlanError(
+                str(exc),
+                graph_published=exc.graph_published,
+                state_preserved=True,
+                retry_requires_push=exc.retry_requires_push,
+            ) from exc
 
         rollback_errors = _rollback_epic_creation(
             proj,
@@ -158,15 +183,22 @@ def create_and_launch_epic_from_plan(
             plan_path=plan_path,
             original_content=original_content,
             plan_link_written=plan_link_written,
+            plan_link_committed=plan_link_committed,
             commit_plan_update=commit_plan_update,
-            rollback_push_after_commit=rollback_push_after_commit,
         )
         detail = str(exc)
         if rollback_errors:
             detail += "; rollback also failed: " + "; ".join(rollback_errors)
-        if isinstance(exc, _EpicFromPlanError) and not rollback_errors:
-            raise
-        raise _EpicFromPlanError(detail) from exc
+        raise EpicFromPlanError(
+            detail,
+            graph_published=(
+                exc.graph_published if isinstance(exc, BeadWorkError) else False
+            ),
+            rollback_performed=True,
+            retry_requires_push=(
+                exc.retry_requires_push if isinstance(exc, BeadWorkError) else False
+            ),
+        ) from exc
 
 
 def selected_epic_parent_id(
@@ -199,7 +231,7 @@ def require_epic_parent(
     try:
         return proj.show(parent_id)
     except KeyError as exc:
-        raise _EpicFromPlanError(
+        raise EpicFromPlanError(
             f"epic plan {plan_path} names parent bead {parent_id!r}, but that "
             "bead is missing from the active store; restore the parent bead, "
             "choose another with --parent <bead-id>, or force a top-level "
@@ -227,21 +259,16 @@ def _rollback_epic_creation(
     plan_path: Path,
     original_content: str,
     plan_link_written: bool,
+    plan_link_committed: bool,
     commit_plan_update: PlanUpdateCommitter,
-    rollback_push_after_commit: bool | Literal["async"] | None,
 ) -> list[str]:
     errors: list[str] = []
     if epic is not None:
         try:
             proj.remove(epic.id)
-            message = f"chore(beads): rollback deterministic epic creation {epic.id}"
-            if rollback_push_after_commit is None:
-                auto_commit_bead_store(message)
-            else:
-                auto_commit_bead_store(
-                    message,
-                    push_after_commit=rollback_push_after_commit,
-                )
+            from sase.bead.sync import commit_epic_creation_rollback
+
+            commit_epic_creation_rollback(proj.beads_dir, epic.id)
         except Exception as exc:  # noqa: BLE001 - rollback is best effort
             errors.append(f"could not remove epic {epic.id}: {exc}")
 
@@ -250,13 +277,19 @@ def _rollback_epic_creation(
             plan_path.write_text(original_content, encoding="utf-8")
             # A false result is benign when the failed forward commit never
             # reached git; an exception still reports an incomplete rollback.
-            commit_plan_update(plan_path)
+            restored = commit_plan_update(
+                plan_path,
+                f"Restore approved epic plan after failed launch: {plan_path.stem}",
+            )
+            if plan_link_committed and not restored:
+                errors.append(f"could not commit restored approved plan {plan_path}")
         except Exception as exc:  # noqa: BLE001 - preserve the primary error
             errors.append(f"could not restore approved plan {plan_path}: {exc}")
     return errors
 
 
 __all__ = [
+    "EpicFromPlanError",
     "create_and_launch_epic_from_plan",
     "preview_parented_epic_id",
     "require_epic_parent",

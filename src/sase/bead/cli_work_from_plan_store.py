@@ -200,3 +200,53 @@ def push_store_after_launch(store: SddStore, *, no_push: bool) -> None:
             "Failed to synchronize SDD store after approved epic launch",
             exc_info=True,
         )
+
+
+def publish_epic_graph_before_launch(store: SddStore, *, no_push: bool) -> bool:
+    """Make a committed epic graph visible to detached worker workspaces.
+
+    Returns ``True`` when a remote publication completed and ``False`` when
+    the authoritative store is shared by the launch context and needs no
+    remote barrier. Unlike ordinary post-commit synchronization, publication
+    failures are fatal because workers cannot safely claim unpublished beads.
+    """
+    if not _store_requires_remote_publication(store):
+        return False
+    if no_push:
+        raise RuntimeError(
+            "--no-push cannot launch workers from this detached bead store; "
+            "the graph was committed locally and no agents were spawned. "
+            "Resume without --no-push to publish it"
+        )
+
+    from sase.bead.sync import push_bead_work_launch
+
+    outcome = push_bead_work_launch(store.kind_root("beads"))
+    if outcome.pushed:
+        return True
+    if outcome.error is not None:
+        raise RuntimeError(outcome.error)
+    raise RuntimeError(
+        "the detached bead store has no push remote; configure its remote "
+        "before launching workers"
+    )
+
+
+def publish_epic_rollback(store: SddStore) -> bool:
+    """Publish a compensating zero-spawn rollback when workers use clones."""
+    if not _store_requires_remote_publication(store):
+        return False
+
+    from sase.bead.sync import push_bead_work_launch
+
+    outcome = push_bead_work_launch(store.kind_root("beads"))
+    if outcome.pushed:
+        return True
+    if outcome.error is not None:
+        raise RuntimeError(outcome.error)
+    raise RuntimeError("the detached bead store has no push remote")
+
+
+def _store_requires_remote_publication(store: SddStore) -> bool:
+    """Return whether fresh workers obtain this store from a remote clone."""
+    return not store.is_in_tree and bool(store.remote_url)

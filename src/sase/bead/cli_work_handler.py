@@ -11,6 +11,7 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from sase.bead.cli_common import get_project
@@ -55,6 +56,11 @@ class BeadWorkError(RuntimeError):
     boundary, so plan-file callers must preserve the recoverable epic state.
     ``agents_launched`` distinguishes failures after every requested agent was
     successfully started (currently the final bead-state commit).
+
+    ``graph_published`` records that the pre-launch visibility barrier
+    completed. ``preserve_epic_state`` is reserved for failures where the
+    locally committed graph is the safe resume point even though no runner
+    spawned, such as a rejected ``--no-push`` detached-store launch.
     """
 
     def __init__(
@@ -63,16 +69,28 @@ class BeadWorkError(RuntimeError):
         *,
         agents_spawned: bool = False,
         agents_launched: bool = False,
+        graph_published: bool = False,
+        preserve_epic_state: bool = False,
+        retry_requires_push: bool = False,
     ) -> None:
         super().__init__(message)
         self.agents_spawned = agents_spawned or agents_launched
         self.agents_launched = agents_launched
+        self.graph_published = graph_published
+        self.preserve_epic_state = preserve_epic_state
+        self.retry_requires_push = retry_requires_push
 
 
-def _post_launch_commit_error(epic_id: str, exc: Exception) -> BeadWorkError:
+def _post_launch_commit_error(
+    epic_id: str,
+    exc: Exception,
+    *,
+    graph_published: bool,
+) -> BeadWorkError:
     return BeadWorkError(
         f"agents launched for epic {epic_id}, but committing bead state failed: {exc}",
         agents_launched=True,
+        graph_published=graph_published,
     )
 
 
@@ -394,6 +412,7 @@ def launch_epic_bead_work(
     yes: bool,
     no_push: bool,
     defer_push: bool = False,
+    before_agent_launch: Callable[[BeadProject, str], None] | None = None,
     timer: LaunchTimingRecorder | None = None,
 ) -> bool:
     """Run the epic bead-work path, returning whether agents were launched.
@@ -412,6 +431,7 @@ def launch_epic_bead_work(
                 yes=yes,
                 no_push=no_push,
                 defer_push=defer_push,
+                before_agent_launch=before_agent_launch,
                 timer=owned_timer,
             )
 
@@ -511,6 +531,34 @@ def launch_epic_bead_work(
             except (KeyError, NotAPlanError) as e:
                 raise BeadWorkError(str(e)) from e
 
+    graph_published = False
+    if before_agent_launch is not None:
+        try:
+            with timer.stage("graph_publication"):
+                before_agent_launch(proj, epic_id)
+            graph_published = True
+        except BeadWorkError as exc:
+            if marked_ready_this_run and not exc.preserve_epic_state:
+                rollback_work_launch(
+                    proj,
+                    epic_id,
+                    marked_ready_this_run=True,
+                    no_push=True,
+                )
+            raise
+        except Exception as exc:
+            if marked_ready_this_run:
+                rollback_work_launch(
+                    proj,
+                    epic_id,
+                    marked_ready_this_run=True,
+                    no_push=True,
+                )
+            raise BeadWorkError(
+                f"epic graph publication failed before agent launch for "
+                f"{epic_id}: {exc}"
+            ) from exc
+
     try:
         with timer.stage("agent_launch"):
             results = launch_bead_work_agents(
@@ -538,6 +586,7 @@ def launch_epic_bead_work(
             f"agent launch failed for epic {epic_id}: {e}\n"
             "For broader diagnostics, run `sase doctor -v`.",
             agents_spawned=bool(launched_results or launched_pids),
+            graph_published=graph_published,
         ) from e
 
     agent_count = sum(len(w) for w in plan.waves) + 1
@@ -555,9 +604,17 @@ def launch_epic_bead_work(
             timer=timer,
         )
     except BeadWorkLaunchCommitError as exc:
-        raise _post_launch_commit_error(epic_id, exc) from exc
+        raise _post_launch_commit_error(
+            epic_id,
+            exc,
+            graph_published=graph_published,
+        ) from exc
     except Exception as exc:
-        raise _post_launch_commit_error(epic_id, exc) from exc
+        raise _post_launch_commit_error(
+            epic_id,
+            exc,
+            graph_published=graph_published,
+        ) from exc
     return True
 
 

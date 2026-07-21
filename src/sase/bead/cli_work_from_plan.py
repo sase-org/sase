@@ -18,6 +18,8 @@ from sase.bead.cli_work_from_plan_render import (
 from sase.bead.cli_work_from_plan_store import (
     commit_plan_file as _commit_plan_file,
     epic_plan_launch_lock as _epic_plan_launch_lock,
+    publish_epic_graph_before_launch as _publish_epic_graph_before_launch,
+    publish_epic_rollback as _publish_epic_rollback,
     push_store_after_launch as _push_store_after_launch,
     require_epic_launch_store_health,
     require_plan_store_health as _require_plan_store_health,
@@ -285,7 +287,10 @@ def _work_from_plan_file_locked(
         )
 
     from sase.bead.cli_work_handler import launch_epic_bead_work
-    from sase.bead.epic_from_plan import create_and_launch_epic_from_plan
+    from sase.bead.epic_from_plan import (
+        EpicFromPlanError,
+        create_and_launch_epic_from_plan,
+    )
     from sase.sdd.plan_refs import plan_ref_for_store
 
     plan_ref = plan_ref_for_store(
@@ -295,14 +300,23 @@ def _work_from_plan_file_locked(
     )
     launched_names: tuple[str, ...] = ()
 
-    def commit_plan_link(path: Path) -> bool:
+    def commit_plan_link(path: Path, message: str) -> bool:
         return _commit_plan_file(
             store,
             workspace_dir=workspace_dir,
             plan_path=path,
             no_push=no_push,
             push_after_commit=False,
-            message=f"Link approved epic plan to its bead: {path.stem}",
+            message=message,
+        )
+
+    def publish_created_graph(project: BeadProject, epic_id: str) -> None:
+        _checkpoint_and_publish_graph(
+            store=store,
+            project=project,
+            epic_id=epic_id,
+            no_push=no_push,
+            render=render,
         )
 
     def launch_created_epic(project: BeadProject, epic_id: str) -> bool:
@@ -320,6 +334,7 @@ def _work_from_plan_file_locked(
             yes=yes,
             no_push=no_push,
             defer_push=True,
+            before_agent_launch=publish_created_graph,
         )
 
     try:
@@ -334,14 +349,28 @@ def _work_from_plan_file_locked(
                 commit_plan_update=commit_plan_link,
                 launch_work=launch_created_epic,
                 parent_override=parent,
-                rollback_push_after_commit=False,
             )
     except Exception as exc:
-        _push_store_after_launch(store, no_push=no_push)
+        retry_requires_push = False
+        detail = str(exc)
+        if isinstance(exc, EpicFromPlanError):
+            retry_requires_push = exc.retry_requires_push
+            if exc.graph_published and exc.rollback_performed:
+                try:
+                    _publish_epic_rollback(store)
+                    if render:
+                        Console().print(
+                            "[yellow]↺[/yellow] Rollback published "
+                            "after zero-spawn launch failure"
+                        )
+                except Exception as rollback_exc:
+                    detail += f"; rollback publication also failed: {rollback_exc}"
+            elif exc.graph_published and exc.state_preserved:
+                _push_store_after_launch(store, no_push=no_push)
         raise _error_with_resume(
-            str(exc),
+            detail,
             archived_path,
-            no_push=no_push,
+            no_push=no_push and not retry_requires_push,
             parent_override=parent,
         ) from exc
 
@@ -512,6 +541,19 @@ def _resume_linked_epic(
             if render:
                 Console().print(f"[cyan]↻[/cyan] Epic bead       resuming {epic_id}")
                 _render_created_beads(issue, phases, work_plan, archived_path)
+
+            def publish_resumed_graph(
+                active_project: BeadProject,
+                active_epic_id: str,
+            ) -> None:
+                _checkpoint_and_publish_graph(
+                    store=store,
+                    project=active_project,
+                    epic_id=active_epic_id,
+                    no_push=no_push,
+                    render=render,
+                )
+
             launched = launch_epic_bead_work(
                 project,
                 epic_id,
@@ -519,12 +561,24 @@ def _resume_linked_epic(
                 yes=yes,
                 no_push=no_push,
                 defer_push=True,
+                before_agent_launch=publish_resumed_graph,
             )
     except PlanFileWorkError:
         raise
     except BeadWorkError as exc:
-        _push_store_after_launch(store, no_push=no_push)
-        raise _error_with_resume(str(exc), archived_path, no_push=no_push) from exc
+        detail = str(exc)
+        if exc.graph_published and not exc.agents_spawned:
+            try:
+                _publish_epic_rollback(store)
+            except Exception as rollback_exc:
+                detail += f"; rollback publication also failed: {rollback_exc}"
+        elif exc.graph_published and exc.agents_spawned:
+            _push_store_after_launch(store, no_push=no_push)
+        raise _error_with_resume(
+            detail,
+            archived_path,
+            no_push=no_push and not exc.retry_requires_push,
+        ) from exc
     except Exception as exc:
         _push_store_after_launch(store, no_push=no_push)
         raise _error_with_resume(str(exc), archived_path, no_push=no_push) from exc
@@ -552,6 +606,45 @@ def _build_work_plan(project: BeadProject, epic_id: str) -> EpicWorkPlan:
     from sase.bead.work import build_epic_work_plan_from_beads_dir
 
     return build_epic_work_plan_from_beads_dir(project.beads_dir, epic_id)
+
+
+def _checkpoint_and_publish_graph(
+    *,
+    store: SddStore,
+    project: BeadProject,
+    epic_id: str,
+    no_push: bool,
+    render: bool,
+) -> None:
+    """Commit the complete ready graph and cross the visibility barrier."""
+    from sase.bead.cli_work_handler import BeadWorkError
+    from sase.bead.sync import bead_state_is_clean, commit_epic_graph_checkpoint
+
+    try:
+        _require_plan_store_health(store)
+        commit_epic_graph_checkpoint(project.beads_dir, epic_id)
+        if not bead_state_is_clean(project.beads_dir):
+            raise RuntimeError("bead-state changes remain uncommitted")
+    except Exception as exc:
+        raise BeadWorkError(
+            f"epic graph commit failed before agent launch for {epic_id}: {exc}"
+        ) from exc
+    if render:
+        Console().print(
+            f"[green]✓[/green] Graph committed epic {epic_id} · ready for worker claims"
+        )
+
+    try:
+        published = _publish_epic_graph_before_launch(store, no_push=no_push)
+    except Exception as exc:
+        raise BeadWorkError(
+            f"epic graph publication failed before agent launch for {epic_id}: {exc}",
+            preserve_epic_state=True,
+            retry_requires_push=no_push,
+        ) from exc
+    if render:
+        destination = "remote" if published else "shared authoritative store"
+        Console().print(f"[green]✓[/green] Graph published {epic_id} · {destination}")
 
 
 def _ordered_agent_names(plan: EpicWorkPlan) -> tuple[str, ...]:

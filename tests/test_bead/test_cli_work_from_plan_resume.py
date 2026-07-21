@@ -167,26 +167,10 @@ def test_plan_file_launch_failure_rolls_back_for_resume(
     assert "bead_id" not in frontmatter
 
 
-@pytest.mark.parametrize(
-    (
-        "no_push",
-        "expected_commit_pushes",
-        "expected_rollback_push",
-        "expected_terminal_pushes",
-    ),
-    [
-        (False, [False, False, False], False, [True]),
-        (True, [False, False, False], False, []),
-    ],
-)
-def test_plan_file_rollback_suppresses_intermediate_pushes_and_syncs_once(
+def test_zero_spawn_after_publication_commits_and_publishes_rollback(
     project_dir: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    no_push: bool,
-    expected_commit_pushes: list[bool],
-    expected_rollback_push: bool | None,
-    expected_terminal_pushes: list[bool],
 ) -> None:
     from sase.bead.cli_common import _BeadsLocation
 
@@ -199,6 +183,7 @@ def test_plan_file_rollback_suppresses_intermediate_pushes_and_syncs_once(
         storage="sidecar_repos",
         sdd_dir=sidecar,
         repo_root=sidecar,
+        remote_url="git@example.test:plans.git",
     )
     location = _BeadsLocation(
         root=sidecar,
@@ -223,26 +208,38 @@ def test_plan_file_rollback_suppresses_intermediate_pushes_and_syncs_once(
         commit_pushes.append(push_after_commit)
         return True
 
-    rollback_pushes: list[bool | None] = []
-
-    def auto_commit(_message: str, **kwargs: bool) -> None:
-        rollback_pushes.append(kwargs.get("push_after_commit"))
-
     monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", commit_store)
     monkeypatch.setattr(
-        "sase.bead.epic_from_plan.auto_commit_bead_store",
-        auto_commit,
+        "sase.bead.sync.commit_epic_graph_checkpoint",
+        lambda *_args, **_kwargs: True,
     )
-    terminal_pushes: list[bool] = []
+    publications: list[str] = []
     monkeypatch.setattr(
-        "sase.sdd._commit_store.push_sdd_store_after_commit",
-        lambda _store, *, push_after_commit: terminal_pushes.append(push_after_commit),
+        "sase.bead.cli_work_from_plan._publish_epic_graph_before_launch",
+        lambda _store, *, no_push: publications.append("graph") or True,
     )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._publish_epic_rollback",
+        lambda _store: publications.append("rollback") or True,
+    )
+
+    def fail_after_publication(
+        project: BeadProject,
+        epic_id: str,
+        **kwargs: object,
+    ) -> bool:
+        project.mark_ready_to_work(epic_id)
+        before_agent_launch = kwargs["before_agent_launch"]
+        assert callable(before_agent_launch)
+        before_agent_launch(project, epic_id)
+        raise BeadWorkError(
+            "agent launch failed",
+            graph_published=True,
+        )
+
     monkeypatch.setattr(
         "sase.bead.cli_work_handler.launch_epic_bead_work",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            BeadWorkError("agent launch failed")
-        ),
+        fail_after_publication,
     )
 
     with pytest.raises(PlanFileWorkError, match="agent launch failed"):
@@ -250,10 +247,11 @@ def test_plan_file_rollback_suppresses_intermediate_pushes_and_syncs_once(
             str(source),
             dry_run=False,
             yes=True,
-            no_push=no_push,
+            no_push=False,
             render=False,
         )
 
-    assert commit_pushes == expected_commit_pushes
-    assert rollback_pushes == [expected_rollback_push]
-    assert terminal_pushes == expected_terminal_pushes
+    assert commit_pushes == [False, False, False]
+    assert publications == ["graph", "rollback"]
+    with BeadProject(sidecar, beads_dirname="beads") as project:
+        assert project.list_issues() == []

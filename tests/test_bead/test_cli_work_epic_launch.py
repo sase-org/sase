@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from sase.bead import cli as bead_cli
+from sase.bead.cli_work_handler import BeadWorkError, launch_epic_bead_work
 from sase.bead.model import Status
 from sase.bead.project import BeadProject
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
@@ -30,6 +31,48 @@ from .cli_work_helpers import (
 )
 
 pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
+
+
+def test_prelaunch_visibility_failure_never_reaches_agent_launcher(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic_id, _phase_ids = seed_diamond(project_dir)
+    launcher_reached = False
+    barrier_observations: list[bool] = []
+
+    def unexpected_launch(*_args: object, **_kwargs: object) -> object:
+        nonlocal launcher_reached
+        launcher_reached = True
+        raise AssertionError("agent launcher crossed a failed visibility barrier")
+
+    def fail_visibility(project: BeadProject, active_epic_id: str) -> None:
+        barrier_observations.append(project.show(active_epic_id).is_ready_to_work)
+        raise BeadWorkError(
+            "graph publication failed",
+            preserve_epic_state=True,
+        )
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_bead_work_agents",
+        unexpected_launch,
+    )
+
+    with BeadProject(project_dir) as project:
+        with pytest.raises(BeadWorkError, match="graph publication failed") as excinfo:
+            launch_epic_bead_work(
+                project,
+                epic_id,
+                dry_run=False,
+                yes=True,
+                no_push=False,
+                before_agent_launch=fail_visibility,
+            )
+        assert excinfo.value.agents_spawned is False
+        assert project.show(epic_id).is_ready_to_work is True
+
+    assert barrier_observations == [True]
+    assert launcher_reached is False
 
 
 def test_work_launches_and_passes_rendered_multi_prompt(

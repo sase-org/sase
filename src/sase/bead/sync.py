@@ -81,6 +81,48 @@ def commit_bead_work_launch(
     Returns False for benign no-op cases: no git repo, no bead state, or no
     staged bead-state change after adding the store.
     """
+    del title
+    return _commit_bead_state(
+        beads_dir,
+        message=f"chore: mark bead work launched for {bead_id}",
+        auto_commit_type="bead_work",
+        op_prefix="bead.work_launch",
+    )
+
+
+def commit_epic_graph_checkpoint(beads_dir: Path, epic_id: str) -> bool:
+    """Commit the complete epic graph before any worker can be spawned.
+
+    Returns False for the same benign no-op cases as
+    :func:`commit_bead_work_launch`.  Callers that require detached workers to
+    observe the checkpoint must separately publish the resulting revision.
+    """
+    return _commit_bead_state(
+        beads_dir,
+        message=f"chore(beads): checkpoint approved epic graph {epic_id}",
+        auto_commit_type="beads",
+        op_prefix="bead.graph_checkpoint",
+    )
+
+
+def commit_epic_creation_rollback(beads_dir: Path, epic_id: str) -> bool:
+    """Commit removal of an unlaunched deterministic epic graph."""
+    return _commit_bead_state(
+        beads_dir,
+        message=f"chore(beads): rollback deterministic epic creation {epic_id}",
+        auto_commit_type="beads",
+        op_prefix="bead.graph_rollback",
+    )
+
+
+def _commit_bead_state(
+    beads_dir: Path,
+    *,
+    message: str,
+    auto_commit_type: str,
+    op_prefix: str,
+) -> bool:
+    """Commit only changed bead-state files with a stage-specific message."""
     from sase.sdd._git import run_sdd_git
     from sase.sdd._git_contention import store_git_write_lock
     from sase.sdd._repository_transaction import (
@@ -88,7 +130,6 @@ def commit_bead_work_launch(
         require_sdd_repository_health,
     )
 
-    del title
     if not beads_dir.exists():
         return False
     repo_root = _find_git_root(beads_dir)
@@ -110,7 +151,7 @@ def commit_bead_work_launch(
             ["add", "--", *files],
             cwd=repo_root,
             action=f"stage {rel_beads}",
-            op="bead.work_launch.add",
+            op=f"{op_prefix}.add",
         )
 
         diff_result = run_sdd_git(
@@ -119,7 +160,7 @@ def commit_bead_work_launch(
             capture_output=True,
             text=True,
             check=False,
-            op="bead.work_launch.diff_cached",
+            op=f"{op_prefix}.diff_cached",
         )
         if diff_result.returncode == 0:
             return False
@@ -132,15 +173,12 @@ def commit_bead_work_launch(
 
         from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
 
-        message = apply_auto_commit_type_tag(
-            f"chore: mark bead work launched for {bead_id}",
-            "bead_work",
-        )
+        message = apply_auto_commit_type_tag(message, auto_commit_type)
         _run_git_write_or_raise(
             ["commit", "-m", message, "--", *files],
             cwd=repo_root,
             action=f"commit {rel_beads}",
-            op="bead.work_launch.commit",
+            op=f"{op_prefix}.commit",
         )
     return True
 

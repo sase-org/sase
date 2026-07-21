@@ -5,13 +5,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
 from sase.bead.cli_work_from_plan import PlanFileWorkError, work_from_plan_file
 from sase.bead.project import BeadProject
 from sase.sdd.store import SddStore
+from tests.test_bead.cli_work_helpers import FakeLaunchResult
 from tests.test_bead.cli_work_from_plan_helpers import EPIC_PLAN
+from tests.test_bead.sync_test_helpers import configure_git_identity
 
 
 @pytest.fixture(autouse=True)
@@ -203,16 +206,10 @@ def test_plan_file_rejects_preserved_archive_identity_mismatch(
     assert excinfo.value.resume_command == f"sase bead work {archived} --yes"
 
 
-@pytest.mark.parametrize(
-    ("no_push", "expected_pushes"),
-    [(False, [True]), (True, [])],
-)
-def test_plan_file_success_runs_one_blocking_store_push_after_launch(
+def test_plan_file_publishes_graph_before_launch_and_reconciles_afterward(
     project_dir: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    no_push: bool,
-    expected_pushes: list[bool],
 ) -> None:
     from sase.bead.cli_common import _BeadsLocation
 
@@ -225,6 +222,7 @@ def test_plan_file_success_runs_one_blocking_store_push_after_launch(
         storage="sidecar_repos",
         sdd_dir=sidecar,
         repo_root=sidecar,
+        remote_url="git@example.test:plans.git",
     )
     location = _BeadsLocation(
         root=sidecar,
@@ -250,6 +248,10 @@ def test_plan_file_success_runs_one_blocking_store_push_after_launch(
         return True
 
     def launch(_project: BeadProject, _epic_id: str, **kwargs: object) -> bool:
+        before_agent_launch = kwargs["before_agent_launch"]
+        assert callable(before_agent_launch)
+        _project.mark_ready_to_work(_epic_id)
+        before_agent_launch(_project, _epic_id)
         events.append(("launch", (kwargs["no_push"], kwargs["defer_push"])))
         return True
 
@@ -259,15 +261,23 @@ def test_plan_file_success_runs_one_blocking_store_push_after_launch(
         launch,
     )
     monkeypatch.setattr(
-        "sase.sdd._commit_store.push_sdd_store_after_commit",
-        lambda _store, *, push_after_commit: events.append(("push", push_after_commit)),
+        "sase.bead.sync.commit_epic_graph_checkpoint",
+        lambda _beads_dir, epic_id: events.append(("graph-commit", epic_id)) or True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._publish_epic_graph_before_launch",
+        lambda _store, *, no_push: events.append(("graph-push", no_push)) or True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._push_store_after_launch",
+        lambda _store, *, no_push: events.append(("reconcile", no_push)),
     )
 
     work_from_plan_file(
         str(source),
         dry_run=False,
         yes=True,
-        no_push=no_push,
+        no_push=False,
         render=False,
     )
 
@@ -276,7 +286,293 @@ def test_plan_file_success_runs_one_blocking_store_push_after_launch(
     assert all(
         push_after_commit is False for _message, push_after_commit in commit_events
     )
-    assert ("launch", (no_push, True)) in events
-    assert [value for kind, value in events if kind == "push"] == expected_pushes
-    if expected_pushes:
-        assert events[-1] == ("push", True)
+    graph_commit = next(
+        i for i, event in enumerate(events) if event[0] == "graph-commit"
+    )
+    graph_push = next(i for i, event in enumerate(events) if event[0] == "graph-push")
+    launch_event = next(i for i, event in enumerate(events) if event[0] == "launch")
+    reconcile = next(i for i, event in enumerate(events) if event[0] == "reconcile")
+    assert graph_commit < graph_push < launch_event < reconcile
+    assert events[launch_event] == ("launch", (False, True))
+
+
+def test_detached_store_no_push_preserves_linked_graph_without_launch(
+    project_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_common import _BeadsLocation
+
+    source = project_dir / "rollout.md"
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+    sidecar = tmp_path / "plans-sidecar"
+    with BeadProject.init(sidecar, beads_dirname="beads"):
+        pass
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=sidecar,
+        repo_root=sidecar,
+        remote_url="git@example.test:plans.git",
+    )
+    location = _BeadsLocation(
+        root=sidecar,
+        beads_dirname="beads",
+        storage=store.storage,
+        store=store,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._resolve_context",
+        lambda *, dry_run: (location, store, project_dir),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._commit_plan_file",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_epic_graph_checkpoint",
+        lambda *_args, **_kwargs: True,
+    )
+    launch_reached = False
+
+    def launch(project: BeadProject, epic_id: str, **kwargs: object) -> bool:
+        nonlocal launch_reached
+        if not project.show(epic_id).is_ready_to_work:
+            project.mark_ready_to_work(epic_id)
+        before_agent_launch = kwargs["before_agent_launch"]
+        assert callable(before_agent_launch)
+        before_agent_launch(project, epic_id)
+        launch_reached = True
+        return True
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        launch,
+    )
+
+    with pytest.raises(PlanFileWorkError, match="--no-push cannot launch") as excinfo:
+        work_from_plan_file(
+            str(source),
+            dry_run=False,
+            yes=True,
+            no_push=True,
+            render=False,
+        )
+
+    assert launch_reached is False
+    assert "--no-push" not in (excinfo.value.resume_command or "")
+    archived = next(sidecar.glob("*/rollout.md"))
+    linked = _linked_bead_id(archived)
+    with BeadProject(sidecar, beads_dirname="beads") as project:
+        assert project.show(linked).is_ready_to_work is True
+        assert len(project.get_epic_children(linked)) == 3
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._publish_epic_graph_before_launch",
+        lambda _store, *, no_push: True,
+    )
+    retried = work_from_plan_file(
+        str(source),
+        dry_run=False,
+        yes=True,
+        no_push=False,
+        render=False,
+    )
+
+    assert launch_reached is True
+    assert retried.resumed is True
+    assert retried.epic_id == linked
+    with BeadProject(sidecar, beads_dirname="beads") as project:
+        assert len(project.list_issues()) == 4
+
+
+def _linked_bead_id(plan_path: Path) -> str:
+    from sase.sdd.frontmatter import parse_frontmatter
+
+    frontmatter, _body, _had_frontmatter = parse_frontmatter(
+        plan_path.read_text(encoding="utf-8")
+    )
+    return str(frontmatter["bead_id"])
+
+
+def test_synchronous_graph_push_failure_preserves_state_and_stops_launch(
+    project_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_common import _BeadsLocation
+
+    source = project_dir / "push_failure.md"
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+    sidecar = tmp_path / "plans-sidecar"
+    with BeadProject.init(sidecar, beads_dirname="beads"):
+        pass
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=sidecar,
+        repo_root=sidecar,
+        remote_url="git@example.test:plans.git",
+    )
+    location = _BeadsLocation(
+        root=sidecar,
+        beads_dirname="beads",
+        storage=store.storage,
+        store=store,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._resolve_context",
+        lambda *, dry_run: (location, store, project_dir),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._commit_plan_file",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_epic_graph_checkpoint",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        lambda _beads_dir: SimpleNamespace(
+            pushed=False,
+            skipped_no_remote=False,
+            error="git push failed: rejected",
+        ),
+    )
+    launcher_reached = False
+
+    def launch(project: BeadProject, epic_id: str, **kwargs: object) -> bool:
+        nonlocal launcher_reached
+        project.mark_ready_to_work(epic_id)
+        before_agent_launch = kwargs["before_agent_launch"]
+        assert callable(before_agent_launch)
+        before_agent_launch(project, epic_id)
+        launcher_reached = True
+        return True
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        launch,
+    )
+
+    with pytest.raises(PlanFileWorkError, match="git push failed: rejected"):
+        work_from_plan_file(
+            str(source),
+            dry_run=False,
+            yes=True,
+            no_push=False,
+            render=False,
+        )
+
+    assert launcher_reached is False
+    archived = next(sidecar.glob("*/push_failure.md"))
+    linked = _linked_bead_id(archived)
+    with BeadProject(sidecar, beads_dirname="beads") as project:
+        assert project.show(linked).is_ready_to_work is True
+        assert len(project.get_epic_children(linked)) == 3
+
+
+@pytest.mark.usefixtures("fake_cli_work_xprompts")
+def test_git_sidecar_fresh_clone_sees_complete_graph_before_launch(
+    project_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_common import _BeadsLocation
+
+    remote = tmp_path / "plans.git"
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(remote)],
+        check=True,
+        capture_output=True,
+    )
+    sidecar = tmp_path / "plans-sidecar"
+    sidecar.mkdir()
+    subprocess.run(
+        ["git", "init", "-b", "main"],
+        cwd=sidecar,
+        check=True,
+        capture_output=True,
+    )
+    configure_git_identity(sidecar)
+    with BeadProject.init(sidecar, beads_dirname="beads"):
+        pass
+    subprocess.run(["git", "add", "."], cwd=sidecar, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initialize plans sidecar"],
+        cwd=sidecar,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)],
+        cwd=sidecar,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "push", "-u", "origin", "main"],
+        cwd=sidecar,
+        check=True,
+        capture_output=True,
+    )
+
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=sidecar,
+        repo_root=sidecar,
+        remote_url=str(remote),
+    )
+    location = _BeadsLocation(
+        root=sidecar,
+        beads_dirname="beads",
+        storage=store.storage,
+        store=store,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._resolve_context",
+        lambda *, dry_run: (location, store, project_dir),
+    )
+
+    source = project_dir / "rollout.md"
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+    observed: dict[str, object] = {}
+
+    def inspect_fresh_worker_clone(
+        _query: str,
+        extra_env: object = None,
+        segment_extra_env: object = None,
+    ) -> FakeLaunchResult:
+        del extra_env, segment_extra_env
+        observer = tmp_path / "fresh-worker"
+        subprocess.run(
+            ["git", "clone", str(remote), str(observer)],
+            check=True,
+            capture_output=True,
+        )
+        archived = next(observer.glob("*/rollout.md"))
+        epic_id = _linked_bead_id(archived)
+        with BeadProject(observer, beads_dirname="beads") as project:
+            epic = project.show(epic_id)
+            phases = project.get_epic_children(epic_id)
+            observed["epic_id"] = epic_id
+            observed["phase_ids"] = tuple(phase.id for phase in phases)
+            assert epic.is_ready_to_work is True
+            assert epic.design.endswith("/rollout.md")
+            assert [len(phase.dependencies) for phase in phases] == [0, 1, 2]
+        return FakeLaunchResult()
+
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        inspect_fresh_worker_clone,
+    )
+
+    result = work_from_plan_file(
+        str(source),
+        dry_run=False,
+        yes=True,
+        no_push=False,
+        render=False,
+    )
+
+    assert observed["epic_id"] == result.epic_id
+    assert observed["phase_ids"] == result.phase_bead_ids
