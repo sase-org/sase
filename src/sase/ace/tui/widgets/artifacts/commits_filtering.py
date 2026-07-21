@@ -301,6 +301,7 @@ class CommitsFilteringMixin(_MixinBase):
             self._generation += 1
         self._live_filter_values = values
         self.filters = values
+        self.query_one(CommitFilterBar).set_query(to_query_string(values))
         if close_session:
             self._close_filter_session()
             self.query_one("#commits-timeline", CommitsTimeline).focus()
@@ -345,7 +346,9 @@ class CommitsFilteringMixin(_MixinBase):
     def _close_filter_session(self) -> None:
         if self._filter_debouncer is not None:
             self._filter_debouncer.cancel()
-        self.query_one(CommitFilterBar).close()
+        bar = self.query_one(CommitFilterBar)
+        bar.set_query(to_query_string(self.filters))
+        bar.close()
         self._filter_session_open = False
         self._filter_restore_values = None
         self._filter_restore_result = None

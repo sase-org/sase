@@ -41,8 +41,11 @@ def _entry(
     )
 
 
-def test_parse_empty_query_uses_defaults() -> None:
-    assert parse_commit_filter_query("  \t\n") == CommitLogFilterValues()
+def test_parse_empty_query_includes_sidecars() -> None:
+    values = parse_commit_filter_query("  \t\n")
+
+    assert values == CommitLogFilterValues()
+    assert values.sidecar is True
 
 
 def test_parse_every_token_kind_and_case_insensitive_keys() -> None:
@@ -157,12 +160,14 @@ def test_canonical_query_has_stable_order_and_omits_default_limit() -> None:
     )
 
     assert to_query_string(values) == (
-        'repo:sase author:"Ada Lovelace" since:7d until:2026-07-18 '
-        "sidecar:true preview timeline"
+        'repo:sase author:"Ada Lovelace" sidecar:true since:7d '
+        "until:2026-07-18 preview timeline"
     )
-    assert to_query_string(CommitLogFilterValues()) == ""
-    assert to_query_string(parse_commit_filter_query("sidecar:false")) == ""
-    assert to_query_string(CommitLogFilterValues(limit=0)) == "limit:all"
+    assert to_query_string(CommitLogFilterValues()) == "sidecar:true"
+    assert (
+        to_query_string(parse_commit_filter_query("sidecar:false")) == "sidecar:false"
+    )
+    assert to_query_string(CommitLogFilterValues(limit=0)) == "sidecar:true limit:all"
 
 
 def test_canonical_query_serializes_exclusions_and_literal_hyphens() -> None:
@@ -173,7 +178,7 @@ def test_canonical_query_serializes_exclusions_and_literal_hyphens() -> None:
 
     assert to_query_string(values) == (
         "repo:sase -repo:plans author:Ada -author:bot "
-        '"-literal" -generated -"generated rollout"'
+        'sidecar:true "-literal" -generated -"generated rollout"'
     )
 
 

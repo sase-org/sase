@@ -35,11 +35,10 @@ def build_commits_info(
     project_display_name: str | None,
     project_scope: str | None,
     all_projects: bool,
-    filters: CommitLogFilterValues,
     result: VcsLogResult | None,
     refreshing: bool,
 ) -> Text:
-    """Build the scope, filter, and collection-status header."""
+    """Build the scope and collection-status header."""
     accent = ARTIFACTS_ACCENTS["commits"]
     scope = (
         "All projects"
@@ -50,19 +49,17 @@ def build_commits_info(
     text.append(" Commits ", style=f"bold #1a1a1a on {accent}")
     text.append("  Scope ", style="dim")
     text.append(scope, style=f"bold {accent}")
-    text.append("  ·  ", style="dim")
-    text.append(
-        "Sidecars included" if filters.sidecar else "Sidecars hidden",
-        style="bold" if filters.sidecar else "dim",
-    )
-    for chip in commit_filter_chips(filters):
-        text.append("  ·  ", style="dim")
-        text.append(chip, style="dim #87D7FF")
     if refreshing:
         text.append("  ·  refreshing…", style="italic #FFD700")
     if result is not None:
         text.append("\n")
-        text.append_text(build_pretty_legend(result, filters=filters.backend_filters()))
+        text.append_text(
+            build_pretty_legend(
+                result,
+                visible_repos_only=True,
+                show_filter_summary=False,
+            )
+        )
         if result.warnings:
             text.append(
                 f"  ·  ⚠ {len(result.warnings)} warning(s)",

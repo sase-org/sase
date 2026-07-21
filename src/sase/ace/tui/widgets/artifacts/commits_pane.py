@@ -14,6 +14,7 @@ from textual.worker import Worker
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.vcs_log.models import VcsLogResult
+from sase.vcs_log.filter_query import CommitLogFilterValues, to_query_string
 
 from .commit_filter_bar import CommitFilterBar
 from .commits_collection import CommitCollector, CommitsCollectionMixin
@@ -47,11 +48,12 @@ class CommitsPane(
         *,
         collector: CommitCollector,
         diff_loader: CommitDiffLoader,
+        initial_filters: CommitLogFilterValues | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._init_artifacts_lifecycle()
-        self._init_commits_collection(collector)
+        self._init_commits_collection(collector, initial_filters=initial_filters)
         self._init_commits_filtering()
         self._init_commits_detail(diff_loader)
         self._registry = load_keymap_registry({})
@@ -80,6 +82,14 @@ class CommitsPane(
         self._filter_debouncer = DetailPanelDebouncer(
             self.app,
             delay_s=FILTER_DEBOUNCE_S,
+        )
+        bar = self.query_one(CommitFilterBar)
+        bar.set_query(to_query_string(self.filters))
+        bar.set_status(
+            None,
+            exact=False,
+            error=None,
+            coverage_label="loads lazily",
         )
 
     def on_unmount(self) -> None:
@@ -139,7 +149,6 @@ class CommitsPane(
             project_display_name=self._project_display_name,
             project_scope=self.project_scope,
             all_projects=self.all_projects,
-            filters=self.filters,
             result=self.result,
             refreshing=worker is not None and worker.is_running,
         )

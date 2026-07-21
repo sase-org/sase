@@ -97,6 +97,13 @@ def init_late_startup_state(
 
     merged = load_merged_config()
     ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
+    from ..widgets.artifacts.commit_config import resolve_commits_default_query
+
+    commits_default = resolve_commits_default_query(ace_cfg)
+    self._commits_default_filter = commits_default.values
+    self._commits_default_query_diagnostic = commits_default.diagnostic
+    if commits_default.diagnostic is not None:
+        log.warning(commits_default.diagnostic)
     updates_cfg = ace_cfg.get("updates", {}) if isinstance(ace_cfg, dict) else {}
     from .update_toast import resolve_check_interval_seconds
 

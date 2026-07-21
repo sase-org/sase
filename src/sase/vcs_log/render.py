@@ -267,13 +267,22 @@ def _legend(
     commits: tuple[AggregatedCommitWire, ...],
     colors: dict[str, str],
     filters: CommitFilters,
+    *,
+    visible_repos_only: bool = False,
+    show_filter_summary: bool = True,
 ) -> Text:
     counts: dict[str, int] = {}
     for entry in commits:
         counts[entry.repo] = counts.get(entry.repo, 0) + 1
 
     text = Text("  ")
-    for i, repo in enumerate(result.repos):
+    visible_names = frozenset(counts)
+    repos = (
+        tuple(repo for repo in result.repos if repo.name in visible_names)
+        if visible_repos_only
+        else result.repos
+    )
+    for i, repo in enumerate(repos):
         if i:
             text.append("  ·  ", style="dim")
         style = colors.get(repo.name, "")
@@ -283,7 +292,7 @@ def _legend(
         state = _remote_state(result, repo.name)
         if state.remote_ref is not None or state.ahead or state.behind:
             text.append(f"  ↑{state.ahead} ↓{state.behind}", style="dim")
-    summary = _filter_summary(filters)
+    summary = _filter_summary(filters) if show_filter_summary else ""
     if summary:
         text.append("  ·  ", style="dim")
         text.append(summary, style="dim")
@@ -293,7 +302,12 @@ def _legend(
     text.append_text(build_commit_presence("remote_only"))
     text.append("  ", style="dim")
     text.append_text(build_commit_presence("synced", repo_color="dim"))
-    remote_summary = _remote_summary(result.remote_states)
+    remote_states = (
+        tuple(state for state in result.remote_states if state.name in visible_names)
+        if visible_repos_only
+        else result.remote_states
+    )
+    remote_summary = _remote_summary(remote_states)
     if remote_summary:
         text.append("\n  ", style="dim")
         text.append(remote_summary, style="dim")
@@ -570,6 +584,8 @@ def build_pretty_legend(
     result: VcsLogResult,
     *,
     filters: CommitFilters | None = None,
+    visible_repos_only: bool = False,
+    show_filter_summary: bool = True,
 ) -> Text:
     """Build the shared Rich legend used by CLI and interactive timelines."""
     return _legend(
@@ -577,6 +593,8 @@ def build_pretty_legend(
         tuple(result.commits),
         _repo_colors(result),
         filters or CommitFilters(),
+        visible_repos_only=visible_repos_only,
+        show_filter_summary=show_filter_summary,
     )
 
 

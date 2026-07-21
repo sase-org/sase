@@ -58,7 +58,7 @@ class CommitLogFilterValues:
     until: int | None = None
     repos: tuple[str, ...] = ()
     excluded_repos: tuple[str, ...] = ()
-    sidecar: bool = False
+    sidecar: bool = True
     limit: int = DEFAULT_COMMIT_LOG_LIMIT
     text: tuple[str, ...] = ()
     excluded_text: tuple[str, ...] = ()
@@ -138,7 +138,7 @@ def parse_commit_filter_query(text: str) -> CommitLogFilterValues:
         else:
             raise _error("limit: must be a non-negative integer or 'all'", limit_token)
 
-    sidecar = False
+    sidecar = True
     if "sidecar" in singles:
         sidecar_text, sidecar_token = singles["sidecar"]
         folded = sidecar_text.casefold()
@@ -174,12 +174,11 @@ def to_query_tokens(values: CommitLogFilterValues) -> tuple[str, ...]:
     tokens.extend(
         f"-author:{quote_value(value, keyed=True)}" for value in values.excluded_authors
     )
+    tokens.append(f"sidecar:{str(values.sidecar).lower()}")
     if values.since_text:
         tokens.append(f"since:{quote_value(values.since_text, keyed=True)}")
     if values.until_text:
         tokens.append(f"until:{quote_value(values.until_text, keyed=True)}")
-    if values.sidecar:
-        tokens.append("sidecar:true")
     if values.limit != DEFAULT_COMMIT_LOG_LIMIT:
         tokens.append(f"limit:{values.limit or 'all'}")
     tokens.extend(quote_value(term, keyed=False) for term in values.text)

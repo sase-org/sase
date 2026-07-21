@@ -47,6 +47,12 @@ class StartupMountMixin:
             artifacts_view = self.query_one("#changespecs-view", ArtifactsView)
             artifacts_view.set_keymap_registry(self._keymap_registry)
             artifacts_view.set_project_scope(self.artifacts_project_scope)
+            if self._commits_default_query_diagnostic is not None:
+                self.notify(
+                    self._commits_default_query_diagnostic,
+                    severity="warning",
+                    timeout=8,
+                )
             info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)
             info_panel.set_keymap_registry(self._keymap_registry)
             try:

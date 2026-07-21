@@ -14,7 +14,8 @@ from sase.ace.tui.widgets.artifacts.commit_filter_bar import CommitFilterBar
 from sase.ace.tui.widgets.artifacts.commits_timeline import CommitsTimeline
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 import sase.ace.tui.widgets.artifacts.commits as commits_module
-from sase.vcs_log.filter_query import parse_commit_filter_query
+from sase.vcs_log.dates import parse_time_bound as _real_parse_time_bound
+from sase.vcs_log.filter_query import parse_commit_filter_query, to_query_string
 from tests.ace.tui.test_commits_pane import _DIFF, _result, _result_with_sidecar
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
@@ -26,6 +27,16 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+@pytest.fixture(autouse=True)
+def _pin_rolling_default_query_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep fixed visual commits inside the bundled rolling 24-hour query."""
+    reference = datetime(2026, 7, 7, 12, tzinfo=UTC)
+    monkeypatch.setattr(
+        "sase.vcs_log.filter_query.parse_time_bound",
+        lambda value: _real_parse_time_bound(value, now=reference),
+    )
 
 
 async def _open_commits(
@@ -57,7 +68,10 @@ async def _commit_filter_query(
         )
     )
     await page.press("enter")
-    await page.wait_for(lambda _state: not bar.display)
+    await page.wait_for(
+        lambda _state: pane.query_one("#commits-timeline", CommitsTimeline).has_focus
+    )
+    assert bar.display is True
 
 
 async def test_commits_timeline_and_detail_png_snapshot(
@@ -121,13 +135,49 @@ async def test_commits_empty_png_snapshot(
         await page.expect_state("artifacts_subtab", "commits")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
-        await wait_for_svg_contains(page, "No commits match")
+        timeline = pane.query_one("#commits-timeline", CommitsTimeline)
+        await page.wait_for(
+            lambda _state: (
+                timeline.option_count == 1
+                and "No commits match" in timeline.get_option_at_index(0).prompt.plain
+            )
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "artifacts_commits_empty_120x40",
             title="ACE Artifacts Commits empty",
+        )
+
+
+async def test_commits_persistent_filter_small_terminal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    timestamp = int(datetime(2026, 7, 6, 14, 30, tzinfo=UTC).timestamp())
+    result = _result(timestamp)
+    monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
+
+    async with AcePage(
+        query='"visual"',
+        size=(80, 24),
+        changespecs=changespecs(),
+        initial_tab="changespecs",
+    ) as page:
+        _pane, bar = await _open_commits(page, result)
+        assert (
+            bar.query_one("#commit-filter-input", SingleLineVimTextArea).text
+            == "sidecar:false since:24h"
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "artifacts_commits_persistent_filter_80x24",
+            title="ACE Artifacts Commits persistent filter at 80x24",
         )
 
 
@@ -162,7 +212,12 @@ async def test_commits_jump_hints_png_snapshot(
         await wait_for_svg_contains(page, "feat(artifacts): keep every commit")
         await page.press("apostrophe")
         await wait_for_svg_contains(page, "JUMP")
-        await wait_for_svg_contains(page, "[0]")
+        timeline = pane.query_one("#commits-timeline", CommitsTimeline)
+        await page.wait_for(
+            lambda _state: timeline.get_option_at_index(1).prompt.plain.startswith(
+                "[0]"
+            )
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -191,11 +246,12 @@ async def test_commits_filter_bar_prefilled_png_snapshot(
         query = "repo:alpha-platform-repository feat"
         await _commit_filter_query(page, pane, bar, query)
         await page.press("slash")
+        canonical = to_query_string(parse_commit_filter_query(query))
         await page.wait_for(
             lambda _state: (
                 bar.display
                 and bar.query_one("#commit-filter-input", SingleLineVimTextArea).text
-                == query
+                == canonical
             )
         )
         await wait_for_svg_contains(page, "1 match")
@@ -315,7 +371,10 @@ async def test_commits_narrowed_filter_chips_png_snapshot(
                 and pane.query_one("#commits-timeline", CommitsTimeline).has_focus
             )
         )
-        await wait_for_svg_contains(page, "repo:sase-core-foundation")
+        assert (
+            "repo:sase-core-foundation"
+            in bar.query_one("#commit-filter-input", SingleLineVimTextArea).text
+        )
         await wait_for_svg_contains(page, "fix(artifacts): preserve")
         await wait_for_visual_idle(page)
 

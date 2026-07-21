@@ -96,15 +96,19 @@ open; the second completes the jump. Hints remain case-sensitive.
 
 ### Filtering Commits and Plans
 
-Press `/` or the local `f` shortcut in Commits or Plans to open its live filter bar. Tokens from different facets
-combine with AND semantics; comma-separated and repeated values within one facet combine with OR semantics. Free-text
-terms must all match. Press `Tab` to accept the highlighted key or value completion, `Enter` to keep the query, or
-`Escape` to restore the last committed query.
+Commits keeps its effective canonical query visible above the timeline. Press `/` or the local `f` shortcut to focus
+that row for live editing; `Enter` commits the query and returns focus to the timeline, while `Escape` restores the last
+committed query and result. The row remains visible in either case. Plans uses the same live editor interaction but
+shows its row only during an edit session. Tokens from different facets combine with AND semantics; comma-separated and
+repeated values within one facet combine with OR semantics. Free-text terms must all match. Press `Tab` to accept the
+highlighted key or value completion.
 
 Commits accepts `repo:`, `author:`, `since:`, `until:`, `sidecar:`, and `limit:` plus free text matched against the
-commit subject. Sidecar repositories are hidden by default; `sidecar:true` includes the complete sidecar set, and the
-configured `d` action toggles that same canonical filter. Selecting a sidecar with `repo:` still requires
-`sidecar:true`. For example, `repo:sase author:Ada since:7d fix` shows recent SASE commits by Ada whose subjects contain
+commit subject. The bundled initial query is `sidecar:false since:24h`; it is configurable with
+`ace.artifacts.commits.default_query`, and changes take effect the next time ACE starts. An empty query includes sidecar
+repositories. Canonical rendering always includes either `sidecar:true` or `sidecar:false`, and the configured `d`
+action rewrites that same visible token. Selecting a sidecar with `repo:` therefore requires `sidecar:true`. For
+example, `repo:sase author:Ada since:7d sidecar:false fix` shows recent SASE commits by Ada whose subjects contain
 `fix`, `repo:plans sidecar:true` shows only plans-sidecar history, and `limit:all` removes the final row cap.
 
 Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, and `until:` plus free text matched across plan and
@@ -115,7 +119,7 @@ A leading unquoted `-` excludes a match. Commits can exclude repositories, autho
 kinds, statuses, tiers, projects, and text. Exclusion wins when positive and negative constraints overlap:
 `repo:sase,plans -repo:plans`, `author:Ada -author:bot`, and `status:open -status:blocked` are all valid. A comma list
 negates the whole token, so `-repo:plans,research` excludes either repository. Date bounds and `limit:` cannot be
-negated. `sidecar:` is singular and accepts only `true` or `false`; canonical queries omit the default false value.
+negated. `sidecar:` is singular and accepts only `true` or `false`; canonical queries always render its explicit value.
 Quote the whole token to search for a literal leading minus (`"-repo:plans"`); quote only the excluded value to keep
 negation active (`-"generated rollout"`). Matching remains case-insensitive, and repository/project aliases work for
 both inclusion and exclusion.

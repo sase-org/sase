@@ -14,6 +14,7 @@ from ...tab_order import ARTIFACTS_TAB
 from ..panel_tab_strip import PanelTab, PanelTabStrip
 from .bugs import ArtifactsBugsPane
 from .commits import CommitsPane
+from sase.vcs_log.filter_query import CommitLogFilterValues
 from .entry_navigation import ArtifactEntryNavigator
 from .lifecycle import ArtifactsPaneLifecycle
 from .panes import (
@@ -52,9 +53,15 @@ _DETAIL_SCROLL_IDS: dict[ArtifactsSubTab, str] = {
 class ArtifactsView(Vertical):
     """Host the PR surface and lazy artifact sibling panes."""
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        commits_default_filter: CommitLogFilterValues | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self._current_subtab: ArtifactsSubTab = DEFAULT_ARTIFACTS_SUBTAB
+        self._commits_default_filter = commits_default_filter
 
     def compose(self) -> ComposeResult:
         yield PanelTabStrip(
@@ -69,7 +76,10 @@ class ArtifactsView(Vertical):
             id="artifacts-content-switcher",
         ):
             yield ArtifactsPrsPane(id=ARTIFACTS_PANE_IDS["prs"])
-            yield CommitsPane(id=ARTIFACTS_PANE_IDS["commits"])
+            yield CommitsPane(
+                initial_filters=self._commits_default_filter,
+                id=ARTIFACTS_PANE_IDS["commits"],
+            )
             yield ArtifactsBugsPane(id=ARTIFACTS_PANE_IDS["bugs"])
             yield ArtifactsPlansPane(id=ARTIFACTS_PANE_IDS["plans"])
 

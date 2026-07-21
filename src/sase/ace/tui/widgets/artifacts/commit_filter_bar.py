@@ -60,6 +60,7 @@ class CommitFilterBar(FilterBar):
     REPEATABLE_VALUE_KINDS = frozenset(("repo", "author"))
     NEGATABLE_KEYS = frozenset(("repo", "author"))
     FREE_TEXT_HINT = "subject terms (AND)"
+    PERSISTENT = True
 
     class QueryChanged(Message):
         """The user changed the query text."""

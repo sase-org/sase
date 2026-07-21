@@ -25,7 +25,10 @@ from sase.ace.tui.widgets.artifacts.commits_collection import (
     AuthoritativeCommitSnapshot,
     snapshot_covers,
 )
-from sase.ace.tui.widgets.artifacts.commits_rendering import build_commit_detail
+from sase.ace.tui.widgets.artifacts.commits_rendering import (
+    build_commit_detail,
+    build_commits_info,
+)
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.core.vcs_log_wire import (
@@ -174,6 +177,32 @@ def test_commits_renderer_builds_compact_single_line_rows() -> None:
     assert first.overflow == "ellipsis"
 
 
+def test_commits_info_legend_only_lists_repositories_with_displayed_rows() -> None:
+    result = _result()
+    with_empty_repo = replace(
+        result,
+        repos=(*result.repos, LogRepo("empty-repo", "/tmp/empty", "linked")),
+        remote_states=(
+            *result.remote_states,
+            RepoRemoteState("empty-repo", "origin/main", 3, 2, True, 1.0),
+        ),
+    )
+    row_limited = replace(with_empty_repo, commits=with_empty_repo.commits[:1])
+
+    info = build_commits_info(
+        project_display_name=None,
+        project_scope=None,
+        all_projects=False,
+        result=row_limited,
+        refreshing=False,
+    ).plain
+
+    assert "alpha-platform-repository (1)" in info
+    assert "sase-core-foundation" not in info
+    assert "empty-repo" not in info
+    assert "↑3 ↓2" not in info
+
+
 @pytest.mark.parametrize(
     ("presence", "indicator"),
     (
@@ -311,6 +340,44 @@ async def test_commits_timeline_mounted_rows_stay_one_line_with_jump_hints(
         assert_one_line_contract()
 
 
+async def test_custom_default_query_controls_first_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _result_with_sidecar()
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {
+            "ace": {
+                "artifacts": {
+                    "commits": {"default_query": "repo:plans sidecar:true limit:5"}
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **kwargs: calls.append(kwargs) or result,
+    )
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(initial_tab="changespecs") as page:
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        bar = pane.query_one(CommitFilterBar)
+        editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
+        assert bar.display is True
+        assert editor.text == "repo:plans sidecar:true limit:5"
+        assert calls == []
+
+        await page.press("]")
+        await page.wait_for(lambda _state: bool(calls) and pane.result is not None)
+
+        assert calls[0]["repo_filters"] == ("plans",)
+        assert calls[0]["include_sidecars"] is True
+        assert calls[0]["limit"] == 5
+
+
 async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -345,9 +412,10 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         await page.wait_for(lambda _state: bool(diff_calls))
         detail = pane.query_one("#commits-detail", Static)
         footer = pane.query_one("#commits-footer", Static)
-        assert (
-            "Sidecars hidden" in pane.query_one("#commits-info", Static).content.plain
-        )
+        info = pane.query_one("#commits-info", Static).content.plain
+        assert "Sidecars hidden" not in info
+        assert "Sidecars included" not in info
+        assert "sidecar:" not in info
         assert footer.content.plain == (
             "j/k navigate  enter view  y copy  / filter  d sidecars  "
             "a all  F fetch  R refresh  p project"
@@ -357,6 +425,8 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
 
         assert calls[0]["no_fetch"] is True
         assert calls[0]["force_fetch"] is False
+        assert calls[0]["include_sidecars"] is False
+        assert calls[0]["filters"].since is not None
 
         await page.press("j")
         await page.wait_for(lambda _state: pane._selected_commit_index == 1)
@@ -365,13 +435,17 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
 
         bar = pane.query_one(CommitFilterBar)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
+        assert bar.display is True
+        assert editor.read_only is True
+        assert editor.text == "sidecar:false since:24h"
         baseline_calls = len(calls)
         await page.press("slash")
-        await page.wait_for(lambda _state: bar.display)
-        assert editor.text == ""
+        await page.wait_for(lambda _state: page.app.focused is editor)
+        assert editor.read_only is False
+        assert editor.text == "sidecar:false since:24h"
         assert page.app.focused is editor
 
-        await page.press("f", "i", "x")
+        await page.press("ctrl+u", "f", "i", "x")
         await page.wait_for(
             lambda _state: (
                 pane.result is not None
@@ -388,12 +462,20 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         )
         assert len(calls) == baseline_calls + 1
         assert calls[baseline_calls]["limit"] == 0
+        assert calls[baseline_calls]["include_sidecars"] is True
         assert all(thread_id != event_loop_thread for thread_id in collector_threads)
 
         await page.press("enter")
-        await page.wait_for(lambda _state: not bar.display)
+        await page.wait_for(
+            lambda _state: (
+                page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+            )
+        )
+        assert bar.display is True
+        assert editor.read_only is True
         assert page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
         assert pane.filters.text == ("fix",)
+        assert editor.text == "sidecar:true fix"
         assert [entry.commit.short_id for entry in pane.result.commits] == ["bbbbbbb"]
         reconciled_calls = len(calls)
         await page.pause()
@@ -402,8 +484,8 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         # The legacy `f` action opens the same inline bar. Escape restores the
         # pre-open values and cached authoritative result after a live preview.
         await page.press("f")
-        await page.wait_for(lambda _state: bar.display)
-        assert editor.text == "fix"
+        await page.wait_for(lambda _state: page.app.focused is editor)
+        assert editor.text == "sidecar:true fix"
         await page.press("ctrl+u", "f", "e", "a", "t")
         await page.wait_for(
             lambda _state: (
@@ -413,8 +495,14 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
             )
         )
         await page.press("escape")
-        await page.wait_for(lambda _state: not bar.display)
+        await page.wait_for(
+            lambda _state: (
+                page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+            )
+        )
+        assert bar.display is True
         assert pane.filters.text == ("fix",)
+        assert editor.text == "sidecar:true fix"
         assert [entry.commit.short_id for entry in pane.result.commits] == ["bbbbbbb"]
 
         await page.press("enter")
@@ -424,11 +512,10 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         await page.expect_no_modal()
 
         await page.press("d")
-        await page.wait_for(
-            lambda _state: any(call["include_sidecars"] is True for call in calls)
-        )
-        assert pane.filters.sidecar is True
-        assert "sidecar:true" in pane.query_one("#commits-info", Static).content.plain
+        await page.wait_for(lambda _state: calls[-1]["include_sidecars"] is False)
+        assert pane.filters.sidecar is False
+        assert editor.text == "sidecar:false fix"
+        assert "sidecar:" not in pane.query_one("#commits-info", Static).content.plain
         await page.press("a")
         await page.wait_for(
             lambda _state: any(call["all_projects"] is True for call in calls)
@@ -446,7 +533,8 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         await page.expect_state("artifacts_subtab", "bugs")
         await page.press("slash")
         await page.pause()
-        assert bar.display is False
+        assert bar.display is True
+        assert page.app.focused is not editor
         assert page.state["modal"] is None
 
 
@@ -463,7 +551,7 @@ async def test_commits_filter_bar_rejects_invalid_submit(
         await page.wait_for(lambda _state: pane.result is result)
         bar = pane.query_one(CommitFilterBar)
 
-        await page.press("slash", "r", "e", "p", "o")
+        await page.press("slash", "ctrl+u", "r", "e", "p", "o")
         await page.wait_for(lambda _state: pane.filters.text == ("repo",))
         await page.press("colon", "enter")
         await page.wait_for(
@@ -514,9 +602,15 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
         assert "exact" in bar.query_one("#commit-filter-status", Static).content.plain
 
         await page.press("enter")
-        await page.wait_for(lambda _state: not bar.display)
+        await page.wait_for(
+            lambda _state: (
+                page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+            )
+        )
+        assert bar.display is True
         assert pane.filters.excluded_repos == ("sase-core-foundation",)
-        assert query in pane.query_one("#commits-info", Static).content.plain
+        assert editor.text == f"{query} sidecar:true"
+        assert query not in pane.query_one("#commits-info", Static).content.plain
 
         await page.press("slash")
         editor.load_text("-author:Grace")
@@ -527,7 +621,11 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
             )
         )
         await page.press("escape")
-        await page.wait_for(lambda _state: not bar.display)
+        await page.wait_for(
+            lambda _state: (
+                page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+            )
+        )
         assert pane.filters.excluded_repos == ("sase-core-foundation",)
 
 
@@ -577,8 +675,8 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
 
 def test_sidecar_snapshot_coverage_is_directional() -> None:
     scope = (None, False)
-    narrow_values = CommitLogFilterValues()
-    broad_values = CommitLogFilterValues(sidecar=True)
+    narrow_values = CommitLogFilterValues(sidecar=False)
+    broad_values = CommitLogFilterValues()
     narrow = AuthoritativeCommitSnapshot(scope, narrow_values, 40, _result())
     broad = AuthoritativeCommitSnapshot(scope, broad_values, 40, _result_with_sidecar())
 
@@ -631,7 +729,12 @@ async def test_sidecar_filter_and_compatibility_toggle_share_collection_scope(
             )
         )
         await page.press("enter")
-        await page.wait_for(lambda _state: not bar.display)
+        await page.wait_for(
+            lambda _state: (
+                page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+            )
+        )
+        assert bar.display is True
         assert calls[-1]["include_sidecars"] is True
         assert "sidecar:true" in pane._filter_chips()
 
@@ -649,10 +752,11 @@ async def test_sidecar_filter_and_compatibility_toggle_share_collection_scope(
         )
         assert pane._selected_entry() is not None
         assert pane._selected_entry().commit.full_id == selected_sha
-        assert "sidecar:true" not in pane._filter_chips()
+        assert "sidecar:false" in pane._filter_chips()
+        assert editor.text == "sidecar:false"
 
         await page.press("slash")
-        editor.load_text("repo:plans")
+        editor.load_text("repo:plans sidecar:false")
         editor.cursor_position = len(editor.text)
         await page.wait_for(
             lambda _state: (

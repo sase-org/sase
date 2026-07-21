@@ -354,6 +354,25 @@
           "description": "Directory where ACE agent repro captures are written. Empty string uses the runtime default.",
           "default": ""
         },
+        "artifacts": {
+          "type": "object",
+          "description": "Settings for ACE Artifacts panes",
+          "additionalProperties": false,
+          "properties": {
+            "commits": {
+              "type": "object",
+              "description": "Settings for the Artifacts Commits pane",
+              "additionalProperties": false,
+              "properties": {
+                "default_query": {
+                  "type": "string",
+                  "description": "Canonical query loaded into the persistent Commits filter when ACE starts. Changes take effect in the next ACE process.",
+                  "default": "sidecar:false since:24h"
+                }
+              }
+            }
+          }
+        },
         "snippets": {
           "type": "object",
           "description": "Snippet expansions for the prompt input (trigger string to expansion text)",

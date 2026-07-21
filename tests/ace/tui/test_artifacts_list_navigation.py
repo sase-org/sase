@@ -25,7 +25,7 @@ from tests.ace.tui._artifacts_plans_helpers import (
 
 
 def _commits_result(count: int = 15) -> VcsLogResult:
-    now = int(datetime(2026, 7, 17, 12, tzinfo=UTC).timestamp())
+    now = int(datetime.now(tz=UTC).timestamp())
     commits = tuple(
         AggregatedCommitWire(
             "alpha",
@@ -34,7 +34,7 @@ def _commits_result(count: int = 15) -> VcsLogResult:
                 short_id=f"{index + 1:07x}",
                 author_name="Navigator",
                 author_email="nav@example.com",
-                timestamp=now - index * 86_400,
+                timestamp=now,
                 subject=f"commit {index + 1}",
                 body="",
                 presence="local_only",
@@ -119,7 +119,7 @@ async def test_commits_fast_navigation_skips_day_banners_and_jumps_without_openi
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         assert len(pane.entry_targets()) == 15
-        assert pane.query_one("#commits-timeline", OptionList).option_count == 30
+        assert pane.query_one("#commits-timeline", OptionList).option_count == 16
         await _assert_distance_navigation(page, pane)
         assert page.app.focused is pane.query_one("#commits-timeline", OptionList)
 
@@ -130,7 +130,7 @@ async def test_commits_fast_navigation_skips_day_banners_and_jumps_without_openi
         assert timeline.get_option_at_index(0).disabled is True
         assert "[" not in timeline.get_option_at_index(0).prompt.plain
         assert timeline.get_option_at_index(1).prompt.plain.startswith("[0] ")
-        assert timeline.get_option_at_index(3).prompt.plain.startswith("[1] ")
+        assert timeline.get_option_at_index(2).prompt.plain.startswith("[1] ")
         footer = page.query_one_widget("#keybinding-content", Static)
         assert "JUMP" in footer.content.plain
         await page.press("1")

@@ -254,12 +254,27 @@ async def test_status_renders_count_state_and_parse_error() -> None:
         assert status.has_class("error")
 
 
-async def test_close_hides_bar_and_completion() -> None:
+async def test_close_leaves_persistent_bar_visible_and_hides_completion() -> None:
     app = _FilterBarApp()
     async with app.run_test():
         bar = app.query_one(CommitFilterBar)
         bar.open("")
         bar.close()
 
-        assert bar.display is False
+        assert bar.display is True
         assert app.query_one("#commit-filter-completion", OptionList).display is False
+
+
+async def test_programmatic_query_update_does_not_emit_user_change() -> None:
+    app = _FilterBarApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(CommitFilterBar)
+
+        bar.set_query("sidecar:false since:24h")
+        await pilot.pause()
+
+        assert bar.query_one("#commit-filter-input", SingleLineVimTextArea).text == (
+            "sidecar:false since:24h"
+        )
+        assert bar.query_one("#commit-filter-completion", OptionList).display is False
+        assert app.messages == []

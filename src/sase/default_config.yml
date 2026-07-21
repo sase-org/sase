@@ -49,6 +49,9 @@ mobile_gateway:
 ace:
   repro_output_dir: ""
   snippets: {}
+  artifacts:
+    commits:
+      default_query: "sidecar:false since:24h"
   # Per-tribe Agents-tab panel display. Keys are bare tribe names (no "@").
   # The special "default" entry styles the untagged panel.
   # Empty icon strings disable an inherited default icon, while empty color

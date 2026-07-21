@@ -138,6 +138,12 @@ CommitFilterBar .filter-bar-sigil {
     color: #FFD700;
 }
 
+CommitFilterBar {
+    display: block;
+    height: 3;
+    min-height: 3;
+}
+
 CommitFilterBar .filter-bar-input,
 CommitFilterBar .filter-bar-completion {
     border: solid #FFD700;

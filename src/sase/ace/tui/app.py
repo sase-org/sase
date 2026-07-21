@@ -3,7 +3,7 @@
 import logging
 import os
 import sys
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -11,6 +11,9 @@ from textual.reactive import reactive
 from textual.widgets import Header
 
 from sase.logs import current_toast_session, record_toast
+
+if TYPE_CHECKING:
+    from sase.vcs_log.filter_query import CommitLogFilterValues
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
@@ -164,6 +167,8 @@ class AceApp(
     _current_idx: int
     _current_attempt_number: int | None
     _jk_perf: JKPerfTimer | None
+    _commits_default_filter: "CommitLogFilterValues"
+    _commits_default_query_diagnostic: str | None
 
     @property
     def current_idx(self) -> int:
@@ -436,7 +441,11 @@ class AceApp(
             yield StashedPromptsIndicator(id="stashed-prompts-indicator")
             yield NotificationIndicator(id="notification-indicator")
         with Horizontal(id="main-container"):
-            yield ArtifactsView(id="changespecs-view", classes=cs_classes)
+            yield ArtifactsView(
+                commits_default_filter=self._commits_default_filter,
+                id="changespecs-view",
+                classes=cs_classes,
+            )
             with Vertical(id="agents-view", classes=agents_classes):
                 yield AgentInfoPanel(id="agent-info-panel")
                 with Horizontal(id="agents-content"):

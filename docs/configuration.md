@@ -346,6 +346,9 @@ Configures the ACE TUI behavior. Defaults are provided by `src/sase/default_conf
 
 ```yaml
 ace:
+  artifacts:
+    commits:
+      default_query: "sidecar:false since:24h"
   tribes:
     default:
       icon: "⌂"
@@ -414,12 +417,23 @@ ace:
 
 | Field               | Type         | Default   | Description                                                                                                                                                |
 | ------------------- | ------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `artifacts`         | dict         | see below | Per-pane settings for ACE's Artifacts tab.                                                                                                                 |
 | `keymaps`           | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
 | `prompt_completion` | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
 | `repro_output_dir`  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
 | `snippets`          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
 | `tribes`            | dict         | see below | Per-tribe Agents-tab panel icons, identity colors, and initial expansion.                                                                                  |
 | `updates`           | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
+
+#### `ace.artifacts.commits`
+
+| Field           | Type | Default                   | Description                                                                                                  |
+| --------------- | ---- | ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `default_query` | str  | `sidecar:false since:24h` | Initial persistent Commits query. It is parsed at ACE startup, so configuration changes apply on next start. |
+
+The Commits pane validates this value with its live query parser. Invalid runtime configuration produces a warning and
+falls back to the bundled query. An empty configured query is valid and includes sidecars; the visible canonical row
+renders that state as `sidecar:true`. This setting is independent of the `sase vcs log` CLI's sidecar opt-in.
 
 #### `ace.tribes`
 

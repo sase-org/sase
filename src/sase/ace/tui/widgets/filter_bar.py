@@ -78,6 +78,7 @@ class FilterBar(Static):
     REPEATABLE_VALUE_KINDS: ClassVar[frozenset[str]] = frozenset()
     NEGATABLE_KEYS: ClassVar[frozenset[str]] = frozenset()
     FREE_TEXT_HINT: ClassVar[str] = ""
+    PERSISTENT: ClassVar[bool] = False
 
     class QueryChanged(Message):
         """The user changed the query text."""
@@ -105,38 +106,57 @@ class FilterBar(Static):
             tuple[str, int, tuple[tuple[str, tuple[str, ...]], ...]] | None
         ) = None
         self._programmatic_highlight = False
+        self._editing = False
         self._last_query_text = ""
         # Keep the widget out of layout even in small test apps that don't load
         # the application stylesheet.
-        self.display = False
+        self.display = self.PERSISTENT
 
     def compose(self) -> ComposeResult:
         """Compose the command line and its screen-overlay completion menu."""
         with Horizontal(id=self.ROW_ID, classes="filter-bar-row"):
             yield Static("/", id=self.SIGIL_ID, classes="filter-bar-sigil")
-            yield _FilterBarInput(id=self.INPUT_ID, classes="filter-bar-input")
+            yield _FilterBarInput(
+                id=self.INPUT_ID,
+                classes="filter-bar-input",
+                read_only=self.PERSISTENT,
+            )
             yield Static("", id=self.STATUS_ID, classes="filter-bar-status")
-        yield _FilterBarCompletionList(
+        completion = _FilterBarCompletionList(
             id=self.COMPLETION_ID,
             classes="filter-bar-completion",
         )
+        completion.display = False
+        yield completion
 
     def open(self, prefill: str) -> None:
         """Show and focus the bar with *prefill* loaded into its editor."""
         editor = self._editor()
+        self._editing = True
         self.display = True
-        self._completion_signature = None
-        self._last_query_text = prefill
-        editor.load_text(prefill)
+        editor.read_only = False
+        self.set_query(prefill)
         editor.cursor_position = len(prefill)
         editor._enter_insert_mode()
         editor.focus()
         self._refresh_completion()
 
     def close(self) -> None:
-        """Hide the bar and collapse its completion overlay."""
+        """End editing and collapse the completion overlay."""
+        self._editing = False
         self._collapse_completion()
-        self.display = False
+        editor = self._editor()
+        editor._enter_normal_mode()
+        editor.read_only = self.PERSISTENT
+        self.display = self.PERSISTENT
+
+    def set_query(self, text: str) -> None:
+        """Replace displayed text without emitting a user-edit message."""
+        self._completion_signature = None
+        self._last_query_text = text
+        editor = self._editor()
+        if editor.text != text:
+            editor.load_text(text)
 
     def set_status(
         self,
@@ -172,14 +192,15 @@ class FilterBar(Static):
             kind: _normalized_sources(values) for kind, values in sources.items()
         }
         self._completion_signature = None
-        if self.is_mounted and self.display:
+        if self.is_mounted and self._editing:
             self._refresh_completion()
 
     @on(TextArea.Changed)
     def _on_query_changed(self, event: TextArea.Changed) -> None:
         if event.text_area.id != self.INPUT_ID:
             return
-        self._refresh_completion()
+        if self._editing:
+            self._refresh_completion()
         text = event.text_area.text
         if text == self._last_query_text:
             return
@@ -188,7 +209,7 @@ class FilterBar(Static):
 
     @on(TextArea.SelectionChanged)
     def _on_cursor_moved(self, event: TextArea.SelectionChanged) -> None:
-        if event.text_area.id == self.INPUT_ID:
+        if event.text_area.id == self.INPUT_ID and self._editing:
             self._refresh_completion()
 
     @on(SingleLineVimTextArea.Submitted)
@@ -219,6 +240,9 @@ class FilterBar(Static):
         return self.query_one(f"#{self.COMPLETION_ID}", _FilterBarCompletionList)
 
     def _refresh_completion(self) -> None:
+        if not self._editing:
+            self._collapse_completion()
+            return
         editor = self._editor()
         source_signature = tuple(sorted(self._completion_sources.items()))
         signature = (editor.text, editor.cursor_position, source_signature)

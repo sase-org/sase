@@ -91,11 +91,16 @@ class CommitsCollectionMixin(_MixinBase):
 
         def _set_filter_completion_sources(self, result: VcsLogResult) -> None: ...
 
-    def _init_commits_collection(self, collector: CommitCollector) -> None:
+    def _init_commits_collection(
+        self,
+        collector: CommitCollector,
+        *,
+        initial_filters: CommitLogFilterValues | None = None,
+    ) -> None:
         self._collector = collector
         self.project_scope = None
         self.all_projects = False
-        self.filters = CommitLogFilterValues()
+        self.filters = initial_filters or CommitLogFilterValues()
         self.result = None
         self._generation = 0
         self._collection_worker = None
@@ -204,7 +209,13 @@ class CommitsCollectionMixin(_MixinBase):
         self._remember_authoritative_result(spec, result)
         displayed = self._filtered_result(result, spec.filters)
         self._display_result(displayed)
-        if self._filter_session_open:
+        if not self._filter_session_open:
+            self.query_one(CommitFilterBar).set_status(
+                len(displayed.commits),
+                exact=True,
+                error=None,
+            )
+        else:
             self._set_filter_completion_sources(result)
             if self._live_filter_values == spec.filters:
                 self.query_one(CommitFilterBar).set_status(
