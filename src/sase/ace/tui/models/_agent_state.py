@@ -182,8 +182,8 @@ class AgentState:
     agent_name: str | None = None
 
     # Precomputed name used by the Agents-tab row annotation and detail header.
-    # Plan-family root rows present the family container name while retaining
-    # their concrete persisted member name in ``agent_name``.
+    # Family root rows present the bare container name while retaining their
+    # concrete persisted member name in ``agent_name``.
     presented_agent_name: str | None = field(
         default=None,
         init=False,

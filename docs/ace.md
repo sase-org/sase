@@ -1788,9 +1788,10 @@ metadata use canonical double-dash suffixes. For example, if the initial agent w
 4. Terminal follow-ups use the phase suffix, such as `a--code`, `a--epic`, or `a--commit`.
 
 The base name (`a`) is reserved for the family as a whole, so `%wait:a` or `@a` references resolve through the family
-container. New plan-family metadata stores double-dash `role_suffix` values (`--plan`, `--2`, `--code`, ...). ACE still
-canonicalizes older dotted suffixes (`.plan`, `.2`, `.code`, etc.) and legacy single-dash suffixes (`-plan`, `-2`,
-`-code`, etc.) when reading legacy artifacts.
+container. In ACE, the aggregate family row displays that bare container name, while expanded concrete member rows keep
+their exact suffixed names (`a--0`, `a--plan`, `a--code`, and so on). New plan-family metadata stores double-dash
+`role_suffix` values (`--plan`, `--2`, `--code`, ...). ACE still canonicalizes older dotted suffixes (`.plan`, `.2`,
+`.code`, etc.) and legacy single-dash suffixes (`-plan`, `-2`, `-code`, etc.) when reading legacy artifacts.
 
 ## Agent Statuses
 

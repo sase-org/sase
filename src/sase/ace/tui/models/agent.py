@@ -73,7 +73,7 @@ class Agent(AgentState):
 
     @property
     def is_plan_family_root_entry(self) -> bool:
-        """Whether this family root should present the bare family name."""
+        """Whether this family root has plan-family projection semantics."""
         if not self.is_family_root_entry:
             return False
         if self.plan_chain_root:
@@ -99,7 +99,7 @@ class Agent(AgentState):
 
     def refresh_presented_agent_name(self) -> None:
         """Refresh the precomputed Agents-tab name presentation."""
-        if self.is_plan_family_root_entry:
+        if self.is_family_root_entry:
             self.presented_agent_name = self.family_reference_name()
         else:
             self.presented_agent_name = self.agent_name

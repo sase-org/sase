@@ -139,14 +139,15 @@ member's concrete clan, such as `research.2`.
 
 ACE renders every grouping row with a trailing color-coded name and no kind icon. A clan is synthetic and ends with an
 orchid `<name>` after its rolled-up status counts; its `@tribe` labels follow the name. A real multi-member family root
-ends with an azure `<name>`, while plain agent annotations and a lone plan proposer with only its display-only planner
-child remain gold. Press `l` once on a collapsed clan to reveal its direct members. The clan's outer fold is binary, so
-move to a family or workflow row and press `l` there to reveal that row's descendants; `h` collapses the focused
-structural owner one level. Selecting the clan row shows an aggregate `CLAN` header and a navigable summary of every
-section represented across its members. In the Agents list, direct members sort by status priority — Failed, Stopped,
-Running/Starting, Waiting, Done — and then by launch recency within a bucket. The metadata roster uses chronological
-launch order instead, keeping its number-to-member mapping stable while statuses change. The runtime is the union of
-member run intervals, with human-wait windows excluded, so concurrent members are not double-counted.
+ends with its bare azure container `<name>`, while its concrete member rows retain their exact `--<suffix>` names. Plain
+agent annotations and a lone plan proposer with only its display-only planner child remain gold. Press `l` once on a
+collapsed clan to reveal its direct members. The clan's outer fold is binary, so move to a family or workflow row and
+press `l` there to reveal that row's descendants; `h` collapses the focused structural owner one level. Selecting the
+clan row shows an aggregate `CLAN` header and a navigable summary of every section represented across its members. In
+the Agents list, direct members sort by status priority — Failed, Stopped, Running/Starting, Waiting, Done — and then by
+launch recency within a bucket. The metadata roster uses chronological launch order instead, keeping its
+number-to-member mapping stable while statuses change. The runtime is the union of member run intervals, with human-wait
+windows excluded, so concurrent members are not double-counted.
 
 ### Clan summary folding
 

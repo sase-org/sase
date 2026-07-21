@@ -10,7 +10,7 @@ from sase.ace.testing import AcePage
 from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
     family_and_lone_planner_agents,
     parallel_family_agents,
-    renamed_plan_family_agents,
+    renamed_generic_family_agents,
     waiting_family_child_agents,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
@@ -55,12 +55,12 @@ async def test_waiting_family_child_row_png_snapshot(
         )
 
 
-async def test_renamed_plan_family_root_png_snapshot(
+async def test_renamed_generic_family_root_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 11, 10, 0))
-    patch_startup_loaders(monkeypatch, agents=renamed_plan_family_agents())
+    patch_startup_loaders(monkeypatch, agents=renamed_generic_family_agents())
 
     async with AcePage(query='"visual-family"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
@@ -71,14 +71,14 @@ async def test_renamed_plan_family_root_png_snapshot(
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
 
-        assert page.app._agents[0].agent_name == "cx--plan"
+        assert page.app._agents[0].agent_name == "cx--0"
         assert page.app._agents[0].presented_agent_name == "cx"
-        assert_page_svg_contains(page, "cx--plan")
+        assert_page_svg_contains(page, "cx--0")
         assert_page_svg_contains(page, "cx--code")
         ace_png_visual.assert_page_png(
             page,
-            "agents_renamed_plan_family_root_120x40",
-            title="ACE renamed plan family root",
+            "agents_renamed_generic_family_root_120x40",
+            title="ACE renamed generic family root",
         )
 
 

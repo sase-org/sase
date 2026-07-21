@@ -233,20 +233,44 @@ def output_variable_family_agents() -> list[Agent]:
     return rows
 
 
-def renamed_plan_family_agents() -> list[Agent]:
+def renamed_generic_family_agents() -> list[Agent]:
     root = Agent(
-        agent_type=AgentType.RUNNING,
+        agent_type=AgentType.WORKFLOW,
         cl_name="visual-family-root",
         project_file="/workspace/sase/visual_project.sase",
         status="DONE",
         start_time=datetime(2026, 7, 18, 11, 0, 0),
         stop_time=datetime(2026, 7, 18, 11, 4, 0),
         raw_suffix="20260718110000",
-        role_suffix="--plan",
-        agent_name="cx--plan",
+        workflow="ace(run)",
+        role_suffix="--0",
+        agent_name="cx--0",
         agent_family="cx",
         agent_family_role="root",
-        plan_chain_root=True,
+        appears_as_agent=True,
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    main = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="main",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 18, 11, 0, 0),
+        stop_time=datetime(2026, 7, 18, 11, 4, 0),
+        raw_suffix=root.raw_suffix,
+        workflow=root.workflow,
+        parent_workflow=root.workflow,
+        parent_timestamp=root.raw_suffix,
+        step_name="main",
+        step_type="agent",
+        step_index=0,
+        total_steps=1,
+        parent_appears_as_agent=True,
+        role_suffix="--0",
+        agent_name="cx--0",
+        agent_family="cx",
+        agent_family_role="main",
         llm_provider="codex",
         model="gpt-5",
     )
@@ -266,8 +290,8 @@ def renamed_plan_family_agents() -> list[Agent]:
         llm_provider="codex",
         model="gpt-5",
     )
-    rows = [root, coder]
-    _apply_status_overrides(rows)
+    rows = [root, main, coder]
+    _apply_status_overrides([root, coder], [main])
     return rows
 
 

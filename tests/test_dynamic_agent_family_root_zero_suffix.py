@@ -186,7 +186,7 @@ def test_legacy_plan_zero_root_presents_family_name() -> None:
     assert root.presented_agent_name == "foo"
 
 
-def test_generic_root_keeps_zero_member_presentation() -> None:
+def test_generic_root_presents_family_container_name() -> None:
     root = _bare_root(name="foo--0")
     root.role_suffix = "--0"
     root.agent_family = "foo"
@@ -194,4 +194,46 @@ def test_generic_root_keeps_zero_member_presentation() -> None:
 
     _apply_status_overrides([root])
 
-    assert root.presented_agent_name == "foo--0"
+    assert root.agent_name == "foo--0"
+    assert root.family_reference_name() == "foo"
+    assert root.presented_agent_name == "foo"
+    assert agent_prompt_name(root) == "foo"
+
+    row_text, _, _ = format_agent_option(root, 0, is_selected=False)
+    header, _ = build_header_text(root, cheap=True)
+    assert row_text.plain.endswith(" foo")
+    assert "foo--0" not in row_text.plain
+    assert header.plain.startswith("Name: foo\n")
+
+
+def test_expanded_generic_family_keeps_concrete_member_names() -> None:
+    root = _bare_root(name="foo--0", status="DONE")
+    root.agent_type = AgentType.WORKFLOW
+    root.workflow = "ace(run)"
+    root.appears_as_agent = True
+    root.role_suffix = "--0"
+    root.agent_family = "foo"
+    root.agent_family_role = "root"
+
+    main = _attached_member(name="foo--0", role_suffix="--0", role="main")
+    main.parent_workflow = root.workflow
+    main.step_name = "main"
+    main.step_type = "agent"
+    followup = _attached_member(
+        name="foo--review",
+        role_suffix="--review",
+        role="review",
+        raw_suffix="20260701010303",
+    )
+
+    _apply_status_overrides([root, followup], [main])
+
+    assert root.presented_agent_name == "foo"
+    assert main.presented_agent_name == "foo--0"
+    assert followup.presented_agent_name == "foo--review"
+
+    rendered_names = []
+    for agent in (root, main, followup):
+        row_text, _, _ = format_agent_option(agent, 0, is_selected=False)
+        rendered_names.append(row_text.plain.rsplit(" ", maxsplit=1)[-1])
+    assert rendered_names == ["foo", "foo--0", "foo--review"]
