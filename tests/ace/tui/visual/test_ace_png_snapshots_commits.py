@@ -101,6 +101,10 @@ async def test_commits_timeline_and_detail_png_snapshot(
         await page.expect_state("artifacts_subtab", "commits")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
+        assert (
+            pane.query_one("#commit-filter-input", SingleLineVimTextArea).text
+            == "sidecar:false since:24h"
+        )
         await wait_for_svg_contains(page, "feat(artifacts): keep every commit")
         await wait_for_svg_contains(page, "Changes:")
         await wait_for_visual_idle(page)
@@ -154,13 +158,23 @@ async def test_commits_persistent_filter_small_terminal_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {
+            "ace": {
+                "artifacts": {
+                    "commits": {"default_query": "sidecar:false since:24h limit:40"}
+                }
+            }
+        },
+    )
     timestamp = int(datetime(2026, 7, 6, 14, 30, tzinfo=UTC).timestamp())
     result = replace(
         _result(timestamp),
         provider_truncation_possible=True,
     )
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
-    # This snapshot covers the persistent filter and capped-state chrome. Keep
+    # This snapshot covers an explicit limit and capped-state chrome. Keep
     # the unrelated detail pane on its stable no-diff path so lazy syntax
     # layout cannot race the screenshot under a heavily parallel full run.
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: None)
@@ -385,10 +399,9 @@ async def test_commits_narrowed_filter_chips_png_snapshot(
                 and pane.query_one("#commits-timeline", CommitsTimeline).has_focus
             )
         )
-        assert (
-            "repo:sase-core-foundation"
-            in bar.query_one("#commit-filter-input", SingleLineVimTextArea).text
-        )
+        canonical = bar.query_one("#commit-filter-input", SingleLineVimTextArea).text
+        assert "repo:sase-core-foundation" in canonical
+        assert "limit:" not in canonical
         await wait_for_svg_contains(page, "fix(artifacts): preserve")
         await wait_for_visual_idle(page)
 

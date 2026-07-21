@@ -28,7 +28,10 @@ from sase.vcs_log.dates import (
 )
 from sase.vcs_log.models import CommitFilterSpec, CommitFilters
 
-DEFAULT_COMMIT_LOG_LIMIT = 40
+#: Query-level sentinel meaning "do not apply a final row cap". The collection
+#: adapter passes this through as ``0`` and the VCS-log backend translates it to
+#: its internal unlimited sentinel.
+UNLIMITED_COMMIT_LOG_LIMIT = 0
 
 CompletionKind = Literal[
     "key",
@@ -65,7 +68,7 @@ class CommitLogFilterValues:
     repos: tuple[str, ...] = ()
     excluded_repos: tuple[str, ...] = ()
     sidecar: bool = True
-    limit: int = DEFAULT_COMMIT_LOG_LIMIT
+    limit: int = UNLIMITED_COMMIT_LOG_LIMIT
     text: tuple[str, ...] = ()
     excluded_text: tuple[str, ...] = ()
 
@@ -155,7 +158,7 @@ def parse_commit_filter_query(
                 until_token,
             )
 
-    limit = DEFAULT_COMMIT_LOG_LIMIT
+    limit = UNLIMITED_COMMIT_LOG_LIMIT
     if "limit" in singles:
         limit_text, limit_token = singles["limit"]
         if limit_text.casefold() == "all":
@@ -191,8 +194,6 @@ def parse_commit_filter_query(
 
 def to_query_tokens(
     values: CommitLogFilterValues,
-    *,
-    include_default_limit: bool = False,
 ) -> tuple[str, ...]:
     """Render *values* as canonical tokens in stable filter order."""
     tokens = [f"repo:{quote_value(value, keyed=True)}" for value in values.repos]
@@ -210,8 +211,8 @@ def to_query_tokens(
         tokens.append(f"since:{quote_value(values.since_text, keyed=True)}")
     if values.until_text:
         tokens.append(f"until:{quote_value(values.until_text, keyed=True)}")
-    if include_default_limit or values.limit != DEFAULT_COMMIT_LOG_LIMIT:
-        tokens.append(f"limit:{values.limit or 'all'}")
+    if values.limit > 0:
+        tokens.append(f"limit:{values.limit}")
     tokens.extend(quote_value(term, keyed=False) for term in values.text)
     tokens.extend(f"-{quote_value(term, keyed=False)}" for term in values.excluded_text)
     return tuple(tokens)
@@ -352,7 +353,7 @@ def _error(message: str, token: FilterToken) -> CommitFilterQueryError:
 
 
 __all__ = [
-    "DEFAULT_COMMIT_LOG_LIMIT",
+    "UNLIMITED_COMMIT_LOG_LIMIT",
     "CommitFilterQueryError",
     "CommitLogFilterValues",
     "CompletionKind",

@@ -167,11 +167,7 @@ class CommitsPane(
         return build_commits_hints(self._registry)
 
     def _filter_chips(self) -> tuple[str, ...]:
-        result = self.result
-        return commit_filter_chips(
-            self.filters,
-            show_active_limit=bool(result is not None and result.potentially_truncated),
-        )
+        return commit_filter_chips(self.filters)
 
     def toggle_sdd(self) -> None:
         self._commit_filter_values(

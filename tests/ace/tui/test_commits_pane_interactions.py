@@ -68,6 +68,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         assert calls[0]["force_fetch"] is False
         assert calls[0]["include_sidecars"] is False
         assert calls[0]["filter_spec"].since is not None
+        assert calls[0]["limit"] == 0
 
         await page.press("j")
         await page.wait_for(lambda _state: pane._selected_commit_index == 1)

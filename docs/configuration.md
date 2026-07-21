@@ -437,10 +437,11 @@ ace:
 
 The Commits pane validates this value with its live query parser. Invalid runtime configuration produces a warning and
 falls back to the bundled query. An empty configured query is valid and includes sidecars; the visible canonical row
-renders that state as `sidecar:true`. The default row limit is 40; when it clips the result, ACE reveals `limit:40` and
-reports a lower bound such as `40+ matches · capped`. Set `limit:N` in the query to raise the cap or `limit:all` to
-remove it. Day-granular `until:` values include the full named day. This setting is independent of the `sase vcs log`
-CLI's sidecar opt-in.
+renders that state as `sidecar:true`. Commits queries are uncapped unless they contain an explicit positive `limit:N`,
+so the bundled 24-hour query has no row cap. When an explicit cap clips the result, ACE keeps the token visible and
+reports a lower bound such as `40+ matches · capped`. `limit:all` is accepted as an unlimited synonym but is omitted
+from canonical query text. Day-granular `until:` values include the full named day. This setting is independent of the
+`sase vcs log` CLI's sidecar opt-in and limit contract.
 
 #### `ace.tribes`
 

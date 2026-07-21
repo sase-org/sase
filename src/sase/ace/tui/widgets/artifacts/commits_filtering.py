@@ -166,14 +166,7 @@ class CommitsFilteringMixin(_MixinBase):
             lower_bound=capped,
         )
         if not self._filter_session_open:
-            bar.set_query(
-                " ".join(
-                    commit_filter_chips(
-                        values,
-                        show_active_limit=capped and values.limit > 0,
-                    )
-                )
-            )
+            bar.set_query(" ".join(commit_filter_chips(values)))
 
     def _apply_live_preview(self, values: CommitLogFilterValues) -> None:
         snapshot = self._authoritative_snapshot(values)

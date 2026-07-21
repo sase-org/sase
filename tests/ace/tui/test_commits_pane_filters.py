@@ -150,7 +150,7 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
                 and calls[-1].get("exclude_repo_filters") == ("sase-core-foundation",)
             )
         )
-        assert calls[-1]["limit"] == 40
+        assert calls[-1]["limit"] == 0
         assert [entry.commit.short_id for entry in pane.result.commits] == ["aaaaaaa"]
         assert "exact" in bar.query_one("#commit-filter-status", Static).content.plain
 
@@ -186,8 +186,8 @@ def test_sidecar_snapshot_coverage_is_directional() -> None:
     scope = (None, False)
     narrow_values = CommitLogFilterValues(sidecar=False)
     broad_values = CommitLogFilterValues()
-    narrow = AuthoritativeCommitSnapshot(scope, narrow_values, 40, _result())
-    broad = AuthoritativeCommitSnapshot(scope, broad_values, 40, _result_with_sidecar())
+    narrow = AuthoritativeCommitSnapshot(scope, narrow_values, 0, _result())
+    broad = AuthoritativeCommitSnapshot(scope, broad_values, 0, _result_with_sidecar())
 
     assert snapshot_covers(narrow, narrow_values) is True
     assert snapshot_covers(narrow, broad_values) is False
@@ -197,28 +197,28 @@ def test_sidecar_snapshot_coverage_is_directional() -> None:
 def test_snapshot_coverage_trusts_truncation_metadata_not_row_count() -> None:
     scope = (None, False)
     values = CommitLogFilterValues()
-    complete_at_limit = AuthoritativeCommitSnapshot(
+    complete_result = AuthoritativeCommitSnapshot(
         scope,
         values,
-        40,
+        0,
         _result_with_commit_count(40),
     )
     provider_capped = replace(
-        complete_at_limit,
+        complete_result,
         result=replace(
-            complete_at_limit.result,
+            complete_result.result,
             provider_truncation_possible=True,
         ),
     )
     aggregate_capped = replace(
-        complete_at_limit,
+        complete_result,
         result=replace(
-            complete_at_limit.result,
+            complete_result.result,
             aggregate_truncated=True,
         ),
     )
 
-    assert snapshot_covers(complete_at_limit, values) is True
+    assert snapshot_covers(complete_result, values) is True
     assert snapshot_covers(provider_capped, values) is False
     assert snapshot_covers(aggregate_capped, values) is False
 
@@ -233,11 +233,11 @@ def test_snapshot_coverage_trusts_truncation_metadata_not_row_count() -> None:
             True,
         ),
         (_result_with_commit_count(2, aggregate_truncated=True), 2, True),
-        (_result_with_commit_count(41), 40, True),
+        (_result_with_commit_count(41), 41, False),
     ),
-    ids=("exact", "provider-cap", "aggregate-cap", "visible-limit"),
+    ids=("exact", "provider-cap", "aggregate-cap", "above-old-default-cap"),
 )
-async def test_commits_status_and_active_limit_follow_displayed_coverage(
+async def test_unlimited_commits_status_follows_backend_coverage_without_a_query_cap(
     monkeypatch: pytest.MonkeyPatch,
     result: VcsLogResult,
     expected_count: int,
@@ -264,11 +264,52 @@ async def test_commits_status_and_active_limit_follow_displayed_coverage(
         coverage = "capped" if capped else "exact"
         assert f"{expected_count}{marker} matches" in status.content.plain
         assert coverage in status.content.plain
-        assert ("limit:40" in editor.text) is capped
-        assert (
-            "limit:40" in pane.query_one("#commits-info", Static).content.plain
-        ) is capped
-        assert ("limit:40" in pane._filter_chips()) is capped
+        assert "limit:" not in editor.text
+        assert "limit:" not in pane.query_one("#commits-info", Static).content.plain
+        assert not any(chip.startswith("limit:") for chip in pane._filter_chips())
+
+
+async def test_explicit_limit_truncates_and_remains_visible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _result_with_commit_count(41)
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {
+            "ace": {
+                "artifacts": {
+                    "commits": {"default_query": "sidecar:false since:24h limit:40"}
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **kwargs: calls.append(kwargs) or result,
+    )
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("1")
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        bar = pane.query_one(CommitFilterBar)
+        status = bar.query_one("#commit-filter-status", Static)
+        editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
+        await page.wait_for(
+            lambda _state: (
+                pane.result is not None
+                and len(pane.result.commits) == 40
+                and "capped" in status.content.plain
+            )
+        )
+
+        assert calls[0]["limit"] == 40
+        assert "40+ matches" in status.content.plain
+        assert editor.text == "sidecar:false since:24h limit:40"
+        assert "limit:40" in pane.query_one("#commits-info", Static).content.plain
+        assert "limit:40" in pane._filter_chips()
 
 
 def test_relative_filter_reparse_reuses_snapshot_cache_key() -> None:
@@ -281,7 +322,7 @@ def test_relative_filter_reparse_reuses_snapshot_cache_key() -> None:
     )
     scope = (None, False)
     result = _result()
-    snapshot = AuthoritativeCommitSnapshot(scope, first, 40, result)
+    snapshot = AuthoritativeCommitSnapshot(scope, first, 0, result)
     cache = {(scope, first): result}
 
     assert snapshot_covers(snapshot, reparsed) is True

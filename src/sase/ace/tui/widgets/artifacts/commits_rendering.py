@@ -103,11 +103,9 @@ def build_commits_hints(registry: KeymapRegistry) -> Text:
 
 def commit_filter_chips(
     filters: CommitLogFilterValues,
-    *,
-    show_active_limit: bool = False,
 ) -> tuple[str, ...]:
     """Return active filters in the same vocabulary as the query language."""
-    return to_query_tokens(filters, include_default_limit=show_active_limit)
+    return to_query_tokens(filters)
 
 
 def build_commit_view_spec(

@@ -59,4 +59,5 @@ def test_missing_runtime_query_uses_bundled_value_without_warning() -> None:
     resolved = resolve_commits_default_query({})
 
     assert to_query_string(resolved.values) == BUNDLED_COMMITS_DEFAULT_QUERY
+    assert resolved.values.limit == 0
     assert resolved.diagnostic is None

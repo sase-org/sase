@@ -82,7 +82,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ("repo: / author:", "Filter repository / author substring"),
                 ("since: / until:", "until:DAY includes the full day"),
                 ("sidecar:true / false", "Include / exclude sidecars"),
-                ("limit:N / limit:all", "Set / remove the row cap"),
+                ("limit:N / limit:all", "N caps; omitted/all unlimited"),
                 ("N+ matches · capped", "Count is a lower bound; raise/remove cap"),
                 ("bare text", "Match subject words"),
                 ("Enter / Esc", "Commit / restore; row stays"),

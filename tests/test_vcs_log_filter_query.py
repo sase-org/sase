@@ -14,6 +14,7 @@ from sase.vcs_log.dates import parse_time_bound
 from sase.vcs_log.filter_query import (
     CommitFilterQueryError,
     CommitLogFilterValues,
+    UNLIMITED_COMMIT_LOG_LIMIT,
     compile_commit_matcher,
     completion_context,
     parse_commit_filter_query,
@@ -49,6 +50,15 @@ def test_parse_empty_query_includes_sidecars() -> None:
 
     assert values == CommitLogFilterValues()
     assert values.sidecar is True
+    assert values.limit == UNLIMITED_COMMIT_LOG_LIMIT
+    assert to_query_string(values) == "sidecar:true"
+
+
+def test_bundled_query_is_unlimited_without_a_canonical_limit_token() -> None:
+    values = parse_commit_filter_query("sidecar:false since:24h")
+
+    assert values.limit == UNLIMITED_COMMIT_LOG_LIMIT
+    assert to_query_string(values) == "sidecar:false since:24h"
 
 
 def test_parse_every_token_kind_and_case_insensitive_keys() -> None:
@@ -189,7 +199,7 @@ def test_quoted_key_shaped_term_remains_free_text() -> None:
     )
 
 
-def test_canonical_query_has_stable_order_and_omits_default_limit() -> None:
+def test_canonical_query_has_stable_order_and_omits_unlimited_limit() -> None:
     values = parse_commit_filter_query(
         'preview author:"Ada Lovelace" until:2026-07-18 repo:sase '
         "since:7d sidecar:true timeline"
@@ -200,10 +210,27 @@ def test_canonical_query_has_stable_order_and_omits_default_limit() -> None:
         "until:2026-07-18 preview timeline"
     )
     assert to_query_string(CommitLogFilterValues()) == "sidecar:true"
-    assert (
-        to_query_string(parse_commit_filter_query("sidecar:false")) == "sidecar:false"
+    assert to_query_string(parse_commit_filter_query("sidecar:false")) == (
+        "sidecar:false"
     )
-    assert to_query_string(CommitLogFilterValues(limit=0)) == "sidecar:true limit:all"
+
+
+@pytest.mark.parametrize("query", ["limit:all", "limit:ALL", "limit:0"])
+def test_explicit_unlimited_limit_normalizes_to_omission(query: str) -> None:
+    values = parse_commit_filter_query(query)
+
+    assert values.limit == UNLIMITED_COMMIT_LOG_LIMIT
+    assert to_query_string(values) == "sidecar:true"
+    assert parse_commit_filter_query(to_query_string(values)) == values
+
+
+@pytest.mark.parametrize("limit", [1, 40, 100, 999])
+def test_positive_limit_serializes_and_round_trips(limit: int) -> None:
+    values = parse_commit_filter_query(f"limit:{limit}")
+
+    assert values.limit == limit
+    assert to_query_string(values) == f"sidecar:true limit:{limit}"
+    assert parse_commit_filter_query(to_query_string(values)) == values
 
 
 def test_canonical_query_serializes_exclusions_and_literal_hyphens() -> None:
@@ -452,14 +479,15 @@ def test_filter_chips_use_canonical_query_tokens() -> None:
         "repo:sase",
         'author:"Ada Lovelace"',
         "sidecar:true",
-        "limit:all",
         '"fix live"',
     )
 
     default = parse_commit_filter_query("sidecar:false since:24h")
-    assert "limit:40" not in commit_filter_chips(default)
-    assert commit_filter_chips(default, show_active_limit=True) == (
+    assert commit_filter_chips(default) == (
         "sidecar:false",
         "since:24h",
+    )
+    assert commit_filter_chips(parse_commit_filter_query("limit:40")) == (
+        "sidecar:true",
         "limit:40",
     )

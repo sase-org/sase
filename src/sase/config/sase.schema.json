@@ -366,7 +366,7 @@
               "properties": {
                 "default_query": {
                   "type": "string",
-                  "description": "Canonical query loaded into the persistent Commits filter when ACE starts. Relative date windows re-anchor on refresh; configuration changes take effect in the next ACE process.",
+                  "description": "Canonical query loaded into the persistent Commits filter when ACE starts. Queries without an explicit positive limit:N are uncapped. Relative date windows re-anchor on refresh; configuration changes take effect in the next ACE process.",
                   "default": "sidecar:false since:24h"
                 }
               }
