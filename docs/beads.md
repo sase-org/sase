@@ -382,7 +382,8 @@ Once an epic bead exists, the shared launch path:
    missing legacy size behaves as `small`. The land agent emits `%model:<value>` when the epic plan bead has a stored
    `model`. Without one, it emits `%model:@epic_lander` below `bead.big_epic_phase_threshold` and
    `%model:@big_epic_lander` at or above the threshold (default `5`), using the total authored phase count even when
-   resumed work has already-closed phases. `@big_epic_lander` falls through to `@epic_lander`. Small phases fall through
+   resumed work has already-closed phases. Normal landers fall through `@epic_lander` to `@default`, while landers
+   selected by the threshold fall through `@big_epic_lander` to provider-aware `@smartest`. Small phases fall through
    `@small_phase_worker` to the load-balanced `@cheaper` pool, medium phases fall through `@medium_phase_worker` to
    `@default`, and large phases fall through `@large_phase_worker` to `@smartest`. The independent `@cheapest` pool is
    available for explicit use but has no automatic consumer. Builtin aliases can be configured under

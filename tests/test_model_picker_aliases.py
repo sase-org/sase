@@ -67,6 +67,7 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
         make_alias_view("small_phase_worker", "role"),
         make_alias_view("medium_phase_worker", "role"),
         make_alias_view("large_phase_worker", "role"),
+        make_alias_view("smartest", "role"),
         make_alias_view("hop_a", "user", configured=True, configured_value="@hop_b"),
         make_alias_view("hop_b", "user", configured=True, configured_value="@coder"),
         make_alias_view(
@@ -81,17 +82,19 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
     ]
     coder_context = make_alias_context(target="coder", views=views)
     default_context = make_alias_context(target="default", views=views)
+    smartest_context = make_alias_context(target="smartest", views=views)
 
     assert _alias_disabled_reason(coder_context, "coder") == "current alias"
     assert _alias_disabled_reason(coder_context, "hop_a") == "would create a cycle"
     assert _alias_disabled_reason(coder_context, "cycle_a") == ("would create a cycle")
     assert _alias_disabled_reason(coder_context, "safe") is None
-    # provider_coder -> coder -> default and
-    # big_epic_lander -> epic_lander -> default are implicit chains.
+    # provider_coder -> coder -> default and big_epic_lander -> smartest are
+    # implicit chains.
     assert _alias_disabled_reason(default_context, "codex_coder") == (
         "would create a cycle"
     )
-    assert _alias_disabled_reason(default_context, "big_epic_lander") == (
+    assert _alias_disabled_reason(default_context, "big_epic_lander") is None
+    assert _alias_disabled_reason(smartest_context, "big_epic_lander") == (
         "would create a cycle"
     )
     medium_context = make_alias_context(target="medium_phase_worker", views=views)

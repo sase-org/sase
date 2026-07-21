@@ -1456,8 +1456,8 @@ preview.
   the top bar.
 - Open `phase_worker`, highlight `large_phase_worker`, press `e`, pick `claude/opus`, and confirm — only large phases
   without an explicit model use that target; small and medium phase routing is unchanged.
-- Highlight `smartest`, `e`, pick `claude/opus`, and confirm — large phases reach that target through
-  `@large_phase_worker` → `@smartest`.
+- Highlight `smartest`, `e`, pick `claude/opus`, and confirm — large phases and threshold-selected epic landers reach
+  that target through `@large_phase_worker` → `@smartest` and `@big_epic_lander` → `@smartest`.
 - Leave `smartest` implicit — its `claude/claude-fable-5 || codex/gpt-5.6-sol` fallback prefers Claude when installed
   and otherwise selects Codex without changing load-balancing state.
 - Highlight `cheaper`, `e`, choose `Custom...`, enter `claude/opus@medium | codex/gpt-5.5`, and confirm — small phases
@@ -1465,7 +1465,7 @@ preview.
 - Highlight `cheapest`, `e`, choose `Custom...`, enter `claude/sonnet | codex/gpt-5.3-codex-spark`, and confirm —
   explicit `@cheapest` launches use this independent pool without consuming the `cheaper` cursor.
 - Highlight `big_epic_lander`, `e`, pick a model, and confirm — only threshold-selected epic landers use that persistent
-  target; leaving it implicit preserves the `@epic_lander` target.
+  target; leaving it implicit follows provider-aware `@smartest` independently of `@epic_lander`.
 - Highlight `big_epic_lander`, `e`, filter for `@coder`, select it, and confirm — the persistent value is the dynamic
   `@coder` reference, not a copied concrete model.
 - Open `phase_worker`, highlight `medium_phase_worker`, press `o`, select `@coder`, then choose `1h` — the override

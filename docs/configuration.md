@@ -687,13 +687,13 @@ independently addressable and editable.
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases** that resolve even when unset:
 `@default` (no-`%model` launches), `@coder` and the per-provider `@<provider>_coder` (plan coder follow-ups),
 `@epic_lander`, `@big_epic_lander`, the three `<size>_phase_worker` aliases, `@smartest`, `@cheaper`, and `@cheapest`
-(bead/epic role launches). `@big_epic_lander` falls back to `@epic_lander`; small phases fall back to `@cheaper`, medium
-phases to `@default`, and large phases to `@smartest`. The implicit `@smartest` value is
-`claude/claude-fable-5 || codex/gpt-5.6-sol`, preferring Claude when its CLI is installed. `@cheaper` owns the automatic
-small-phase pool, while `@cheapest` owns an independent explicit-use pool. Override only threshold-sized epic landers
-with `model_aliases.builtin.big_epic_lander`; override only large phases with
-`model_aliases.builtin.large_phase_worker`. `@smartest` is selected automatically through the large-phase fallback
-chain. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
+(bead/epic role launches). `@epic_lander` falls back to `@default`, while `@big_epic_lander` falls back independently to
+`@smartest`; small phases fall back to `@cheaper`, medium phases to `@default`, and large phases to `@smartest`. The
+implicit `@smartest` value is `claude/claude-fable-5 || codex/gpt-5.6-sol`, preferring Claude when its CLI is installed.
+`@cheaper` owns the automatic small-phase pool, while `@cheapest` owns an independent explicit-use pool. Override only
+threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`; override only large phases with
+`model_aliases.builtin.large_phase_worker`. `@smartest` is selected automatically through the threshold-sized epic and
+large-phase fallback chains. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
 [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role.
 
 Legacy `model_aliases.builtin.epic_creator` entries remain accepted so existing configs still load, but SASE no longer
@@ -1587,8 +1587,8 @@ bead:
 | `bead.big_epic_phase_threshold` | int         | `5`     | Minimum total authored phase count that selects `@big_epic_lander` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                                                                                        |
 | `bead.push_after_commit`        | bool or str | `true`  | Controls the post-commit `git push` after `sase bead work`. `true` pushes synchronously (failures only warn); `false` skips the push; `async` launches a detached background push and returns immediately, logging the result to a file. `sase bead work --no-push` overrides this per-invocation. |
 
-`@big_epic_lander` inherits `@epic_lander`, which then inherits `@default`. This two-step fallback preserves an existing
-`epic_lander` override for epics of every size while allowing a separate model only for threshold-selected large epics.
+Below the threshold, `@epic_lander` inherits `@default`. At or above it, `@big_epic_lander` instead inherits the
+provider-aware `@smartest` fallback. An explicit land model or a direct alias override remains authoritative.
 
 Set to `false` for local-only checkouts, or when you would rather batch the bead-launch commit with later commits before
 pushing. Set to `async` to keep auto-pushing without blocking the command on remote network/credential latency. See

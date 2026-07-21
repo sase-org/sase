@@ -683,21 +683,21 @@ fallback, while `@cheaper` and `@cheapest` own independent built-in pools:
 | `@coder`               | Coder follow-up launched from an accepted plan.                                                         | `@default`                                                                              |
 | `@<provider>_coder`    | Coder follow-up for a plan authored by `<provider>` (`@claude_coder`, `@codex_coder`, `@agy_coder`, …). | `@coder`                                                                                |
 | `@epic_lander`         | Epic land agent with no explicit land model.                                                            | `@default`                                                                              |
-| `@big_epic_lander`     | Epic land agent selected when the authored phase count meets the configured threshold.                  | `@epic_lander`                                                                          |
+| `@big_epic_lander`     | Epic land agent selected when the authored phase count meets the configured threshold.                  | `@smartest`                                                                             |
 | `@small_phase_worker`  | Small bead phase agent with no explicit per-bead model.                                                 | `@cheaper`                                                                              |
 | `@medium_phase_worker` | Medium bead phase agent with no explicit per-bead model.                                                | `@default`                                                                              |
 | `@large_phase_worker`  | Large bead phase agent with no explicit per-bead model.                                                 | `@smartest`                                                                             |
-| `@smartest`            | Highest-capability model selected automatically for large phases.                                       | `claude/claude-fable-5 \|\| codex/gpt-5.6-sol`                                          |
+| `@smartest`            | Highest-capability model selected automatically for large phases and threshold-sized epic landers.      | `claude/claude-fable-5 \|\| codex/gpt-5.6-sol`                                          |
 | `@cheaper`             | Load-balanced pool selected automatically for small phase agents.                                       | `claude/opus@medium \| codex/gpt-5.5`                                                   |
 | `@cheapest`            | Lowest-cost load-balanced pool available for explicit use.                                              | `claude/sonnet \| codex/gpt-5.3-codex-spark`                                            |
 
 Override any role by configuring an alias of the same name. A common setup routes coder follow-ups to a second provider
-while everything else tracks `@default`. The deliberate two-step `@big_epic_lander` → `@epic_lander` → `@default`
-fallback means an `epic_lander` override continues to cover epics of every size; set `big_epic_lander` only when large
-epics should use a different target. Phase sizes deliberately diverge: small uses `@cheaper`, medium uses `@default`,
-and large uses `@smartest`. The implicit `@smartest` value prefers Claude Fable 5 whenever the Claude CLI is installed
-and otherwise selects Codex GPT-5.6 SOL; a configured or temporary override bypasses that fallback. The standalone
-`@cheapest` pool has no automatic consumer and is available for explicit launches:
+while normal epic landers track `@default`. Threshold-selected epic landers deliberately diverge through
+`@big_epic_lander` → `@smartest`, so an `epic_lander` override affects only below-threshold epics; configure
+`big_epic_lander` directly to replace the large-epic policy. Phase sizes likewise diverge: small uses `@cheaper`, medium
+uses `@default`, and large uses `@smartest`. The implicit `@smartest` value prefers Claude Fable 5 whenever the Claude
+CLI is installed and otherwise selects Codex GPT-5.6 SOL; a configured or temporary override bypasses that fallback. The
+standalone `@cheapest` pool has no automatic consumer and is available for explicit launches:
 
 ```yaml
 llm_provider:
@@ -894,7 +894,8 @@ Delegated launches do not use a separate "worker lane". Instead, each delegated 
   `@default`, and `@smartest`. Medium and large phases also receive `#plan`; an explicit per-bead model is accepted at
   every size and always wins.
 - **Epic land agents** without an explicit land model use `@epic_lander`, or `@big_epic_lander` when their authored
-  phase count meets `bead.big_epic_phase_threshold` (default `5`). The large-epic alias inherits `@epic_lander`.
+  phase count meets `bead.big_epic_phase_threshold` (default `5`). Normal landers fall back to `@default`; the
+  threshold-selected alias falls back independently to provider-aware `@smartest`.
 
 Validated Epic approvals create beads and launch `sase bead work` directly; there is no epic-creator model lane.
 
@@ -912,12 +913,13 @@ llm_provider:
       cheaper: claude/opus@medium | codex/gpt-5.5
       cheapest: claude/sonnet | codex/gpt-5.3-codex-spark
       medium_phase_worker: codex/gpt-5.6-sol # medium bead phases run on Codex
-      smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # large phase fallback
+      smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # large phase/epic fallback
       big_epic_lander: codex/gpt-5.6-sol # threshold-selected epic landers run on Codex
 ```
 
-Most roles ultimately fall back to `@default`; small phases intentionally use the separate `@cheaper` pool. Explicit
-`%model` directives, approval-picker model choices, and per-bead/land model metadata always win over role defaults.
+Normal epic landers and medium phases fall back to `@default`; small phases use the separate `@cheaper` pool, while
+large phases and threshold-selected epic landers use `@smartest`. Explicit `%model` directives, approval-picker model
+choices, direct alias overrides, and per-bead/land model metadata always win over role defaults.
 
 > The previous `llm_provider.worker_models` map and the `~/.sase/llm_worker_override.json` worker temporary override
 > were removed in epic sase-5d. See the [migration note](#implicit-role-aliases) above.

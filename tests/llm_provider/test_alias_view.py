@@ -61,6 +61,12 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["default"].configured is False
     assert by_name["coder"].kind == "role"
     assert by_name["big_epic_lander"].kind == "role"
+    assert by_name["big_epic_lander"].configured is False
+    assert by_name["big_epic_lander"].implicit_fallback == "smartest"
+    assert (
+        by_name["big_epic_lander"].provider,
+        by_name["big_epic_lander"].model,
+    ) == ("claude", "claude-fable-5")
     assert "phase_worker" not in by_name
     assert by_name["small_phase_worker"].kind == "role"
     assert by_name["medium_phase_worker"].kind == "role"
@@ -256,7 +262,7 @@ def test_alias_view_references(
     assert view.references == expected
 
 
-def test_big_epic_alias_view_exposes_immediate_implicit_fallback() -> None:
+def test_big_epic_alias_view_exposes_smartest_implicit_fallback() -> None:
     view = AliasView(
         name="big_epic_lander",
         kind="role",
@@ -267,7 +273,7 @@ def test_big_epic_alias_view_exposes_immediate_implicit_fallback() -> None:
         override=None,
     )
 
-    assert view.implicit_fallback == "epic_lander"
+    assert view.implicit_fallback == "smartest"
 
 
 def test_unconfigured_provider_coder_follows_configured_coder(

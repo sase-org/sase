@@ -26,7 +26,7 @@ def test_role_alias_helpers() -> None:
     assert coder_model_alias_for_provider(" claude ") == "claude_coder"
     assert role_model_directive_value("small_phase_worker") == "@small_phase_worker"
     assert role_model_directive_value("default") == "@default"
-    assert implicit_model_alias_fallback("big_epic_lander") == "epic_lander"
+    assert implicit_model_alias_fallback("big_epic_lander") == "smartest"
     assert implicit_model_alias_fallback("epic_lander") == "default"
     assert implicit_model_alias_fallback("small_phase_worker") == "cheaper"
     assert implicit_model_alias_fallback("medium_phase_worker") == "default"
@@ -147,10 +147,10 @@ def test_configured_provider_coder_shadows_generic_coder(
     assert resolve_model_provider("codex_coder") == ("codex", "o3")
 
 
-def test_epic_execution_role_aliases_chain_to_default(
+def test_epic_execution_role_aliases_follow_size_specific_fallbacks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Only live epic execution roles default to ``@default``."""
+    """Epic execution roles use their normal or threshold-sized fallback."""
     mock_provider_config(
         monkeypatch,
         {
@@ -160,13 +160,14 @@ def test_epic_execution_role_aliases_chain_to_default(
     )
 
     assert resolve_model_alias("epic_creator") == "epic_creator"
-    for role in ("epic_lander", "big_epic_lander", "medium_phase_worker"):
+    for role in ("epic_lander", "medium_phase_worker"):
         assert resolve_model_alias(role) == "codex/gpt-5.6-sol"
     monkeypatch.setattr(
         "sase.llm_provider.config._resolved_target_is_available",
         lambda target: target.startswith("claude/"),
     )
     assert resolve_model_alias("smartest") == "claude/claude-fable-5"
+    assert resolve_model_alias("big_epic_lander") == "claude/claude-fable-5"
     assert resolve_model_alias("large_phase_worker") == "claude/claude-fable-5"
     assert resolve_model_alias("small_phase_worker") == "claude/opus"
     assert resolve_model_alias("cheaper") == "claude/opus"
@@ -190,6 +191,7 @@ def test_configured_smartest_alias_shadows_implicit_fallback(
     )
 
     assert resolve_model_alias("smartest") == "codex/gpt-5.6-sol"
+    assert resolve_model_alias("big_epic_lander") == "codex/gpt-5.6-sol"
 
 
 @pytest.mark.parametrize(
@@ -213,6 +215,7 @@ def test_smartest_provider_availability_matrix(
     )
 
     assert resolve_model_alias("smartest", consume=True) == expected
+    assert resolve_model_alias("big_epic_lander", consume=True) == expected
     assert resolve_model_alias("large_phase_worker", consume=True) == expected
 
 
@@ -262,10 +265,10 @@ def test_configured_phase_size_alias_shadows_default_only_for_that_size(
     assert resolve_model_alias("large_phase_worker") == "codex/o3"
 
 
-def test_big_epic_lander_inherits_configured_epic_lander(
+def test_big_epic_lander_uses_smartest_independently_of_epic_lander(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The large-epic role preserves an existing epic-lander override."""
+    """The large-epic role does not inherit a normal-epic override."""
     mock_provider_config(
         monkeypatch,
         {
@@ -278,8 +281,13 @@ def test_big_epic_lander_inherits_configured_epic_lander(
             },
         },
     )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda target: target.startswith("codex/"),
+    )
 
-    assert resolve_model_alias("big_epic_lander") == "claude/sonnet"
+    assert resolve_model_alias("epic_lander") == "claude/sonnet"
+    assert resolve_model_alias("big_epic_lander") == "codex/gpt-5.6-sol"
 
 
 def test_configured_big_epic_lander_shadows_implicit_fallback(

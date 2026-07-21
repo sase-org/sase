@@ -436,11 +436,12 @@ llm_provider:
   # Allowed: none, minimal, low, medium, high, xhigh, max.
   default_effort: ""
   # Model aliases for no-%model launches, delegated work, and reusable prompts.
-  # Builtin role overrides live under builtin. Most roles fall back through
-  # another role alias (ultimately @default), while `smartest` owns an ordered
-  # provider fallback and `cheaper` / `cheapest` own independent load-balanced
-  # pools. Use `A | B` for round-robin or `A || B` for ordered fallback; do not
-  # mix the operators. Values may be a bare known model (opus), an explicit
+  # Builtin role overrides live under builtin. Normal epic landers and medium
+  # phases fall back to @default; threshold-selected epic landers and large
+  # phases fall back to @smartest, which owns an ordered provider fallback.
+  # `cheaper` / `cheapest` own independent load-balanced pools. Use `A | B` for
+  # round-robin or `A || B` for ordered fallback; do not mix the operators.
+  # Values may be a bare known model (opus), an explicit
   # provider/model (codex/gpt-5.6-sol), a nested provider-local path
   # (opencode/anthropic/claude-sonnet-4-5), or an @<alias> reference.
   # User-invented aliases live under custom and must include a description for
@@ -454,7 +455,7 @@ llm_provider:
   #     claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
   #     codex_coder: claude/opus    # coder follow-ups from Codex-authored plans
   #     epic_lander: "@default"     # epic land agents
-  #     big_epic_lander: "@epic_lander" # threshold-selected epic land agents
+  #     big_epic_lander: "@smartest" # threshold-selected epic land agents
   #     cheaper: "claude/opus@medium | codex/gpt-5.5" # small-phase pool
   #     cheapest: "claude/sonnet | codex/gpt-5.3-codex-spark" # explicit-use pool
   #     small_phase_worker: "@cheaper"  # small bead phase agents

@@ -150,7 +150,7 @@ def test_state_tag_implicit_role() -> None:
 
 def test_state_tag_implicit_big_epic_lander() -> None:
     text = _state_tag(make_alias_view("big_epic_lander", "role"), now=0.0)
-    assert text.plain == "implicit → @epic_lander"
+    assert text.plain == "implicit → @smartest"
 
 
 def test_state_tag_implicit_size_phase_worker() -> None:

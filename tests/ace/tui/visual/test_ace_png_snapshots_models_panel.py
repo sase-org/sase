@@ -107,7 +107,7 @@ def _calm_views() -> list[AliasView]:
             "big_epic_lander",
             "role",
             provider="claude",
-            model="opus",
+            model="claude-fable-5",
             description=(
                 "Epic land agents selected for plans at or above the configured "
                 "phase-count threshold."
