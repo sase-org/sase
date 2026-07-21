@@ -44,6 +44,8 @@ class CommitsDetailMixin(_MixinBase):
 
         def _refresh_info(self) -> None: ...
 
+        def _refresh_position_badge(self) -> None: ...
+
     def _init_commits_detail(self, diff_loader: CommitDiffLoader) -> None:
         self._diff_loader = diff_loader
         self._selected_commit_index = None
@@ -60,6 +62,9 @@ class CommitsDetailMixin(_MixinBase):
             timeline.action_cursor_down()
         else:
             timeline.action_cursor_up()
+        # Keep this synchronous even if Textual changes when it delivers the
+        # corresponding OptionHighlighted message.
+        self._sync_timeline_selection(timeline.selected_commit_index)
 
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
         timeline = self.query_one("#commits-timeline", CommitsTimeline)
@@ -75,17 +80,7 @@ class CommitsDetailMixin(_MixinBase):
         index = timeline.select_entry_target(target)
         if index is None:
             return False
-        changed = index != self._selected_commit_index
-        self._selected_commit_index = index
-        if changed:
-            if self._detail_debouncer is None:
-                self._render_selected_detail(index)
-            else:
-
-                def _render() -> None:
-                    self._render_selected_detail(index)
-
-                self._detail_debouncer.schedule(_render)
+        self._sync_timeline_selection(index)
         return True
 
     def apply_entry_jump_hints(
@@ -134,14 +129,22 @@ class CommitsDetailMixin(_MixinBase):
     def on_commits_timeline_selection_changed(
         self, event: CommitsTimeline.SelectionChanged
     ) -> None:
-        self._selected_commit_index = event.commit_index
-        if self._detail_debouncer is None:
-            self._render_selected_detail(event.commit_index)
+        self._sync_timeline_selection(event.commit_index)
+
+    def _sync_timeline_selection(self, commit_index: int | None) -> None:
+        """Publish a position change before debouncing the heavier detail pane."""
+        if commit_index == self._selected_commit_index:
             return
-        index = event.commit_index
+        self._selected_commit_index = commit_index
+        self._refresh_position_badge()
+        if commit_index is None:
+            return
+        if self._detail_debouncer is None:
+            self._render_selected_detail(commit_index)
+            return
 
         def _render() -> None:
-            self._render_selected_detail(index)
+            self._render_selected_detail(commit_index)
 
         self._detail_debouncer.schedule(_render)
 

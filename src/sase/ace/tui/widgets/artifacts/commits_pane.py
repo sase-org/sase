@@ -21,8 +21,11 @@ from .commits_collection import CommitCollector, CommitsCollectionMixin
 from .commits_detail import CommitDiffLoader, CommitsDetailMixin
 from .commits_filtering import FILTER_DEBOUNCE_S, CommitsFilteringMixin
 from .commits_rendering import (
+    build_commit_position_badge,
     build_commits_hints,
     build_commits_info,
+    build_commits_info_header,
+    build_commits_legend,
     commit_filter_chips,
 )
 from .commits_timeline import CommitsTimeline
@@ -62,10 +65,19 @@ class CommitsPane(
 
     def compose(self) -> ComposeResult:
         yield CommitFilterBar(id="commit-filter-bar")
-        yield Static(self._build_info(), id="commits-info")
+        with Vertical(id="commits-info"):
+            yield Static(self._build_info_header(), id="commits-info-header")
+            with Horizontal(id="commits-legend-row"):
+                yield Static(
+                    self._build_position_badge(),
+                    id="commits-position",
+                )
+                yield Static(self._build_legend(), id="commits-legend")
         with Horizontal(id="commits-main"):
             with Vertical(id="commits-list-container"):
-                yield CommitsTimeline(id="commits-timeline")
+                timeline = CommitsTimeline(id="commits-timeline")
+                timeline.set_selection_callback(self._sync_timeline_selection)
+                yield timeline
                 yield Static(self._hints_text(), id="commits-footer")
             with Vertical(id="commits-detail-container"):
                 with VerticalScroll(id="commits-detail-scroll"):
@@ -141,26 +153,59 @@ class CommitsPane(
 
     def _refresh_info(self) -> None:
         if self.is_mounted:
-            self.query_one("#commits-info", Static).update(self._build_info())
+            self.query_one("#commits-info-header", Static).update(
+                self._build_info_header()
+            )
+            self.query_one("#commits-legend", Static).update(self._build_legend())
+            self._refresh_position_badge()
+
+    def _refresh_position_badge(self) -> None:
+        """Refresh only the selection-dependent Commits chrome."""
+        if self.is_mounted:
+            self.query_one("#commits-position", Static).update(
+                self._build_position_badge()
+            )
+
+    def _active_limit(self) -> int | None:
+        result = self.result
+        if result is None or not result.potentially_truncated:
+            return None
+        values = (
+            self._live_filter_values
+            if self._filter_session_open and self._live_filter_values is not None
+            else self.filters
+        )
+        return values.limit or None
+
+    def _build_info_header(self) -> Text:
+        worker = self._collection_worker
+        return build_commits_info_header(
+            project_display_name=self._project_display_name,
+            project_scope=self.project_scope,
+            all_projects=self.all_projects,
+            refreshing=worker is not None and worker.is_running,
+            active_limit=self._active_limit(),
+        )
+
+    def _build_position_badge(self) -> Text:
+        return build_commit_position_badge(
+            result=self.result,
+            selected_commit_index=self._selected_commit_index,
+        )
+
+    def _build_legend(self) -> Text:
+        return build_commits_legend(self.result)
 
     def _build_info(self) -> Text:
         worker = self._collection_worker
-        result = self.result
-        active_limit = None
-        if result is not None and result.potentially_truncated:
-            values = (
-                self._live_filter_values
-                if self._filter_session_open and self._live_filter_values is not None
-                else self.filters
-            )
-            active_limit = values.limit or None
         return build_commits_info(
             project_display_name=self._project_display_name,
             project_scope=self.project_scope,
             all_projects=self.all_projects,
-            result=result,
+            result=self.result,
             refreshing=worker is not None and worker.is_running,
-            active_limit=active_limit,
+            active_limit=self._active_limit(),
+            selected_commit_index=self._selected_commit_index,
         )
 
     def _hints_text(self) -> Text:

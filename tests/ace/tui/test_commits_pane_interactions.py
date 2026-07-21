@@ -53,7 +53,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         await page.wait_for(lambda _state: bool(diff_calls))
         detail = pane.query_one("#commits-detail", Static)
         footer = pane.query_one("#commits-footer", Static)
-        info = pane.query_one("#commits-info", Static).content.plain
+        info = pane._build_info().plain
         assert "Sidecars hidden" not in info
         assert "Sidecars included" not in info
         assert "sidecar:" not in info
@@ -63,6 +63,8 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         )
         await page.wait_for(lambda _state: "Changes:" in _rendered_text(detail.content))
         assert "feat(artifacts): keep every commit" in _rendered_text(detail.content)
+        position = pane.query_one("#commits-position", Static)
+        assert position.content.plain == "[1/2]  ·  "
 
         assert calls[0]["no_fetch"] is True
         assert calls[0]["force_fetch"] is False
@@ -72,6 +74,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
 
         await page.press("j")
         await page.wait_for(lambda _state: pane._selected_commit_index == 1)
+        assert position.content.plain == "[2/2]  ·  "
         await page.press("y")
         assert copied == ["b" * 40]
 
@@ -95,6 +98,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
                 == ["bbbbbbb"]
             )
         )
+        assert position.content.plain == "[1/1]  ·  "
         assert page.app.focused is editor
         await page.wait_for(
             lambda _state: (
@@ -102,6 +106,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
                 and (pane._scope_key(), pane.filters) in pane._authoritative_results
             )
         )
+        assert position.content.plain == "[1/1]  ·  "
         assert len(calls) == baseline_calls + 1
         assert calls[baseline_calls]["limit"] == 0
         assert calls[baseline_calls]["include_sidecars"] is True
@@ -136,6 +141,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
                 == ["aaaaaaa"]
             )
         )
+        assert position.content.plain == "[1/1]  ·  "
         await page.press("escape")
         await page.wait_for(
             lambda _state: (
@@ -146,6 +152,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         assert pane.filters.text == ("fix",)
         assert editor.text == "sidecar:true fix"
         assert [entry.commit.short_id for entry in pane.result.commits] == ["bbbbbbb"]
+        assert position.content.plain == "[1/1]  ·  "
 
         await page.press("enter")
         await page.expect_modal("CommitViewModal")
@@ -157,7 +164,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         await page.wait_for(lambda _state: calls[-1]["include_sidecars"] is False)
         assert pane.filters.sidecar is False
         assert editor.text == "sidecar:false fix"
-        assert "sidecar:" not in pane.query_one("#commits-info", Static).content.plain
+        assert "sidecar:" not in pane._build_info().plain
         await page.press("a")
         await page.wait_for(
             lambda _state: any(call["all_projects"] is True for call in calls)
@@ -223,4 +230,4 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
         assert "sidecar:true" in help_text
         assert "Toggle sidecar history" in help_text
         assert "until:DAY includes the full day" in help_text
-        assert "N+ matches · capped" in help_text
+        assert "[P/N] / [P/N+]" in help_text

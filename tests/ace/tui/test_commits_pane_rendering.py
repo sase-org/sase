@@ -6,6 +6,9 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
+from rich.color import Color
+from rich.console import Console
+from textual.widgets import Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.util.lazy_syntax import (
@@ -15,13 +18,17 @@ from sase.ace.tui.util.lazy_syntax import (
 from sase.ace.tui.widgets.artifacts import CommitsPane, CommitsTimeline
 from sase.ace.tui.widgets.artifacts.commits_rendering import (
     build_commit_detail,
+    build_commit_position_badge,
     build_commit_view_spec,
     build_commits_info,
+    build_commits_legend,
 )
 import sase.ace.tui.widgets.artifacts.commits as commits_module
+import sase.ace.tui.widgets.artifacts.commits_pane as commits_pane_module
 from sase.core.vcs_log_wire import CommitPresence
 from sase.plan_documents import PlanWorkspace
-from sase.vcs_log.models import LogRepo, RepoRemoteState
+from sase.vcs_log._style import GOLD
+from sase.vcs_log.models import LogRepo, RepoRemoteState, VcsLogResult
 from sase.vcs_log.render import build_pretty_legend
 from tests.ace.tui._commits_pane_helpers import (
     _DIFF,
@@ -102,6 +109,107 @@ def test_commits_info_only_renders_active_cap_when_supplied() -> None:
 
     assert "limit:" not in exact
     assert "limit:40" in capped
+
+
+def test_commit_position_badge_is_one_based_styled_and_precedes_repository() -> None:
+    result = _result()
+    badge = build_commit_position_badge(
+        result=result,
+        selected_commit_index=1,
+    )
+    console = Console()
+
+    assert badge.plain == "[2/2]  ·  "
+    assert badge.get_style_at_offset(console, 0).dim is True
+    numerator_style = badge.get_style_at_offset(console, 1)
+    assert numerator_style.bold is True
+    assert numerator_style.color == Color.parse("white")
+    denominator_style = badge.get_style_at_offset(console, 3)
+    assert denominator_style.bold is True
+    assert denominator_style.color == Color.parse(GOLD)
+
+    info = build_commits_info(
+        project_display_name=None,
+        project_scope=None,
+        all_projects=False,
+        result=result,
+        refreshing=False,
+        selected_commit_index=1,
+    )
+    assert info.plain.splitlines()[1].startswith(
+        "[2/2]  ·  alpha-platform-repository (1)"
+    )
+    assert "\n  vs origin/main" in build_commits_legend(result).plain
+
+
+@pytest.mark.parametrize(
+    ("result", "selected_commit_index", "expected"),
+    (
+        (None, None, ""),
+        (VcsLogResult((), (), ()), None, "[0/0]  ·  "),
+        (_result(), None, "[-/2]  ·  "),
+        (
+            replace(_result(), provider_truncation_possible=True),
+            0,
+            "[1/2+]  ·  ",
+        ),
+        (
+            replace(_result(), aggregate_truncated=True),
+            0,
+            "[1/2+]  ·  ",
+        ),
+    ),
+    ids=("pre-load", "empty", "no-selection", "provider-cap", "aggregate-cap"),
+)
+def test_commit_position_badge_truthful_states(
+    result: VcsLogResult | None,
+    selected_commit_index: int | None,
+    expected: str,
+) -> None:
+    assert (
+        build_commit_position_badge(
+            result=result,
+            selected_commit_index=selected_commit_index,
+        ).plain
+        == expected
+    )
+
+
+def test_commit_position_badge_handles_referenced_large_timeline() -> None:
+    result = _result()
+    template = result.commits[0]
+    commits = tuple(
+        replace(
+            template,
+            commit=replace(
+                template.commit,
+                full_id=f"{index:040x}",
+                short_id=f"{index:07x}",
+            ),
+        )
+        for index in range(105)
+    )
+
+    assert (
+        build_commit_position_badge(
+            result=replace(result, commits=commits),
+            selected_commit_index=14,
+        ).plain
+        == "[15/105]  ·  "
+    )
+
+
+def test_empty_commits_info_has_one_separator_before_presence_legend() -> None:
+    info = build_commits_info(
+        project_display_name=None,
+        project_scope=None,
+        all_projects=False,
+        result=VcsLogResult((), (), ()),
+        refreshing=False,
+    )
+
+    assert info.plain.splitlines()[1].startswith("[0/0]  ·  ↑ unpushed")
+    assert "·  ·" not in info.plain
 
 
 @pytest.mark.parametrize(
@@ -246,7 +354,15 @@ async def test_commits_timeline_mounted_rows_stay_one_line_with_jump_hints(
 
         assert_one_line_contract()
         target = pane.entry_targets()[1]
+        position = pane.query_one("#commits-position", Static)
+        assert position.content.plain == "[1/2]  ·  "
+        monkeypatch.setattr(
+            commits_pane_module,
+            "build_commits_legend",
+            lambda _result: pytest.fail("selection rebuilt the repository legend"),
+        )
         assert pane.select_entry_target(target) is True
+        assert position.content.plain == "[2/2]  ·  "
         selected_target = pane.selected_entry_target()
         pane.apply_entry_jump_hints(
             {

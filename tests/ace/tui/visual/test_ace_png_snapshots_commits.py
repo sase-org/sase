@@ -190,10 +190,8 @@ async def test_commits_persistent_filter_small_terminal_png_snapshot(
             bar.query_one("#commit-filter-input", SingleLineVimTextArea).text
             == "sidecar:false since:24h limit:40"
         )
-        assert (
-            bar.query_one("#commit-filter-status").content.plain
-            == "2+ matches  ·  capped"
-        )
+        assert bar.query_one("#commit-filter-status").content.plain == "capped"
+        assert pane.query_one("#commits-position").content.plain == "[1/2+]  ·  "
         await page.wait_for(lambda _state: bool(pane._diff_cache))
         await wait_for_visual_idle(page)
         page.app.query_one(HeaderIcon).display = True
@@ -282,7 +280,11 @@ async def test_commits_filter_bar_prefilled_png_snapshot(
                 == canonical
             )
         )
-        await wait_for_svg_contains(page, "1 match")
+        await page.wait_for(
+            lambda _state: (
+                bar.query_one("#commit-filter-status").content.plain == "exact"
+            )
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

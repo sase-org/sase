@@ -87,6 +87,24 @@ class CommitFilterBar(FilterBar):
         """Replace the in-memory repository and author completion sources."""
         self._set_completion_sources({"repo": repos, "author": authors})
 
+    def set_status(
+        self,
+        match_count: int | None,
+        exact: bool,
+        error: str | Exception | None,
+        *,
+        coverage_label: str | None = None,
+        lower_bound: bool = False,
+    ) -> None:
+        """Render coverage only; the Commits legend owns the displayed count."""
+        del match_count, lower_bound
+        super().set_status(
+            None,
+            exact,
+            error,
+            coverage_label=coverage_label,
+        )
+
     def _completion_context(
         self,
         text: str,

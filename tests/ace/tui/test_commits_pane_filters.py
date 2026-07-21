@@ -163,7 +163,7 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
         assert bar.display is True
         assert pane.filters.excluded_repos == ("sase-core-foundation",)
         assert editor.text == f"{query} sidecar:true"
-        assert query not in pane.query_one("#commits-info", Static).content.plain
+        assert query not in pane._build_info().plain
 
         await page.press("slash")
         editor.load_text("-author:Grace")
@@ -260,12 +260,14 @@ async def test_unlimited_commits_status_follows_backend_coverage_without_a_query
             )
         )
 
-        marker = "+" if capped else ""
         coverage = "capped" if capped else "exact"
-        assert f"{expected_count}{marker} matches" in status.content.plain
-        assert coverage in status.content.plain
+        marker = "+" if capped else ""
+        assert status.content.plain == coverage
+        assert pane.query_one("#commits-position", Static).content.plain == (
+            f"[1/{expected_count}{marker}]  ·  "
+        )
         assert "limit:" not in editor.text
-        assert "limit:" not in pane.query_one("#commits-info", Static).content.plain
+        assert "limit:" not in pane._build_info().plain
         assert not any(chip.startswith("limit:") for chip in pane._filter_chips())
 
 
@@ -306,9 +308,12 @@ async def test_explicit_limit_truncates_and_remains_visible(
         )
 
         assert calls[0]["limit"] == 40
-        assert "40+ matches" in status.content.plain
+        assert status.content.plain == "capped"
+        assert pane.query_one("#commits-position", Static).content.plain == (
+            "[1/40+]  ·  "
+        )
         assert editor.text == "sidecar:false since:24h limit:40"
-        assert "limit:40" in pane.query_one("#commits-info", Static).content.plain
+        assert "limit:40" in pane._build_info().plain
         assert "limit:40" in pane._filter_chips()
 
 

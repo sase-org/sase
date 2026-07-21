@@ -83,7 +83,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ("since: / until:", "until:DAY includes the full day"),
                 ("sidecar:true / false", "Include / exclude sidecars"),
                 ("limit:N / limit:all", "N caps; omitted/all unlimited"),
-                ("N+ matches · capped", "Count is a lower bound; raise/remove cap"),
+                (
+                    "[P/N] / [P/N+]",
+                    "Selected position / matched total; + is a lower bound",
+                ),
                 ("bare text", "Match subject words"),
                 ("Enter / Esc", "Commit / restore; row stays"),
                 (

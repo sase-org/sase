@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from rich.text import Text
@@ -54,6 +54,14 @@ class CommitsTimeline(OptionList):
         self._commits: tuple[AggregatedCommitWire, ...] = ()
         self._programmatic_update = False
         self._jump_hints: dict[ArtifactEntryTarget, str] = {}
+        self._selection_callback: Callable[[int | None], None] | None = None
+
+    def set_selection_callback(
+        self,
+        callback: Callable[[int | None], None],
+    ) -> None:
+        """Set the synchronous in-memory selection observer."""
+        self._selection_callback = callback
 
     @property
     def selected_commit_index(self) -> int | None:
@@ -192,6 +200,9 @@ class CommitsTimeline(OptionList):
         if self._programmatic_update:
             return
         super().watch_highlighted(highlighted)
+        callback = self._selection_callback
+        if callback is not None:
+            callback(self.selected_commit_index)
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted

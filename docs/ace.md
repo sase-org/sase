@@ -113,11 +113,16 @@ example, `repo:sase author:Ada since:7d sidecar:false fix` shows recent SASE com
 Day-granular `until:` values (`today`, `yesterday`, and `YYYY-MM-DD`) include the full named day; relative and
 minute-precise values remain instant bounds. Relative windows such as `since:24h` re-anchor whenever the pane refreshes.
 
+The repository legend starts with `[P/N]`, where `P` is the selected commit's one-based position and `N` is the number
+of matched entries currently displayed. Day headings do not count as entries. A `+` on the denominator, as in `[1/40+]`,
+means the displayed total is only a lower bound. The persistent filter row reports the corresponding coverage state
+(`exact`, `preview`, or `capped`) without repeating the match count.
+
 Commits queries are uncapped unless they include an explicit positive `limit:N`, so the bundled 24-hour query shows all
-matching commits. When an explicit limit may have omitted rows, the status uses a lower-bound count such as
-`40+ matches · capped` and keeps `limit:40` visible in the persistent filter row and pane header. `limit:all` remains an
-accepted synonym for the unlimited state, but canonical query text omits it. Provider or aggregate truncation metadata
-can still mark a count as capped without inventing an active query limit.
+matching commits. When an explicit limit may have omitted rows, the legend uses a lower-bound total such as `[1/40+]`,
+the filter row says `capped`, and `limit:40` remains visible in the persistent filter row and pane header. `limit:all`
+remains an accepted synonym for the unlimited state, but canonical query text omits it. Provider or aggregate truncation
+metadata can still mark a count as capped without inventing an active query limit.
 
 Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, and `until:` plus free text matched across plan and
 bead metadata. Kinds are `proposal`, `epic`, `phase`, and `archive`. For example,

@@ -439,9 +439,10 @@ The Commits pane validates this value with its live query parser. Invalid runtim
 falls back to the bundled query. An empty configured query is valid and includes sidecars; the visible canonical row
 renders that state as `sidecar:true`. Commits queries are uncapped unless they contain an explicit positive `limit:N`,
 so the bundled 24-hour query has no row cap. When an explicit cap clips the result, ACE keeps the token visible and
-reports a lower bound such as `40+ matches · capped`. `limit:all` is accepted as an unlimited synonym but is omitted
-from canonical query text. Day-granular `until:` values include the full named day. This setting is independent of the
-`sase vcs log` CLI's sidecar opt-in and limit contract.
+shows a lower-bound total such as `[1/40+]` in the repository legend while the filter row says `capped`. The legend's
+`[P/N]` form means selected one-based position over displayed matched entries. `limit:all` is accepted as an unlimited
+synonym but is omitted from canonical query text. Day-granular `until:` values include the full named day. This setting
+is independent of the `sase vcs log` CLI's sidecar opt-in and limit contract.
 
 #### `ace.tribes`
 

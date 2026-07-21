@@ -38,8 +38,36 @@ def build_commits_info(
     result: VcsLogResult | None,
     refreshing: bool,
     active_limit: int | None = None,
+    selected_commit_index: int | None = None,
 ) -> Text:
     """Build the scope and collection-status header."""
+    text = build_commits_info_header(
+        project_display_name=project_display_name,
+        project_scope=project_scope,
+        all_projects=all_projects,
+        refreshing=refreshing,
+        active_limit=active_limit,
+    )
+    text.append("\n")
+    text.append_text(
+        build_commit_position_badge(
+            result=result,
+            selected_commit_index=selected_commit_index,
+        )
+    )
+    text.append_text(build_commits_legend(result))
+    return text
+
+
+def build_commits_info_header(
+    *,
+    project_display_name: str | None,
+    project_scope: str | None,
+    all_projects: bool,
+    refreshing: bool,
+    active_limit: int | None = None,
+) -> Text:
+    """Build the comparatively static first row of the Commits information area."""
     accent = ARTIFACTS_ACCENTS["commits"]
     scope = (
         "All projects"
@@ -55,25 +83,66 @@ def build_commits_info(
         text.append(f"limit:{active_limit}", style=f"bold {accent}")
     if refreshing:
         text.append("  ·  refreshing…", style="italic #FFD700")
-    if result is not None:
-        text.append("\n")
-        text.append_text(
-            build_pretty_legend(
-                result,
-                visible_repos_only=True,
-                show_filter_summary=False,
-            )
-        )
-        if result.warnings:
-            text.append(
-                f"  ·  ⚠ {len(result.warnings)} warning(s)",
-                style="dim #FFAF5F",
-            )
-    else:
-        text.append(
-            "\n  Timeline loads lazily on first activation.", style="dim italic"
-        )
     return text
+
+
+def build_commit_position_badge(
+    *,
+    result: VcsLogResult | None,
+    selected_commit_index: int | None,
+) -> Text:
+    """Build ``[position/total]`` from the displayed commit tuple."""
+    text = Text(no_wrap=True)
+    if result is None:
+        return text
+
+    total = len(result.commits)
+    if total == 0:
+        numerator = "0"
+        numerator_style = "bold white"
+    elif selected_commit_index is not None and 0 <= selected_commit_index < total:
+        numerator = str(selected_commit_index + 1)
+        numerator_style = "bold white"
+    else:
+        numerator = "-"
+        numerator_style = "dim"
+
+    denominator = f"{total}{'+' if result.potentially_truncated else ''}"
+    text.append("[", style="dim")
+    text.append(numerator, style=numerator_style)
+    text.append("/", style="dim")
+    text.append(denominator, style=f"bold {GOLD}")
+    text.append("]  ·  ", style="dim")
+    return text
+
+
+def build_commits_legend(result: VcsLogResult | None) -> Text:
+    """Build the cached repository/presence legend beside the position badge."""
+    if result is None:
+        return Text(
+            "  Timeline loads lazily on first activation.",
+            style="dim italic",
+        )
+
+    legend = build_pretty_legend(
+        result,
+        visible_repos_only=True,
+        show_filter_summary=False,
+    )
+    # The shared CLI legend owns its leading indentation and, when there are
+    # no repositories, a leading separator before the presence key. The TUI
+    # places both in dedicated widgets, so trim that presentation-only prefix
+    # and let the badge contribute the row's single separator.
+    leading_spaces = len(legend.plain) - len(legend.plain.lstrip(" "))
+    legend = legend[leading_spaces:]
+    if legend.plain.startswith("·  "):
+        legend = legend[len("·  ") :]
+    if result.warnings:
+        legend.append(
+            f"  ·  ⚠ {len(result.warnings)} warning(s)",
+            style="dim #FFAF5F",
+        )
+    return legend
 
 
 def build_commits_hints(registry: KeymapRegistry) -> Text:

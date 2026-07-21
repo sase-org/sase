@@ -117,6 +117,10 @@ async def _assert_distance_navigation(
     targets = pane.entry_targets()
     assert len(targets) == 50
     assert pane.selected_entry_target() == targets[0]
+    if isinstance(pane, CommitsPane):
+        assert pane.query_one("#commits-position", Static).content.plain == (
+            "[1/50]  ·  "
+        )
     option_list = _entry_list(pane)
     recorder = _DetailScheduleRecorder()
     original_debouncer = pane._detail_debouncer
@@ -127,6 +131,10 @@ async def _assert_distance_navigation(
             await page.press("ctrl+f")
             assert pane.selected_entry_target() == targets[target_index]
             _assert_highlight_visible(option_list)
+            if isinstance(pane, CommitsPane):
+                assert pane.query_one("#commits-position", Static).content.plain == (
+                    f"[{target_index + 1}/50]  ·  "
+                )
         downward_scroll_y = option_list.scroll_y
         assert downward_scroll_y > 0
 
@@ -134,6 +142,10 @@ async def _assert_distance_navigation(
             await page.press("ctrl+b")
             assert pane.selected_entry_target() == targets[target_index]
             _assert_highlight_visible(option_list)
+            if isinstance(pane, CommitsPane):
+                assert pane.query_one("#commits-position", Static).content.plain == (
+                    f"[{target_index + 1}/50]  ·  "
+                )
         assert option_list.scroll_y < downward_scroll_y
 
         selected = pane.selected_entry_target()
@@ -153,9 +165,17 @@ async def _assert_distance_navigation(
         await page.press("g")
         assert pane.selected_entry_target() == targets[0]
         _assert_highlight_visible(option_list)
+        if isinstance(pane, CommitsPane):
+            assert pane.query_one("#commits-position", Static).content.plain == (
+                "[1/50]  ·  "
+            )
         await page.press("G")
         assert pane.selected_entry_target() == targets[-1]
         _assert_highlight_visible(option_list)
+        if isinstance(pane, CommitsPane):
+            assert pane.query_one("#commits-position", Static).content.plain == (
+                "[50/50]  ·  "
+            )
         selected = pane.selected_entry_target()
         assert selected is not None
         pane.apply_entry_jump_hints({selected: "A"})

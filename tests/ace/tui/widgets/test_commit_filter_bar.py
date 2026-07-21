@@ -240,14 +240,14 @@ async def test_escape_closes_dropdown_before_dismissing() -> None:
         assert app.messages == [("dismissed", "")]
 
 
-async def test_status_renders_count_state_and_parse_error() -> None:
+async def test_status_renders_coverage_only_and_preserves_parse_error() -> None:
     app = _FilterBarApp()
     async with app.run_test():
         bar = app.query_one(CommitFilterBar)
         status = app.query_one("#commit-filter-status", Static)
 
         bar.set_status(1, True, None)
-        assert status.render().plain == "1 match  ·  exact"
+        assert status.render().plain == "exact"
 
         bar.set_status(
             40,
@@ -256,7 +256,7 @@ async def test_status_renders_count_state_and_parse_error() -> None:
             coverage_label="capped",
             lower_bound=True,
         )
-        assert status.render().plain == "40+ matches  ·  capped"
+        assert status.render().plain == "capped"
 
         bar.set_status(
             1,
@@ -265,7 +265,7 @@ async def test_status_renders_count_state_and_parse_error() -> None:
             coverage_label="capped",
             lower_bound=True,
         )
-        assert status.render().plain == "1+ matches  ·  capped"
+        assert status.render().plain == "capped"
 
         bar.set_status(None, False, "repo: requires a value")
         assert status.render().plain == "repo: requires a value"
