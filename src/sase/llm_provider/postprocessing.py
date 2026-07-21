@@ -7,11 +7,12 @@ after an LLM invocation completes (success or error).
 import os
 from datetime import datetime
 
+from sase.agent.pending_handoff import has_pending_handoff
+from sase.artifacts import get_sase_log_file, run_bam_command
+from sase.core.time import get_timezone
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
-from sase.core.time import get_timezone
 from sase.output import print_prompt_and_response
-from sase.artifacts import get_sase_log_file, run_bam_command
 
 from .types import _MODEL_TIER_TO_LABEL, LoggingContext, ModelTier
 
@@ -120,7 +121,7 @@ def postprocess_success(
         start_timestamp: Timestamp when the invocation started.
     """
     # Play audio notification (only if not suppressed)
-    if not context.suppress_output:
+    if not context.suppress_output and not has_pending_handoff(context.artifacts_dir):
         run_bam_command("Agent reply received", delay=0.2)
 
     # Log the prompt and response to sase.md

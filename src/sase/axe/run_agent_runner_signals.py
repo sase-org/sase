@@ -4,9 +4,8 @@ import os
 import signal
 from collections.abc import Callable
 
+from sase.agent.pending_handoff import has_pending_handoff
 from sase.axe.runner_signals import install_sigterm_handler, was_killed
-
-_PENDING_HANDOFF_MARKERS = (".sase_plan_pending", ".sase_questions_pending")
 
 
 def system_exit_code(exc: SystemExit) -> int | None:
@@ -17,21 +16,6 @@ def system_exit_code(exc: SystemExit) -> int | None:
 def is_user_kill_exit(exc: SystemExit) -> bool:
     """Return whether ``SystemExit`` represents an explicit user kill."""
     return was_killed() or system_exit_code(exc) == 128 + signal.SIGTERM
-
-
-def _has_pending_handoff_marker(fallback_artifacts_dir: str | None = None) -> bool:
-    """Return whether the current artifacts dir has a plan/question handoff."""
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR") or fallback_artifacts_dir
-    if not artifacts_dir:
-        return False
-
-    try:
-        return any(
-            os.path.exists(os.path.join(artifacts_dir, marker))
-            for marker in _PENDING_HANDOFF_MARKERS
-        )
-    except OSError:
-        return False
 
 
 def install_workspace_release_sigterm_handler(
@@ -54,7 +38,8 @@ def install_workspace_release_sigterm_handler(
                 fallback_artifacts_dir = artifacts_dir_getter()
             except Exception:
                 fallback_artifacts_dir = None
-        if _has_pending_handoff_marker(fallback_artifacts_dir):
+        artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR") or fallback_artifacts_dir
+        if has_pending_handoff(artifacts_dir):
             return
         from sase.running_field import release_workspace
 
