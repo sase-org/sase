@@ -17,7 +17,7 @@ class AgentNotificationStatusMixin:
 
     def _apply_notification_status_overrides(
         self: Any, unread: list[Notification]
-    ) -> None:
+    ) -> set[str]:
         """Scan unread notifications and set plan/question status overrides.
 
         For plan-approval notifications, sets the first matching agent's
@@ -31,9 +31,10 @@ class AgentNotificationStatusMixin:
 
         Also auto-dismisses PlanApproval notifications that were responded to
         externally (e.g. user approved via Telegram), updating agent status
-        accordingly.
+        accordingly. Returns the IDs of notifications auto-dismissed during
+        this reconciliation pass.
         """
-        dismissed_any = False
+        dismissed_ids: set[str] = set()
         changed_agents: list[Any] = []
         for notification in unread:
             if notification.action not in (
@@ -47,7 +48,7 @@ class AgentNotificationStatusMixin:
             # (e.g. via Telegram). If so, auto-dismiss and update status.
             if notification.action in {"PlanApproval", "EpicApproval"}:
                 if self._auto_dismiss_external_plan_response(notification):
-                    dismissed_any = True
+                    dismissed_ids.add(notification.id)
                     continue
 
             pending_plan_status: str | None = None
@@ -108,8 +109,10 @@ class AgentNotificationStatusMixin:
         for agent in changed_agents:
             refresh_notification_agent_or_request(self, agent=agent)
 
-        if dismissed_any:
+        if dismissed_ids:
             self._refresh_notification_count()
+
+        return dismissed_ids
 
     def _auto_dismiss_external_plan_response(
         self: Any, notification: Notification

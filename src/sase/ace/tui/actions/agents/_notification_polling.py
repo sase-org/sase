@@ -43,6 +43,27 @@ class AgentNotificationPollingMixin:
         new_ids = current_ids - self._last_unread_ids  # type: ignore[attr-defined]
         new_notifications = [n for n in unread_active if n.id in new_ids]
 
+        self._last_unread_ids = current_ids  # type: ignore[attr-defined]
+
+        from ...widgets import NotificationIndicator
+
+        counts = snapshot.counts
+        indicator = self.query_one(  # type: ignore[attr-defined]
+            "#notification-indicator", NotificationIndicator
+        )
+        indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
+
+        # Muting quiets the indicator; it should not break agent lifecycle state.
+        auto_dismissed_ids = self._apply_notification_status_overrides(
+            unread_active + unread_muted
+        )
+        if auto_dismissed_ids:
+            new_notifications = [
+                notification
+                for notification in new_notifications
+                if notification.id not in auto_dismissed_ids
+            ]
+
         # Muted arrivals do not toast/bell. Snooze expirations ring once per
         # batch because read-and-snoozed rows do not re-enter unread.
         should_ring_bell = False
@@ -56,19 +77,6 @@ class AgentNotificationPollingMixin:
                 )
         elif expired_snoozes:
             should_ring_bell = True
-
-        self._last_unread_ids = current_ids  # type: ignore[attr-defined]
-
-        from ...widgets import NotificationIndicator
-
-        counts = snapshot.counts
-        indicator = self.query_one(  # type: ignore[attr-defined]
-            "#notification-indicator", NotificationIndicator
-        )
-        indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
-
-        # Muting quiets the indicator; it should not break agent lifecycle state.
-        self._apply_notification_status_overrides(unread_active + unread_muted)
 
         before_unread_agents = set(getattr(self, "_unread_completed_agent_ids", set()))
         self._reconcile_unread_from_completion_notifications(notifications)

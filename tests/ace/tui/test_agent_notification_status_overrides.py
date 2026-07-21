@@ -45,9 +45,13 @@ class _ExternalPlanResponseApp(AgentNotificationStatusMixin):
         self._agent_pre_question_status: dict[
             tuple[AgentType, str, str | None], str | None
         ] = {}
+        self.notification_count_refreshes = 0
 
     def _refilter_agents(self) -> None:
         self.refilter_calls += 1
+
+    def _refresh_notification_count(self) -> None:
+        self.notification_count_refreshes += 1
 
 
 def _notification(
@@ -103,8 +107,9 @@ def test_plan_approval_root_timestamp_sets_parent_planning_override() -> None:
     )
     app = _NotificationApp([parent, workflow_step])
 
-    app._apply_notification_status_overrides([_notification()])
+    auto_dismissed_ids = app._apply_notification_status_overrides([_notification()])
 
+    assert auto_dismissed_ids == set()
     assert app._agent_status_overrides[parent.identity] == "PLAN"
     assert workflow_step.identity not in app._agent_status_overrides
     assert app.refilter_calls == 1
@@ -139,10 +144,11 @@ def test_neutral_plan_notification_sets_tiered_status_without_plan_file(
     )
     app = _NotificationApp([parent])
 
-    app._apply_notification_status_overrides(
+    auto_dismissed_ids = app._apply_notification_status_overrides(
         [_notification(action=action, request_id=request_id)]
     )
 
+    assert auto_dismissed_ids == set()
     assert app._agent_status_overrides[parent.identity] == expected_status
 
 
@@ -214,8 +220,11 @@ def test_user_question_sets_question_override_on_root_and_child() -> None:
     )
     app = _NotificationApp([parent, child])
 
-    app._apply_notification_status_overrides([_notification(action="UserQuestion")])
+    auto_dismissed_ids = app._apply_notification_status_overrides(
+        [_notification(action="UserQuestion")]
+    )
 
+    assert auto_dismissed_ids == set()
     assert app._agent_status_overrides[parent.identity] == "QUESTION"
     assert app._agent_status_overrides[child.identity] == "QUESTION"
     assert app._agent_pre_question_status[parent.identity] == "RUNNING"
@@ -234,34 +243,39 @@ def test_user_question_root_timestamp_sets_parent_question_override() -> None:
     )
     app = _NotificationApp([parent])
 
-    app._apply_notification_status_overrides(
+    auto_dismissed_ids = app._apply_notification_status_overrides(
         [_notification(action="UserQuestion", agent_timestamp="20260512094500")]
     )
 
+    assert auto_dismissed_ids == set()
     assert app._agent_status_overrides[parent.identity] == "QUESTION"
     assert app._agent_pre_question_status[parent.identity] == "RUNNING"
     assert app.refilter_calls == 1
 
 
 @pytest.mark.parametrize(
-    ("response", "expected_status", "expected_action"),
+    ("notification_action", "response", "expected_status", "expected_action"),
     [
         (
+            "PlanApproval",
             {"action": "approve", "commit_plan": False, "run_coder": True},
             "PLAN APPROVED",
             "approve",
         ),
         (
+            "PlanApproval",
             {"action": "approve", "commit_plan": True, "run_coder": True},
             "TALE APPROVED",
             "tale",
         ),
         (
+            "EpicApproval",
             {"action": "epic", "commit_plan": True, "run_coder": True},
             "EPIC APPROVED",
             "epic",
         ),
         (
+            "PlanApproval",
             {"action": "approve", "commit_plan": True, "run_coder": False},
             "PLAN COMMITTED",
             "commit",
@@ -271,6 +285,7 @@ def test_user_question_root_timestamp_sets_parent_question_override() -> None:
 def test_external_plan_response_uses_canonical_action_status_and_persistence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    notification_action: str,
     response: dict[str, object],
     expected_status: str,
     expected_action: str,
@@ -305,14 +320,20 @@ def test_external_plan_response_uses_canonical_action_status_and_persistence(
     )
     app = _ExternalPlanResponseApp([agent])
 
-    handled = app._auto_dismiss_external_plan_response(
-        _notification(response_dir=str(response_dir))
+    auto_dismissed_ids = app._apply_notification_status_overrides(
+        [
+            _notification(
+                action=notification_action,
+                response_dir=str(response_dir),
+            )
+        ]
     )
 
-    assert handled is True
+    assert auto_dismissed_ids == {"n1"}
     assert dismissed == ["n1"]
     assert app._agent_status_overrides[agent.identity] == expected_status
     assert app.refilter_calls == 1
+    assert app.notification_count_refreshes == 1
     assert json.loads((artifacts_dir / "agent_meta.json").read_text()) == {
         "plan_approved": True,
         "plan_action": expected_action,

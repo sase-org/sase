@@ -46,6 +46,38 @@ class TestPollingDelta:
         assert "Plan ready for @sase-n.4" in message
         assert severity == "warning"
 
+    def test_already_handled_plan_approval_does_not_alert(self) -> None:
+        app = _FakeApp()
+        handled = _make(
+            action="PlanApproval",
+            notes=["Plan ready for review: handled.md"],
+        )
+        app._auto_dismissed_notification_ids = {handled.id}
+
+        with _patch_snapshot([handled]):
+            saw_new = asyncio.run(app._poll_agent_completions())
+
+        assert saw_new is False
+        assert app.notify.call_count == 0
+        assert app._bell_rung == 0
+
+    def test_already_handled_plan_does_not_suppress_unrelated_alert(self) -> None:
+        app = _FakeApp()
+        handled = _make(
+            action="PlanApproval",
+            notes=["Plan ready for review: handled.md"],
+        )
+        question = _make(action="UserQuestion", notes=["Still actionable?"])
+        app._auto_dismissed_notification_ids = {handled.id}
+
+        with _patch_snapshot([handled, question]):
+            saw_new = asyncio.run(app._poll_agent_completions())
+
+        assert saw_new is True
+        assert app.notify.call_count == 1
+        assert "Still actionable?" in app.notify.call_args.args[0]
+        assert app._bell_rung == 1
+
     def test_two_new_mixed_emits_two_toasts(self) -> None:
         app = _FakeApp()
         a = _make(action="PlanApproval", notes=["Plan ready for review: a.md"])

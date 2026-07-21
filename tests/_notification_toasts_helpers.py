@@ -60,13 +60,18 @@ class _FakeApp(AgentNotificationMixin):
         self._indicator_rest: int | None = None
         self._indicator_count: int | None = None
         self._indicator_muted: int | None = None
+        self._auto_dismissed_notification_ids: set[str] = set()
 
     def _ring_tmux_bell(self) -> None:  # type: ignore[override]
         self._bell_rung += 1
 
-    def _apply_notification_status_overrides(self, unread: list[Notification]) -> None:  # type: ignore[override]
-        # Intentionally a no-op — status overrides aren't exercised in these tests.
+    def _apply_notification_status_overrides(  # type: ignore[override]
+        self, unread: list[Notification]
+    ) -> set[str]:
+        # Status overrides aren't exercised in these tests; callers can report
+        # selected IDs as auto-dismissed to exercise polling suppression.
         del unread
+        return set(self._auto_dismissed_notification_ids)
 
     def query_one(self, *args: Any, **kwargs: Any) -> Any:
         del args, kwargs
