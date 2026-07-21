@@ -16,7 +16,7 @@ from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.vcs_log.dates import parse_time_bound as _real_parse_time_bound
 from sase.vcs_log.filter_query import parse_commit_filter_query, to_query_string
-from tests.ace.tui.test_commits_pane import _DIFF, _result, _result_with_sidecar
+from tests.ace.tui._commits_pane_helpers import _DIFF, _result, _result_with_sidecar
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,

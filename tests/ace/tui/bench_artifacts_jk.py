@@ -28,7 +28,7 @@ from tests.ace.tui.test_artifacts_list_navigation import (
     _commits_result,
     _expanded_plans_snapshot,
 )
-from tests.ace.tui.test_commits_pane import _DIFF
+from tests.ace.tui._commits_pane_helpers import _DIFF
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
