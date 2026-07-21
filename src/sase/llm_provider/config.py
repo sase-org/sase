@@ -198,6 +198,11 @@ def _get_default_effort() -> str | None:
     return None
 
 
+def default_reasoning_effort() -> str | None:
+    """Return the validated, normalized default reasoning-effort level."""
+    return _get_default_effort()
+
+
 def resolve_effective_effort(
     directives: PromptDirectives,
     alias_effort: str | None = None,

@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.llm_provider import default_reasoning_effort
 from sase.llm_provider.config import _get_default_effort
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
 
@@ -69,3 +70,15 @@ class TestGetDefaultEffort:
         # broken config never forces an effort.
         mock_config.side_effect = RuntimeError("config error")  # type: ignore[union-attr]
         assert _get_default_effort() is None
+
+
+@patch("sase.llm_provider.config.load_merged_config")
+def test_public_default_reasoning_effort_is_normalized_and_validated(
+    mock_config: object,
+) -> None:
+    with patch("sase.llm_provider.config._get_default_effort", _get_default_effort):
+        mock_config.return_value = _mock_config(default_effort="  XHigh  ")  # type: ignore[union-attr]
+        assert default_reasoning_effort() == "xhigh"
+
+        mock_config.return_value = _mock_config(default_effort="turbo")  # type: ignore[union-attr]
+        assert default_reasoning_effort() is None

@@ -49,6 +49,10 @@ _DESCRIPTION_MISSING_STYLE = "italic #D7AF87"
 _BUCKET_STYLE = "bold #FFD787"
 _BUCKET_DIM_STYLE = "dim #FFD787"
 _WARNING_STYLE = "bold #FFD75F"
+_EFFORT_CONNECTIVE_STYLE = "#878787"
+_EFFORT_LEVEL_STYLE = "bold #AF87FF"
+_POOL_AVAILABLE_STYLE = "#87D787"
+_POOL_UNAVAILABLE_STYLE = "#D78787"
 
 _CUSTOM_ALIASES_PATH = "llm_provider.model_aliases.custom"
 _BUILTIN_ALIASES_PATH = "llm_provider.model_aliases.builtin"
@@ -114,15 +118,37 @@ def state_tag(view: AliasView, now: float) -> Text:
         return Text(_override_chip(view.override, now), style=_OVERRIDE_TAG_STYLE)
     if view.configured:
         text = Text("configured", style=_CONFIGURED_TAG_STYLE)
-        if view.references is not None:
+        if view.selector_mode == "round_robin" and view.selector_members:
+            _append_pool_chip(text, view)
+        elif view.references is not None:
             _append_reference(text, view.references)
         return text
-    if view.name == DEFAULT_MODEL_ALIAS_NAME:
-        return Text("implicit", style=_IMPLICIT_TAG_STYLE)
     text = Text("implicit", style=_IMPLICIT_TAG_STYLE)
-    if view.implicit_fallback is not None:
+    if view.selector_mode == "round_robin" and view.selector_members:
+        _append_pool_chip(text, view)
+    elif view.name != DEFAULT_MODEL_ALIAS_NAME and view.implicit_fallback is not None:
         _append_reference(text, view.implicit_fallback)
     return text
+
+
+def _append_pool_chip(text: Text, view: AliasView) -> None:
+    """Append an availability-colored ``pool <up>/<total>`` chip."""
+    available = sum(member.available for member in view.selector_members)
+    total = len(view.selector_members)
+    if available == total:
+        style = _POOL_AVAILABLE_STYLE
+    elif available:
+        style = _WARNING_STYLE
+    else:
+        style = _POOL_UNAVAILABLE_STYLE
+    text.append(" · ", style=_IMPLICIT_TAG_STYLE)
+    text.append(f"pool {available}/{total}", style=style)
+
+
+def _append_effort_suffix(text: Text, effort: str) -> None:
+    """Append the uniform `` @ <effort>`` suffix used across SASE."""
+    text.append(" @ ", style=_EFFORT_CONNECTIVE_STYLE)
+    text.append(effort, style=_EFFORT_LEVEL_STYLE)
 
 
 def _provider_model_text(view: AliasView) -> Text:
@@ -132,7 +158,10 @@ def _provider_model_text(view: AliasView) -> Text:
     badge measurable and truncatable while preserving provider styling - and
     ensures no markup ever leaks into a rendered row.
     """
-    return Text.from_markup(provider_model_badge_markup(view.provider, view.model))
+    text = Text.from_markup(provider_model_badge_markup(view.provider, view.model))
+    if view.effort:
+        _append_effort_suffix(text, view.effort)
+    return text
 
 
 def provider_model_column_width(views: Iterable[AliasView]) -> int:
@@ -208,7 +237,10 @@ def render_bucket_row(bucket: BucketView, *, provider_model_width: int) -> Text:
     return text
 
 
-def description_text_for_view(view: AliasView | None) -> Text:
+def description_text_for_view(
+    view: AliasView | None,
+    default_effort: str | None = None,
+) -> Text:
     """Return the two-line description strip content for *view*."""
     if view is None:
         return Text("", style=_DESCRIPTION_STYLE)
@@ -227,19 +259,52 @@ def description_text_for_view(view: AliasView | None) -> Text:
         if text:
             text.append("\n")
         label = "pool" if view.selector_mode == "round_robin" else "fallback"
+        suspended = view.override is not None
+        if suspended:
+            label = f"{label} (suspended by override)"
         text.append(f"{label}: ", style="dim")
         for index, member in enumerate(view.selector_members):
             if index:
                 text.append(" · ", style="dim")
-            marker = "✓" if member.available else "×"
-            if view.selector_mode == "fallback" and member.selected:
-                marker = f"→ {marker}"
-            target = member.target
-            if member.effort:
-                target = f"{target}@{member.effort}"
+            if member.selected and not suspended:
+                arrow_style = (
+                    "bold #FFD75F"
+                    if not member.valid
+                    else f"bold {'#87D787' if member.available else '#D78787'}"
+                )
+                text.append("→ ", style=arrow_style)
+            if member.valid:
+                marker = "✓" if member.available else "×"
+                target = member.target
+                if member.effort:
+                    target = f"{target}@{member.effort}"
+                color = (
+                    _POOL_AVAILABLE_STYLE
+                    if member.available
+                    else _POOL_UNAVAILABLE_STYLE
+                )
+                dimmed = suspended or not member.selected
+                style = f"dim {color}" if dimmed else color
+                text.append(f"{marker} {target}", style=style)
+            else:
+                style = (
+                    "dim #FFD75F"
+                    if suspended or not member.selected
+                    else _WARNING_STYLE
+                )
+                text.append(f"! {member.value}", style=style)
+    elif view.effort:
+        if text:
+            text.append("\n")
+        text.append(f"effort: {view.effort}", style="dim")
+        if default_effort is None:
+            text.append(" · no default configured", style="dim")
+        elif view.effort == default_effort:
+            text.append(" · matches default", style="dim")
+        else:
             text.append(
-                f"{marker} {target}",
-                style="#87D787" if member.available else "dim #D78787",
+                f" · overrides default {default_effort}",
+                style="dim",
             )
     return text
 
@@ -265,8 +330,11 @@ def _description_text_for_bucket(bucket: BucketView) -> Text:
     return text
 
 
-def description_text_for_row(row: AliasView | BucketView | None) -> Text:
+def description_text_for_row(
+    row: AliasView | BucketView | None,
+    default_effort: str | None = None,
+) -> Text:
     """Dispatch Models-panel description rendering by row type."""
     if isinstance(row, BucketView):
         return _description_text_for_bucket(row)
-    return description_text_for_view(row)
+    return description_text_for_view(row, default_effort)

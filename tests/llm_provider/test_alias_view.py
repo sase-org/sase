@@ -333,6 +333,105 @@ def test_custom_alias_view_carries_source_and_description(
     assert blogger.bucket == "writing"
 
 
+def test_alias_views_carry_direct_and_chain_inherited_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "custom": {
+                    "direct": {
+                        "model": "claude/opus@medium",
+                        "description": "Direct effort.",
+                    },
+                    "chained": {
+                        "model": "@direct@high",
+                        "description": "Inherited effort.",
+                    },
+                }
+            },
+        },
+    )
+    _patch_providers(monkeypatch)
+
+    by_name = {view.name: view for view in build_alias_views()}
+    assert (by_name["direct"].provider, by_name["direct"].model) == (
+        "claude",
+        "opus",
+    )
+    assert by_name["direct"].effort == "medium"
+    assert by_name["chained"].effort == "high"
+
+
+def test_pool_alias_view_uses_marked_next_member_for_all_badge_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "custom": {
+                    "pool": {
+                        "model": "claude/opus@medium | codex/o3@high",
+                        "description": "Pool.",
+                    }
+                }
+            },
+        },
+    )
+    _patch_providers(monkeypatch)
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+
+    first = {view.name: view for view in build_alias_views()}["pool"]
+    first_next = next(member for member in first.selector_members if member.selected)
+    assert (first.provider, first.model, first.effort) == (
+        first_next.provider,
+        "opus",
+        first_next.effort,
+    )
+
+    from sase.llm_provider.config import resolve_model_alias
+
+    resolve_model_alias("@pool", consume=True)
+    second = {view.name: view for view in build_alias_views()}["pool"]
+    second_next = next(member for member in second.selector_members if member.selected)
+    assert (second.provider, second.model, second.effort) == (
+        second_next.provider,
+        "o3",
+        second_next.effort,
+    )
+    assert second.effort == "high"
+
+
+def test_active_override_clears_alias_borne_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {"coder": "claude/opus@medium"},
+            },
+        },
+    )
+    _patch_providers(monkeypatch)
+
+    set_alias_override("coder", "codex/o3", None, source="test")
+    try:
+        coder = {view.name: view for view in build_alias_views()}["coder"]
+    finally:
+        clear_alias_override("coder")
+
+    assert (coder.provider, coder.model, coder.effort) == ("codex", "o3", None)
+
+
 def _user_view(
     name: str,
     provider: str,

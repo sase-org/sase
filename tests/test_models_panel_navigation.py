@@ -253,7 +253,7 @@ async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> 
         assert panel._active_bucket == "research"
         assert panel._highlighted_row_id() == "research_a"
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models › research"
+            "Models › research\ndefault effort: provider default"
         )
         assert "h" in str(panel.query_one("#models-panel-footer", Static).content)
 
@@ -261,7 +261,9 @@ async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> 
         await pilot.pause()
         assert panel._active_bucket is None
         assert panel._highlighted_row_id() == "bucket:research"
-        assert panel.query_one("#models-panel-title", Static).content.plain == "Models"
+        assert panel.query_one("#models-panel-title", Static).content.plain == (
+            "Models\ndefault effort: provider default"
+        )
 
 
 async def test_panel_enter_drills_into_bucket(monkeypatch) -> None:
@@ -403,8 +405,26 @@ async def test_refresh_auto_leaves_bucket_when_last_member_disappears(
         await pilot.pause()
 
         assert panel._active_bucket is None
-        assert panel.query_one("#models-panel-title", Static).content.plain == "Models"
+        assert panel.query_one("#models-panel-title", Static).content.plain == (
+            "Models\ndefault effort: provider default"
+        )
         assert panel.query_one("#models-panel-list", OptionList).option_count == 3
+
+
+async def test_panel_title_shows_configured_default_effort(monkeypatch) -> None:
+    patch_alias_views(monkeypatch, [make_alias_view("default", "default")])
+    effort = MagicMock(return_value="xhigh")
+    monkeypatch.setattr(models_panel, "default_reasoning_effort", effort)
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+
+        assert panel.query_one("#models-panel-title", Static).content.plain == (
+            "Models\ndefault effort: @ xhigh"
+        )
+        effort.assert_called_once_with()
 
 
 async def test_panel_preferred_width_fits_production_description(monkeypatch) -> None:

@@ -1337,10 +1337,12 @@ user-defined `llm_provider.model_aliases.custom` entry.
 
 Each row shows the alias name with a small kind badge (`default` / `role` / `<provider> coder` / `user`), its effective
 provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @<fallback>`, or an
-`override · <time> left` / `override · until cleared` chip when a temporary override is active. The top level is sorted
-deterministically: `default`, the built-in `coders` bucket, `epic_lander`, `big_epic_lander`, the built-in
-`phase_worker` bucket, `smartest`, `cheaper`, `cheapest`, then custom buckets and ungrouped user aliases in alphabetical
-order.
+`override · <time> left` / `override · until cleared` chip when a temporary override is active. The title's second line
+shows `llm_provider.default_effort` as `default effort: @ <level>`, or `provider default` when no valid default is
+configured. An explicit effort suffix inherited from an alias target appears beside that row's model badge; rows that
+simply inherit the header default omit the redundant suffix. The top level is sorted deterministically: `default`, the
+built-in `coders` bucket, `epic_lander`, `big_epic_lander`, the built-in `phase_worker` bucket, `smartest`, `cheaper`,
+`cheapest`, then custom buckets and ungrouped user aliases in alphabetical order.
 
 Two built-in buckets are always present. `coders` groups `coder` first and every registered `<provider>_coder` alias
 alphabetically. `phase_worker` groups `small_phase_worker`, `medium_phase_worker`, and `large_phase_worker`, followed by
@@ -1353,9 +1355,13 @@ the matching row.
 
 The two-line strip below the list explains the highlighted alias. Builtin aliases use fixed descriptions. User aliases
 use `llm_provider.model_aliases.custom.<name>.description`; a malformed user alias without one shows that config path as
-the fix. For a selector-valued alias, the strip lists every parsed member with an available/unavailable marker. A
-round-robin pool's provider/model badge shows the next peeked selection without advancing its cursor; an ordered
-fallback labels candidates in priority order, marks the current winner, and never reads rotation state.
+the fix. A non-pool alias with an explicit effort uses the second line to say whether it matches or overrides the
+configured default. For a selector-valued alias, the strip lists every parsed member with an available/unavailable
+marker. A round-robin pool's row state includes an availability count such as `pool 2/2`, and `→` marks the exact next
+peeked selection without advancing its cursor. An ordered fallback labels candidates in priority order, marks the
+current winner, and never reads rotation state. The row's provider/model/effort badge is derived from that same selected
+member. While a temporary override is active, the strip labels the selector suspended, dims its members, and omits the
+`→` marker.
 
 If a builtin alias is mistakenly configured under `llm_provider.model_aliases.custom`, opening the panel emits one
 warning toast listing every affected `@alias`. A gold warning glyph remains on each affected alias row even while a

@@ -39,6 +39,7 @@ def make_alias_view(
     bucket: str | None = None,
     selector_mode: ModelAliasSelectorMode | None = None,
     selector_members: tuple[ModelAliasSelectorMember, ...] = (),
+    effort: str | None = None,
 ) -> AliasView:
     return AliasView(
         name=name,
@@ -53,6 +54,7 @@ def make_alias_view(
         bucket=bucket,
         selector_mode=selector_mode,
         selector_members=selector_members,
+        effort=effort,
     )
 
 

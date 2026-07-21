@@ -63,6 +63,7 @@ def _view(
     bucket: str | None = None,
     selector_mode: ModelAliasSelectorMode | None = None,
     selector_members: tuple[ModelAliasSelectorMember, ...] = (),
+    effort: str | None = None,
 ) -> AliasView:
     return AliasView(
         name=name,
@@ -77,6 +78,7 @@ def _view(
         bucket=bucket,
         selector_mode=selector_mode,
         selector_members=selector_members,
+        effort=effort,
     )
 
 
@@ -322,6 +324,71 @@ def _bucket_views() -> list[AliasView]:
     ]
 
 
+def _pool_effort_views(*, suspended: bool = False) -> list[AliasView]:
+    pool_members = (
+        ModelAliasSelectorMember(
+            value="claude/opus@medium",
+            target="claude/opus",
+            effort="medium",
+            provider="claude",
+            available=False,
+        ),
+        ModelAliasSelectorMember(
+            value="codex/gpt-5.5@high",
+            target="codex/gpt-5.5",
+            effort="high",
+            provider="codex",
+            available=True,
+            selected=True,
+        ),
+    )
+    pool_override = (
+        TemporaryLLMOverride(
+            provider="claude",
+            model="sonnet",
+            raw_model="claude/sonnet",
+            created_at=_FROZEN_NOW,
+            expires_at=None,
+            source="ace",
+        )
+        if suspended
+        else None
+    )
+    rows = [
+        _view(
+            "cheaper",
+            "role",
+            configured=True,
+            configured_value="claude/opus@medium | codex/gpt-5.5@high",
+            provider="claude" if suspended else "codex",
+            model="sonnet" if suspended else "gpt-5.5",
+            override=pool_override,
+            configured_source="builtin",
+            description="Cheap load-balanced pool for high-volume agents.",
+            selector_mode="round_robin",
+            selector_members=pool_members,
+            effort=None if suspended else "high",
+        )
+        if row.name == "cheaper"
+        else row
+        for row in _calm_views()
+    ]
+    rows.append(
+        _view(
+            "focused",
+            "user",
+            configured=True,
+            configured_value="claude/opus@medium",
+            provider="claude",
+            model="opus",
+            configured_source="custom",
+            description="Focused analysis with a pinned effort.",
+            effort="medium",
+        )
+    )
+    return rows
+
+
 async def test_models_panel_default_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -371,6 +438,90 @@ async def test_models_panel_smartest_fallback_png_snapshot(
             page,
             "models_panel_smartest_fallback_120x40",
             title="ACE models panel (ordered smartest fallback)",
+        )
+
+
+async def test_models_panel_pool_effort_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Show the default, pool availability/next member, and row effort."""
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        models_panel, "build_alias_views", lambda *a, **k: _pool_effort_views()
+    )
+    monkeypatch.setattr(models_panel, "default_reasoning_effort", lambda: "xhigh")
+    monkeypatch.setattr(models_panel, "_now", lambda: _FROZEN_NOW)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(ModelsPanel())
+        await page.expect_modal("ModelsPanel")
+        await page.press("j", "j", "j", "j", "j", "j")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_pool_effort_120x40",
+            title="ACE models panel (pool and effort)",
+        )
+
+
+async def test_models_panel_effort_provenance_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        models_panel, "build_alias_views", lambda *a, **k: _pool_effort_views()
+    )
+    monkeypatch.setattr(models_panel, "default_reasoning_effort", lambda: "xhigh")
+    monkeypatch.setattr(models_panel, "_now", lambda: _FROZEN_NOW)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(ModelsPanel())
+        await page.expect_modal("ModelsPanel")
+        await page.press("j", "j", "j", "j", "j", "j", "j", "j", "j")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_effort_provenance_120x40",
+            title="ACE models panel (effort provenance)",
+        )
+
+
+async def test_models_panel_pool_suspended_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        models_panel,
+        "build_alias_views",
+        lambda *a, **k: _pool_effort_views(suspended=True),
+    )
+    monkeypatch.setattr(models_panel, "default_reasoning_effort", lambda: "xhigh")
+    monkeypatch.setattr(models_panel, "_now", lambda: _FROZEN_NOW)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(ModelsPanel())
+        await page.expect_modal("ModelsPanel")
+        await page.press("j", "j", "j", "j", "j", "j")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_pool_suspended_120x40",
+            title="ACE models panel (pool suspended by override)",
         )
 
 

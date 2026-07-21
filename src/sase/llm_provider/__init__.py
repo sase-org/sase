@@ -21,6 +21,7 @@ from .alias_view import (
 from .base import LLMProvider
 from .config import (
     ModelAliasConfigSource,
+    default_reasoning_effort,
     get_builtin_model_aliases,
     get_custom_model_aliases,
     model_alias_bucket,
@@ -88,6 +89,7 @@ __all__ = [
     "build_models_panel_rows",
     "clear_alias_override",
     "clear_temporary_override",
+    "default_reasoning_effort",
     "get_active_alias_override",
     "get_active_alias_overrides",
     "get_active_temporary_override",

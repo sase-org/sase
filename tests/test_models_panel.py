@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.tui.modals.models_panel import (
     _DurationPickerModal,
@@ -56,6 +58,30 @@ def test_format_duration_chosen_finite() -> None:
 # ---------------------------------------------------------------------------
 # Row rendering
 # ---------------------------------------------------------------------------
+
+
+def _pool_members(
+    availability: tuple[bool, ...] = (True, True),
+    *,
+    next_index: int = 0,
+) -> tuple[ModelAliasSelectorMember, ...]:
+    values = ("claude/opus@medium", "codex/gpt-5.5")
+    targets = ("claude/opus", "codex/gpt-5.5")
+    efforts = ("medium", None)
+    providers = ("claude", "codex")
+    return tuple(
+        ModelAliasSelectorMember(
+            value=value,
+            target=targets[index],
+            effort=efforts[index],
+            provider=providers[index],
+            available=available,
+            selected=index == next_index,
+        )
+        for index, (value, available) in enumerate(
+            zip(values, availability, strict=True)
+        )
+    )
 
 
 def test_custom_builtin_warning_message_uses_singular_guidance() -> None:
@@ -186,6 +212,51 @@ def test_state_tag_override_until_cleared() -> None:
     assert text.plain == "override · until cleared"
 
 
+@pytest.mark.parametrize(
+    ("availability", "expected", "color"),
+    [
+        ((True, True), "configured · pool 2/2", "#87d787"),
+        ((False, True), "configured · pool 1/2", "#ffd75f"),
+        ((False, False), "configured · pool 0/2", "#d78787"),
+    ],
+)
+def test_state_tag_pool_availability_chip(
+    availability: tuple[bool, bool],
+    expected: str,
+    color: str,
+) -> None:
+    view = make_alias_view(
+        "pool",
+        "user",
+        configured=True,
+        configured_value="claude/opus | codex/gpt-5.5",
+        selector_mode="round_robin",
+        selector_members=_pool_members(availability),
+    )
+
+    text = _state_tag(view, now=0.0)
+    chip = next(
+        span
+        for span in text.spans
+        if text.plain[span.start : span.end].startswith("pool ")
+    )
+    assert text.plain == expected
+    assert color in str(chip.style).lower()
+
+
+def test_state_tag_overridden_pool_keeps_override_chip() -> None:
+    view = make_alias_view(
+        "pool",
+        "user",
+        configured=True,
+        override=make_override(),
+        selector_mode="round_robin",
+        selector_members=_pool_members(),
+    )
+
+    assert _state_tag(view, now=0.0).plain == "override · 1h left"
+
+
 def test_render_alias_row_contains_name_provider_and_state() -> None:
     view = make_alias_view("medium_phase_worker", "role", provider="codex", model="o3")
     width = _provider_model_column_width([view])
@@ -193,6 +264,23 @@ def test_render_alias_row_contains_name_provider_and_state() -> None:
     assert "medium_phase_worker" in line
     assert "CODEX(o3)" in line
     assert "implicit → @default" in line
+
+
+def test_render_alias_row_includes_effort_in_measured_badge() -> None:
+    view = make_alias_view(
+        "focused",
+        "user",
+        configured=True,
+        provider="codex",
+        model="o3",
+        effort="max",
+    )
+
+    width = _provider_model_column_width([view])
+    line = _render_alias_row(view, now=0.0, provider_model_width=width).plain
+
+    assert width == len("CODEX(o3) @ max")
+    assert "CODEX(o3) @ max" in line
 
 
 def test_render_alias_rows_align_state_column() -> None:
@@ -269,6 +357,24 @@ def test_render_alias_row_ellipsizes_long_provider_model_label() -> None:
     assert "…" in long_line
     assert long_state in long_line
     assert long_line.index(long_state) == short_line.index(short_state)
+
+
+def test_render_alias_row_ellipsizes_combined_badge_and_effort() -> None:
+    view = make_alias_view(
+        "focused",
+        "user",
+        configured=True,
+        provider="claude",
+        model="claude-fable-4-10-extra-long",
+        effort="minimal",
+    )
+
+    width = _provider_model_column_width([view])
+    line = _render_alias_row(view, now=0.0, provider_model_width=width).plain
+
+    assert width == models_panel._PROVIDER_MODEL_CELL_MAX
+    assert "…" in line
+    assert "configured" in line
 
 
 def test_description_text_for_builtin_alias() -> None:
@@ -358,7 +464,7 @@ def test_description_text_preserves_pool_rendering() -> None:
         )
     )
 
-    assert text.plain == "pool: ✓ claude/opus@medium · × codex/gpt-5.5"
+    assert text.plain == "pool: → ✓ claude/opus@medium · × codex/gpt-5.5"
 
 
 def test_description_text_for_user_alias_without_description_hints_config_path() -> (
@@ -376,6 +482,74 @@ def test_description_text_for_user_alias_without_description_hints_config_path()
 
     assert "no description" in text.plain
     assert "llm_provider.model_aliases.custom.blogger.description" in text.plain
+
+
+def test_description_text_marks_next_pool_member_and_dims_others() -> None:
+    text = _description_text_for_view(
+        make_alias_view(
+            "pool",
+            "user",
+            configured=True,
+            description="Pool alias.",
+            selector_mode="round_robin",
+            selector_members=_pool_members((True, False), next_index=0),
+        )
+    )
+
+    assert text.plain.splitlines() == [
+        "Pool alias.",
+        "pool: → ✓ claude/opus@medium · × codex/gpt-5.5",
+    ]
+    arrow = next(
+        span for span in text.spans if text.plain[span.start : span.end] == "→ "
+    )
+    assert "bold" in str(arrow.style).lower()
+
+
+def test_description_text_pool_override_suspends_next_marker() -> None:
+    text = _description_text_for_view(
+        make_alias_view(
+            "pool",
+            "user",
+            configured=True,
+            description="Pool alias.",
+            override=make_override(),
+            selector_mode="round_robin",
+            selector_members=_pool_members(),
+        )
+    )
+
+    assert text.plain.splitlines() == [
+        "Pool alias.",
+        "pool (suspended by override): ✓ claude/opus@medium · ✓ codex/gpt-5.5",
+    ]
+    assert "→" not in text.plain
+
+
+@pytest.mark.parametrize(
+    ("default_effort", "expected"),
+    [
+        ("xhigh", "effort: medium · overrides default xhigh"),
+        ("medium", "effort: medium · matches default"),
+        (None, "effort: medium · no default configured"),
+    ],
+)
+def test_description_text_explains_effort_provenance(
+    default_effort: str | None,
+    expected: str,
+) -> None:
+    text = _description_text_for_view(
+        make_alias_view(
+            "focused",
+            "user",
+            configured=True,
+            description="Focused alias.",
+            effort="medium",
+        ),
+        default_effort,
+    )
+
+    assert text.plain.splitlines() == ["Focused alias.", expected]
 
 
 def test_render_bucket_row_contains_count_and_override_state() -> None:
@@ -464,6 +638,27 @@ def test_description_text_for_bucket_shows_description_and_model_mix() -> None:
     assert text.splitlines() == [
         "Research roles.",
         "codex/gpt-5.6-sol ×2 · claude/opus ×1",
+    ]
+
+
+def test_description_text_for_bucket_distinguishes_effort_variants() -> None:
+    bucket = BucketView(
+        name="research",
+        description="Research roles.",
+        members=(
+            make_alias_view(
+                "research_a", "user", provider="claude", model="opus", effort="medium"
+            ),
+            make_alias_view(
+                "research_b", "user", provider="claude", model="opus", effort="medium"
+            ),
+            make_alias_view("research_c", "user", provider="claude", model="opus"),
+        ),
+    )
+
+    assert description_text_for_row(bucket).plain.splitlines() == [
+        "Research roles.",
+        "claude/opus@medium ×2 · claude/opus ×1",
     ]
 
 

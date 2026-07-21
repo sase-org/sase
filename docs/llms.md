@@ -645,7 +645,9 @@ Both selectors accept two or more members using the same single-target grammar, 
 reasoning effort. Whitespace is trimmed and empty members are invalid. `|` and `||` cannot be mixed in one value, and a
 member may follow an ordinary alias chain but cannot reach another pool or fallback. Selector expressions are
 config-only: `%model` values, launch-scoped alias overrides, and temporary overrides remain single targets. An override
-on the alias that owns a selector bypasses that expression for the override's lifetime.
+on the alias that owns a selector bypasses that expression for the override's lifetime. The ACE Models panel shows every
+member's availability, an aggregate `pool <available>/<total>` chip for round-robin pools, and a `→` on the current
+selection; an active temporary override labels the member list suspended because it bypasses selection.
 
 When the same name appears in both maps, `model_aliases.custom` wins. `sase doctor -C config.model_aliases` warns about
 legacy flat keys in `model_aliases`, removed top-level `custom_model_aliases`, custom names under
@@ -812,6 +814,11 @@ There are four ways an effort reaches a launch, in precedence order:
 The canonical effort vocabulary, ordered least → most, is `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
 Spelling is validated globally; _which_ levels a given provider honors is decided per provider (below).
 
+The ACE Models panel shows the validated config default in its header (`default effort: @ <level>`), or says
+`provider default` when none is configured. Alias-borne effort appears only on rows that explicitly pin or inherit a
+suffix, beside the provider/model badge; the description strip identifies whether it matches or overrides the default.
+For pools, each member keeps its own suffix in the member list and the row badge reflects the next selected member.
+
 ### Explicit vs. Default Semantics
 
 The distinction between an explicitly requested effort and a config-default effort governs what happens on a provider
@@ -838,7 +845,7 @@ while a config-default effort is skipped with a warning. The effort args are app
 [`SASE_LLM_*_ARGS` / `SASE_<P>_LARGE_ARGS`](#environment-variables) escape hatches, which remain available.
 
 Source: `src/sase/xprompt/effort.py` (vocabulary + `split_model_effort`), `src/sase/llm_provider/config.py`
-(`resolve_effective_effort`, backed by the private `_get_default_effort` config reader),
+(`resolve_effective_effort` and the public `default_reasoning_effort` config reader),
 `src/sase/llm_provider/_effort_args.py` (per-provider translation).
 
 ## Model Tier System
@@ -924,8 +931,9 @@ clearing these overrides — for the `default` alias or any role/user alias.
 
 The panel also shows a two-line description for the highlighted alias or bucket. Builtin aliases have fixed
 descriptions, custom aliases read `llm_provider.model_aliases.custom.<name>.description`, selector aliases list each
-member and its current availability (with the ordered-fallback winner marked), and the built-in `coders` and
-`phase_worker` buckets report their aggregate effective-model mix and active override count.
+member, its current availability, and the current selection, and the built-in `coders` and `phase_worker` buckets report
+their aggregate effective-model-and-effort mix and active override count. The title shows the configured default effort,
+while non-pool aliases that explicitly carry an effort explain its provenance on the second description line.
 
 Overrides are **per-alias** and independent. The `default` override only changes the _default_ provider/model selection
 for new agent launches; an override on any other alias takes effect wherever that alias is resolved. For example, an

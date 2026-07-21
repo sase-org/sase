@@ -18,6 +18,7 @@ from sase.llm_provider import (
     build_alias_views,
     build_models_panel_rows,
     clear_alias_override,
+    default_reasoning_effort,
     set_alias_override,
     set_alias_override_until,
 )
@@ -94,6 +95,7 @@ class ModelsPanel(
     def __init__(self) -> None:
         super().__init__()
         self._changed = False
+        self._default_effort: str | None = None
         self._views: list[AliasView] = []
         self._top_rows: list[AliasView | BucketView] = []
         self._bucket_by_name: dict[str, BucketView] = {}
@@ -125,6 +127,9 @@ class ModelsPanel(
 
     def _load_alias_views(self) -> list[AliasView]:
         return build_alias_views()
+
+    def _load_default_reasoning_effort(self) -> str | None:
+        return default_reasoning_effort()
 
     def _load_models_panel_rows(
         self, views: list[AliasView]

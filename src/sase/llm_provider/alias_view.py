@@ -133,6 +133,8 @@ class AliasView:
         provider: The currently-effective provider name, or ``None`` when the
             target is a bare/unknown model that runs on the default provider.
         model: The currently-effective model name.
+        effort: The alias-borne reasoning effort, or ``None`` when the alias
+            does not override the configured/provider default.
         override: The active temporary override for this alias, or ``None``.
         bucket: The optional Models-panel bucket for a custom alias.
         reference_provider: Provider represented by an explicit ``@name``
@@ -162,6 +164,7 @@ class AliasView:
     implicit_value: str | None = None
     selector_mode: ModelAliasSelectorMode | None = None
     selector_members: tuple[ModelAliasSelectorMember, ...] = ()
+    effort: str | None = None
 
     @property
     def is_overridden(self) -> bool:
@@ -243,7 +246,8 @@ class BucketView:
 
     @staticmethod
     def _model_label(member: AliasView) -> str:
-        return f"{member.provider}/{member.model}" if member.provider else member.model
+        label = f"{member.provider}/{member.model}" if member.provider else member.model
+        return f"{label}@{member.effort}" if member.effort else label
 
     @property
     def model_counts(self) -> tuple[tuple[str, int], ...]:
@@ -288,21 +292,33 @@ def _sort_key(view: AliasView) -> tuple[int, int, str]:
 def _effective_provider_model(
     name: str,
     override: TemporaryLLMOverride | None,
-) -> tuple[str | None, str]:
-    """Return the currently-effective ``(provider, model)`` for *name*.
+) -> tuple[str | None, str, str | None]:
+    """Return the currently-effective provider, model, and effort for *name*.
 
     An active temporary override always wins (this is what the panel and the
     top-bar pill show); otherwise the configured/implicit alias chain is
     resolved and split into a provider/model pair.
     """
     if override is not None:
-        return override.provider, override.model
+        return override.provider, override.model, None
 
     # Lazy import to avoid an import cycle: registry imports this package's
     # config at import time.
-    from .registry import resolve_model_provider
+    from .registry import resolve_model_provider_with_effort
 
-    return resolve_model_provider(name)
+    return resolve_model_provider_with_effort(name)
+
+
+def _selector_member_provider_model_effort(
+    member: ModelAliasSelectorMember,
+) -> tuple[str | None, str, str | None]:
+    """Return display fields derived from one already-resolved selector member."""
+    model = member.target
+    if member.provider is not None:
+        prefix = f"{member.provider}/"
+        if model.startswith(prefix):
+            model = model[len(prefix) :]
+    return member.provider, model, member.effort
 
 
 def build_alias_views(now: float | None = None) -> list[AliasView]:
@@ -326,8 +342,18 @@ def build_alias_views(now: float | None = None) -> list[AliasView]:
     views: list[AliasView] = []
     for name in names:
         override = overrides.get(name)
-        provider, model = _effective_provider_model(name, override)
         selector = model_alias_selector_details(name)
+        selected_member = (
+            next((member for member in selector.members if member.selected), None)
+            if selector is not None
+            else None
+        )
+        if override is None and selected_member is not None:
+            provider, model, effort = _selector_member_provider_model_effort(
+                selected_member
+            )
+        else:
+            provider, model, effort = _effective_provider_model(name, override)
         reference_provider: str | None = None
         reference_model: str | None = None
         if name == DEFAULT_MODEL_ALIAS_NAME and override is not None:
@@ -358,6 +384,7 @@ def build_alias_views(now: float | None = None) -> list[AliasView]:
                 implicit_value=implicit_model_alias_value(name),
                 selector_mode=selector.mode if selector is not None else None,
                 selector_members=selector.members if selector is not None else (),
+                effort=effort,
             )
         )
 

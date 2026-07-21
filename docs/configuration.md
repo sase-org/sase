@@ -672,7 +672,9 @@ unavailable, and stores its machine-global cursor in `~/.sase/llm_lb.json`; disp
 `A || B` always selects the first installed provider CLI and never reads or advances that cursor. Ordered fallback is
 based on CLI installation, not later model/runtime success, and preserves its first candidate for normal diagnostics
 when none are installed. Members may carry a trailing effort. The operators cannot be mixed, selectors cannot be nested,
-and selectors are not accepted in `%model` directives or launch-scoped/temporary overrides.
+and selectors are not accepted in `%model` directives or launch-scoped/temporary overrides. In the ACE Models panel, the
+pool row reports the available/total count, selector member lists mark the current selection with `→`, and active
+temporary overrides label selection suspended.
 
 ACE automatically supplies two display-only built-in buckets while alias resolution and configuration remain flat:
 `coders` groups `@coder` with every registered `@<provider>_coder`, and `phase_worker` groups `@small_phase_worker`,

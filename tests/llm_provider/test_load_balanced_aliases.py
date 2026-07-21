@@ -11,6 +11,7 @@ import pytest
 
 from sase.llm_provider import config as llm_config
 from sase.llm_provider.config import (
+    model_alias_selector_details,
     resolve_effective_effort,
     resolve_model_alias,
     resolve_model_alias_with_effort,
@@ -42,6 +43,13 @@ def _configure_pool(
         "_resolved_target_is_available",
         lambda _target: True,
     )
+
+
+def _pool_member_snapshot() -> tuple[llm_config.ModelAliasSelectorMember, ...]:
+    details = model_alias_selector_details("pool")
+    assert details is not None
+    assert details.mode == "round_robin"
+    return details.members
 
 
 def test_selector_parser_normalizes_modes_and_rejects_invalid_members() -> None:
@@ -254,6 +262,73 @@ def test_pool_edit_fingerprint_resets_cursor(
     cfg["model_aliases"] = {"builtin": {"pool": "codex/o3 | claude/sonnet"}}
     llm_config._get_model_aliases_for_token.cache_clear()
     assert resolve_model_alias("@pool", consume=True) == "codex/o3"
+
+
+def test_pool_member_snapshot_marks_fresh_and_advanced_cursor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_pool(monkeypatch)
+
+    assert [member.selected for member in _pool_member_snapshot()] == [
+        True,
+        False,
+    ]
+    resolve_model_alias("@pool", consume=True)
+    assert [member.selected for member in _pool_member_snapshot()] == [
+        False,
+        True,
+    ]
+
+
+def test_pool_member_snapshot_marks_available_skip_and_all_down_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_pool(monkeypatch)
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda target: target.startswith("codex/"),
+    )
+
+    members = _pool_member_snapshot()
+    assert [member.available for member in members] == [False, True]
+    assert [member.selected for member in members] == [False, True]
+
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda _target: False,
+    )
+    members = _pool_member_snapshot()
+    assert [member.available for member in members] == [False, False]
+    assert [member.selected for member in members] == [True, False]
+
+
+def test_pool_member_snapshot_resets_next_marker_after_membership_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg: dict[str, object] = {
+        "provider": "claude",
+        "model_aliases": {"builtin": {"pool": "claude/opus | codex/o3"}},
+    }
+    mock_provider_config(monkeypatch, cfg)
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda _target: True,
+    )
+    resolve_model_alias("@pool", consume=True)
+    assert [member.selected for member in _pool_member_snapshot()] == [
+        False,
+        True,
+    ]
+
+    cfg["model_aliases"] = {"builtin": {"pool": "codex/gpt-5.5 | claude/sonnet"}}
+    llm_config._get_model_aliases_for_token.cache_clear()
+    assert [member.selected for member in _pool_member_snapshot()] == [
+        True,
+        False,
+    ]
 
 
 def test_corrupt_or_locked_state_never_crashes_resolution(

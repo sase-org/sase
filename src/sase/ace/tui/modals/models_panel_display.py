@@ -34,6 +34,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
         _active_bucket: str | None
         _bucket_by_name: dict[str, BucketView]
         _changed: bool
+        _default_effort: str | None
         _row_by_id: dict[str, AliasView | BucketView]
         _top_rows: list[AliasView | BucketView]
         _updating_highlight: bool
@@ -44,6 +45,8 @@ class ModelsPanelDisplayMixin(_MixinBase):
 
         def _load_alias_views(self) -> list[AliasView]: ...
 
+        def _load_default_reasoning_effort(self) -> str | None: ...
+
         def _load_models_panel_rows(
             self, views: list[AliasView]
         ) -> list[AliasView | BucketView]: ...
@@ -51,9 +54,10 @@ class ModelsPanelDisplayMixin(_MixinBase):
         def _models_panel_now(self) -> float: ...
 
     def compose(self) -> ComposeResult:
+        options = self._build_options()
         with Container(id="models-panel-container"):
             yield Static(self._title_text(), id="models-panel-title")
-            yield OptionList(*self._build_options(), id="models-panel-list")
+            yield OptionList(*options, id="models-panel-list")
             yield Static("", id="models-panel-description")
             yield Static("", id="models-panel-footer")
 
@@ -103,9 +107,17 @@ class ModelsPanelDisplayMixin(_MixinBase):
         if self._active_bucket is not None:
             text.append(" › ", style="dim")
             text.append(self._active_bucket, style="bold #FFD787")
+        text.append("\n")
+        text.append("default effort: ", style="dim #878787")
+        if self._default_effort is None:
+            text.append("provider default", style="dim #878787")
+        else:
+            text.append("@ ", style="#878787")
+            text.append(self._default_effort, style="bold #AF87FF")
         return text
 
     def _build_options(self) -> list[Option]:
+        self._default_effort = self._load_default_reasoning_effort()
         self._views = self._load_alias_views()
         self._top_rows = self._load_models_panel_rows(self._views)
         self._bucket_by_name = {
@@ -204,7 +216,9 @@ class ModelsPanelDisplayMixin(_MixinBase):
             description = self.query_one("#models-panel-description", Static)
         except Exception:
             return
-        description.update(description_text_for_row(self._selected_row()))
+        description.update(
+            description_text_for_row(self._selected_row(), self._default_effort)
+        )
 
     def _highlighted_row_id(self) -> str | None:
         option_list = self.query_one("#models-panel-list", OptionList)
@@ -239,7 +253,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
             row = self._row_by_id.get(str(event.option.id))
             try:
                 self.query_one("#models-panel-description", Static).update(
-                    description_text_for_row(row)
+                    description_text_for_row(row, self._default_effort)
                 )
                 self.query_one("#models-panel-footer", Static).update(
                     self._footer_markup()
