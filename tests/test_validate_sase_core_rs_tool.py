@@ -44,8 +44,9 @@ def test_validate_sase_core_rs_requires_plan_validation_bindings() -> None:
     plan_bindings = {
         "plan_validate",
         "plan_frontmatter_schema",
-        "sdd_frontmatter_link_parse",
-        "sdd_frontmatter_link_render",
+        "sdd_artifact_link_parse",
+        "sdd_artifact_link_render",
+        "sdd_artifact_link_upsert",
     }
 
     assert plan_bindings <= set(validator.REQUIRED_BINDINGS)

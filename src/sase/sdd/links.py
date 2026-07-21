@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -19,12 +18,13 @@ from sase.sdd._link_models import (
     repair_to_json,
     validation_to_json,
 )
-from sase.sdd.frontmatter import set_frontmatter_fields
-from sase.sdd.frontmatter_links import (
-    SddFrontmatterLink,
-    SddFrontmatterLinkKind,
-    canonical_sdd_frontmatter_link,
-    parse_sdd_frontmatter_link,
+from sase.sdd.artifact_links import (
+    SddArtifactLink,
+    SddArtifactLinkKind,
+    SddArtifactLinkType,
+    canonical_sdd_artifact_link,
+    parse_sdd_artifact_link,
+    update_source_aware_artifact_link,
 )
 from sase.sdd.plan_tiers import (
     classify_plan_file,
@@ -67,7 +67,7 @@ def resolve_sdd_root(path: str | None = None, *, cwd: Path | None = None) -> Pat
 def validate_sdd_tree(
     path: str | None = None, *, strict: bool = False
 ) -> _SddValidation:
-    """Validate frontmatter and bidirectional links under an SDD root."""
+    """Validate artifact metadata and bidirectional links under an SDD root."""
     root = resolve_sdd_root(path)
     if not root.is_dir():
         issue = _SddIssue(
@@ -107,10 +107,11 @@ def validate_sdd_tree(
                 )
             )
 
-        link_field = "plan" if file.kind == "prompts" else "prompt"
-        link_value = file.frontmatter.get(link_field)
+        link_type = _expected_link_type(file)
+        link_field = link_type.legacy_field
+        link = file.artifact_link
         counterpart = _infer_counterpart(file, files)
-        if len(counterpart) == 1 and link_field not in file.frontmatter:
+        if len(counterpart) == 1 and link.kind is SddArtifactLinkKind.MISSING:
             issues.append(
                 _SddIssue(
                     severity="error",
@@ -129,7 +130,7 @@ def validate_sdd_tree(
                     + ", ".join(item.relpath for item in counterpart),
                 )
             )
-        elif not counterpart and link_field not in file.frontmatter:
+        elif not counterpart and link.kind is SddArtifactLinkKind.MISSING:
             issues.append(
                 _SddIssue(
                     severity=_strict_severity(strict),
@@ -139,32 +140,65 @@ def validate_sdd_tree(
                 )
             )
 
-        if link_field not in file.frontmatter:
+        if link.kind is SddArtifactLinkKind.MISSING:
             continue
-        if not isinstance(link_value, str):
-            issues.append(
-                _SddIssue(
-                    severity="error",
-                    code="link-type",
-                    path=file.relpath,
-                    message=f"{link_field!r} must be a string link",
-                )
-            )
-            continue
-
-        parsed_link = parse_sdd_frontmatter_link(link_value)
-        if parsed_link.kind is SddFrontmatterLinkKind.INVALID:
+        if link.kind is SddArtifactLinkKind.INVALID:
             issues.append(
                 _SddIssue(
                     severity="error",
                     code="link-format",
                     path=file.relpath,
-                    message=f"invalid {link_field!r} link: {parsed_link.reason}",
+                    message=f"invalid {link_field!r} artifact link: {link.reason}",
+                )
+            )
+            continue
+        if link.link_type is not link_type:
+            issues.append(
+                _SddIssue(
+                    severity="error",
+                    code="link-kind",
+                    path=file.relpath,
+                    message=(
+                        f"artifact uses {link.link_type or 'unknown'} link; "
+                        f"expected {link_type.value}"
+                    ),
+                )
+            )
+            continue
+        if (
+            link.kind in {SddArtifactLinkKind.CANONICAL, SddArtifactLinkKind.MIXED}
+            and not link.canonical_layout
+        ):
+            issues.append(
+                _SddIssue(
+                    severity="error",
+                    code="link-placement",
+                    path=file.relpath,
+                    message=(
+                        f"{link_type.value} bullet must be the first Markdown body "
+                        "element with exactly one blank line after it"
+                    ),
+                )
+            )
+        if link.kind is SddArtifactLinkKind.MIXED and not _mixed_link_agrees(
+            root, file.path, link
+        ):
+            issues.append(
+                _SddIssue(
+                    severity="error",
+                    code="link-conflict",
+                    path=file.relpath,
+                    message=(
+                        "canonical bullet and legacy frontmatter link resolve to "
+                        "different targets"
+                    ),
                 )
             )
             continue
 
-        target_path = _resolve_link_path(root, file.path, parsed_link)
+        target_path = _resolve_link_path(root, file.path, link)
+        if target_path is None:
+            continue
         target = by_path.get(target_path.resolve())
         if target is None:
             issues.append(
@@ -173,7 +207,7 @@ def validate_sdd_tree(
                     code="link-missing-target",
                     path=file.relpath,
                     message=f"{link_field!r} target does not exist: "
-                    f"{parsed_link.resolution_target}",
+                    f"{link.resolution_target}",
                 )
             )
             continue
@@ -197,39 +231,50 @@ def validate_sdd_tree(
                 )
             )
 
-        reverse_field = "prompt" if file.kind == "prompts" else "plan"
-        reverse_value = target.frontmatter.get(reverse_field)
-        if not isinstance(reverse_value, str):
+        reverse_type = _expected_link_type(target)
+        reverse_field = reverse_type.legacy_field
+        reverse_link = target.artifact_link
+        if (
+            reverse_link.kind
+            in {SddArtifactLinkKind.MISSING, SddArtifactLinkKind.INVALID}
+            or reverse_link.link_type is not reverse_type
+        ):
             issues.append(
                 _SddIssue(
                     severity="error",
                     code="reverse-link",
                     path=file.relpath,
-                    message=f"{target.relpath} is missing string {reverse_field!r} link",
+                    message=f"{target.relpath} is missing a valid {reverse_field!r} link",
                 )
             )
             continue
-
-        reverse_link = parse_sdd_frontmatter_link(reverse_value)
-        if reverse_link.kind is SddFrontmatterLinkKind.INVALID:
+        if reverse_link.kind is SddArtifactLinkKind.MIXED and not _mixed_link_agrees(
+            root, target.path, reverse_link
+        ):
             issues.append(
                 _SddIssue(
                     severity="error",
                     code="reverse-link",
                     path=file.relpath,
-                    message=f"{target.relpath} has invalid {reverse_field!r} link: "
-                    f"{reverse_link.reason}",
+                    message=f"{target.relpath} has conflicting {reverse_field!r} links",
                 )
             )
             continue
-        reverse_path = _resolve_link_path(root, target.path, reverse_link).resolve()
+        resolved_reverse = _resolve_link_path(root, target.path, reverse_link)
+        if resolved_reverse is None:
+            continue
+        reverse_path = resolved_reverse.resolve()
         if reverse_path != file.path.resolve():
             issues.append(
                 _SddIssue(
                     severity="error",
                     code="reverse-link",
                     path=file.relpath,
-                    message=f"{target.relpath} links back to {reverse_value}, not {file.relpath}",
+                    message=(
+                        f"{target.relpath} links back to "
+                        f"{_link_reference(root, target.path, reverse_link)}, "
+                        f"not {file.relpath}"
+                    ),
                 )
             )
 
@@ -278,41 +323,29 @@ def collect_sdd_links(root: Path) -> list[dict[str, Any]]:
     by_path = {file.path.resolve(): file for file in files}
     rows: list[dict[str, Any]] = []
     for file in files:
-        link_field = "plan" if file.kind == "prompts" else "prompt"
-        link_value = file.frontmatter.get(link_field)
-        parsed_link = (
-            parse_sdd_frontmatter_link(link_value)
-            if isinstance(link_value, str)
-            else None
-        )
+        link_type = _expected_link_type(file)
+        link = file.artifact_link
         row: dict[str, Any] = {
             "path": file.relpath,
             "kind": file.kind,
-            "field": link_field,
-            "target": parsed_link.reference if parsed_link is not None else None,
+            "field": link_type.legacy_field,
+            "target": _link_reference(root, file.path, link),
             "target_exists": False,
             "bidirectional": False,
         }
-        if (
-            parsed_link is not None
-            and parsed_link.kind is not SddFrontmatterLinkKind.INVALID
-        ):
-            target = by_path.get(
-                _resolve_link_path(root, file.path, parsed_link).resolve()
-            )
+        if link.link_type is link_type:
+            resolved = _resolve_link_path(root, file.path, link)
+            target = by_path.get(resolved.resolve()) if resolved is not None else None
             row["target_exists"] = target is not None
             if target is not None:
-                reverse_field = "prompt" if file.kind == "prompts" else "plan"
-                reverse_value = target.frontmatter.get(reverse_field)
-                if isinstance(reverse_value, str):
-                    reverse_link = parse_sdd_frontmatter_link(reverse_value)
-                    row["bidirectional"] = (
-                        reverse_link.kind is not SddFrontmatterLinkKind.INVALID
-                        and _resolve_link_path(
-                            root, target.path, reverse_link
-                        ).resolve()
-                        == file.path.resolve()
-                    )
+                reverse_type = _expected_link_type(target)
+                reverse_link = target.artifact_link
+                reverse_path = _resolve_link_path(root, target.path, reverse_link)
+                row["bidirectional"] = (
+                    reverse_link.link_type is reverse_type
+                    and reverse_path is not None
+                    and reverse_path.resolve() == file.path.resolve()
+                )
         rows.append(row)
     return rows
 
@@ -333,7 +366,7 @@ def repair_sdd_links(path: str | None = None, *, write: bool = False) -> _Repair
 
     files = _list_sdd_files(root, kind="all")
     issues: list[_SddIssue] = []
-    updates: dict[Path, dict[str, str]] = defaultdict(dict)
+    updates: dict[Path, tuple[_SddFile, _SddFile, SddArtifactLinkType, str]] = {}
     actions: list[_RepairAction] = []
 
     for prompt_file in [file for file in files if file.kind == "prompts"]:
@@ -371,15 +404,43 @@ def repair_sdd_links(path: str | None = None, *, write: bool = False) -> _Repair
                 )
             )
             continue
-        _queue_update(root, prompt_file, "plan", plan_file, updates, actions)
-        _queue_update(root, plan_file, "prompt", prompt_file, updates, actions)
+        _queue_update(
+            root,
+            prompt_file,
+            plan_file,
+            SddArtifactLinkType.PLAN,
+            "../",
+            updates,
+            actions,
+            issues,
+        )
+        _queue_update(
+            root,
+            plan_file,
+            prompt_file,
+            SddArtifactLinkType.PROMPT,
+            "",
+            updates,
+            actions,
+            issues,
+        )
 
     changed_files: list[str] = []
     if write:
-        for file_path, fields in sorted(updates.items(), key=lambda item: str(item[0])):
+        for file_path, update in sorted(updates.items(), key=lambda item: str(item[0])):
+            source, target, link_type, label_prefix = update
             content = file_path.read_text(encoding="utf-8")
             file_path.write_text(
-                set_frontmatter_fields(content, fields), encoding="utf-8"
+                update_source_aware_artifact_link(
+                    content,
+                    root,
+                    source.path,
+                    target.path,
+                    link_type,
+                    label_prefix=label_prefix,
+                    remove_legacy=True,
+                ),
+                encoding="utf-8",
             )
             changed_files.append(_relpath(root, file_path))
 
@@ -395,15 +456,48 @@ def repair_sdd_links(path: str | None = None, *, write: bool = False) -> _Repair
 def _resolve_link_path(
     root: Path,
     source: Path,
-    link: SddFrontmatterLink,
-) -> Path:
-    """Resolve canonical hrefs or historical root-relative paths."""
-    if link.kind is SddFrontmatterLinkKind.CANONICAL:
-        assert link.target is not None
+    link: SddArtifactLink,
+) -> Path | None:
+    """Resolve a canonical href or compatible historical representation."""
+    if link.kind is SddArtifactLinkKind.INVALID:
+        return None
+    if link.kind is SddArtifactLinkKind.MIXED and not _mixed_link_agrees(
+        root, source, link
+    ):
+        return None
+    if link.kind in {SddArtifactLinkKind.CANONICAL, SddArtifactLinkKind.MIXED}:
+        if link.target is None:
+            return None
         return source.parent / Path(link.target)
+    if link.kind is SddArtifactLinkKind.LEGACY and link.legacy is not None:
+        return _resolve_legacy_representation(root, source, link)
+    return None
 
-    assert link.path is not None
-    return _resolve_legacy_link_path(root, link.path)
+
+def _resolve_legacy_representation(
+    root: Path, source: Path, link: SddArtifactLink
+) -> Path:
+    assert link.legacy is not None
+    if link.legacy.format == "markdown":
+        return source.parent / Path(link.legacy.target)
+    return _resolve_legacy_link_path(root, link.legacy.target)
+
+
+def _mixed_link_agrees(root: Path, source: Path, link: SddArtifactLink) -> bool:
+    """Compare mixed canonical/legacy representations by physical path."""
+    if link.target is None or link.legacy is None:
+        return False
+    canonical = (source.parent / Path(link.target)).resolve()
+    legacy = _resolve_legacy_representation(root, source, link).resolve()
+    return canonical == legacy
+
+
+def _link_reference(root: Path, source: Path, link: SddArtifactLink) -> str | None:
+    if link.kind is SddArtifactLinkKind.MIXED and _mixed_link_agrees(
+        root, source, link
+    ):
+        return link.label
+    return link.reference
 
 
 def _resolve_legacy_link_path(root: Path, link: str) -> Path:
@@ -440,9 +534,9 @@ def _read_sdd_file(root: Path, path: Path, kind: str) -> _SddFile | None:
         return None
     yyyymm = parts[0] if flat_prompt or flat_plan else parts[1]
     name = path.stem
-    frontmatter, _, had_frontmatter, parse_error = _parse_frontmatter_strict(
-        path.read_text(encoding="utf-8")
-    )
+    content = path.read_text(encoding="utf-8")
+    artifact_link = parse_sdd_artifact_link(content)
+    frontmatter, _, had_frontmatter, parse_error = _parse_frontmatter_strict(content)
     return _SddFile(
         path=path,
         relpath=_relpath(root, path),
@@ -450,6 +544,8 @@ def _read_sdd_file(root: Path, path: Path, kind: str) -> _SddFile | None:
         yyyymm=yyyymm,
         name=name,
         frontmatter=frontmatter,
+        artifact_link=artifact_link,
+        body=artifact_link.body,
         had_frontmatter=had_frontmatter,
         parse_error=parse_error,
     )
@@ -492,23 +588,83 @@ def _infer_counterpart(file: _SddFile, files: list[_SddFile]) -> list[_SddFile]:
 def _queue_update(
     root: Path,
     source: _SddFile,
-    field: str,
     target: _SddFile,
-    updates: dict[Path, dict[str, str]],
+    link_type: SddArtifactLinkType,
+    label_prefix: str,
+    updates: dict[Path, tuple[_SddFile, _SddFile, SddArtifactLinkType, str]],
     actions: list[_RepairAction],
+    issues: list[_SddIssue],
 ) -> None:
-    new = canonical_sdd_frontmatter_link(
+    link = source.artifact_link
+    field = link_type.legacy_field
+    if link.kind is SddArtifactLinkKind.INVALID:
+        issues.append(
+            _SddIssue(
+                severity="error",
+                code="link-format",
+                path=source.relpath,
+                message=f"cannot repair malformed artifact link: {link.reason}",
+            )
+        )
+        return
+    if link.link_type is not None and link.link_type is not link_type:
+        issues.append(
+            _SddIssue(
+                severity="error",
+                code="link-kind",
+                path=source.relpath,
+                message=(
+                    f"cannot replace {link.link_type.value} link with "
+                    f"required {link_type.value} link"
+                ),
+            )
+        )
+        return
+    if link.kind is SddArtifactLinkKind.MIXED and not _mixed_link_agrees(
+        root, source.path, link
+    ):
+        issues.append(
+            _SddIssue(
+                severity="error",
+                code="link-conflict",
+                path=source.relpath,
+                message=(
+                    "canonical bullet and legacy frontmatter link resolve to "
+                    "different targets; refusing repair"
+                ),
+            )
+        )
+        return
+
+    new_label, new_href, new = canonical_sdd_artifact_link(
         root,
         source.path,
         target.path,
-        label_prefix="../" if source.kind == "prompts" else "",
+        link_type,
+        label_prefix=label_prefix,
     )
-    old_value = source.frontmatter.get(field)
-    old = old_value if isinstance(old_value, str) else None
-    if old == new:
+    resolved = _resolve_link_path(root, source.path, link)
+    is_current = (
+        link.kind is SddArtifactLinkKind.CANONICAL
+        and link.canonical_layout
+        and link.label == new_label
+        and link.target == new_href
+        and resolved is not None
+        and resolved.resolve() == target.path.resolve()
+    )
+    if is_current:
         return
-    updates[source.path][field] = new
+    old = _link_reference(root, source.path, link)
+    updates[source.path] = (source, target, link_type, label_prefix)
     actions.append(_RepairAction(path=source.relpath, field=field, old=old, new=new))
+
+
+def _expected_link_type(file: _SddFile) -> SddArtifactLinkType:
+    return (
+        SddArtifactLinkType.PLAN
+        if file.kind == "prompts"
+        else SddArtifactLinkType.PROMPT
+    )
 
 
 def _relpath(root: Path, path: Path) -> str:

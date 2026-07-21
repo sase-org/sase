@@ -173,18 +173,12 @@ def _get_repo_root(cwd: str) -> str:
     return ""
 
 
-def _infer_prompt_link(reference_root: str, plan_path: str) -> str | None:
-    """Infer a canonical clickable prompt link for a plan path, if one exists."""
-    from pathlib import Path
-
+def _infer_prompt_path(reference_root: str, plan_path: str) -> Path | None:
+    """Infer the prompt counterpart for a plan path, if one exists."""
     from sase.sdd.files import find_sdd_file
-    from sase.sdd.frontmatter_links import canonical_sdd_frontmatter_link
 
     root = Path(reference_root)
-    prompt = find_sdd_file(root, "prompts", os.path.basename(plan_path))
-    if prompt is None:
-        return None
-    return canonical_sdd_frontmatter_link(root, Path(plan_path), prompt)
+    return find_sdd_file(root, "prompts", os.path.basename(plan_path))
 
 
 def _store_owning_plan_path(
@@ -365,14 +359,25 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         reference_root = repo_root if store.is_in_tree else str(store.sdd_dir)
         if reference_root:
             from sase.sdd.frontmatter import set_frontmatter_fields
-
             from sase.sdd.plan_tiers import read_plan_tier_from_content
 
             fields = {"tier": read_plan_tier_from_content(plan_content) or "tale"}
-            prompt_link = _infer_prompt_link(reference_root, plan_path)
-            if prompt_link:
-                fields["prompt"] = prompt_link
             plan_content = set_frontmatter_fields(plan_content, fields)
+            prompt_path = _infer_prompt_path(reference_root, plan_path)
+            if prompt_path is not None:
+                from sase.sdd.artifact_links import (
+                    SddArtifactLinkType,
+                    update_source_aware_artifact_link,
+                )
+
+                plan_content = update_source_aware_artifact_link(
+                    plan_content,
+                    Path(reference_root),
+                    Path(plan_path),
+                    prompt_path,
+                    SddArtifactLinkType.PROMPT,
+                    remove_legacy=True,
+                )
 
     from sase.sdd.committed_plan_validation import validate_plan_for_commit
     from sase.sdd.plan_tiers import read_plan_tier_from_content

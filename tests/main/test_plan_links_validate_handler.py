@@ -118,7 +118,7 @@ def test_validate_fails_broken_bidirectional_link(
     assert prompt.exists()
 
 
-def test_validate_accepts_mixed_canonical_and_legacy_links(
+def test_validate_accepts_both_legacy_frontmatter_encodings(
     tmp_path: Path,
 ) -> None:
     root = tmp_path / "repo--plans"
@@ -148,12 +148,13 @@ def test_validate_reports_broken_canonical_href(
     plan = root / "202607" / "broken.md"
     prompt.parent.mkdir(parents=True)
     prompt.write_text(
-        "---\nplan: '[../202607/broken.md](../missing.md)'\n---\n# Prompt\n",
+        "- **PLAN:** [../202607/broken.md](../missing.md)\n\n# Prompt\n",
         encoding="utf-8",
     )
     plan.write_text(
-        "---\nprompt: '[202607/prompts/broken.md](prompts/broken.md)'\n"
-        "tier: tale\n---\n# Plan\n",
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [202607/prompts/broken.md](prompts/broken.md)\n\n"
+        "# Plan\n",
         encoding="utf-8",
     )
 
@@ -172,7 +173,7 @@ def test_validate_rejects_malformed_markdown_like_link(tmp_path: Path) -> None:
     plan = root / "202607" / "malformed.md"
     prompt.parent.mkdir(parents=True)
     prompt.write_text(
-        "---\nplan: '[../202607/malformed.md] ../malformed.md'\n---\n# Prompt\n",
+        "- **PLAN:** [../202607/malformed.md] ../malformed.md\n\n# Prompt\n",
         encoding="utf-8",
     )
     plan.write_text(
@@ -183,6 +184,89 @@ def test_validate_rejects_malformed_markdown_like_link(tmp_path: Path) -> None:
     validation = validate_sdd_tree(str(root))
 
     assert any(issue.code == "link-format" for issue in validation.errors)
+
+
+def test_validate_accepts_redundant_mixed_transition(tmp_path: Path) -> None:
+    root = tmp_path / "repo--plans"
+    prompt = root / "202607" / "prompts" / "mixed.md"
+    plan = root / "202607" / "mixed.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(
+        "---\nplan: 202607/mixed.md\n---\n\n"
+        "- **PLAN:** [../202607/mixed.md](../mixed.md)\n\n# Prompt\n",
+        encoding="utf-8",
+    )
+    plan.write_text(
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [202607/prompts/mixed.md](prompts/mixed.md)\n\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+
+    validation = validate_sdd_tree(str(root))
+
+    assert validation.ok
+    assert validation.errors == []
+
+
+def test_validate_rejects_conflicting_mixed_representations(tmp_path: Path) -> None:
+    root = tmp_path / "repo--plans"
+    prompt = root / "202607" / "prompts" / "mixed.md"
+    plan = root / "202607" / "mixed.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(
+        "---\nplan: 202607/other.md\n---\n\n"
+        "- **PLAN:** [../202607/mixed.md](../mixed.md)\n\n# Prompt\n",
+        encoding="utf-8",
+    )
+    plan.write_text(
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [202607/prompts/mixed.md](prompts/mixed.md)\n\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+
+    validation = validate_sdd_tree(str(root))
+
+    assert any(issue.code == "link-conflict" for issue in validation.errors)
+
+
+@pytest.mark.parametrize(
+    ("prompt_content", "code"),
+    [
+        (
+            "- **PLAN:** [../202607/invalid.md](../invalid.md)\n"
+            "- **PLAN:** [../202607/invalid.md](../invalid.md)\n\n# Prompt\n",
+            "link-format",
+        ),
+        (
+            "- **PROMPT:** [202607/prompts/invalid.md](invalid.md)\n\n# Prompt\n",
+            "link-kind",
+        ),
+        (
+            "# Prompt\n\n- **PLAN:** [../202607/invalid.md](../invalid.md)\n",
+            "link-placement",
+        ),
+    ],
+)
+def test_validate_rejects_duplicate_wrong_kind_and_misplaced_bullets(
+    tmp_path: Path, prompt_content: str, code: str
+) -> None:
+    root = tmp_path / "repo--plans"
+    prompt = root / "202607" / "prompts" / "invalid.md"
+    plan = root / "202607" / "invalid.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(prompt_content, encoding="utf-8")
+    plan.write_text(
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [202607/prompts/invalid.md](prompts/invalid.md)\n\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+
+    validation = validate_sdd_tree(str(root))
+
+    assert any(issue.code == code for issue in validation.errors)
 
 
 def test_validate_reports_invalid_yaml_frontmatter(

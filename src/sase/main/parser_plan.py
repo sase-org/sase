@@ -89,7 +89,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "links",
         help="List, validate, or repair SDD prompt/plan links",
         description=(
-            "Inspect bidirectional frontmatter links between SDD prompts and "
+            "Inspect bidirectional artifact links between SDD prompts and "
             "plans. With no subcommand, `sase plan links` defaults to "
             "`sase plan links list`."
         ),
@@ -111,9 +111,9 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
 
     links_list_parser = links_subparsers.add_parser(
         "list",
-        help="List SDD frontmatter links",
+        help="List SDD artifact links",
         description=(
-            "Print every SDD prompt/plan frontmatter link and whether its "
+            "Print every SDD prompt/plan artifact link and whether its "
             "reverse link is intact. This is also the default for bare "
             "`sase plan links`."
         ),
@@ -140,7 +140,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
 
     links_validate_parser = links_subparsers.add_parser(
         "validate",
-        help="Validate SDD frontmatter links",
+        help="Validate SDD artifact links",
     )
     links_validate_parser.add_argument(
         "-j",

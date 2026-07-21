@@ -3,16 +3,17 @@
 from pathlib import Path
 
 from sase.sdd._paths import get_yyyymm
-from sase.sdd.frontmatter_links import (
-    canonical_sdd_frontmatter_link,
+from sase.sdd.artifact_links import (
+    SddArtifactLinkType,
     stable_sdd_reference,
+    update_source_aware_artifact_link,
 )
 
 _QA_HEADER = "### Questions and Answers"
 
 
 def sdd_link_path(sdd_dir: Path, path: Path) -> str:
-    """Return the stable relative path to write into SDD frontmatter."""
+    """Return the stable relative path used as an artifact-link label."""
     return stable_sdd_reference(sdd_dir, path)
 
 
@@ -34,18 +35,17 @@ def write_sdd_spec(
     prompts_dir = plans_dir / "prompts"
     prompt_path = prompts_dir / f"{plan_name}.md"
     plan_path = plans_dir / f"{plan_name}.md"
-    plan_link = canonical_sdd_frontmatter_link(
-        sdd_dir,
-        prompt_path,
-        plan_path,
-        label_prefix="../",
-    )
-
-    from sase.sdd.frontmatter import set_frontmatter_fields
-
     prompts_dir.mkdir(parents=True, exist_ok=True)
     prompt_path.write_text(
-        set_frontmatter_fields(prompt_content, {"plan": plan_link}),
+        update_source_aware_artifact_link(
+            prompt_content,
+            sdd_dir,
+            prompt_path,
+            plan_path,
+            SddArtifactLinkType.PLAN,
+            label_prefix="../",
+            remove_legacy=True,
+        ),
         encoding="utf-8",
     )
     return prompt_path, plan_path
@@ -77,12 +77,6 @@ def write_sdd_files(
     plans_dir = (sdd_dir / "plans" if plans_root is None else plans_root) / yyyymm
     prompt_path = plans_dir / "prompts" / f"{plan_name}.md"
     plan_path = plans_dir / f"{plan_name}.md"
-    prompt_link = canonical_sdd_frontmatter_link(
-        sdd_dir,
-        plan_path,
-        prompt_path,
-    )
-
     from sase.sdd.frontmatter import set_frontmatter_fields
 
     plan_content: str | None = None
@@ -95,8 +89,14 @@ def write_sdd_files(
         plan_content = plan_source.read_text(encoding="utf-8")
         plan_content = format_with_prettier(plan_content)
         plan_content = add_create_time_frontmatter(plan_content)
-        plan_content = set_frontmatter_fields(
-            plan_content, {"prompt": prompt_link, "tier": tier}
+        plan_content = set_frontmatter_fields(plan_content, {"tier": tier})
+        plan_content = update_source_aware_artifact_link(
+            plan_content,
+            sdd_dir,
+            plan_path,
+            prompt_path,
+            SddArtifactLinkType.PROMPT,
+            remove_legacy=True,
         )
         validate_plan_for_commit(
             plan_content,

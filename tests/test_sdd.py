@@ -24,6 +24,7 @@ from sase.sdd.files import (
 )
 from sase.sdd._commit import commit_bare_git_sdd_init_paths
 from sase.sdd._paths import get_yyyymm
+from sase.sdd.artifact_links import parse_sdd_artifact_link
 from sase.logs import tui_git_ops_jsonl_path
 from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
 
@@ -242,17 +243,20 @@ def test_write_sdd_files() -> None:
         assert prompt_path.parent.name == "prompts"
         assert prompt_path.parent.parent.name == "202603"
         assert plan_path.parent.name == "202603"
-        prompt_fm, prompt_body, _ = parse_frontmatter(
-            prompt_path.read_text(encoding="utf-8")
-        )
-        assert prompt_fm["plan"] == "[../plans/202603/my_plan.md](../my_plan.md)"
-        assert prompt_body == "# My Spec\nDetails here"
+        prompt_text = prompt_path.read_text(encoding="utf-8")
+        prompt_fm, _, _ = parse_frontmatter(prompt_text)
+        prompt_link = parse_sdd_artifact_link(prompt_text)
+        assert "plan" not in prompt_fm
+        assert prompt_link.reference == "../plans/202603/my_plan.md"
+        assert prompt_link.target == "../my_plan.md"
+        assert prompt_link.body == "# My Spec\nDetails here"
         plan_text = plan_path.read_text(encoding="utf-8")
         assert plan_text.startswith("---\ncreate_time:")
         plan_fm, _, _ = parse_frontmatter(plan_text)
-        assert plan_fm["prompt"] == (
-            "[plans/202603/prompts/my_plan.md](prompts/my_plan.md)"
-        )
+        plan_link = parse_sdd_artifact_link(plan_text)
+        assert "prompt" not in plan_fm
+        assert plan_link.reference == "plans/202603/prompts/my_plan.md"
+        assert plan_link.target == "prompts/my_plan.md"
         assert plan_fm["tier"] == "tale"
         assert "steps:" in plan_text
 
@@ -272,19 +276,18 @@ def test_write_sdd_files_supports_flat_sidecar_plans_root(tmp_path: Path) -> Non
 
     assert prompt == plans_root / get_yyyymm() / "prompts" / "flat_plan.md"
     assert plan == plans_root / get_yyyymm() / "flat_plan.md"
-    prompt_fm, _, _ = parse_frontmatter(prompt.read_text(encoding="utf-8"))
-    plan_fm, _, _ = parse_frontmatter(plan.read_text(encoding="utf-8"))
-    assert prompt_fm["plan"] == f"[../{get_yyyymm()}/flat_plan.md](../flat_plan.md)"
-    assert plan_fm["prompt"] == (
-        f"[{get_yyyymm()}/prompts/flat_plan.md](prompts/flat_plan.md)"
+    prompt_text = prompt.read_text(encoding="utf-8")
+    plan_text = plan.read_text(encoding="utf-8")
+    prompt_fm, _, _ = parse_frontmatter(prompt_text)
+    plan_fm, _, _ = parse_frontmatter(plan_text)
+    assert "plan" not in prompt_fm
+    assert "prompt" not in plan_fm
+    assert (
+        f"- **PLAN:** [../{get_yyyymm()}/flat_plan.md](../flat_plan.md)" in prompt_text
     )
     assert (
-        f"plan: '[../{get_yyyymm()}/flat_plan.md](../flat_plan.md)'"
-        in prompt.read_text(encoding="utf-8")
-    )
-    assert (
-        f"prompt: '[{get_yyyymm()}/prompts/flat_plan.md]"
-        "(prompts/flat_plan.md)'" in plan.read_text(encoding="utf-8")
+        f"- **PROMPT:** [{get_yyyymm()}/prompts/flat_plan.md]"
+        "(prompts/flat_plan.md)" in plan_text
     )
 
 
@@ -300,11 +303,13 @@ def test_write_sdd_spec_does_not_write_plan(tmp_path: Path) -> None:
 
     assert prompt_path.is_file()
     assert not plan_path.exists()
-    prompt_fm, body, _ = parse_frontmatter(prompt_path.read_text(encoding="utf-8"))
-    assert prompt_fm["plan"] == (
-        "[../sdd/plans/202607/host_owned_epic.md](../host_owned_epic.md)"
-    )
-    assert body == "# Planner prompt\n"
+    prompt_text = prompt_path.read_text(encoding="utf-8")
+    prompt_fm, _, _ = parse_frontmatter(prompt_text)
+    prompt_link = parse_sdd_artifact_link(prompt_text)
+    assert "plan" not in prompt_fm
+    assert prompt_link.reference == "../sdd/plans/202607/host_owned_epic.md"
+    assert prompt_link.target == "../host_owned_epic.md"
+    assert prompt_link.body == "# Planner prompt\n"
 
 
 def test_write_sdd_files_missing_plan() -> None:
@@ -317,11 +322,12 @@ def test_write_sdd_files_missing_plan() -> None:
             )
         assert prompt_path.exists()
         assert not plan_path.exists()
-        prompt_fm, prompt_body, _ = parse_frontmatter(
-            prompt_path.read_text(encoding="utf-8")
-        )
-        assert prompt_fm["plan"] == "[../plans/202603/my_plan.md](../my_plan.md)"
-        assert prompt_body == "spec content"
+        prompt_text = prompt_path.read_text(encoding="utf-8")
+        prompt_fm, _, _ = parse_frontmatter(prompt_text)
+        prompt_link = parse_sdd_artifact_link(prompt_text)
+        assert "plan" not in prompt_fm
+        assert prompt_link.reference == "../plans/202603/my_plan.md"
+        assert prompt_link.body == "spec content"
 
 
 def test_write_sdd_files_creates_dirs() -> None:
@@ -354,11 +360,17 @@ def test_write_sdd_files_epic_tier() -> None:
         assert prompt_path == sdd_dir / "plans" / "202603" / "prompts" / "my_epic.md"
         assert plan_path == sdd_dir / "plans" / "202603" / "my_epic.md"
         assert plan_path.exists()
-        prompt_fm, _, _ = parse_frontmatter(prompt_path.read_text(encoding="utf-8"))
-        plan_fm, _, _ = parse_frontmatter(plan_path.read_text(encoding="utf-8"))
-        assert prompt_fm["plan"] == "[../plans/202603/my_epic.md](../my_epic.md)"
-        assert plan_fm["prompt"] == (
-            "[plans/202603/prompts/my_epic.md](prompts/my_epic.md)"
+        prompt_text = prompt_path.read_text(encoding="utf-8")
+        plan_text = plan_path.read_text(encoding="utf-8")
+        prompt_fm, _, _ = parse_frontmatter(prompt_text)
+        plan_fm, _, _ = parse_frontmatter(plan_text)
+        assert "plan" not in prompt_fm
+        assert "prompt" not in plan_fm
+        assert parse_sdd_artifact_link(prompt_text).reference == (
+            "../plans/202603/my_epic.md"
+        )
+        assert parse_sdd_artifact_link(plan_text).reference == (
+            "plans/202603/prompts/my_epic.md"
         )
         assert plan_fm["tier"] == "epic"
 
@@ -422,19 +434,18 @@ def test_write_sdd_files_uses_sdd_relative_links() -> None:
                 sdd_dir, "linked", "prompt", str(plan_file)
             )
 
-        prompt_fm, _, _ = parse_frontmatter(prompt_path.read_text(encoding="utf-8"))
-        plan_fm, _, _ = parse_frontmatter(plan_path.read_text(encoding="utf-8"))
-        assert prompt_fm["plan"] == "[../sdd/plans/202603/linked.md](../linked.md)"
-        assert plan_fm["prompt"] == (
-            "[sdd/plans/202603/prompts/linked.md](prompts/linked.md)"
+        prompt_text = prompt_path.read_text(encoding="utf-8")
+        plan_text = plan_path.read_text(encoding="utf-8")
+        prompt_fm, _, _ = parse_frontmatter(prompt_text)
+        plan_fm, _, _ = parse_frontmatter(plan_text)
+        assert "plan" not in prompt_fm
+        assert "prompt" not in plan_fm
+        assert (
+            "- **PLAN:** [../sdd/plans/202603/linked.md](../linked.md)" in prompt_text
         )
         assert (
-            "plan: '[../sdd/plans/202603/linked.md](../linked.md)'"
-            in prompt_path.read_text(encoding="utf-8")
-        )
-        assert (
-            "prompt: '[sdd/plans/202603/prompts/linked.md](prompts/linked.md)'"
-            in plan_path.read_text(encoding="utf-8")
+            "- **PROMPT:** [sdd/plans/202603/prompts/linked.md]"
+            "(prompts/linked.md)" in plan_text
         )
 
 
@@ -449,21 +460,19 @@ def test_write_sdd_files_uses_local_sase_sdd_relative_links() -> None:
                 sdd_dir, "linked", "prompt", str(plan_file)
             )
 
-        prompt_fm, _, _ = parse_frontmatter(prompt_path.read_text(encoding="utf-8"))
-        plan_fm, _, _ = parse_frontmatter(plan_path.read_text(encoding="utf-8"))
-        assert prompt_fm["plan"] == (
-            "[../.sase/sdd/plans/202603/linked.md](../linked.md)"
-        )
-        assert plan_fm["prompt"] == (
-            "[.sase/sdd/plans/202603/prompts/linked.md](prompts/linked.md)"
+        prompt_text = prompt_path.read_text(encoding="utf-8")
+        plan_text = plan_path.read_text(encoding="utf-8")
+        prompt_fm, _, _ = parse_frontmatter(prompt_text)
+        plan_fm, _, _ = parse_frontmatter(plan_text)
+        assert "plan" not in prompt_fm
+        assert "prompt" not in plan_fm
+        assert (
+            "- **PLAN:** [../.sase/sdd/plans/202603/linked.md](../linked.md)"
+            in prompt_text
         )
         assert (
-            "plan: '[../.sase/sdd/plans/202603/linked.md](../linked.md)'"
-            in prompt_path.read_text(encoding="utf-8")
-        )
-        assert (
-            "prompt: '[.sase/sdd/plans/202603/prompts/linked.md]"
-            "(prompts/linked.md)'" in plan_path.read_text(encoding="utf-8")
+            "- **PROMPT:** [.sase/sdd/plans/202603/prompts/linked.md]"
+            "(prompts/linked.md)" in plan_text
         )
 
 
@@ -485,14 +494,15 @@ def test_write_sdd_files_preserves_existing_plan_frontmatter() -> None:
                 plan_tier="epic",
             )
 
-        plan_fm, body, _ = parse_frontmatter(plan_path.read_text(encoding="utf-8"))
+        plan_text = plan_path.read_text(encoding="utf-8")
+        plan_fm, _, _ = parse_frontmatter(plan_text)
+        plan_link = parse_sdd_artifact_link(plan_text)
         assert plan_fm["bead_id"] == "sase-1y"
         assert plan_fm["tier"] == "epic"
         assert plan_fm["status"] == "ready"
-        assert plan_fm["prompt"] == (
-            "[sdd/plans/202603/prompts/preserve.md](prompts/preserve.md)"
-        )
-        assert body.lstrip("\n") == "# Plan\n"
+        assert "prompt" not in plan_fm
+        assert plan_link.reference == "sdd/plans/202603/prompts/preserve.md"
+        assert plan_link.body == "# Plan\n"
 
 
 def test_set_frontmatter_fields_is_idempotent() -> None:
@@ -525,6 +535,25 @@ def test_update_prompt_with_qa() -> None:
         assert "Original content" in content
         assert "## Q&A" in content
         assert "Q: Why?" in content
+
+
+def test_update_prompt_with_qa_preserves_artifact_bullet() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        prompt_path = Path(tmpdir) / "prompt.md"
+        prompt_path.write_text(
+            "- **PLAN:** [../202607/plan.md](../plan.md)\n\nOriginal prompt.\n",
+            encoding="utf-8",
+        )
+
+        update_prompt_with_qa(
+            prompt_path, "### Questions and Answers\n\n#### Q1: Why?\n"
+        )
+
+        content = prompt_path.read_text(encoding="utf-8")
+        link = parse_sdd_artifact_link(content)
+        assert link.reference == "../202607/plan.md"
+        assert link.body.startswith("Original prompt.\n")
+        assert link.body.count("### Questions and Answers") == 1
 
 
 def test_update_prompt_with_qa_missing_file() -> None:

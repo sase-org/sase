@@ -130,29 +130,52 @@ prior Q&A block (including legacy duplicate blocks from older runs) before re-em
 carries a global note the "last non-empty wins" rule applies — a later round's note replaces the earlier one, but an
 empty later note preserves the earlier value.
 
-### Frontmatter Links
+### Artifact Links
 
-Prompt snapshots and plan-like artifacts link to each other through YAML frontmatter:
+Prompt snapshots and plan-like artifacts link to each other through ordinary Markdown bullets, so GitHub renders the
+counterpart as a clickable link. A plan names its prompt:
 
-```yaml
-# plans/202605/prompts/example.md
-plan: "[../sdd/plans/202605/example.md](../example.md)"
-
-# plans/202605/example.md
-prompt: "[sdd/plans/202605/prompts/example.md](prompts/example.md)"
+```markdown
+---
 tier: tale
+title: Example
+goal: Demonstrate the plan-side layout.
+---
+
+- **PROMPT:** [sdd/plans/202605/prompts/example.md](prompts/example.md)
+
+# Plan: Example
 ```
 
-The text inside `[]` is the stable SDD reference GitHub displays, while the target inside `()` is resolved from the file
-that contains the frontmatter. The prompt-to-plan target therefore ascends from `prompts/`, while the plan-to-prompt
-target descends into it. Local `.sase/sdd` labels retain that prefix. In a flat `--plans` sidecar, the equivalent values
-are `'[../202605/example.md](../example.md)'` in the prompt and `'[202605/prompts/example.md](prompts/example.md)'` in
-the plan.
+The prompt names its plan:
 
-Historical plain-path values such as `plan: plans/202605/example.md` remain readable, searchable, and valid. Ordinary
-search, validation, initialization, and upgrades do not rewrite them. Run `sase plan links repair` to preview the
-unambiguous links that would be migrated, then run `sase plan links repair --write` once to replace plain or stale
-values with canonical clickable links while preserving the rest of each file.
+```markdown
+---
+create_time: 2026-07-21 12:00:00
+---
+
+- **PLAN:** [../sdd/plans/202605/example.md](../example.md)
+
+Original prompt text.
+```
+
+When YAML frontmatter exists, its opening `---` remains at byte zero. The artifact-link bullet is the first Markdown
+body element after the closing delimiter, followed by exactly one blank line before the authored content (including an
+H1). Without frontmatter, the bullet is the first file line. `PROMPT` and `PLAN` name the linked counterpart.
+
+The text inside `[]` is the storage-layout-aware stable SDD label. The href inside `()` is relative to the physical file
+containing the bullet: prompt-to-plan hrefs ascend from `prompts/`, while plan-to-prompt hrefs descend into it. Local
+`.sase/sdd` labels retain that prefix. In a flat `--plans` sidecar, the equivalent bullets are
+`- **PLAN:** [../202605/example.md](../example.md)` in the prompt and
+`- **PROMPT:** [202605/prompts/example.md](prompts/example.md)` in the plan.
+
+Historical `plan:` and `prompt:` frontmatter values remain readable in both their original plain-path form and their
+later inline-Markdown form. Ordinary reads, search, validation, initialization, and upgrades do not rewrite them. A
+canonical bullet plus a redundant legacy property is tolerated when both resolve to the same physical target;
+conflicting, malformed, duplicate, wrong-kind, unsafe, or nonexistent-target links are reported rather than guessed. Run
+`sase plan links repair` to preview missing or stale bullets and both legacy encodings, then run
+`sase plan links repair --write` to install canonical bullets and remove only the corresponding legacy property. Repair
+preserves unrelated frontmatter and body content and is idempotent.
 
 `sase plan links validate` checks these bidirectional links for prompts, tales, and epics. It treats unpaired historical
 files as warnings by default and as errors with `--strict`. Research notes are durable SDD context, but they are not
@@ -166,7 +189,6 @@ under. The value uses the same syntax `%model` accepts: a bare known model name 
 
 ```yaml
 # plans/202605/example.md
-prompt: "[sdd/plans/202605/prompts/example.md](prompts/example.md)"
 tier: tale
 model: opus
 ```
@@ -222,9 +244,11 @@ Every tale and epic requires these authored fields:
 | `goal`  | yes      | Non-empty description of the outcome the plan is intended to reach |
 | `model` | no       | Non-empty model value using the same syntax as `%model`            |
 
-SASE-managed `create_time`, `status`, `prompt`, and `bead_id` fields are accepted but never required. Epics may also
-carry the SASE-managed `parent_bead` field. Unknown fields are errors. A plan must start with valid, closed YAML
-frontmatter and contain a non-empty Markdown body.
+SASE-managed `create_time`, `status`, `bead`, `parent`, and `bead_id` fields are accepted but never required. Historical
+plans with a deprecated `prompt` property remain valid, but that property is intentionally omitted from canonical schema
+and authoring output because new links use the Markdown bullet. Epics may also carry the SASE-managed `parent_bead`
+field. Unknown fields are errors. A plan must start with valid, closed YAML frontmatter and contain a non-empty Markdown
+body.
 
 Epics additionally require an ordered, non-empty `phases` list. Optional `changespec` and integer `bug_id` metadata may
 be supplied; `bug_id` requires `changespec`. The epic-only `parent_bead` associates an approved plan with the bead under
@@ -281,7 +305,7 @@ command group:
 | `sase repo init`           | Initialize configured sidecars, generated guides, config, and the repository ignore rule       |
 | `sase init repo`           | Alias for `sase repo init`                                                                     |
 | `sase repo path REPO`      | Print a primary or sidecar path; `-e/--ensure` materializes the selected sidecar               |
-| `sase plan links [list]`   | Print each prompt/plan frontmatter link and whether its reverse link is intact                 |
+| `sase plan links [list]`   | Print each prompt/plan artifact link and whether its reverse link is intact                    |
 | `sase plan links repair`   | Preview canonical link migration; add `-w/--write` to update unambiguous pairs                 |
 | `sase plan links validate` | Validate links; `-j/--json`, `-q/--quiet`, `-s/--strict`, and `-W/--show-warnings` tune output |
 | `sase plan search`         | Search or browse tale, epic, prompt, and research artifacts                                    |

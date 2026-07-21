@@ -390,7 +390,7 @@ Run the strict site build after changing docs navigation, links, images, or Mark
 just docs-check
 ```
 
-Run SASE validation when a change can affect generated initialization files or SDD frontmatter links. It is deliberately
+Run SASE validation when a change can affect generated initialization files or SDD artifact links. It is deliberately
 separate from source linting because it can report user/home initialization drift and independently managed SDD state:
 
 ```bash

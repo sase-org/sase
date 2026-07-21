@@ -41,9 +41,16 @@ def _write_prompt(
     plan: str,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        f"---\ncreate_time: {create_time}\nplan: '{plan}'\n---\n# {title}\n\n{body}\n"
-    )
+    if plan.startswith("["):
+        path.write_text(
+            f"---\ncreate_time: {create_time}\n---\n\n"
+            f"- **PLAN:** {plan}\n\n# {title}\n\n{body}\n"
+        )
+    else:
+        path.write_text(
+            f"---\ncreate_time: {create_time}\nplan: '{plan}'\n---\n"
+            f"# {title}\n\n{body}\n"
+        )
 
 
 @pytest.fixture
@@ -212,6 +219,9 @@ def test_search_indexes_prompt_inventory(tmp_path: Path, flat: bool) -> None:
     assert matches[0].plan.kind == "prompt"
     assert matches[0].plan.relpath.endswith("202607/prompts/deploy_widget.md")
     assert matches[0].plan.prompt_link == plan_label
+    assert (
+        matches[0].plan.body == "# Deploy widget\n\nCapture the deployment request.\n"
+    )
 
 
 def test_prompt_inventory_participates_in_unfiltered_query(tmp_path: Path) -> None:

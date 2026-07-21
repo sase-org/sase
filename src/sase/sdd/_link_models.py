@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from sase.sdd.artifact_links import SddArtifactLink
 
 Severity = Literal["error", "warning"]
 
@@ -25,6 +28,8 @@ class SddFile:
     yyyymm: str
     name: str
     frontmatter: dict[str, Any]
+    artifact_link: SddArtifactLink
+    body: str
     had_frontmatter: bool
     parse_error: str | None = None
 

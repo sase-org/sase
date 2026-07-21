@@ -20,8 +20,13 @@ from sase.history.prompt_metadata import clean_prompt_preview, summarize_prompt_
 from sase.prompt.search.dates import resolve_sdd_date
 from sase.prompt.search.model import PromptHit, PromptSource
 from sase.sdd._paths import sdd_prompt_roots
+from sase.sdd.artifact_links import (
+    SddArtifactLink,
+    SddArtifactLinkKind,
+    SddArtifactLinkType,
+    parse_sdd_artifact_link,
+)
 from sase.sdd.frontmatter import parse_frontmatter
-from sase.sdd.frontmatter_links import parse_sdd_frontmatter_link
 
 # Frontmatter key for free-form user tags, mirroring ``prompt export`` so a
 # round-tripped snapshot's tags are recovered here.
@@ -111,8 +116,9 @@ def _load_sdd_file(path: Path, base_dir: Path) -> PromptHit | None:
     # ``parse_frontmatter`` is itself malformed-tolerant: invalid YAML yields an
     # empty frontmatter and the raw content as body, so a single broken file
     # never aborts the scan.
-    frontmatter, body, _ = parse_frontmatter(content)
-    text = body.strip()
+    artifact_link = parse_sdd_artifact_link(content)
+    frontmatter, _, _ = parse_frontmatter(content)
+    text = artifact_link.body.strip()
     locator = path.stem
     recorded_sha = _str_or_none(frontmatter.get("sha256"))
 
@@ -124,7 +130,7 @@ def _load_sdd_file(path: Path, base_dir: Path) -> PromptHit | None:
         date=resolve_sdd_date(frontmatter, path),
         text_sha256=recorded_sha or _sha256(text),
         path=_relative_path(path, base_dir),
-        plan=_frontmatter_link_reference(frontmatter.get("plan")),
+        plan=_artifact_plan_reference(artifact_link, path, base_dir),
         tags=_sdd_tags(frontmatter, text),
         cancelled=None,
         also_in_local=False,
@@ -251,12 +257,32 @@ def _relative_path(path: Path, base_dir: Path) -> str:
         return str(path)
 
 
-def _frontmatter_link_reference(value: Any) -> str | None:
-    """Project canonical Markdown links to their stable visible labels."""
-    raw = _str_or_none(value)
-    if raw is None:
+def _artifact_plan_reference(
+    link: SddArtifactLink, source: Path, base_dir: Path
+) -> str | None:
+    """Project a plan label only when mixed representations agree."""
+    if link.link_type is not SddArtifactLinkType.PLAN:
         return None
-    return parse_sdd_frontmatter_link(raw).reference
+    if link.kind is not SddArtifactLinkKind.MIXED:
+        return link.reference
+    if link.target is None or link.label is None or link.legacy is None:
+        return None
+    canonical = (source.parent / link.target).resolve()
+    if link.legacy.format == "markdown":
+        legacy = (source.parent / link.legacy.target).resolve()
+    else:
+        target = Path(link.legacy.target)
+        candidates = [
+            base_dir / target,
+            base_dir / "sdd" / target,
+            base_dir / ".sase" / "sdd" / target,
+            *(ancestor / target for ancestor in source.parents),
+        ]
+        legacy = next(
+            (candidate.resolve() for candidate in candidates if candidate.exists()),
+            candidates[0].resolve(),
+        )
+    return link.label if canonical == legacy else None
 
 
 def _str_or_none(value: Any) -> str | None:

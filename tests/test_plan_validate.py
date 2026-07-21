@@ -83,7 +83,6 @@ def test_facade_rehydrates_valid_tale_and_ordered_schema() -> None:
         "model",
         "create_time",
         "status",
-        "prompt",
         "bead",
         "parent",
         "bead_id",

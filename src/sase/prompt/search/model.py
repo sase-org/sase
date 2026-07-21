@@ -36,8 +36,9 @@ class PromptHit:
         id: Stable locator. SDD: the repo-relative path stem (e.g.
             ``kitty_image_panel_fix``). Local: the ``ph_<sha256[:12]>`` content
             ID that ``sase prompt show/run/edit`` already accept.
-        text: The prompt body. SDD: the markdown body with frontmatter stripped.
-            Local: the exact recorded prompt text.
+        text: The prompt body. SDD: the markdown body with frontmatter and the
+            system artifact-link bullet stripped. Local: the exact recorded
+            prompt text.
         title: A cleaned one-line preview of the prompt, falling back to the
             locator when the body has no usable line.
         date: A comparable SASE ``YYmmdd_HHMMSS`` timestamp resolved via the
@@ -48,8 +49,8 @@ class PromptHit:
             digest. Drives best-effort cross-store de-duplication.
         path: SDD: the repo-relative file path. Local: ``None`` (the store is a
             single JSON file).
-        plan: SDD: the frontmatter ``plan:`` link (the tale/epic it produced).
-            Local: ``None``.
+        plan: SDD: the visible ``PLAN`` artifact-link label (the tale/epic it
+            produced). Local: ``None``.
         tags: Sigil-stripped, de-duplicated tag tokens drawn from SDD
             ``prompt_tags`` frontmatter and the ``#xprompt`` chips embedded in
             the body.

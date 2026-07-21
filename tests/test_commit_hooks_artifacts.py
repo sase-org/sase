@@ -513,8 +513,8 @@ class TestHandleSasePlan:
         dest = repo_dir / "sdd" / "plans" / "202603" / "my_plan.md"
         text = dest.read_text(encoding="utf-8")
         assert (
-            "prompt: '[sdd/plans/202603/prompts/my_plan.md](prompts/my_plan.md)'"
-            in text
+            "- **PROMPT:** [sdd/plans/202603/prompts/my_plan.md]"
+            "(prompts/my_plan.md)" in text
         )
         assert payload["_plan_path"] == str(dest)
 

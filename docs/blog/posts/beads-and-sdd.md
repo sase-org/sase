@@ -33,8 +33,8 @@ command turns an epic into a multi-agent run with real dependency ordering.
 
 Spec-Driven Development persists the intent behind agent work. When an agent submits a plan for approval, SDD captures
 both the **expanded prompt snapshot** (every `#xprompt` resolved, every `%directive` stripped) and the **approved plan**
-as first-class artifacts on disk. The two files cross-reference each other via `prompt:` and `plan:` frontmatter fields,
-and `sase sdd validate` checks that the link graph is intact.
+as first-class artifacts on disk. The two files cross-reference each other via top-of-body `PLAN` and `PROMPT` Markdown
+bullets, and `sase plan links validate` checks that the link graph is intact.
 
 Two plan tiers share one canonical plans root:
 

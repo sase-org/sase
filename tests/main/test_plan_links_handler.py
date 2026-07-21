@@ -11,6 +11,7 @@ import pytest
 from sase.main import plan_command_handler
 from sase.main.parser import create_parser
 from sase.main.plan_links_handler import handle_plan_links_command
+from sase.sdd.links import repair_sdd_links
 from tests.main.plan_links_handler_helpers import (
     make_args,
     mark_tmp_path_as_project,
@@ -95,16 +96,16 @@ def test_repair_links_write_backfills_unambiguous_pair(
         "plans/202605/fixme.md",
         "plans/202605/prompts/fixme.md",
     ]
-    assert "plan: '[../sdd/plans/202605/fixme.md](../fixme.md)'" in prompt.read_text(
-        encoding="utf-8"
+    assert prompt.read_text(encoding="utf-8") == (
+        "- **PLAN:** [../sdd/plans/202605/fixme.md](../fixme.md)\n\n# Prompt\n"
     )
     plan_text = plan.read_text(encoding="utf-8")
-    assert "keep: true" in plan_text
+    assert "keep: yes" in plan_text
     assert (
-        "prompt: '[sdd/plans/202605/prompts/fixme.md](prompts/fixme.md)'" in plan_text
+        "- **PROMPT:** [sdd/plans/202605/prompts/fixme.md]"
+        "(prompts/fixme.md)" in plan_text
     )
-    assert plan_text.endswith("---\n# Epic\n")
-    assert prompt.read_text(encoding="utf-8").endswith("---\n# Prompt\n")
+    assert plan_text.endswith("(prompts/fixme.md)\n\n# Epic\n")
 
     second = make_args(plan_links_subcommand="repair", path=str(root), write=True)
     with pytest.raises(SystemExit) as second_excinfo:
@@ -140,6 +141,60 @@ def test_repair_dry_run_reports_legacy_links_without_writing(
     assert {path: path.read_text(encoding="utf-8") for path in before} == before
 
 
+def test_repair_removes_redundant_legacy_property_and_preserves_body(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "repo--plans"
+    prompt = root / "202607" / "prompts" / "mixed.md"
+    plan = root / "202607" / "mixed.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(
+        "---\nplan: 202607/mixed.md\nkeep: yes\n---\n\n"
+        "- **PLAN:** [../202607/mixed.md](../mixed.md)\n\n# Prompt\n",
+        encoding="utf-8",
+    )
+    plan.write_text(
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [202607/prompts/mixed.md](prompts/mixed.md)\n\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+
+    report = repair_sdd_links(str(root), write=True)
+
+    assert not report.issues
+    assert report.changed_files == ["202607/prompts/mixed.md"]
+    assert prompt.read_text(encoding="utf-8") == (
+        "---\nkeep: yes\n---\n\n"
+        "- **PLAN:** [../202607/mixed.md](../mixed.md)\n\n# Prompt\n"
+    )
+    assert repair_sdd_links(str(root), write=True).changed_files == []
+
+
+def test_repair_refuses_conflicting_mixed_representations(tmp_path: Path) -> None:
+    root = tmp_path / "repo--plans"
+    prompt = root / "202607" / "prompts" / "mixed.md"
+    plan = root / "202607" / "mixed.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(
+        "---\nplan: 202607/other.md\n---\n\n"
+        "- **PLAN:** [../202607/mixed.md](../mixed.md)\n\n# Prompt\n",
+        encoding="utf-8",
+    )
+    plan.write_text(
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [202607/prompts/mixed.md](prompts/mixed.md)\n\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    before = prompt.read_text(encoding="utf-8")
+
+    report = repair_sdd_links(str(root), write=True)
+
+    assert any(issue.code == "link-conflict" for issue in report.issues)
+    assert prompt.read_text(encoding="utf-8") == before
+
+
 def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     root = tmp_path / "sdd"
     write_pair(root)
@@ -166,12 +221,13 @@ def test_links_json_projects_canonical_labels(
     plan = root / "202607" / "linked.md"
     prompt.parent.mkdir(parents=True)
     prompt.write_text(
-        "---\nplan: '[../202607/linked.md](../linked.md)'\n---\n# Prompt\n",
+        "- **PLAN:** [../202607/linked.md](../linked.md)\n\n# Prompt\n",
         encoding="utf-8",
     )
     plan.write_text(
-        "---\nprompt: '[202607/prompts/linked.md](prompts/linked.md)'\n"
-        "tier: tale\n---\n# Plan\n",
+        "---\ntier: tale\n---\n\n"
+        "- **PROMPT:** [202607/prompts/linked.md](prompts/linked.md)\n\n"
+        "# Plan\n",
         encoding="utf-8",
     )
 

@@ -120,13 +120,16 @@ def test_sdd_strips_frontmatter_from_text_and_reads_plan(tmp_path: Path) -> None
 def test_sdd_projects_canonical_plan_link_label(tmp_path: Path) -> None:
     _write(
         tmp_path / "sdd" / "plans" / "202607" / "prompts" / "linked.md",
-        "---\nplan: '[../sdd/plans/202607/linked.md](../linked.md)'\n"
-        "---\n\nPrompt body.\n",
+        "---\ncreate_time: 2026-07-21 12:00:00\n---\n\n"
+        "- **PLAN:** [../sdd/plans/202607/linked.md](../linked.md)\n\n"
+        "Prompt body.\n",
     )
 
     hit = load_sdd_prompt_hits(tmp_path)[0]
 
     assert hit.plan == "../sdd/plans/202607/linked.md"
+    assert hit.text == "Prompt body."
+    assert hit.title == "Prompt body."
 
 
 def test_sdd_title_is_cleaned_first_line(tmp_path: Path) -> None:
