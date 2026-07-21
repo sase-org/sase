@@ -1110,7 +1110,10 @@ and workspace preparation, with a bounded, non-fatal contract. `summary_script=`
 (without invoking a shell), and `sase_clan_summary_plan PLAN_REF` renders a valid tale or epic with the shared PLAN-lane
 layout; without `PLAN_REF`, it uses `SASE_EPIC_PLAN_REF`. Scripts inherit the launch environment, including epic
 `SASE_EPIC_PLAN_REF`, `SASE_EPIC_BEAD_ID`, and `SASE_EPIC_CLAN_TRIBE`, while SASE overrides the clan identity variables.
-See [Launch-time clan summaries](agent_families.md#launch-time-clan-summaries) for the complete ordering, execution, and
+Successful epic-work launches also provide `SASE_EPIC_PLAN_SNAPSHOT`, an absolute project-scoped best-effort copy that
+the built-in epic summary script uses as a guaranteed-local fallback after the normal checkout candidates; the original
+reference remains authoritative for display and metadata. See
+[Launch-time clan summaries](agent_families.md#launch-time-clan-summaries) for the complete ordering, execution, and
 persistence details.
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,

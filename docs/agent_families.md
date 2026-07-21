@@ -99,10 +99,13 @@ never invokes a shell.
 
 The script inherits the complete launch environment. SASE overrides `SASE_CLAN_NAME`, `SASE_CLAN_GENERATION`, and, when
 the declaration has one, `SASE_CLAN_TRIBE` (otherwise an ambient clan-tribe value is removed). Epic work also provides
-`SASE_EPIC_PLAN_REF`, `SASE_EPIC_BEAD_ID`, and `SASE_EPIC_CLAN_TRIBE`, which remain available to a summary script.
-Standard output becomes the summary and standard error is appended to the agent log. Execution is capped at 20 seconds,
-and the stored summary is capped at 32 KiB of UTF-8. Missing executables, malformed quoting, timeouts, nonzero exits,
-and empty output are logged and omit the optional summary without blocking the agent launch.
+`SASE_EPIC_PLAN_REF`, `SASE_EPIC_BEAD_ID`, and `SASE_EPIC_CLAN_TRIBE`, which remain available to a summary script. When
+launch-time snapshotting succeeds, it additionally provides `SASE_EPIC_PLAN_SNAPSHOT`: an absolute, project-scoped,
+guaranteed-local best-effort copy used by the built-in epic summary script after ordinary checkout candidates. The
+original plan reference remains the displayed and persisted association. Standard output becomes the summary and
+standard error is appended to the agent log. Execution is capped at 20 seconds, and the stored summary is capped at 32
+KiB of UTF-8. Missing executables, malformed quoting, timeouts, nonzero exits, and empty output are logged and omit the
+optional summary without blocking the agent launch.
 
 SASE trims trailing whitespace and persists the result as `clan_summary` on the declaring agent's metadata. The scan
 contract resolves summaries within one clan generation deterministically, using the newest explicit declaration if it

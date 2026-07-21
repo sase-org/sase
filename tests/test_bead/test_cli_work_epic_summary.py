@@ -28,6 +28,7 @@ class _PersistedEpicLaunch:
     epic_title: str
     epic_goal: str
     plan_ref: str
+    plan_snapshot: str
     phase_ids: tuple[str, ...]
     phase_titles: tuple[str, ...]
     phase_descriptions: tuple[str, ...]
@@ -77,7 +78,7 @@ def stale_epic_summary_launch(
     monkeypatch: pytest.MonkeyPatch,
     fake_cli_work_xprompts: None,
 ) -> _PersistedEpicLaunch:
-    """Persist a plan summary while the launch workspace remains stale."""
+    """Persist a snapshot-backed plan summary while checkout copies are absent."""
     from sase.agent.clan_membership import (
         CLAN_MEMBERSHIP_ENV,
         ClanMembershipPlan,
@@ -226,6 +227,10 @@ Deliver the plan-first epic summary.
     monkeypatch.chdir(primary_workspace)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda: "project",
+    )
 
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
@@ -247,31 +252,39 @@ Deliver the plan-first epic summary.
             ),
         )
 
-        with (
-            patch("sase.agent.names.ensure_historical_auto_name_migration"),
-            patch(
-                "sase.agent.names.agent_name_allocation_lock",
-                return_value=nullcontext(),
-            ),
-            patch("sase.agent.names.claim_agent_name"),
-            patch("sase.agent.names.claim_registered_clan_name"),
-            patch(
-                "sase.xprompt.process_xprompt_references",
-                side_effect=lambda value, **_: value,
-            ),
-            patch(
-                "sase.llm_provider.temporary_override."
-                "resolve_effective_default_provider_model",
-                return_value=("codex", "gpt-5"),
-            ),
-            patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
-        ):
-            extract_directives_and_write_meta(
-                query.split("\n---\n", maxsplit=1)[0],
-                str(launch_workspace),
-                str(artifacts_dir),
-                output_path=str(agent_log),
-            )
+        # Snapshotting has already completed. Hide the authoritative primary
+        # copy while the stale launch checkout also lacks the plan, reproducing
+        # the launch-time sidecar synchronization race.
+        authored_content = authored_plan.read_bytes()
+        authored_plan.unlink()
+        try:
+            with (
+                patch("sase.agent.names.ensure_historical_auto_name_migration"),
+                patch(
+                    "sase.agent.names.agent_name_allocation_lock",
+                    return_value=nullcontext(),
+                ),
+                patch("sase.agent.names.claim_agent_name"),
+                patch("sase.agent.names.claim_registered_clan_name"),
+                patch(
+                    "sase.xprompt.process_xprompt_references",
+                    side_effect=lambda value, **_: value,
+                ),
+                patch(
+                    "sase.llm_provider.temporary_override."
+                    "resolve_effective_default_provider_model",
+                    return_value=("codex", "gpt-5"),
+                ),
+                patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+            ):
+                extract_directives_and_write_meta(
+                    query.split("\n---\n", maxsplit=1)[0],
+                    str(launch_workspace),
+                    str(artifacts_dir),
+                    output_path=str(agent_log),
+                )
+        finally:
+            authored_plan.write_bytes(authored_content)
         return FakeLaunchResult()
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
@@ -287,12 +300,16 @@ Deliver the plan-first epic summary.
     )
     assert persisted["agent_clan"] == epic.id
     assert persisted["epic_plan_ref"] == plan_ref
+    plan_snapshot = persisted["epic_plan_snapshot"]
+    assert Path(plan_snapshot).is_absolute()
+    assert Path(plan_snapshot).read_bytes() == authored_plan.read_bytes()
     assert not agent_log.read_text(encoding="utf-8")
     return _PersistedEpicLaunch(
         epic_id=epic.id,
         epic_title=epic_title,
         epic_goal=epic_goal,
         plan_ref=plan_ref,
+        plan_snapshot=plan_snapshot,
         phase_ids=phase_ids,
         phase_titles=phase_titles,
         phase_descriptions=phase_descriptions,
@@ -306,7 +323,7 @@ Deliver the plan-first epic summary.
 class TestEpicSummarySmokeExercises:
     """End-to-end smoke tests for epic clan summary persistence and rendering."""
 
-    def test_epic_work_launch_uses_primary_plan_without_refreshing_stale_clone(
+    def test_epic_work_launch_uses_snapshot_without_refreshing_stale_clone(
         self,
         stale_epic_summary_launch: _PersistedEpicLaunch,
     ) -> None:
@@ -319,6 +336,7 @@ class TestEpicSummarySmokeExercises:
         assert launch.epic_title in plain
         assert launch.epic_goal in plain
         assert launch.plan_ref in plain
+        assert launch.plan_snapshot not in plain
         assert all(phase_id in plain for phase_id in launch.phase_ids)
         assert all(title in plain for title in launch.phase_titles)
         assert "[bold #D75FFF]◆ EPIC" in launch.clan_summary
@@ -359,6 +377,7 @@ class TestEpicSummarySmokeExercises:
         assert launch.epic_title in result.plain
         assert launch.epic_goal in result.plain
         assert launch.plan_ref in result.plain
+        assert launch.plan_snapshot not in result.plain
         assert all(phase_id in result.plain for phase_id in launch.phase_ids)
         assert all(title in result.plain for title in launch.phase_titles)
         assert all(

@@ -21,6 +21,7 @@ from sase.bead.work import (
     SASE_EPIC_BEAD_ID_ENV,
     SASE_EPIC_CLAN_TRIBE_ENV,
     SASE_EPIC_PLAN_REF_ENV,
+    SASE_EPIC_PLAN_SNAPSHOT_ENV,
     SASE_PHASE_BEAD_ID_ENV,
 )
 from sase.llm_provider.temporary_override import set_temporary_override
@@ -74,7 +75,9 @@ def test_extract_directives_persists_epic_work_role_metadata(
     workspace_dir.mkdir()
     artifacts_dir.mkdir()
     plan_ref = "sase/repos/plans/202607/epic.md"
+    plan_snapshot = str(tmp_path / "state/epic.md")
     monkeypatch.setenv(SASE_EPIC_PLAN_REF_ENV, plan_ref)
+    monkeypatch.setenv(SASE_EPIC_PLAN_SNAPSHOT_ENV, plan_snapshot)
     monkeypatch.setenv(SASE_EPIC_BEAD_ID_ENV, "sase-7")
     if phase_bead_id is not None:
         monkeypatch.setenv(SASE_PHASE_BEAD_ID_ENV, phase_bead_id)
@@ -99,6 +102,7 @@ def test_extract_directives_persists_epic_work_role_metadata(
     assert info.meta == persisted
     assert persisted["epic_bead_id"] == "sase-7"
     assert persisted["epic_plan_ref"] == plan_ref
+    assert persisted["epic_plan_snapshot"] == plan_snapshot
     assert persisted["sdd_plan_path"] == plan_ref
     assert persisted["plan_committed"] is True
     if phase_bead_id is None:
@@ -106,6 +110,7 @@ def test_extract_directives_persists_epic_work_role_metadata(
     else:
         assert persisted["phase_bead_id"] == phase_bead_id
     assert SASE_EPIC_PLAN_REF_ENV not in os.environ
+    assert SASE_EPIC_PLAN_SNAPSHOT_ENV not in os.environ
     assert SASE_EPIC_BEAD_ID_ENV not in os.environ
     assert SASE_PHASE_BEAD_ID_ENV not in os.environ
     assert os.environ["SASE_PLAN"] == "/tmp/commit-attribution-plan.md"
@@ -124,6 +129,7 @@ def test_extract_directives_preserves_epic_work_metadata_on_reexec(
             {
                 "sdd_plan_path": "sdd/plans/202607/epic.md",
                 "epic_plan_ref": "sdd/plans/202607/epic.md",
+                "epic_plan_snapshot": "/state/projects/sase/epic.md",
                 "plan_committed": True,
                 "epic_bead_id": "sase-7",
                 "phase_bead_id": "sase-7.2",
@@ -154,6 +160,7 @@ def test_extract_directives_preserves_epic_work_metadata_on_reexec(
 
     assert info.meta["sdd_plan_path"] == "sdd/plans/202607/epic.md"
     assert info.meta["epic_plan_ref"] == "sdd/plans/202607/epic.md"
+    assert info.meta["epic_plan_snapshot"] == "/state/projects/sase/epic.md"
     assert info.meta["plan_committed"] is True
     assert info.meta["epic_bead_id"] == "sase-7"
     assert info.meta["phase_bead_id"] == "sase-7.2"
@@ -172,12 +179,14 @@ def test_join_only_epic_member_persists_launch_clan_tribe(
     workspace_dir.mkdir()
     artifacts_dir.mkdir()
     plan_ref = "sase/repos/plans/202607/epic.md"
+    plan_snapshot = str(tmp_path / "state/epic.md")
     membership = ClanMembershipPlan(clan_name="sase-7", generation="g1")
     monkeypatch.setenv(
         CLAN_MEMBERSHIP_ENV,
         encode_clan_membership_plan(membership),
     )
     monkeypatch.setenv(SASE_EPIC_PLAN_REF_ENV, plan_ref)
+    monkeypatch.setenv(SASE_EPIC_PLAN_SNAPSHOT_ENV, plan_snapshot)
     monkeypatch.setenv(SASE_EPIC_BEAD_ID_ENV, "sase-7")
     monkeypatch.setenv(SASE_PHASE_BEAD_ID_ENV, "sase-7.2")
     monkeypatch.setenv(SASE_EPIC_CLAN_TRIBE_ENV, "epic")
@@ -202,10 +211,12 @@ def test_join_only_epic_member_persists_launch_clan_tribe(
     assert info.meta["clan_tribe"] == "epic"
     assert info.meta["sdd_plan_path"] == plan_ref
     assert info.meta["epic_plan_ref"] == plan_ref
+    assert info.meta["epic_plan_snapshot"] == plan_snapshot
     assert info.meta["epic_bead_id"] == "sase-7"
     assert info.meta["phase_bead_id"] == "sase-7.2"
     for env_name in (
         SASE_EPIC_PLAN_REF_ENV,
+        SASE_EPIC_PLAN_SNAPSHOT_ENV,
         SASE_EPIC_BEAD_ID_ENV,
         SASE_PHASE_BEAD_ID_ENV,
         SASE_EPIC_CLAN_TRIBE_ENV,

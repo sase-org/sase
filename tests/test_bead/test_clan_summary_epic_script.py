@@ -15,6 +15,7 @@ from sase.bead.project import BeadProject
 from sase.scripts._rich_summary import render_markdown_lines
 from sase.scripts.sase_clan_summary_epic import (
     _SUMMARY_MAX_UTF8_BYTES,
+    _plan_reference_candidates,
     _render_epic_summary,
     _render_plan_summary,
     main,
@@ -88,6 +89,8 @@ def test_epic_summary_resolves_absolute_plan_reference_directly(
     monkeypatch.chdir(launch)
     monkeypatch.setenv("SASE_CLAN_NAME", "sase-absolute")
     monkeypatch.setenv("SASE_EPIC_PLAN_REF", str(plan))
+    snapshot = _write_epic_plan(tmp_path / "snapshot.md", title="Snapshot source")
+    monkeypatch.setenv("SASE_EPIC_PLAN_SNAPSHOT", str(snapshot))
     monkeypatch.setattr(
         "sase.scripts.sase_clan_summary_epic._resolve_primary_checkout",
         lambda: (_ for _ in ()).throw(
@@ -101,6 +104,7 @@ def test_epic_summary_resolves_absolute_plan_reference_directly(
     captured = capsys.readouterr()
     rendered = Text.from_markup(captured.out)
     assert "Title: Absolute source" in rendered.plain
+    assert "Title: Snapshot source" not in rendered.plain
     assert "Path: /" in rendered.plain
     assert plan.name in rendered.plain
     assert captured.err == ""
@@ -124,12 +128,14 @@ def test_epic_summary_resolves_relative_plan_across_known_checkout_roots(
     primary.mkdir()
     plan_ref = "sase/repos/plans/202607/epic.md"
     _write_epic_plan(primary / plan_ref, title="Primary plan")
+    snapshot = _write_epic_plan(tmp_path / "snapshot.md", title="Snapshot plan")
     if current_title is not None:
         _write_epic_plan(launch / plan_ref, title=current_title)
 
     monkeypatch.chdir(launch)
     monkeypatch.setenv("SASE_CLAN_NAME", "sase-roots")
     monkeypatch.setenv("SASE_EPIC_PLAN_REF", plan_ref)
+    monkeypatch.setenv("SASE_EPIC_PLAN_SNAPSHOT", str(snapshot))
 
     def resolve_primary() -> Path:
         if current_title is not None:
@@ -154,8 +160,57 @@ def test_epic_summary_resolves_relative_plan_across_known_checkout_roots(
     )
     if unexpected_title is not None:
         assert f"Title: {unexpected_title}" not in rendered.plain
+    assert "Title: Snapshot plan" not in rendered.plain
     assert f"Path: {plan_ref}" in rendered.plain
     assert captured.err == ""
+
+
+def test_epic_summary_uses_snapshot_when_checkout_candidates_are_absent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    launch = tmp_path / "launch"
+    primary = tmp_path / "primary"
+    launch.mkdir()
+    primary.mkdir()
+    plan_ref = "sase/repos/plans/202607/epic.md"
+    snapshot = _write_epic_plan(
+        tmp_path / "state/projects/project/artifacts/epic-plans/sase-7.md",
+        title="Race-free snapshot plan",
+    )
+    monkeypatch.chdir(launch)
+    monkeypatch.setenv("SASE_CLAN_NAME", "sase-7")
+    monkeypatch.setenv("SASE_EPIC_PLAN_REF", plan_ref)
+    monkeypatch.setenv("SASE_EPIC_PLAN_SNAPSHOT", str(snapshot))
+    monkeypatch.setattr(
+        "sase.scripts.sase_clan_summary_epic._resolve_primary_checkout",
+        lambda: primary,
+    )
+    _patch_unexpected_bead_load(monkeypatch)
+
+    assert main() == 0
+
+    captured = capsys.readouterr()
+    rendered = Text.from_markup(captured.out)
+    assert "Title: Race-free snapshot plan" in rendered.plain
+    assert "Goal: Deliver the approved implementation in ordered phases" in (
+        rendered.plain
+    )
+    assert "implementation · no dependencies" in rendered.plain
+    assert f"Path: {plan_ref}" in rendered.plain
+    assert str(snapshot) not in rendered.plain
+    assert captured.err == ""
+
+
+def test_plan_reference_candidates_deduplicate_absolute_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = tmp_path / "epic.md"
+    monkeypatch.setenv("SASE_EPIC_PLAN_SNAPSHOT", str(plan))
+
+    assert list(_plan_reference_candidates(str(plan))) == [plan.resolve()]
 
 
 @pytest.mark.parametrize("kind", ["missing", "unreadable", "invalid"])
@@ -180,15 +235,23 @@ def test_unusable_plan_reference_falls_back_to_legacy_bead_summary(
         )
 
     plan_ref = f"{kind}.md"
+    snapshot = project_dir / "state" / f"{kind}.md"
+    snapshot.parent.mkdir()
     if kind == "unreadable":
         (project_dir / plan_ref).write_bytes(b"\xff\xfe")
+        snapshot.write_bytes(b"\xff\xfe")
     elif kind == "invalid":
         (project_dir / plan_ref).write_text(
             "---\ntier: epic\ntitle: Invalid\n---\n# Plan\n",
             encoding="utf-8",
         )
+        snapshot.write_text(
+            "---\ntier: epic\ntitle: Invalid snapshot\n---\n# Plan\n",
+            encoding="utf-8",
+        )
     monkeypatch.setenv("SASE_CLAN_NAME", epic.id)
     monkeypatch.setenv("SASE_EPIC_PLAN_REF", plan_ref)
+    monkeypatch.setenv("SASE_EPIC_PLAN_SNAPSHOT", str(snapshot))
 
     assert main() == 0
 
@@ -207,11 +270,12 @@ def test_plan_and_bead_failure_emit_diagnostics_and_safe_identity_fallback(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    del project_dir
     epic_id = "missing[epic]"
     plan_ref = "missing[plan].md"
+    snapshot = project_dir / "private-state" / "missing-snapshot.md"
     monkeypatch.setenv("SASE_CLAN_NAME", epic_id)
     monkeypatch.setenv("SASE_EPIC_PLAN_REF", plan_ref)
+    monkeypatch.setenv("SASE_EPIC_PLAN_SNAPSHOT", str(snapshot))
     monkeypatch.setattr(
         "sase.scripts.sase_clan_summary_epic.bead_refresh_mode",
         lambda: "off",
@@ -225,6 +289,8 @@ def test_plan_and_bead_failure_emit_diagnostics_and_safe_identity_fallback(
     assert "Unable to load epic clan summary for 'missing[epic]'" in captured.err
     assert f"Plan reference {plan_ref!r} was also unavailable" in captured.err
     assert "plan file does not exist" in captured.err
+    assert "epic plan snapshot" in captured.err
+    assert str(snapshot) not in captured.err
     assert "Traceback (most recent call last):" in captured.err
 
 

@@ -12,6 +12,7 @@ from sase.bead.work import (
     SASE_EPIC_BEAD_ID_ENV,
     SASE_EPIC_CLAN_TRIBE_ENV,
     SASE_EPIC_PLAN_REF_ENV,
+    SASE_EPIC_PLAN_SNAPSHOT_ENV,
     SASE_PHASE_BEAD_ID_ENV,
     VCSLaunchContext,
     _build_epic_work_plan,
@@ -251,3 +252,19 @@ class TestRenderEdgeCases:
         assert phase_env[SASE_EPIC_BEAD_ID_ENV] == "sase-7z.5.1"
         assert land_env[SASE_EPIC_BEAD_ID_ENV] == "sase-7z.5.1"
         assert SASE_PHASE_BEAD_ID_ENV not in land_env
+
+    def test_epic_work_segment_env_exports_snapshot_to_every_segment(
+        self,
+        conn: sqlite3.Connection,
+    ) -> None:
+        seed(conn, [epic("e1"), phase("p1"), phase("p2")])
+        plan = _build_epic_work_plan(conn, "e1")
+        snapshot = "/state/projects/project/artifacts/epic-plans/e1.md"
+
+        envs = epic_work_segment_env(
+            plan,
+            plan_ref="sdd/plans/202607/epic.md",
+            plan_snapshot=snapshot,
+        )
+
+        assert all(env[SASE_EPIC_PLAN_SNAPSHOT_ENV] == snapshot for env in envs)

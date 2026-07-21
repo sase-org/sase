@@ -115,31 +115,64 @@ def main() -> int:
 
 def _load_plan_reference(plan_ref: str) -> PlanDisplay:
     failures: list[str] = []
+    snapshot = _configured_plan_snapshot()
     for candidate in _plan_reference_candidates(plan_ref):
         summary = load_plan_display(candidate, display_path=plan_ref)
         if summary.validation_ok:
             return summary
-        failures.append(f"{candidate}: {_plan_availability_detail(summary)}")
+        candidate_label = (
+            "epic plan snapshot" if candidate == snapshot else str(candidate)
+        )
+        failures.append(f"{candidate_label}: {_plan_availability_detail(summary)}")
 
     detail = "; ".join(failures) or "no plan candidates were available"
     raise _PlanReferenceError(detail)
 
 
 def _plan_reference_candidates(plan_ref: str) -> Iterable[Path]:
+    seen: set[Path] = set()
+
+    def candidate(path: Path) -> Path | None:
+        resolved = path.expanduser().resolve(strict=False)
+        if resolved in seen:
+            return None
+        seen.add(resolved)
+        return resolved
+
     expanded = Path(plan_ref).expanduser()
     if expanded.is_absolute():
-        yield expanded.resolve(strict=False)
-        return
+        resolved = candidate(expanded)
+        if resolved is not None:
+            yield resolved
+    else:
+        current = candidate(Path.cwd() / expanded)
+        if current is not None:
+            yield current
 
-    current = (Path.cwd() / expanded).resolve(strict=False)
-    yield current
+        primary = _resolve_primary_checkout()
+        if primary is not None:
+            primary_candidate = candidate(primary / expanded)
+            if primary_candidate is not None:
+                yield primary_candidate
 
-    primary = _resolve_primary_checkout()
-    if primary is None:
-        return
-    candidate = (primary / expanded).resolve(strict=False)
-    if candidate != current:
-        yield candidate
+    snapshot = _configured_plan_snapshot()
+    if snapshot is not None:
+        snapshot_candidate = candidate(snapshot)
+        if snapshot_candidate is not None:
+            yield snapshot_candidate
+
+
+def _configured_plan_snapshot() -> Path | None:
+    snapshot_ref = os.environ.get("SASE_EPIC_PLAN_SNAPSHOT", "").strip()
+    if not snapshot_ref:
+        return None
+    try:
+        snapshot = Path(snapshot_ref).expanduser()
+        if not snapshot.is_absolute():
+            return None
+        return snapshot.resolve(strict=False)
+    except (OSError, RuntimeError, ValueError):
+        return None
 
 
 def _resolve_primary_checkout() -> Path | None:

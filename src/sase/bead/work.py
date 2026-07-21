@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
 SASE_BEAD_ID_ENV = "SASE_BEAD_ID"
 SASE_EPIC_PLAN_REF_ENV = "SASE_EPIC_PLAN_REF"
+SASE_EPIC_PLAN_SNAPSHOT_ENV = "SASE_EPIC_PLAN_SNAPSHOT"
 SASE_EPIC_BEAD_ID_ENV = "SASE_EPIC_BEAD_ID"
 SASE_EPIC_CLAN_TRIBE_ENV = "SASE_EPIC_CLAN_TRIBE"
 SASE_PHASE_BEAD_ID_ENV = "SASE_PHASE_BEAD_ID"
@@ -432,6 +433,7 @@ def epic_work_segment_env(
     plan: EpicWorkPlan,
     *,
     plan_ref: str,
+    plan_snapshot: str | None = None,
 ) -> tuple[dict[str, str], ...]:
     """Return role metadata for each epic-work launch segment.
 
@@ -448,6 +450,7 @@ def epic_work_segment_env(
                     assignment.bead_id,
                     epic_id=plan.epic_id,
                     plan_ref=plan_ref,
+                    plan_snapshot=plan_snapshot,
                     phase_bead_id=assignment.bead_id,
                 )
             )
@@ -456,6 +459,7 @@ def epic_work_segment_env(
             plan.epic_id,
             epic_id=plan.epic_id,
             plan_ref=plan_ref,
+            plan_snapshot=plan_snapshot,
         )
     )
     return tuple(envs)
@@ -489,6 +493,7 @@ def _bead_env(
     *,
     epic_id: str,
     plan_ref: str,
+    plan_snapshot: str | None = None,
     phase_bead_id: str | None = None,
 ) -> dict[str, str]:
     env = {
@@ -499,6 +504,8 @@ def _bead_env(
     }
     if plan_ref:
         env[SASE_EPIC_PLAN_REF_ENV] = plan_ref
+    if plan_snapshot:
+        env[SASE_EPIC_PLAN_SNAPSHOT_ENV] = plan_snapshot
     if phase_bead_id:
         env[SASE_PHASE_BEAD_ID_ENV] = phase_bead_id
     return env

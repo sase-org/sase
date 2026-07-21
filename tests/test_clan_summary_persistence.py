@@ -212,6 +212,7 @@ print(json.dumps({
     for key in (
         "CUSTOM_LAUNCH_VALUE",
         "SASE_EPIC_PLAN_REF",
+        "SASE_EPIC_PLAN_SNAPSHOT",
         "SASE_EPIC_BEAD_ID",
         "SASE_EPIC_CLAN_TRIBE",
         "SASE_CLAN_TRIBE",
@@ -220,6 +221,7 @@ print(json.dumps({
     )
     monkeypatch.setenv("CUSTOM_LAUNCH_VALUE", "preserved")
     monkeypatch.setenv("SASE_EPIC_PLAN_REF", "plans/epic.md")
+    monkeypatch.setenv("SASE_EPIC_PLAN_SNAPSHOT", "/state/epic.md")
     monkeypatch.setenv("SASE_EPIC_BEAD_ID", "sase-epic")
     monkeypatch.setenv("SASE_EPIC_CLAN_TRIBE", "epic")
     monkeypatch.setenv("SASE_CLAN_TRIBE", "ambient-value-must-not-leak")
@@ -231,11 +233,13 @@ print(json.dumps({
     )
 
     assert meta["epic_plan_ref"] == "plans/epic.md"
+    assert meta["epic_plan_snapshot"] == "/state/epic.md"
     assert meta["epic_bead_id"] == "sase-epic"
     inherited = json.loads(str(meta["clan_summary"]))
     assert inherited == {
         "CUSTOM_LAUNCH_VALUE": "preserved",
         "SASE_EPIC_PLAN_REF": "plans/epic.md",
+        "SASE_EPIC_PLAN_SNAPSHOT": "/state/epic.md",
         "SASE_EPIC_BEAD_ID": "sase-epic",
         "SASE_EPIC_CLAN_TRIBE": "epic",
         "SASE_CLAN_TRIBE": None,

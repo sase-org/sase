@@ -16,6 +16,7 @@ from sase.bead.work import (
     SASE_EPIC_BEAD_ID_ENV,
     SASE_EPIC_CLAN_TRIBE_ENV,
     SASE_EPIC_PLAN_REF_ENV,
+    SASE_EPIC_PLAN_SNAPSHOT_ENV,
     SASE_PHASE_BEAD_ID_ENV,
 )
 from sase.xprompt.directives import extract_prompt_directives
@@ -133,3 +134,154 @@ def test_work_launches_and_passes_rendered_multi_prompt(
 
     out = capsys.readouterr().out
     assert "Launched" in out
+
+
+def test_launch_snapshots_authoritative_plan_and_overwrites_on_relaunch(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic_id, _phase_ids = seed_diamond(project_dir)
+    plan_ref = "sdd/plans/202607/diamond.md"
+    source = project_dir / plan_ref
+    source.parent.mkdir(parents=True)
+    source.write_text("approved plan v1", encoding="utf-8")
+    with BeadProject(project_dir) as project:
+        project.update(epic_id, design=plan_ref)
+
+    state_home = project_dir / "state"
+    monkeypatch.setenv("SASE_HOME", str(state_home))
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda: "project",
+    )
+    launched_envs: list[tuple[dict[str, str], ...]] = []
+
+    def fake_launch(
+        _query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
+        del extra_env
+        launched_envs.append(segment_extra_env)
+        return FakeLaunchResult()
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_work_launch",
+        lambda *args, **kwargs: True,
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+    snapshot = (
+        state_home / "projects/project/artifacts/epic-plans" / f"{epic_id}.md"
+    ).resolve()
+    assert snapshot.read_text(encoding="utf-8") == "approved plan v1"
+    assert all(
+        env[SASE_EPIC_PLAN_SNAPSHOT_ENV] == str(snapshot) for env in launched_envs[-1]
+    )
+
+    source.write_text("approved plan v2", encoding="utf-8")
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+    assert snapshot.read_text(encoding="utf-8") == "approved plan v2"
+    assert all(
+        env[SASE_EPIC_PLAN_SNAPSHOT_ENV] == str(snapshot) for env in launched_envs[-1]
+    )
+
+
+def test_dry_run_does_not_snapshot_epic_plan(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic_id, _phase_ids = seed_diamond(project_dir)
+    with BeadProject(project_dir) as project:
+        project.update(epic_id, design="sdd/plans/202607/diamond.md")
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler._snapshot_epic_plan",
+        lambda *args, **kwargs: pytest.fail("dry run attempted to write a snapshot"),
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, dry_run=True))
+
+
+def test_snapshot_failure_warns_and_launches_without_snapshot_metadata(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, _phase_ids = seed_diamond(project_dir)
+    plan_ref = "sdd/plans/202607/diamond.md"
+    source = project_dir / plan_ref
+    source.parent.mkdir(parents=True)
+    source.write_text("private approved plan contents", encoding="utf-8")
+    with BeadProject(project_dir) as project:
+        project.update(epic_id, design=plan_ref)
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda: "project",
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler._atomic_copy_epic_plan",
+        lambda *_args: (_ for _ in ()).throw(PermissionError("snapshot denied")),
+    )
+    launched: dict[str, Any] = {}
+
+    def fake_launch(
+        _query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
+        del extra_env
+        launched["envs"] = segment_extra_env
+        return FakeLaunchResult()
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_work_launch",
+        lambda *args, **kwargs: True,
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+    assert all(SASE_EPIC_PLAN_SNAPSHOT_ENV not in env for env in launched["envs"])
+    warning = capsys.readouterr().err
+    assert "could not snapshot approved plan" in warning
+    assert plan_ref in warning
+    assert "project" in warning
+    assert "PermissionError" in warning
+    assert "private approved plan contents" not in warning
+
+
+@pytest.mark.parametrize(
+    ("layout", "plan_ref", "source_relative"),
+    [
+        (
+            "local",
+            ".sase/sdd/plans/202607/epic.md",
+            "plans/202607/epic.md",
+        ),
+        (
+            "sidecar",
+            "sase/repos/plans/202607/epic.md",
+            "202607/epic.md",
+        ),
+    ],
+)
+def test_snapshot_source_resolution_uses_non_vc_bead_store_root(
+    tmp_path: Path,
+    layout: str,
+    plan_ref: str,
+    source_relative: str,
+) -> None:
+    from sase.bead.cli_work_handler import _epic_plan_source_path
+
+    root = tmp_path / (".sase/sdd" if layout == "local" else "plans-sidecar")
+    with BeadProject.init(root, beads_dirname="beads"):
+        pass
+    source = root / source_relative
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("approved", encoding="utf-8")
+
+    with BeadProject(root, beads_dirname="beads") as project:
+        assert _epic_plan_source_path(project, plan_ref) == source.resolve()
