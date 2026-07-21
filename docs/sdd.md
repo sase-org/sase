@@ -194,12 +194,13 @@ phases:
 On Epic approval, SASE deterministically copies the top-level model to the epic plan bead and each phase's model and
 size to its phase bead. Small phases launch directly with `@small_phase_worker`. Medium phases use
 `@medium_phase_worker` and receive `#plan` so they plan before implementation. Large phases receive `#plan` and use
-`@large_phase_worker`. Each size alias falls back to the shared `@phase_worker`, while an explicit phase `model` always
-wins over this size-derived routing. `@smartest` remains available for explicit use but is not selected automatically.
-When the top-level model is omitted, the land agent uses `@epic_lander` below `bead.big_epic_phase_threshold` and
-`@big_epic_lander` at or above the threshold (default `5`). The approval preview and emitted launch prompt use these
-same rules. Routing counts every authored phase, including already-closed phases when an epic resumes, so the selected
-lander role stays stable throughout the epic.
+`@large_phase_worker`. Small, medium, and large aliases fall back to `@cheapest`, `@phase_worker`, and `@smartest`
+respectively, while an explicit phase `model` always wins over this size-derived routing. Overriding bare `phase_worker`
+therefore changes only medium and explicit `@phase_worker` uses; point the small/large aliases back to `@phase_worker`
+to restore uniform routing. When the top-level model is omitted, the land agent uses `@epic_lander` below
+`bead.big_epic_phase_threshold` and `@big_epic_lander` at or above the threshold (default `5`). The approval preview and
+emitted launch prompt use these same rules. Routing counts every authored phase, including already-closed phases when an
+epic resumes, so the selected lander role stays stable throughout the epic.
 
 Choose `medium` when a phase is potentially a lot of work and merits its own plan file. Choose `large` when that phase
 plan may itself be large enough to deserve an epic tier. Use `small` for focused work that does not need a planning

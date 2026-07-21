@@ -95,14 +95,11 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
         "would create a cycle"
     )
     phase_worker_context = make_alias_context(target="phase_worker", views=views)
-    for alias in (
-        "small_phase_worker",
-        "medium_phase_worker",
-        "large_phase_worker",
-    ):
-        assert _alias_disabled_reason(phase_worker_context, alias) == (
-            "would create a cycle"
-        )
+    assert _alias_disabled_reason(phase_worker_context, "medium_phase_worker") == (
+        "would create a cycle"
+    )
+    assert _alias_disabled_reason(phase_worker_context, "small_phase_worker") is None
+    assert _alias_disabled_reason(phase_worker_context, "large_phase_worker") is None
 
 
 def test_alias_dependency_guard_handles_long_chains() -> None:

@@ -38,7 +38,9 @@ def check_config_model_aliases() -> DiagnosticCheck:
         model_alias_bucket_names,
         model_alias_kind,
         model_alias_names,
+        model_alias_pool_members,
         strip_model_alias_prefix,
+        validate_model_alias_pool_value,
     )
 
     config = get_llm_provider_config()
@@ -55,6 +57,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
     raw_buckets = raw_model_alias_entries.get("buckets", {})
     raw_top_custom = config.get("custom_model_aliases")
     problems: list[dict[str, str]] = []
+    notes: list[str] = []
 
     if config.get("worker_models"):
         problems.append(
@@ -247,14 +250,32 @@ def check_config_model_aliases() -> DiagnosticCheck:
             )
 
     for alias, target in sorted(get_model_aliases().items()):
-        if not target.startswith("@"):
-            continue
-        referenced = strip_model_alias_prefix(target).strip()
         target_key = (
             f"model_aliases.custom.{alias}.model"
             if alias in custom_aliases
             else f"model_aliases.builtin.{alias}"
         )
+        pool_errors = validate_model_alias_pool_value(alias, target)
+        if "|" in target:
+            for message in pool_errors:
+                problems.append(
+                    {
+                        "key": target_key,
+                        "message": f"{target_key}: {message}",
+                    }
+                )
+            if not pool_errors:
+                for member in model_alias_pool_members(alias):
+                    if not member.available:
+                        notes.append(
+                            f"{target_key} pool member '{member.value}' is "
+                            "currently unavailable and will be skipped while "
+                            "another member is available"
+                        )
+            continue
+        if not target.startswith("@"):
+            continue
+        referenced = strip_model_alias_prefix(target).strip()
         if referenced in REMOVED_IMPLICIT_ALIAS_GUIDANCE:
             guidance = REMOVED_IMPLICIT_ALIAS_GUIDANCE[referenced]
             problems.append(
@@ -278,11 +299,15 @@ def check_config_model_aliases() -> DiagnosticCheck:
             )
 
     status: CheckStatus = "WARN" if problems else "OK"
-    summary = (
-        "model alias config is current"
-        if not problems
-        else f"{len(problems)} model alias migration issue(s) found"
-    )
+    if problems:
+        summary = f"{len(problems)} model alias migration issue(s) found"
+    elif notes:
+        summary = (
+            "model alias config is current; "
+            f"{len(notes)} unavailable pool member(s) will be skipped"
+        )
+    else:
+        summary = "model alias config is current"
     next_steps = (
         (
             "Migrate the reported `llm_provider` config to model aliases "
@@ -298,7 +323,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
         status=status,
         title="Model alias migration",
         summary=summary,
-        details=tuple(row["message"] for row in problems[:MAX_DETAIL_ROWS]),
+        details=tuple([row["message"] for row in problems] + notes)[:MAX_DETAIL_ROWS],
         next_steps=next_steps,
-        data={"problems": problems},
+        data={"problems": problems, "notes": notes},
     )

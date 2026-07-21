@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.config import load_merged_config
 from sase.config.core import current_config_token
-from sase.xprompt.effort import is_valid_effort
+from sase.xprompt.effort import is_valid_effort, split_model_effort
+
+from .load_balancing import (
+    ModelAliasPool,
+    ModelAliasPoolError,
+    parse_model_alias_pool,
+    select_model_alias_pool_member,
+)
 
 if TYPE_CHECKING:
     from sase.xprompt.directives import PromptDirectives
@@ -30,7 +38,7 @@ ModelAliasConfigSource = Literal["builtin", "custom"]
 #   - ``default``: the model used when a prompt has no explicit ``%model``.
 #   - ``coder`` / ``<provider>_coder``: coder follow-up roles.
 #   - ``epic_lander`` / ``big_epic_lander`` / ``phase_worker`` /
-#     ``<size>_phase_worker`` / ``smartest``: bead/epic roles.
+#     ``<size>_phase_worker`` / ``smartest`` / ``cheapest``: bead/epic roles.
 #
 # Each role falls back to another alias (ultimately ``@default``) when it is not
 # explicitly configured. ``default`` itself falls back to the configured or
@@ -60,7 +68,7 @@ EPIC_LANDER_MODEL_ALIAS_NAME = "epic_lander"
 #: The implicit large-epic lander role alias (threshold-selected follow-up).
 BIG_EPIC_LANDER_MODEL_ALIAS_NAME = "big_epic_lander"
 
-#: The implicit "phase_worker" role alias (shared bead phase fallback).
+#: The implicit "phase_worker" role alias (medium/explicit phase fallback).
 PHASE_WORKER_MODEL_ALIAS_NAME = "phase_worker"
 
 #: The implicit small-phase role alias.
@@ -72,8 +80,14 @@ MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME = "medium_phase_worker"
 #: The implicit large-phase role alias.
 LARGE_PHASE_WORKER_MODEL_ALIAS_NAME = "large_phase_worker"
 
-#: The implicit "smartest" compatibility alias for explicit use.
+#: The implicit "smartest" highest-capability alias.
 SMARTEST_MODEL_ALIAS_NAME = "smartest"
+
+#: The implicit load-balanced high-volume-agent alias.
+CHEAPEST_MODEL_ALIAS_NAME = "cheapest"
+
+#: Default target pool for the implicit :data:`CHEAPEST_MODEL_ALIAS_NAME`.
+CHEAPEST_MODEL_ALIAS_DEFAULT = "claude/opus@medium | codex/gpt-5.5"
 
 #: Fixed implicit role aliases (besides ``default``) mapped to the alias each
 #: falls back to when the user has not configured it explicitly.
@@ -82,10 +96,14 @@ _ROLE_ALIAS_FALLBACKS: dict[str, str] = {
     EPIC_LANDER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME: f"@{EPIC_LANDER_MODEL_ALIAS_NAME}",
     PHASE_WORKER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
-    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{PHASE_WORKER_MODEL_ALIAS_NAME}",
+    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{CHEAPEST_MODEL_ALIAS_NAME}",
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{PHASE_WORKER_MODEL_ALIAS_NAME}",
-    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{PHASE_WORKER_MODEL_ALIAS_NAME}",
+    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{SMARTEST_MODEL_ALIAS_NAME}",
     SMARTEST_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
+}
+
+_IMPLICIT_ALIAS_TARGETS: dict[str, str] = {
+    CHEAPEST_MODEL_ALIAS_NAME: CHEAPEST_MODEL_ALIAS_DEFAULT,
 }
 
 _LEGACY_BUILTIN_ALIAS_NAMES = {EPIC_CREATOR_MODEL_ALIAS_NAME}
@@ -107,7 +125,7 @@ _ROLE_ALIAS_DESCRIPTIONS: dict[str, str] = {
         "phase-count threshold."
     ),
     PHASE_WORKER_MODEL_ALIAS_NAME: (
-        "Shared fallback for bead phase agents of every size."
+        "Shared fallback for medium bead phase agents and explicit uses."
     ),
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: (
         "Small bead phase agents that implement directly."
@@ -119,8 +137,9 @@ _ROLE_ALIAS_DESCRIPTIONS: dict[str, str] = {
         "Large bead phase agents that plan before implementation."
     ),
     SMARTEST_MODEL_ALIAS_NAME: (
-        "Highest-capability compatibility alias for explicit use."
+        "Highest-capability model used automatically by large phase agents."
     ),
+    CHEAPEST_MODEL_ALIAS_NAME: ("Cheap load-balanced pool for high-volume agents."),
 }
 
 
@@ -169,6 +188,7 @@ def _get_default_effort() -> str | None:
 
 def resolve_effective_effort(
     directives: PromptDirectives,
+    alias_effort: str | None = None,
 ) -> tuple[str | None, bool]:
     """Resolve the effective reasoning effort and whether it was explicit.
 
@@ -176,10 +196,12 @@ def resolve_effective_effort(
 
     1. An explicit per-branch ``%effort``/``@effort`` value
        (``directives.reasoning_effort``) — returned with ``explicit=True``.
-    2. The ``llm_provider.default_effort`` config value — returned with
+    2. A reasoning-effort suffix carried by an alias target — returned with
+       ``explicit=False`` because config-derived effort is best-effort.
+    3. The ``llm_provider.default_effort`` config value — returned with
        ``explicit=False`` (best-effort: providers silently skip levels they
        cannot honor).
-    3. Nothing — ``(None, False)`` so each runtime keeps its own default.
+    4. Nothing — ``(None, False)`` so each runtime keeps its own default.
 
     Centralizing the precedence here (reused by invocation and, later, the TUI
     metadata) keeps display and behavior from ever disagreeing. The ``explicit``
@@ -189,6 +211,8 @@ def resolve_effective_effort(
     explicit_effort = directives.reasoning_effort
     if explicit_effort:
         return explicit_effort, True
+    if alias_effort and is_valid_effort(alias_effort):
+        return alias_effort, False
     default_effort = _get_default_effort()
     if default_effort:
         return default_effort, False
@@ -394,7 +418,11 @@ def _is_provider_coder_alias(name: str) -> bool:
 
 def _role_model_alias_names() -> set[str]:
     """Return the fixed implicit role aliases (``default`` plus role aliases)."""
-    return {DEFAULT_MODEL_ALIAS_NAME, *_ROLE_ALIAS_FALLBACKS}
+    return {
+        DEFAULT_MODEL_ALIAS_NAME,
+        *_ROLE_ALIAS_FALLBACKS,
+        *_IMPLICIT_ALIAS_TARGETS,
+    }
 
 
 def _provider_coder_model_alias_names() -> set[str]:
@@ -411,7 +439,7 @@ def _special_model_alias_names() -> set[str]:
     This is the centralized alias policy that is the source of truth for which
     alias names always resolve: the fixed role aliases (``default`` plus
     ``coder``/``epic_lander``/``big_epic_lander``/``phase_worker``/
-    ``<size>_phase_worker``/``smartest``) and a
+    ``<size>_phase_worker``/``smartest``/``cheapest``) and a
     ``<provider>_coder`` alias per registered provider. The legacy
     ``worker``/``other`` reserved aliases were retired with the worker lane
     (epic sase-5d phase 4); they only resolve now if a user defines them as
@@ -436,7 +464,7 @@ def model_alias_kind(name: str) -> str:
     """
     if name == DEFAULT_MODEL_ALIAS_NAME:
         return "default"
-    if name in _ROLE_ALIAS_FALLBACKS:
+    if name in _ROLE_ALIAS_FALLBACKS or name in _IMPLICIT_ALIAS_TARGETS:
         return "role"
     if name in _LEGACY_BUILTIN_ALIAS_NAMES and name in get_builtin_model_aliases():
         return "role"
@@ -474,6 +502,11 @@ def implicit_model_alias_fallback(name: str) -> str | None:
     if fallback is None and _is_provider_coder_alias(alias):
         fallback = f"@{CODER_MODEL_ALIAS_NAME}"
     return strip_model_alias_prefix(fallback) if fallback is not None else None
+
+
+def implicit_model_alias_value(name: str) -> str | None:
+    """Return a non-fallback implicit target value for *name*, if any."""
+    return _IMPLICIT_ALIAS_TARGETS.get(name.strip())
 
 
 def format_model_directive_value(value: str) -> str:
@@ -524,96 +557,343 @@ def _resolve_default_alias_target() -> str:
         return DEFAULT_MODEL_ALIAS_NAME
 
 
-def resolve_model_alias(
+@dataclass(frozen=True, slots=True)
+class _ResolvedModelAlias:
+    """Concrete alias target plus config-derived effort and pool provenance."""
+
+    target: str
+    effort: str | None = None
+    pool_alias: str | None = None
+    valid: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class ModelAliasPoolMember:
+    """Display/diagnostic information for one configured pool member."""
+
+    value: str
+    target: str
+    effort: str | None
+    provider: str | None
+    available: bool
+    valid: bool = True
+
+
+def _provider_for_resolved_target(target: str) -> str | None:
+    """Return the explicit or metadata-inferred provider for *target*."""
+    from .registry import model_to_provider_map, registered_provider_names
+
+    if "/" in target:
+        provider, _ = target.split("/", 1)
+        return provider if provider else None
+    inferred_provider = model_to_provider_map().get(target)
+    return (
+        inferred_provider if inferred_provider in registered_provider_names() else None
+    )
+
+
+def _resolved_target_is_available(target: str) -> bool:
+    """Return whether *target* resolves to a registered, installed provider."""
+    from .registry import provider_cli_available, registered_provider_names
+
+    provider = _provider_for_resolved_target(target)
+    if provider is None or provider not in registered_provider_names():
+        return False
+    return provider_cli_available(provider)
+
+
+def _resolve_model_alias_result(
     model: str,
     model_alias_overrides: Mapping[str, str] | None = None,
-) -> str:
-    """Resolve a model alias to its final target.
-
-    Resolution follows configured ``llm_provider.model_aliases.builtin`` /
-    ``llm_provider.model_aliases.custom`` chains and the implicit special aliases
-    (``default``, ``coder``, ``<provider>_coder``, ``epic_lander``,
-    ``big_epic_lander``, ``phase_worker``, ``<size>_phase_worker``,
-    ``smartest``). A configured legacy ``epic_creator`` entry remains an
-    ordinary compatibility alias. Alias
-    *values* may reference other aliases with an ``@`` marker (e.g.
-    ``coder: "@default"``); those references are followed too. A
-    user-configured alias always shadows the implicit special of the same name.
-
-    Unknown tokens return *model* unchanged. Cycles and overly deep chains fall
-    back to the original input so a bad config cannot crash launches.
-
-    A launch-family override wins at every alias hop, including ``default``.
-    The generic ``coder`` launch override also shadows a provider-specific
-    ``<provider>_coder`` hop unless the launch supplies that more-specific key.
-    Machine-global temporary overrides are consulted next for non-``default``
-    aliases. Their ``default`` override remains limited to the no-``%model``
-    launch lane (see
-    :func:`sase.llm_provider.temporary_override.resolve_effective_default_provider_model`).
-
-    The literal aliases ``"worker"`` and ``"other"`` are no longer special: the
-    worker lane was retired in epic sase-5d phase 4, so they resolve only when a
-    user defines them as ordinary configured aliases.
-    """
+    *,
+    consume: bool = False,
+    initial_seen: set[str] | None = None,
+    active_pool: str | None = None,
+) -> _ResolvedModelAlias:
+    """Internal alias resolver retaining effort and pool provenance."""
     from .launch_alias_overrides import active_launch_alias_overrides
 
-    cleaned_model = model.strip()
     aliases = _get_model_aliases()
     launch_overrides = active_launch_alias_overrides(model_alias_overrides)
     original = model
-    current = cleaned_model
-    seen: set[str] = set()
-    # Active per-alias temporary overrides, loaded lazily (and at most once) the
-    # first time a non-``default`` alias token is seen, so a pure ``default``
-    # resolution never touches the override state file.
+    # Loaded lazily and shared by recursive member resolutions.
     overrides: dict[str, Any] | None = None
-    for _ in range(_ALIAS_RESOLUTION_DEPTH_LIMIT):
-        # An ``@`` marker on a value means "reference this alias by name".
-        bare = current[1:].strip() if current.startswith("@") else current
-        if not bare:
-            return original
 
-        launch_target = launch_overrides.get(bare)
-        if launch_target is None and _is_provider_coder_alias(bare):
-            launch_target = launch_overrides.get(CODER_MODEL_ALIAS_NAME)
-        if launch_target is not None:
-            if bare in seen:
-                return original
-            seen.add(bare)
-            current = launch_target
-            continue
+    def fail() -> _ResolvedModelAlias:
+        return _ResolvedModelAlias(original, valid=False)
 
-        # A temporary override on a non-``default`` alias beats the configured
-        # and implicit lookups for that alias.
-        if bare != DEFAULT_MODEL_ALIAS_NAME:
-            if overrides is None:
-                overrides = _active_alias_overrides()
-            override = overrides.get(bare)
-            if override is not None:
-                return f"{override.provider}/{override.model}"
+    def resolve(
+        value: str,
+        *,
+        seen: set[str],
+        steps: int,
+        pool_owner: str | None,
+        inherited_effort: str | None,
+    ) -> _ResolvedModelAlias:
+        nonlocal overrides
+        current = value.strip()
+        effort = inherited_effort
+        while steps < _ALIAS_RESOLUTION_DEPTH_LIMIT:
+            current, current_effort = split_model_effort(current.strip())
+            if effort is None:
+                effort = current_effort
+            bare = current[1:].strip() if current.startswith("@") else current
+            if not bare:
+                return fail()
 
-        if bare in aliases:
-            if bare in seen:
-                return original
-            seen.add(bare)
-            nxt = aliases[bare].strip()
-            if not nxt:
-                return original
-            current = nxt
-            continue
+            launch_target = launch_overrides.get(bare)
+            if launch_target is None and _is_provider_coder_alias(bare):
+                launch_target = launch_overrides.get(CODER_MODEL_ALIAS_NAME)
+            if launch_target is not None:
+                if bare in seen:
+                    return fail()
+                seen.add(bare)
+                current = launch_target
+                steps += 1
+                continue
 
-        # Implicit special aliases (only when not user-configured above).
-        if bare == DEFAULT_MODEL_ALIAS_NAME:
-            return _resolve_default_alias_target()
+            # A temporary override suspends load balancing for that alias.
+            if bare != DEFAULT_MODEL_ALIAS_NAME:
+                if overrides is None:
+                    overrides = _active_alias_overrides()
+                override = overrides.get(bare)
+                if override is not None:
+                    return _ResolvedModelAlias(
+                        f"{override.provider}/{override.model}",
+                        effort,
+                        pool_owner,
+                    )
 
-        fallback = implicit_model_alias_fallback(bare)
-        if fallback is not None:
-            if bare in seen:
-                return original
-            seen.add(bare)
-            current = f"@{fallback}"
-            continue
+            target: str | None = None
+            if bare in aliases:
+                target = aliases[bare].strip()
+            elif bare in _IMPLICIT_ALIAS_TARGETS:
+                target = _IMPLICIT_ALIAS_TARGETS[bare]
 
-        # A concrete model name (or a dangling ``@`` reference): terminal.
-        return bare if current.startswith("@") else current
-    return original
+            if target is not None:
+                if bare in seen or not target:
+                    return fail()
+                seen.add(bare)
+                try:
+                    pool = parse_model_alias_pool(target)
+                except ModelAliasPoolError:
+                    return fail()
+                if pool is not None:
+                    # A pool reached from a member of another pool is invalid,
+                    # matching cycle/depth fail-closed behavior.
+                    if pool_owner is not None:
+                        return fail()
+                    member_results = [
+                        resolve(
+                            member,
+                            seen=set(seen),
+                            steps=steps + 1,
+                            pool_owner=bare,
+                            inherited_effort=effort,
+                        )
+                        for member in pool.members
+                    ]
+                    if any(not result.valid for result in member_results):
+                        return fail()
+                    availability = [
+                        _resolved_target_is_available(result.target)
+                        for result in member_results
+                    ]
+                    index = select_model_alias_pool_member(
+                        bare, pool, availability, consume=consume
+                    )
+                    return member_results[index]
+                current = target
+                steps += 1
+                continue
+
+            if bare == DEFAULT_MODEL_ALIAS_NAME:
+                target, target_effort = split_model_effort(
+                    _resolve_default_alias_target()
+                )
+                return _ResolvedModelAlias(
+                    target,
+                    effort or target_effort,
+                    pool_owner,
+                )
+
+            fallback = implicit_model_alias_fallback(bare)
+            if fallback is not None:
+                if bare in seen:
+                    return fail()
+                seen.add(bare)
+                current = f"@{fallback}"
+                steps += 1
+                continue
+
+            # A concrete model name (or dangling alias reference) is terminal.
+            return _ResolvedModelAlias(
+                bare if current.startswith("@") else current,
+                effort,
+                pool_owner,
+            )
+        return fail()
+
+    return resolve(
+        model,
+        seen=set() if initial_seen is None else set(initial_seen),
+        steps=0,
+        pool_owner=active_pool,
+        inherited_effort=None,
+    )
+
+
+def resolve_model_alias_with_effort(
+    model: str,
+    model_alias_overrides: Mapping[str, str] | None = None,
+    *,
+    consume: bool = False,
+) -> _ResolvedModelAlias:
+    """Resolve *model*, retaining alias-borne effort and pool provenance.
+
+    ``consume=False`` is the safe default for display, completion, doctor, and
+    preview callers.  Authoritative launch lanes pass ``consume=True`` so each
+    launched agent advances a pool cursor exactly once.
+    """
+    return _resolve_model_alias_result(
+        model,
+        model_alias_overrides,
+        consume=consume,
+    )
+
+
+def resolve_model_alias(
+    model: str,
+    model_alias_overrides: Mapping[str, str] | None = None,
+    *,
+    consume: bool = False,
+) -> str:
+    """Resolve a model alias to its concrete target string.
+
+    Configured alias values may be pipe-separated pools.  Pool resolution skips
+    unavailable providers and peeks by default; launch callers opt into cursor
+    advancement with ``consume=True``.  Known trailing ``@<effort>`` suffixes
+    are removed from alias-resolved targets and exposed by
+    :func:`resolve_model_alias_with_effort`.
+
+    Launch-scoped overrides win first, followed by machine-global temporary
+    overrides, configured aliases, and implicit role fallbacks.  Pools are
+    recognized only in configured/implicit alias values, never in directive or
+    temporary override values.  Cycles, nested pools, malformed pools, and
+    overly deep chains fail closed to the original input.
+    """
+    return resolve_model_alias_with_effort(
+        model,
+        model_alias_overrides,
+        consume=consume,
+    ).target
+
+
+def _model_alias_pool(name: str) -> ModelAliasPool | None:
+    """Return the configured/implicit pool owned by alias *name*, if any."""
+    alias = name.strip()
+    value = _get_model_aliases().get(alias)
+    if value is None:
+        value = _IMPLICIT_ALIAS_TARGETS.get(alias)
+    if value is None:
+        return None
+    try:
+        return parse_model_alias_pool(value)
+    except ModelAliasPoolError:
+        return None
+
+
+def model_alias_pool_members(name: str) -> tuple[ModelAliasPoolMember, ...]:
+    """Return resolved member/availability details for alias *name*'s pool."""
+    alias = name.strip()
+    pool = _model_alias_pool(alias)
+    if pool is None:
+        return ()
+    members: list[ModelAliasPoolMember] = []
+    for value in pool.members:
+        result = _resolve_model_alias_result(
+            value,
+            initial_seen={alias},
+            active_pool=alias,
+        )
+        provider = (
+            _provider_for_resolved_target(result.target) if result.valid else None
+        )
+        members.append(
+            ModelAliasPoolMember(
+                value=value,
+                target=result.target,
+                effort=result.effort,
+                provider=provider,
+                available=(
+                    result.valid and _resolved_target_is_available(result.target)
+                ),
+                valid=result.valid,
+            )
+        )
+    return tuple(members)
+
+
+def validate_model_alias_pool_value(name: str, value: str) -> tuple[str, ...]:
+    """Return actionable validation errors for an alias value's pool syntax."""
+    try:
+        pool = parse_model_alias_pool(value)
+    except ModelAliasPoolError as exc:
+        return (str(exc),)
+    if pool is None:
+        return ()
+
+    aliases = _get_model_aliases()
+    errors: list[str] = []
+    owner = name.strip() or "<alias>"
+    for position, member in enumerate(pool.members, start=1):
+        current, _ = split_model_effort(member)
+        seen = {owner}
+        for _ in range(_ALIAS_RESOLUTION_DEPTH_LIMIT):
+            if not current.startswith("@"):
+                if not current.strip():
+                    errors.append(f"pool member {position} resolves to an empty target")
+                break
+            referenced = current[1:].strip()
+            referenced, _ = split_model_effort(referenced)
+            if not referenced:
+                errors.append(f"pool member {position} has an empty alias reference")
+                break
+            if referenced in seen:
+                errors.append(
+                    f"pool member {position} creates an alias cycle through "
+                    f"'@{referenced}'"
+                )
+                break
+            seen.add(referenced)
+            target = aliases.get(referenced)
+            if target is None:
+                target = _IMPLICIT_ALIAS_TARGETS.get(referenced)
+            if target is None:
+                fallback = implicit_model_alias_fallback(referenced)
+                target = f"@{fallback}" if fallback is not None else None
+            if target is None:
+                errors.append(
+                    f"pool member {position} references unknown alias '@{referenced}'"
+                )
+                break
+            try:
+                nested = parse_model_alias_pool(target)
+            except ModelAliasPoolError as exc:
+                errors.append(
+                    f"pool member {position} reaches malformed alias "
+                    f"'@{referenced}': {exc}"
+                )
+                break
+            if nested is not None:
+                errors.append(
+                    f"pool member {position} reaches nested pool "
+                    f"'@{referenced}'; pool members must resolve to a single target"
+                )
+                break
+            current, _ = split_model_effort(target.strip())
+        else:
+            errors.append(
+                f"pool member {position} exceeds the alias resolution depth limit"
+            )
+    return tuple(dict.fromkeys(errors))

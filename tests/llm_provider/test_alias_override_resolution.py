@@ -66,12 +66,9 @@ def test_override_on_phase_worker_takes_effect(
 
     set_alias_override("phase_worker", "codex/o3", None, source="panel")
     assert resolve_model_provider("phase_worker") == ("codex", "o3")
-    for alias in (
-        "small_phase_worker",
-        "medium_phase_worker",
-        "large_phase_worker",
-    ):
-        assert resolve_model_provider(alias) == ("codex", "o3")
+    assert resolve_model_provider("small_phase_worker") == ("claude", "opus")
+    assert resolve_model_provider("medium_phase_worker") == ("codex", "o3")
+    assert resolve_model_provider("large_phase_worker") == ("claude", "opus")
 
 
 def test_size_specific_phase_override_is_independent(
@@ -87,7 +84,7 @@ def test_size_specific_phase_override_is_independent(
 
     set_alias_override("large_phase_worker", "codex/o3", None, source="panel")
 
-    assert resolve_model_provider("small_phase_worker") == ("claude", "sonnet")
+    assert resolve_model_provider("small_phase_worker") == ("claude", "opus")
     assert resolve_model_provider("medium_phase_worker") == ("claude", "sonnet")
     assert resolve_model_provider("large_phase_worker") == ("codex", "o3")
 

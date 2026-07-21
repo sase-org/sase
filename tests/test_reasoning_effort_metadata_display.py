@@ -104,6 +104,72 @@ def test_agent_meta_uses_config_default_effort(
     assert meta["reasoning_effort"] == "high"
 
 
+def test_agent_meta_consumes_alias_pool_once_and_resume_reuses_selection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The axe metadata lane is authoritative and a re-exec does not re-consume."""
+    from sase.axe.run_agent_phases import extract_directives_and_write_meta
+    from sase.llm_provider import config as llm_config
+
+    monkeypatch.setattr(
+        llm_config,
+        "get_llm_provider_config",
+        lambda: {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {"pool": "claude/opus@medium | codex/gpt-5.5"}
+            },
+        },
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config",
+        llm_config.get_llm_provider_config,
+    )
+    monkeypatch.setattr(
+        llm_config, "_resolved_target_is_available", lambda _target: True
+    )
+    llm_config._get_model_aliases_for_token.cache_clear()
+
+    workspace_dir = str(tmp_path / "workspace")
+    first_artifacts = str(tmp_path / "first")
+    second_artifacts = str(tmp_path / "second")
+    os.makedirs(workspace_dir, exist_ok=True)
+    os.makedirs(first_artifacts, exist_ok=True)
+    os.makedirs(second_artifacts, exist_ok=True)
+
+    prompt = "%model:@pool\ndo the work"
+    extract_directives_and_write_meta(
+        prompt=prompt,
+        workspace_dir=workspace_dir,
+        artifacts_dir=first_artifacts,
+    )
+    # Simulate the same runner re-executing after a wait/resume boundary.
+    extract_directives_and_write_meta(
+        prompt=prompt,
+        workspace_dir=workspace_dir,
+        artifacts_dir=first_artifacts,
+    )
+    first = json.loads(
+        (Path(first_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert (first["llm_provider"], first["model"], first["reasoning_effort"]) == (
+        "claude",
+        "opus",
+        "medium",
+    )
+
+    extract_directives_and_write_meta(
+        prompt=prompt,
+        workspace_dir=workspace_dir,
+        artifacts_dir=second_artifacts,
+    )
+    second = json.loads(
+        (Path(second_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert (second["llm_provider"], second["model"]) == ("codex", "gpt-5.5")
+    assert "reasoning_effort" not in second
+
+
 # --- prompt-step marker persistence ----------------------------------------
 
 

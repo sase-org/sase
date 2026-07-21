@@ -181,9 +181,16 @@ def _write_followup_effort_meta(state: LoopState, followup_prompt: str) -> None:
     """Record the follow-up agent's resolved reasoning effort, when set."""
     from sase.llm_provider.config import resolve_effective_effort
     from sase.llm_provider.preprocessing import preprocess_prompt_early
+    from sase.llm_provider.registry import resolve_model_provider_with_effort
 
     result = preprocess_prompt_early(followup_prompt)
-    reasoning_effort, _ = resolve_effective_effort(result.directives)
+    alias_effort: str | None = None
+    if result.directives.model:
+        _, _, alias_effort = resolve_model_provider_with_effort(
+            result.directives.model,
+            result.directives.model_alias_overrides,
+        )
+    reasoning_effort, _ = resolve_effective_effort(result.directives, alias_effort)
     if reasoning_effort:
         update_meta_field(
             state.current_artifacts_dir, "reasoning_effort", reasoning_effort

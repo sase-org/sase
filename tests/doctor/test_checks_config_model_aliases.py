@@ -223,3 +223,56 @@ def test_model_aliases_warns_on_dangling_bucket_metadata(
     assert "model_aliases.buckets.research" not in by_key
     assert "model_aliases.buckets.unused" in by_key
     assert "no custom aliases" in by_key["model_aliases.buckets.unused"]
+
+
+def test_model_aliases_warns_on_malformed_and_nested_pools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "builtin": {
+                    "cheapest": "claude/opus || codex/gpt-5.5",
+                    "phase_worker": "@nested | claude/sonnet",
+                },
+                "custom": {
+                    "nested": {
+                        "model": "codex/o3 | claude/opus",
+                        "description": "Nested pool target.",
+                    }
+                },
+            }
+        },
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "WARN"
+    messages = " ".join(row["message"] for row in check.data["problems"])
+    assert "empty members" in messages
+    assert "nested pool '@nested'" in messages
+
+
+def test_model_aliases_notes_unavailable_pool_members_without_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "builtin": {"cheapest": "claude/opus@medium | codex/gpt-5.5"}
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: False,
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "OK"
+    assert check.data["problems"] == ()
+    assert len(check.data["notes"]) == 2
+    assert "will be skipped" in " ".join(check.details)

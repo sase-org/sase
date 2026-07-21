@@ -59,6 +59,7 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "@medium_phase_worker",
         "@large_phase_worker",
         "@smartest",
+        "@cheapest",
         "@fast",
         "@worker",
     ]
@@ -96,7 +97,7 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
 
     smartest = by_value["@smartest"]
     assert smartest.kind == "implicit_alias"
-    assert smartest.description == "highest-capability alias for explicit use"
+    assert smartest.description == "highest-capability model for large phase agents"
     assert smartest.aliases == ("smartest",)
 
     fast = by_value["@fast"]

@@ -1332,14 +1332,14 @@ markers. It does not delete workspace checkouts, and system-managed projects suc
 
 Press `,m` from any tab to open the **Models** panel — one keyboard-driven surface for viewing and managing every model
 alias: the implicit role aliases (`default`, `coder`, `<provider>_coder`, `epic_lander`, `big_epic_lander`,
-`phase_worker`, `small_phase_worker`, `medium_phase_worker`, `large_phase_worker`, `smartest`) and any user-defined
-`llm_provider.model_aliases.custom` entry.
+`phase_worker`, `small_phase_worker`, `medium_phase_worker`, `large_phase_worker`, `smartest`, `cheapest`) and any
+user-defined `llm_provider.model_aliases.custom` entry.
 
 Each row shows the alias name with a small kind badge (`default` / `role` / `<provider> coder` / `user`), its effective
 provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @<fallback>`, or an
 `override · <time> left` / `override · until cleared` chip when a temporary override is active. The top level is sorted
 deterministically: `default`, the built-in `coders` bucket, `epic_lander`, `big_epic_lander`, the built-in
-`phase_worker` bucket, `smartest`, then custom buckets and ungrouped user aliases in alphabetical order.
+`phase_worker` bucket, `smartest`, `cheapest`, then custom buckets and ungrouped user aliases in alphabetical order.
 
 Two built-in buckets are always present. `coders` groups `coder` first and every registered `<provider>_coder` alias
 alphabetically. `phase_worker` groups the generic shared fallback first, followed by `small_phase_worker`,
@@ -1352,7 +1352,8 @@ the matching row.
 
 The two-line strip below the list explains the highlighted alias. Builtin aliases use fixed descriptions. User aliases
 use `llm_provider.model_aliases.custom.<name>.description`; a malformed user alias without one shows that config path as
-the fix.
+the fix. For a pool-valued alias, the strip also lists every parsed member with an available/unavailable marker, while
+the row's provider/model badge shows the next peeked selection without advancing its cursor.
 
 If a builtin alias is mistakenly configured under `llm_provider.model_aliases.custom`, opening the panel emits one
 warning toast listing every affected `@alias`. A gold warning glyph remains on each affected alias row even while a
@@ -1396,8 +1397,9 @@ independent:
 - An override on **`default`** drives the no-`%model` launch default and renders in the existing gold top-bar pill — its
   behavior is unchanged.
 - An override on **any other alias** takes effect wherever that alias is resolved. In particular, a generic
-  `@phase_worker` override is inherited through every unconfigured size alias, while a size-specific override affects
-  only that alias. It is surfaced by a distinct, concise violet top-bar pill: a single active override renders as
+  `@phase_worker` override is inherited by unconfigured medium phases, while a size-specific override affects only that
+  alias. An override on `@cheapest` suspends its load-balanced rotation until the override expires or is cleared. It is
+  surfaced by a distinct, concise violet top-bar pill: a single active override renders as
   `Override @<alias> <time-left>`, and several render as an `Overrides ×N` count.
 
 Overrides apply only to default selection: explicit prompt directives (`%model:codex/o3`,
@@ -1430,6 +1432,8 @@ referenced alias do not change the active override.
 
 Builtin aliases edit under `llm_provider.model_aliases.builtin.<name>`. User aliases under
 `llm_provider.model_aliases.custom.<name>` edit their `model` field and reset by deleting the whole custom alias entry.
+The custom input also accepts a `|`-separated load-balanced pool. The editor rejects empty members and alias references
+that would reach a nested pool before opening the write preview.
 
 ### Examples
 
@@ -1438,12 +1442,14 @@ Builtin aliases edit under `llm_provider.model_aliases.builtin.<name>`. User ali
 - Highlight `coder`, `o`, pick a model, then `t`, enter `5pm` — the preview resolves the next 5:00 PM in the configured
   timezone and the override expires at that exact instant.
 - Open `phase_worker`, highlight its generic member, then press `o`, pick `claude/opus`, and choose `Until cleared` —
-  every unconfigured size alias inherits CLAUDE(opus) until you clear it; the violet non-default pill appears in the top
-  bar.
+  unconfigured medium phases and explicit `@phase_worker` uses inherit CLAUDE(opus) until you clear it; the violet
+  non-default pill appears in the top bar.
 - Open `phase_worker`, highlight `large_phase_worker`, press `e`, pick `claude/opus`, and confirm — only large phases
   without an explicit model use that target; small and medium phases continue through the shared `@phase_worker`.
-- Highlight `smartest`, `e`, pick `claude/opus`, and confirm — explicit uses of `@smartest` use that target; implicit
-  phase launches do not select it.
+- Highlight `smartest`, `e`, pick `claude/opus`, and confirm — large phases reach that target through
+  `@large_phase_worker` → `@smartest`.
+- Highlight `cheapest`, `e`, choose `Custom...`, enter `claude/opus@medium | codex/gpt-5.5`, and confirm — small phases
+  round-robin across installed providers while the panel continues to show the next selection without consuming it.
 - Highlight `big_epic_lander`, `e`, pick a model, and confirm — only threshold-selected epic landers use that persistent
   target; leaving it implicit preserves the `@epic_lander` target.
 - Highlight `big_epic_lander`, `e`, filter for `@coder`, select it, and confirm — the persistent value is the dynamic

@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 from sase.llm_provider.config import (
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
+    CHEAPEST_MODEL_ALIAS_NAME,
     CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
@@ -50,7 +51,8 @@ _TRAILING_IMPLICIT_ALIASES: tuple[tuple[str, str], ...] = (
     (SMALL_PHASE_WORKER_MODEL_ALIAS_NAME, "small bead phase agent model"),
     (MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME, "medium bead phase agent model"),
     (LARGE_PHASE_WORKER_MODEL_ALIAS_NAME, "large bead phase agent model"),
-    (SMARTEST_MODEL_ALIAS_NAME, "highest-capability alias for explicit use"),
+    (SMARTEST_MODEL_ALIAS_NAME, "highest-capability model for large phase agents"),
+    (CHEAPEST_MODEL_ALIAS_NAME, "cheap load-balanced high-volume agent pool"),
 )
 
 
@@ -79,7 +81,7 @@ def build_model_completion_catalog(
     completion values. The implicit role aliases (``@default``, ``@coder``, each
     registered ``@<provider>_coder``, ``@epic_lander``,
     ``@big_epic_lander``, ``@phase_worker``, the three size-specific phase
-    aliases, and ``@smartest``) and user-configured aliases are
+    aliases, ``@smartest``, and ``@cheapest``) and user-configured aliases are
     inserted with their ``@`` form because those values resolve through the
     normal ``%model`` path.
     """

@@ -214,15 +214,31 @@ def description_text_for_view(view: AliasView | None) -> Text:
         return Text("", style=_DESCRIPTION_STYLE)
     if view.is_custom_builtin_shadow:
         return _custom_builtin_shadow_description((view.name,))
+    text = Text()
     if view.description:
-        return Text(view.description, style=_DESCRIPTION_STYLE)
-    if view.kind == "user":
-        return Text(
+        text.append(view.description, style=_DESCRIPTION_STYLE)
+    elif view.kind == "user":
+        text.append(
             "no description - set "
             f"llm_provider.model_aliases.custom.{view.name}.description",
             style=_DESCRIPTION_MISSING_STYLE,
         )
-    return Text("", style=_DESCRIPTION_STYLE)
+    if view.pool_members:
+        if text:
+            text.append("\n")
+        text.append("pool: ", style="dim")
+        for index, member in enumerate(view.pool_members):
+            if index:
+                text.append(" · ", style="dim")
+            marker = "✓" if member.available else "×"
+            target = member.target
+            if member.effort:
+                target = f"{target}@{member.effort}"
+            text.append(
+                f"{marker} {target}",
+                style="#87D787" if member.available else "dim #D78787",
+            )
+    return text
 
 
 def _description_text_for_bucket(bucket: BucketView) -> Text:

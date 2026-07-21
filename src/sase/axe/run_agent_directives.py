@@ -61,10 +61,10 @@ def extract_directives_and_write_meta(
 
     from sase.llm_provider.registry import (
         get_default_provider_name,
-        resolve_model_provider,
+        resolve_model_provider_with_effort,
     )
     from sase.llm_provider.temporary_override import (
-        resolve_effective_default_provider_model,
+        resolve_effective_default_provider_model_with_effort,
     )
     from sase.vcs_provider._registry import detect_vcs
     from sase.xprompt import (
@@ -206,22 +206,50 @@ def extract_directives_and_write_meta(
         auto_dismiss=auto_dismiss,
     )
 
-    agent_model = directives.model
-    if agent_model:
-        resolved_provider, agent_model = resolve_model_provider(
-            agent_model,
-            model_alias_overrides,
-        )
-        agent_llm_provider = resolved_provider or get_default_provider_name()
+    preserved_model = preserved_metadata.get("model")
+    preserved_provider = preserved_metadata.get("llm_provider")
+    agent_model: str | None
+    agent_llm_provider: str
+    alias_effort: str | None = None
+    reused_selection = isinstance(preserved_model, str) and isinstance(
+        preserved_provider, str
+    )
+    if isinstance(preserved_model, str) and isinstance(preserved_provider, str):
+        # Runner re-execs/resumptions reuse the authoritative launch selection
+        # recorded in metadata and must not advance a load-balanced pool again.
+        agent_model = preserved_model
+        agent_llm_provider = preserved_provider
     else:
-        agent_llm_provider, agent_model = resolve_effective_default_provider_model(
-            model_alias_overrides=model_alias_overrides,
-        )
+        agent_model = directives.model
+        if agent_model:
+            resolved_provider, agent_model, alias_effort = (
+                resolve_model_provider_with_effort(
+                    agent_model,
+                    model_alias_overrides,
+                    consume=True,
+                )
+            )
+            agent_llm_provider = resolved_provider or get_default_provider_name()
+        else:
+            (
+                agent_llm_provider,
+                agent_model,
+                alias_effort,
+            ) = resolve_effective_default_provider_model_with_effort(
+                model_alias_overrides=model_alias_overrides,
+                consume=True,
+            )
 
     # Match the effective effort that the provider adapter applies.
     from sase.llm_provider.config import resolve_effective_effort
 
-    agent_reasoning_effort, _ = resolve_effective_effort(directives)
+    preserved_effort = preserved_metadata.get("reasoning_effort")
+    if reused_selection:
+        agent_reasoning_effort = (
+            preserved_effort if isinstance(preserved_effort, str) else None
+        )
+    else:
+        agent_reasoning_effort, _ = resolve_effective_effort(directives, alias_effort)
 
     vcs_name = detect_vcs(workspace_dir)
     if vcs_name:

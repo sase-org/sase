@@ -149,13 +149,16 @@ def test_model_alias_description_builtin_and_custom(
         "phase-count threshold."
     )
     assert model_alias_description("phase_worker") == (
-        "Shared fallback for bead phase agents of every size."
+        "Shared fallback for medium bead phase agents and explicit uses."
     )
     assert model_alias_description("medium_phase_worker") == (
         "Medium bead phase agents that plan before implementation."
     )
     assert model_alias_description("smartest") == (
-        "Highest-capability compatibility alias for explicit use."
+        "Highest-capability model used automatically by large phase agents."
+    )
+    assert model_alias_description("cheapest") == (
+        "Cheap load-balanced pool for high-volume agents."
     )
     assert model_alias_description("claude_coder") == (
         "Coder follow-up agents for plans authored by claude."
@@ -191,6 +194,7 @@ def test_model_alias_names_include_configured_and_special(
         "medium_phase_worker",
         "large_phase_worker",
         "smartest",
+        "cheapest",
         # per-provider coder aliases
         "claude_coder",
         "codex_coder",

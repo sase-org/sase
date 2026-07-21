@@ -64,9 +64,10 @@ def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> Non
                     "coder": "@default",
                     "codex_coder": "claude/opus",
                     "phase_worker": "@default",
-                    "small_phase_worker": "@phase_worker",
+                    "cheapest": "claude/opus@medium | codex/gpt-5.5",
+                    "small_phase_worker": "@cheapest",
                     "medium_phase_worker": "@phase_worker",
-                    "large_phase_worker": "@phase_worker",
+                    "large_phase_worker": "@smartest",
                 }
             }
         }

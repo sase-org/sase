@@ -36,7 +36,7 @@ from .registry import (
     get_default_provider_name,
     get_provider,
     resolve_execution_provider_name,
-    resolve_model_provider,
+    resolve_model_provider_with_effort,
 )
 from .types import (
     LLMInvocationError,
@@ -158,25 +158,22 @@ def invoke_agent(
             model_alias_overrides,
         )
 
-    # Resolve the effective reasoning effort (explicit %effort/@effort beats
-    # the llm_provider.default_effort config) into per-invocation options that
-    # each provider translates into its own CLI args.
-    effective_effort, effort_explicit = resolve_effective_effort(result_directives)
-    invocation_options = LLMInvocationOptions(
-        reasoning_effort=effective_effort,
-        explicit=effort_explicit,
-    )
-
     # Resolve provider from model override (e.g. "o3" → codex, "codex/o3" → codex)
+    alias_effort: str | None = None
     if model_override and not provider_name:
         original_model_override = model_override
         if model_alias_overrides:
-            resolved_provider, model_override = resolve_model_provider(
-                model_override,
-                model_alias_overrides,
+            resolved_provider, model_override, alias_effort = (
+                resolve_model_provider_with_effort(
+                    model_override,
+                    model_alias_overrides,
+                    consume=True,
+                )
             )
         else:
-            resolved_provider, model_override = resolve_model_provider(model_override)
+            resolved_provider, model_override, alias_effort = (
+                resolve_model_provider_with_effort(model_override, consume=True)
+            )
         if resolved_provider:
             provider_name = resolved_provider
         else:
@@ -195,14 +192,19 @@ def invoke_agent(
         from .config import default_model_alias_name, get_model_aliases
         from .temporary_override import (
             get_active_temporary_override,
-            resolve_effective_default_provider_model,
+            resolve_effective_default_provider_model_with_effort,
         )
 
         active = get_active_temporary_override()
         if default_model_alias_name() in model_alias_overrides:
-            provider_name, model_override = resolve_effective_default_provider_model(
+            (
+                provider_name,
+                model_override,
+                alias_effort,
+            ) = resolve_effective_default_provider_model_with_effort(
                 model_tier,
                 model_alias_overrides,
+                consume=True,
             )
         elif active is not None:
             # An active primary temporary override wins the new-launch-default
@@ -214,10 +216,25 @@ def invoke_agent(
             # the alias resolver so a configured default model is never silently
             # bypassed. With no configured default, @default is just the provider
             # tier default, so the plain-tier resolution below is left untouched.
-            provider_name, model_override = resolve_effective_default_provider_model(
+            (
+                provider_name,
+                model_override,
+                alias_effort,
+            ) = resolve_effective_default_provider_model_with_effort(
                 model_tier,
                 model_alias_overrides or None,
+                consume=True,
             )
+
+    # Explicit %effort/@effort (including a %model suffix) beats effort carried
+    # by the selected alias target, which in turn beats default_effort.
+    effective_effort, effort_explicit = resolve_effective_effort(
+        result_directives, alias_effort
+    )
+    invocation_options = LLMInvocationOptions(
+        reasoning_effort=effective_effort,
+        explicit=effort_explicit,
+    )
 
     # 2. Build display label
     if model_override:

@@ -530,6 +530,8 @@ def clear_temporary_override() -> bool:
 def resolve_effective_default_provider_model(
     model_tier: ModelTier = "large",
     model_alias_overrides: Mapping[str, str] | None = None,
+    *,
+    consume: bool = False,
 ) -> tuple[str, str]:
     """Return the ``(provider_name, model_name)`` to use for new launches.
 
@@ -554,7 +556,9 @@ def resolve_effective_default_provider_model(
             resolve_model_provider,
         )
 
-        provider, model = resolve_model_provider("@default", launch_overrides)
+        provider, model = resolve_model_provider(
+            "@default", launch_overrides, consume=consume
+        )
         return provider or get_configured_default_provider_name(), model
 
     override = get_active_temporary_override()
@@ -563,4 +567,42 @@ def resolve_effective_default_provider_model(
 
     from .registry import resolve_default_alias_provider_model
 
-    return resolve_default_alias_provider_model(model_tier, launch_overrides)
+    return resolve_default_alias_provider_model(
+        model_tier,
+        launch_overrides,
+        consume=consume,
+    )
+
+
+def resolve_effective_default_provider_model_with_effort(
+    model_tier: ModelTier = "large",
+    model_alias_overrides: Mapping[str, str] | None = None,
+    *,
+    consume: bool = False,
+) -> tuple[str, str, str | None]:
+    """Resolve the effective launch default including alias-borne effort."""
+    from .launch_alias_overrides import active_launch_alias_overrides
+
+    launch_overrides = active_launch_alias_overrides(model_alias_overrides)
+    if DEFAULT_MODEL_ALIAS_NAME in launch_overrides:
+        from .registry import (
+            get_configured_default_provider_name,
+            resolve_model_provider_with_effort,
+        )
+
+        provider, model, effort = resolve_model_provider_with_effort(
+            "@default", launch_overrides, consume=consume
+        )
+        return provider or get_configured_default_provider_name(), model, effort
+
+    override = get_active_temporary_override()
+    if override is not None:
+        return override.provider, override.model, None
+
+    from .registry import resolve_default_alias_provider_model_with_effort
+
+    return resolve_default_alias_provider_model_with_effort(
+        model_tier,
+        launch_overrides,
+        consume=consume,
+    )

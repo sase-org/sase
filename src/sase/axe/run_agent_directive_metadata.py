@@ -53,6 +53,9 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
         "epic_bead_id",
         "phase_bead_id",
         "bead_id",
+        "model",
+        "llm_provider",
+        "reasoning_effort",
     ):
         value = existing_meta.get(key)
         if isinstance(value, str) and value:

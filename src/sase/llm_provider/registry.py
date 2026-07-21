@@ -15,6 +15,7 @@ callers iterate ``pm.list_name_plugin()`` to collect per-plugin values.
 import functools
 import importlib.metadata
 import os
+from pathlib import Path
 import re
 import shutil
 from collections.abc import Mapping
@@ -26,7 +27,10 @@ import pluggy
 from ._hookspec import LLMHookSpec
 from ._plugin_manager import LLMPluginManager
 from .base import LLMProvider
-from .config import get_llm_provider_config, resolve_model_alias
+from .config import (
+    get_llm_provider_config,
+    resolve_model_alias_with_effort,
+)
 from .types import ModelTier
 
 _PROVIDER_FAMILY_COLORS: dict[str, str] = {
@@ -180,6 +184,41 @@ def registered_provider_names() -> list[str]:
     return _provider_names()
 
 
+@functools.cache
+def provider_cli_available(provider_name: str) -> bool:
+    """Return whether a registered provider's declared CLI is installed.
+
+    The process-lifetime cache mirrors the registry metadata caches so Models
+    panel refreshes and alias peeks never repeat ``PATH`` scans per row.  A
+    ``SASE_<PROVIDER>_PATH`` override takes precedence over the plugin's
+    ``llm_autodetect_cli_name``.  Providers that declare no CLI are always
+    available.
+
+    Tests that change provider metadata, ``PATH``, or a provider-path override
+    should call ``provider_cli_available.cache_clear()``.
+    """
+    providers = _llm_metadata_payload().get("providers")
+    if not isinstance(providers, dict):
+        return False
+    metadata = providers.get(provider_name)
+    if not isinstance(metadata, dict):
+        return False
+    cli_name = metadata.get("autodetect_cli_name")
+    if cli_name is not None:
+        cli_name = str(cli_name).strip() or None
+    override = os.environ.get(provider_path_env_var(provider_name), "").strip()
+    command = override or cli_name
+    if command is None:
+        return True
+    expanded = os.path.expanduser(command)
+    if shutil.which(expanded) is not None:
+        return True
+    if os.sep in expanded:
+        candidate = Path(expanded)
+        return candidate.is_file() and os.access(candidate, os.X_OK)
+    return False
+
+
 def _find_plugin_class(name: str) -> type | None:
     """Look up an LLM plugin class by name from ``sase_llm`` entry points.
 
@@ -252,6 +291,8 @@ def resolve_execution_provider_name(requested_provider: str | None = None) -> st
 def resolve_model_provider(
     model_override: str,
     model_alias_overrides: Mapping[str, str] | None = None,
+    *,
+    consume: bool = False,
 ) -> tuple[str | None, str]:
     """Resolve a model override string to (provider_name, model_name).
 
@@ -270,26 +311,55 @@ def resolve_model_provider(
     Returns:
         Tuple of (provider_name_or_none, clean_model_name).
     """
-    model_override = resolve_model_alias(model_override, model_alias_overrides)
+    provider, model, _ = resolve_model_provider_with_effort(
+        model_override,
+        model_alias_overrides,
+        consume=consume,
+    )
+    return provider, model
+
+
+def resolve_model_provider_with_effort(
+    model_override: str,
+    model_alias_overrides: Mapping[str, str] | None = None,
+    *,
+    consume: bool = False,
+) -> tuple[str | None, str, str | None]:
+    """Resolve a model override to provider/model plus alias-borne effort.
+
+    Pool-backed targets retain their explicit provider prefix even when that
+    provider is not registered.  That lets authoritative launches fail at the
+    normal provider lookup with an actionable diagnostic when every pool member
+    is unavailable, instead of silently rerouting the model to the default
+    provider.
+    """
+    resolved = resolve_model_alias_with_effort(
+        model_override,
+        model_alias_overrides,
+        consume=consume,
+    )
+    model_override = resolved.target
 
     # 1. Check for explicit provider/model syntax
     if "/" in model_override:
         prefix, rest = model_override.split("/", 1)
-        if prefix in _provider_names():
-            return prefix, rest
+        if prefix in _provider_names() or resolved.pool_alias is not None:
+            return prefix, rest, resolved.effort
 
     # 2. Check the plugin-supplied model-to-provider map
     provider = model_to_provider_map().get(model_override)
     if provider:
-        return provider, model_override
+        return provider, model_override, resolved.effort
 
     # 3. Unknown model — fall back to default provider
-    return None, model_override
+    return None, model_override, resolved.effort
 
 
 def resolve_default_alias_provider_model(
     model_tier: ModelTier = "large",
     model_alias_overrides: Mapping[str, str] | None = None,
+    *,
+    consume: bool = False,
 ) -> tuple[str, str]:
     """Resolve the implicit ``@default`` alias to ``(provider, model)``.
 
@@ -305,7 +375,11 @@ def resolve_default_alias_provider_model(
 
     configured = get_model_aliases().get(default_model_alias_name())
     if configured:
-        provider, model = resolve_model_provider(configured, model_alias_overrides)
+        provider, model = resolve_model_provider(
+            f"@{default_model_alias_name()}",
+            model_alias_overrides,
+            consume=consume,
+        )
         if provider is not None:
             return provider, model
         # Configured default is a bare/unknown model: run it on the configured
@@ -314,6 +388,36 @@ def resolve_default_alias_provider_model(
 
     provider_name = get_configured_default_provider_name()
     return provider_name, get_provider(provider_name).resolve_model_name(model_tier)
+
+
+def resolve_default_alias_provider_model_with_effort(
+    model_tier: ModelTier = "large",
+    model_alias_overrides: Mapping[str, str] | None = None,
+    *,
+    consume: bool = False,
+) -> tuple[str, str, str | None]:
+    """Resolve ``@default`` including pool consumption and alias effort."""
+    from .config import default_model_alias_name, get_model_aliases
+
+    configured = get_model_aliases().get(default_model_alias_name())
+    if configured:
+        provider, model, effort = resolve_model_provider_with_effort(
+            f"@{default_model_alias_name()}",
+            model_alias_overrides,
+            consume=consume,
+        )
+        if provider is not None:
+            return provider, model, effort
+        # Configured default is a bare/unknown model: run it on the configured
+        # provider rather than silently dropping the user's choice.
+        return get_configured_default_provider_name(), model, effort
+
+    provider_name, model = resolve_default_alias_provider_model(
+        model_tier,
+        model_alias_overrides,
+        consume=consume,
+    )
+    return provider_name, model, None
 
 
 def format_provider_model_label(

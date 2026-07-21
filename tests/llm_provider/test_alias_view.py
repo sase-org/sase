@@ -62,6 +62,12 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["medium_phase_worker"].kind == "role"
     assert by_name["large_phase_worker"].kind == "role"
     assert by_name["smartest"].kind == "role"
+    assert by_name["cheapest"].kind == "role"
+    assert by_name["cheapest"].implicit_value == ("claude/opus@medium | codex/gpt-5.5")
+    assert [member.value for member in by_name["cheapest"].pool_members] == [
+        "claude/opus@medium",
+        "codex/gpt-5.5",
+    ]
     assert by_name["claude_coder"].kind == "provider_coder"
     assert by_name["codex_coder"].kind == "provider_coder"
 
@@ -92,7 +98,7 @@ def test_default_is_first_and_groups_are_ordered(
 
     assert names[0] == "default"
     # role aliases follow default, in canonical order
-    role_slice = names[1:9]
+    role_slice = names[1:10]
     assert role_slice == [
         "coder",
         "epic_lander",
@@ -102,6 +108,7 @@ def test_default_is_first_and_groups_are_ordered(
         "medium_phase_worker",
         "large_phase_worker",
         "smartest",
+        "cheapest",
     ]
     # provider_coder aliases come next, alphabetically
     assert names.index("claude_coder") < names.index("codex_coder")
@@ -373,13 +380,14 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
         "big_epic_lander",
         "phase_worker",
         "smartest",
+        "cheapest",
         "coding",
         "research",
         "alpha",
     ]
     assert all(row.name not in {"coder", "claude_coder", "codex_coder"} for row in rows)
 
-    user_rows = rows[6:]
+    user_rows = rows[7:]
     assert [row.name for row in user_rows] == ["coding", "research", "alpha"]
     coding, research, alpha = user_rows
     assert isinstance(coding, BucketView)
@@ -442,6 +450,7 @@ def test_models_panel_rows_coalesce_custom_coders_members(
         "big_epic_lander",
         "phase_worker",
         "smartest",
+        "cheapest",
         "research",
         "alpha",
     ]
@@ -527,6 +536,7 @@ def test_models_panel_phase_worker_bucket_coalesces_builtin_and_custom_members(
         "big_epic_lander",
         "phase_worker",
         "smartest",
+        "cheapest",
     ]
     phase_workers = rows[4]
     assert isinstance(phase_workers, BucketView)

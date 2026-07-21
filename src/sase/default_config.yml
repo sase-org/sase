@@ -454,11 +454,12 @@ llm_provider:
   #     codex_coder: claude/opus    # coder follow-ups from Codex-authored plans
   #     epic_lander: "@default"     # epic land agents
   #     big_epic_lander: "@epic_lander" # threshold-selected epic land agents
-  #     phase_worker: "@default"    # shared fallback for every phase size
-  #     small_phase_worker: "@phase_worker"  # small bead phase agents
+  #     phase_worker: "@default"    # shared fallback for medium/explicit phases
+  #     cheapest: "claude/opus@medium | codex/gpt-5.5" # high-volume pool
+  #     small_phase_worker: "@cheapest"  # small bead phase agents
   #     medium_phase_worker: "@phase_worker" # medium bead phase agents
-  #     large_phase_worker: "@phase_worker"  # large bead phase agents
-  #     smartest: "@default"        # compatibility alias for explicit use
+  #     large_phase_worker: "@smartest"  # large bead phase agents
+  #     smartest: "@default"        # highest-capability role
   #   custom:
   #     blogger:
   #       model: claude/opus

@@ -24,6 +24,7 @@ from typing import Literal, cast
 
 from .config import (
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
+    CHEAPEST_MODEL_ALIAS_NAME,
     CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
     EPIC_CREATOR_MODEL_ALIAS_NAME,
@@ -33,7 +34,9 @@ from .config import (
     PHASE_WORKER_MODEL_ALIAS_NAME,
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
+    ModelAliasPoolMember,
     get_model_aliases,
+    implicit_model_alias_value,
     implicit_model_alias_fallback,
     model_alias_bucket,
     model_alias_bucket_description,
@@ -41,7 +44,7 @@ from .config import (
     model_alias_description,
     model_alias_kind,
     model_alias_names,
-    resolve_model_alias,
+    model_alias_pool_members,
 )
 from .temporary_override import TemporaryLLMOverride, get_active_alias_overrides
 
@@ -59,6 +62,7 @@ _ROLE_ALIAS_ORDER: tuple[str, ...] = (
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
+    CHEAPEST_MODEL_ALIAS_NAME,
 )
 
 #: Built-in Models-panel bucket for the generic and provider-specific coder roles.
@@ -138,6 +142,9 @@ class AliasView:
             while its machine-wide temporary override is active: nested
             ``@default`` references intentionally ignore that override.
         reference_model: Model represented by an explicit ``@name`` reference.
+        implicit_value: Raw non-fallback value supplied by an implicit alias.
+        pool_members: Parsed/resolved member and availability details when the
+            alias owns a load-balanced pool.
     """
 
     name: str
@@ -152,6 +159,8 @@ class AliasView:
     bucket: str | None = None
     reference_provider: str | None = None
     reference_model: str | None = None
+    implicit_value: str | None = None
+    pool_members: tuple[ModelAliasPoolMember, ...] = ()
 
     @property
     def is_overridden(self) -> bool:
@@ -175,6 +184,11 @@ class AliasView:
         if self.configured_value is None or not self.configured_value.startswith("@"):
             return None
         return self.configured_value[1:].strip() or None
+
+    @property
+    def raw_value(self) -> str | None:
+        """Return the configured or implicit raw alias target value."""
+        return self.configured_value or self.implicit_value
 
     @property
     def implicit_fallback(self) -> str | None:
@@ -287,8 +301,7 @@ def _effective_provider_model(
     # config at import time.
     from .registry import resolve_model_provider
 
-    target = resolve_model_alias(name)
-    return resolve_model_provider(target)
+    return resolve_model_provider(name)
 
 
 def build_alias_views(now: float | None = None) -> list[AliasView]:
@@ -340,6 +353,8 @@ def build_alias_views(now: float | None = None) -> list[AliasView]:
                 bucket=model_alias_bucket(name),
                 reference_provider=reference_provider,
                 reference_model=reference_model,
+                implicit_value=implicit_model_alias_value(name),
+                pool_members=model_alias_pool_members(name),
             )
         )
 
