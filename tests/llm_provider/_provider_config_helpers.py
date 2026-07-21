@@ -13,3 +13,15 @@ def mock_provider_config(
     monkeypatch.setattr(
         "sase.llm_provider.registry.get_llm_provider_config", lambda: cfg
     )
+
+
+def patch_available_providers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin registered and available providers for deterministic view tests."""
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.registered_provider_names",
+        lambda: ["claude", "codex"],
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
