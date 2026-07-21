@@ -134,9 +134,11 @@ def test_plan_dev_update_reuses_only_explicitly_refreshed_roots(
     host = _record("sase", role="host", source_root="/repo/fresh")
     plugin = _record("sase-github", role="plugin", source_root="/repo/other")
     fetched: set[str] = set()
+    classified: list[str] = []
 
     def classify(root: Path) -> GitUpstreamStatus:
         root_text = str(root)
+        classified.append(root_text)
         behind = 2 if root_text == "/repo/fresh" or root_text in fetched else 0
         return _status(root_text, behind=behind)
 
@@ -154,6 +156,7 @@ def test_plan_dev_update_reuses_only_explicitly_refreshed_roots(
     )
 
     assert fetched == {"/repo/other"}
+    assert classified == ["/repo/fresh", "/repo/other", "/repo/other"]
     assert [root.status for root in plan.roots] == ["actionable", "actionable"]
     assert [root.behind for root in plan.roots] == [2, 2]
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import threading
 from types import SimpleNamespace
 from typing import Any
 
@@ -112,6 +113,29 @@ async def test_updates_pane_sase_update_opens_preview_modal(
         preview = _render(modal._preview_renderable())
         assert "uv tool upgrade sase" in preview
         assert "Upgrades sase core + every installed plugin" in preview
+
+
+async def test_updates_pane_sase_update_loads_receipt_on_plan_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    _patch_sase_update_managed_fallback(monkeypatch)
+    action_thread = threading.get_ident()
+    receipt_threads: list[int] = []
+
+    def _load_receipt(_install: object | None) -> None:
+        receipt_threads.append(threading.get_ident())
+
+    monkeypatch.setattr(pbsu, "load_receipt_for_summary", _load_receipt)
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+
+        assert len(receipt_threads) == 1
+        assert receipt_threads[0] != action_thread
 
 
 async def test_updates_pane_sase_update_disabled_when_not_uv_tool(

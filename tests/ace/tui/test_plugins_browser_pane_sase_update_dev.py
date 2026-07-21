@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from textual.widgets import Static
 
+import sase.dev_update.plan as plan_mod
 from sase.ace import update_receipt
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_dev_update as pbdu
@@ -20,6 +21,8 @@ from sase.updates.incoming_commits import (
     RepoIncomingCommits,
 )
 from sase.uv_tool.receipt import parse_receipt
+from sase.version._git import GitUpstreamStatus
+from sase.version._models import GitProbeResult, GitVersionMetadata
 from sase.version.inventory import RuntimeVersionInventory
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _open_plugins_pane,
@@ -147,6 +150,81 @@ requirements = [
     assert "plugin 'sase-acme'" in preview.error
     assert str(missing) in preview.error
     assert "sase plugin uninstall sase-acme" in preview.error
+
+
+async def test_updates_pane_manual_update_reuses_load_fetches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fresh load evidence reaches confirmation without another remote fetch."""
+    _patch_other_panes(monkeypatch)
+    fresh_root = "/repo/sase"
+    _patch_catalog(
+        monkeypatch,
+        catalog=_editable_catalog(),
+        fresh_editable_roots=frozenset({fresh_root}),
+    )
+    host = _version_record("sase", role="host")
+    inventory = RuntimeVersionInventory(
+        executable="sase",
+        python_executable="/tool/bin/python",
+        python_version="3.14",
+        packages=(host,),
+    )
+    monkeypatch.setattr(
+        pbdu, "collect_runtime_version_inventory", lambda **_kw: inventory
+    )
+    classifications: list[str] = []
+    fetches: list[str] = []
+
+    def _classify(root: Any) -> GitUpstreamStatus:
+        root_text = str(root)
+        classifications.append(root_text)
+        return GitUpstreamStatus(
+            root=root_text,
+            upstream="origin/main",
+            remote="origin",
+            remote_branch="main",
+            detached=False,
+            dirty=False,
+            ahead=0,
+            behind=1,
+        )
+
+    monkeypatch.setattr(plan_mod, "classify_git_upstream", _classify)
+    monkeypatch.setattr(
+        plan_mod,
+        "fetch_git_upstream",
+        lambda status: fetches.append(status.root),
+    )
+    monkeypatch.setattr(
+        plan_mod,
+        "probe_git_metadata_at_ref",
+        lambda *_a, **_kw: GitProbeResult(
+            GitVersionMetadata(
+                root=fresh_root,
+                commit="def456abcdef456abcdef456abcdef456abcdef4",
+                short_commit="def456abc",
+                tag="v0.1.0",
+                distance=2,
+                dirty=False,
+            )
+        ),
+    )
+    real_plan = pbdu.plan_dev_update
+
+    def _plan(*args: Any, **kwargs: Any) -> DevUpdatePlan:
+        planned = real_plan(*args, **kwargs)
+        return replace(planned, reconcile_steps=_dev_plan().reconcile_steps)
+
+    monkeypatch.setattr(pbdu, "plan_dev_update", _plan)
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+
+        assert fetches == []
+        assert classifications == [fresh_root]
 
 
 async def test_updates_pane_sase_update_dev_preview_and_restart(

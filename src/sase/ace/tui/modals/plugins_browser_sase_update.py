@@ -72,6 +72,8 @@ class SaseUpdateActionsMixin(SaseUpdateTaskMixin):
             self, plan: DevUpdatePlan
         ) -> Any | None: ...
 
+        def _reusable_fresh_editable_roots(self) -> frozenset[str]: ...
+
     def action_update_sase(self) -> None:
         """Run the ``u`` comprehensive update action.
 
@@ -80,7 +82,9 @@ class SaseUpdateActionsMixin(SaseUpdateTaskMixin):
         only discover a no-op after the confirmed ``uv`` run, and surface it as
         an error toast.
         """
-        self._start_sase_update_preview()
+        self._start_sase_update_preview(
+            already_refreshed_roots=self._reusable_fresh_editable_roots()
+        )
 
     def _start_sase_update_preview(
         self, *, already_refreshed_roots: Collection[str] = ()
@@ -99,10 +103,11 @@ class SaseUpdateActionsMixin(SaseUpdateTaskMixin):
             self._notify(str(NotAUvToolInstallError(self._uv_tool)), severity="warning")
             return
 
-        receipt = load_receipt_for_summary(self._uv_tool)
+        install = self._uv_tool
         fresh_roots = frozenset(already_refreshed_roots)
 
         def task() -> DevUpdatePreview:
+            receipt = load_receipt_for_summary(install)
             return self._make_sase_update_preview(
                 receipt,
                 already_refreshed_roots=fresh_roots,

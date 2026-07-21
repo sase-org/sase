@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+
 import pytest
 from textual.widgets import Input, OptionList
 
@@ -345,14 +347,15 @@ async def test_updates_pane_auto_update_preview_reuses_load_freshness(
         assert planned_with == [fresh_roots]
 
 
-async def test_updates_pane_manual_update_does_not_reuse_load_freshness(
+async def test_updates_pane_manual_update_reuses_load_freshness(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
+    fresh_roots = frozenset({"/repo/sase"})
     _patch_catalog(
         monkeypatch,
         catalog=_catalog(),
-        fresh_editable_roots=frozenset({"/repo/sase"}),
+        fresh_editable_roots=fresh_roots,
     )
     planned_with: list[frozenset[str]] = []
 
@@ -371,7 +374,100 @@ async def test_updates_pane_manual_update_does_not_reuse_load_freshness(
         pane.action_update_sase()
         await page.expect_modal("PluginActionConfirmModal")
 
+        assert planned_with == [fresh_roots]
+
+
+async def test_updates_pane_manual_update_drops_expired_load_freshness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    fresh_roots = frozenset({"/repo/sase"})
+    clock = [100.0]
+    monkeypatch.setattr(pbp, "_monotonic", lambda: clock[0])
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        fresh_editable_roots=fresh_roots,
+    )
+    planned_with: list[frozenset[str]] = []
+
+    def _preview(
+        _receipt: object | None,
+        *,
+        already_refreshed_roots: frozenset[str] = frozenset(),
+    ) -> pbp._DevUpdatePreview:
+        planned_with.append(frozenset(already_refreshed_roots))
+        return pbp._DevUpdatePreview(plan=None, subject="sase")
+
+    monkeypatch.setattr(pbp, "_make_sase_dev_update_preview", _preview)
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        assert (
+            pane._reusable_fresh_editable_roots(
+                now=100.0 + pbp._FRESH_EDITABLE_ROOTS_TTL_SECONDS
+            )
+            == fresh_roots
+        )
+
+        clock[0] += pbp._FRESH_EDITABLE_ROOTS_TTL_SECONDS + 0.001
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+
         assert planned_with == [frozenset()]
+
+
+async def test_updates_pane_reload_clears_freshness_while_in_progress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    fresh_roots = frozenset({"/repo/sase"})
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        fresh_editable_roots=fresh_roots,
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        assert pane._reusable_fresh_editable_roots() == fresh_roots
+        loaded = pbp._load_plugins_catalog
+        release = threading.Event()
+
+        def _blocked_reload(**kwargs: object) -> pbp._PluginsLoadResult:
+            release.wait(timeout=5.0)
+            return loaded(**kwargs)
+
+        monkeypatch.setattr(pbp, "_load_plugins_catalog", _blocked_reload)
+        pane.action_refresh()
+
+        assert pane._loading is True
+        assert pane._reusable_fresh_editable_roots() == frozenset()
+
+        release.set()
+        await page.wait_for(lambda _s: not pane._loading)
+        assert pane._reusable_fresh_editable_roots() == fresh_roots
+
+
+async def test_updates_pane_offline_reload_does_not_retain_freshness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    fresh_roots = frozenset({"/repo/sase"})
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        fresh_editable_roots=fresh_roots,
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        assert pane._reusable_fresh_editable_roots() == fresh_roots
+
+        pane.action_toggle_offline()
+        await page.wait_for(lambda _s: pane._offline and not pane._loading)
+
+        assert pane._reusable_fresh_editable_roots() == frozenset()
 
 
 async def test_updates_pane_auto_update_clears_on_initial_load_error(
@@ -408,6 +504,7 @@ async def test_updates_pane_auto_update_clears_on_initial_load_error(
         assert pane._auto_update_on_load is False
         assert pane._comprehensive_update_request is None
         assert pane._error == "boom"
+        assert pane._reusable_fresh_editable_roots() == frozenset()
 
 
 async def test_config_center_cycles_seven_tabs(

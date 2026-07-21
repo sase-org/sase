@@ -173,6 +173,8 @@ _SUBTABS: tuple[PanelTab, ...] = (
     PanelTab("plugins", "Plugins", "#AF87FF"),
     PanelTab("agent-clis", "Agent CLIs", "#AF87FF"),
 )
+_FRESH_EDITABLE_ROOTS_TTL_SECONDS = 60.0
+_monotonic = time.monotonic
 
 
 class PluginsBrowserPane(
@@ -244,6 +246,10 @@ class PluginsBrowserPane(
         self._core_versions: CoreVersions = _collect_installed_core_versions()
         self._error: str | None = None
         self._loading = auto_load
+        # Pane-local handoff from a completed online load to a near-immediate
+        # update preview.  The tuple is replaced as one value so roots and
+        # their monotonic completion timestamp cannot get out of sync.
+        self._fresh_editable_roots_evidence: tuple[frozenset[str], float] | None = None
         self._now = time.time()
         self._filter_text = ""
         self._marked_install: set[str] = set()
@@ -436,6 +442,9 @@ class PluginsBrowserPane(
     def _start_load(self, *, force: bool) -> None:
         self._loading = True
         self._error = None
+        # A reload invalidates the prior handoff immediately.  Only this
+        # load's successful online result may establish new evidence.
+        self._fresh_editable_roots_evidence = None
         # Re-highlight whatever is selected now once the reload lands so a
         # refresh / offline toggle doesn't snap the user back to the top.
         self._restore_name = self._highlighted_name()
@@ -555,6 +564,13 @@ class PluginsBrowserPane(
             self._catalog = getattr(result, "catalog", None)
             self._error = getattr(result, "error", None)
             self._now = getattr(result, "now", self._now)
+            fresh_roots = frozenset(getattr(result, "fresh_editable_roots", ()))
+            self._fresh_editable_roots_evidence = None
+            if self._error is None and not self._offline and fresh_roots:
+                self._fresh_editable_roots_evidence = (
+                    fresh_roots,
+                    _monotonic(),
+                )
             # Keep a previously-detected probe result if a stubbed loader (or a
             # failed probe) returns None -- "detect once" per the epic.
             probed = getattr(result, "uv_tool", None)
@@ -597,7 +613,7 @@ class PluginsBrowserPane(
                         severity="information",
                     )
                 else:
-                    fresh_roots = frozenset(getattr(result, "fresh_editable_roots", ()))
+                    fresh_roots = self._reusable_fresh_editable_roots()
 
                     def _start_captured_request() -> None:
                         # Consume before invoking the planning hook so closing,
@@ -616,8 +632,26 @@ class PluginsBrowserPane(
             self._comprehensive_update_request = None
             self._starting_comprehensive_request = None
             self._loading = False
+            self._fresh_editable_roots_evidence = None
             self._error = (
                 str(event.worker.error) if event.worker.error else "load failed"
             )
             self._core_incoming_commits = {}
             self._render_all()
+
+    def _reusable_fresh_editable_roots(
+        self,
+        *,
+        now: float | None = None,
+        ttl_seconds: float = _FRESH_EDITABLE_ROOTS_TTL_SECONDS,
+    ) -> frozenset[str]:
+        """Return load-refreshed roots while their short handoff is fresh."""
+        evidence = self._fresh_editable_roots_evidence
+        if evidence is None:
+            return frozenset()
+        roots, completed_at = evidence
+        current = _monotonic() if now is None else now
+        age = current - completed_at
+        if 0.0 <= age <= ttl_seconds:
+            return roots
+        return frozenset()
