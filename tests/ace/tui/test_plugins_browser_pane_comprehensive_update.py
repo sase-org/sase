@@ -35,6 +35,7 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
     _patch_catalog,
     _patch_other_panes,
 )
+from tests.ace.tui._plugins_browser_pane_update_helpers import _dev_plan
 
 
 def test_provider_plan_intersects_capture_without_broadening() -> None:
@@ -116,6 +117,74 @@ def test_comprehensive_preview_has_separate_exact_sections() -> None:
     assert providers.commands == ("Claude Code: /home/dev/.local/bin/claude update",)
     assert any("Claude Code documentation" in item for item in providers.details)
     assert any("removed: no longer present" in item for item in providers.skipped)
+    assert [
+        (component.name, component.detail, component.state)
+        for component in providers.components
+    ] == [
+        ("Claude Code", "1.0.0 → 1.1.0", "update"),
+        (
+            "removed",
+            "no longer present in the live provider inventory",
+            "skipped",
+        ),
+    ]
+
+
+def test_comprehensive_sase_preview_leads_with_dev_components() -> None:
+    preview = _ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest(()),
+        sase_preview=pbp._DevUpdatePreview(plan=_dev_plan(), subject="sase"),
+    )
+
+    section = _sase_preview_section(preview)
+
+    assert [
+        (component.name, component.detail, component.state)
+        for component in section.components
+    ] == [
+        ("sase-github", "origin/main · 1 incoming commit", "update"),
+        (
+            "sase-github",
+            "0.1.0+1.gabc123def → 0.1.0+2.gdef456abc",
+            "update",
+        ),
+        ("Reinstall uv-tool editable Python packages", "reconcile step", "update"),
+    ]
+    assert section.counts == ("1 checkout", "1 step")
+
+
+def test_comprehensive_provider_preview_marks_current_and_manual_rows() -> None:
+    claude, codex, _qwen = _agent_cli_statuses()
+    current_claude = replace(
+        claude,
+        latest_version=claude.installed_version,
+        update_available=False,
+    )
+    plan, dropped, error = _plan_captured_providers(
+        ("claude", "codex"),
+        (current_claude, codex),
+        offline=False,
+    )
+    preview = _ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest(("claude", "codex")),
+        sase_preview=pbp._DevUpdatePreview(plan=None, subject="sase"),
+        provider_plan=plan,
+        provider_dropped=dropped,
+        provider_error=error,
+    )
+
+    section = _provider_preview_section(preview)
+    states = {component.name: component.state for component in section.components}
+
+    assert states == {"Claude Code": "current", "Codex CLI": "skipped"}
+    assert any(
+        component.name == "Claude Code" and "already up to date" in component.detail
+        for component in section.components
+    )
+    assert any(
+        component.name == "Codex CLI" and "developers.openai.com" in component.detail
+        for component in section.components
+    )
 
 
 def test_sase_blocker_does_not_suppress_runnable_provider_plan() -> None:

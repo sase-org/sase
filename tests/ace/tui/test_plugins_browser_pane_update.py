@@ -269,7 +269,7 @@ async def test_plugins_pane_editable_update_uses_dev_preview_and_restart(
         assert isinstance(modal, PluginActionConfirmModal)
         assert modal._incoming_commits_loader is not None
         preview = _render(modal._preview_renderable())
-        assert "dev update" in preview
+        assert "$ sase update" in preview
         assert "fetch + fast-forward origin/main" in preview
         modal.action_confirm()
 

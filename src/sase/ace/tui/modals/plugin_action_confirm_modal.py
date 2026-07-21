@@ -16,12 +16,17 @@ cancel it dismisses ``None``.
 
 from __future__ import annotations
 
+import os
+import re
+import shlex
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from rich.console import Group, RenderableType
-from rich.panel import Panel
+from rich.padding import Padding
+from rich.rule import Rule
+from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -35,6 +40,16 @@ from sase.updates.incoming_commits import RepoIncomingCommits
 from .confirm_dialog import ButtonVariant, ConfirmKind
 
 IncomingCommitsLoader = Callable[[], tuple[RepoIncomingCommits, ...]]
+PluginActionComponentState = Literal["update", "current", "skipped"]
+
+
+@dataclass(frozen=True)
+class PluginActionPreviewComponent:
+    """One scannable component outcome in a composite mutation preview."""
+
+    name: str
+    detail: str
+    state: PluginActionComponentState
 
 
 @dataclass(frozen=True)
@@ -43,9 +58,11 @@ class PluginActionPreviewSection:
 
     title: str
     summary: str = ""
+    components: tuple[PluginActionPreviewComponent, ...] = ()
     commands: tuple[str, ...] = ()
     details: tuple[str, ...] = ()
     skipped: tuple[str, ...] = ()
+    counts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -85,8 +102,8 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
         ("n", "cancel", "Cancel"),
         ("y", "confirm", "Confirm"),
         ("g", "toggle_source", "Toggle source"),
-        ("ctrl+d", "scroll_commits_down", "Scroll commits down"),
-        ("ctrl+u", "scroll_commits_up", "Scroll commits up"),
+        ("ctrl+d", "scroll_down", "Scroll down"),
+        ("ctrl+u", "scroll_up", "Scroll up"),
     ]
 
     def __init__(
@@ -106,6 +123,8 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
         self.add_class("confirm-dialog")
         if incoming_commits_loader is not None:
             self.add_class("has-commits")
+        if any(variant.sections for variant in variants):
+            self.add_class("has-sections")
         self._title = title
         self._intro = intro
         self._variants = tuple(variants)
@@ -124,7 +143,10 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
         dialog.border_title = self._build_border_title()
         dialog.border_subtitle = self._build_border_subtitle()
         with dialog:
-            yield Static(self._preview_renderable(), id="plugin-action-preview")
+            preview_scroll = VerticalScroll(id="plugin-action-preview-scroll")
+            preview_scroll.border_title = self._panel_title
+            with preview_scroll:
+                yield Static(self._preview_renderable(), id="plugin-action-preview")
             if self._incoming_commits_loader is not None:
                 commits = VerticalScroll(id="plugin-action-commits")
                 commits.border_title = "Incoming commits"
@@ -152,6 +174,7 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
                 )
 
     def on_mount(self) -> None:
+        self.call_after_refresh(self._sync_preview_scroll_hint)
         if self._incoming_commits_loader is None:
             return
         self._incoming_commits_worker = self.run_worker(
@@ -187,34 +210,31 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
         parts: list[RenderableType] = []
         if self._intro:
             parts.append(Text(self._intro, style="dim"))
-            parts.append(Text(""))
 
         if variant.argv:
-            command = Text()
-            command.append("Would run  ", style="dim")
-            command.append(" ".join(variant.argv), style="cyan")
-            parts.append(command)
-            parts.append(Text(""))
+            if parts:
+                parts.append(Text(""))
+            parts.append(Text("Would run", style="dim"))
+            parts.append(self._command_renderable(shlex.join(variant.argv)))
         parts.append(Text(variant.summary, style="bold"))
 
         for section in variant.sections:
             parts.append(Text(""))
-            parts.append(Text(section.title, style="bold cyan"))
+            parts.append(self._section_rule(section))
             if section.summary:
                 parts.append(Text(section.summary, style="dim"))
-            if section.commands:
-                parts.append(Text("Commands", style="dim"))
-                for item in section.commands:
-                    line = Text()
-                    line.append("- ", style="dim")
-                    line.append(item, style="cyan")
-                    parts.append(line)
+            if section.components:
+                parts.append(self._components_renderable(section.components))
             for detail in section.details:
                 line = Text()
                 line.append("- ", style="dim")
-                line.append(detail)
+                line.append(detail, style="dim")
                 parts.append(line)
-            if section.skipped:
+            if section.commands:
+                parts.append(Text("commands", style="dim"))
+                for item in section.commands:
+                    parts.append(self._command_renderable(item))
+            if section.skipped and not section.components:
                 parts.append(Text("Manual / skipped", style="yellow"))
                 for item in section.skipped:
                     line = Text()
@@ -252,11 +272,73 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
             parts.append(Text(""))
             parts.append(self._source_line())
 
-        return Panel(
-            Group(*parts),
-            title=self._panel_title,
-            border_style=self._accent_style(),
+        return Group(*parts)
+
+    def _section_rule(self, section: PluginActionPreviewSection) -> Rule:
+        title = Text()
+        title.append(section.title, style="bold cyan")
+        for count in section.counts:
+            title.append(f" · {count}", style="dim")
+        return Rule(title, style="cyan")
+
+    @staticmethod
+    def _components_renderable(
+        components: tuple[PluginActionPreviewComponent, ...],
+    ) -> Table:
+        table = Table.grid(expand=True, padding=(0, 1))
+        table.add_column(width=1, no_wrap=True)
+        table.add_column(no_wrap=True)
+        table.add_column(ratio=1, overflow="fold")
+        for component in components:
+            glyph, style = {
+                "update": ("↑", "bold cyan"),
+                "current": ("✓", "dim green"),
+                "skipped": ("•", "yellow"),
+            }[component.state]
+            table.add_row(
+                Text(glyph, style=style),
+                Text(component.name, style=style),
+                Text(component.detail, style="dim"),
+            )
+        return table
+
+    def _command_renderable(self, command: str) -> RenderableType:
+        if command.startswith("fallback: "):
+            line = Text()
+            line.append("fallback:  ", style="dim")
+            line.append("$ ", style="dim")
+            line.append(
+                self._display_command(command.removeprefix("fallback: ")),
+                style="dim cyan",
+            )
+            return Padding(line, (0, 0, 0, 4), expand=False)
+
+        label, exact_command = self._split_command_label(command)
+        table = Table.grid(expand=True, padding=(0, 1))
+        table.add_column(width=1, no_wrap=True)
+        table.add_column(ratio=1, overflow="fold")
+        if label:
+            table.add_row(Text("", style="dim"), Text(label, style="dim"))
+        table.add_row(
+            Text("$", style="dim"),
+            Text(self._display_command(exact_command), style="cyan"),
         )
+        return Padding(table, (0, 0, 0, 1), expand=False)
+
+    @staticmethod
+    def _split_command_label(command: str) -> tuple[str, str]:
+        match = re.match(r"^([^/:]{1,48}): (.+)$", command)
+        if match is None:
+            return "", command
+        return match.group(1), match.group(2)
+
+    @staticmethod
+    def _display_command(command: str) -> str:
+        """Shorten the home prefix for display without changing stored argv."""
+        user_home = os.environ.get("HOME", "").rstrip("/")
+        if not user_home:
+            return command
+        return command.replace(f"{user_home}/", "~/")
 
     def _source_line(self) -> Text:
         line = Text()
@@ -389,6 +471,21 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
             return
         scroll.border_subtitle = "ctrl+d/u scroll" if has_overflow else ""
 
+    def _sync_preview_scroll_hint(self) -> None:
+        scroll = self._preview_scroll()
+        if scroll is None:
+            return
+        has_overflow = int(getattr(scroll, "max_scroll_y", 0)) > 0
+        class_is_set = self.has_class("has-scrollable-preview")
+        if has_overflow != class_is_set:
+            if has_overflow:
+                self.add_class("has-scrollable-preview")
+            else:
+                self.remove_class("has-scrollable-preview")
+            self.call_after_refresh(self._sync_preview_scroll_hint)
+            return
+        scroll.border_subtitle = "ctrl+d/u scroll" if has_overflow else ""
+
     def _commits_widgets(self) -> tuple[VerticalScroll, Static] | None:
         if not getattr(self, "is_attached", True):
             return None
@@ -397,6 +494,14 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
                 self.query_one("#plugin-action-commits", VerticalScroll),
                 self.query_one("#plugin-action-commits-body", Static),
             )
+        except Exception:
+            return None
+
+    def _preview_scroll(self) -> VerticalScroll | None:
+        if not getattr(self, "is_attached", True):
+            return None
+        try:
+            return self.query_one("#plugin-action-preview-scroll", VerticalScroll)
         except Exception:
             return None
 
@@ -413,6 +518,10 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
             )
         except Exception:
             pass
+        scroll = self._preview_scroll()
+        if scroll is not None:
+            scroll.scroll_to(y=0, animate=False)
+        self.call_after_refresh(self._sync_preview_scroll_hint)
         try:
             self.query_one("#plugin-action-toggle", Button).label = self._toggle_label()
         except Exception:
@@ -424,19 +533,28 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
     def action_cancel(self) -> None:
         self.dismiss(None)
 
-    def action_scroll_commits_down(self) -> None:
-        scroll = self._commits_scroll()
-        if scroll is None or int(getattr(scroll, "max_scroll_y", 0)) <= 0:
+    def action_scroll_down(self) -> None:
+        scroll = self._active_scroll()
+        if scroll is None:
             return
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=max(1, height // 2), animate=False)
 
-    def action_scroll_commits_up(self) -> None:
-        scroll = self._commits_scroll()
-        if scroll is None or int(getattr(scroll, "max_scroll_y", 0)) <= 0:
+    def action_scroll_up(self) -> None:
+        scroll = self._active_scroll()
+        if scroll is None:
             return
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=-(max(1, height // 2)), animate=False)
+
+    def _active_scroll(self) -> VerticalScroll | None:
+        preview = self._preview_scroll()
+        if preview is not None and int(getattr(preview, "max_scroll_y", 0)) > 0:
+            return preview
+        commits = self._commits_scroll()
+        if commits is not None and int(getattr(commits, "max_scroll_y", 0)) > 0:
+            return commits
+        return None
 
     def _commits_scroll(self) -> VerticalScroll | None:
         widgets = self._commits_widgets()

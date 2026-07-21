@@ -210,7 +210,7 @@ def dev_update_preview_details(plan: DevUpdatePlan) -> tuple[str, ...]:
     lines: list[str] = []
     for root in plan.actionable_roots:
         ref = root.upstream or "upstream"
-        lines.append(f"fetch + fast-forward {ref} in {_short_root(root.git_root)}")
+        lines.append(f"fetch + fast-forward {ref} in {short_root(root.git_root)}")
     for step in plan.reconcile_steps:
         if step.available:
             detail = " ".join(step.command)
@@ -342,7 +342,8 @@ def _record_keys(record: VersionPackageRecord) -> set[str]:
     return keys
 
 
-def _short_root(root: str) -> str:
+def short_root(root: str) -> str:
+    """Return the checkout directory name used in compact update previews."""
     name = Path(root).name
     return name or root
 
@@ -367,4 +368,5 @@ __all__ = [
     "execute_tui_dev_update",
     "make_plugin_dev_update_preview",
     "make_sase_dev_update_preview",
+    "short_root",
 ]

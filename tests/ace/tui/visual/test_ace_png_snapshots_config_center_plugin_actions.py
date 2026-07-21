@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 from textual.containers import VerticalScroll
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
+from sase.ace.tui.modals.plugin_action_confirm_modal import (
+    PluginActionConfirmModal,
+    PluginActionPreviewComponent,
+    PluginActionPreviewSection,
+    PluginActionVariant,
+)
 from sase.updates.incoming_commits import (
     CommitSummary,
     IncomingCommits,
@@ -243,4 +251,112 @@ async def test_config_center_plugins_uninstall_preview_png_snapshot(
             page,
             "config_center_plugins_uninstall_preview_120x40",
             title="ACE SASE Admin Center — Plugins uninstall (confirm preview)",
+        )
+
+
+async def test_config_center_comprehensive_update_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The wide component-first comprehensive preview scrolls as one pane."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch)
+    user_home = os.environ.get("HOME", "/home/visual")
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(120, 32)
+    ) as page:
+        await wait_for_startup(page)
+        await _open_plugins_modal(page)
+        modal = PluginActionConfirmModal(
+            title="Comprehensive update",
+            intro="Confirm the snapshot-gated SASE and provider work below.",
+            variants=(
+                PluginActionVariant(
+                    key="comprehensive-update",
+                    label="comprehensive update",
+                    argv=(),
+                    summary="Runs one tracked comprehensive update.",
+                    sections=(
+                        PluginActionPreviewSection(
+                            title="SASE, core & plugins",
+                            summary="Updates editable checkouts, then reconciles packages.",
+                            components=(
+                                PluginActionPreviewComponent(
+                                    "sase", "origin/main · 8 incoming commits", "update"
+                                ),
+                                PluginActionPreviewComponent(
+                                    "sase-core",
+                                    "origin/main · 4 incoming commits",
+                                    "update",
+                                ),
+                                PluginActionPreviewComponent(
+                                    "sase", "0.7.1 → 0.7.2", "update"
+                                ),
+                                PluginActionPreviewComponent(
+                                    "sase-core", "0.5.0 → 0.5.1", "update"
+                                ),
+                                PluginActionPreviewComponent(
+                                    "bugyi-chops", "0.12.0 → latest", "update"
+                                ),
+                                PluginActionPreviewComponent(
+                                    "sase-github", "already current", "current"
+                                ),
+                                PluginActionPreviewComponent(
+                                    "sase-telegram", "already current", "current"
+                                ),
+                                PluginActionPreviewComponent(
+                                    "sase-nvim",
+                                    "checkout has local changes",
+                                    "skipped",
+                                ),
+                            ),
+                            commands=(
+                                f"git -C {user_home}/projects/sase fetch origin main",
+                                f"git -C {user_home}/projects/sase merge --ff-only origin/main",
+                                f"git -C {user_home}/projects/sase-core fetch origin main",
+                                f"git -C {user_home}/projects/sase-core merge --ff-only origin/main",
+                                f"uv tool install --editable {user_home}/projects/sase --upgrade-package bugyi-chops",
+                                f"fallback: uv tool install --force {user_home}/projects/sase",
+                            ),
+                            counts=("2 checkouts", "4 steps", "1 skipped"),
+                        ),
+                        PluginActionPreviewSection(
+                            title="Agent CLIs",
+                            components=(
+                                PluginActionPreviewComponent(
+                                    "Claude Code", "1.0.0 → 1.1.0", "update"
+                                ),
+                                PluginActionPreviewComponent(
+                                    "Codex CLI", "Homebrew update is manual", "skipped"
+                                ),
+                            ),
+                            commands=(
+                                f"Claude Code: {user_home}/.local/bin/claude update",
+                            ),
+                            counts=("1 command", "1 skipped"),
+                        ),
+                    ),
+                ),
+            ),
+            panel_title="Confirm comprehensive update",
+            icon="↑",
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("PluginActionConfirmModal")
+
+        await page.wait_for(
+            lambda _s: len(modal.query("#plugin-action-preview-scroll")) > 0
+        )
+        scroll = modal.query_one("#plugin-action-preview-scroll", VerticalScroll)
+        await page.wait_for(lambda _s: int(scroll.max_scroll_y) > 0)
+        await page.wait_for(lambda _s: scroll.border_subtitle == "ctrl+d/u scroll")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_comprehensive_update_preview_120x32",
+            title="ACE SASE Admin Center — Comprehensive update (confirm preview)",
         )

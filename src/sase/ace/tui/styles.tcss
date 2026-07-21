@@ -5448,15 +5448,43 @@ PluginActionConfirmModal.has-commits > #plugin-action-container {
     max-width: 95%;
 }
 
+PluginActionConfirmModal.has-sections > #plugin-action-container {
+    width: 110;
+    max-width: 95%;
+    max-height: 90%;
+}
+
 PluginActionConfirmModal.has-scrollable-commits > #plugin-action-container {
     height: 32;
     max-height: 95%;
 }
 
+PluginActionConfirmModal.has-scrollable-preview > #plugin-action-container {
+    height: 90%;
+    max-height: 90%;
+}
+
+PluginActionConfirmModal #plugin-action-preview-scroll {
+    width: 100%;
+    height: auto;
+    max-height: 70vh;
+    margin-bottom: 1;
+    padding: 0 1;
+    border: round $accent;
+    border-subtitle-align: right;
+}
+
+PluginActionConfirmModal #plugin-action-container.confirm-dialog--danger #plugin-action-preview-scroll {
+    border: round $error;
+}
+
+PluginActionConfirmModal.has-scrollable-preview #plugin-action-preview-scroll {
+    height: 1fr;
+}
+
 PluginActionConfirmModal #plugin-action-preview {
     width: 100%;
     height: auto;
-    margin-bottom: 1;
 }
 
 PluginActionConfirmModal #plugin-action-commits {

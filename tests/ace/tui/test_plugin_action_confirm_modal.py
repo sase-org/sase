@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 from textual.containers import VerticalScroll
 from textual.widgets import Static
@@ -10,6 +12,8 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals.plugin_action_confirm_modal import (
     PluginActionConfirmModal,
     PluginActionConfirmResult,
+    PluginActionPreviewComponent,
+    PluginActionPreviewSection,
     PluginActionVariant,
 )
 from sase.updates.incoming_commits import (
@@ -97,9 +101,104 @@ async def test_plugin_action_modal_without_loader_has_no_commits_box() -> None:
         await page.expect_modal("PluginActionConfirmModal")
 
         assert len(modal.query("#plugin-action-commits")) == 0
+        await page.wait_for(
+            lambda _s: len(modal.query("#plugin-action-preview-scroll")) > 0
+        )
+        preview = modal.query_one("#plugin-action-preview-scroll", VerticalScroll)
+        await page.pause()
+        assert int(preview.max_scroll_y) == 0
+        assert preview.border_subtitle == ""
+        assert not modal.has_class("has-scrollable-preview")
         await page.press("ctrl+d")
         await page.press("ctrl+u")
         assert page.app.screen is modal
+
+
+def test_plugin_action_modal_renders_components_and_shortens_home() -> None:
+    home = os.environ.get("HOME", "/home/test")
+    modal = PluginActionConfirmModal(
+        title="Update everything",
+        intro="Confirm",
+        variants=(
+            PluginActionVariant(
+                key="update",
+                label="update",
+                argv=(f"{home}/.local/bin/updater", "--all"),
+                summary="Updates selected components",
+                sections=(
+                    PluginActionPreviewSection(
+                        title="Components",
+                        components=(
+                            PluginActionPreviewComponent(
+                                "will-update", "1.0 → 2.0", "update"
+                            ),
+                            PluginActionPreviewComponent(
+                                "already-current", "2.0", "current"
+                            ),
+                            PluginActionPreviewComponent(
+                                "manual-only", "vendor action required", "skipped"
+                            ),
+                        ),
+                        commands=(
+                            f"{home}/projects/tool/bin/update --all",
+                            f"fallback: {home}/projects/tool/bin/repair",
+                        ),
+                        counts=("1 command", "1 skipped"),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    rendered = _render(modal._preview_renderable())
+
+    assert "↑ will-update" in rendered
+    assert "✓ already-current" in rendered
+    assert "• manual-only" in rendered
+    assert "Components · 1 command · 1 skipped" in rendered
+    assert "~/.local/bin/updater --all" in rendered
+    assert "~/projects/tool/bin/update --all" in rendered
+    assert "fallback:" in rendered
+    assert f"{home}/projects/tool" not in rendered
+
+
+async def test_plugin_action_modal_scrolls_overflowing_preview() -> None:
+    variant = PluginActionVariant(
+        key="update",
+        label="update",
+        argv=(),
+        summary="Updates many components",
+        details=tuple(f"preview detail {index}" for index in range(80)),
+    )
+
+    async with AcePage(size=(100, 24)) as page:
+        modal = PluginActionConfirmModal(
+            title="Comprehensive update",
+            intro="Confirm",
+            variants=(variant,),
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("PluginActionConfirmModal")
+
+        await page.wait_for(
+            lambda _s: len(modal.query("#plugin-action-preview-scroll")) > 0
+        )
+        scroll = modal.query_one("#plugin-action-preview-scroll", VerticalScroll)
+        await page.wait_for(lambda _s: int(scroll.max_scroll_y) > 0)
+        await page.wait_for(lambda _s: modal.has_class("has-scrollable-preview"))
+        await page.wait_for(lambda _s: scroll.border_subtitle == "ctrl+d/u scroll")
+
+        half_page = max(1, scroll.scrollable_content_region.height // 2)
+        max_scroll_y = int(scroll.max_scroll_y)
+        assert scroll.scroll_y == 0
+
+        await page.press("ctrl+d")
+        await page.pause()
+        assert scroll.scroll_y == min(half_page, max_scroll_y)
+
+        await page.press("ctrl+u")
+        await page.pause()
+        assert scroll.scroll_y == 0
 
 
 async def test_plugin_action_modal_loads_grouped_incoming_commits() -> None:
@@ -289,6 +388,9 @@ async def test_plugin_action_modal_scrolls_incoming_commits(
         scroll = modal.query_one("#plugin-action-commits", VerticalScroll)
         await page.wait_for(lambda _s: int(scroll.max_scroll_y) > 0)
         await page.wait_for(lambda _s: scroll.border_subtitle == "ctrl+d/u scroll")
+        preview = modal.query_one("#plugin-action-preview-scroll", VerticalScroll)
+        assert int(preview.max_scroll_y) == 0
+        assert preview.border_subtitle == ""
 
         container = modal.query_one("#plugin-action-container")
         buttons = modal.query_one("#plugin-action-buttons")

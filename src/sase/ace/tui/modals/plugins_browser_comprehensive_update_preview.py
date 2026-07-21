@@ -14,13 +14,16 @@ from sase.dev_update.models import DevUpdatePlan
 from sase.uv_tool.commands import build_upgrade_all
 from sase.version._git import GitUpstreamStatus, git_fetch_upstream_args
 
-from .plugin_action_confirm_modal import PluginActionPreviewSection
+from .plugin_action_confirm_modal import (
+    PluginActionPreviewComponent,
+    PluginActionPreviewSection,
+)
 from .plugins_browser_comprehensive_update_models import (
     ComprehensiveUpdatePreview,
     DroppedProviderCandidate,
     error_text,
 )
-from .plugins_browser_dev_update import dev_update_preview_summary
+from .plugins_browser_dev_update import dev_update_preview_summary, short_root
 
 
 def plan_captured_providers(
@@ -75,30 +78,103 @@ def sase_preview_section(
         return PluginActionPreviewSection(
             title=title,
             summary="Already current in the live Updates inventory.",
+            components=(
+                PluginActionPreviewComponent(
+                    "SASE, core & plugins",
+                    "already current in the live Updates inventory",
+                    "current",
+                ),
+            ),
+            counts=("current",),
         )
     if preview.sase_blocker is not None or preview.sase_preview is None:
         return PluginActionPreviewSection(
             title=title,
             summary="This leg will not run.",
+            components=(
+                PluginActionPreviewComponent(
+                    "SASE update",
+                    preview.sase_blocker or "SASE update unavailable",
+                    "skipped",
+                ),
+            ),
             skipped=(preview.sase_blocker or "SASE update unavailable",),
+            counts=("skipped",),
         )
     sase = preview.sase_preview
     if sase.plan is None:
         return PluginActionPreviewSection(
             title=title,
             summary="Upgrades SASE core and every installed plugin.",
+            components=(
+                PluginActionPreviewComponent(
+                    "sase + installed plugins", "managed upgrade", "update"
+                ),
+            ),
             commands=(shlex.join(tuple(build_upgrade_all(color="never"))),),
+            counts=("1 command",),
         )
 
     plan = sase.plan
+    components: list[PluginActionPreviewComponent] = []
+    for root in plan.actionable_roots:
+        behind = root.behind or 0
+        noun = "commit" if behind == 1 else "commits"
+        components.append(
+            PluginActionPreviewComponent(
+                short_root(root.git_root),
+                f"{root.upstream or 'upstream'} · {behind} incoming {noun}",
+                "update",
+            )
+        )
+    for package in plan.actionable:
+        components.append(
+            PluginActionPreviewComponent(
+                package.record.name,
+                _version_transition(package.current_version, package.latest_version),
+                "update",
+            )
+        )
+    for step in plan.reconcile_steps:
+        components.append(
+            PluginActionPreviewComponent(
+                step.label,
+                "reconcile step" if step.available else (step.reason or "unavailable"),
+                "update" if step.available else "skipped",
+            )
+        )
+    for managed_package in sase.managed_packages:
+        components.append(
+            PluginActionPreviewComponent(
+                managed_package.name,
+                _version_transition(managed_package.current_version, None),
+                "update",
+            )
+        )
     skipped = tuple(
         f"{package.record.name}: {package.reason}" for package in plan.skipped
     )
+    components.extend(
+        PluginActionPreviewComponent(
+            package.record.name,
+            package.reason,
+            "skipped",
+        )
+        for package in plan.skipped
+    )
+    counts = [
+        _count_label(len(plan.actionable_roots), "checkout"),
+        _count_label(len(plan.reconcile_steps) + int(bool(sase.managed_argv)), "step"),
+    ]
+    if skipped:
+        counts.append(_count_label(len(skipped), "skipped", plural="skipped"))
     return PluginActionPreviewSection(
         title=title,
         summary=dev_update_preview_summary(plan, subject="sase"),
+        components=tuple(components),
         commands=dev_update_commands(plan, managed_argv=sase.managed_argv),
         skipped=skipped,
+        counts=tuple(counts),
     )
 
 
@@ -138,16 +214,68 @@ def provider_preview_section(
     skipped.extend(f"{item.name}: {item.reason}" for item in preview.provider_dropped)
     if preview.provider_error:
         skipped.append(f"Provider planning failed: {preview.provider_error}")
+    components = [
+        PluginActionPreviewComponent(
+            entry.status.display_name,
+            _version_transition(
+                entry.status.installed_version, entry.status.latest_version
+            ),
+            "update",
+        )
+        for entry in runnable
+    ]
+    for entry in entries:
+        if entry.argv is not None:
+            continue
+        reason = entry.skip_reason or "skipped"
+        is_current = "already up to date" in reason.lower()
+        components.append(
+            PluginActionPreviewComponent(
+                entry.status.display_name,
+                reason,
+                "current" if is_current else "skipped",
+            )
+        )
+    components.extend(
+        PluginActionPreviewComponent(item.name, item.reason, "skipped")
+        for item in preview.provider_dropped
+    )
+    if preview.provider_error:
+        components.append(
+            PluginActionPreviewComponent(
+                "Provider planning", preview.provider_error, "skipped"
+            )
+        )
+    counts = [_count_label(len(runnable), "command")]
+    if skipped:
+        counts.append(_count_label(len(skipped), "skipped", plural="skipped"))
     return PluginActionPreviewSection(
         title=title,
         summary=(
             f"{len(runnable)} safe provider command"
             f"{'s' if len(runnable) != 1 else ''} from the captured snapshot."
         ),
+        components=tuple(components),
         commands=commands,
         details=details,
         skipped=tuple(skipped),
+        counts=tuple(counts),
     )
+
+
+def _version_transition(current: str | None, latest: str | None) -> str:
+    if current and latest:
+        return f"{current} → {latest}"
+    if current:
+        return f"{current} → latest"
+    if latest:
+        return f"installed version unknown → {latest}"
+    return "update available"
+
+
+def _count_label(count: int, singular: str, *, plural: str | None = None) -> str:
+    noun = singular if count == 1 else (plural or f"{singular}s")
+    return f"{count} {noun}"
 
 
 def dev_update_commands(
