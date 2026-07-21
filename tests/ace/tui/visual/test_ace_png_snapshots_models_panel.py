@@ -22,8 +22,17 @@ import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import ModelsPanel
 from sase.ace.tui.modals.models_panel_duration import DurationPickerModal
+from sase.ace.tui.modals.models_panel_effort_cards import (
+    DefaultEffortActionModal,
+    DefaultEffortLevelModal,
+)
 from sase.ace.tui.modals.models_panel_time import OverrideUntilModal
-from sase.llm_provider import AliasView, TemporaryLLMOverride
+from sase.llm_provider import (
+    AliasView,
+    EffectiveDefaultEffortSnapshot,
+    TemporaryEffortOverride,
+    TemporaryLLMOverride,
+)
 from sase.llm_provider.config import ModelAliasSelectorMember
 from sase.llm_provider.load_balancing import ModelAliasSelectorMode
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -47,6 +56,20 @@ _TIME_MODAL_NOW = datetime(2026, 7, 10, 14, 42, tzinfo=_EASTERN)
 
 def _time_modal_clock(_timezone: tzinfo) -> datetime:
     return _TIME_MODAL_NOW
+
+
+def _effort_snapshot() -> EffectiveDefaultEffortSnapshot:
+    return EffectiveDefaultEffortSnapshot(
+        configured_effort="xhigh",
+        temporary_override=TemporaryEffortOverride(
+            version=1,
+            effort="medium",
+            created_at=_FROZEN_NOW,
+            expires_at=_FROZEN_NOW + 42 * 60,
+            source="visual",
+        ),
+        captured_at=_FROZEN_NOW,
+    )
 
 
 def _view(
@@ -413,6 +436,99 @@ async def test_models_panel_default_png_snapshot(
             "models_panel_default_120x40",
             title="ACE models panel (no overrides)",
         )
+
+
+async def test_models_panel_default_effort_override_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        models_panel, "build_alias_views", lambda *a, **k: _calm_views()
+    )
+    monkeypatch.setattr(models_panel, "_now", lambda: _FROZEN_NOW)
+    monkeypatch.setattr(
+        ModelsPanel,
+        "_load_effective_effort_snapshot",
+        lambda self: (_effort_snapshot(), True),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(ModelsPanel())
+        await page.expect_modal("ModelsPanel")
+        await wait_for_svg_contains(page, "override · 42m left")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_effort_override_120x40",
+            title="ACE models panel — active default-effort override",
+        )
+
+
+async def test_models_panel_default_effort_action_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(
+            DefaultEffortActionModal(
+                _effort_snapshot(), now=_FROZEN_NOW, use_chezmoi=True
+            )
+        )
+        await page.expect_modal("DefaultEffortActionModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_effort_action_120x40",
+            title="ACE models panel — default-effort action chooser",
+        )
+
+
+@pytest.mark.parametrize(
+    ("mode", "snapshot_name", "title"),
+    [
+        (
+            "edit",
+            "models_panel_effort_level_edit_120x40",
+            "ACE models panel — persistent effort-level picker",
+        ),
+        (
+            "override",
+            "models_panel_effort_level_override_120x40",
+            "ACE models panel — temporary effort-level picker",
+        ),
+    ],
+)
+async def test_models_panel_default_effort_level_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(
+            DefaultEffortLevelModal(  # type: ignore[arg-type]
+                mode, _effort_snapshot(), now=_FROZEN_NOW
+            )
+        )
+        await page.expect_modal("DefaultEffortLevelModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 
 
 async def test_models_panel_smartest_fallback_png_snapshot(

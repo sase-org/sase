@@ -12,8 +12,12 @@ from __future__ import annotations
 import pytest
 
 import sase.ace.tui.modals.models_panel_edit as models_panel_edit
+import sase.ace.tui.modals.models_panel_effort_edit as effort_edit
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.models_panel_edit import AliasEditPreviewModal
+from sase.ace.tui.modals.models_panel_effort_edit import (
+    DefaultEffortEditPreviewModal,
+)
 from sase.config import ConfigEditOp
 from sase.config.edit import ConfigEffectivePreview, ConfigWritePlan, EditPlanResult
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -38,6 +42,17 @@ _DIFF = (
     '-      coder: "@default"\n'
     "+      coder: claude/opus\n"
     "       medium_phase_worker: codex/o3\n"
+)
+
+_EFFORT_TARGET = "/home/user/.local/share/chezmoi/home/dot_config/sase/sase.yml"
+_EFFORT_DIFF = (
+    f"--- a/{_EFFORT_TARGET}\n"
+    f"+++ b/{_EFFORT_TARGET}\n"
+    "@@ -1,3 +1,3 @@\n"
+    " llm_provider:\n"
+    "-  default_effort: high\n"
+    "+  default_effort: xhigh\n"
+    "   provider: claude\n"
 )
 
 
@@ -71,6 +86,36 @@ def _edit_plan() -> EditPlanResult:
     )
 
 
+def _effort_edit_plan() -> EditPlanResult:
+    return EditPlanResult(
+        schema_version=1,
+        write_plan=ConfigWritePlan(
+            file="/home/user/.config/sase/sase.yml",
+            layer="user",
+            key_path=("llm_provider", "default_effort"),
+            op="set",
+            has_value=True,
+            new_value="xhigh",
+        ),
+        candidate_config={},
+        effective_preview=ConfigEffectivePreview(
+            path="llm_provider.default_effort",
+            has_before=True,
+            before="high",
+            has_after=True,
+            after="xhigh",
+            changed=True,
+        ),
+        validation=(),
+        diagnostics=(),
+        target_path=_EFFORT_TARGET,
+        used_chezmoi=True,
+        current_text="",
+        new_text="",
+        text_diff=_EFFORT_DIFF,
+    )
+
+
 async def test_models_panel_edit_preview_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -95,4 +140,33 @@ async def test_models_panel_edit_preview_png_snapshot(
             page,
             "models_panel_edit_preview_120x40",
             title="ACE models panel — alias edit preview (diff + confirm)",
+        )
+
+
+async def test_models_panel_default_effort_edit_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        effort_edit,
+        "_plan_default_effort_edit",
+        lambda *a, **k: _effort_edit_plan(),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+
+        modal = DefaultEffortEditPreviewModal("xhigh", override_active=True)
+        page.app.push_screen(modal)
+        await page.expect_modal("DefaultEffortEditPreviewModal")
+        await page.wait_for(lambda _s: modal._plan is not None)
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_effort_edit_preview_120x40",
+            title="ACE models panel — chezmoi default-effort edit preview",
         )

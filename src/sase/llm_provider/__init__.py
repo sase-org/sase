@@ -20,8 +20,10 @@ from .alias_view import (
 )
 from .base import LLMProvider
 from .config import (
+    EffectiveDefaultEffortSnapshot,
     ModelAliasConfigSource,
     default_reasoning_effort,
+    effective_default_effort_snapshot,
     get_builtin_model_aliases,
     get_custom_model_aliases,
     model_alias_bucket,
@@ -29,6 +31,14 @@ from .config import (
     model_alias_bucket_names,
     model_alias_config_source,
     model_alias_description,
+)
+from .effort_override import (
+    EffortOverrideStateError,
+    TemporaryEffortOverride,
+    clear_effort_override,
+    get_active_effort_override,
+    set_effort_override,
+    set_effort_override_until,
 )
 from .messages import AIMessage, BaseMessage, HumanMessage, MessageContent
 from .postprocessing import log_prompt_and_response, save_prompt_to_file
@@ -74,6 +84,8 @@ __all__ = [
     "PHASE_WORKER_BUCKET_NAME",
     "BaseMessage",
     "FileRefMode",
+    "EffectiveDefaultEffortSnapshot",
+    "EffortOverrideStateError",
     "HumanMessage",
     "LLMInvocationError",
     "LLMProvider",
@@ -85,13 +97,17 @@ __all__ = [
     "ProviderRetryConfig",
     "RetryState",
     "TemporaryLLMOverride",
+    "TemporaryEffortOverride",
     "build_alias_views",
     "build_models_panel_rows",
     "clear_alias_override",
+    "clear_effort_override",
     "clear_temporary_override",
     "default_reasoning_effort",
+    "effective_default_effort_snapshot",
     "get_active_alias_override",
     "get_active_alias_overrides",
+    "get_active_effort_override",
     "get_active_temporary_override",
     "get_builtin_model_aliases",
     "get_custom_model_aliases",
@@ -114,6 +130,8 @@ __all__ = [
     "save_prompt_to_file",
     "set_alias_override",
     "set_alias_override_until",
+    "set_effort_override",
+    "set_effort_override_until",
     "set_temporary_override",
     "stream_process_output",
 ]

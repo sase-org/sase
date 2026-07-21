@@ -12,8 +12,16 @@ from typing import TYPE_CHECKING, Any
 from sase.config import load_merged_config
 from sase.xprompt.effort import is_valid_effort
 
+from .effort_resolution import (
+    EffectiveDefaultEffortSnapshot,
+    build_effective_default_effort_snapshot,
+    resolve_effective_effort_from_snapshot,
+)
+
 if TYPE_CHECKING:
     from sase.xprompt.directives import PromptDirectives
+
+    from .effort_override import TemporaryEffortOverride
 
 
 def get_llm_provider_config() -> dict[str, Any]:
@@ -47,24 +55,58 @@ def default_reasoning_effort() -> str | None:
     return _get_default_effort()
 
 
+def _get_temporary_default_effort(now: float) -> TemporaryEffortOverride | None:
+    """Load the Rust-backed temporary effort record (test seam)."""
+    from .effort_override import get_active_effort_override
+
+    return get_active_effort_override(now)
+
+
+def effective_default_effort_snapshot(
+    now: float | None = None,
+) -> EffectiveDefaultEffortSnapshot:
+    """Capture configured and active temporary launch defaults together."""
+    snapshot = build_effective_default_effort_snapshot(
+        _get_default_effort(),
+        None,
+        now=now,
+    )
+    return build_effective_default_effort_snapshot(
+        snapshot.configured_effort,
+        _get_temporary_default_effort(snapshot.captured_at),
+        now=snapshot.captured_at,
+    )
+
+
 def resolve_effective_effort(
     directives: PromptDirectives,
     alias_effort: str | None = None,
 ) -> tuple[str | None, bool]:
     """Resolve effective effort and whether it came from an explicit directive.
 
-    Precedence is explicit prompt directive, alias target suffix, configured
-    default, then the provider's own default.
+    Precedence:
+
+    1. An explicit per-branch ``%effort``/``@effort`` value
+       (``directives.reasoning_effort``) — returned with ``explicit=True``.
+    2. A reasoning-effort suffix carried by an alias target — returned with
+       ``explicit=False`` because config-derived effort is best-effort.
+    3. The active machine-wide temporary default-effort override — returned
+       with ``explicit=False``.
+    4. The ``llm_provider.default_effort`` config value — returned with
+       ``explicit=False`` (best-effort: providers silently skip levels they
+       cannot honor).
+    5. Nothing — ``(None, False)`` so each runtime keeps its own default.
+
+    Centralizing the precedence here (reused by invocation and, later, the TUI
+    metadata) keeps display and behavior from ever disagreeing. The ``explicit``
+    flag lets the provider adapter raise on an unsupported *explicit* request
+    while quietly skipping an unsupported *config-default* one.
     """
-    explicit_effort = directives.reasoning_effort
-    if explicit_effort:
-        return explicit_effort, True
-    if alias_effort and is_valid_effort(alias_effort):
-        return alias_effort, False
-    default_effort = _get_default_effort()
-    if default_effort:
-        return default_effort, False
-    return None, False
+    return resolve_effective_effort_from_snapshot(
+        directives,
+        alias_effort,
+        effective_default_effort_snapshot(),
+    )
 
 
 # Alias configuration and presentation metadata. Explicit same-name aliases

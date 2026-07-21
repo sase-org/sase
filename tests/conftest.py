@@ -306,8 +306,11 @@ def _default_test_llm_cli(monkeypatch: pytest.MonkeyPatch, _test_llm_bin: Path) 
 
 @pytest.fixture(autouse=True)
 def _isolate_default_llm_effort(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Prevent ambient user config from forcing a default effort in tests."""
+    """Prevent ambient config/state from forcing a default effort in tests."""
     monkeypatch.setattr("sase.llm_provider.config._get_default_effort", lambda: None)
+    monkeypatch.setattr(
+        "sase.llm_provider.config._get_temporary_default_effort", lambda now: None
+    )
 
 
 @pytest.fixture(autouse=True)

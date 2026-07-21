@@ -1860,6 +1860,77 @@ ModelsPanel {
     margin-top: 1;
 }
 
+/* Models panel — global default-effort single-key cards */
+DefaultEffortActionModal,
+DefaultEffortLevelModal {
+    align: center middle;
+}
+
+#default-effort-action-container,
+#default-effort-level-container {
+    width: 70;
+    max-width: 94%;
+    height: auto;
+    max-height: 90%;
+    border: double #AF87D7;
+    background: $surface;
+    padding: 1 2;
+}
+
+#default-effort-level-container {
+    width: 62;
+}
+
+#default-effort-action-title,
+#default-effort-level-title {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    text-style: bold;
+    color: #AF87FF;
+    margin-bottom: 1;
+}
+
+#default-effort-action-status {
+    width: 100%;
+    height: auto;
+    border: solid $secondary;
+    padding: 1 2;
+    margin-bottom: 1;
+}
+
+#default-effort-action-choices,
+#default-effort-level-choices {
+    height: auto;
+}
+
+.default-effort-action-row {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#default-effort-action-note,
+#default-effort-level-note,
+#default-effort-level-subtitle {
+    height: auto;
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+.default-effort-level-row {
+    height: 1;
+}
+
+#default-effort-action-footer,
+#default-effort-level-footer {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    color: $text-muted;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 ProjectAliasEditorModal {
     align: center middle;
 }
@@ -5240,11 +5311,13 @@ ConfigEditModal #config-edit-hints {
 }
 
 /* Models panel — persistent alias edit preview/confirm (sase-5e Phase 3) */
-AliasEditPreviewModal {
+AliasEditPreviewModal,
+DefaultEffortEditPreviewModal {
     align: center middle;
 }
 
-AliasEditPreviewModal #alias-edit-container {
+AliasEditPreviewModal #alias-edit-container,
+DefaultEffortEditPreviewModal #alias-edit-container {
     width: 84;
     height: auto;
     max-height: 90%;
@@ -5253,24 +5326,28 @@ AliasEditPreviewModal #alias-edit-container {
     padding: 1 2;
 }
 
-AliasEditPreviewModal #alias-edit-title {
+AliasEditPreviewModal #alias-edit-title,
+DefaultEffortEditPreviewModal #alias-edit-title {
     text-style: bold;
     height: 1;
     margin-bottom: 1;
 }
 
-AliasEditPreviewModal #alias-edit-preview-scroll {
+AliasEditPreviewModal #alias-edit-preview-scroll,
+DefaultEffortEditPreviewModal #alias-edit-preview-scroll {
     width: 100%;
     height: auto;
     max-height: 24;
 }
 
-AliasEditPreviewModal #alias-edit-preview {
+AliasEditPreviewModal #alias-edit-preview,
+DefaultEffortEditPreviewModal #alias-edit-preview {
     width: 100%;
     height: auto;
 }
 
-AliasEditPreviewModal #alias-edit-hints {
+AliasEditPreviewModal #alias-edit-hints,
+DefaultEffortEditPreviewModal #alias-edit-hints {
     height: 1;
     color: $text-muted;
     margin-top: 1;

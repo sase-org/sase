@@ -802,22 +802,36 @@ public surface spells it `effort`; the threaded/stored field is named `reasoning
 
 ### Requesting an Effort
 
-There are four ways an effort reaches a launch, in precedence order:
+There are five ways an effort reaches a launch, in precedence order:
 
 1. An explicit per-prompt `%effort:<level>` directive, or the `@<level>` suffix on a `%model` value
    (`%model:opus@xhigh`). See [Effort Directive](xprompt.md#effort-directive) for the directive syntax and per-branch
    fan-out (`%{%m:opus@xhigh | %m:sonnet@low}`).
 2. A trailing effort on the selected alias target or pool member (for example `claude/opus@medium`).
-3. The `llm_provider.default_effort` config value, applied when neither the prompt nor alias target sets effort.
-4. Nothing — the provider runs at its own built-in default.
+3. An active machine-wide temporary default-effort override from `~/.sase/llm_effort_override.json`.
+4. The `llm_provider.default_effort` config value, applied when none of the higher-precedence sources sets effort.
+5. Nothing — the provider runs at its own built-in default.
 
 The canonical effort vocabulary, ordered least → most, is `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
 Spelling is validated globally; _which_ levels a given provider honors is decided per provider (below).
 
-The ACE Models panel shows the validated config default in its header (`default effort: @ <level>`), or says
-`provider default` when none is configured. Alias-borne effort appears only on rows that explicitly pin or inherit a
-suffix, beside the provider/model badge; the description strip identifies whether it matches or overrides the default.
-For pools, each member keeps its own suffix in the member list and the row badge reflects the next selected member.
+The ACE Models panel shows the launch-effective default in its header (`default effort: @ <level>`), or says
+`provider default` when none is configured. An active temporary value carries an override countdown plus an annotation
+for the underlying configured value. Alias-borne effort appears only on rows that explicitly pin or inherit a suffix,
+beside the provider/model badge; the description strip compares it with the current effective default. For pools, each
+member keeps its own suffix in the member list and the row badge reflects the next selected member.
+
+Press `Ctrl+E` in the Models panel for the global default-effort workflow. `e` opens a permanent Edit and `o` opens a
+temporary Override; when an override is active, `x` clears it. Both paths use the canonical single-key ladder (`1`
+`none` through `7` `max`). Edit additionally offers `0` Provider default and writes the empty sentinel to the user-base
+`sase.yml` after a source-preserving preview. With `use_chezmoi`, the preview names and writes the chezmoi source,
+applies its home target, and offers the standard tracked commit/pull/push flow when that source is dirty in Git.
+
+Temporary Override reuses the full alias duration UI: `15m`, `30m`, `1h`, `2h`, `4h`, Until cleared, combined custom
+durations, and `t` for an exact configured-timezone end. The versioned `~/.sase/llm_effort_override.json` record
+contains `effort`, `created_at`, optional `expires_at`, and `source`. Writes are atomically replaced under a bounded
+advisory lock; malformed and expired state self-cleans, with `now >= expires_at` considered expired. A permanent edit
+does not displace an active temporary override, and neither kind of change mutates already-running agents.
 
 ### Explicit vs. Default Semantics
 
@@ -826,8 +840,8 @@ that cannot honor the requested level:
 
 - **Explicit** (`%effort`/`@effort`): an unsupported level raises an error — SASE never silently launches at a different
   effort than you asked for.
-- **Config-derived** (an alias-target suffix or `llm_provider.default_effort`): best-effort. Unsupported levels are
-  logged and skipped so shared configuration never breaks an `agy`/`qwen` run.
+- **Config-derived** (an alias-target suffix, temporary default override, or `llm_provider.default_effort`):
+  best-effort. Unsupported levels are logged and skipped so shared configuration never breaks an `agy`/`qwen` run.
 
 ### Provider Support Matrix
 
@@ -845,7 +859,7 @@ while a config-default effort is skipped with a warning. The effort args are app
 [`SASE_LLM_*_ARGS` / `SASE_<P>_LARGE_ARGS`](#environment-variables) escape hatches, which remain available.
 
 Source: `src/sase/xprompt/effort.py` (vocabulary + `split_model_effort`), `src/sase/llm_provider/config.py`
-(`resolve_effective_effort` and the public `default_reasoning_effort` config reader),
+(`resolve_effective_effort`, the temporary-effort facade, and the public `default_reasoning_effort` config reader),
 `src/sase/llm_provider/_effort_args.py` (per-provider translation).
 
 ## Model Tier System

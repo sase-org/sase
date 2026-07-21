@@ -12,6 +12,7 @@ from textual.widgets._option_list import Option
 
 from sase.llm_provider import AliasView, BucketView
 
+from .models_panel_effort_rendering import append_default_effort_title
 from .models_panel_rendering import (
     custom_builtin_shadow_warning_message,
     description_text_for_row,
@@ -35,6 +36,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
         _bucket_by_name: dict[str, BucketView]
         _changed: bool
         _default_effort: str | None
+        _effort_snapshot: Any
         _row_by_id: dict[str, AliasView | BucketView]
         _top_rows: list[AliasView | BucketView]
         _updating_highlight: bool
@@ -46,6 +48,12 @@ class ModelsPanelDisplayMixin(_MixinBase):
         def _load_alias_views(self) -> list[AliasView]: ...
 
         def _load_default_reasoning_effort(self) -> str | None: ...
+
+        def _start_effort_snapshot_load(self) -> None: ...
+
+        def _refresh_effort_clock(self) -> None: ...
+
+        def _effort_write_busy(self) -> bool: ...
 
         def _load_models_panel_rows(
             self, views: list[AliasView]
@@ -68,6 +76,8 @@ class ModelsPanelDisplayMixin(_MixinBase):
             self._set_highlighted_index(option_list, 0)
         self._update_context()
         self._emit_custom_builtin_shadow_warning()
+        self._start_effort_snapshot_load()
+        self.set_interval(5.0, self._refresh_effort_clock)
 
     def _emit_custom_builtin_shadow_warning(self) -> None:
         """Emit the one opening warning derived from the loaded view snapshot."""
@@ -88,11 +98,13 @@ class ModelsPanelDisplayMixin(_MixinBase):
         row = self._selected_row()
         if self._active_bucket is None and isinstance(row, BucketView):
             return (
+                "[green]ctrl+e[/green]=Effort  "
                 "[green]l/enter[/green]=Open  "
                 "[dim]j/k[/dim]=Navigate  "
                 "[dim]esc[/dim]=Close"
             )
         footer = (
+            "[green]ctrl+e[/green]=Effort  "
             "[green]o[/green]=Override  "
             "[green]x[/green]=Clear  "
             "[green]e[/green]=Edit  "
@@ -108,16 +120,14 @@ class ModelsPanelDisplayMixin(_MixinBase):
             text.append(" › ", style="dim")
             text.append(self._active_bucket, style="bold #FFD787")
         text.append("\n")
-        text.append("default effort: ", style="dim #878787")
-        if self._default_effort is None:
-            text.append("provider default", style="dim #878787")
-        else:
-            text.append("@ ", style="#878787")
-            text.append(self._default_effort, style="bold #AF87FF")
+        append_default_effort_title(
+            text,
+            self._effort_snapshot,
+            now=self._models_panel_now(),
+        )
         return text
 
     def _build_options(self) -> list[Option]:
-        self._default_effort = self._load_default_reasoning_effort()
         self._views = self._load_alias_views()
         self._top_rows = self._load_models_panel_rows(self._views)
         self._bucket_by_name = {
@@ -262,7 +272,11 @@ class ModelsPanelDisplayMixin(_MixinBase):
                 pass
 
     def action_close(self) -> None:
-        if self._override_worker is not None or self._clear_worker is not None:
+        if (
+            self._override_worker is not None
+            or self._clear_worker is not None
+            or self._effort_write_busy()
+        ):
             self.notify("An override update is still in progress.", severity="warning")
             return
         self.dismiss(ModelsPanelResult(changed=self._changed))

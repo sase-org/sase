@@ -26,6 +26,7 @@ from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
 from sase.config import (
+    AppliedResult,
     ConfigEditError,
     ConfigEditOp,
     EditPlanResult,
@@ -43,7 +44,7 @@ from .config_edit_types import (
 from .models_panel_edit_helpers import AliasEditOutcome, plan_alias_edit
 
 
-class AliasEditPreviewModal(ModalScreen["AliasEditOutcome | None"]):
+class AliasEditPreviewModal(ModalScreen[Any]):
     """Plan, preview, confirm, and write a single persistent alias edit."""
 
     BINDINGS = [
@@ -190,15 +191,19 @@ class AliasEditPreviewModal(ModalScreen["AliasEditOutcome | None"]):
     # -- planning -------------------------------------------------------
 
     def _start_plan(self) -> None:
-        alias = self._alias
-        op = self._op
-        path = self._path
-
         def task() -> EditPlanResult:
-            return plan_alias_edit(alias, op, path=path)
+            return self._plan_edit()
 
         self._busy = True
         self._plan_worker = self.run_worker(task, thread=True, exclusive=True)
+
+    def _plan_edit(self) -> EditPlanResult:
+        """Return the source-preserving scalar edit plan for this modal."""
+        return plan_alias_edit(self._alias, self._op, path=self._path)
+
+    def _build_outcome(self, applied: AppliedResult) -> object:
+        """Build the result dismissed after a successful write."""
+        return AliasEditOutcome(alias=self._alias, applied=applied)
 
     # -- writing --------------------------------------------------------
 
@@ -223,7 +228,7 @@ class AliasEditPreviewModal(ModalScreen["AliasEditOutcome | None"]):
         self._error = None
         self._render_all()
 
-        def task() -> tuple[AliasEditOutcome, str | None]:
+        def task() -> tuple[object, str | None]:
             applied = apply_config_edit(plan)
             note: str | None = None
             # ``chezmoi apply`` takes the home *target* path, not the chezmoi
@@ -235,7 +240,7 @@ class AliasEditPreviewModal(ModalScreen["AliasEditOutcome | None"]):
                 if proc.returncode != 0:
                     detail = proc.stderr.strip() or f"exit {proc.returncode}"
                     note = f"chezmoi apply failed: {detail}"
-            return AliasEditOutcome(alias=self._alias, applied=applied), note
+            return self._build_outcome(applied), note
 
         self._apply_worker = self.run_worker(task, thread=True, exclusive=True)
 

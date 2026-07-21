@@ -1345,8 +1345,9 @@ user-defined `llm_provider.model_aliases.custom` entry.
 Each row shows the alias name with a small kind badge (`default` / `role` / `<provider> coder` / `user`), its effective
 provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @<fallback>`, or an
 `override · <time> left` / `override · until cleared` chip when a temporary override is active. The title's second line
-shows `llm_provider.default_effort` as `default effort: @ <level>`, or `provider default` when no valid default is
-configured. An explicit effort suffix inherited from an alias target appears beside that row's model badge; rows that
+shows the launch-effective default effort. With no temporary override it says `default effort: @ <level>` or
+`provider default`; with an active override it shows that `@<level>`, its remaining time, and the configured value
+underneath it. An explicit effort suffix inherited from an alias target appears beside that row's model badge; rows that
 simply inherit the header default omit the redundant suffix. The top level is sorted deterministically: `default`, the
 built-in `coders` bucket, `epic_lander`, `big_epic_lander`, the built-in `phase_worker` bucket, `smartest`, `cheaper`,
 `cheapest`, then custom buckets and ungrouped user aliases in alphabetical order.
@@ -1387,7 +1388,35 @@ Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlight
 | `x`                   | **Clear** — remove the temporary override on this alias                                    |
 | `e`                   | **Edit** — change the persistent configured value (model picker / custom input → preview)  |
 | `r`                   | **Reset** — unset the configured value back to its implicit fallback                       |
+| `Ctrl+E`              | **Effort** — persistently edit, temporarily override, or clear the global default effort   |
 | `Esc` / `q`           | Close the panel                                                                            |
+
+### Default effort controls
+
+`Ctrl+E` works from every alias and bucket row because default effort is global. The **Default Effort** card shows the
+exact value used for new launches and, while a temporary override is active, the configured value beneath it. Press `e`
+to edit permanently, `o` to override temporarily, or `x` to clear the active temporary override; `x` is shown only when
+there is something to clear. Explicit prompt effort and effort carried by an alias or selected pool member still win,
+and already-running agents are unaffected.
+
+Both Edit and Override open the same ordered, single-key effort ladder: `1` `none`, `2` `minimal`, `3` `low`, `4`
+`medium`, `5` `high`, `6` `xhigh`, and `7` `max`. Edit also offers `0` **Provider default**. That option writes the
+schema's empty sentinel into the user-base `sase.yml`, deliberately masking a lower-precedence package/plugin value;
+Override does not offer a pseudo-level, because cancelling or clearing honestly resumes configured/provider behavior.
+Config-derived values are best-effort: a provider that cannot honor a level retains its provider behavior.
+
+Temporary effort Override reuses the model-alias duration workflow unchanged: `15m`, `30m`, `1h`, `2h`, `4h`, Until
+cleared, a combined custom duration, or `t` for an exact local time/date. It is machine-wide state in
+`~/.sase/llm_effort_override.json`; setting replaces the prior effort override, expiry is enforced on the next launch,
+and Clear is idempotent. This state is independent of `~/.sase/llm_override.json`, which stores concrete model-alias
+overrides.
+
+Permanent Edit always targets the writable **user base** config rather than a project-local layer. Its preview shows
+`llm_provider.default_effort`, configured before/after values, the actual target, validation, and the source-preserving
+YAML diff. With `use_chezmoi: true`, the actual write goes to the chezmoi source and the target is applied before ACE
+reports success. A dirty Git-backed target receives the usual tracked commit/pull/push offer with
+`chore: update default model effort`. An active temporary override remains launch-effective after this write until it
+expires or is cleared; the preview and success notification both make that explicit.
 
 ### Temporary overrides
 

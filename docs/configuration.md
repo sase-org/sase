@@ -107,7 +107,10 @@ staged changes are therefore included in the same commit. The repository is disc
 remapped edit uses the chezmoi source repository. When `use_chezmoi` is enabled, a successful push is followed by a full
 `chezmoi apply`. Each failure stops the sequence at that step, without undoing the written config change. Skipping the
 offer—or editing a file outside git—also leaves the successful write in place. The
-[Models panel](ace.md#persistent-edits) uses the same workflow for persistent alias edits.
+[Models panel](ace.md#persistent-edits) uses the same workflow for persistent alias edits, while its fixed `Ctrl+E`
+binding previews and writes `llm_provider.default_effort` specifically to the user-base layer. `Ctrl+E` is local to the
+Models modal (including bucket rows), not a configurable leader-key entry. Choosing Provider default writes the empty
+schema sentinel; a currently active temporary effort override remains effective until expiry or clear.
 
 The deprecated `linked_repos` and `sibling_repos` keys remain readable as compatibility aliases for
 [`repos.linked`](#repos), but the Config tab no longer offers a one-key migration action. Prefer editing the config to
@@ -712,6 +715,11 @@ The TUI also supports **temporary**, per-alias session-level provider/model over
 `~/.sase/llm_override.json` and expired entries are deleted on next read. See
 [docs/llms.md](llms.md#temporary-model-overrides) for the resolution order, state-file format, and precedence relative
 to `SASE_MODEL_TIER_OVERRIDE`.
+
+The same panel's fixed `Ctrl+E` binding manages the separate machine-wide default-effort override at
+`~/.sase/llm_effort_override.json`. It uses the alias override duration and exact-time cards, but its state and
+precedence are independent: explicit prompt effort and alias/member effort win, then the temporary effort override, then
+`llm_provider.default_effort`, then the provider default. See [Reasoning Effort](llms.md#reasoning-effort).
 
 #### `llm_provider.retry`
 

@@ -11,14 +11,21 @@ from __future__ import annotations
 from textual.screen import ModalScreen
 from textual.worker import Worker
 
+from sase.config import get_use_chezmoi
 from sase.llm_provider import (
     AliasView,
     BucketView,
+    EffectiveDefaultEffortSnapshot,
     TemporaryLLMOverride,
+    TemporaryEffortOverride,
     build_alias_views,
     build_models_panel_rows,
     clear_alias_override,
     default_reasoning_effort,
+    get_active_effort_override,
+    clear_effort_override,
+    set_effort_override,
+    set_effort_override_until,
     set_alias_override,
     set_alias_override_until,
 )
@@ -27,6 +34,8 @@ from .base import OptionListNavigationMixin
 from .duration_choice_modal import DURATION_CHOICE_CANCELLED
 from .models_panel_alias_edit import ModelsPanelAliasEditMixin
 from .models_panel_display import ModelsPanelDisplayMixin
+from .models_panel_effort import ModelsPanelEffortMixin
+from .models_panel_effort_edit import build_default_effort_commit_offer
 from .models_panel_duration import (
     DurationPickerModal as _DurationPickerModal,
     OverrideUntilCleared,
@@ -64,6 +73,7 @@ _LEGACY_TEST_EXPORTS = (
 
 class ModelsPanel(
     ModelsPanelDisplayMixin,
+    ModelsPanelEffortMixin,
     ModelsPanelOverrideMixin,
     ModelsPanelAliasEditMixin,
     OptionListNavigationMixin,
@@ -90,12 +100,19 @@ class ModelsPanel(
         ("x", "clear", "Clear"),
         ("e", "edit", "Edit"),
         ("r", "reset", "Reset"),
+        ("ctrl+e", "manage_default_effort", "Effort"),
     ]
 
     def __init__(self) -> None:
         super().__init__()
         self._changed = False
         self._default_effort: str | None = None
+        self._effort_snapshot = EffectiveDefaultEffortSnapshot(
+            configured_effort=None,
+            temporary_override=None,
+            captured_at=_now(),
+        )
+        self._effort_uses_chezmoi = False
         self._views: list[AliasView] = []
         self._top_rows: list[AliasView | BucketView] = []
         self._bucket_by_name: dict[str, BucketView] = {}
@@ -112,6 +129,21 @@ class ModelsPanel(
         ) = None
         self._clear_worker: Worker[tuple[bool | None, str | None]] | None = None
         self._config_commit_offer_worker: Worker[AliasCommitOffer | None] | None = None
+        self._effort_snapshot_worker: (
+            Worker[tuple[EffectiveDefaultEffortSnapshot, bool]] | None
+        ) = None
+        self._effort_override_worker: (
+            Worker[tuple[TemporaryEffortOverride | None, str | None]] | None
+        ) = None
+        self._effort_clear_worker: Worker[tuple[bool | None, str | None]] | None = None
+        self._effort_commit_offer_worker: Worker[AliasCommitOffer | None] | None = None
+        self._effort_write_level: str | None = None
+        self._effort_write_result: (
+            RelativeOverrideDuration
+            | OverrideUntilCleared
+            | ResolvedOverrideUntil
+            | None
+        ) = None
         self._override_write_result: (
             RelativeOverrideDuration
             | OverrideUntilCleared
@@ -130,6 +162,19 @@ class ModelsPanel(
 
     def _load_default_reasoning_effort(self) -> str | None:
         return default_reasoning_effort()
+
+    def _load_effective_effort_snapshot(
+        self,
+    ) -> tuple[EffectiveDefaultEffortSnapshot, bool]:
+        captured_at = self._models_panel_now()
+        return (
+            EffectiveDefaultEffortSnapshot(
+                configured_effort=self._load_default_reasoning_effort(),
+                temporary_override=get_active_effort_override(captured_at),
+                captured_at=captured_at,
+            ),
+            get_use_chezmoi(),
+        )
 
     def _load_models_panel_rows(
         self, views: list[AliasView]
@@ -152,15 +197,47 @@ class ModelsPanel(
     ) -> TemporaryLLMOverride:
         return set_alias_override_until(alias, raw_model, expires_at, source="ace")
 
+    def _set_default_effort_override(
+        self, effort: str, seconds: float | None
+    ) -> TemporaryEffortOverride:
+        return set_effort_override(
+            effort,
+            seconds,
+            source="ace",
+            now=self._models_panel_now(),
+        )
+
+    def _set_default_effort_override_until(
+        self, effort: str, expires_at: float
+    ) -> TemporaryEffortOverride:
+        return set_effort_override_until(
+            effort,
+            expires_at,
+            source="ace",
+            now=self._models_panel_now(),
+        )
+
+    def _clear_default_effort_override(self) -> bool:
+        return clear_effort_override()
+
     def _build_alias_commit_offer(
         self, path: str, *, op: str, alias: str
     ) -> AliasCommitOffer | None:
         return build_alias_commit_offer(path, op=op, alias=alias)
 
+    def _build_default_effort_commit_offer(self, path: str) -> AliasCommitOffer | None:
+        return build_default_effort_commit_offer(path)
+
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if self._on_config_commit_offer_worker_state(event):
+            return
+        if self._on_effort_worker_state_changed(event):
             return
         ModelsPanelOverrideMixin.on_worker_state_changed(self, event)
 
     def on_unmount(self) -> None:
         self._cancel_config_commit_offer()
+        self._cancel_effort_workers()
+        for worker in (self._override_worker, self._clear_worker):
+            if worker is not None and not worker.is_finished:
+                worker.cancel()
