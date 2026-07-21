@@ -31,7 +31,8 @@ from .plans_rendering import (
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
-    from textual.widgets import OptionList
+
+    from .plans_navigation import PlansOptionList
 else:
     _MixinBase = object
 
@@ -81,7 +82,7 @@ class PlansOptionsMixin(_MixinBase):
 
         def _option_index(self, option_id: str | None) -> int | None: ...
 
-        def _option_list(self) -> OptionList | None: ...
+        def _option_list(self) -> PlansOptionList | None: ...
 
         def _selected_option_id(self) -> str | None: ...
 
@@ -198,14 +199,22 @@ class PlansOptionsMixin(_MixinBase):
             archive_total=self._display_archive_total,
         )
         self._rows = rows
+        target_index = next(
+            (
+                index
+                for index, option in enumerate(options)
+                if option.id == preferred_id
+            ),
+            None,
+        )
+        if target_index is None:
+            target_index = next(
+                (index for index, option in enumerate(options) if not option.disabled),
+                None,
+            )
         self._syncing_options = True
         try:
-            option_list.clear_options()
-            option_list.add_options(options)
-            target_index = self._option_index(preferred_id)
-            if target_index is None:
-                target_index = self._first_selectable_index()
-            option_list.highlighted = target_index
+            option_list.replace_options(options, highlighted=target_index)
         finally:
             self._syncing_options = False
         self._update_status()

@@ -19,7 +19,7 @@ from .plans_data import PlansSnapshot, load_plans_snapshot
 from .plans_deep_archive import DEEP_ARCHIVE_DEBOUNCE_S
 from .plans_filter_session import PlansFilterSessionMixin
 from .plans_list import PlanRow, build_plan_options
-from .plans_navigation import PlansNavigationMixin
+from .plans_navigation import PlansNavigationMixin, PlansOptionList
 from .plans_options import PlansOptionsMixin
 from .plans_rendering import (
     archive_text,
@@ -76,7 +76,7 @@ class ArtifactsPlansPane(
             list_panel.border_title = "Plan pipeline"
             with list_panel:
                 yield Static(self._status_text(), id="plans-status")
-                yield OptionList(id="plans-list")
+                yield PlansOptionList(id="plans-list")
             detail_panel = Vertical(id="plans-detail-panel")
             detail_panel.border_title = "Details"
             with detail_panel:

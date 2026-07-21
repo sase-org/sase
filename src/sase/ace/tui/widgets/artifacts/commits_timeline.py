@@ -91,7 +91,7 @@ class CommitsTimeline(OptionList):
         self.focus()
         self._programmatic_update = True
         try:
-            self.highlighted = option_index
+            self._assign_highlight(option_index)
         finally:
             self._programmatic_update = False
         return self.selected_commit_index
@@ -168,9 +168,14 @@ class CommitsTimeline(OptionList):
                     ),
                     None,
                 )
-            self.highlighted = target
+            self._assign_highlight(target)
         finally:
             self._programmatic_update = False
+
+    def _assign_highlight(self, target: int | None) -> None:
+        """Assign a guarded highlight and synchronously reveal its row."""
+        self.highlighted = target
+        self.scroll_to_highlight()
 
     def _option_for_target(self, target: ArtifactEntryTarget | None) -> int | None:
         if target is None:

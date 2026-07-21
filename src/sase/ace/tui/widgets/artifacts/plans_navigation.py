@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from textual.widgets import Markdown, OptionList, Static
+from textual.widgets.option_list import Option
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 
@@ -27,6 +28,42 @@ if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
 else:
     _MixinBase = object
+
+
+class PlansOptionList(OptionList):
+    """Plan rows whose guarded highlights retain native viewport following."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._programmatic_update = False
+
+    def set_highlight(self, index: int | None) -> None:
+        self._programmatic_update = True
+        try:
+            self._assign_highlight(index)
+        finally:
+            self._programmatic_update = False
+
+    def replace_options(
+        self, options: list[Option], *, highlighted: int | None
+    ) -> None:
+        """Replace rows and selection under one synchronous echo guard."""
+        self._programmatic_update = True
+        try:
+            self.clear_options()
+            self.add_options(options)
+            self._assign_highlight(highlighted)
+        finally:
+            self._programmatic_update = False
+
+    def _assign_highlight(self, index: int | None) -> None:
+        self.highlighted = index
+        self.scroll_to_highlight()
+
+    def watch_highlighted(self, highlighted: int | None) -> None:
+        if self._programmatic_update:
+            return
+        super().watch_highlighted(highlighted)
 
 
 class PlansNavigationMixin(_MixinBase):
@@ -108,7 +145,7 @@ class PlansNavigationMixin(_MixinBase):
         option_list.focus()
         self._syncing_options = True
         try:
-            option_list.highlighted = target_index
+            option_list.set_highlight(target_index)
         finally:
             self._syncing_options = False
         if changed:
@@ -259,9 +296,9 @@ class PlansNavigationMixin(_MixinBase):
             return project
         return snapshot.display_names.get(project, project)
 
-    def _option_list(self) -> OptionList | None:
+    def _option_list(self) -> PlansOptionList | None:
         try:
-            return self.query_one("#plans-list", OptionList)
+            return self.query_one("#plans-list", PlansOptionList)
         except Exception:
             return None
 

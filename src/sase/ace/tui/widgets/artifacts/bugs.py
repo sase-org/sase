@@ -46,7 +46,7 @@ class BugIssueList(OptionList):
     def set_highlight(self, index: int | None) -> None:
         self._programmatic_update = True
         try:
-            self.highlighted = index
+            self._assign_highlight(index)
         finally:
             self._programmatic_update = False
 
@@ -58,9 +58,14 @@ class BugIssueList(OptionList):
         try:
             self.clear_options()
             self.add_options(options)
-            self.highlighted = highlighted
+            self._assign_highlight(highlighted)
         finally:
             self._programmatic_update = False
+
+    def _assign_highlight(self, index: int | None) -> None:
+        """Assign a guarded highlight and synchronously reveal its row."""
+        self.highlighted = index
+        self.scroll_to_highlight()
 
     def watch_highlighted(self, highlighted: int | None) -> None:
         if self._programmatic_update:

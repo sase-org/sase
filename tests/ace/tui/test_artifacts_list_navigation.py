@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from textual.geometry import Region
 from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
@@ -24,7 +25,7 @@ from tests.ace.tui._artifacts_plans_helpers import (
 )
 
 
-def _commits_result(count: int = 15) -> VcsLogResult:
+def _commits_result(count: int = 50) -> VcsLogResult:
     now = int(datetime.now(tz=UTC).timestamp())
     commits = tuple(
         AggregatedCommitWire(
@@ -49,7 +50,7 @@ def _commits_result(count: int = 15) -> VcsLogResult:
     )
 
 
-def _expanded_plans_snapshot(tmp_path: Path, phase_count: int = 12) -> PlansSnapshot:
+def _expanded_plans_snapshot(tmp_path: Path, phase_count: int = 47) -> PlansSnapshot:
     snapshot = _plans_snapshot(tmp_path)
     epic = snapshot.epics[0].issue
     phase = snapshot.phases_by_epic[("alpha", epic.id)][0].issue
@@ -72,39 +73,101 @@ def _expanded_plans_snapshot(tmp_path: Path, phase_count: int = 12) -> PlansSnap
     )
 
 
+class _DetailScheduleRecorder:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def schedule(self, _callback: object) -> None:
+        self.calls += 1
+
+
+def _entry_list(
+    pane: CommitsPane | ArtifactsBugsPane | ArtifactsPlansPane,
+) -> OptionList:
+    if isinstance(pane, CommitsPane):
+        return pane.query_one("#commits-timeline", OptionList)
+    if isinstance(pane, ArtifactsBugsPane):
+        return pane.query_one("#bugs-list", OptionList)
+    return pane.query_one("#plans-list", OptionList)
+
+
+def _assert_highlight_visible(option_list: OptionList) -> None:
+    highlighted = option_list.highlighted
+    assert highlighted is not None
+    option_list._update_lines()
+    option_region = Region(
+        0,
+        option_list._index_to_line[highlighted],
+        option_list.scrollable_content_region.width,
+        option_list._heights[highlighted],
+    )
+    viewport_region = Region(
+        0,
+        int(option_list.scroll_y),
+        option_list.scrollable_content_region.width,
+        option_list.scrollable_content_region.height,
+    )
+    assert viewport_region.contains_region(option_region)
+
+
 async def _assert_distance_navigation(
     page: AcePage,
     pane: CommitsPane | ArtifactsBugsPane | ArtifactsPlansPane,
 ) -> None:
     targets = pane.entry_targets()
-    assert len(targets) == 15
+    assert len(targets) == 50
     assert pane.selected_entry_target() == targets[0]
+    option_list = _entry_list(pane)
+    recorder = _DetailScheduleRecorder()
+    original_debouncer = pane._detail_debouncer
+    pane._detail_debouncer = recorder  # type: ignore[assignment]
 
-    await page.press("ctrl+f")
-    assert pane.selected_entry_target() == targets[10]
-    await page.press("ctrl+f")
-    assert pane.selected_entry_target() == targets[14]
-    await page.press("ctrl+b")
-    assert pane.selected_entry_target() == targets[4]
+    try:
+        for target_index in (10, 20, 30, 40):
+            await page.press("ctrl+f")
+            assert pane.selected_entry_target() == targets[target_index]
+            _assert_highlight_visible(option_list)
+        downward_scroll_y = option_list.scroll_y
+        assert downward_scroll_y > 0
 
-    selected = pane.selected_entry_target()
-    view = page.app._artifacts_view()
-    assert view is not None
-    scroll = view.detail_scroll(page.app.current_artifacts_subtab)
-    await scroll.mount(Static("\n".join(f"detail line {i}" for i in range(100))))
-    await page.wait_for(lambda _state: scroll.max_scroll_y > 0)
-    visible_height = scroll.scrollable_content_region.height
-    await page.press("ctrl+d")
-    await page.wait_for(lambda _state: scroll.scroll_y > 0)
-    assert pane.selected_entry_target() == selected
-    assert scroll.scroll_y == min(visible_height // 2, scroll.max_scroll_y)
-    await page.press("ctrl+u")
-    await page.wait_for(lambda _state: scroll.scroll_y == 0)
-    assert pane.selected_entry_target() == selected
-    await page.press("g")
-    assert pane.selected_entry_target() == targets[0]
-    await page.press("G")
-    assert pane.selected_entry_target() == targets[-1]
+        for target_index in (30, 20, 10, 0):
+            await page.press("ctrl+b")
+            assert pane.selected_entry_target() == targets[target_index]
+            _assert_highlight_visible(option_list)
+        assert option_list.scroll_y < downward_scroll_y
+
+        selected = pane.selected_entry_target()
+        view = page.app._artifacts_view()
+        assert view is not None
+        scroll = view.detail_scroll(page.app.current_artifacts_subtab)
+        await scroll.mount(Static("\n".join(f"detail line {i}" for i in range(100))))
+        await page.wait_for(lambda _state: scroll.max_scroll_y > 0)
+        visible_height = scroll.scrollable_content_region.height
+        await page.press("ctrl+d")
+        await page.wait_for(lambda _state: scroll.scroll_y > 0)
+        assert pane.selected_entry_target() == selected
+        assert scroll.scroll_y == min(visible_height // 2, scroll.max_scroll_y)
+        await page.press("ctrl+u")
+        await page.wait_for(lambda _state: scroll.scroll_y == 0)
+        assert pane.selected_entry_target() == selected
+        await page.press("g")
+        assert pane.selected_entry_target() == targets[0]
+        _assert_highlight_visible(option_list)
+        await page.press("G")
+        assert pane.selected_entry_target() == targets[-1]
+        _assert_highlight_visible(option_list)
+        selected = pane.selected_entry_target()
+        assert selected is not None
+        pane.apply_entry_jump_hints({selected: "A"})
+        assert pane.selected_entry_target() == selected
+        _assert_highlight_visible(option_list)
+        pane.clear_entry_jump_hints()
+        assert pane.selected_entry_target() == selected
+        _assert_highlight_visible(option_list)
+        assert page.state["modal"] is None
+        assert recorder.calls == 9
+    finally:
+        pane._detail_debouncer = original_debouncer
 
 
 async def test_commits_fast_navigation_skips_day_banners_and_jumps_without_opening(
@@ -118,8 +181,8 @@ async def test_commits_fast_navigation_skips_day_banners_and_jumps_without_openi
         await page.press("1")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
-        assert len(pane.entry_targets()) == 15
-        assert pane.query_one("#commits-timeline", OptionList).option_count == 16
+        assert len(pane.entry_targets()) == 50
+        assert pane.query_one("#commits-timeline", OptionList).option_count == 51
         await _assert_distance_navigation(page, pane)
         assert page.app.focused is pane.query_one("#commits-timeline", OptionList)
 
@@ -157,7 +220,7 @@ async def test_commits_fast_navigation_skips_day_banners_and_jumps_without_openi
 async def test_bugs_fast_navigation_restores_issue_focus_and_ignores_links(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    snapshot = _bugs_snapshot(tuple(_issue(number) for number in range(1, 16)))
+    snapshot = _bugs_snapshot(tuple(_issue(number) for number in range(1, 51)))
     monkeypatch.setattr(
         "sase.ace.tui.widgets.artifacts.bugs.collect_bug_snapshot",
         lambda *_args, **_kwargs: snapshot,
@@ -250,7 +313,7 @@ async def test_plans_fast_navigation_skips_headings_and_includes_expanded_phases
         await _assert_distance_navigation(page, pane)
         option_list = pane.query_one("#plans-list", OptionList)
         assert page.app.focused is option_list
-        assert option_list.option_count == 18
+        assert option_list.option_count == 53
 
         await page.press("g", "apostrophe")
         selectable_prompts = [
