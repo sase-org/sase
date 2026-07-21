@@ -37,8 +37,9 @@ ModelAliasConfigSource = Literal["builtin", "custom"]
 #
 #   - ``default``: the model used when a prompt has no explicit ``%model``.
 #   - ``coder`` / ``<provider>_coder``: coder follow-up roles.
-#   - ``epic_lander`` / ``big_epic_lander`` / ``phase_worker`` /
-#     ``<size>_phase_worker`` / ``smartest`` / ``cheapest``: bead/epic roles.
+#   - ``epic_lander`` / ``big_epic_lander`` /
+#     ``<size>_phase_worker`` / ``smartest`` / ``cheaper`` / ``cheapest``:
+#     bead/epic roles.
 #
 # Each role falls back to another alias (ultimately ``@default``) when it is not
 # explicitly configured. ``default`` itself falls back to the configured or
@@ -68,9 +69,6 @@ EPIC_LANDER_MODEL_ALIAS_NAME = "epic_lander"
 #: The implicit large-epic lander role alias (threshold-selected follow-up).
 BIG_EPIC_LANDER_MODEL_ALIAS_NAME = "big_epic_lander"
 
-#: The implicit "phase_worker" role alias (medium/explicit phase fallback).
-PHASE_WORKER_MODEL_ALIAS_NAME = "phase_worker"
-
 #: The implicit small-phase role alias.
 SMALL_PHASE_WORKER_MODEL_ALIAS_NAME = "small_phase_worker"
 
@@ -83,11 +81,17 @@ LARGE_PHASE_WORKER_MODEL_ALIAS_NAME = "large_phase_worker"
 #: The implicit "smartest" highest-capability alias.
 SMARTEST_MODEL_ALIAS_NAME = "smartest"
 
-#: The implicit load-balanced high-volume-agent alias.
+#: The implicit load-balanced small-phase alias.
+CHEAPER_MODEL_ALIAS_NAME = "cheaper"
+
+#: Default target pool for the implicit :data:`CHEAPER_MODEL_ALIAS_NAME`.
+CHEAPER_MODEL_ALIAS_DEFAULT = "claude/opus@medium | codex/gpt-5.5"
+
+#: The implicit load-balanced cheapest-agent alias.
 CHEAPEST_MODEL_ALIAS_NAME = "cheapest"
 
 #: Default target pool for the implicit :data:`CHEAPEST_MODEL_ALIAS_NAME`.
-CHEAPEST_MODEL_ALIAS_DEFAULT = "claude/opus@medium | codex/gpt-5.5"
+CHEAPEST_MODEL_ALIAS_DEFAULT = "claude/sonnet | codex/gpt-5.3-codex-spark"
 
 #: Fixed implicit role aliases (besides ``default``) mapped to the alias each
 #: falls back to when the user has not configured it explicitly.
@@ -95,14 +99,14 @@ _ROLE_ALIAS_FALLBACKS: dict[str, str] = {
     CODER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     EPIC_LANDER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME: f"@{EPIC_LANDER_MODEL_ALIAS_NAME}",
-    PHASE_WORKER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
-    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{CHEAPEST_MODEL_ALIAS_NAME}",
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{PHASE_WORKER_MODEL_ALIAS_NAME}",
+    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{CHEAPER_MODEL_ALIAS_NAME}",
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{SMARTEST_MODEL_ALIAS_NAME}",
     SMARTEST_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
 }
 
 _IMPLICIT_ALIAS_TARGETS: dict[str, str] = {
+    CHEAPER_MODEL_ALIAS_NAME: CHEAPER_MODEL_ALIAS_DEFAULT,
     CHEAPEST_MODEL_ALIAS_NAME: CHEAPEST_MODEL_ALIAS_DEFAULT,
 }
 
@@ -124,9 +128,6 @@ _ROLE_ALIAS_DESCRIPTIONS: dict[str, str] = {
         "Epic land agents selected for plans at or above the configured "
         "phase-count threshold."
     ),
-    PHASE_WORKER_MODEL_ALIAS_NAME: (
-        "Shared fallback for medium bead phase agents and explicit uses."
-    ),
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: (
         "Small bead phase agents that implement directly."
     ),
@@ -139,7 +140,12 @@ _ROLE_ALIAS_DESCRIPTIONS: dict[str, str] = {
     SMARTEST_MODEL_ALIAS_NAME: (
         "Highest-capability model used automatically by large phase agents."
     ),
-    CHEAPEST_MODEL_ALIAS_NAME: ("Cheap load-balanced pool for high-volume agents."),
+    CHEAPER_MODEL_ALIAS_NAME: (
+        "Load-balanced pool used automatically by small phase agents."
+    ),
+    CHEAPEST_MODEL_ALIAS_NAME: (
+        "Lowest-cost load-balanced pool available for explicit use."
+    ),
 }
 
 
@@ -373,7 +379,8 @@ def coder_model_alias_for_provider(provider: str) -> str:
 def role_model_directive_value(role: str) -> str:
     """Return the ``%model`` directive value (``@<role>``) for a role alias.
 
-    For example ``role_model_directive_value("phase_worker") -> "@phase_worker"``.
+    For example ``role_model_directive_value("small_phase_worker") ->
+    "@small_phase_worker"``.
     """
     return f"@{role}"
 
@@ -438,8 +445,8 @@ def _special_model_alias_names() -> set[str]:
 
     This is the centralized alias policy that is the source of truth for which
     alias names always resolve: the fixed role aliases (``default`` plus
-    ``coder``/``epic_lander``/``big_epic_lander``/``phase_worker``/
-    ``<size>_phase_worker``/``smartest``/``cheapest``) and a
+    ``coder``/``epic_lander``/``big_epic_lander``/
+    ``<size>_phase_worker``/``smartest``/``cheaper``/``cheapest``) and a
     ``<provider>_coder`` alias per registered provider. The legacy
     ``worker``/``other`` reserved aliases were retired with the worker lane
     (epic sase-5d phase 4); they only resolve now if a user defines them as
@@ -641,8 +648,16 @@ def _resolve_model_alias_result(
             if not bare:
                 return fail()
 
-            launch_target = launch_overrides.get(bare)
-            if launch_target is None and _is_provider_coder_alias(bare):
+            is_provider_coder = _is_provider_coder_alias(bare)
+            known_alias = (
+                bare in aliases
+                or bare == DEFAULT_MODEL_ALIAS_NAME
+                or bare in _ROLE_ALIAS_FALLBACKS
+                or bare in _IMPLICIT_ALIAS_TARGETS
+                or is_provider_coder
+            )
+            launch_target = launch_overrides.get(bare) if known_alias else None
+            if launch_target is None and is_provider_coder:
                 launch_target = launch_overrides.get(CODER_MODEL_ALIAS_NAME)
             if launch_target is not None:
                 if bare in seen:
@@ -653,7 +668,7 @@ def _resolve_model_alias_result(
                 continue
 
             # A temporary override suspends load balancing for that alias.
-            if bare != DEFAULT_MODEL_ALIAS_NAME:
+            if known_alias and bare != DEFAULT_MODEL_ALIAS_NAME:
                 if overrides is None:
                     overrides = _active_alias_overrides()
                 override = overrides.get(bare)

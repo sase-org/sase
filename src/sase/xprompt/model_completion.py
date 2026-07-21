@@ -12,13 +12,13 @@ from dataclasses import dataclass, field
 
 from sase.llm_provider.config import (
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
+    CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
     CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
-    PHASE_WORKER_MODEL_ALIAS_NAME,
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     coder_model_alias_for_provider,
@@ -47,12 +47,12 @@ _TRAILING_IMPLICIT_ALIASES: tuple[tuple[str, str], ...] = (
         BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
         "threshold-selected large-epic land follow-up model",
     ),
-    (PHASE_WORKER_MODEL_ALIAS_NAME, "shared bead phase fallback model"),
     (SMALL_PHASE_WORKER_MODEL_ALIAS_NAME, "small bead phase agent model"),
     (MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME, "medium bead phase agent model"),
     (LARGE_PHASE_WORKER_MODEL_ALIAS_NAME, "large bead phase agent model"),
     (SMARTEST_MODEL_ALIAS_NAME, "highest-capability model for large phase agents"),
-    (CHEAPEST_MODEL_ALIAS_NAME, "cheap load-balanced high-volume agent pool"),
+    (CHEAPER_MODEL_ALIAS_NAME, "load-balanced small phase agent pool"),
+    (CHEAPEST_MODEL_ALIAS_NAME, "lowest-cost load-balanced explicit-use pool"),
 )
 
 
@@ -80,8 +80,8 @@ def build_model_completion_catalog(
     aliases are kept as match/display hints only; they are not inserted as
     completion values. The implicit role aliases (``@default``, ``@coder``, each
     registered ``@<provider>_coder``, ``@epic_lander``,
-    ``@big_epic_lander``, ``@phase_worker``, the three size-specific phase
-    aliases, ``@smartest``, and ``@cheapest``) and user-configured aliases are
+    ``@big_epic_lander``, the three size-specific phase aliases, ``@smartest``,
+    ``@cheaper``, and ``@cheapest``) and user-configured aliases are
     inserted with their ``@`` form because those values resolve through the
     normal ``%model`` path.
     """

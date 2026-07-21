@@ -107,6 +107,36 @@ def test_facade_rehydrates_normalized_epic_phases() -> None:
     assert result.plan.phases[1].description is None
 
 
+def test_facade_accepts_explicit_models_for_every_phase_size() -> None:
+    explicit = VALID_EPIC.replace(
+        "    size: medium\n",
+        "    size: small\n    model: claude/sonnet\n",
+    ).replace(
+        "    size: large\n",
+        '    size: medium\n    model: "@coder"\n'
+        "  - id: verify\n"
+        "    title: Verify rollout\n"
+        "    depends_on: [cli]\n"
+        "    size: large\n"
+        "    model: codex/gpt-5.6-sol\n",
+    )
+
+    result = validate_plan(explicit, "epic")
+
+    assert result.ok
+    assert result.plan is not None
+    assert [phase.size for phase in result.plan.phases] == [
+        "small",
+        "medium",
+        "large",
+    ]
+    assert [phase.model for phase in result.plan.phases] == [
+        "claude/sonnet",
+        "@coder",
+        "codex/gpt-5.6-sol",
+    ]
+
+
 def test_file_facade_supports_authoring_and_legacy_launch_modes(
     tmp_path: Path,
 ) -> None:

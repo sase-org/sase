@@ -1030,7 +1030,7 @@ Directives use the same argument syntax as xprompt references:
 %m("agy/Gemini 3.5 Flash (High)") # Quoted provider/model value with spaces/parentheses
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
 %model(opus, coder=codex/gpt-5.6-sol) # This agent uses opus; its coder follow-up uses Codex
-%model(coder=@phase_worker)  # Leave this agent on the default; route @coder through another alias
+%model(coder=@medium_phase_worker) # Leave this agent on the default; route @coder through another alias
 %effort:xhigh                # Set the reasoning-effort level for this prompt
 %e:xhigh                     # Same, using alias
 %effort:%{medium | high | xhigh} # Fan out directive values
@@ -1124,18 +1124,17 @@ value is a canonical model name or configured alias; provider short aliases are 
 The parenthesized `%model` form accepts keyword arguments that temporarily replace model aliases for one launch lineage:
 
 ```text
-%model(opus, coder=codex/gpt-5.6-sol, phase_worker=claude/sonnet)
-%model(coder=@phase_worker)
+%model(opus, coder=codex/gpt-5.6-sol, medium_phase_worker=claude/sonnet)
+%model(coder=@medium_phase_worker)
 %model(large_phase_worker=@smartest)
 ```
 
 The optional positional value selects the current agent's model. Each `alias=value` entry changes how that bare alias
 resolves. Without a positional value, the current agent still starts from the normal default, but that resolution uses
-the map: `default=...` changes it directly, while `phase_worker=...` flows through unconfigured `medium_phase_worker`
-and explicit `@phase_worker` uses. Small and large phases default through `@cheapest` and `@smartest`, respectively;
-configure their size-specific keys to `@phase_worker` when one shared override should govern all phase sizes. Keys must
-be known builtin or custom alias names without `@`; values may be concrete models, `provider/model` targets, quoted
-targets, xprompt references, or another alias with `@`. Per-alias reasoning-effort suffixes are not supported.
+the map: `default=...` changes it directly, while a size-specific phase keyword affects only that phase size. Small,
+medium, and large phases default through `@cheaper`, `@default`, and `@smartest`, respectively. Keys must be known
+builtin or custom alias names without `@`; values may be concrete models, `provider/model` targets, quoted targets,
+xprompt references, or another alias with `@`. Per-alias reasoning-effort suffixes are not supported.
 
 "Launch-scoped" describes persistence, not every subprocess the agent starts. SASE records the map in agent metadata and
 carries it through its plan/coder follow-up path. An explicit `%id(suffix, family=parent)` attachment inherits the
@@ -1148,8 +1147,8 @@ value. A generic `coder` entry also controls a provider-specific alias such as `
 that provider-specific key. The `default` key wins over the machine-wide default override for this lineage.
 
 The launch preview shows the resulting map before approval. Invalid alias names, missing values, duplicate keys,
-self-references, and ambiguous bare alias values fail with a directive error. Use `@phase_worker`, not `phase_worker`,
-when the value should reference another alias.
+self-references, and ambiguous bare alias values fail with a directive error. Use `@medium_phase_worker`, not
+`medium_phase_worker`, when the value should reference another alias.
 
 A `%model` value may carry a trailing `@<effort>` reasoning-effort suffix (e.g. `%model:opus@xhigh`); the effort is
 split off the clean model and behaves exactly like a standalone `%effort` directive. See the

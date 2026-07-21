@@ -436,10 +436,10 @@ llm_provider:
   # Allowed: none, minimal, low, medium, high, xhigh, max.
   default_effort: ""
   # Model aliases for no-%model launches, delegated work, and reusable prompts.
-  # Builtin role overrides live under builtin. Every role falls back through
-  # another role alias (ultimately @default), and @default falls back to the
-  # provider's requested-tier default, so configuring `default` alone drives
-  # every role. Values may be a bare known model (opus), an explicit
+  # Builtin role overrides live under builtin. Most roles fall back through
+  # another role alias (ultimately @default), while `cheaper` and `cheapest`
+  # own independent load-balanced pools. Values may be a bare known model
+  # (opus), an explicit
   # provider/model (codex/gpt-5.6-sol), a nested provider-local path
   # (opencode/anthropic/claude-sonnet-4-5), or an @<alias> reference.
   # User-invented aliases live under custom and must include a description for
@@ -454,10 +454,10 @@ llm_provider:
   #     codex_coder: claude/opus    # coder follow-ups from Codex-authored plans
   #     epic_lander: "@default"     # epic land agents
   #     big_epic_lander: "@epic_lander" # threshold-selected epic land agents
-  #     phase_worker: "@default"    # shared fallback for medium/explicit phases
-  #     cheapest: "claude/opus@medium | codex/gpt-5.5" # high-volume pool
-  #     small_phase_worker: "@cheapest"  # small bead phase agents
-  #     medium_phase_worker: "@phase_worker" # medium bead phase agents
+  #     cheaper: "claude/opus@medium | codex/gpt-5.5" # small-phase pool
+  #     cheapest: "claude/sonnet | codex/gpt-5.3-codex-spark" # explicit-use pool
+  #     small_phase_worker: "@cheaper"  # small bead phase agents
+  #     medium_phase_worker: "@default" # medium bead phase agents
   #     large_phase_worker: "@smartest"  # large bead phase agents
   #     smartest: "@default"        # highest-capability role
   #   custom:
@@ -469,7 +469,7 @@ llm_provider:
   #     coders:
   #       description: "Coder defaults and provider-specific follow-ups."
   #     phase_worker:
-  #       description: "Shared and size-specific phase-agent roles."
+  #       description: "Size-specific phase-agent roles."
   #     writing:
   #       description: "Writing and editing roles."
   retry:

@@ -50,7 +50,6 @@ def make_alias_context(
             ),
             make_alias_view("epic_lander", "role", provider="claude", model="opus"),
             make_alias_view("big_epic_lander", "role", provider="claude", model="opus"),
-            make_alias_view("phase_worker", "role", provider="claude", model="sonnet"),
             make_alias_view(
                 "small_phase_worker", "role", provider="claude", model="sonnet"
             ),
@@ -61,6 +60,8 @@ def make_alias_context(
                 "large_phase_worker", "role", provider="claude", model="sonnet"
             ),
             make_alias_view("smartest", "role", provider="claude", model="opus"),
+            make_alias_view("cheaper", "role", provider="claude", model="opus"),
+            make_alias_view("cheapest", "role", provider="claude", model="sonnet"),
         ]
     return AliasSelectionContext(
         views=tuple(views),

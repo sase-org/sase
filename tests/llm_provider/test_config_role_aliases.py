@@ -22,12 +22,12 @@ def test_role_alias_helpers() -> None:
     assert default_model_alias_name() == "default"
     assert coder_model_alias_for_provider("codex") == "codex_coder"
     assert coder_model_alias_for_provider(" claude ") == "claude_coder"
-    assert role_model_directive_value("phase_worker") == "@phase_worker"
+    assert role_model_directive_value("small_phase_worker") == "@small_phase_worker"
     assert role_model_directive_value("default") == "@default"
     assert implicit_model_alias_fallback("big_epic_lander") == "epic_lander"
     assert implicit_model_alias_fallback("epic_lander") == "default"
-    assert implicit_model_alias_fallback("small_phase_worker") == "cheapest"
-    assert implicit_model_alias_fallback("medium_phase_worker") == "phase_worker"
+    assert implicit_model_alias_fallback("small_phase_worker") == "cheaper"
+    assert implicit_model_alias_fallback("medium_phase_worker") == "default"
     assert implicit_model_alias_fallback("large_phase_worker") == "smartest"
     assert implicit_model_alias_fallback("smartest") == "default"
     assert implicit_model_alias_fallback("default") is None
@@ -157,14 +157,14 @@ def test_epic_execution_role_aliases_chain_to_default(
     for role in (
         "epic_lander",
         "big_epic_lander",
-        "phase_worker",
         "medium_phase_worker",
         "large_phase_worker",
         "smartest",
     ):
         assert resolve_model_alias(role) == "codex/gpt-5.6-sol"
     assert resolve_model_alias("small_phase_worker") == "claude/opus"
-    assert resolve_model_alias("cheapest") == "claude/opus"
+    assert resolve_model_alias("cheaper") == "claude/opus"
+    assert resolve_model_alias("cheapest") == "claude/sonnet"
 
 
 def test_configured_smartest_alias_shadows_implicit_default(
@@ -186,7 +186,7 @@ def test_configured_smartest_alias_shadows_implicit_default(
     assert resolve_model_alias("smartest") == "codex/gpt-5.6-sol"
 
 
-def test_only_medium_phase_alias_inherits_configured_phase_worker(
+def test_stale_phase_worker_builtin_does_not_control_medium_phase(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -203,11 +203,11 @@ def test_only_medium_phase_alias_inherits_configured_phase_worker(
     )
 
     assert resolve_model_alias("small_phase_worker") == "claude/opus"
-    assert resolve_model_alias("medium_phase_worker") == "claude/sonnet"
+    assert resolve_model_alias("medium_phase_worker") == "codex/gpt-5.6-sol"
     assert resolve_model_alias("large_phase_worker") == "codex/gpt-5.6-sol"
 
 
-def test_configured_phase_size_alias_shadows_shared_fallback_only_for_that_size(
+def test_configured_phase_size_alias_shadows_default_only_for_that_size(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -216,7 +216,7 @@ def test_configured_phase_size_alias_shadows_shared_fallback_only_for_that_size(
             "provider": "claude",
             "model_aliases": {
                 "builtin": {
-                    "phase_worker": "claude/sonnet",
+                    "medium_phase_worker": "claude/sonnet",
                     "large_phase_worker": "codex/o3",
                 }
             },
@@ -288,7 +288,7 @@ def test_big_epic_lander_honors_launch_and_temporary_overrides(
     )
 
 
-def test_configured_role_alias_shadows_implicit_default(
+def test_custom_phase_worker_alias_is_available_for_explicit_use_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A user-configured role alias wins over the implicit ``@default`` fallback."""
@@ -297,13 +297,17 @@ def test_configured_role_alias_shadows_implicit_default(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {
-                    "default": "codex/gpt-5.6-sol",
-                    "phase_worker": "claude/sonnet",
-                }
+                "builtin": {"default": "codex/gpt-5.6-sol"},
+                "custom": {
+                    "phase_worker": {
+                        "model": "claude/sonnet",
+                        "description": "Explicit custom phase role.",
+                    }
+                },
             },
         },
     )
 
     assert resolve_model_alias("phase_worker") == "claude/sonnet"
+    assert resolve_model_alias("medium_phase_worker") == "codex/gpt-5.6-sol"
     assert resolve_model_alias("coder") == "codex/gpt-5.6-sol"  # still @default

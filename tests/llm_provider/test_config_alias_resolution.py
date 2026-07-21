@@ -134,7 +134,7 @@ def test_unknown_at_reference_resolves_to_bare_token(
     assert resolve_model_alias("@nope") == "nope"
 
 
-def test_worker_and_other_no_longer_special_aliases(
+def test_worker_other_and_phase_worker_are_not_special_aliases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """``worker``/``other`` are no longer implicit aliases after phase 4.
@@ -151,23 +151,24 @@ def test_worker_and_other_no_longer_special_aliases(
     names = _special_model_alias_names()
     assert "worker" not in names
     assert "other" not in names
+    assert "phase_worker" not in names
     # The role aliases are the implicit policy now.
     assert {
         "default",
         "coder",
         "epic_lander",
         "big_epic_lander",
-        "phase_worker",
         "small_phase_worker",
         "medium_phase_worker",
         "large_phase_worker",
         "smartest",
+        "cheaper",
         "cheapest",
     } <= names
     assert "epic_creator" not in names
 
 
-def test_unconfigured_worker_and_other_resolve_to_bare_input(
+def test_unconfigured_retired_aliases_resolve_to_bare_input(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Without explicit config, ``worker``/``other`` are plain unknown tokens."""
@@ -175,6 +176,7 @@ def test_unconfigured_worker_and_other_resolve_to_bare_input(
 
     assert resolve_model_alias("worker") == "worker"
     assert resolve_model_alias("other") == "other"
+    assert resolve_model_alias("phase_worker") == "phase_worker"
 
 
 def test_launch_alias_override_wins_and_follows_alias_chains(
@@ -185,10 +187,13 @@ def test_launch_alias_override_wins_and_follows_alias_chains(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {
-                    "coder": "claude/opus",
-                    "phase_worker": "codex/o3",
-                }
+                "builtin": {"coder": "claude/opus"},
+                "custom": {
+                    "phase_worker": {
+                        "model": "codex/o3",
+                        "description": "Explicit custom phase role.",
+                    }
+                },
             },
         },
     )
@@ -198,24 +203,25 @@ def test_launch_alias_override_wins_and_follows_alias_chains(
     assert resolve_model_provider("@coder", overrides) == ("claude", "sonnet")
 
 
-def test_launch_phase_worker_override_flows_only_through_medium_size_alias(
+def test_launch_phase_worker_override_has_no_builtin_effect(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
     overrides = {"phase_worker": "codex/o3"}
     assert resolve_model_alias("@small_phase_worker", overrides) == "claude/opus"
-    assert resolve_model_alias("@medium_phase_worker", overrides) == "codex/o3"
+    assert resolve_model_alias("@medium_phase_worker", overrides) == "claude/opus"
     assert resolve_model_alias("@large_phase_worker", overrides) == "claude/opus"
+    assert resolve_model_alias("@phase_worker", overrides) == "phase_worker"
 
 
-def test_launch_size_phase_override_shadows_shared_override_only_for_that_size(
+def test_launch_size_phase_override_is_independent_for_that_size(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
     overrides = {
-        "phase_worker": "claude/sonnet",
+        "medium_phase_worker": "claude/sonnet",
         "large_phase_worker": "codex/o3",
     }
     assert resolve_model_alias("@small_phase_worker", overrides) == "claude/opus"
@@ -283,7 +289,7 @@ def test_launch_alias_override_cycle_falls_back_to_original(
     assert (
         resolve_model_alias(
             "@coder",
-            {"coder": "@phase_worker", "phase_worker": "@coder"},
+            {"coder": "@medium_phase_worker", "medium_phase_worker": "@coder"},
         )
         == "@coder"
     )

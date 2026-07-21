@@ -29,15 +29,17 @@ phases:
     depends_on: []
     description: Implement the shared core.
     size: small
+    model: claude/sonnet
   - id: cli
     title: Add the CLI
     depends_on: [core]
     size: medium
-    model: codex/gpt-5.6-sol
+    model: "@coder"
   - id: smoke
     title: Exercise the rollout
     depends_on: [core, cli]
     size: large
+    model: codex/gpt-5.6-sol
 ---
 # Plan
 
@@ -97,8 +99,11 @@ def test_create_and_launch_maps_frontmatter_in_order(
         assert result.phases[1].description == (
             "Phase `cli` in approved epic plan `sdd/plans/202607/rollout.md`."
         )
-        assert result.phases[1].model == "codex/gpt-5.6-sol"
-        assert result.phases[2].model == ""
+        assert [phase.model for phase in result.phases] == [
+            "claude/sonnet",
+            "@coder",
+            "codex/gpt-5.6-sol",
+        ]
         assert [phase.size for phase in result.phases] == [
             PhaseSize.SMALL,
             PhaseSize.MEDIUM,

@@ -1311,7 +1311,7 @@
           "properties": {
             "builtin": {
               "type": "object",
-              "description": "Overrides for SASE's builtin model aliases: default, coder, <provider>_coder, epic_lander, big_epic_lander, phase_worker, small_phase_worker, medium_phase_worker, large_phase_worker, smartest, and cheapest. Legacy epic_creator entries are accepted but no longer used by SASE. Values are bare known models, explicit provider/model targets, nested provider-local model paths, or '@<alias>' references. Pipe-separated values form load-balanced pools; every member uses the same grammar and may carry a trailing @<effort>.",
+              "description": "Overrides for SASE's builtin model aliases: default, coder, <provider>_coder, epic_lander, big_epic_lander, small_phase_worker, medium_phase_worker, large_phase_worker, smartest, cheaper, and cheapest. Legacy epic_creator entries are accepted but no longer used by SASE. Values are bare known models, explicit provider/model targets, nested provider-local model paths, or '@<alias>' references. Pipe-separated values form load-balanced pools; every member uses the same grammar and may carry a trailing @<effort>.",
               "additionalProperties": {
                 "type": "string"
               }

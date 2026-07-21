@@ -24,6 +24,7 @@ from typing import Literal, cast
 
 from .config import (
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
+    CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
     CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
@@ -31,7 +32,6 @@ from .config import (
     EPIC_LANDER_MODEL_ALIAS_NAME,
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
-    PHASE_WORKER_MODEL_ALIAS_NAME,
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     ModelAliasPoolMember,
@@ -57,11 +57,11 @@ _ROLE_ALIAS_ORDER: tuple[str, ...] = (
     EPIC_CREATOR_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-    PHASE_WORKER_MODEL_ALIAS_NAME,
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
+    CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
 )
 
@@ -73,13 +73,11 @@ CODERS_BUCKET_DESCRIPTION = (
     "Generic coder default and planner-provider-specific coder follow-up aliases."
 )
 
-#: Built-in Models-panel bucket for the shared and size-specific phase roles.
-PHASE_WORKER_BUCKET_NAME = PHASE_WORKER_MODEL_ALIAS_NAME
+#: Built-in Models-panel bucket for the three size-specific phase roles.
+PHASE_WORKER_BUCKET_NAME = "phase_worker"
 
 #: Description used when config does not override the phase-worker bucket.
-PHASE_WORKER_BUCKET_DESCRIPTION = (
-    "Shared phase-worker fallback and size-specific phase-agent aliases."
-)
+PHASE_WORKER_BUCKET_DESCRIPTION = "Size-specific phase-agent aliases."
 
 #: Built-in bucket names accepted by doctor even without custom members.
 BUILTIN_MODEL_ALIAS_BUCKET_NAMES = frozenset(
@@ -106,7 +104,6 @@ _BUILTIN_BUCKET_SPECS: tuple[_BuiltinBucketSpec, ...] = (
         name=PHASE_WORKER_BUCKET_NAME,
         description=PHASE_WORKER_BUCKET_DESCRIPTION,
         fixed_members=(
-            PHASE_WORKER_MODEL_ALIAS_NAME,
             SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
             MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
             LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,

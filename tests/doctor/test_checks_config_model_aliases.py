@@ -54,7 +54,8 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
     assert "model_aliases.builtin.coder" in by_key
     assert "retired" in by_key["model_aliases.builtin.coder"]
     assert "model_aliases.builtin.phase_worker" in by_key
-    assert "unknown alias '@nope'" in by_key["model_aliases.builtin.phase_worker"]
+    assert "medium_phase_worker" in by_key["model_aliases.builtin.phase_worker"]
+    assert "remove it" in by_key["model_aliases.builtin.phase_worker"]
     assert "model_aliases.builtin.epic_creator" not in by_key
     assert "model_aliases.builtin.epic_lander" not in by_key
 
@@ -166,6 +167,29 @@ def test_model_aliases_ok_when_config_is_clean(
     assert not check.data["problems"]
 
 
+def test_model_aliases_allows_custom_phase_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "custom": {
+                    "phase_worker": {
+                        "model": "claude/sonnet",
+                        "description": "Explicit custom phase role.",
+                    }
+                }
+            }
+        },
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "OK"
+    assert not check.data["problems"]
+
+
 def test_model_aliases_recognizes_big_epic_lander_as_builtin(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -234,7 +258,7 @@ def test_model_aliases_warns_on_malformed_and_nested_pools(
             "model_aliases": {
                 "builtin": {
                     "cheapest": "claude/opus || codex/gpt-5.5",
-                    "phase_worker": "@nested | claude/sonnet",
+                    "medium_phase_worker": "@nested | claude/sonnet",
                 },
                 "custom": {
                     "nested": {

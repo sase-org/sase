@@ -60,7 +60,7 @@ def check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
                 }
             )
         for token in scan.tokens:
-            if token in REMOVED_IMPLICIT_ALIAS_GUIDANCE:
+            if token not in aliases and token in REMOVED_IMPLICIT_ALIAS_GUIDANCE:
                 guidance = REMOVED_IMPLICIT_ALIAS_GUIDANCE[token]
                 problems.append(
                     {

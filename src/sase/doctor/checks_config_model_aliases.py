@@ -24,8 +24,8 @@ def check_config_model_aliases() -> DiagnosticCheck:
     - names present in both nested maps;
     - custom alias objects missing a usable ``model`` or ``description``;
     - bucket metadata entries that have no member aliases;
-    - ``model_aliases.builtin`` / ``model_aliases.custom`` values that reference
-      a retired implicit ``@worker`` / ``@other`` alias;
+    - stale ``model_aliases.builtin.phase_worker`` entries and alias values that
+      reference a retired implicit alias;
     - merged alias values that reference an ``@<alias>`` name that resolves to
       nothing, which would silently fall through at launch.
     """
@@ -175,7 +175,20 @@ def check_config_model_aliases() -> DiagnosticCheck:
         )
 
     for alias in sorted(builtin_aliases):
-        if model_alias_kind(alias) == "user":
+        if alias == "phase_worker":
+            problems.append(
+                {
+                    "key": "model_aliases.builtin.phase_worker",
+                    "message": (
+                        "model_aliases.builtin.phase_worker is no longer a "
+                        "builtin alias override; move its target to "
+                        "llm_provider.model_aliases.builtin.medium_phase_worker "
+                        "to keep controlling medium phases, or remove it to "
+                        "accept the @default fallback"
+                    ),
+                }
+            )
+        elif model_alias_kind(alias) == "user":
             problems.append(
                 {
                     "key": f"model_aliases.builtin.{alias}",
@@ -250,6 +263,11 @@ def check_config_model_aliases() -> DiagnosticCheck:
             )
 
     for alias, target in sorted(get_model_aliases().items()):
+        if alias == "phase_worker" and alias in builtin_aliases:
+            # The focused migration warning above is the actionable truth for
+            # this stale key; validating its retired target would only add
+            # noisy or contradictory follow-on advice.
+            continue
         target_key = (
             f"model_aliases.custom.{alias}.model"
             if alias in custom_aliases
@@ -276,7 +294,10 @@ def check_config_model_aliases() -> DiagnosticCheck:
         if not target.startswith("@"):
             continue
         referenced = strip_model_alias_prefix(target).strip()
-        if referenced in REMOVED_IMPLICIT_ALIAS_GUIDANCE:
+        if (
+            referenced not in known_aliases
+            and referenced in REMOVED_IMPLICIT_ALIAS_GUIDANCE
+        ):
             guidance = REMOVED_IMPLICIT_ALIAS_GUIDANCE[referenced]
             problems.append(
                 {

@@ -148,17 +148,18 @@ def test_model_alias_description_builtin_and_custom(
         "Epic land agents selected for plans at or above the configured "
         "phase-count threshold."
     )
-    assert model_alias_description("phase_worker") == (
-        "Shared fallback for medium bead phase agents and explicit uses."
-    )
+    assert model_alias_description("phase_worker") is None
     assert model_alias_description("medium_phase_worker") == (
         "Medium bead phase agents that plan before implementation."
     )
     assert model_alias_description("smartest") == (
         "Highest-capability model used automatically by large phase agents."
     )
+    assert model_alias_description("cheaper") == (
+        "Load-balanced pool used automatically by small phase agents."
+    )
     assert model_alias_description("cheapest") == (
-        "Cheap load-balanced pool for high-volume agents."
+        "Lowest-cost load-balanced pool available for explicit use."
     )
     assert model_alias_description("claude_coder") == (
         "Coder follow-up agents for plans authored by claude."
@@ -189,11 +190,11 @@ def test_model_alias_names_include_configured_and_special(
         "coder",
         "epic_lander",
         "big_epic_lander",
-        "phase_worker",
         "small_phase_worker",
         "medium_phase_worker",
         "large_phase_worker",
         "smartest",
+        "cheaper",
         "cheapest",
         # per-provider coder aliases
         "claude_coder",

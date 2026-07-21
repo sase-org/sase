@@ -157,18 +157,21 @@ def test_work_dry_run_relaunches_from_stored_phase_sizes(
             IssueType.PHASE,
             parent_id=epic.id,
             size=PhaseSize.SMALL,
+            model="claude/sonnet",
         )
         medium = project.create(
             "Medium",
             IssueType.PHASE,
             parent_id=epic.id,
             size=PhaseSize.MEDIUM,
+            model="@coder",
         )
         large = project.create(
             "Large",
             IssueType.PHASE,
             parent_id=epic.id,
             size=PhaseSize.LARGE,
+            model="codex/gpt-5.6-sol",
         )
 
     bead_cli.handle_bead_work(make_args(epic.id, dry_run=True, yes=True))
@@ -183,13 +186,13 @@ def test_work_dry_run_relaunches_from_stored_phase_sizes(
         )
         for bead in (small, medium, large)
     }
-    assert "%model:@small_phase_worker" in by_bead[small.id]
+    assert "%model:claude/sonnet" in by_bead[small.id]
     assert "#plan" not in by_bead[small.id].splitlines()
-    assert "%model:@medium_phase_worker" in by_bead[medium.id]
+    assert "%model:@coder" in by_bead[medium.id]
     assert (
         by_bead[medium.id].rstrip().endswith(f"#bd/work_phase_bead:{medium.id}\n#plan")
     )
-    assert "%model:@large_phase_worker" in by_bead[large.id]
+    assert "%model:codex/gpt-5.6-sol" in by_bead[large.id]
     assert by_bead[large.id].rstrip().endswith(f"#bd/work_phase_bead:{large.id}\n#plan")
 
 

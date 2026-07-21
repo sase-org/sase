@@ -46,9 +46,9 @@ def test_model_directive_paren_arg() -> None:
         ("%m(opus, coder=sonnet)", "opus", {"coder": "sonnet"}),
         ("%m(coder=sonnet)", None, {"coder": "sonnet"}),
         (
-            "%m(opus@high, coder=@phase_worker)",
+            "%m(opus@high, coder=@medium_phase_worker)",
             "opus",
-            {"coder": "@phase_worker"},
+            {"coder": "@medium_phase_worker"},
         ),
         (
             '%model(claude/models/opus, coder="provider/model with spaces")',
@@ -77,7 +77,10 @@ def test_model_directive_alias_overrides_are_parsed(
     [
         ("%m(opus, foo=sonnet)", "Unknown model alias 'foo'"),
         ("%m(opus, @coder=sonnet)", "keys are bare"),
-        ("%m(opus, coder=phase_worker)", "did you mean @phase_worker"),
+        (
+            "%m(opus, coder=medium_phase_worker)",
+            "did you mean @medium_phase_worker",
+        ),
         ("%m(opus, coder=@missing)", "is not a known model alias"),
         ("%m(opus, coder=sonnet@high)", "cannot set reasoning effort"),
         ("%m(opus, coder=)", "requires a model value"),
@@ -218,16 +221,17 @@ def test_model_bare_alias_raises_with_migration_hint(
 
 
 def test_model_role_alias_requires_at_prefix() -> None:
-    # @phase_worker is a built-in role alias accepted with the @ prefix.
-    _, directives = extract_prompt_directives("%m:@phase_worker\nReview")
-    assert directives.model == "phase_worker"
+    _, directives = extract_prompt_directives("%m:@medium_phase_worker\nReview")
+    assert directives.model == "medium_phase_worker"
 
-    # The bare form is rejected with a migration hint pointing at @phase_worker.
     with pytest.raises(
         DirectiveError,
-        match=r"Model aliases must be prefixed with @ .* did you mean @phase_worker",
+        match=(
+            r"Model aliases must be prefixed with @ .* "
+            r"did you mean @medium_phase_worker"
+        ),
     ):
-        extract_prompt_directives("%m:phase_worker\nReview")
+        extract_prompt_directives("%m:medium_phase_worker\nReview")
 
 
 def test_model_retired_worker_alias_is_not_known() -> None:
@@ -237,6 +241,35 @@ def test_model_retired_worker_alias_is_not_known() -> None:
         match=r"'@worker' is not a known model alias",
     ):
         extract_prompt_directives("%m:@worker\nReview")
+
+
+def test_model_retired_phase_worker_alias_is_not_known() -> None:
+    with pytest.raises(
+        DirectiveError,
+        match=r"'@phase_worker' is not a known model alias",
+    ):
+        extract_prompt_directives("%m:@phase_worker\nReview")
+
+
+def test_model_custom_phase_worker_alias_is_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "custom": {
+                    "phase_worker": {
+                        "model": "claude/sonnet",
+                        "description": "Explicit custom phase role.",
+                    }
+                }
+            }
+        },
+    )
+
+    _, directives = extract_prompt_directives("%m:@phase_worker\nReview")
+    assert directives.model == "phase_worker"
 
 
 @pytest.mark.parametrize("model", ["opus", "claude/opus"])

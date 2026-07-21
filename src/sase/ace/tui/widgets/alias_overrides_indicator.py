@@ -3,7 +3,7 @@
 A concise, uniform sidecar to :class:`LLMOverrideIndicator`. Where that
 widget renders the gold ``default`` override pill (the no-``%model`` launch
 default), this one surfaces temporary overrides on *every other* alias
-(``coder`` / ``phase_worker`` / ``<provider>_coder`` / user aliases) in a single
+(``coder`` / ``<size>_phase_worker`` / ``<provider>_coder`` / user aliases) in a single
 violet pill, visually parallel to but clearly distinct from the gold default
 pill. The Models panel (leader ``,m``) remains the authoritative detail view;
 this pill is intentionally terse:

@@ -37,7 +37,7 @@ _DIFF = (
     "     builtin:\n"
     '-      coder: "@default"\n'
     "+      coder: claude/opus\n"
-    "       phase_worker: codex/o3\n"
+    "       medium_phase_worker: codex/o3\n"
 )
 
 

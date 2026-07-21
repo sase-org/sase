@@ -57,7 +57,9 @@ async def test_panel_x_clears_active_override(monkeypatch) -> None:
         [
             make_alias_view("default", "default"),
             make_alias_view("coder", "role"),
-            make_alias_view("phase_worker", "role", override=make_override()),
+            make_alias_view("small_phase_worker", "role", override=make_override()),
+            make_alias_view("medium_phase_worker", "role"),
+            make_alias_view("large_phase_worker", "role"),
         ],
     )
     clear_mock = MagicMock(return_value=True)
@@ -77,7 +79,7 @@ async def test_panel_x_clears_active_override(monkeypatch) -> None:
         await pilot.press("escape")
         await pilot.pause()
 
-    clear_mock.assert_called_once_with("phase_worker")
+    clear_mock.assert_called_once_with("small_phase_worker")
     assert isinstance(result, ModelsPanelResult)
     assert result.changed is True
 
@@ -323,21 +325,20 @@ async def test_panel_phase_worker_bucket_navigation_and_member_order(
         await pilot.press("j", "j")
         assert panel._highlighted_row_id() == "bucket:phase_worker"
         description = panel.query_one("#models-panel-description", Static).content.plain
-        assert "Shared phase-worker fallback" in description
-        assert "claude/sonnet ×3" in description
+        assert "Size-specific phase-agent aliases" in description
+        assert "claude/sonnet ×2" in description
 
         await pilot.press("l")
         await pilot.pause()
         assert panel._active_bucket == "phase_worker"
         assert list(panel._row_by_id) == [
-            "phase_worker",
             "small_phase_worker",
             "medium_phase_worker",
             "large_phase_worker",
         ]
-        assert panel._highlighted_row_id() == "phase_worker"
+        assert panel._highlighted_row_id() == "small_phase_worker"
 
-        await pilot.press("j", "j")
+        await pilot.press("j")
         assert panel._highlighted_row_id() == "medium_phase_worker"
 
         await pilot.press("h")

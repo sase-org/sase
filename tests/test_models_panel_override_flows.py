@@ -133,7 +133,7 @@ async def test_set_flow_threads_model_and_duration(monkeypatch) -> None:
 async def test_alias_override_flows_raw_token_through_write_time_resolution(
     monkeypatch,
 ) -> None:
-    target = make_alias_view("phase_worker", "role")
+    target = make_alias_view("medium_phase_worker", "role")
     coder = make_alias_view("coder", "role", provider="codex", model="o3")
     patch_alias_views(monkeypatch, [target, coder])
     fake = TemporaryLLMOverride(
@@ -162,7 +162,9 @@ async def test_alias_override_flows_raw_token_through_write_time_resolution(
         panel._on_duration_picked(RelativeOverrideDuration(3600.0))
         await pilot.pause()
 
-    set_mock.assert_called_once_with("phase_worker", "@coder", 3600.0, source="ace")
+    set_mock.assert_called_once_with(
+        "medium_phase_worker", "@coder", 3600.0, source="ace"
+    )
     assert fake.raw_model == "@coder"
 
 

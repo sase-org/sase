@@ -53,7 +53,7 @@ def test_override_beats_configured_alias(monkeypatch: pytest.MonkeyPatch) -> Non
     assert resolve_model_alias("coder") == "codex/o3"
 
 
-def test_override_on_phase_worker_takes_effect(
+def test_stale_override_on_phase_worker_has_no_builtin_effect(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -65,9 +65,9 @@ def test_override_on_phase_worker_takes_effect(
     )
 
     set_alias_override("phase_worker", "codex/o3", None, source="panel")
-    assert resolve_model_provider("phase_worker") == ("codex", "o3")
+    assert resolve_model_alias("@phase_worker") == "phase_worker"
     assert resolve_model_provider("small_phase_worker") == ("claude", "opus")
-    assert resolve_model_provider("medium_phase_worker") == ("codex", "o3")
+    assert resolve_model_provider("medium_phase_worker") == ("claude", "opus")
     assert resolve_model_provider("large_phase_worker") == ("claude", "opus")
 
 
@@ -78,7 +78,7 @@ def test_size_specific_phase_override_is_independent(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"phase_worker": "claude/sonnet"}},
+            "model_aliases": {"builtin": {"medium_phase_worker": "claude/sonnet"}},
         },
     )
 

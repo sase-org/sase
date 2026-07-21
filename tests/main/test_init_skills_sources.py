@@ -102,14 +102,11 @@ from tests.main.init_skills_handler_helpers import make_args
                 "justifies its own plan file",
                 "large enough to merit an",
                 "epic tier. Use `small` otherwise",
-                "alias matching its size: `@small_phase_worker`",
-                "`@medium_phase_worker`, or",
-                "`@large_phase_worker`",
-                "Small phases fall back to the load-balanced `@cheapest` pool",
-                "medium phases fall back to the",
-                "large phases fall back to `@smartest`",
-                "explicit phase model always wins over size-derived routing",
-                "Overriding bare `phase_worker` changes medium",
+                "Small phase agents implement directly and do not create plans",
+                "phase agents create plans before implementation",
+                "phase size also selects the model capability",
+                "explicit phase model is allowed for every size",
+                "always takes precedence over the size-derived default",
                 "sase plan validate sase_plan_<name>.md --tier tale",
                 "sase plan validate sase_plan_<name>.md --tier epic",
                 "sase plan propose sase_plan_<name>.md",
@@ -233,6 +230,23 @@ def test_gate_skill_sources_do_not_reference_v1_contract() -> None:
             "selected_extra_ids",
         ):
             assert stale_phrase not in body
+
+
+def test_sase_plan_skill_does_not_expose_internal_model_aliases() -> None:
+    """Planning guidance describes behavior without exposing routing internals."""
+    src = get_sase_package_xprompts_dir() / "skills" / "sase_plan.md"
+    body = src.read_text(encoding="utf-8")
+
+    for internal_name in (
+        "phase_worker",
+        "cheaper",
+        "cheapest",
+        "smartest",
+        "small_phase_worker",
+        "medium_phase_worker",
+        "large_phase_worker",
+    ):
+        assert internal_name not in body
 
 
 def test_sase_repo_skill_description_covers_web_fetches() -> None:

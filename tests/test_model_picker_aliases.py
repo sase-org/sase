@@ -23,30 +23,31 @@ from tests._models_panel_helpers import make_alias_view
 
 
 def test_alias_context_builds_ordered_styled_rows_before_models() -> None:
-    context = make_alias_context(target="phase_worker")
+    context = make_alias_context(target="medium_phase_worker")
     rows = build_model_rows(
         include_default_option=False,
         alias_context=context,
     )
 
-    assert [row.option_id for row in rows[:10]] == [
+    assert [row.option_id for row in rows[:11]] == [
         "__header_aliases__",
         "@default",
         "@coder",
         "@epic_lander",
         "@big_epic_lander",
-        "@phase_worker",
         "@small_phase_worker",
         "@medium_phase_worker",
         "@large_phase_worker",
         "@smartest",
+        "@cheaper",
+        "@cheapest",
     ]
     assert next(row for row in rows if row.kind == "provider").option_id.startswith(
         "__header_"
     )
     alias_options = [
         option
-        for option in rows_to_options(rows[:10])
+        for option in rows_to_options(rows[:11])
         if option is not None and str(option.id).startswith("@")
     ]
     assert all(isinstance(option.prompt, Text) for option in alias_options)
@@ -63,7 +64,6 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
         make_alias_view("codex_coder", "provider_coder"),
         make_alias_view("epic_lander", "role"),
         make_alias_view("big_epic_lander", "role"),
-        make_alias_view("phase_worker", "role"),
         make_alias_view("small_phase_worker", "role"),
         make_alias_view("medium_phase_worker", "role"),
         make_alias_view("large_phase_worker", "role"),
@@ -94,12 +94,12 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
     assert _alias_disabled_reason(default_context, "big_epic_lander") == (
         "would create a cycle"
     )
-    phase_worker_context = make_alias_context(target="phase_worker", views=views)
-    assert _alias_disabled_reason(phase_worker_context, "medium_phase_worker") == (
-        "would create a cycle"
+    medium_context = make_alias_context(target="medium_phase_worker", views=views)
+    assert _alias_disabled_reason(medium_context, "medium_phase_worker") == (
+        "current alias"
     )
-    assert _alias_disabled_reason(phase_worker_context, "small_phase_worker") is None
-    assert _alias_disabled_reason(phase_worker_context, "large_phase_worker") is None
+    assert _alias_disabled_reason(medium_context, "small_phase_worker") is None
+    assert _alias_disabled_reason(medium_context, "large_phase_worker") is None
 
 
 def test_alias_dependency_guard_handles_long_chains() -> None:
@@ -146,7 +146,7 @@ def test_free_form_alias_guard_rejects_unknown_and_unsafe_references() -> None:
 
 async def test_alias_picker_filters_all_alias_fields_and_returns_raw_token() -> None:
     captured: list[str | None] = []
-    context = make_alias_context(target="phase_worker")
+    context = make_alias_context(target="medium_phase_worker")
 
     async with ModelPickerTestApp().run_test() as pilot:
         modal = ModelPickerModal(
@@ -218,7 +218,7 @@ async def test_alias_disabled_rows_are_searchable_and_skipped_by_navigation() ->
 async def test_alias_picker_narrow_geometry_keeps_single_line_rows_and_footer() -> None:
     long_name = "very_long_custom_alias_name_that_must_truncate"
     context = make_alias_context(
-        target="phase_worker",
+        target="medium_phase_worker",
         views=[
             make_alias_view(
                 long_name,
@@ -228,7 +228,7 @@ async def test_alias_picker_narrow_geometry_keeps_single_line_rows_and_footer() 
                 provider="opencode",
                 model="anthropic/claude-sonnet-4-5",
             ),
-            make_alias_view("phase_worker", "role"),
+            make_alias_view("medium_phase_worker", "role"),
         ],
     )
     async with StyledModelPickerTestApp().run_test(size=(60, 30)) as pilot:

@@ -46,8 +46,25 @@ class TestModelDirective:
         if expects_plan:
             assert phase_segment.endswith("#bd/work_phase_bead:p1\n#plan")
 
-    def test_explicit_model_wins_over_large_phase_worker_alias(
-        self, conn: sqlite3.Connection
+    @pytest.mark.parametrize(
+        ("size", "model", "expects_plan"),
+        [
+            pytest.param(PhaseSize.SMALL, "claude/sonnet", False, id="small"),
+            pytest.param(PhaseSize.MEDIUM, "@coder", True, id="medium"),
+            pytest.param(
+                PhaseSize.LARGE,
+                "codex/gpt-5.6-sol",
+                True,
+                id="large",
+            ),
+        ],
+    )
+    def test_explicit_model_wins_for_every_phase_size(
+        self,
+        conn: sqlite3.Connection,
+        size: PhaseSize,
+        model: str,
+        expects_plan: bool,
     ) -> None:
         seed(
             conn,
@@ -55,8 +72,8 @@ class TestModelDirective:
                 epic("e1"),
                 phase(
                     "p1",
-                    model="codex/gpt-5.6-sol",
-                    size=PhaseSize.LARGE,
+                    model=model,
+                    size=size,
                 ),
             ],
         )
@@ -69,9 +86,11 @@ class TestModelDirective:
         )
 
         phase_segment = rendered.split("\n---\n")[0]
-        assert "%model:codex/gpt-5.6-sol" in phase_segment
-        assert "@large_phase_worker" not in phase_segment
-        assert phase_segment.endswith("#bd/work_phase_bead:p1\n#plan")
+        assert f"%model:{model}" in phase_segment
+        assert "_phase_worker" not in phase_segment
+        assert ("#plan" in phase_segment.splitlines()) is expects_plan
+        if expects_plan:
+            assert phase_segment.endswith("#bd/work_phase_bead:p1\n#plan")
 
     @pytest.mark.parametrize(
         ("threshold", "phase_count", "expected_alias"),

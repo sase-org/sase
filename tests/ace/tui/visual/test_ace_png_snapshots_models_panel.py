@@ -106,25 +106,17 @@ def _calm_views() -> list[AliasView]:
             ),
         ),
         _view(
-            "phase_worker",
-            "role",
-            configured=True,
-            configured_value="codex/o3",
-            provider="codex",
-            model="o3",
-        ),
-        _view(
             "small_phase_worker",
             "role",
-            provider="codex",
-            model="o3",
+            provider="claude",
+            model="opus",
             description="Small phases that implement directly.",
         ),
         _view(
             "medium_phase_worker",
             "role",
-            provider="codex",
-            model="o3",
+            provider="claude",
+            model="claude-fable-4-10",
             description="Medium phases that plan before implementation.",
         ),
         _view(
@@ -142,6 +134,20 @@ def _calm_views() -> list[AliasView]:
             provider="claude",
             model="opus",
             description="Highest-capability alias for explicit use.",
+        ),
+        _view(
+            "cheaper",
+            "role",
+            provider="claude",
+            model="opus",
+            description="Load-balanced pool used automatically by small phases.",
+        ),
+        _view(
+            "cheapest",
+            "role",
+            provider="codex",
+            model="gpt-5.3-codex-spark",
+            description="Independent lowest-cost pool for explicit use.",
         ),
         _view("claude_coder", "provider_coder", provider="claude", model="opus"),
         _view(
@@ -332,7 +338,7 @@ async def test_models_panel_alias_picker_filtered_png_snapshot(
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         # default -> coders bucket -> epic_lander -> big_epic_lander ->
-        # phase_worker bucket -> generic member, where @coder is a safe
+        # phase_worker bucket -> small member, where @coder is a safe
         # persistent reference.
         await page.press("j", "j", "j", "j", "l", "e")
         await page.expect_modal("ModelPickerModal")

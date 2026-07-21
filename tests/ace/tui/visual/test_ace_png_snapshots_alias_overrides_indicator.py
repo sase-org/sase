@@ -89,7 +89,7 @@ async def test_alias_overrides_indicator_multi_png_snapshot(
         lambda *a, **k: {
             "default": _override("codex", "o3"),
             "coder": _override("claude", "opus"),
-            "phase_worker": _override("codex", "o3"),
+            "medium_phase_worker": _override("codex", "o3"),
             "fast": _override("claude", "haiku"),
         },
     )

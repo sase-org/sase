@@ -67,7 +67,7 @@ def test_peek_is_stable_and_consumes_round_robin(
     assert resolve_model_alias("@pool", consume=True) == "claude/opus"
 
 
-def test_small_phase_and_cheapest_share_one_rotation(
+def test_small_phase_and_cheaper_share_one_rotation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
@@ -78,7 +78,64 @@ def test_small_phase_and_cheapest_share_one_rotation(
     )
 
     assert resolve_model_alias("@small_phase_worker", consume=True) == "claude/opus"
-    assert resolve_model_alias("@cheapest", consume=True) == "codex/gpt-5.5"
+    assert resolve_model_alias("@cheaper", consume=True) == "codex/gpt-5.5"
+
+
+def test_cheaper_and_cheapest_use_independent_rotations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda _target: True,
+    )
+
+    assert resolve_model_alias("@cheaper", consume=True) == "claude/opus"
+    assert resolve_model_alias("@cheapest", consume=True) == "claude/sonnet"
+    assert resolve_model_alias("@cheaper", consume=True) == "codex/gpt-5.5"
+    assert resolve_model_alias("@cheapest", consume=True) == (
+        "codex/gpt-5.3-codex-spark"
+    )
+
+
+@pytest.mark.parametrize("alias", ["cheaper", "cheapest"])
+def test_implicit_cheap_pools_skip_unavailable_provider(
+    monkeypatch: pytest.MonkeyPatch,
+    alias: str,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda target: target.startswith("codex/"),
+    )
+
+    assert resolve_model_alias(f"@{alias}", consume=True).startswith("codex/")
+    assert resolve_model_alias(f"@{alias}").startswith("codex/")
+
+
+def test_old_cheapest_fingerprint_does_not_carry_cursor_to_new_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg: dict[str, object] = {
+        "provider": "claude",
+        "model_aliases": {
+            "builtin": {"cheapest": "claude/opus@medium | codex/gpt-5.5"}
+        },
+    }
+    mock_provider_config(monkeypatch, cfg)
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda _target: True,
+    )
+    assert resolve_model_alias("@cheapest", consume=True) == "claude/opus"
+
+    cfg["model_aliases"] = {}
+    llm_config._get_model_aliases_for_token.cache_clear()
+
+    assert resolve_model_alias("@cheapest", consume=True) == "claude/sonnet"
 
 
 def test_availability_filter_and_all_unavailable_fallback(

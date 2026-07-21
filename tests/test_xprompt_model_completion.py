@@ -54,11 +54,11 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "@opencode_coder",
         "@epic_lander",
         "@big_epic_lander",
-        "@phase_worker",
         "@small_phase_worker",
         "@medium_phase_worker",
         "@large_phase_worker",
         "@smartest",
+        "@cheaper",
         "@cheapest",
         "@fast",
         "@worker",
@@ -94,6 +94,11 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     assert medium_phase_worker.kind == "implicit_alias"
     assert medium_phase_worker.description == "medium bead phase agent model"
     assert medium_phase_worker.aliases == ("medium_phase_worker",)
+
+    cheaper = by_value["@cheaper"]
+    assert cheaper.kind == "implicit_alias"
+    assert cheaper.description == "load-balanced small phase agent pool"
+    assert cheaper.aliases == ("cheaper",)
 
     smartest = by_value["@smartest"]
     assert smartest.kind == "implicit_alias"

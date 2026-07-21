@@ -57,16 +57,25 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["default"].configured is False
     assert by_name["coder"].kind == "role"
     assert by_name["big_epic_lander"].kind == "role"
-    assert by_name["phase_worker"].kind == "role"
+    assert "phase_worker" not in by_name
     assert by_name["small_phase_worker"].kind == "role"
     assert by_name["medium_phase_worker"].kind == "role"
     assert by_name["large_phase_worker"].kind == "role"
     assert by_name["smartest"].kind == "role"
     assert by_name["cheapest"].kind == "role"
-    assert by_name["cheapest"].implicit_value == ("claude/opus@medium | codex/gpt-5.5")
-    assert [member.value for member in by_name["cheapest"].pool_members] == [
+    assert by_name["cheaper"].kind == "role"
+    assert by_name["cheaper"].implicit_value == ("claude/opus@medium | codex/gpt-5.5")
+    assert [member.value for member in by_name["cheaper"].pool_members] == [
         "claude/opus@medium",
         "codex/gpt-5.5",
+    ]
+    assert by_name["cheapest"].kind == "role"
+    assert by_name["cheapest"].implicit_value == (
+        "claude/sonnet | codex/gpt-5.3-codex-spark"
+    )
+    assert [member.value for member in by_name["cheapest"].pool_members] == [
+        "claude/sonnet",
+        "codex/gpt-5.3-codex-spark",
     ]
     assert by_name["claude_coder"].kind == "provider_coder"
     assert by_name["codex_coder"].kind == "provider_coder"
@@ -103,11 +112,11 @@ def test_default_is_first_and_groups_are_ordered(
         "coder",
         "epic_lander",
         "big_epic_lander",
-        "phase_worker",
         "small_phase_worker",
         "medium_phase_worker",
         "large_phase_worker",
         "smartest",
+        "cheaper",
         "cheapest",
     ]
     # provider_coder aliases come next, alphabetically
@@ -380,6 +389,7 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
         "big_epic_lander",
         "phase_worker",
         "smartest",
+        "cheaper",
         "cheapest",
         "coding",
         "research",
@@ -387,7 +397,7 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
     ]
     assert all(row.name not in {"coder", "claude_coder", "codex_coder"} for row in rows)
 
-    user_rows = rows[7:]
+    user_rows = rows[8:]
     assert [row.name for row in user_rows] == ["coding", "research", "alpha"]
     coding, research, alpha = user_rows
     assert isinstance(coding, BucketView)
@@ -450,6 +460,7 @@ def test_models_panel_rows_coalesce_custom_coders_members(
         "big_epic_lander",
         "phase_worker",
         "smartest",
+        "cheaper",
         "cheapest",
         "research",
         "alpha",
@@ -504,16 +515,18 @@ def test_models_panel_phase_worker_bucket_coalesces_builtin_and_custom_members(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {
-                    "phase_worker": "claude/sonnet",
-                    "large_phase_worker": "codex/o3",
-                },
+                "builtin": {"large_phase_worker": "codex/o3"},
                 "custom": {
+                    "phase_worker": {
+                        "model": "claude/sonnet",
+                        "description": "Explicit custom phase role.",
+                        "bucket": "phase_worker",
+                    },
                     "phase_reviewer": {
                         "model": "claude/opus",
                         "description": "Reviews completed phases.",
                         "bucket": "phase_worker",
-                    }
+                    },
                 },
                 "buckets": {"phase_worker": {"description": "Configured phase roles."}},
             },
@@ -536,17 +549,18 @@ def test_models_panel_phase_worker_bucket_coalesces_builtin_and_custom_members(
         "big_epic_lander",
         "phase_worker",
         "smartest",
+        "cheaper",
         "cheapest",
     ]
     phase_workers = rows[4]
     assert isinstance(phase_workers, BucketView)
     assert phase_workers.description == "Configured phase roles."
     assert [member.name for member in phase_workers.members] == [
-        "phase_worker",
         "small_phase_worker",
         "medium_phase_worker",
         "large_phase_worker",
         "phase_reviewer",
+        "phase_worker",
     ]
     assert phase_workers.alias_count == 5
     assert phase_workers.override_count == 1
@@ -563,6 +577,7 @@ def test_models_panel_phase_worker_bucket_uses_builtin_fallback_description(
 
     assert isinstance(phase_workers, BucketView)
     assert phase_workers.description == PHASE_WORKER_BUCKET_DESCRIPTION
+    assert phase_workers.alias_count == 3
 
 
 def test_non_default_override_wins_effective_target(

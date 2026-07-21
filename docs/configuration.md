@@ -607,9 +607,9 @@ offset zero or immediately follows a literal ASCII space. It is not disabled by 
 project/ChangeSpec completion uses the same token rule and works regardless of these automatic-completion settings.
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists inline-typable model names,
-implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_lander`, `@big_epic_lander`, `@phase_worker`,
-`@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, `@smartest`), and configured model aliases;
-provider short aliases are shown as filter/display hints but are not inserted.
+implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_lander`, `@big_epic_lander`,
+`@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, `@smartest`, `@cheaper`, `@cheapest`), and
+configured model aliases; provider short aliases are shown as filter/display hints but are not inserted.
 
 File-path completion roots relative lookups in the prompt-selected workspace. Registered workspace-provider refs and
 known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can root lookup in that project checkout. If no
@@ -637,8 +637,9 @@ llm_provider:
       claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
       codex_coder: claude/opus # coder follow-ups from Codex-authored plans
       big_epic_lander: codex/gpt-5.6-sol # specialize threshold-selected epic landers
-      cheapest: claude/opus@medium | codex/gpt-5.5 # load-balanced pool
-      phase_worker: codex/gpt-5.6-sol # medium/explicit phase fallback
+      cheaper: claude/opus@medium | codex/gpt-5.5 # small-phase pool
+      cheapest: claude/sonnet | codex/gpt-5.3-codex-spark # explicit-use pool
+      medium_phase_worker: codex/gpt-5.6-sol # medium phase agents
       large_phase_worker: "@smartest"
       smartest: claude/opus # large phase agents
     custom:
@@ -649,7 +650,7 @@ llm_provider:
       coders:
         description: Coder defaults and provider-specific follow-ups.
       phase_worker:
-        description: Shared and size-specific phase-agent roles.
+        description: Size-specific phase-agent roles.
 ```
 
 | Field                                | Type   | Default     | Description                                                                                                                              |
@@ -672,28 +673,29 @@ across real launches, skips providers whose CLI is unavailable, and stores its m
 cannot be nested and are not accepted in `%model` directives or launch-scoped overrides.
 
 ACE automatically supplies two display-only built-in buckets while alias resolution and configuration remain flat:
-`coders` groups `@coder` with every registered `@<provider>_coder`, and `phase_worker` groups the shared `@phase_worker`
-fallback with `@small_phase_worker`, `@medium_phase_worker`, and `@large_phase_worker`.
-`model_aliases.buckets.<bucket>.description` overrides either built-in description. A custom alias tagged with either
-built-in bucket name joins that row while remaining independently addressable and editable.
+`coders` groups `@coder` with every registered `@<provider>_coder`, and `phase_worker` groups `@small_phase_worker`,
+`@medium_phase_worker`, and `@large_phase_worker`. `model_aliases.buckets.<bucket>.description` overrides either
+built-in description. A custom alias tagged with either built-in bucket name joins that row while remaining
+independently addressable and editable.
 
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases** that resolve even when unset:
 `@default` (no-`%model` launches), `@coder` and the per-provider `@<provider>_coder` (plan coder follow-ups),
-`@epic_lander`, `@big_epic_lander`, `@phase_worker`, the three `<size>_phase_worker` aliases, `@smartest`, and
-`@cheapest` (bead/epic role launches). `@big_epic_lander` falls back to `@epic_lander`; small phases fall back to
-`@cheapest`, medium phases to `@phase_worker`, and large phases to `@smartest`. Configuring bare `phase_worker`
-therefore changes medium and explicit uses only; configure the small/large aliases back to `@phase_worker` to restore
-uniform routing. Override only threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`; override only
-large phases with `model_aliases.builtin.large_phase_worker`. `@smartest` is selected automatically through the
-large-phase fallback chain. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
+`@epic_lander`, `@big_epic_lander`, the three `<size>_phase_worker` aliases, `@smartest`, `@cheaper`, and `@cheapest`
+(bead/epic role launches). `@big_epic_lander` falls back to `@epic_lander`; small phases fall back to `@cheaper`, medium
+phases to `@default`, and large phases to `@smartest`. `@cheaper` owns the automatic small-phase pool, while `@cheapest`
+owns an independent explicit-use pool. Override only threshold-sized epic landers with
+`model_aliases.builtin.big_epic_lander`; override only large phases with `model_aliases.builtin.large_phase_worker`.
+`@smartest` is selected automatically through the large-phase fallback chain. See
+[Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
 [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role.
 
 Legacy `model_aliases.builtin.epic_creator` entries remain accepted so existing configs still load, but SASE no longer
 launches an epic-creator agent or resolves that alias implicitly.
 
 > The `llm_provider.worker_models` map and the reserved `@worker` / `@other` aliases were removed in epic sase-5d. Use
-> the role aliases above (`@coder` / `@phase_worker`) or an explicit model instead of `@worker`, and `@default` instead
-> of `@other`. `sase doctor` reports configs that still reference the removed keys or aliases.
+> `@coder`, a size-specific phase alias, or an explicit model instead of `@worker`, and `@default` instead of `@other`.
+> `@phase_worker` is also no longer builtin; move a stale builtin override to `medium_phase_worker` or define a custom
+> alias deliberately. `sase doctor` reports configs that still reference removed keys or aliases.
 
 The TUI also supports **temporary**, per-alias session-level provider/model overrides (set from the
 [Models panel](ace.md#models-panel), `,m`) that do **not** edit this config. They are persisted to
