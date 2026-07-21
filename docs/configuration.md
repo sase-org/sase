@@ -364,6 +364,7 @@ ace:
     incoming_commits:
       enabled: true # show incoming commit subjects in the Updates tab
       max_per_repo: 7 # cap subjects per repository
+      confirm_max_per_repo: 250 # larger per-repository cap in confirmations
     check_interval_minutes: 10 # attempt a periodic check this often
     check_ttl_minutes: 10 # refresh latest-version checks at most this often
     recompute_interval_minutes: 60 # periodic full network recompute cadence
@@ -458,16 +459,17 @@ ACE reads this TUI setting from the user-level `~/.config/sase/sase.yml` (and us
 
 #### `ace.updates`
 
-| Field                           | Type   | Default | Description                                                                                                             |
-| ------------------------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `startup_toast`                 | bool   | `true`  | Show the startup toast when cached status reports SASE, plugin, or supported agent-CLI updates.                         |
-| `post_update_toast`             | bool   | `true`  | Show a one-shot combined result after an update changes SASE code and restarts ACE.                                     |
-| `indicator`                     | bool   | `true`  | Show the segmented SASE and agent-CLI badge when cached status reports available updates.                               |
-| `incoming_commits.enabled`      | bool   | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.                                          |
-| `incoming_commits.max_per_repo` | int    | `7`     | Maximum incoming commit subjects to show per repository.                                                                |
-| `check_interval_minutes`        | number | `10`    | Interval between local cached-snapshot revalidation attempts in a running ACE session.                                  |
-| `check_ttl_minutes`             | number | `10`    | Minimum age before a startup update check recomputes cached status.                                                     |
-| `recompute_interval_minutes`    | number | `60`    | Minimum snapshot age before a full SASE/plugin/agent-CLI network recompute; intervening checks only revalidate locally. |
+| Field                                   | Type   | Default | Description                                                                                                             |
+| --------------------------------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `startup_toast`                         | bool   | `true`  | Show the startup toast when cached status reports SASE, plugin, or supported agent-CLI updates.                         |
+| `post_update_toast`                     | bool   | `true`  | Show a one-shot combined result after an update changes SASE code and restarts ACE.                                     |
+| `indicator`                             | bool   | `true`  | Show the segmented SASE and agent-CLI badge when cached status reports available updates.                               |
+| `incoming_commits.enabled`              | bool   | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.                                          |
+| `incoming_commits.max_per_repo`         | int    | `7`     | Maximum incoming commit subjects to show per repository in Updates-tab details.                                         |
+| `incoming_commits.confirm_max_per_repo` | int    | `250`   | Maximum subjects fetched per repository in update confirmations; larger ranges show an explicit `+N more` marker.       |
+| `check_interval_minutes`                | number | `10`    | Interval between local cached-snapshot revalidation attempts in a running ACE session.                                  |
+| `check_ttl_minutes`                     | number | `10`    | Minimum age before a startup update check recomputes cached status.                                                     |
+| `recompute_interval_minutes`            | number | `60`    | Minimum snapshot age before a full SASE/plugin/agent-CLI network recompute; intervening checks only revalidate locally. |
 
 #### `ace.keymaps`
 

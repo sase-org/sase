@@ -67,13 +67,14 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         _agent_cli_error: str | None
         _agent_cli_results: dict[str, Any]
         _comprehensive_update_plan_worker: Any | None
+        _incoming_commits_enabled: bool
         _loading: bool
         _offline: bool
         _uv_tool: object | None
         app: Any
         is_mounted: bool
 
-        def _all_up_to_date(self) -> bool: ...
+        def _sase_up_to_date(self) -> bool: ...
 
         def _close_admin_center_after_sase_update(self) -> None: ...
 
@@ -87,6 +88,10 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
             *,
             already_refreshed_roots: Collection[str] = (),
         ) -> DevUpdatePreview: ...
+
+        def _comprehensive_update_incoming_commits_loader(
+            self, preview: ComprehensiveUpdatePreview
+        ) -> Any | None: ...
 
         def _notify(
             self,
@@ -114,7 +119,7 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         offline = self._offline
         install = self._uv_tool
         fresh_roots = frozenset(already_refreshed_roots)
-        sase_current = self._all_up_to_date()
+        sase_current = self._sase_up_to_date()
 
         def task() -> ComprehensiveUpdatePreview:
             provider_plan, dropped, provider_error = plan_captured_providers(
@@ -185,6 +190,17 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
             self._handle_comprehensive_noop(preview)
             return
 
+        incoming_loader = self._comprehensive_update_incoming_commits_loader(preview)
+        incoming_empty_message: str | None = None
+        if self._incoming_commits_enabled:
+            incoming_empty_message = (
+                "No repository commit ranges are available for this update. "
+                "Agent CLI installers do not expose trustworthy commit ranges."
+                if not preview.sase_runnable
+                else "No repository commit ranges are available for the captured "
+                "SASE update."
+            )
+
         modal = PluginActionConfirmModal(
             title="Comprehensive update",
             intro=(
@@ -205,6 +221,8 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
             ),
             panel_title="Confirm comprehensive update",
             icon="↑",
+            incoming_commits_loader=incoming_loader,
+            incoming_commits_empty_message=incoming_empty_message,
         )
 
         def _on_confirmed(result: PluginActionConfirmResult | None) -> None:

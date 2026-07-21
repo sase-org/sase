@@ -6,6 +6,7 @@ import os
 
 import pytest
 from textual.containers import VerticalScroll
+from textual.widgets import Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
@@ -27,6 +28,7 @@ from tests.ace.tui.test_plugins_browser_pane import (
     _uninstall_ready,
     _update_ready,
 )
+from tests.ace.tui._plugins_browser_pane_helpers import _render
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _build_view,
     _config_layers,
@@ -270,12 +272,38 @@ async def test_config_center_comprehensive_update_preview_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The wide component-first comprehensive preview scrolls as one pane."""
+    """The wide comprehensive preview leads with grouped incoming commits."""
     patch_startup_loaders(monkeypatch)
     _patch_xprompt_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
     user_home = os.environ.get("HOME", "/home/visual")
+    incoming_groups = (
+        RepoIncomingCommits(
+            "sase",
+            IncomingCommits(
+                total=4,
+                commits=(
+                    CommitSummary("aa10001", "Keep captured update plans immutable"),
+                    CommitSummary("aa10000", "Add comprehensive update receipts"),
+                    CommitSummary("aa0ffff", "Coalesce update status refreshes"),
+                    CommitSummary("aa0fffe", "Harden editable checkout planning"),
+                ),
+                source="git",
+            ),
+        ),
+        RepoIncomingCommits(
+            "sase-core",
+            IncomingCommits(
+                total=2,
+                commits=(
+                    CommitSummary("bb20001", "Expose grouped update candidates"),
+                    CommitSummary("bb20000", "Preserve repository range order"),
+                ),
+                source="git",
+            ),
+        ),
+    )
 
     async with AcePage(
         query='"visual"', changespecs=changespecs(), size=(120, 32)
@@ -357,12 +385,21 @@ async def test_config_center_comprehensive_update_preview_png_snapshot(
             ),
             panel_title="Confirm comprehensive update",
             icon="↑",
+            incoming_commits_loader=lambda: incoming_groups,
         )
         page.app.push_screen(modal)
         await page.expect_modal("PluginActionConfirmModal")
 
         await page.wait_for(
-            lambda _s: len(modal.query("#plugin-action-preview-scroll")) > 0
+            lambda _s: len(modal.query("#plugin-action-commits-body")) > 0
+        )
+        await page.wait_for(
+            lambda _s: (
+                "2 repositories · 6 incoming commits"
+                in _render(
+                    modal.query_one("#plugin-action-commits-body", Static).content
+                )
+            )
         )
         scroll = modal.query_one("#plugin-action-preview-scroll", VerticalScroll)
         await page.wait_for(lambda _s: int(scroll.max_scroll_y) > 0)

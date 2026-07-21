@@ -320,7 +320,7 @@ async def test_updates_pane_sase_dev_update_shows_all_commit_groups(
             lambda _s: (
                 "↑ sase — 1 incoming commit" in _render(body.content)
                 and "↑ sase-core — 1 incoming commit" in _render(body.content)
-                and "↑ sase-github — 1 incoming commit" in _render(body.content)
+                and "↑ github — 1 incoming commit" in _render(body.content)
             )
         )
 

@@ -47,6 +47,18 @@ class PluginsBrowserStatusMixin:
 
     def _all_up_to_date(self) -> bool:
         """Whether every update source has been checked and is current."""
+        if not self._sase_up_to_date() or self._agent_cli_error is not None:
+            return False
+        return all(
+            status.latest_version is not None
+            and status.latest_error is None
+            and not status.update_available
+            for status in self._agent_cli_statuses
+            if status.installed
+        )
+
+    def _sase_up_to_date(self) -> bool:
+        """Whether the SASE/core/plugin update sources are checked and current."""
         if self._loading or self._error is not None:
             return False
         catalog = self._catalog
@@ -65,15 +77,7 @@ class PluginsBrowserStatusMixin:
             and not package.update_available
             for package in self._core_versions.packages
         )
-        if not components_current or self._agent_cli_error is not None:
-            return False
-        return all(
-            status.latest_version is not None
-            and status.latest_error is None
-            and not status.update_available
-            for status in self._agent_cli_statuses
-            if status.installed
-        )
+        return components_current
 
     def _all_current_banner(self) -> Panel:
         """Confirm that SASE, plugins, and installed agent CLIs are current."""

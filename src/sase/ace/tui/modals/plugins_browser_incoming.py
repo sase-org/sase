@@ -25,6 +25,10 @@ from sase.updates.incoming_commits import (
     plugin_entry_commit_spec,
 )
 from sase.uv_tool.versions import CoreVersions
+from sase.version._utils import normalize_distribution_name
+
+from .plugins_browser_comprehensive_update_models import ComprehensiveUpdatePreview
+from .plugins_browser_dev_update import DevUpdatePreview
 
 if TYPE_CHECKING:
     from textual.worker import Worker
@@ -189,6 +193,37 @@ class PluginsBrowserIncomingCommitsMixin:
                     seed[spec.cache_key] = cached
         return self._incoming_commits_loader_from_specs(specs, seed=seed)
 
+    def _sase_update_incoming_commits_loader(
+        self,
+        preview: DevUpdatePreview,
+    ) -> ConfirmIncomingCommitsLoader | None:
+        """Build a loader from the exact editable/managed work in *preview*."""
+        if not self._incoming_commits_enabled:
+            return None
+        specs = _sase_update_incoming_commit_sources(
+            preview,
+            core_versions=self._core_versions,
+            catalog=self._catalog,
+        )
+        return self._incoming_commits_loader_from_specs(
+            list(specs),
+            seed=_loaded_incoming_commit_seed(
+                core_versions=self._core_versions,
+                core_incoming=self._core_incoming_commits,
+                catalog=self._catalog,
+                plugin_incoming=self._incoming_commit_cache,
+            ),
+        )
+
+    def _comprehensive_update_incoming_commits_loader(
+        self,
+        preview: ComprehensiveUpdatePreview,
+    ) -> ConfirmIncomingCommitsLoader | None:
+        """Build commit context only for the runnable captured SASE leg."""
+        if not preview.sase_runnable or preview.sase_preview is None:
+            return None
+        return self._sase_update_incoming_commits_loader(preview.sase_preview)
+
     def _plugin_update_incoming_commits_loader(
         self,
         plan: UpdateReady,
@@ -300,3 +335,153 @@ load_incoming_commits_config = _load_incoming_commits_config
 def _short_root(root: str) -> str:
     name = Path(root).name
     return name or root
+
+
+def _sase_update_incoming_commit_sources(
+    preview: DevUpdatePreview,
+    *,
+    core_versions: CoreVersions,
+    catalog: PluginCatalog | None,
+) -> tuple[tuple[str, CommitSourceSpec], ...]:
+    """Select frozen repository ranges represented by one SASE update preview."""
+    if preview.plan is None:
+        return _dedupe_commit_sources(
+            _all_managed_commit_sources(core_versions=core_versions, catalog=catalog)
+        )
+
+    known_labels = _known_source_labels(
+        core_versions=core_versions,
+        catalog=catalog,
+    )
+    sources: list[tuple[str, CommitSourceSpec]] = []
+    for root in preview.plan.actionable_roots:
+        spec = dev_update_root_commit_spec(root)
+        if spec is None:
+            continue
+        label = known_labels.get(spec.cache_key) or _human_repo_label(
+            _short_root(root.git_root)
+        )
+        sources.append((label, spec))
+
+    if preview.managed_argv:
+        for package in preview.managed_packages:
+            source = _managed_package_commit_source(
+                package.name,
+                core_versions=core_versions,
+                catalog=catalog,
+            )
+            if source is not None:
+                sources.append(source)
+    return _dedupe_commit_sources(sources)
+
+
+def _all_managed_commit_sources(
+    *,
+    core_versions: CoreVersions,
+    catalog: PluginCatalog | None,
+) -> list[tuple[str, CommitSourceSpec]]:
+    sources: list[tuple[str, CommitSourceSpec]] = []
+    for package in core_versions.packages:
+        spec = core_package_commit_spec(package)
+        if spec is not None:
+            sources.append((package.name, spec))
+    if catalog is not None:
+        for entry in sorted(
+            (entry for entry in catalog.entries if entry.update_available),
+            key=lambda entry: entry.name.casefold(),
+        ):
+            spec = plugin_entry_commit_spec(entry)
+            if spec is not None:
+                sources.append((entry.name, spec))
+    return sources
+
+
+def _managed_package_commit_source(
+    package_name: str,
+    *,
+    core_versions: CoreVersions,
+    catalog: PluginCatalog | None,
+) -> tuple[str, CommitSourceSpec] | None:
+    target = normalize_distribution_name(package_name)
+    for package in core_versions.packages:
+        keys = {
+            normalize_distribution_name(package.name),
+            normalize_distribution_name(package.distribution_name),
+        }
+        if target not in keys:
+            continue
+        spec = core_package_commit_spec(package)
+        return (package.name, spec) if spec is not None else None
+    if catalog is None:
+        return None
+    for entry in catalog.entries:
+        keys = {
+            normalize_distribution_name(entry.name),
+            normalize_distribution_name(entry.repo),
+            normalize_distribution_name(entry.full_name.rsplit("/", 1)[-1]),
+            normalize_distribution_name(f"sase-{entry.name}"),
+        }
+        if target not in keys:
+            continue
+        spec = plugin_entry_commit_spec(entry)
+        return (entry.name, spec) if spec is not None else None
+    return None
+
+
+def _known_source_labels(
+    *,
+    core_versions: CoreVersions,
+    catalog: PluginCatalog | None,
+) -> dict[IncomingCommitsCacheKey, str]:
+    labels: dict[IncomingCommitsCacheKey, str] = {}
+    for label, spec in _all_managed_commit_sources(
+        core_versions=core_versions,
+        catalog=catalog,
+    ):
+        labels.setdefault(spec.cache_key, label)
+    return labels
+
+
+def _loaded_incoming_commit_seed(
+    *,
+    core_versions: CoreVersions,
+    core_incoming: dict[str, IncomingCommits],
+    catalog: PluginCatalog | None,
+    plugin_incoming: dict[IncomingCommitsCacheKey, IncomingCommits],
+) -> dict[IncomingCommitsCacheKey, IncomingCommits]:
+    seed = dict(plugin_incoming)
+    for package in core_versions.packages:
+        spec = core_package_commit_spec(package)
+        cached = core_incoming.get(package.name)
+        if spec is not None and cached is not None:
+            seed[spec.cache_key] = cached
+    if catalog is not None:
+        for entry in catalog.entries:
+            spec = plugin_entry_commit_spec(entry)
+            if spec is None:
+                continue
+            cached = plugin_incoming.get(spec.cache_key)
+            if cached is not None:
+                seed[spec.cache_key] = cached
+    return seed
+
+
+def _dedupe_commit_sources(
+    sources: list[tuple[str, CommitSourceSpec]],
+) -> tuple[tuple[str, CommitSourceSpec], ...]:
+    result: list[tuple[str, CommitSourceSpec]] = []
+    seen: set[IncomingCommitsCacheKey] = set()
+    for label, spec in sources:
+        if spec.cache_key in seen:
+            continue
+        seen.add(spec.cache_key)
+        result.append((label, spec))
+    return tuple(result)
+
+
+def _human_repo_label(label: str) -> str:
+    if normalize_distribution_name(label) in {"sase-core", "sase-core-rs"}:
+        return "sase-core"
+    if label.startswith("sase-"):
+        return label.removeprefix("sase-")
+    return label

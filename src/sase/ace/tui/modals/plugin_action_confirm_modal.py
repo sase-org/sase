@@ -28,6 +28,7 @@ from rich.padding import Padding
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.screen import ModalScreen
@@ -116,12 +117,17 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
         kind: ConfirmKind = ConfirmKind.NEUTRAL,
         icon: str | None = None,
         incoming_commits_loader: IncomingCommitsLoader | None = None,
+        incoming_commits_empty_message: str | None = None,
     ) -> None:
         super().__init__()
         if not variants:
             raise ValueError("PluginActionConfirmModal requires at least one variant")
         self.add_class("confirm-dialog")
-        if incoming_commits_loader is not None:
+        self._show_incoming_commits = (
+            incoming_commits_loader is not None
+            or incoming_commits_empty_message is not None
+        )
+        if self._show_incoming_commits:
             self.add_class("has-commits")
         if any(variant.sections for variant in variants):
             self.add_class("has-sections")
@@ -132,6 +138,7 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
         self._kind = kind
         self._icon = icon
         self._incoming_commits_loader = incoming_commits_loader
+        self._incoming_commits_empty_message = incoming_commits_empty_message
         self._incoming_commits_worker: Worker[Any] | None = None
         self._index = 0
 
@@ -143,18 +150,23 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
         dialog.border_title = self._build_border_title()
         dialog.border_subtitle = self._build_border_subtitle()
         with dialog:
-            preview_scroll = VerticalScroll(id="plugin-action-preview-scroll")
-            preview_scroll.border_title = self._panel_title
-            with preview_scroll:
-                yield Static(self._preview_renderable(), id="plugin-action-preview")
-            if self._incoming_commits_loader is not None:
+            if self._show_incoming_commits:
                 commits = VerticalScroll(id="plugin-action-commits")
                 commits.border_title = "Incoming commits"
                 with commits:
                     yield Static(
-                        build_incoming_commits_renderable(loading=True),
+                        build_incoming_commits_renderable(loading=True)
+                        if self._incoming_commits_loader is not None
+                        else Text(
+                            self._incoming_commits_empty_message or "",
+                            style="dim",
+                        ),
                         id="plugin-action-commits-body",
                     )
+            preview_scroll = VerticalScroll(id="plugin-action-preview-scroll")
+            preview_scroll.border_title = self._panel_title
+            with preview_scroll:
+                yield Static(self._preview_renderable(), id="plugin-action-preview")
             with Horizontal(id="plugin-action-buttons"):
                 yield Button(
                     "Confirm (y)",
@@ -175,6 +187,8 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
 
     def on_mount(self) -> None:
         self.call_after_refresh(self._sync_preview_scroll_hint)
+        if self._show_incoming_commits:
+            self.call_after_refresh(self._sync_commits_scroll_hint)
         if self._incoming_commits_loader is None:
             return
         self._incoming_commits_worker = self.run_worker(
@@ -184,6 +198,17 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
             exit_on_error=False,
             group="confirm-incoming-commits",
         )
+
+    def on_unmount(self) -> None:
+        worker = self._incoming_commits_worker
+        self._incoming_commits_worker = None
+        if worker is not None:
+            worker.cancel()
+
+    def on_resize(self, _event: events.Resize) -> None:
+        self.call_after_refresh(self._sync_preview_scroll_hint)
+        if self._show_incoming_commits:
+            self.call_after_refresh(self._sync_commits_scroll_hint)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker is not self._incoming_commits_worker:
@@ -394,46 +419,46 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
             return
         scroll, body = widgets
         if not groups:
-            scroll.display = False
+            if self._incoming_commits_empty_message is None:
+                scroll.display = False
+            else:
+                scroll.display = True
+                body.update(Text(self._incoming_commits_empty_message, style="dim"))
             scroll.border_subtitle = ""
+            self.remove_class("has-scrollable-commits")
             return
         parts: list[RenderableType] = []
         if len(groups) > 1:
-            parts.extend(self._incoming_commit_group_summary(groups))
-            parts.append(Text(""))
+            parts.extend(self._incoming_commit_aggregate(groups))
         parts.extend(self._incoming_commit_group_details(groups))
         scroll.display = True
         body.update(Group(*parts))
         self.call_after_refresh(self._sync_commits_scroll_hint)
 
-    def _incoming_commit_group_summary(
+    def _incoming_commit_aggregate(
         self,
         groups: tuple[RepoIncomingCommits, ...],
     ) -> list[RenderableType]:
-        parts: list[RenderableType] = [Text("Repositories", style="dim")]
-        for group in groups:
-            incoming = group.incoming
-            if incoming.source == "unavailable":
-                error = incoming.error or "unknown"
-                line = Text(no_wrap=True, overflow="ellipsis")
-                line.append("↑", style="bold cyan")
-                line.append(f" {group.label}", style="bold cyan")
-                line.append(f" — incoming commits unavailable ({error})", style="dim")
-                parts.append(line)
-                continue
-
-            noun = "commit" if incoming.total == 1 else "commits"
-            line = Text(no_wrap=True, overflow="ellipsis")
-            line.append("↑", style="bold cyan")
-            line.append(f" {group.label}", style="bold cyan")
-            line.append(f" — {incoming.total} incoming {noun}", style="cyan")
-            if incoming.extra > 0:
-                line.append(
-                    f" ({incoming.shown} shown, +{incoming.extra} more)",
-                    style="dim",
-                )
-            parts.append(line)
-        return parts
+        repository_count = len(groups)
+        commit_count = sum(
+            group.incoming.total
+            for group in groups
+            if group.incoming.source != "unavailable"
+        )
+        unavailable_count = sum(
+            group.incoming.source == "unavailable" for group in groups
+        )
+        repository_noun = "repository" if repository_count == 1 else "repositories"
+        commit_noun = "commit" if commit_count == 1 else "commits"
+        line = Text()
+        line.append(
+            f"{repository_count} {repository_noun}",
+            style="bold cyan",
+        )
+        line.append(f" · {commit_count} incoming {commit_noun}", style="cyan")
+        if unavailable_count:
+            line.append(f" · {unavailable_count} unavailable", style="dim")
+        return [line]
 
     def _incoming_commit_group_details(
         self,
@@ -463,10 +488,15 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
             return
         scroll, _body = widgets
         if not scroll.display:
+            self.remove_class("has-scrollable-commits")
             return
         has_overflow = int(getattr(scroll, "max_scroll_y", 0)) > 0
-        if has_overflow and not self.has_class("has-scrollable-commits"):
-            self.add_class("has-scrollable-commits")
+        class_is_set = self.has_class("has-scrollable-commits")
+        if has_overflow != class_is_set:
+            if has_overflow:
+                self.add_class("has-scrollable-commits")
+            else:
+                self.remove_class("has-scrollable-commits")
             self.call_after_refresh(self._sync_commits_scroll_hint)
             return
         scroll.border_subtitle = "ctrl+d/u scroll" if has_overflow else ""
@@ -534,27 +564,28 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
         self.dismiss(None)
 
     def action_scroll_down(self) -> None:
-        scroll = self._active_scroll()
-        if scroll is None:
+        for scroll in (self._commits_scroll(), self._preview_scroll()):
+            if scroll is None or not self._can_scroll_down(scroll):
+                continue
+            height = scroll.scrollable_content_region.height
+            scroll.scroll_relative(y=max(1, height // 2), animate=False)
             return
-        height = scroll.scrollable_content_region.height
-        scroll.scroll_relative(y=max(1, height // 2), animate=False)
 
     def action_scroll_up(self) -> None:
-        scroll = self._active_scroll()
-        if scroll is None:
+        for scroll in (self._preview_scroll(), self._commits_scroll()):
+            if scroll is None or not self._can_scroll_up(scroll):
+                continue
+            height = scroll.scrollable_content_region.height
+            scroll.scroll_relative(y=-(max(1, height // 2)), animate=False)
             return
-        height = scroll.scrollable_content_region.height
-        scroll.scroll_relative(y=-(max(1, height // 2)), animate=False)
 
-    def _active_scroll(self) -> VerticalScroll | None:
-        preview = self._preview_scroll()
-        if preview is not None and int(getattr(preview, "max_scroll_y", 0)) > 0:
-            return preview
-        commits = self._commits_scroll()
-        if commits is not None and int(getattr(commits, "max_scroll_y", 0)) > 0:
-            return commits
-        return None
+    @staticmethod
+    def _can_scroll_down(scroll: VerticalScroll) -> bool:
+        return float(scroll.scroll_y) < int(getattr(scroll, "max_scroll_y", 0))
+
+    @staticmethod
+    def _can_scroll_up(scroll: VerticalScroll) -> bool:
+        return float(scroll.scroll_y) > 0
 
     def _commits_scroll(self) -> VerticalScroll | None:
         widgets = self._commits_widgets()

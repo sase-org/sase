@@ -72,6 +72,10 @@ class SaseUpdateActionsMixin(SaseUpdateTaskMixin):
             self, plan: DevUpdatePlan
         ) -> Any | None: ...
 
+        def _sase_update_incoming_commits_loader(
+            self, preview: DevUpdatePreview
+        ) -> Any | None: ...
+
         def _reusable_fresh_editable_roots(self) -> frozenset[str]: ...
 
     def action_update_sase(self) -> None:
@@ -197,11 +201,7 @@ class SaseUpdateActionsMixin(SaseUpdateTaskMixin):
             ],
             panel_title="Confirm dev update",
             icon="↑",
-            incoming_commits_loader=(
-                self._managed_sase_update_incoming_commits_loader()
-                if mixed
-                else self._dev_update_incoming_commits_loader(plan)
-            ),
+            incoming_commits_loader=self._sase_update_incoming_commits_loader(preview),
         )
 
         def _on_confirmed(result: PluginActionConfirmResult | None) -> None:

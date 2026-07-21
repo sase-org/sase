@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 
 import pytest
 from textual.containers import VerticalScroll
@@ -200,6 +201,35 @@ async def test_plugin_action_modal_scrolls_overflowing_preview() -> None:
         await page.pause()
         assert scroll.scroll_y == 0
 
+        await page.press("ctrl+d")
+        await page.pause()
+        assert scroll.scroll_y == min(half_page, max_scroll_y)
+
+        near_bottom = max(0, max_scroll_y - half_page + 1)
+        scroll.scroll_to(y=near_bottom, animate=False)
+        await page.pause()
+        assert scroll.scroll_y == near_bottom
+        await page.press("ctrl+d")
+        await page.pause()
+        assert scroll.scroll_y == max_scroll_y
+        await page.press("ctrl+d")
+        await page.pause()
+        assert scroll.scroll_y == max_scroll_y
+
+        await page.press("ctrl+u")
+        await page.pause()
+        assert scroll.scroll_y == max(0, max_scroll_y - half_page)
+        near_top = min(max_scroll_y, max(0, half_page - 1))
+        scroll.scroll_to(y=near_top, animate=False)
+        await page.pause()
+        assert scroll.scroll_y == near_top
+        await page.press("ctrl+u")
+        await page.pause()
+        assert scroll.scroll_y == 0
+        await page.press("ctrl+u")
+        await page.pause()
+        assert scroll.scroll_y == 0
+
 
 async def test_plugin_action_modal_loads_grouped_incoming_commits() -> None:
     groups = (
@@ -242,8 +272,14 @@ async def test_plugin_action_modal_loads_grouped_incoming_commits() -> None:
                 and "↑ github — 1 incoming commit" in _render(body.content)
             )
         )
+        rendered = _render(body.content)
+        assert "2 repositories · 3 incoming commits" in rendered
+        assert rendered.count("↑ sase — 2 incoming commits") == 1
+        assert rendered.count("↑ github — 1 incoming commit") == 1
         scroll = modal.query_one("#plugin-action-commits", VerticalScroll)
+        preview = modal.query_one("#plugin-action-preview-scroll", VerticalScroll)
         await page.pause()
+        assert scroll.region.y < preview.region.y
         assert int(scroll.max_scroll_y) == 0
         assert scroll.border_subtitle == ""
         await page.press("ctrl+d")
@@ -300,9 +336,12 @@ async def test_plugin_action_modal_summarizes_long_grouped_incoming_commits() ->
         await page.wait_for(lambda _s: "SASE change 0" in _render(body.content))
         rendered = _render(body.content)
         first_detail = rendered.index("SASE change 0")
-        assert rendered.index("↑ sase-core — 2 incoming commits") < first_detail
-        assert rendered.index("↑ github — 1 incoming commit") < first_detail
-        assert "↑ sase — 300 incoming commits (250 shown, +50 more)" in rendered
+        assert "3 repositories · 303 incoming commits" in rendered
+        assert rendered.index("↑ sase — 300 incoming commits") < first_detail
+        assert first_detail < rendered.index("↑ sase-core — 2 incoming commits")
+        assert rendered.count("↑ sase-core — 2 incoming commits") == 1
+        assert rendered.count("↑ github — 1 incoming commit") == 1
+        assert "+50 more" in rendered
 
 
 async def test_plugin_action_modal_empty_incoming_commits_hides_box() -> None:
@@ -324,6 +363,25 @@ async def test_plugin_action_modal_empty_incoming_commits_hides_box() -> None:
         assert scroll.scroll_y == 0
 
 
+async def test_plugin_action_modal_explicit_empty_incoming_commits_state() -> None:
+    message = "No repository commit ranges are available for provider updates."
+    async with AcePage() as page:
+        modal = PluginActionConfirmModal(
+            title="Update providers",
+            intro="Confirm",
+            variants=(_modal_variant(),),
+            incoming_commits_empty_message=message,
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("PluginActionConfirmModal")
+        await page.wait_for(lambda _s: len(modal.query("#plugin-action-commits")) > 0)
+
+        scroll = modal.query_one("#plugin-action-commits", VerticalScroll)
+        body = modal.query_one("#plugin-action-commits-body", Static)
+        assert scroll.display
+        assert message in _render(body.content)
+
+
 async def test_plugin_action_modal_incoming_commits_loader_error() -> None:
     def loader() -> tuple[RepoIncomingCommits, ...]:
         raise RuntimeError("boom")
@@ -343,6 +401,84 @@ async def test_plugin_action_modal_incoming_commits_loader_error() -> None:
         await page.wait_for(
             lambda _s: "incoming commits unavailable (boom)" in _render(body.content)
         )
+
+
+async def test_plugin_action_modal_renders_partial_repository_failure() -> None:
+    groups = (
+        RepoIncomingCommits(
+            "sase",
+            IncomingCommits(
+                total=1,
+                commits=(CommitSummary("abc1234", "Available change"),),
+                source="git",
+            ),
+        ),
+        RepoIncomingCommits(
+            "github",
+            IncomingCommits(
+                total=0,
+                commits=(),
+                source="unavailable",
+                error="offline mode",
+            ),
+        ),
+    )
+    async with AcePage() as page:
+        modal = PluginActionConfirmModal(
+            title="Update SASE",
+            intro="Confirm",
+            variants=(_modal_variant(),),
+            incoming_commits_loader=lambda: groups,
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("PluginActionConfirmModal")
+        await page.wait_for(
+            lambda _s: len(modal.query("#plugin-action-commits-body")) > 0
+        )
+        body = modal.query_one("#plugin-action-commits-body", Static)
+        await page.wait_for(lambda _s: "Available change" in _render(body.content))
+        rendered = _render(body.content)
+        assert "2 repositories · 1 incoming commit · 1 unavailable" in rendered
+        assert "github: incoming commits unavailable (offline mode)" in rendered
+
+
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        ("n", None),
+        ("y", PluginActionConfirmResult("update")),
+    ],
+)
+async def test_plugin_action_modal_stays_decidable_while_commits_load(
+    key: str,
+    expected: PluginActionConfirmResult | None,
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    def loader() -> tuple[RepoIncomingCommits, ...]:
+        started.set()
+        release.wait(timeout=5)
+        return ()
+
+    async with AcePage() as page:
+        results: list[PluginActionConfirmResult | None] = []
+        modal = PluginActionConfirmModal(
+            title="Update SASE",
+            intro="Confirm",
+            variants=(_modal_variant(),),
+            incoming_commits_loader=loader,
+        )
+        page.app.push_screen(modal, results.append)
+        await page.expect_modal("PluginActionConfirmModal")
+        await page.wait_for(lambda _s: started.is_set())
+        body = modal.query_one("#plugin-action-commits-body", Static)
+        assert "checking incoming commits" in _render(body.content)
+
+        await page.press(key)
+        await page.wait_for(lambda _s: bool(results))
+        assert results == [expected]
+        release.set()
 
 
 @pytest.mark.parametrize("size", [(100, 24), (120, 40)])
@@ -437,3 +573,57 @@ async def test_plugin_action_modal_scrolls_incoming_commits(
         await page.press("ctrl+u")
         await page.pause()
         assert scroll.scroll_y == 0
+
+
+async def test_plugin_action_modal_scrolls_both_regions_in_reading_order() -> None:
+    groups = (
+        RepoIncomingCommits(
+            "sase",
+            IncomingCommits(
+                total=60,
+                commits=tuple(
+                    CommitSummary(f"{idx:07x}", f"Incoming change {idx}")
+                    for idx in range(60)
+                ),
+                source="git",
+            ),
+        ),
+    )
+    variant = PluginActionVariant(
+        key="update",
+        label="update",
+        argv=(),
+        summary="Updates many components",
+        details=tuple(f"execution detail {index}" for index in range(80)),
+    )
+
+    async with AcePage(size=(100, 24)) as page:
+        modal = PluginActionConfirmModal(
+            title="Comprehensive update",
+            intro="Confirm",
+            variants=(variant,),
+            incoming_commits_loader=lambda: groups,
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("PluginActionConfirmModal")
+        await page.wait_for(lambda _s: len(modal.query("#plugin-action-commits")) > 0)
+        commits = modal.query_one("#plugin-action-commits", VerticalScroll)
+        preview = modal.query_one("#plugin-action-preview-scroll", VerticalScroll)
+        await page.wait_for(
+            lambda _s: int(commits.max_scroll_y) > 0 and int(preview.max_scroll_y) > 0
+        )
+
+        commits.scroll_to(y=commits.max_scroll_y, animate=False)
+        await page.pause()
+        assert preview.scroll_y == 0
+        await page.press("ctrl+d")
+        await page.pause()
+        assert preview.scroll_y > 0
+
+        await page.press("ctrl+u")
+        await page.pause()
+        assert preview.scroll_y == 0
+        commits_before = commits.scroll_y
+        await page.press("ctrl+u")
+        await page.pause()
+        assert commits.scroll_y < commits_before

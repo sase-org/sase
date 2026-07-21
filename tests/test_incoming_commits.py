@@ -361,6 +361,26 @@ def test_fetch_failures_degrade_to_unavailable() -> None:
     assert incoming.error == "404"
 
 
+def test_github_incoming_commits_offline_does_not_call_github() -> None:
+    spec = CommitSourceSpec(
+        source="github",
+        repo_full_name="sase-org/sase",
+        base_ref="v0.5.0",
+        head_ref="v0.6.0",
+    )
+
+    incoming = fetch_incoming_commits(
+        spec,
+        offline=True,
+        gh_fn=lambda _endpoint: (_ for _ in ()).throw(
+            AssertionError("GitHub must not be called offline")
+        ),
+    )
+
+    assert incoming.source == "unavailable"
+    assert incoming.error == "offline mode"
+
+
 def test_fetch_incoming_commit_groups_reuses_only_complete_seed(
     monkeypatch: Any,
 ) -> None:
