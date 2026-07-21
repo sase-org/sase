@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Literal
 
 from sase.core.vcs_log_wire import AggregatedCommitWire, CommitPresence
+from sase.plan_documents import PlanWorkspace
 from sase.vcs_log.dates import TimeBound, VcsLogDateError
 
 #: Internal limit sentinel meaning "fetch and aggregate without a row cap".
@@ -67,12 +68,15 @@ class LogRepo:
         path: Filesystem path of the repository checkout to read.
         kind: Which slot of the constellation this repo fills.
         aliases: Additional unambiguous source names accepted by ``--repo``.
+        plan_workspaces: Candidate project workspaces that can own plans linked
+            by commits from this repository.
     """
 
     name: str
     path: str
     kind: LogRepoKind
     aliases: tuple[str, ...] = ()
+    plan_workspaces: tuple[PlanWorkspace, ...] = ()
 
 
 @dataclass(frozen=True)

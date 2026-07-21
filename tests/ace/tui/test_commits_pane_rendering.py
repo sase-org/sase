@@ -15,10 +15,12 @@ from sase.ace.tui.util.lazy_syntax import (
 from sase.ace.tui.widgets.artifacts import CommitsPane, CommitsTimeline
 from sase.ace.tui.widgets.artifacts.commits_rendering import (
     build_commit_detail,
+    build_commit_view_spec,
     build_commits_info,
 )
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.core.vcs_log_wire import CommitPresence
+from sase.plan_documents import PlanWorkspace
 from sase.vcs_log.models import LogRepo, RepoRemoteState
 from sase.vcs_log.render import build_pretty_legend
 from tests.ace.tui._commits_pane_helpers import (
@@ -141,6 +143,24 @@ def test_commit_detail_omits_empty_author() -> None:
     )
 
     assert "Author" not in _rendered_text(detail)
+
+
+def test_commit_view_spec_preserves_owner_context_and_full_tagged_message() -> None:
+    result = _result()
+    owner = PlanWorkspace(
+        workspace_dir="/workspace/alpha",
+        plans_root="/workspace/alpha/sase/repos/plans",
+        project="alpha",
+    )
+    result = replace(
+        result,
+        repos=(replace(result.repos[0], plan_workspaces=(owner,)), *result.repos[1:]),
+    )
+
+    spec = build_commit_view_spec(result.commits[0], result)
+
+    assert spec.plan_workspaces == (owner,)
+    assert "SASE_PLAN=sdd/plans/commits_single_line_timeline.md" in spec.message
 
 
 def test_commit_detail_bounds_byte_heavy_diff_and_explains_truncation() -> None:

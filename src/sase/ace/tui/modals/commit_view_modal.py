@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Literal, cast
 
 from rich.console import Group, RenderableType
 from rich.text import Text
@@ -22,6 +23,7 @@ from sase.ace.tui.util.lazy_syntax import (
 from sase.ace.tui.widgets.prompt_panel._agent_commits import load_commit_diff_text
 from sase.ace.tui.widgets.prompt_panel._agent_deltas import parse_unified_diff_deltas
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
+from sase.plan_documents import PlanDocument, load_commit_plan_document
 
 from .base import CopyModeForwardingMixin
 
@@ -43,6 +45,7 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
         ("escape", "close", "Close"),
         ("q", "close", "Close"),
         ("y", "copy_sha", "Copy SHA"),
+        ("p", "toggle_plan", "Plan / commit"),
         ("ctrl+n", "next_commit", "Next Commit"),
         ("ctrl+p", "prev_commit", "Previous Commit"),
         ("ctrl+d", "scroll_down", "Scroll down"),
@@ -72,6 +75,11 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
         self._diff_text: str | None = None
         self._loading_index: int | None = None
         self._diff_worker: Worker[str | None] | None = None
+        self._display_mode: Literal["commit", "plan_loading", "plan"] = "commit"
+        self._plan_by_index: dict[int, PlanDocument] = {}
+        self._plan_document: PlanDocument | None = None
+        self._plan_loading_identity: tuple[int, str] | None = None
+        self._plan_worker: Worker[PlanDocument] | None = None
 
     @property
     def _current_spec(self) -> CommitViewSpec:
@@ -89,8 +97,12 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
 
     def on_unmount(self) -> None:
         self._cancel_diff_worker()
+        self._cancel_plan_worker()
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker is self._plan_worker:
+            self._on_plan_worker_state_changed(event)
+            return
         if event.worker is not self._diff_worker:
             return
         if event.state not in {
@@ -114,10 +126,47 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
             return
         self.query_one("#commit-view-content", Static).update(self._build_content())
 
+    def _on_plan_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.state not in {
+            WorkerState.SUCCESS,
+            WorkerState.ERROR,
+            WorkerState.CANCELLED,
+        }:
+            return
+        identity = self._plan_loading_identity
+        self._plan_worker = None
+        self._plan_loading_identity = None
+        if (
+            identity is None
+            or identity != self._current_identity()
+            or self._display_mode != "plan_loading"
+        ):
+            return
+        if event.state == WorkerState.SUCCESS:
+            document = cast(PlanDocument, event.worker.result)
+        elif event.state == WorkerState.CANCELLED:
+            return
+        else:
+            document = PlanDocument(
+                "unreadable",
+                detail="the plan worker failed unexpectedly",
+            )
+        if document.available:
+            self._plan_by_index[self._current_index] = document
+            self._plan_document = document
+            self._display_mode = "plan"
+            self._refresh_commit_widgets(reset_scroll=True)
+            return
+        self._plan_document = None
+        self._display_mode = "commit"
+        self._refresh_commit_widgets(reset_scroll=False)
+        self._notify_plan_failure(document)
+
     def _build_title(self) -> Text:
         spec = self._current_spec
         text = Text()
-        text.append("COMMIT", style="bold #FFD700")
+        heading = "PLAN" if self._display_mode != "commit" else "COMMIT"
+        text.append(heading, style="bold #FFD700")
         if len(self._commit_specs) > 1:
             text.append(
                 f" {self._current_index + 1}/{len(self._commit_specs)}",
@@ -134,7 +183,13 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
         if spec.subject:
             text.append(" - ")
             text.append(spec.subject, style="bold white")
-        if spec.diff_path:
+        if self._display_mode == "plan" and self._plan_document is not None:
+            text.append("\n")
+            text.append(self._plan_document.reference, style=_COLOR_MUTED)
+            if self._plan_document.path:
+                text.append("  →  ", style="dim")
+                text.append(self._plan_document.path, style=_COLOR_MUTED)
+        elif spec.diff_path:
             text.append("\n")
             text.append(spec.diff_path, style=_COLOR_MUTED)
         return text
@@ -145,6 +200,7 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
             "ctrl+d/u page",
             "g/G top/bottom",
             "y copy sha",
+            "p commit" if self._display_mode != "commit" else "p plan",
             "esc close",
         ]
         if len(self._commit_specs) > 1:
@@ -152,6 +208,22 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
         return " | ".join(parts)
 
     def _build_content(self) -> RenderableType:
+        if self._display_mode == "plan_loading":
+            return Text("Loading associated plan...", style="dim italic #87D7FF")
+        if self._display_mode == "plan" and self._plan_document is not None:
+            content = self._plan_document.content or ""
+            return lazy_renderable(
+                content,
+                "markdown",
+                line_numbers=False,
+                theme="monokai",
+                render_cache=self._syntax_render_cache,
+                max_render_lines=PLAIN_RENDER_MAX_LINES,
+                truncation_hint=(
+                    f"open {self._plan_document.path or self._plan_document.reference} "
+                    "to see the full plan"
+                ),
+            )
         parts: list[RenderableType] = [self._build_message_header(self._diff_text)]
         parts.append(Text("-" * 72, style="dim"))
         if not self._diff_loaded:
@@ -208,6 +280,22 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
         else:
             self.notify("Failed to copy to clipboard", severity="error")
 
+    def action_toggle_plan(self) -> None:
+        if self._display_mode != "commit":
+            self._leave_plan_mode()
+            self._refresh_commit_widgets(reset_scroll=True)
+            return
+        cached = self._plan_by_index.get(self._current_index)
+        if cached is not None:
+            self._plan_document = cached
+            self._display_mode = "plan"
+            self._refresh_commit_widgets(reset_scroll=True)
+            return
+        self._plan_document = None
+        self._display_mode = "plan_loading"
+        self._refresh_commit_widgets(reset_scroll=True)
+        self._start_plan_load_for_current_commit()
+
     def action_next_commit(self) -> None:
         if len(self._commit_specs) <= 1:
             return
@@ -224,6 +312,7 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
         next_index = index % len(self._commit_specs)
         if next_index == self._current_index:
             return
+        self._leave_plan_mode()
         self._current_index = next_index
         self._sync_current_diff_state_from_cache()
         self._refresh_commit_widgets(reset_scroll=True)
@@ -266,6 +355,58 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
         self._loading_index = None
         if worker is not None and worker.is_running:
             worker.cancel()
+
+    def _start_plan_load_for_current_commit(self) -> None:
+        self._cancel_plan_worker()
+        spec = self._current_spec
+        self._plan_loading_identity = self._current_identity()
+        self._plan_worker = self.run_worker(
+            lambda spec=spec: load_commit_plan_document(
+                spec.message,
+                repo_dir=spec.cwd,
+                workspaces=spec.plan_workspaces,
+            ),
+            thread=True,
+            exclusive=True,
+            exit_on_error=False,
+            group="commit-view-plan",
+        )
+
+    def _cancel_plan_worker(self) -> None:
+        worker = self._plan_worker
+        self._plan_worker = None
+        self._plan_loading_identity = None
+        if worker is not None and worker.is_running:
+            worker.cancel()
+
+    def _leave_plan_mode(self) -> None:
+        self._cancel_plan_worker()
+        self._plan_document = None
+        self._display_mode = "commit"
+
+    def _current_identity(self) -> tuple[int, str]:
+        spec = self._current_spec
+        return self._current_index, spec.sha or spec.short_sha
+
+    def _notify_plan_failure(self, document: PlanDocument) -> None:
+        commit = self._current_spec.short_sha or self._current_spec.sha
+        if document.status == "missing_tag":
+            self.notify(
+                f"{commit}: no SASE_PLAN tag is attached",
+                severity="warning",
+            )
+            return
+        reference = document.reference or "the attached SASE_PLAN"
+        reason = {
+            "invalid_reference": "has an invalid local reference",
+            "missing_file": "is not available locally",
+            "not_file": "does not resolve to a regular file",
+            "unreadable": "could not be read as UTF-8 Markdown",
+        }.get(document.status, "could not be loaded")
+        self.notify(
+            f"{commit}: SASE_PLAN {reference!r} {reason}",
+            severity="error",
+        )
 
     def _refresh_commit_widgets(self, *, reset_scroll: bool) -> None:
         if not self.is_attached:

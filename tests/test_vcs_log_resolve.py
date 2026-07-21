@@ -82,6 +82,7 @@ def test_primary_only(monkeypatch: pytest.MonkeyPatch, project: None) -> None:
     assert [(r.name, r.path, r.kind) for r in resolved.repos] == [
         ("sase", "/ws/sase", "primary")
     ]
+    assert resolved.repos[0].plan_workspaces[0].workspace_dir == "/ws/sase"
     assert resolved.warnings == []
 
 
@@ -400,6 +401,7 @@ def test_not_in_project_falls_back_to_current_repo(
     resolved = resolve_log_repos(cwd="/some/repo")
 
     assert [(r.name, r.kind) for r in resolved.repos] == [("repo", "primary")]
+    assert resolved.repos[0].plan_workspaces[0].workspace_dir == "/some/repo"
 
 
 def test_not_in_project_and_not_a_repo_warns(

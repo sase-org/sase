@@ -73,6 +73,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     d(a.commits_view_selected),
                     "Open full commit message and diff",
                 ),
+                ("p (commit view)", "Toggle attached local plan / commit"),
                 (d(a.commits_copy_sha), "Copy full commit SHA"),
                 (
                     f"{d(a.edit_query)} / {d(a.commits_filters)}",

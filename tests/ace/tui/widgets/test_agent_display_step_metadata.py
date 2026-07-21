@@ -302,7 +302,10 @@ class TestWorkflowVariablesHeader:
             step_output={
                 "meta_commits": [
                     {
-                        "message": "feat: first primary\n\nbody line",
+                        "message": (
+                            "feat: first primary\n\nbody line\n\n"
+                            "SASE_PLAN=202607/agent-plan.md"
+                        ),
                         "sha": "aaaaaaaaaaa111ffff",
                         "cwd": str(workspace),
                         "diff_path": str(diff_path),
@@ -333,8 +336,13 @@ class TestWorkflowVariablesHeader:
         assert hint_state.hint_counter == 5
         assert hint_state.hint_mappings == {}
         assert hint_state.commit_views[3].sha == "aaaaaaaaaaa111ffff"
-        assert hint_state.commit_views[3].message == "feat: first primary\n\nbody line"
+        assert hint_state.commit_views[3].message == (
+            "feat: first primary\n\nbody line\n\nSASE_PLAN=202607/agent-plan.md"
+        )
         assert hint_state.commit_views[3].diff_path == str(diff_path)
+        assert hint_state.commit_views[3].plan_workspaces[0].workspace_dir == str(
+            workspace
+        )
         assert hint_state.commit_views[4].diff_path is None
 
     def test_agent_commit_diffs_order_primary_first_and_dedups_legacy_paths(

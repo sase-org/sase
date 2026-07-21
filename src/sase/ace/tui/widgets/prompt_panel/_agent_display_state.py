@@ -12,6 +12,7 @@ from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.tools import SlowToolSource
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.repo_inventory import RepoKind
+from sase.plan_documents import PlanWorkspace
 
 from ...models.agent_associated_plan import AssociatedPlanSummary, PhaseBeadSummary
 from ..file_panel._linked_deltas import LinkedDeltaGroup
@@ -31,6 +32,7 @@ class CommitViewSpec:
     diff_path: str | None
     is_primary: bool
     repo_kind: RepoKind = "linked"
+    plan_workspaces: tuple[PlanWorkspace, ...] = ()
 
 
 @dataclass

@@ -18,6 +18,7 @@ from pathlib import Path
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
+from sase.plan_documents import PlanWorkspace
 from sase.project_display_names import project_display_name_for
 from sase.vcs_log.models import LogRepo, LogRepoKind
 
@@ -42,6 +43,7 @@ class _RepoCandidate:
     project_name: str
     project_label: str
     aliases: frozenset[str] = frozenset()
+    plan_workspaces: tuple[PlanWorkspace, ...] = ()
 
 
 @dataclass
@@ -54,6 +56,7 @@ class _CatalogRepo:
     project_name: str
     project_label: str
     aliases: set[str] = field(default_factory=set)
+    plan_workspaces: set[PlanWorkspace] = field(default_factory=set)
     name: str = ""
 
 
@@ -241,6 +244,7 @@ def _resolve_record_candidates(
         record.project_name,
         *(alias for alias in record.aliases if alias),
     }
+    plan_workspace = _plan_workspace(record.project_name, primary_dir, 1)
     candidates = [
         _RepoCandidate(
             name=project_label,
@@ -249,6 +253,7 @@ def _resolve_record_candidates(
             project_name=record.project_name,
             project_label=project_label,
             aliases=frozenset(primary_aliases),
+            plan_workspaces=(plan_workspace,),
         )
     ]
 
@@ -258,9 +263,14 @@ def _resolve_record_candidates(
         primary_dir,
         project_warnings,
         include_sidecars=include_sidecars,
+        plan_workspaces=(plan_workspace,),
     )
     legacy_sidecar = (
-        _resolve_legacy_sdd_repo(primary_dir, project_warnings)
+        _resolve_legacy_sdd_repo(
+            primary_dir,
+            project_warnings,
+            plan_workspaces=(plan_workspace,),
+        )
         if include_sidecars
         else None
     )
@@ -276,6 +286,7 @@ def _resolve_record_candidates(
                 project_name=record.project_name,
                 project_label=project_label,
                 aliases=frozenset((repo.name, *repo.aliases)),
+                plan_workspaces=repo.plan_workspaces,
             )
         )
     if legacy_sidecar is not None:
@@ -289,6 +300,7 @@ def _resolve_record_candidates(
                 aliases=frozenset(
                     (legacy_sidecar.name, "sdd", *legacy_sidecar.aliases)
                 ),
+                plan_workspaces=legacy_sidecar.plan_workspaces,
             )
         )
     return candidates
@@ -317,12 +329,14 @@ def _resolve_project_repos(
 ) -> list[LogRepo]:
     primary_dir = _primary_workspace_dir(project_file, cwd, workspace_num)
     display_name = project_display_name_for(project_name)
+    plan_workspaces = (_plan_workspace(project_name, primary_dir, workspace_num),)
     repos: list[LogRepo] = [
         LogRepo(
             name=display_name,
             path=primary_dir,
             kind="primary",
             aliases=(project_name,) if project_name != display_name else (),
+            plan_workspaces=plan_workspaces,
         )
     ]
 
@@ -335,10 +349,15 @@ def _resolve_project_repos(
             primary_dir,
             warnings,
             include_sidecars=include_sidecars,
+            plan_workspaces=plan_workspaces,
         )
     )
     if include_sidecars:
-        legacy_sidecar = _resolve_legacy_sdd_repo(primary_dir, warnings)
+        legacy_sidecar = _resolve_legacy_sdd_repo(
+            primary_dir,
+            warnings,
+            plan_workspaces=plan_workspaces,
+        )
         if legacy_sidecar is not None:
             repos.append(legacy_sidecar)
     return repos
@@ -363,6 +382,7 @@ def _resolve_linked_repos(
     warnings: list[str],
     *,
     include_sidecars: bool,
+    plan_workspaces: tuple[PlanWorkspace, ...],
 ) -> list[LogRepo]:
     from sase.linked_repos import resolve_linked_repos_for_project
 
@@ -389,11 +409,23 @@ def _resolve_linked_repos(
         # always-materialized copy (numbered workspaces are ephemeral).
         path = repo.primary_dir or repo.workspace_dir
         if path:
-            repos.append(LogRepo(name=repo.name, path=path, kind=kind))
+            repos.append(
+                LogRepo(
+                    name=repo.name,
+                    path=path,
+                    kind=kind,
+                    plan_workspaces=plan_workspaces,
+                )
+            )
     return repos
 
 
-def _resolve_legacy_sdd_repo(primary_dir: str, warnings: list[str]) -> LogRepo | None:
+def _resolve_legacy_sdd_repo(
+    primary_dir: str,
+    warnings: list[str],
+    *,
+    plan_workspaces: tuple[PlanWorkspace, ...],
+) -> LogRepo | None:
     from sase.sdd import materialized_sdd_clone
 
     try:
@@ -410,6 +442,7 @@ def _resolve_legacy_sdd_repo(primary_dir: str, warnings: list[str]) -> LogRepo |
         path=str(clone),
         kind="sidecar",
         aliases=("sdd",),
+        plan_workspaces=plan_workspaces,
     )
 
 
@@ -436,7 +469,14 @@ def _resolve_fallback_repos(cwd: str, warnings: list[str]) -> list[LogRepo]:
         return []
 
     name = os.path.basename(os.path.abspath(cwd.rstrip("/"))) or "current"
-    return [LogRepo(name=name, path=cwd, kind="primary")]
+    return [
+        LogRepo(
+            name=name,
+            path=cwd,
+            kind="primary",
+            plan_workspaces=(_plan_workspace(None, cwd, 1),),
+        )
+    ]
 
 
 def _deduplicate_and_name(candidates: list[_RepoCandidate]) -> list[LogRepo]:
@@ -454,6 +494,11 @@ def _deduplicate_and_name(candidates: list[_RepoCandidate]) -> list[LogRepo]:
             for alias in (candidate.name, *candidate.aliases)
             if alias
         }
+        plan_workspaces = {
+            workspace
+            for candidate in equivalent
+            for workspace in candidate.plan_workspaces
+        }
         catalog.append(
             _CatalogRepo(
                 base_name=winner.name,
@@ -462,6 +507,7 @@ def _deduplicate_and_name(candidates: list[_RepoCandidate]) -> list[LogRepo]:
                 project_name=winner.project_name,
                 project_label=winner.project_label,
                 aliases=aliases,
+                plan_workspaces=plan_workspaces,
             )
         )
 
@@ -473,6 +519,9 @@ def _deduplicate_and_name(candidates: list[_RepoCandidate]) -> list[LogRepo]:
             path=repo.path,
             kind=repo.kind,
             aliases=tuple(sorted(repo.aliases - {repo.name}, key=str.casefold)),
+            plan_workspaces=tuple(
+                sorted(repo.plan_workspaces, key=_plan_workspace_sort_key)
+            ),
         )
         for repo in sorted(catalog, key=_catalog_sort_key)
     ]
@@ -480,6 +529,37 @@ def _deduplicate_and_name(candidates: list[_RepoCandidate]) -> list[LogRepo]:
 
 def _canonical_repo_path(path: str) -> str:
     return os.path.normcase(os.path.realpath(os.path.abspath(os.path.expanduser(path))))
+
+
+def _plan_workspace(
+    project_name: str | None,
+    workspace_dir: str,
+    workspace_num: int,
+) -> PlanWorkspace:
+    plans_root: str | None = None
+    try:
+        from sase.sdd.store import resolve_sdd_kind_dir
+
+        plans_root = str(resolve_sdd_kind_dir(workspace_dir, workspace_num, "plans"))
+    except Exception:
+        pass
+    return PlanWorkspace(
+        workspace_dir=workspace_dir,
+        workspace_num=workspace_num,
+        plans_root=plans_root,
+        project=project_name,
+    )
+
+
+def _plan_workspace_sort_key(
+    workspace: PlanWorkspace,
+) -> tuple[str, str, int, str]:
+    return (
+        (workspace.project or "").casefold(),
+        workspace.workspace_dir,
+        workspace.workspace_num,
+        workspace.plans_root or "",
+    )
 
 
 def _candidate_preference(

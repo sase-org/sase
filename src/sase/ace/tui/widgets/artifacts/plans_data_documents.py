@@ -6,6 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.plan_documents import PlanWorkspace, resolve_plan_path
+
 from .plans_data_models import LinkedPlanDocument, PlansSnapshot
 from .plans_data_sources import yaml_value_to_string
 
@@ -68,51 +70,18 @@ def _resolve_linked_plan_path(
     plans_root: Path,
 ) -> Path | None:
     """Resolve every stable reference form emitted by plan approval."""
-    try:
-        raw_path = Path(reference).expanduser()
-        if raw_path.is_absolute():
-            return raw_path.resolve(strict=False)
-
-        workspace = (
-            None
-            if not workspace_dir
-            else Path(workspace_dir).expanduser().resolve(strict=False)
-        )
-        sdd_root = plans_root.expanduser().resolve(strict=False)
-        nested_plans_root = sdd_root / "plans"
-        canonical_root = (
-            nested_plans_root
-            if nested_plans_root.is_dir() or sdd_root.name == "sdd"
-            else sdd_root
-        )
-        parts = raw_path.parts
-        relative = raw_path
-        for prefix in (
-            (".sase", "sdd", "plans"),
-            ("sdd", "plans"),
-            ("plans",),
-        ):
-            if parts[: len(prefix)] == prefix:
-                relative = Path(*parts[len(prefix) :])
-                break
-
-        candidates: list[Path] = []
-        if workspace is not None:
-            candidates.append(workspace / raw_path)
-        candidates.append(canonical_root / relative)
-        normalized = tuple(
-            dict.fromkeys(candidate.resolve(strict=False) for candidate in candidates)
-        )
-    except (OSError, RuntimeError, ValueError):
+    resolved = resolve_plan_path(
+        reference,
+        workspaces=(
+            PlanWorkspace(
+                workspace_dir=workspace_dir or "",
+                plans_root=str(plans_root),
+            ),
+        ),
+    )
+    if resolved.status == "invalid_reference" or resolved.path is None:
         return None
-
-    for candidate in normalized:
-        try:
-            if candidate.is_file():
-                return candidate
-        except (OSError, ValueError):
-            continue
-    return normalized[-1] if normalized else None
+    return Path(resolved.path)
 
 
 def _read_linked_plan_payload(

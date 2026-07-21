@@ -189,7 +189,7 @@ def test_run_skips_stale_sdd_clone_without_materialized_record(
     monkeypatch.setattr(
         resolve_module,
         "_resolve_linked_repos",
-        lambda project_file, primary_dir, warnings, *, include_sidecars: [],
+        lambda project_file, primary_dir, warnings, **_kwargs: [],
     )
     monkeypatch.setattr(sdd_module, "materialized_sdd_clone", lambda primary: None)
     monkeypatch.setattr(collect_module, "_linked_config_descriptions", lambda _: {})

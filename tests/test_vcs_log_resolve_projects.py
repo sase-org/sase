@@ -464,3 +464,7 @@ def test_all_projects_deduplicates_shared_sdd_checkout_when_enabled(
     sdd_repos = [repo for repo in resolved.repos if repo.kind == "sidecar"]
     assert len(sdd_repos) == 1
     assert sdd_repos[0].path == str(shared_sdd.resolve())
+    assert [owner.project for owner in sdd_repos[0].plan_workspaces] == [
+        "alpha",
+        "beta",
+    ]

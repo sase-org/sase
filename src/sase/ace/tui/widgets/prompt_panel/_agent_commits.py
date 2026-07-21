@@ -10,9 +10,10 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from rich.text import Text
 
-from sase.project_display_names import project_display_name_for
 from sase.external_repos import external_repo_name_from_clone_parts
 from sase.linked_repos import EXTERNAL_REPO_CLONES_SUBDIR
+from sase.plan_documents import PlanWorkspace
+from sase.project_display_names import project_display_name_for
 from sase.repo_inventory import RepoKind
 
 from ...models.agent import Agent
@@ -98,6 +99,20 @@ def _full_sha(value: object) -> str:
     return text.split()[0] if text.split() else ""
 
 
+def _agent_plan_workspaces(agent: Agent) -> tuple[PlanWorkspace, ...]:
+    """Return owner identity without doing storage resolution on the UI path."""
+    if not agent.workspace_dir:
+        return ()
+    project = Path(agent.project_file).parent.name if agent.project_file else None
+    return (
+        PlanWorkspace(
+            workspace_dir=agent.workspace_dir,
+            workspace_num=agent.effective_workspace_num or 1,
+            project=project,
+        ),
+    )
+
+
 def _primary_repo_name(agent: Agent, step_output: dict[str, Any] | None) -> str:
     meta_project = step_output.get("meta_project") if step_output is not None else None
     if meta_project:
@@ -162,6 +177,7 @@ def _persisted_commit_lines(
                 diff_path=_legacy_commit_diff_path(agent, step_output),
                 is_primary=attribution.kind == "primary",
                 repo_kind=attribution.kind,
+                plan_workspaces=_agent_plan_workspaces(agent),
             ),
         ),
     )
@@ -212,6 +228,7 @@ def _commit_line_from_record(
             diff_path=_commit_diff_path_from_record(record),
             is_primary=attribution.kind == "primary",
             repo_kind=attribution.kind,
+            plan_workspaces=_agent_plan_workspaces(agent),
         ),
     )
 

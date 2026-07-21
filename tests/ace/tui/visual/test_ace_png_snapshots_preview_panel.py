@@ -7,8 +7,9 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.commit_view_modal import CommitViewModal
 from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
-from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
+from sase.plan_documents import PlanDocument
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -183,6 +184,24 @@ new file mode 100644
         "sase.ace.tui.modals.commit_view_modal.load_commit_diff_text",
         lambda spec: diff_text_by_path.get(spec.diff_path or ""),
     )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.commit_view_modal.load_commit_plan_document",
+        lambda *_args, **_kwargs: PlanDocument(
+            "success",
+            reference="202607/commit_view_plan_toggle.md",
+            path="/workspace/sase/sase/repos/plans/202607/commit_view_plan_toggle.md",
+            content=(
+                "---\n"
+                "title: View associated plans from the commit panel\n"
+                "tier: tale\n"
+                "---\n\n"
+                "# Plan\n\n"
+                "## Modal behavior\n\n"
+                "- Press `p` to restore the same commit and cached diff.\n"
+                "- Keep plan loading off the Textual event loop.\n"
+            ),
+        ),
+    )
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
@@ -203,4 +222,18 @@ new file mode 100644
             page,
             "commit_view_modal_120x40",
             title="ACE commit view modal",
+        )
+
+        await page.press("p")
+        await wait_for_state(
+            page,
+            lambda: modal._display_mode == "plan",
+            description="commit plan view to finish loading",
+        )
+        await wait_for_svg_contains(page, "View associated plans")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "commit_plan_view_modal_120x40",
+            title="ACE commit plan view modal",
         )

@@ -128,6 +128,7 @@ def build_commit_view_spec(
         diff_path=None,
         is_primary=repo_kind == "primary",
         repo_kind=repo_kind,
+        plan_workspaces=repo.plan_workspaces if repo is not None else (),
     )
 
 

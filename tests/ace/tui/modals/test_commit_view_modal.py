@@ -6,13 +6,16 @@ from io import StringIO
 from pathlib import Path
 from threading import Event
 
+import pytest
 from rich.console import Console
 from textual.app import App, ComposeResult
+from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from sase.ace.tui.modals.commit_view_modal import CommitViewModal
 from sase.ace.tui.util.lazy_syntax import PLAIN_RENDER_MAX_BYTES
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
+from sase.plan_documents import PlanDocument
 
 
 class _CommitModalTestApp(App[None]):
@@ -117,6 +120,14 @@ async def _wait_for_diff(
             return
         await pilot.pause()
     raise AssertionError(f"commit diff did not load expected text: {expected_text}")
+
+
+async def _wait_for_plan(pilot, modal: CommitViewModal) -> None:
+    for _ in range(50):
+        if modal._display_mode == "plan" and modal._plan_document is not None:
+            return
+        await pilot.pause()
+    raise AssertionError("commit plan did not load")
 
 
 async def test_commit_view_modal_copies_sha_and_closes(
@@ -329,3 +340,165 @@ async def test_commit_view_modal_ignores_stale_diff_worker_result(
         assert modal._diff_text is not None
         assert "+fresh second" in modal._diff_text
         assert "+stale first" not in modal._diff_text
+
+
+async def test_commit_view_modal_toggles_plan_and_restores_cached_diff(
+    tmp_path: Path,
+) -> None:
+    diff_path = tmp_path / "commit.diff"
+    plan_path = tmp_path / "plan.md"
+    _write_diff(diff_path, old="old", new="new")
+    plan_path.write_text("# Attached plan\n\n- Do the work.\n", encoding="utf-8")
+    spec = _spec(
+        str(diff_path),
+        message=f"feat: modal\n\nSASE_PLAN={plan_path}",
+    )
+    app = _CommitModalTestApp([spec])
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, CommitViewModal)
+        await _wait_for_diff(pilot, modal, "+new")
+        scroll = modal.query_one("#commit-view-scroll", VerticalScroll)
+        scroll.scroll_end(animate=False)
+
+        await pilot.press("p")
+        await _wait_for_plan(pilot, modal)
+
+        assert modal._build_title().plain.startswith("PLAN")
+        assert str(plan_path.resolve()) in modal._build_title().plain
+        assert "p commit" in modal._build_footer()
+        assert "Attached plan" in _rendered_text(modal._build_content())
+        assert scroll.scroll_y == 0
+
+        await pilot.press("p")
+        await pilot.pause()
+
+        assert modal._display_mode == "commit"
+        assert modal._build_title().plain.startswith("COMMIT")
+        assert "p plan" in modal._build_footer()
+        assert modal._diff_loaded is True
+        assert modal._diff_text is not None and "+new" in modal._diff_text
+
+
+async def test_commit_view_modal_plan_failure_notifies_and_keeps_commit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    diff_path = tmp_path / "commit.diff"
+    _write_diff(diff_path, old="old", new="new")
+    notices: list[tuple[str, str]] = []
+
+    def notify(
+        _self: CommitViewModal,
+        message: str,
+        *,
+        severity: str = "information",
+        **_kwargs,
+    ) -> None:
+        notices.append((message, severity))
+
+    monkeypatch.setattr(CommitViewModal, "notify", notify)
+    app = _CommitModalTestApp([_spec(str(diff_path))])
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, CommitViewModal)
+        await _wait_for_diff(pilot, modal, "+new")
+
+        await pilot.press("p")
+        for _ in range(50):
+            if notices:
+                break
+            await pilot.pause()
+
+        assert notices == [("abcdef123456: no SASE_PLAN tag is attached", "warning")]
+        assert modal._display_mode == "commit"
+        assert modal._diff_text is not None and "+new" in modal._diff_text
+
+
+async def test_commit_view_modal_toggle_back_ignores_stale_plan_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = Event()
+    release = Event()
+
+    def load_plan(_message: str, **_kwargs) -> PlanDocument:
+        started.set()
+        release.wait(timeout=2)
+        return PlanDocument(
+            "success",
+            reference="stale.md",
+            path="/plans/stale.md",
+            content="# Stale plan\n",
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.commit_view_modal.load_commit_plan_document",
+        load_plan,
+    )
+    app = _CommitModalTestApp([_spec("/missing/commit.diff")])
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, CommitViewModal)
+        await pilot.press("p")
+        for _ in range(50):
+            if started.is_set():
+                break
+            await pilot.pause()
+        assert started.is_set()
+
+        await pilot.press("p")
+        release.set()
+        for _ in range(5):
+            await pilot.pause()
+
+        assert modal._display_mode == "commit"
+        assert "Stale plan" not in _rendered_text(modal._build_content())
+
+
+async def test_commit_navigation_exits_plan_mode_and_preserves_wrapping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = _spec(
+        "/missing/first.diff",
+        sha="111111111111111111111111",
+        subject="feat: first",
+    )
+    second = _spec(
+        "/missing/second.diff",
+        sha="222222222222222222222222",
+        subject="fix: second",
+    )
+
+    def load_plan(_message: str, **_kwargs) -> PlanDocument:
+        return PlanDocument(
+            "success",
+            reference="plan.md",
+            path="/plans/plan.md",
+            content="# Plan\n",
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.commit_view_modal.load_commit_plan_document",
+        load_plan,
+    )
+    app = _CommitModalTestApp([first, second])
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, CommitViewModal)
+        await pilot.press("p")
+        await _wait_for_plan(pilot, modal)
+
+        await pilot.press("ctrl+p")
+        await pilot.pause()
+
+        assert modal._current_index == 1
+        assert modal._display_mode == "commit"
+        assert modal._current_spec is second
