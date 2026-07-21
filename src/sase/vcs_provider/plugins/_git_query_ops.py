@@ -24,6 +24,13 @@ from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
 
+#: Git filters ``--until`` by committer time, while SASE's commit wire uses
+#: author time. Admit a conservative margin so ordinary rebases remain
+#: candidates for SASE's exact author-time filter. Commits whose committer
+#: dates trail their author dates by more than this, or which lie beyond a
+#: saturated bounded candidate fetch, can still be absent.
+GIT_AUTHOR_DATE_UNTIL_SLOP_SECONDS = 7 * 24 * 60 * 60
+
 
 class GitQueryOpsMixin(CommandRunner):
     """Git query, info, and sync operations."""
@@ -476,7 +483,7 @@ class GitQueryOpsMixin(CommandRunner):
         if since is not None:
             args.append(f"--since=@{since}")
         if until is not None:
-            args.append(f"--until=@{until}")
+            args.append(f"--until=@{until + GIT_AUTHOR_DATE_UNTIL_SLOP_SECONDS}")
         if authors:
             args.extend(["--fixed-strings", "--regexp-ignore-case"])
             args.extend(f"--author={author}" for author in authors)

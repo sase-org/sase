@@ -15,10 +15,11 @@ Public surface:
 """
 
 from sase.vcs_log.collect import collect_vcs_log, run_vcs_log
-from sase.vcs_log.models import LogRepo, LogRepoKind, VcsLogResult
+from sase.vcs_log.models import CommitFilterSpec, LogRepo, LogRepoKind, VcsLogResult
 from sase.vcs_log.resolve import ResolvedRepos, resolve_log_repos
 
 __all__ = [
+    "CommitFilterSpec",
     "LogRepo",
     "LogRepoKind",
     "ResolvedRepos",

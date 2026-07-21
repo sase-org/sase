@@ -268,6 +268,7 @@ class TestVcsHandlerDispatch:
         from sase.main.vcs_handler import _handle_log
 
         ns = argparse.Namespace(
+            all=False,
             limit=20,
             repos=[],
             current_only=False,
@@ -292,6 +293,7 @@ class TestVcsHandlerDispatch:
         from sase.main.vcs_handler import _handle_log
 
         ns = argparse.Namespace(
+            all=False,
             limit=20,
             repos=[],
             current_only=False,
@@ -303,6 +305,7 @@ class TestVcsHandlerDispatch:
             reverse=False,
             since="2026-07-09",
             show_tags=True,
+            sdd=False,
             until="2026-07-08",
             authors=[],
         )
@@ -356,6 +359,9 @@ class TestVcsHandlerDispatch:
         )
 
         assert _handle_log(ns) == 0
-        filters = captured["filters"]
+        filter_spec = captured["filter_spec"]
+        assert filter_spec.since is not None
+        assert filter_spec.until is not None
+        filters = filter_spec.resolve(now=reference)
         assert filters.since == int(datetime(2026, 7, 18, tzinfo=tz).timestamp())
         assert filters.until == int(datetime(2026, 7, 19, tzinfo=tz).timestamp()) - 1

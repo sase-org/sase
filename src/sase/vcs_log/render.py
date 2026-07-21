@@ -56,8 +56,13 @@ def render(
 ) -> None:
     """Render *result* in the requested format to *out* (default stdout)."""
     stream = out if out is not None else sys.stdout
-    filters = filters or CommitFilters()
-    commits = _ordered_commits(result, reverse=reverse)
+    filters = filters or result.resolved_filters or CommitFilters()
+    commits = _ordered_commits(
+        result,
+        filters=filters,
+        limit=limit,
+        reverse=reverse,
+    )
     if fmt == "json":
         stream.write(
             _render_json(
@@ -508,9 +513,23 @@ def _repo_colors(result: VcsLogResult) -> dict[str, str]:
 
 
 def _ordered_commits(
-    result: VcsLogResult, *, reverse: bool
+    result: VcsLogResult,
+    *,
+    filters: CommitFilters,
+    limit: int,
+    reverse: bool,
 ) -> tuple[AggregatedCommitWire, ...]:
-    commits = tuple(result.commits)
+    # Providers use coarse date filtering. Apply SASE's exact inclusive
+    # author-time bounds before the user-visible cap so boundary-margin
+    # candidates cannot consume output rows.
+    commits = tuple(
+        entry
+        for entry in result.commits
+        if (filters.since is None or entry.commit.timestamp >= filters.since)
+        and (filters.until is None or entry.commit.timestamp <= filters.until)
+    )
+    if limit > 0:
+        commits = commits[:limit]
     return tuple(reversed(commits)) if reverse else commits
 
 

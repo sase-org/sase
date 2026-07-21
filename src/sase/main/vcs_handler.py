@@ -32,12 +32,8 @@ def _handle_log(args: argparse.Namespace) -> int:
     format.
     """
     from sase.vcs_log.collect import run_vcs_log
-    from sase.vcs_log.dates import (
-        VcsLogDateError,
-        normalize_reference_time,
-        parse_time_bound,
-    )
-    from sase.vcs_log.models import CommitFilters
+    from sase.vcs_log.dates import VcsLogDateError, parse_time_bound
+    from sase.vcs_log.models import CommitFilterSpec
     from sase.vcs_log.progress import make_fetch_progress
     from sase.vcs_log.render import render
 
@@ -48,50 +44,34 @@ def _handle_log(args: argparse.Namespace) -> int:
         print(f"sase vcs log: {exc}", file=sys.stderr)
         return 2
 
-    reference = normalize_reference_time()
-    since = (
-        since_bound.resolve(now=reference, boundary="since")
-        if since_bound is not None
-        else None
-    )
-    until = (
-        until_bound.resolve(now=reference, boundary="until")
-        if until_bound is not None
-        else None
-    )
-
-    if since is not None and until is not None and since > until:
-        print(
-            "sase vcs log: --since/--after must be at or before --until/--before",
-            file=sys.stderr,
-        )
-        return 2
-
-    filters = CommitFilters(
-        since=since,
-        until=until,
+    filter_spec = CommitFilterSpec(
+        since=since_bound,
+        until=until_bound,
         authors=tuple(args.authors or ()),
     )
 
-    result = run_vcs_log(
-        cwd=os.getcwd(),
-        limit=args.limit,
-        filters=filters,
-        repo_filters=args.repos,
-        all_projects=args.all,
-        current_only=args.current_only,
-        include_sidecars=args.sdd,
-        no_fetch=args.no_fetch,
-        force_fetch=args.force_fetch,
-        remote_ref=args.remote_ref,
-        fetch_progress=make_fetch_progress(args.color),
-    )
+    try:
+        result = run_vcs_log(
+            cwd=os.getcwd(),
+            limit=args.limit,
+            filter_spec=filter_spec,
+            repo_filters=args.repos,
+            all_projects=args.all,
+            current_only=args.current_only,
+            include_sidecars=args.sdd,
+            no_fetch=args.no_fetch,
+            force_fetch=args.force_fetch,
+            remote_ref=args.remote_ref,
+            fetch_progress=make_fetch_progress(args.color),
+        )
+    except VcsLogDateError as exc:
+        print(f"sase vcs log: {exc}", file=sys.stderr)
+        return 2
     render(
         result,
         fmt=args.format,
         color=args.color,
         limit=args.limit,
-        filters=filters,
         reverse=args.reverse,
         show_tags=args.show_tags,
         all_projects=args.all,

@@ -277,6 +277,57 @@ def test_json_reverse_and_query_filters() -> None:
     }
 
 
+@pytest.mark.parametrize("fmt", ["pretty", "full", "oneline", "json"])
+def test_all_formats_trim_author_time_before_filling_final_limit(fmt: str) -> None:
+    result = VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(
+            _entry("sase", "margin400", 400, "upper margin"),
+            _entry("sase", "bound300", 300, "upper inclusive"),
+            _entry("sase", "inside25", 250, "inside window"),
+            _entry("sase", "bound200", 200, "lower inclusive"),
+            _entry("sase", "outside1", 100, "below window"),
+        ),
+        warnings=(),
+    )
+
+    text = _render(
+        result,
+        fmt,
+        limit=2,
+        filters=CommitFilters(since=200, until=300),
+    )
+
+    assert "upper inclusive" in text
+    assert "inside window" in text
+    assert "upper margin" not in text
+    assert "lower inclusive" not in text
+    assert "below window" not in text
+
+
+def test_json_exact_author_time_bounds_are_inclusive() -> None:
+    result = VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(
+            _entry("sase", "above301", 301, "above"),
+            _entry("sase", "upper300", 300, "upper"),
+            _entry("sase", "lower200", 200, "lower"),
+            _entry("sase", "below199", 199, "below"),
+        ),
+        warnings=(),
+        resolved_filters=CommitFilters(since=200, until=300),
+    )
+
+    payload = json.loads(_render(result, "json", limit=0))
+
+    assert [commit["subject"] for commit in payload["commits"]] == [
+        "upper",
+        "lower",
+    ]
+    assert payload["query"]["since"] == 200
+    assert payload["query"]["until"] == 300
+
+
 def test_json_marks_all_project_scope_with_unique_local_only_labels() -> None:
     result = VcsLogResult(
         repos=(

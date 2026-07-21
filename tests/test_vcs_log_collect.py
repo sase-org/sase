@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -11,8 +12,9 @@ import pytest
 from sase.core.vcs_log_wire import VcsCommitWire
 from sase.vcs_log import collect as collect_module
 from sase.vcs_log.collect import collect_vcs_log, run_vcs_log
+from sase.vcs_log.dates import parse_time_bound
 from sase.vcs_log.fetch_cache import _read_fetch_cache, record_successful_fetch
-from sase.vcs_log.models import CommitFilters, LogRepo, UNLIMITED
+from sase.vcs_log.models import CommitFilterSpec, CommitFilters, LogRepo, UNLIMITED
 from sase.vcs_log.resolve import ResolvedRepos
 
 
@@ -76,6 +78,8 @@ class _RemoteProvider:
         self._fetch_ok = fetch_ok
         self.fetch_calls: list[tuple[str, ...]] = []
         self.log_revs: tuple[str, ...] | None = None
+        self.log_limit: int | None = None
+        self.log_filters: CommitFilters | None = None
 
     def resolve_remote_log_ref(
         self, cwd: str, ref_name: str | None = None
@@ -110,8 +114,10 @@ class _RemoteProvider:
         authors: tuple[str, ...] = (),
         revs: tuple[str, ...] = ("HEAD",),
     ) -> list[VcsCommitWire]:
-        del cwd, since, until, authors
+        del cwd
         self.log_revs = revs
+        self.log_limit = limit
+        self.log_filters = CommitFilters(since, until, authors)
         return self._commits if limit < 0 else self._commits[:limit]
 
 
@@ -209,6 +215,122 @@ def test_collect_applies_merged_limit_across_global_catalog() -> None:
         ("c", "c5"),
         ("b", "b4"),
     ]
+
+
+def test_collect_marks_aggregate_only_truncation_across_repos() -> None:
+    providers = {
+        "/a": _FakeProvider([_commit("a4", 400), _commit("a2", 200)]),
+        "/b": _FakeProvider([_commit("b3", 300), _commit("b1", 100)]),
+    }
+
+    result = collect_vcs_log(
+        [LogRepo("a", "/a", "primary"), LogRepo("b", "/b", "linked")],
+        limit=3,
+        provider_factory=lambda path: providers[path],
+    )
+
+    assert len(result.commits) == 3
+    assert result.aggregate_truncated is True
+    assert result.provider_truncation_possible is False
+    assert result.potentially_truncated is True
+
+
+def test_collect_marks_exact_per_repo_cap_as_possible_truncation() -> None:
+    result = collect_vcs_log(
+        [LogRepo("a", "/a", "primary")],
+        limit=3,
+        provider_factory=lambda _path: _FakeProvider(
+            [_commit("a3", 300), _commit("a2", 200), _commit("a1", 100)]
+        ),
+    )
+
+    assert len(result.commits) == 3
+    assert result.aggregate_truncated is False
+    assert result.provider_truncation_possible is True
+    assert result.potentially_truncated is True
+
+
+def test_collect_marks_combined_aggregate_and_provider_truncation() -> None:
+    providers = {
+        "/a": _FakeProvider(
+            [_commit("a4", 400), _commit("a3", 300), _commit("a2", 200)]
+        ),
+        "/b": _FakeProvider([_commit("b1", 100)]),
+    }
+
+    result = collect_vcs_log(
+        [LogRepo("a", "/a", "primary"), LogRepo("b", "/b", "linked")],
+        limit=3,
+        provider_factory=lambda path: providers[path],
+    )
+
+    assert len(result.commits) == 3
+    assert result.aggregate_truncated is True
+    assert result.provider_truncation_possible is True
+
+
+def test_collect_unlimited_never_marks_cap_truncation() -> None:
+    commits = [_commit(str(index), index) for index in range(6)]
+
+    result = collect_vcs_log(
+        [LogRepo("a", "/a", "primary")],
+        limit=0,
+        filters=CommitFilters(until=100),
+        provider_factory=lambda _path: _FakeProvider(commits),
+    )
+
+    assert len(result.commits) == len(commits)
+    assert result.aggregate_truncated is False
+    assert result.provider_truncation_possible is False
+    assert result.potentially_truncated is False
+
+
+def test_collect_doubles_bounded_until_candidate_limit() -> None:
+    provider = _RemoteProvider([_commit(str(index), index) for index in range(10)])
+
+    result = collect_vcs_log(
+        [LogRepo("a", "/a", "primary")],
+        limit=3,
+        filters=CommitFilters(until=100),
+        no_fetch=True,
+        provider_factory=lambda _path: provider,
+    )
+
+    assert provider.log_limit == 6
+    assert len(result.commits) == 6
+    assert result.aggregate_truncated is False
+    assert result.provider_truncation_possible is True
+
+
+def test_collect_resolves_relative_bounds_once_against_operation_time(
+    tmp_path: Path,
+) -> None:
+    from sase.core.time import get_timezone
+
+    reference = datetime(2026, 7, 21, 15, 30, tzinfo=get_timezone())
+    provider = _RemoteProvider([_commit("inside", int(reference.timestamp()))])
+    filter_spec = CommitFilterSpec(
+        since=parse_time_bound("2h"),
+        until=parse_time_bound("today"),
+        authors=("bryan",),
+    )
+
+    result = collect_vcs_log(
+        [LogRepo("a", "/a", "primary")],
+        limit=3,
+        filter_spec=filter_spec,
+        now=reference,
+        fetch_cache_path=tmp_path / "fetch-cache.json",
+        provider_factory=lambda _path: provider,
+    )
+
+    expected = filter_spec.resolve(now=reference)
+    assert provider.log_filters == expected
+    assert result.resolved_filters == expected
+    assert result.filter_spec == filter_spec
+    assert result.remote_states[0].fetched_at == reference.timestamp()
+    assert expected.since == int((reference - timedelta(hours=2)).timestamp())
+    assert expected.until is not None
 
 
 def test_collect_unsupported_remote_comparison_uses_local_log() -> None:
@@ -601,6 +723,38 @@ def test_run_merges_resolution_warnings_ahead_of_collection(
         "sase: no such checkout",
     )
     assert result.commits == ()
+
+
+def test_run_preserves_collection_truncation_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_resolve(  # type: ignore[no-untyped-def]
+        *,
+        cwd,
+        repo_filters=(),
+        all_projects=False,
+        current_only=False,
+        include_sidecars=False,
+    ):
+        del cwd, repo_filters, all_projects, current_only, include_sidecars
+        return ResolvedRepos(
+            repos=[LogRepo("sase", "/p/sase", "primary")],
+            warnings=["resolve-warning"],
+        )
+
+    monkeypatch.setattr(collect_module, "resolve_log_repos", fake_resolve)
+    provider = _FakeProvider([_commit("a", 300), _commit("b", 200), _commit("c", 100)])
+
+    result = run_vcs_log(
+        cwd="/workspace",
+        limit=3,
+        provider_factory=lambda _path: provider,
+    )
+
+    assert result.warnings == ("resolve-warning",)
+    assert result.aggregate_truncated is False
+    assert result.provider_truncation_possible is True
+    assert result.potentially_truncated is True
 
 
 def test_run_threads_repo_exclusions_before_provider_collection(

@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 import time
 
@@ -20,6 +21,7 @@ from sase.core.vcs_log_wire import CommitPresence, VcsCommitWire
 from sase.vcs_log.fetch_cache import fresh_fetch_time, record_successful_fetch
 from sase.vcs_log.models import (
     UNLIMITED,
+    CommitFilterSpec,
     CommitFilters,
     LogRepo,
     RepoRemoteState,
@@ -41,24 +43,29 @@ def collect_vcs_log(
     *,
     limit: int,
     filters: CommitFilters | None = None,
+    filter_spec: CommitFilterSpec | None = None,
     no_fetch: bool = False,
     force_fetch: bool = False,
     remote_ref: str | None = None,
     fetch_cache_path: str | Path | None = None,
-    now: float | None = None,
+    now: float | datetime | None = None,
     provider_factory: ProviderFactory | None = None,
     fetch_progress: FetchProgress | None = None,
 ) -> VcsLogResult:
     """Fetch each repo's log (isolated) and merge into one timeline.
 
-    Fetches up to *limit* commits per repo so the merged top-*limit* by
-    time is correct even when a single repo dominates recent activity.
+    Bounded requests fetch up to *limit* commits per repo so the merged
+    top-*limit* is correct when one repo dominates. An active upper bound
+    doubles that candidate cap so the exact author-time trim can discard
+    Git's widened committer-time margin before the visible limit is applied.
     """
+    reference, operation_epoch = _operation_clock(now)
+    resolved_filters = _resolve_filters(filters, filter_spec, now=reference)
     factory = provider_factory or _default_provider_factory()
-    filters = filters or CommitFilters()
     effective_limit = _effective_limit(limit)
+    candidate_limit = _candidate_limit(effective_limit, resolved_filters)
 
-    per_repo: list[tuple[str, list]] = []
+    per_repo: list[tuple[str, list[VcsCommitWire]]] = []
     ok_repos: list[LogRepo] = []
     remote_states: list[RepoRemoteState] = []
     warnings: list[str] = []
@@ -69,13 +76,13 @@ def collect_vcs_log(
             commits, state, repo_warnings = _collect_repo_commits(
                 provider,
                 repo,
-                effective_limit,
-                filters,
+                candidate_limit,
+                resolved_filters,
                 no_fetch=no_fetch,
                 force_fetch=force_fetch,
                 remote_ref=remote_ref,
                 fetch_cache_path=fetch_cache_path,
-                now=now,
+                now=operation_epoch,
                 fetch_progress=fetch_progress,
             )
         except Exception as exc:
@@ -86,12 +93,19 @@ def collect_vcs_log(
         remote_states.append(state)
         warnings.extend(repo_warnings)
 
-    aggregated = aggregate_commit_log(per_repo, effective_limit)
+    candidate_count = sum(len(commits) for _repo, commits in per_repo)
+    bounded = candidate_limit != UNLIMITED
+    aggregated = aggregate_commit_log(per_repo, candidate_limit)
     return VcsLogResult(
         repos=tuple(ok_repos),
         commits=tuple(aggregated),
         warnings=tuple(warnings),
         remote_states=tuple(remote_states),
+        aggregate_truncated=bounded and candidate_count > candidate_limit,
+        provider_truncation_possible=bounded
+        and any(len(commits) == candidate_limit for _repo, commits in per_repo),
+        resolved_filters=resolved_filters,
+        filter_spec=filter_spec,
     )
 
 
@@ -100,6 +114,7 @@ def run_vcs_log(
     cwd: str,
     limit: int,
     filters: CommitFilters | None = None,
+    filter_spec: CommitFilterSpec | None = None,
     repo_filters: Sequence[str] = (),
     exclude_repo_filters: Sequence[str] = (),
     all_projects: bool = False,
@@ -110,7 +125,7 @@ def run_vcs_log(
     force_fetch: bool = False,
     remote_ref: str | None = None,
     fetch_cache_path: str | Path | None = None,
-    now: float | None = None,
+    now: float | datetime | None = None,
     provider_factory: ProviderFactory | None = None,
     fetch_progress: FetchProgress | None = None,
 ) -> VcsLogResult:
@@ -151,6 +166,7 @@ def run_vcs_log(
         resolved.repos,
         limit=limit,
         filters=filters,
+        filter_spec=filter_spec,
         no_fetch=no_fetch,
         force_fetch=force_fetch,
         remote_ref=remote_ref,
@@ -159,11 +175,9 @@ def run_vcs_log(
         provider_factory=provider_factory,
         fetch_progress=fetch_progress,
     )
-    return VcsLogResult(
-        repos=collected.repos,
-        commits=collected.commits,
+    return replace(
+        collected,
         warnings=tuple(resolved.warnings) + collected.warnings,
-        remote_states=collected.remote_states,
     )
 
 
@@ -319,6 +333,41 @@ def _mark_presence(
 
 def _effective_limit(limit: int) -> int:
     return UNLIMITED if limit == 0 else limit
+
+
+def _candidate_limit(limit: int, filters: CommitFilters) -> int:
+    """Return the bounded cap retained for exact author-time filtering."""
+    if limit == UNLIMITED or filters.until is None:
+        return limit
+    return limit * 2
+
+
+def _operation_clock(now: float | datetime | None) -> tuple[datetime, float]:
+    """Capture one reference for bound resolution and fetch-cache timing."""
+    from sase.vcs_log.dates import normalize_reference_time
+
+    if isinstance(now, datetime):
+        reference = normalize_reference_time(now)
+        return reference, reference.timestamp()
+    if now is None:
+        reference = normalize_reference_time()
+        return reference, reference.timestamp()
+    epoch = float(now)
+    reference = normalize_reference_time(datetime.fromtimestamp(epoch, tz=UTC))
+    return reference, epoch
+
+
+def _resolve_filters(
+    filters: CommitFilters | None,
+    filter_spec: CommitFilterSpec | None,
+    *,
+    now: datetime,
+) -> CommitFilters:
+    if filters is not None and filter_spec is not None:
+        raise ValueError("filters and filter_spec are mutually exclusive")
+    if filter_spec is not None:
+        return filter_spec.resolve(now=now)
+    return filters or CommitFilters()
 
 
 __all__ = ["FetchProgress", "ProviderFactory", "collect_vcs_log", "run_vcs_log"]

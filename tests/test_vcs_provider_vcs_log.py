@@ -6,19 +6,25 @@ asserting the parsed :class:`VcsCommitWire` fields, newest-first ordering,
 merge-commit exclusion, the ``limit`` cap, and multi-line body handling.
 """
 
-import shutil
-import subprocess
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from collections.abc import Mapping
+import shutil
+import subprocess
 
 import pluggy
 import pytest
 
-from sase.core.vcs_log_wire import VcsCommitWire
+from sase.core.vcs_log_wire import AggregatedCommitWire, VcsCommitWire
 from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
+from sase.vcs_log.filter_query import CommitLogFilterValues, compile_commit_matcher
+from sase.vcs_log.models import CommitFilters
 from sase.vcs_provider._hookspec import VCSHookSpec
 from sase.vcs_provider._plugin_manager import VCSPluginManager
+from sase.vcs_provider._types import CommandOutput
+from sase.vcs_provider.plugins._git_query_ops import (
+    GIT_AUTHOR_DATE_UNTIL_SLOP_SECONDS,
+)
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
 _GIT_AVAILABLE = shutil.which("git") is not None
@@ -59,6 +65,7 @@ def _commit(
     message: str,
     *,
     timestamp: int | None = None,
+    committer_timestamp: int | None = None,
     author_name: str | None = None,
     author_email: str | None = None,
 ) -> None:
@@ -72,7 +79,12 @@ def _commit(
             "%Y-%m-%dT%H:%M:%S %z"
         )
         env["GIT_AUTHOR_DATE"] = raw_date
-        env["GIT_COMMITTER_DATE"] = raw_date
+        if committer_timestamp is None:
+            env["GIT_COMMITTER_DATE"] = raw_date
+    if committer_timestamp is not None:
+        env["GIT_COMMITTER_DATE"] = datetime.fromtimestamp(
+            committer_timestamp, UTC
+        ).strftime("%Y-%m-%dT%H:%M:%S %z")
     if author_name is not None:
         env["GIT_AUTHOR_NAME"] = author_name
         env["GIT_COMMITTER_NAME"] = author_name
@@ -133,15 +145,83 @@ def test_vcs_log_limit_zero_returns_all_commits(repo: str) -> None:
     ]
 
 
-def test_vcs_log_since_until_filter_before_limit(repo: str) -> None:
+def test_vcs_log_sloped_until_keeps_margin_for_exact_filter(repo: str) -> None:
     base = 1_700_000_000
     _commit(repo, "a.txt", "old", timestamp=base)
     _commit(repo, "b.txt", "middle", timestamp=base + 1_000)
     _commit(repo, "c.txt", "new", timestamp=base + 2_000)
 
-    commits = BareGitPlugin().vcs_log(repo, 1, since=base + 500, until=base + 1_500)
+    commits = BareGitPlugin().vcs_log(repo, 2, since=base + 500, until=base + 1_500)
 
-    assert [c.subject for c in commits] == ["middle"]
+    assert [c.subject for c in commits] == ["new", "middle"]
+    matcher = compile_commit_matcher(
+        CommitLogFilterValues(),
+        resolved_filters=CommitFilters(since=base + 500, until=base + 1_500),
+    )
+    entries = tuple(AggregatedCommitWire("repo", commit) for commit in commits)
+    assert [entry.commit.subject for entry in entries if matcher(entry)] == ["middle"]
+
+
+def test_vcs_log_generates_exact_since_and_sloped_until_args(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plugin = BareGitPlugin()
+    commands: list[list[str]] = []
+
+    def run(args: list[str], cwd: str) -> CommandOutput:
+        del cwd
+        commands.append(args)
+        return CommandOutput(0, "", "")
+
+    monkeypatch.setattr(plugin, "_run", run)
+
+    assert plugin.vcs_log("/repo", 5, since=100, until=200) == []
+    assert len(commands) == 1
+    assert commands[0][:-1] == [
+        "git",
+        "log",
+        "-n",
+        "5",
+        "--no-merges",
+        "--since=@100",
+        f"--until=@{200 + GIT_AUTHOR_DATE_UNTIL_SLOP_SECONDS}",
+        "HEAD",
+    ]
+    assert commands[0][-1].startswith("--format=")
+
+
+def test_vcs_log_slop_admits_rebased_author_time_for_exact_match(repo: str) -> None:
+    base = 1_700_000_000
+    until = base + 12 * 60 * 60
+    _commit(
+        repo,
+        "inside.txt",
+        "inside author window",
+        timestamp=base,
+        committer_timestamp=base + 24 * 60 * 60,
+    )
+    _commit(
+        repo,
+        "margin.txt",
+        "coarse margin only",
+        timestamp=base + 36 * 60 * 60,
+        committer_timestamp=base + 48 * 60 * 60,
+    )
+
+    commits = BareGitPlugin().vcs_log(repo, 10, until=until)
+
+    assert [commit.subject for commit in commits] == [
+        "coarse margin only",
+        "inside author window",
+    ]
+    matcher = compile_commit_matcher(
+        CommitLogFilterValues(),
+        resolved_filters=CommitFilters(until=until),
+    )
+    entries = tuple(AggregatedCommitWire("repo", commit) for commit in commits)
+    assert [entry.commit.subject for entry in entries if matcher(entry)] == [
+        "inside author window"
+    ]
 
 
 def test_vcs_log_author_filter_is_literal_case_insensitive_or(repo: str) -> None:

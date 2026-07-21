@@ -33,11 +33,10 @@ pytestmark = pytest.mark.visual
 def _pin_rolling_default_query_time(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep fixed visual commits inside the bundled rolling 24-hour query."""
     reference = datetime(2026, 7, 7, 12, tzinfo=UTC)
-    for target in (
-        "sase.ace.tui.widgets.artifacts.commits_collection.normalize_reference_time",
+    monkeypatch.setattr(
         "sase.ace.tui.widgets.artifacts.commits_filtering.normalize_reference_time",
-    ):
-        monkeypatch.setattr(target, lambda: reference)
+        lambda: reference,
+    )
 
 
 async def _open_commits(
@@ -172,7 +171,7 @@ async def test_commits_persistent_filter_small_terminal_png_snapshot(
         )
         await wait_for_visual_idle(page)
         page.app.query_one(HeaderIcon).display = True
-        await page.app.wait_for_refresh()
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,

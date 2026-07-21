@@ -92,11 +92,21 @@ class CommitsFilteringMixin(_MixinBase):
         values: CommitLogFilterValues,
     ) -> VcsLogResult:
         aliases = {repo.name: repo.aliases for repo in result.repos}
-        reference = normalize_reference_time()
+        wanted_spec = values.backend_filter_spec()
+        collected_spec = result.filter_spec
+        resolved_filters = None
+        if (
+            collected_spec is not None
+            and collected_spec.since == wanted_spec.since
+            and collected_spec.until == wanted_spec.until
+        ):
+            resolved_filters = result.resolved_filters
+        reference = None if resolved_filters is not None else normalize_reference_time()
         matcher = compile_commit_matcher(
             values,
             repo_aliases=aliases,
             now=reference,
+            resolved_filters=resolved_filters,
         )
         repos = tuple(
             repo

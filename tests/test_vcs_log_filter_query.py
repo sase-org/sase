@@ -19,7 +19,7 @@ from sase.vcs_log.filter_query import (
     parse_commit_filter_query,
     to_query_string,
 )
-from sase.vcs_log.models import CommitFilters
+from sase.vcs_log.models import CommitFilterSpec, CommitFilters
 
 
 def _entry(
@@ -292,6 +292,11 @@ def test_backend_filters_exclude_repo_text_and_limit() -> None:
         authors=("Ada",),
         since=int((now - timedelta(hours=24)).timestamp()),
         until=int(datetime(2026, 7, 19, tzinfo=tz).timestamp()) - 1,
+    )
+    assert values.backend_filter_spec() == CommitFilterSpec(
+        authors=("Ada",),
+        since=parse_time_bound("24h"),
+        until=parse_time_bound("2026-07-18"),
     )
 
 

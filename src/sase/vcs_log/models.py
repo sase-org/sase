@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal
 
 from sase.core.vcs_log_wire import AggregatedCommitWire, CommitPresence
+from sase.vcs_log.dates import TimeBound, VcsLogDateError
 
 #: Internal limit sentinel meaning "fetch and aggregate without a row cap".
 UNLIMITED = -1
@@ -26,6 +28,33 @@ class CommitFilters:
     since: int | None = None
     until: int | None = None
     authors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class CommitFilterSpec:
+    """Stable semantic filters resolved once for each collection operation."""
+
+    since: TimeBound | None = None
+    until: TimeBound | None = None
+    authors: tuple[str, ...] = ()
+
+    def resolve(self, *, now: datetime) -> CommitFilters:
+        """Resolve both date bounds against the same operation reference."""
+        since = (
+            self.since.resolve(now=now, boundary="since")
+            if self.since is not None
+            else None
+        )
+        until = (
+            self.until.resolve(now=now, boundary="until")
+            if self.until is not None
+            else None
+        )
+        if since is not None and until is not None and since > until:
+            raise VcsLogDateError(
+                "--since/--after must be at or before --until/--before"
+            )
+        return CommitFilters(since=since, until=until, authors=self.authors)
 
 
 @dataclass(frozen=True)
@@ -70,16 +99,33 @@ class VcsLogResult:
             (missing checkout, non-VCS path, provider error, ...).
         remote_states: Per-repo local/remote comparison state used by
             renderers and JSON output.
+        aggregate_truncated: Whether the merged candidate timeline exceeded
+            its bounded aggregate cap.
+        provider_truncation_possible: Whether any bounded per-repo fetch
+            returned exactly its requested cap, so more candidates may exist.
+        resolved_filters: Epoch filters resolved against the collection clock.
+        filter_spec: Stable semantic filters used to produce
+            ``resolved_filters`` when the collection originated from one.
     """
 
     repos: tuple[LogRepo, ...]
     commits: tuple[AggregatedCommitWire, ...]
     warnings: tuple[str, ...]
     remote_states: tuple[RepoRemoteState, ...] = ()
+    aggregate_truncated: bool = False
+    provider_truncation_possible: bool = False
+    resolved_filters: CommitFilters | None = None
+    filter_spec: CommitFilterSpec | None = None
+
+    @property
+    def potentially_truncated(self) -> bool:
+        """Return whether an aggregate or provider cap may have hidden rows."""
+        return self.aggregate_truncated or self.provider_truncation_possible
 
 
 __all__ = [
     "UNLIMITED",
+    "CommitFilterSpec",
     "CommitFilters",
     "CommitPresence",
     "LogRepo",

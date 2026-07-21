@@ -26,7 +26,7 @@ from sase.vcs_log.dates import (
     normalize_reference_time,
     parse_time_bound,
 )
-from sase.vcs_log.models import CommitFilters
+from sase.vcs_log.models import CommitFilterSpec, CommitFilters
 
 DEFAULT_COMMIT_LOG_LIMIT = 40
 
@@ -75,6 +75,14 @@ class CommitLogFilterValues:
         return CommitFilters(
             since=since,
             until=until,
+            authors=self.authors,
+        )
+
+    def backend_filter_spec(self) -> CommitFilterSpec:
+        """Return stable filters for collection-time date resolution."""
+        return CommitFilterSpec(
+            since=self.since,
+            until=self.until,
             authors=self.authors,
         )
 
@@ -215,6 +223,7 @@ def compile_commit_matcher(
     *,
     repo_aliases: RepoAliases | None = None,
     now: datetime | None = None,
+    resolved_filters: CommitFilters | None = None,
 ) -> Callable[[AggregatedCommitWire], bool]:
     """Compile *values* into a cheap, reusable in-memory predicate."""
     wanted_repos = frozenset(value.casefold() for value in values.repos)
@@ -227,7 +236,10 @@ def compile_commit_matcher(
         name.casefold(): frozenset(alias.casefold() for alias in aliases)
         for name, aliases in (repo_aliases or {}).items()
     }
-    since, until = _resolve_bounds(values, now=now)
+    if resolved_filters is None:
+        since, until = _resolve_bounds(values, now=now)
+    else:
+        since, until = resolved_filters.since, resolved_filters.until
 
     def matches(entry: AggregatedCommitWire) -> bool:
         commit = entry.commit
