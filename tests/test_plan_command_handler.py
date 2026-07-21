@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -70,6 +71,33 @@ def _invoke_plan(plan_file: Path) -> int:
     with pytest.raises(SystemExit) as exc_info:
         plan_command_handler.handle_plan_propose_command(str(plan_file))
     return int(exc_info.value.code)
+
+
+def _assert_archived_associations(
+    artifacts_dir: Path,
+    content: str,
+    expected_fields: dict[str, str],
+) -> None:
+    """Assert the archived plan has exactly the expected managed associations."""
+    marker = json.loads(
+        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
+    )
+    archived = Path(marker["plan_file"])
+    archived_content = archived.read_text(encoding="utf-8")
+    frontmatter, _body, _had_frontmatter = parse_frontmatter(archived_content)
+    for field in ("bead", "parent", "parent_bead"):
+        if field in expected_fields:
+            assert frontmatter[field] == expected_fields[field]
+        else:
+            assert field not in frontmatter
+
+    tier = "epic" if content == VALID_EPIC else "tale"
+    validation = validate_plan(archived_content, tier)
+    assert validation.ok
+    assert validation.plan is not None
+    assert validation.plan.bead == expected_fields.get("bead")
+    assert validation.plan.parent == expected_fields.get("parent")
+    assert validation.plan.parent_bead == expected_fields.get("parent_bead")
 
 
 def test_plan_command_dispatches_propose() -> None:
@@ -346,26 +374,218 @@ def test_plan_command_stamps_associations_from_bead_work_env(
     ):
         assert _invoke_plan(plan_file) == 0
 
-    marker = json.loads(
-        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
-    )
-    archived = Path(marker["plan_file"])
-    frontmatter, _body, _had_frontmatter = parse_frontmatter(
-        archived.read_text(encoding="utf-8")
-    )
-    for field in ("bead", "parent", "parent_bead"):
-        if field in expected_fields:
-            assert frontmatter[field] == expected_fields[field]
-        else:
-            assert field not in frontmatter
+    _assert_archived_associations(artifacts_dir, content, expected_fields)
 
-    tier = "epic" if content == VALID_EPIC else "tale"
-    validation = validate_plan(archived.read_text(encoding="utf-8"), tier)
-    assert validation.ok
-    assert validation.plan is not None
-    assert validation.plan.bead == expected_fields.get("bead")
-    assert validation.plan.parent == expected_fields.get("parent")
-    assert validation.plan.parent_bead == expected_fields.get("parent_bead")
+
+@pytest.mark.parametrize(
+    ("content", "metadata", "expected_fields"),
+    [
+        pytest.param(
+            VALID_TALE,
+            {
+                "phase_bead_id": "sase-meta.1",
+                "epic_bead_id": "sase-meta",
+                "epic_plan_ref": "sase/repos/plans/202607/parent.md",
+            },
+            {
+                "bead": "sase-meta.1",
+                "parent": "sase/repos/plans/202607/parent.md",
+            },
+            id="tale-phase-agent",
+        ),
+        pytest.param(
+            VALID_TALE,
+            {
+                "epic_bead_id": "sase-meta",
+                "epic_plan_ref": "sase/repos/plans/202607/parent.md",
+            },
+            {
+                "bead": "sase-meta",
+                "parent": "sase/repos/plans/202607/parent.md",
+            },
+            id="tale-land-agent",
+        ),
+        pytest.param(
+            VALID_EPIC,
+            {
+                "phase_bead_id": "sase-meta.1",
+                "epic_bead_id": "sase-meta",
+                "epic_plan_ref": "sase/repos/plans/202607/parent.md",
+            },
+            {
+                "parent_bead": "sase-meta.1",
+                "parent": "sase/repos/plans/202607/parent.md",
+            },
+            id="child-epic",
+        ),
+        pytest.param(
+            VALID_TALE,
+            {"phase_bead_id": "sase-meta.1"},
+            {"bead": "sase-meta.1"},
+            id="missing-plan-ref",
+        ),
+    ],
+)
+def test_plan_command_stamps_associations_from_agent_metadata(
+    content: str,
+    metadata: dict[str, str],
+    expected_fields: dict[str, str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Production proposals inherit associations from ``agent_meta.json``."""
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(metadata), encoding="utf-8"
+    )
+    plan_file = tmp_path / "associated.md"
+    plan_file.write_text(content, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    with (
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+            side_effect=SystemExit(0),
+        ),
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=lambda raw: raw,
+        ),
+    ):
+        assert _invoke_plan(plan_file) == 0
+
+    _assert_archived_associations(artifacts_dir, content, expected_fields)
+
+
+def test_plan_command_association_env_overrides_agent_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Non-empty env associations override the same metadata fields."""
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "phase_bead_id": "sase-meta.1",
+                "epic_bead_id": "sase-meta",
+                "epic_plan_ref": "sase/repos/plans/202607/meta-parent.md",
+            }
+        ),
+        encoding="utf-8",
+    )
+    plan_file = tmp_path / "associated.md"
+    plan_file.write_text(VALID_TALE, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    monkeypatch.setenv("SASE_PHASE_BEAD_ID", "sase-env.1")
+    monkeypatch.setenv("SASE_EPIC_BEAD_ID", "sase-env")
+    monkeypatch.setenv("SASE_EPIC_PLAN_REF", "sase/repos/plans/202607/env-parent.md")
+
+    with (
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+            side_effect=SystemExit(0),
+        ),
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=lambda raw: raw,
+        ),
+    ):
+        assert _invoke_plan(plan_file) == 0
+
+    _assert_archived_associations(
+        artifacts_dir,
+        VALID_TALE,
+        {
+            "bead": "sase-env.1",
+            "parent": "sase/repos/plans/202607/env-parent.md",
+        },
+    )
+
+
+@pytest.mark.parametrize("agent_meta_contents", [None, "{not-json"])
+def test_plan_command_ignores_missing_or_malformed_agent_metadata(
+    agent_meta_contents: str | None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unreadable agent metadata leaves otherwise valid proposals unstamped."""
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    if agent_meta_contents is not None:
+        (artifacts_dir / "agent_meta.json").write_text(
+            agent_meta_contents, encoding="utf-8"
+        )
+    plan_file = tmp_path / "unassociated.md"
+    plan_file.write_text(VALID_TALE, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    with (
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+            side_effect=SystemExit(0),
+        ),
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=lambda raw: raw,
+        ),
+    ):
+        assert _invoke_plan(plan_file) == 0
+
+    _assert_archived_associations(artifacts_dir, VALID_TALE, {})
+
+
+def test_plan_command_stamps_after_runner_consumes_bead_work_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The production env-to-marker transition preserves proposal stamps."""
+    from sase.axe.run_agent_directive_metadata import epic_work_metadata_from_env
+
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+    artifacts_dir = _make_artifacts_dir(sase_home)
+    plan_file = tmp_path / "associated.md"
+    plan_file.write_text(VALID_TALE, encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    monkeypatch.setenv("SASE_PHASE_BEAD_ID", "sase-prod.1")
+    monkeypatch.setenv("SASE_EPIC_BEAD_ID", "sase-prod")
+    monkeypatch.setenv("SASE_EPIC_PLAN_REF", "sase/repos/plans/202607/prod-parent.md")
+
+    metadata = epic_work_metadata_from_env()
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(metadata), encoding="utf-8"
+    )
+    assert "SASE_PHASE_BEAD_ID" not in os.environ
+    assert "SASE_EPIC_BEAD_ID" not in os.environ
+    assert "SASE_EPIC_PLAN_REF" not in os.environ
+
+    with (
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+            side_effect=SystemExit(0),
+        ),
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=lambda raw: raw,
+        ),
+    ):
+        assert _invoke_plan(plan_file) == 0
+
+    _assert_archived_associations(
+        artifacts_dir,
+        VALID_TALE,
+        {
+            "bead": "sase-prod.1",
+            "parent": "sase/repos/plans/202607/prod-parent.md",
+        },
+    )
 
 
 @pytest.mark.parametrize(

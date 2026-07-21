@@ -12,6 +12,25 @@ from typing import NoReturn, cast
 from sase.main.utils import kill_agent_runner_group
 
 
+def _read_agent_meta_associations(artifacts_dir: str) -> dict[str, str]:
+    """Read durable epic-work associations for the proposing agent."""
+    try:
+        raw_meta = json.loads(
+            (Path(artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return {}
+    if not isinstance(raw_meta, dict):
+        return {}
+
+    associations: dict[str, str] = {}
+    for key in ("phase_bead_id", "epic_bead_id", "epic_plan_ref"):
+        value = raw_meta.get(key)
+        if isinstance(value, str) and (stripped := value.strip()):
+            associations[key] = stripped
+    return associations
+
+
 def handle_plan_propose_command(plan_file: str) -> NoReturn:
     """Submit a plan file for approval (used by /sase_plan skill).
 
@@ -90,21 +109,29 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
             )
             sys.exit(1)
 
-    # Plans proposed from epic bead work inherit their managed associations.
-    # Tales record the active phase (or land-agent epic) bead and the parent
-    # epic plan.  Child epics record that active bead as ``parent_bead`` and
-    # the same parent plan.  The phase bead is the more specific association.
+    # Plans proposed from epic bead work inherit managed associations from the
+    # proposing agent's durable metadata marker.  The runner intentionally pops
+    # these env vars in ``epic_work_metadata_from_env`` before spawning the CLI,
+    # so env values are only explicit per-field overrides.  Tales record the
+    # active phase (or land-agent epic) bead and parent epic plan; child epics
+    # record the active bead as ``parent_bead`` and the same parent plan.
     from sase.bead.work import (
         SASE_EPIC_BEAD_ID_ENV,
         SASE_EPIC_PLAN_REF_ENV,
         SASE_PHASE_BEAD_ID_ENV,
     )
 
-    active_bead = (
-        os.environ.get(SASE_PHASE_BEAD_ID_ENV, "").strip()
-        or os.environ.get(SASE_EPIC_BEAD_ID_ENV, "").strip()
-    )
-    parent_plan = os.environ.get(SASE_EPIC_PLAN_REF_ENV, "").strip()
+    meta_associations = _read_agent_meta_associations(artifacts_dir)
+    phase_bead = os.environ.get(
+        SASE_PHASE_BEAD_ID_ENV, ""
+    ).strip() or meta_associations.get("phase_bead_id", "")
+    epic_bead = os.environ.get(
+        SASE_EPIC_BEAD_ID_ENV, ""
+    ).strip() or meta_associations.get("epic_bead_id", "")
+    parent_plan = os.environ.get(
+        SASE_EPIC_PLAN_REF_ENV, ""
+    ).strip() or meta_associations.get("epic_plan_ref", "")
+    active_bead = phase_bead or epic_bead
     stamps: dict[str, str] = {}
     if target_tier == "tale" and active_bead:
         stamps["bead"] = active_bead
