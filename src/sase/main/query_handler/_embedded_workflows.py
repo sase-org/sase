@@ -34,6 +34,7 @@ def expand_embedded_workflows_in_query(
     artifacts_dir: str | None = None,
     *,
     only_workflow_names: Collection[str] | None = None,
+    preserve_existing_xprompt_metadata: bool = False,
 ) -> tuple[str, list[EmbeddedWorkflowResult]]:
     """Detect and expand embedded workflows in a query.
 
@@ -47,6 +48,9 @@ def expand_embedded_workflows_in_query(
         artifacts_dir: Optional directory for workflow artifacts.
         only_workflow_names: If provided, expand only workflows in this set and
             retain every other workflow reference verbatim.
+        preserve_existing_xprompt_metadata: Leave an existing shared
+            ``xprompts.json`` artifact untouched while still seeding it when
+            absent.
 
     Returns:
         Tuple of (expanded_query, list of EmbeddedWorkflowResult objects).
@@ -55,7 +59,11 @@ def expand_embedded_workflows_in_query(
     if artifacts_dir:
         from sase.xprompt.used_xprompts import write_used_xprompts
 
-        write_used_xprompts(artifacts_dir, raw_query)
+        write_used_xprompts(
+            artifacts_dir,
+            raw_query,
+            step_only=preserve_existing_xprompt_metadata,
+        )
 
     from sase.xprompt._literal_zones import code_literal_ranges
     from sase.xprompt._parsing import (

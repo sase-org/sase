@@ -225,10 +225,15 @@ def test_expand_embedded_workflows_in_query_writes_used_xprompts(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    calls: list[tuple[str, str]] = []
+    calls: list[tuple[str, str, bool]] = []
 
-    def fake_write(artifacts_dir: str, raw_prompt: str) -> None:
-        calls.append((artifacts_dir, raw_prompt))
+    def fake_write(
+        artifacts_dir: str,
+        raw_prompt: str,
+        *,
+        step_only: bool = False,
+    ) -> None:
+        calls.append((artifacts_dir, raw_prompt, step_only))
 
     monkeypatch.setattr(
         "sase.xprompt.used_xprompts.write_used_xprompts",
@@ -247,4 +252,45 @@ def test_expand_embedded_workflows_in_query_writes_used_xprompts(
 
     assert expanded == "#review"
     assert post_workflows == []
-    assert calls == [(str(tmp_path), "#review")]
+    assert calls == [(str(tmp_path), "#review", False)]
+
+
+def test_expand_embedded_workflows_preserves_existing_xprompt_metadata(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _patch_catalogs(
+        monkeypatch,
+        parts={"plan": _part("plan"), "review": _part("review")},
+    )
+    monkeypatch.setattr("sase.xprompt.loader.get_all_workflows", lambda: {})
+    launch_records = write_used_xprompts(tmp_path, "#plan")
+
+    expanded, post_workflows = expand_embedded_workflows_in_query(
+        "#review",
+        artifacts_dir=str(tmp_path),
+        preserve_existing_xprompt_metadata=True,
+    )
+
+    assert expanded == "#review"
+    assert post_workflows == []
+    assert json.loads((tmp_path / "xprompts.json").read_text()) == launch_records
+
+
+def test_expand_embedded_workflows_preservation_seeds_xprompt_metadata(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _patch_catalogs(monkeypatch, parts={"review": _part("review")})
+    monkeypatch.setattr("sase.xprompt.loader.get_all_workflows", lambda: {})
+
+    expanded, post_workflows = expand_embedded_workflows_in_query(
+        "#review",
+        artifacts_dir=str(tmp_path),
+        preserve_existing_xprompt_metadata=True,
+    )
+
+    assert expanded == "#review"
+    assert post_workflows == []
+    records = json.loads((tmp_path / "xprompts.json").read_text())
+    assert [record["name"] for record in records] == ["review"]

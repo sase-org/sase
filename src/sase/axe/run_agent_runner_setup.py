@@ -264,6 +264,7 @@ def expand_deferred_launch_xprompts(
         prompt,
         artifacts_dir,
         only_workflow_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+        preserve_existing_xprompt_metadata=True,
     )
     workflows_with_post_steps = [
         result.workflow_name for result in embedded_workflows if result.post_steps

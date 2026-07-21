@@ -159,6 +159,81 @@ def test_expand_deferred_launch_xprompts_limits_embedded_expansion(
     assert expand_embedded.call_args.kwargs["only_workflow_names"] == frozenset(
         {"fork"}
     )
+    assert (
+        expand_embedded.call_args.kwargs["preserve_existing_xprompt_metadata"] is True
+    )
+
+
+def test_deferred_launch_xprompts_preserve_original_usage_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.xprompt.used_xprompts as used_xprompts
+    from sase.xprompt.models import XPrompt
+    from sase.xprompt.workflow_models import Workflow, WorkflowStep
+
+    parts = {
+        "beau": XPrompt(name="beau", content="beau body"),
+        "plan": XPrompt(name="plan", content="plan body"),
+    }
+    workflows = {
+        "gh": Workflow(
+            name="gh",
+            steps=[WorkflowStep(name="main", prompt_part="gh body")],
+        ),
+        "fork": Workflow(
+            name="fork",
+            steps=[WorkflowStep(name="main", prompt_part="fork history")],
+        ),
+    }
+    monkeypatch.setattr(used_xprompts, "get_all_xprompts", lambda: parts)
+    monkeypatch.setattr(used_xprompts, "get_all_workflows", lambda: workflows)
+    monkeypatch.setattr(used_xprompts, "resolve_xprompt_aliases", lambda prompt: prompt)
+    monkeypatch.setattr(
+        used_xprompts,
+        "normalize_vcs_underscore_refs",
+        lambda prompt: prompt,
+    )
+    monkeypatch.setattr("sase.xprompt.loader.get_all_workflows", lambda: workflows)
+
+    launch_prompt = "#gh:sase #fork #beau #plan"
+    partially_expanded = "#gh:sase #fork beau body plan body"
+
+    def process(prompt: str, **kwargs: object) -> str:
+        if kwargs.get("defer_xprompt_names"):
+            assert prompt == launch_prompt
+            return partially_expanded
+        return prompt
+
+    with (
+        patch(
+            "sase.project_aliases.canonicalize_project_aliases_in_prompt",
+            side_effect=lambda prompt: prompt,
+        ),
+        patch(
+            "sase.xprompt.resolve_xprompt_aliases",
+            side_effect=lambda prompt: prompt,
+        ),
+        patch("sase.xprompt._parsing.extract_vcs_workflow_tag", return_value=None),
+        patch(
+            "sase.xprompt.processor.process_xprompt_references",
+            side_effect=process,
+        ),
+    ):
+        prompt, _, _ = preprocess_prompt_xprompts(launch_prompt, str(tmp_path))
+        expanded = expand_deferred_launch_xprompts(prompt, str(tmp_path))
+
+    assert prompt == partially_expanded
+    assert "#gh:sase" in expanded
+    assert "#fork" not in expanded
+    assert "fork history" in expanded
+    records = json.loads((tmp_path / "xprompts.json").read_text(encoding="utf-8"))
+    assert [record["name"] for record in records] == [
+        "gh",
+        "fork",
+        "beau",
+        "plan",
+    ]
 
 
 def test_setup_artifacts_directory_updates_artifact_index(tmp_path: Path) -> None:
