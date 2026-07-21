@@ -1292,7 +1292,7 @@
           "properties": {
             "builtin": {
               "type": "object",
-              "description": "Overrides for SASE's builtin model aliases: default, coder, <provider>_coder, epic_lander, big_epic_lander, phase_worker, and smartest. Legacy epic_creator entries are accepted but no longer used by SASE. Values are bare known models, explicit provider/model targets, nested provider-local model paths, or '@<alias>' references.",
+              "description": "Overrides for SASE's builtin model aliases: default, coder, <provider>_coder, epic_lander, big_epic_lander, phase_worker, small_phase_worker, medium_phase_worker, large_phase_worker, and smartest. Legacy epic_creator entries are accepted but no longer used by SASE. Values are bare known models, explicit provider/model targets, nested provider-local model paths, or '@<alias>' references.",
               "additionalProperties": {
                 "type": "string"
               }
@@ -1318,14 +1318,14 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 40,
-                    "description": "Optional display-only bucket in the ACE Models panel; alias resolution remains flat and unchanged. The built-in coders bucket is supplied by ACE, and custom aliases assigned to coders coalesce with its builtin members."
+                    "description": "Optional display-only bucket in the ACE Models panel; alias resolution remains flat and unchanged. The built-in coders and phase_worker buckets are supplied by ACE, and custom aliases assigned to either coalesce with its builtin members."
                   }
                 }
               }
             },
             "buckets": {
               "type": "object",
-              "description": "Optional display-only Models-panel bucket metadata. ACE supplies the built-in coders bucket even without custom members; its description may be overridden here, and custom aliases assigned to coders coalesce with it.",
+              "description": "Optional display-only Models-panel bucket metadata. ACE supplies the built-in coders and phase_worker buckets even without custom members; their descriptions may be overridden here, and custom aliases assigned to either coalesce with it.",
               "propertyNames": {
                 "minLength": 1,
                 "maxLength": 40

@@ -126,11 +126,11 @@ def test_work_dry_run_renders_model_directives(
         f"%id(!{p1_id}, bead={p1_id})\n{membership}\n"
         "%model:codex/gpt-5.6-sol\n%auto\n" in out
     )
-    # Phase without an explicit model defaults to the phase-worker role alias.
+    # Phase without size metadata defaults to the small-phase role alias.
     p2_suffix = p2_id.removeprefix(f"{epic_id}.")
     assert (
         f"%id(!{p2_suffix}, clan={epic_id}, bead={p2_id})\n"
-        "%model:@phase_worker\n%auto\n" in out
+        "%model:@small_phase_worker\n%auto\n" in out
     )
     # The epic's explicit land model still wins over the epic-lander alias.
     assert (
@@ -183,13 +183,13 @@ def test_work_dry_run_relaunches_from_stored_phase_sizes(
         )
         for bead in (small, medium, large)
     }
-    assert "%model:@phase_worker" in by_bead[small.id]
+    assert "%model:@small_phase_worker" in by_bead[small.id]
     assert "#plan" not in by_bead[small.id].splitlines()
-    assert "%model:@phase_worker" in by_bead[medium.id]
+    assert "%model:@medium_phase_worker" in by_bead[medium.id]
     assert (
         by_bead[medium.id].rstrip().endswith(f"#bd/work_phase_bead:{medium.id}\n#plan")
     )
-    assert "%model:@smartest" in by_bead[large.id]
+    assert "%model:@large_phase_worker" in by_bead[large.id]
     assert by_bead[large.id].rstrip().endswith(f"#bd/work_phase_bead:{large.id}\n#plan")
 
 

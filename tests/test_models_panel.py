@@ -117,6 +117,11 @@ def test_state_tag_implicit_big_epic_lander() -> None:
     assert text.plain == "implicit → @epic_lander"
 
 
+def test_state_tag_implicit_size_phase_worker() -> None:
+    text = _state_tag(make_alias_view("medium_phase_worker", "role"), now=0.0)
+    assert text.plain == "implicit → @phase_worker"
+
+
 def test_state_tag_implicit_provider_coder() -> None:
     text = _state_tag(
         make_alias_view("codex_coder", "provider_coder"),

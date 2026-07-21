@@ -55,6 +55,9 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "@epic_lander",
         "@big_epic_lander",
         "@phase_worker",
+        "@small_phase_worker",
+        "@medium_phase_worker",
+        "@large_phase_worker",
         "@smartest",
         "@fast",
         "@worker",
@@ -86,9 +89,14 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     )
     assert big_epic_lander.aliases == ("big_epic_lander",)
 
+    medium_phase_worker = by_value["@medium_phase_worker"]
+    assert medium_phase_worker.kind == "implicit_alias"
+    assert medium_phase_worker.description == "medium bead phase agent model"
+    assert medium_phase_worker.aliases == ("medium_phase_worker",)
+
     smartest = by_value["@smartest"]
     assert smartest.kind == "implicit_alias"
-    assert smartest.description == "highest-capability large-phase model"
+    assert smartest.description == "highest-capability alias for explicit use"
     assert smartest.aliases == ("smartest",)
 
     fast = by_value["@fast"]

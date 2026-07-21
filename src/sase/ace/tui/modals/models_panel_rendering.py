@@ -14,7 +14,7 @@ from sase.llm_provider.temporary_override import TemporaryLLMOverride
 from .models_panel_duration import format_remaining
 
 _KIND_CELL = 13
-_NAME_CELL = 16
+_NAME_CELL = 22
 
 # The provider/model badge is treated as its own column so the rightmost
 # state/provenance tag lines up across rows. The column is sized to the widest

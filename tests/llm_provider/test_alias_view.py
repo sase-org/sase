@@ -13,6 +13,7 @@ from sase.llm_provider import (
     AliasView,
     BucketView,
     CODERS_BUCKET_DESCRIPTION,
+    PHASE_WORKER_BUCKET_DESCRIPTION,
     TemporaryLLMOverride,
     build_alias_views,
     build_models_panel_rows,
@@ -57,6 +58,9 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["coder"].kind == "role"
     assert by_name["big_epic_lander"].kind == "role"
     assert by_name["phase_worker"].kind == "role"
+    assert by_name["small_phase_worker"].kind == "role"
+    assert by_name["medium_phase_worker"].kind == "role"
+    assert by_name["large_phase_worker"].kind == "role"
     assert by_name["smartest"].kind == "role"
     assert by_name["claude_coder"].kind == "provider_coder"
     assert by_name["codex_coder"].kind == "provider_coder"
@@ -88,12 +92,15 @@ def test_default_is_first_and_groups_are_ordered(
 
     assert names[0] == "default"
     # role aliases follow default, in canonical order
-    role_slice = names[1:6]
+    role_slice = names[1:9]
     assert role_slice == [
         "coder",
         "epic_lander",
         "big_epic_lander",
         "phase_worker",
+        "small_phase_worker",
+        "medium_phase_worker",
+        "large_phase_worker",
         "smartest",
     ]
     # provider_coder aliases come next, alphabetically
@@ -428,6 +435,74 @@ def test_models_panel_coders_bucket_uses_builtin_fallback_description(
 
     assert isinstance(coders, BucketView)
     assert coders.description == CODERS_BUCKET_DESCRIPTION
+
+
+def test_models_panel_phase_worker_bucket_coalesces_builtin_and_custom_members(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {
+                    "phase_worker": "claude/sonnet",
+                    "large_phase_worker": "codex/o3",
+                },
+                "custom": {
+                    "phase_reviewer": {
+                        "model": "claude/opus",
+                        "description": "Reviews completed phases.",
+                        "bucket": "phase_worker",
+                    }
+                },
+                "buckets": {"phase_worker": {"description": "Configured phase roles."}},
+            },
+        },
+    )
+    _patch_providers(monkeypatch)
+
+    set_alias_override(
+        "medium_phase_worker", "codex/gpt-5.6-sol", 3600.0, source="test"
+    )
+    try:
+        rows = build_models_panel_rows()
+    finally:
+        clear_alias_override("medium_phase_worker")
+
+    assert [row.name for row in rows] == [
+        "default",
+        "coders",
+        "epic_lander",
+        "big_epic_lander",
+        "phase_worker",
+        "smartest",
+    ]
+    phase_workers = rows[4]
+    assert isinstance(phase_workers, BucketView)
+    assert phase_workers.description == "Configured phase roles."
+    assert [member.name for member in phase_workers.members] == [
+        "phase_worker",
+        "small_phase_worker",
+        "medium_phase_worker",
+        "large_phase_worker",
+        "phase_reviewer",
+    ]
+    assert phase_workers.alias_count == 5
+    assert phase_workers.override_count == 1
+
+
+def test_models_panel_phase_worker_bucket_uses_builtin_fallback_description(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude", "model_aliases": {}})
+    _patch_providers(monkeypatch)
+
+    rows = build_models_panel_rows()
+    phase_workers = next(row for row in rows if row.name == "phase_worker")
+
+    assert isinstance(phase_workers, BucketView)
+    assert phase_workers.description == PHASE_WORKER_BUCKET_DESCRIPTION
 
 
 def test_non_default_override_wins_effective_target(

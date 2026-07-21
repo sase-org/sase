@@ -594,8 +594,8 @@ project/ChangeSpec completion uses the same token rule and works regardless of t
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists inline-typable model names,
 implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_lander`, `@big_epic_lander`, `@phase_worker`,
-`@smartest`), and configured model aliases; provider short aliases are shown as filter/display hints but are not
-inserted.
+`@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, `@smartest`), and configured model aliases;
+provider short aliases are shown as filter/display hints but are not inserted.
 
 File-path completion roots relative lookups in the prompt-selected workspace. Registered workspace-provider refs and
 known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can root lookup in that project checkout. If no
@@ -623,7 +623,9 @@ llm_provider:
       claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
       codex_coder: claude/opus # coder follow-ups from Codex-authored plans
       big_epic_lander: codex/gpt-5.6-sol # specialize threshold-selected epic landers
-      smartest: claude/opus # highest-capability large phase agents
+      phase_worker: codex/gpt-5.6-sol # shared fallback for every phase size
+      large_phase_worker: claude/opus # specialize large phase agents only
+      smartest: claude/opus # compatibility alias for explicit use
     custom:
       blogger:
         model: claude/opus
@@ -631,6 +633,8 @@ llm_provider:
     buckets:
       coders:
         description: Coder defaults and provider-specific follow-ups.
+      phase_worker:
+        description: Shared and size-specific phase-agent roles.
 ```
 
 | Field                                | Type   | Default     | Description                                                                                                                                            |
@@ -649,17 +653,20 @@ Model aliases are resolved when an agent launches, so reusable xprompts can poin
 and run on the default provider. Use `model_aliases.builtin` for builtin role overrides and `model_aliases.custom` for
 user-defined aliases with descriptions.
 
-ACE automatically groups `@coder` and every registered `@<provider>_coder` into a display-only `coders` bucket; alias
-resolution and configuration remain flat. `model_aliases.buckets.coders.description` overrides the built-in bucket
-description. A custom alias with `bucket: coders` joins that same row rather than creating another bucket, while
-remaining independently addressable and editable.
+ACE automatically supplies two display-only built-in buckets while alias resolution and configuration remain flat:
+`coders` groups `@coder` with every registered `@<provider>_coder`, and `phase_worker` groups the shared `@phase_worker`
+fallback with `@small_phase_worker`, `@medium_phase_worker`, and `@large_phase_worker`.
+`model_aliases.buckets.<bucket>.description` overrides either built-in description. A custom alias tagged with either
+built-in bucket name joins that row while remaining independently addressable and editable.
 
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases** that resolve even when unset:
 `@default` (no-`%model` launches), `@coder` and the per-provider `@<provider>_coder` (plan coder follow-ups),
-`@epic_lander`, `@big_epic_lander`, `@phase_worker`, and `@smartest` (bead/epic role launches). `@big_epic_lander` falls
-back to `@epic_lander`, while the phase roles and every other chain ultimately reach `@default`, so configuring
-`model_aliases.builtin.default` is enough to drive every role. Override only threshold-sized epic landers with
-`model_aliases.builtin.big_epic_lander`; override `size: large` phase agents with `model_aliases.builtin.smartest`. See
+`@epic_lander`, `@big_epic_lander`, `@phase_worker`, the three `<size>_phase_worker` aliases, and `@smartest` (bead/epic
+role launches). `@big_epic_lander` falls back to `@epic_lander`; every size-specific phase alias falls back to the
+shared `@phase_worker`, which falls back to `@default`. Configuring `phase_worker` therefore still drives every phase
+size unless a size alias is specialized. Override only threshold-sized epic landers with
+`model_aliases.builtin.big_epic_lander`; override only large phases with `model_aliases.builtin.large_phase_worker`.
+`@smartest` remains resolvable for compatibility and explicit use but is not selected automatically. See
 [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
 [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role.
 

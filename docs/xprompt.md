@@ -1126,14 +1126,16 @@ The parenthesized `%model` form accepts keyword arguments that temporarily repla
 ```text
 %model(opus, coder=codex/gpt-5.6-sol, phase_worker=claude/sonnet)
 %model(coder=@phase_worker)
+%model(large_phase_worker=@smartest)
 ```
 
 The optional positional value selects the current agent's model. Each `alias=value` entry changes how that bare alias
 resolves. Without a positional value, the current agent still starts from the normal default, but that resolution uses
-the map: `default=...` changes it directly, while `phase_worker=...` normally affects only a later phase-worker launch
-(unless the configured default itself points to `@phase_worker`). Keys must be known builtin or custom alias names
-without `@`; values may be concrete models, `provider/model` targets, quoted targets, xprompt references, or another
-alias with `@`. Per-alias reasoning-effort suffixes are not supported.
+the map: `default=...` changes it directly, while `phase_worker=...` flows through every unconfigured
+`small_phase_worker`, `medium_phase_worker`, and `large_phase_worker` alias. A size-specific key affects only that phase
+size, so `large_phase_worker=@smartest` restores the former large-phase relationship explicitly. Keys must be known
+builtin or custom alias names without `@`; values may be concrete models, `provider/model` targets, quoted targets,
+xprompt references, or another alias with `@`. Per-alias reasoning-effort suffixes are not supported.
 
 "Launch-scoped" describes persistence, not every subprocess the agent starts. SASE records the map in agent metadata and
 carries it through its plan/coder follow-up path. An explicit `%id(suffix, family=parent)` attachment inherits the

@@ -29,20 +29,24 @@ def test_alias_context_builds_ordered_styled_rows_before_models() -> None:
         alias_context=context,
     )
 
-    assert [row.option_id for row in rows[:6]] == [
+    assert [row.option_id for row in rows[:10]] == [
         "__header_aliases__",
         "@default",
         "@coder",
         "@epic_lander",
         "@big_epic_lander",
         "@phase_worker",
+        "@small_phase_worker",
+        "@medium_phase_worker",
+        "@large_phase_worker",
+        "@smartest",
     ]
     assert next(row for row in rows if row.kind == "provider").option_id.startswith(
         "__header_"
     )
     alias_options = [
         option
-        for option in rows_to_options(rows[:6])
+        for option in rows_to_options(rows[:10])
         if option is not None and str(option.id).startswith("@")
     ]
     assert all(isinstance(option.prompt, Text) for option in alias_options)
@@ -59,6 +63,10 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
         make_alias_view("codex_coder", "provider_coder"),
         make_alias_view("epic_lander", "role"),
         make_alias_view("big_epic_lander", "role"),
+        make_alias_view("phase_worker", "role"),
+        make_alias_view("small_phase_worker", "role"),
+        make_alias_view("medium_phase_worker", "role"),
+        make_alias_view("large_phase_worker", "role"),
         make_alias_view("hop_a", "user", configured=True, configured_value="@hop_b"),
         make_alias_view("hop_b", "user", configured=True, configured_value="@coder"),
         make_alias_view(
@@ -86,6 +94,15 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
     assert _alias_disabled_reason(default_context, "big_epic_lander") == (
         "would create a cycle"
     )
+    phase_worker_context = make_alias_context(target="phase_worker", views=views)
+    for alias in (
+        "small_phase_worker",
+        "medium_phase_worker",
+        "large_phase_worker",
+    ):
+        assert _alias_disabled_reason(phase_worker_context, alias) == (
+            "would create a cycle"
+        )
 
 
 def test_alias_dependency_guard_handles_long_chains() -> None:

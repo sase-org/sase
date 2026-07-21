@@ -441,8 +441,8 @@ llm_provider:
   # (opencode/anthropic/claude-sonnet-4-5), or an @<alias> reference.
   # User-invented aliases live under custom and must include a description for
   # completions and the Models panel. Bucket membership is display-only: ACE
-  # always supplies `coders`, and custom aliases assigned to it coalesce with
-  # the generic and provider-specific coder aliases.
+  # always supplies `coders` and `phase_worker`, and custom aliases assigned to
+  # either bucket coalesce with its builtin aliases.
   # model_aliases:
   #   builtin:
   #     default: opus               # model used when a prompt has no %model directive
@@ -451,8 +451,11 @@ llm_provider:
   #     codex_coder: claude/opus    # coder follow-ups from Codex-authored plans
   #     epic_lander: "@default"     # epic land agents
   #     big_epic_lander: "@epic_lander" # threshold-selected epic land agents
-  #     phase_worker: "@default"    # bead phase agents
-  #     smartest: "@default"        # highest-capability large phase agents
+  #     phase_worker: "@default"    # shared fallback for every phase size
+  #     small_phase_worker: "@phase_worker"  # small bead phase agents
+  #     medium_phase_worker: "@phase_worker" # medium bead phase agents
+  #     large_phase_worker: "@phase_worker"  # large bead phase agents
+  #     smartest: "@default"        # compatibility alias for explicit use
   #   custom:
   #     blogger:
   #       model: claude/opus
@@ -461,6 +464,8 @@ llm_provider:
   #   buckets:
   #     coders:
   #       description: "Coder defaults and provider-specific follow-ups."
+  #     phase_worker:
+  #       description: "Shared and size-specific phase-agent roles."
   #     writing:
   #       description: "Writing and editing roles."
   retry:

@@ -26,6 +26,9 @@ def test_role_alias_helpers() -> None:
     assert role_model_directive_value("default") == "@default"
     assert implicit_model_alias_fallback("big_epic_lander") == "epic_lander"
     assert implicit_model_alias_fallback("epic_lander") == "default"
+    assert implicit_model_alias_fallback("small_phase_worker") == "phase_worker"
+    assert implicit_model_alias_fallback("medium_phase_worker") == "phase_worker"
+    assert implicit_model_alias_fallback("large_phase_worker") == "phase_worker"
     assert implicit_model_alias_fallback("smartest") == "default"
     assert implicit_model_alias_fallback("default") is None
 
@@ -151,7 +154,15 @@ def test_epic_execution_role_aliases_chain_to_default(
     )
 
     assert resolve_model_alias("epic_creator") == "epic_creator"
-    for role in ("epic_lander", "big_epic_lander", "phase_worker", "smartest"):
+    for role in (
+        "epic_lander",
+        "big_epic_lander",
+        "phase_worker",
+        "small_phase_worker",
+        "medium_phase_worker",
+        "large_phase_worker",
+        "smartest",
+    ):
         assert resolve_model_alias(role) == "codex/gpt-5.6-sol"
 
 
@@ -172,6 +183,51 @@ def test_configured_smartest_alias_shadows_implicit_default(
     )
 
     assert resolve_model_alias("smartest") == "codex/gpt-5.6-sol"
+
+
+def test_phase_size_aliases_inherit_configured_phase_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {
+                    "default": "codex/gpt-5.6-sol",
+                    "phase_worker": "claude/sonnet",
+                }
+            },
+        },
+    )
+
+    for role in (
+        "small_phase_worker",
+        "medium_phase_worker",
+        "large_phase_worker",
+    ):
+        assert resolve_model_alias(role) == "claude/sonnet"
+
+
+def test_configured_phase_size_alias_shadows_shared_fallback_only_for_that_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {
+                    "phase_worker": "claude/sonnet",
+                    "large_phase_worker": "codex/o3",
+                }
+            },
+        },
+    )
+
+    assert resolve_model_alias("small_phase_worker") == "claude/sonnet"
+    assert resolve_model_alias("medium_phase_worker") == "claude/sonnet"
+    assert resolve_model_alias("large_phase_worker") == "codex/o3"
 
 
 def test_big_epic_lander_inherits_configured_epic_lander(

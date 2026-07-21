@@ -20,8 +20,9 @@ from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.core.rust import require_rust_binding
 from sase.llm_provider.config import BIG_EPIC_LANDER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import EPIC_LANDER_MODEL_ALIAS_NAME
-from sase.llm_provider.config import PHASE_WORKER_MODEL_ALIAS_NAME
-from sase.llm_provider.config import SMARTEST_MODEL_ALIAS_NAME
+from sase.llm_provider.config import LARGE_PHASE_WORKER_MODEL_ALIAS_NAME
+from sase.llm_provider.config import MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
+from sase.llm_provider.config import SMALL_PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import format_model_directive_value
 from sase.llm_provider.config import role_model_directive_value
 
@@ -290,9 +291,12 @@ def phase_model_directive_value(
     """Return the authoritative ``%model`` value for a phase agent."""
     if explicit_model:
         return format_model_directive_value(explicit_model)
-    if _phase_size(size) is PhaseSize.LARGE:
-        return role_model_directive_value(SMARTEST_MODEL_ALIAS_NAME)
-    return role_model_directive_value(PHASE_WORKER_MODEL_ALIAS_NAME)
+    alias_by_size = {
+        PhaseSize.SMALL: SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
+        PhaseSize.MEDIUM: MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
+        PhaseSize.LARGE: LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+    }
+    return role_model_directive_value(alias_by_size[_phase_size(size)])
 
 
 def render_multi_prompt(

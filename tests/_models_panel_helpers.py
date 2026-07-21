@@ -118,3 +118,25 @@ def make_coder_bucket_views() -> list[AliasView]:
             "claude_coder", "provider_coder", provider="claude", model="opus"
         ),
     ]
+
+
+def make_phase_worker_bucket_views() -> list[AliasView]:
+    return [
+        make_alias_view("default", "default", description="Default model."),
+        make_alias_view("coder", "role", provider="claude", model="opus"),
+        make_alias_view(
+            "phase_worker",
+            "role",
+            provider="claude",
+            model="sonnet",
+            description="Shared phase fallback.",
+        ),
+        make_alias_view(
+            "small_phase_worker", "role", provider="claude", model="sonnet"
+        ),
+        make_alias_view(
+            "medium_phase_worker", "role", provider="claude", model="sonnet"
+        ),
+        make_alias_view("large_phase_worker", "role", provider="codex", model="o3"),
+        make_alias_view("smartest", "role", provider="claude", model="opus"),
+    ]

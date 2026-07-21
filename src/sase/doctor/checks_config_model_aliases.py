@@ -29,7 +29,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
     - merged alias values that reference an ``@<alias>`` name that resolves to
       nothing, which would silently fall through at launch.
     """
-    from sase.llm_provider.alias_view import CODERS_BUCKET_NAME
+    from sase.llm_provider.alias_view import BUILTIN_MODEL_ALIAS_BUCKET_NAMES
     from sase.llm_provider.config import (
         get_builtin_model_aliases,
         get_custom_model_aliases,
@@ -133,7 +133,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
             }
         )
     elif isinstance(raw_buckets, dict):
-        member_buckets = model_alias_bucket_names() | {CODERS_BUCKET_NAME}
+        member_buckets = model_alias_bucket_names() | BUILTIN_MODEL_ALIAS_BUCKET_NAMES
         for raw_bucket in sorted(raw_buckets, key=str):
             if not isinstance(raw_bucket, str):
                 continue

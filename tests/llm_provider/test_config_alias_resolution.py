@@ -158,6 +158,9 @@ def test_worker_and_other_no_longer_special_aliases(
         "epic_lander",
         "big_epic_lander",
         "phase_worker",
+        "small_phase_worker",
+        "medium_phase_worker",
+        "large_phase_worker",
         "smartest",
     } <= names
     assert "epic_creator" not in names
@@ -192,6 +195,34 @@ def test_launch_alias_override_wins_and_follows_alias_chains(
     overrides = {"coder": "@phase_worker", "phase_worker": "claude/sonnet"}
     assert resolve_model_alias("@coder", overrides) == "claude/sonnet"
     assert resolve_model_provider("@coder", overrides) == ("claude", "sonnet")
+
+
+def test_launch_phase_worker_override_flows_through_every_size_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+
+    overrides = {"phase_worker": "codex/o3"}
+    for alias in (
+        "small_phase_worker",
+        "medium_phase_worker",
+        "large_phase_worker",
+    ):
+        assert resolve_model_alias(f"@{alias}", overrides) == "codex/o3"
+
+
+def test_launch_size_phase_override_shadows_shared_override_only_for_that_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+
+    overrides = {
+        "phase_worker": "claude/sonnet",
+        "large_phase_worker": "codex/o3",
+    }
+    assert resolve_model_alias("@small_phase_worker", overrides) == "claude/sonnet"
+    assert resolve_model_alias("@medium_phase_worker", overrides) == "claude/sonnet"
+    assert resolve_model_alias("@large_phase_worker", overrides) == "codex/o3"
 
 
 def test_launch_coder_override_shadows_configured_provider_coder(

@@ -63,6 +63,10 @@ def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> Non
                     "default": "claude/opus",
                     "coder": "@default",
                     "codex_coder": "claude/opus",
+                    "phase_worker": "@default",
+                    "small_phase_worker": "@phase_worker",
+                    "medium_phase_worker": "@phase_worker",
+                    "large_phase_worker": "@phase_worker",
                 }
             }
         }
@@ -113,6 +117,7 @@ def test_config_schema_accepts_model_alias_buckets() -> None:
                 },
                 "buckets": {
                     "coders": {"description": "Coder follow-up aliases."},
+                    "phase_worker": {"description": "Phase worker aliases."},
                     "research": {"description": "Research-swarm model roles."},
                 },
             }
@@ -140,6 +145,33 @@ def test_config_schema_accepts_custom_alias_coalesced_into_coders_bucket() -> No
                     }
                 },
                 "buckets": {"coders": {"description": "All coder roles."}},
+            }
+        }
+    }
+
+    errors = sorted(
+        Draft7Validator(public_schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert errors == [], "\n".join(format_schema_error(error) for error in errors)
+
+
+def test_config_schema_accepts_custom_alias_coalesced_into_phase_worker_bucket() -> (
+    None
+):
+    public_schema = schema()
+    config = {
+        "llm_provider": {
+            "model_aliases": {
+                "custom": {
+                    "phase_reviewer": {
+                        "model": "codex/gpt-5.6-sol",
+                        "description": "Reviews completed phases.",
+                        "bucket": "phase_worker",
+                    }
+                },
+                "buckets": {"phase_worker": {"description": "All phase-worker roles."}},
             }
         }
     }

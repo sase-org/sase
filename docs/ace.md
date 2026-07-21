@@ -1328,18 +1328,23 @@ markers. It does not delete workspace checkouts, and system-managed projects suc
 
 Press `,m` from any tab to open the **Models** panel — one keyboard-driven surface for viewing and managing every model
 alias: the implicit role aliases (`default`, `coder`, `<provider>_coder`, `epic_lander`, `big_epic_lander`,
-`phase_worker`, `smartest`) and any user-defined `llm_provider.model_aliases.custom` entry.
+`phase_worker`, `small_phase_worker`, `medium_phase_worker`, `large_phase_worker`, `smartest`) and any user-defined
+`llm_provider.model_aliases.custom` entry.
 
 Each row shows the alias name with a small kind badge (`default` / `role` / `<provider> coder` / `user`), its effective
 provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @<fallback>`, or an
 `override · <time> left` / `override · until cleared` chip when a temporary override is active. The top level is sorted
-deterministically: `default`, the built-in `coders` bucket, `epic_lander`, `big_epic_lander`, `phase_worker`,
-`smartest`, then custom buckets and ungrouped user aliases in alphabetical order.
+deterministically: `default`, the built-in `coders` bucket, `epic_lander`, `big_epic_lander`, the built-in
+`phase_worker` bucket, `smartest`, then custom buckets and ungrouped user aliases in alphabetical order.
 
-The always-present `coders` bucket groups `coder` first and every registered `<provider>_coder` alias alphabetically.
-Its collapsed row reports the member count and active overrides, while the description strip summarizes the distinct
-effective models. Open any bucket with `l`, Right, or Enter; return with `h` or Left. Inside `coders`, each alias keeps
-its own configured/implicit state and can be edited, reset, overridden, or cleared independently.
+Two built-in buckets are always present. `coders` groups `coder` first and every registered `<provider>_coder` alias
+alphabetically. `phase_worker` groups the generic shared fallback first, followed by `small_phase_worker`,
+`medium_phase_worker`, and `large_phase_worker`. Each collapsed row reports the member count and active overrides, while
+the description strip summarizes distinct effective models. Open any bucket with `l`, Right, or Enter; return with `h`
+or Left. Inside either bucket, each alias keeps its own configured/implicit state and can be edited, reset, overridden,
+or cleared independently. Configured descriptions under `model_aliases.buckets.coders` and
+`model_aliases.buckets.phase_worker` replace the defaults; custom aliases tagged with either bucket name coalesce into
+the matching row.
 
 The two-line strip below the list explains the highlighted alias. Builtin aliases use fixed descriptions. User aliases
 use `llm_provider.model_aliases.custom.<name>.description`; a malformed user alias without one shows that config path as
@@ -1379,8 +1384,9 @@ independent:
 
 - An override on **`default`** drives the no-`%model` launch default and renders in the existing gold top-bar pill — its
   behavior is unchanged.
-- An override on **any other alias** takes effect wherever that alias is resolved (e.g. `@coder`, `@phase_worker`), and
-  is surfaced by a distinct, concise violet top-bar pill: a single active override renders as
+- An override on **any other alias** takes effect wherever that alias is resolved. In particular, a generic
+  `@phase_worker` override is inherited through every unconfigured size alias, while a size-specific override affects
+  only that alias. It is surfaced by a distinct, concise violet top-bar pill: a single active override renders as
   `Override @<alias> <time-left>`, and several render as an `Overrides ×N` count.
 
 Overrides apply only to default selection: explicit prompt directives (`%model:codex/o3`,
@@ -1420,16 +1426,19 @@ Builtin aliases edit under `llm_provider.model_aliases.builtin.<name>`. User ali
   revert to the configured default.
 - Highlight `coder`, `o`, pick a model, then `t`, enter `5pm` — the preview resolves the next 5:00 PM in the configured
   timezone and the override expires at that exact instant.
-- Highlight `phase_worker`, `o`, pick `claude/opus`, `Until cleared` — `@phase_worker` resolves to CLAUDE(opus) until
-  you clear it; the violet non-default pill appears in the top bar.
-- Highlight `smartest`, `e`, pick `claude/opus`, and confirm — large phases without an explicit model use that target;
-  small and medium phases continue through `@phase_worker`.
+- Open `phase_worker`, highlight its generic member, then press `o`, pick `claude/opus`, and choose `Until cleared` —
+  every unconfigured size alias inherits CLAUDE(opus) until you clear it; the violet non-default pill appears in the top
+  bar.
+- Open `phase_worker`, highlight `large_phase_worker`, press `e`, pick `claude/opus`, and confirm — only large phases
+  without an explicit model use that target; small and medium phases continue through the shared `@phase_worker`.
+- Highlight `smartest`, `e`, pick `claude/opus`, and confirm — explicit uses of `@smartest` use that target; implicit
+  phase launches do not select it.
 - Highlight `big_epic_lander`, `e`, pick a model, and confirm — only threshold-selected epic landers use that persistent
   target; leaving it implicit preserves the `@epic_lander` target.
 - Highlight `big_epic_lander`, `e`, filter for `@coder`, select it, and confirm — the persistent value is the dynamic
   `@coder` reference, not a copied concrete model.
-- Highlight `phase_worker`, `o`, select `@coder`, then choose `1h` — the override records the concrete provider/model to
-  which `@coder` resolves at write time while retaining `@coder` as its raw input.
+- Open `phase_worker`, highlight its generic member, press `o`, select `@coder`, then choose `1h` — the override records
+  the concrete provider/model to which `@coder` resolves at write time while retaining `@coder` as its raw input.
 - Highlight `coder`, `e`, pick a model, confirm the preview, then `y` — the configured
   `llm_provider.model_aliases.builtin.coder` value is updated and committed (and pushed / `chezmoi apply`-ed when
   `use_chezmoi` is set).

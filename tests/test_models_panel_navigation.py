@@ -15,6 +15,7 @@ from tests._models_panel_helpers import (
     make_alias_view,
     make_bucketed_views,
     make_coder_bucket_views,
+    make_phase_worker_bucket_views,
     make_override,
     patch_alias_views,
 )
@@ -71,7 +72,7 @@ async def test_panel_x_clears_active_override(monkeypatch) -> None:
 
         pilot.app.push_screen(ModelsPanel(), callback=on_dismiss)
         await pilot.pause()
-        await pilot.press("j", "j", "x")
+        await pilot.press("j", "j", "l", "x")
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
@@ -117,7 +118,7 @@ async def test_panel_description_strip_updates_on_highlight(monkeypatch) -> None
         await pilot.pause()
         description = panel.query_one("#models-panel-description", Static)
         assert "Default model." in description.content.plain
-        await pilot.press("j", "j")
+        await pilot.press("j")
         await pilot.pause()
         assert "Draft blog posts." in description.content.plain
 
@@ -205,6 +206,42 @@ async def test_panel_coders_bucket_navigation_and_refresh_restore(monkeypatch) -
         await pilot.pause()
         assert panel._active_bucket is None
         assert panel._highlighted_row_id() == "bucket:coders"
+
+
+async def test_panel_phase_worker_bucket_navigation_and_member_order(
+    monkeypatch,
+) -> None:
+    patch_alias_views(monkeypatch, make_phase_worker_bucket_views())
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+
+        await pilot.press("j", "j")
+        assert panel._highlighted_row_id() == "bucket:phase_worker"
+        description = panel.query_one("#models-panel-description", Static).content.plain
+        assert "Shared phase-worker fallback" in description
+        assert "claude/sonnet ×3" in description
+
+        await pilot.press("l")
+        await pilot.pause()
+        assert panel._active_bucket == "phase_worker"
+        assert list(panel._row_by_id) == [
+            "phase_worker",
+            "small_phase_worker",
+            "medium_phase_worker",
+            "large_phase_worker",
+        ]
+        assert panel._highlighted_row_id() == "phase_worker"
+
+        await pilot.press("j", "j")
+        assert panel._highlighted_row_id() == "medium_phase_worker"
+
+        await pilot.press("h")
+        await pilot.pause()
+        assert panel._active_bucket is None
+        assert panel._highlighted_row_id() == "bucket:phase_worker"
 
 
 @pytest.mark.parametrize("member_steps", [[], ["j", "j"]])

@@ -29,8 +29,8 @@ ModelAliasConfigSource = Literal["builtin", "custom"]
 #
 #   - ``default``: the model used when a prompt has no explicit ``%model``.
 #   - ``coder`` / ``<provider>_coder``: coder follow-up roles.
-#   - ``epic_lander`` / ``big_epic_lander`` / ``phase_worker`` / ``smartest``:
-#     bead/epic roles.
+#   - ``epic_lander`` / ``big_epic_lander`` / ``phase_worker`` /
+#     ``<size>_phase_worker`` / ``smartest``: bead/epic roles.
 #
 # Each role falls back to another alias (ultimately ``@default``) when it is not
 # explicitly configured. ``default`` itself falls back to the configured or
@@ -60,10 +60,19 @@ EPIC_LANDER_MODEL_ALIAS_NAME = "epic_lander"
 #: The implicit large-epic lander role alias (threshold-selected follow-up).
 BIG_EPIC_LANDER_MODEL_ALIAS_NAME = "big_epic_lander"
 
-#: The implicit "phase_worker" role alias (bead phase agent default).
+#: The implicit "phase_worker" role alias (shared bead phase fallback).
 PHASE_WORKER_MODEL_ALIAS_NAME = "phase_worker"
 
-#: The implicit "smartest" role alias (large phase agent default).
+#: The implicit small-phase role alias.
+SMALL_PHASE_WORKER_MODEL_ALIAS_NAME = "small_phase_worker"
+
+#: The implicit medium-phase role alias.
+MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME = "medium_phase_worker"
+
+#: The implicit large-phase role alias.
+LARGE_PHASE_WORKER_MODEL_ALIAS_NAME = "large_phase_worker"
+
+#: The implicit "smartest" compatibility alias for explicit use.
 SMARTEST_MODEL_ALIAS_NAME = "smartest"
 
 #: Fixed implicit role aliases (besides ``default``) mapped to the alias each
@@ -73,6 +82,9 @@ _ROLE_ALIAS_FALLBACKS: dict[str, str] = {
     EPIC_LANDER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME: f"@{EPIC_LANDER_MODEL_ALIAS_NAME}",
     PHASE_WORKER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
+    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{PHASE_WORKER_MODEL_ALIAS_NAME}",
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{PHASE_WORKER_MODEL_ALIAS_NAME}",
+    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{PHASE_WORKER_MODEL_ALIAS_NAME}",
     SMARTEST_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
 }
 
@@ -95,10 +107,19 @@ _ROLE_ALIAS_DESCRIPTIONS: dict[str, str] = {
         "phase-count threshold."
     ),
     PHASE_WORKER_MODEL_ALIAS_NAME: (
-        "Bead phase agents that implement individual plan phases."
+        "Shared fallback for bead phase agents of every size."
+    ),
+    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: (
+        "Small bead phase agents that implement directly."
+    ),
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME: (
+        "Medium bead phase agents that plan before implementation."
+    ),
+    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME: (
+        "Large bead phase agents that plan before implementation."
     ),
     SMARTEST_MODEL_ALIAS_NAME: (
-        "Large phase agents that need the highest-capability configured model."
+        "Highest-capability compatibility alias for explicit use."
     ),
 }
 
@@ -389,8 +410,8 @@ def _special_model_alias_names() -> set[str]:
 
     This is the centralized alias policy that is the source of truth for which
     alias names always resolve: the fixed role aliases (``default`` plus
-    ``coder``/``epic_lander``/``big_epic_lander``/``phase_worker``/``smartest``)
-    and a
+    ``coder``/``epic_lander``/``big_epic_lander``/``phase_worker``/
+    ``<size>_phase_worker``/``smartest``) and a
     ``<provider>_coder`` alias per registered provider. The legacy
     ``worker``/``other`` reserved aliases were retired with the worker lane
     (epic sase-5d phase 4); they only resolve now if a user defines them as
@@ -512,8 +533,9 @@ def resolve_model_alias(
     Resolution follows configured ``llm_provider.model_aliases.builtin`` /
     ``llm_provider.model_aliases.custom`` chains and the implicit special aliases
     (``default``, ``coder``, ``<provider>_coder``, ``epic_lander``,
-    ``big_epic_lander``, ``phase_worker``, ``smartest``). A configured legacy
-    ``epic_creator`` entry remains an ordinary compatibility alias. Alias
+    ``big_epic_lander``, ``phase_worker``, ``<size>_phase_worker``,
+    ``smartest``). A configured legacy ``epic_creator`` entry remains an
+    ordinary compatibility alias. Alias
     *values* may reference other aliases with an ``@`` marker (e.g.
     ``coder: "@default"``); those references are followed too. A
     user-configured alias always shadows the implicit special of the same name.

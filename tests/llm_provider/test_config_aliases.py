@@ -148,8 +148,14 @@ def test_model_alias_description_builtin_and_custom(
         "Epic land agents selected for plans at or above the configured "
         "phase-count threshold."
     )
+    assert model_alias_description("phase_worker") == (
+        "Shared fallback for bead phase agents of every size."
+    )
+    assert model_alias_description("medium_phase_worker") == (
+        "Medium bead phase agents that plan before implementation."
+    )
     assert model_alias_description("smartest") == (
-        "Large phase agents that need the highest-capability configured model."
+        "Highest-capability compatibility alias for explicit use."
     )
     assert model_alias_description("claude_coder") == (
         "Coder follow-up agents for plans authored by claude."
@@ -181,6 +187,9 @@ def test_model_alias_names_include_configured_and_special(
         "epic_lander",
         "big_epic_lander",
         "phase_worker",
+        "small_phase_worker",
+        "medium_phase_worker",
+        "large_phase_worker",
         "smartest",
         # per-provider coder aliases
         "claude_coder",

@@ -15,7 +15,10 @@ from sase.llm_provider.config import (
     CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
+    LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
     PHASE_WORKER_MODEL_ALIAS_NAME,
+    SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
     coder_model_alias_for_provider,
     get_model_aliases,
@@ -43,8 +46,11 @@ _TRAILING_IMPLICIT_ALIASES: tuple[tuple[str, str], ...] = (
         BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
         "threshold-selected large-epic land follow-up model",
     ),
-    (PHASE_WORKER_MODEL_ALIAS_NAME, "bead phase agent model"),
-    (SMARTEST_MODEL_ALIAS_NAME, "highest-capability large-phase model"),
+    (PHASE_WORKER_MODEL_ALIAS_NAME, "shared bead phase fallback model"),
+    (SMALL_PHASE_WORKER_MODEL_ALIAS_NAME, "small bead phase agent model"),
+    (MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME, "medium bead phase agent model"),
+    (LARGE_PHASE_WORKER_MODEL_ALIAS_NAME, "large bead phase agent model"),
+    (SMARTEST_MODEL_ALIAS_NAME, "highest-capability alias for explicit use"),
 )
 
 
@@ -72,8 +78,8 @@ def build_model_completion_catalog(
     aliases are kept as match/display hints only; they are not inserted as
     completion values. The implicit role aliases (``@default``, ``@coder``, each
     registered ``@<provider>_coder``, ``@epic_lander``,
-    ``@big_epic_lander``, ``@phase_worker``, ``@smartest``) and user-configured
-    aliases are
+    ``@big_epic_lander``, ``@phase_worker``, the three size-specific phase
+    aliases, and ``@smartest``) and user-configured aliases are
     inserted with their ``@`` form because those values resolve through the
     normal ``%model`` path.
     """
