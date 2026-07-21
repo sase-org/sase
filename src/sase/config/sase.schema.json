@@ -578,9 +578,9 @@
               "minimum": 0,
               "default": 1000
             },
-            "history_word_min_length": {
+            "word_min_length": {
               "type": "integer",
-              "description": "Minimum character length retained for prompt-history word completion",
+              "description": "Minimum character length for prompt-local and prompt-history word completion candidates",
               "minimum": 1,
               "default": 5
             }

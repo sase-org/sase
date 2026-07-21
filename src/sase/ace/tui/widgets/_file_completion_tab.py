@@ -26,7 +26,6 @@ from sase.ace.tui.widgets.history_word_completion import (
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
 from sase.ace.tui.widgets.prompt_word_completion import (
     PROMPT_WORD_COMPLETION_KIND,
-    build_prompt_word_completion_result,
     word_range_at_cursor,
 )
 from sase.ace.tui.widgets.xprompt_completion import is_xprompt_like_token
@@ -224,7 +223,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
 
     def _try_prompt_word_completion_tab(self, cursor_offset: int) -> bool:
         """Handle prompt-local words before falling back to history."""
-        result = build_prompt_word_completion_result(self.text, cursor_offset)
+        result = self._prompt_word_completion_result(cursor_offset)
         if result is None:
             return self._try_history_word_completion_tab(cursor_offset)
 
@@ -245,8 +244,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                 result.replacement_end,
                 f"{result.prefix}{result.shared_extension}",
             )
-            refreshed = build_prompt_word_completion_result(
-                self.text,
+            refreshed = self._prompt_word_completion_result(
                 self._absolute_offset(self.cursor_location),
             )
             if refreshed is None:

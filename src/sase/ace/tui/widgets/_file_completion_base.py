@@ -9,6 +9,10 @@ from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.widgets._file_completion_context import FileCompletionContextMixin
 from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
+from sase.ace.tui.widgets.prompt_word_completion import (
+    WordCompletionResult,
+    build_prompt_word_completion_result,
+)
 from sase.ace.tui.widgets.vcs_ref_completion import (
     VCS_REF_COMPLETION_KIND,
     vcs_ref_completion_title,
@@ -102,6 +106,17 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             start: tuple[int, int],
             end: tuple[int, int],
         ) -> bool: ...
+
+    def _prompt_word_completion_result(
+        self,
+        cursor_offset: int,
+    ) -> WordCompletionResult | None:
+        """Build prompt-local words with the configured shared threshold."""
+        return build_prompt_word_completion_result(
+            self.text,
+            cursor_offset,
+            min_length=self._prompt_completion_settings().word_min_length,
+        )
 
     def _update_file_completion_panel(self, token: str) -> None:
         """Sync completion UI with the current completion state."""

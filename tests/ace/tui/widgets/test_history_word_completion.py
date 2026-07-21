@@ -106,6 +106,19 @@ async def test_ctrl_t_opens_history_words_after_local_miss() -> None:
         assert "📄" not in rendered.plain
 
 
+async def test_short_local_match_does_not_block_history_fallback() -> None:
+    app = HistoryCompletionTestApp(["tiger"])
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("tiny ti")
+        ta.cursor_location = (0, len(ta.text))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "tiny tiger"
+        assert ta._file_completion_active is False
+
+
 async def test_history_single_match_auto_accepts_and_replaces_suffix() -> None:
     app = HistoryCompletionTestApp(["publish"])
     async with app.run_test() as pilot:
@@ -151,6 +164,40 @@ async def test_history_refresh_narrows_and_switches_back_to_local() -> None:
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
         ] == ["algebra"]
+
+
+async def test_history_refresh_does_not_yield_to_short_local_match() -> None:
+    app = HistoryCompletionTestApp(["tiger", "title"])
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("tiny ti")
+        ta.cursor_location = (0, len(ta.text))
+
+        await pilot.press("ctrl+t", "g", "backspace")
+
+        assert ta._completion_kind == HISTORY_WORD_COMPLETION_KIND
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == ["tiger", "title"]
+
+
+async def test_local_refresh_falls_through_when_only_short_match_remains() -> None:
+    app = HistoryCompletionTestApp(["tinyhouse", "tinydesk"])
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("tiny tinker tinted ti")
+        ta.cursor_location = (0, len(ta.text))
+
+        await pilot.press("ctrl+t")
+        assert ta._completion_kind == PROMPT_WORD_COMPLETION_KIND
+        assert ta.text.endswith("tin")
+
+        await pilot.press("y")
+
+        assert ta._completion_kind == HISTORY_WORD_COMPLETION_KIND
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == ["tinyhouse", "tinydesk"]
 
 
 async def test_structured_cursor_dismisses_active_history_words() -> None:

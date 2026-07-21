@@ -24,6 +24,8 @@ class WordCompletionResult:
 def build_prompt_word_completion_result(
     text: str,
     cursor_offset: int,
+    *,
+    min_length: int = 5,
 ) -> WordCompletionResult | None:
     """Return prompt-local word matches for the prefix left of the cursor.
 
@@ -31,6 +33,7 @@ def build_prompt_word_completion_result(
     Unicode alphanumeric characters or underscores. The cursor must have a
     non-empty word prefix immediately to its left. The result replaces the
     complete word around that prefix, including any suffix right of the cursor.
+    The minimum applies to complete candidates, not to the typed prefix.
     """
     word_range = word_range_at_cursor(text, cursor_offset)
     if word_range is None:
@@ -40,12 +43,17 @@ def build_prompt_word_completion_result(
     current_word = text[replacement_start:replacement_end]
     prefix_folded = prefix.casefold()
 
+    minimum = max(1, min_length)
     spellings: set[str] = set()
     for start, end in word_ranges(text):
         if start == replacement_start and end == replacement_end:
             continue
         word = text[start:end]
-        if word == current_word or not word.casefold().startswith(prefix_folded):
+        if (
+            len(word) < minimum
+            or word == current_word
+            or not word.casefold().startswith(prefix_folded)
+        ):
             continue
         spellings.add(word)
 

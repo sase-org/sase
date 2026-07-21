@@ -28,7 +28,6 @@ from sase.ace.tui.widgets.placeholder_completion import (
 )
 from sase.ace.tui.widgets.prompt_word_completion import (
     PROMPT_WORD_COMPLETION_KIND,
-    build_prompt_word_completion_result,
     word_range_at_cursor,
 )
 from sase.ace.tui.widgets.vcs_project_completion import (
@@ -307,12 +306,24 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
 
     def _refresh_prompt_word_completion(self) -> None:
         """Refresh the active prompt-local word menu entirely in memory."""
-        result = build_prompt_word_completion_result(
-            self.text,
-            self._absolute_offset(self.cursor_location),
-        )
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        result = self._prompt_word_completion_result(cursor_offset)
         if result is None:
-            self._clear_file_completion()
+            settings = self._prompt_completion_settings()
+            if settings.history_word_count <= 0 or not callable(
+                getattr(self.app, "history_prompt_words", None)
+            ):
+                self._clear_file_completion()
+                return
+            history_words_cold = self._history_prompt_words() is None
+            self._completion_kind = HISTORY_WORD_COMPLETION_KIND
+            self._refresh_history_word_completion()
+            if (
+                history_words_cold
+                and self._file_completion_active
+                and self._completion_kind == HISTORY_WORD_COMPLETION_KIND
+            ):
+                self._schedule_history_word_completion_load()
             return
         if self._structured_completion_claims_cursor():
             self._clear_file_completion()
@@ -346,7 +357,7 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             return
 
         cursor_offset = self._absolute_offset(self.cursor_location)
-        local_result = build_prompt_word_completion_result(self.text, cursor_offset)
+        local_result = self._prompt_word_completion_result(cursor_offset)
         if local_result is not None:
             self._completion_kind = PROMPT_WORD_COMPLETION_KIND
             self._replace_completion_candidates_preserving_selection(

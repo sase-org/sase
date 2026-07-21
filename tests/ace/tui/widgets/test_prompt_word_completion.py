@@ -8,6 +8,7 @@ from textual.content import Content
 from textual.widgets import Static
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.prompt_word_completion import (
@@ -17,6 +18,17 @@ from sase.ace.tui.widgets.prompt_word_completion import (
 )
 
 from ._completion_helpers import CompletionTestApp
+
+
+class WordCompletionTestApp(CompletionTestApp):
+    """Completion harness with configurable shared word settings."""
+
+    def __init__(self, *, word_min_length: int) -> None:
+        super().__init__()
+        self.settings = PromptCompletionSettings(word_min_length=word_min_length)
+
+    def get_prompt_completion_settings(self) -> PromptCompletionSettings:
+        return self.settings
 
 
 def _result(
@@ -111,6 +123,31 @@ def test_shared_extension_is_empty_without_multiple_matches() -> None:
     assert result.shared_extension == ""
 
 
+def test_candidates_use_shared_minimum_not_typed_prefix_length() -> None:
+    result = _result("tiny tiger title ti")
+
+    assert [candidate.insertion for candidate in result.candidates] == [
+        "tiger",
+        "title",
+    ]
+    assert build_prompt_word_completion_result("tiny ti", len("tiny ti")) is None
+
+    lowered = build_prompt_word_completion_result(
+        "tiny ti",
+        len("tiny ti"),
+        min_length=4,
+    )
+    assert lowered is not None
+    assert [candidate.insertion for candidate in lowered.candidates] == ["tiny"]
+
+
+def test_candidate_minimum_is_clamped_to_one() -> None:
+    result = build_prompt_word_completion_result("a al", 1, min_length=0)
+
+    assert result is not None
+    assert [candidate.insertion for candidate in result.candidates] == ["al"]
+
+
 async def test_ctrl_t_opens_multiple_prompt_words_and_renders_plain_rows() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
@@ -147,6 +184,32 @@ async def test_ctrl_t_immediately_accepts_one_prompt_word_match() -> None:
 
         assert ta.text == "alpha alpha"
         assert ta.cursor_location == (0, len(ta.text))
+        assert ta._file_completion_active is False
+
+
+async def test_ctrl_t_skips_short_prompt_word_match_by_default() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("tiny ti")
+        ta.cursor_location = (0, len(ta.text))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "tiny ti"
+        assert ta._file_completion_active is False
+
+
+async def test_lowered_minimum_restores_short_prompt_word_completion() -> None:
+    app = WordCompletionTestApp(word_min_length=4)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("tiny ti")
+        ta.cursor_location = (0, len(ta.text))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "tiny tiny"
         assert ta._file_completion_active is False
 
 
@@ -223,6 +286,38 @@ async def test_prompt_word_candidates_refresh_and_preserve_selection() -> None:
 
         await pilot.press("z")
 
+        assert ta._file_completion_active is False
+
+
+async def test_prompt_word_refresh_never_reintroduces_short_candidates() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("tiny tiger title ti")
+        ta.cursor_location = (0, len(ta.text))
+
+        await pilot.press("ctrl+t", "g", "backspace")
+
+        assert ta._completion_kind == PROMPT_WORD_COMPLETION_KIND
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == ["tiger", "title"]
+
+
+async def test_stale_short_candidate_cannot_be_accepted() -> None:
+    app = WordCompletionTestApp(word_min_length=5)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("alpha alpine al")
+        ta.cursor_location = (0, len(ta.text))
+
+        await pilot.press("ctrl+t")
+        assert ta._file_completion_candidates[0].insertion == "alpha"
+
+        app.settings = PromptCompletionSettings(word_min_length=6)
+        await pilot.press("enter")
+
+        assert ta.text == "alpha alpine alp"
         assert ta._file_completion_active is False
 
 

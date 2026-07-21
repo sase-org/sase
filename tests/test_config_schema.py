@@ -43,6 +43,24 @@ def test_default_config_matches_public_schema() -> None:
     assert errors == [], "\n".join(format_schema_error(error) for error in errors)
 
 
+def test_prompt_completion_word_min_length_schema_contract() -> None:
+    public_schema = schema()
+    prompt_completion = public_schema["properties"]["ace"]["properties"][
+        "prompt_completion"
+    ]
+    word_min_length = prompt_completion["properties"]["word_min_length"]
+
+    assert word_min_length["minimum"] == 1
+    assert word_min_length["default"] == 5
+    Draft7Validator(public_schema).validate(
+        {"ace": {"prompt_completion": {"word_min_length": 3}}}
+    )
+    with pytest.raises(ValidationError):
+        Draft7Validator(public_schema).validate(
+            {"ace": {"prompt_completion": {"history_word_min_length": 3}}}
+        )
+
+
 def test_config_schema_accepts_scoped_statistics_keymaps() -> None:
     Draft7Validator(schema()).validate(
         {

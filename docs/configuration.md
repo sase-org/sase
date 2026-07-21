@@ -550,10 +550,10 @@ Source: `src/sase/ace/tui/widgets/prompt_text_area.py`
 
 #### `ace.prompt_completion`
 
-Controls automatic non-disruptive suggestions and the manual prompt-history word fallback in the ACE prompt input.
-Suggestions appear in the prompt-bar subtitle and are accepted with `Ctrl+L`; `Enter` still submits the prompt as typed.
-Manual structured/path `Ctrl+T` completion is independent of the automatic settings, and the `Ctrl+R` recursive fuzzy
-file finder is always manual.
+Controls automatic non-disruptive suggestions and manual prompt-local and prompt-history word completion in the ACE
+prompt input. Suggestions appear in the prompt-bar subtitle and are accepted with `Ctrl+L`; `Enter` still submits the
+prompt as typed. Manual structured/path `Ctrl+T` completion is independent of the automatic settings, and the `Ctrl+R`
+recursive fuzzy file finder is always manual.
 
 ```yaml
 ace:
@@ -565,23 +565,28 @@ ace:
     auto_directive_menu: true
     max_auto_rows: 1
     history_word_count: 1000
-    history_word_min_length: 5
+    word_min_length: 5
 ```
 
-| Field                     | Type        | Default | Description                                                                                                       |
-| ------------------------- | ----------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
-| `auto`                    | bool/string | `soft`  | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.         |
-| `debounce_ms`             | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                            |
-| `auto_file_paths`         | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.      |
-| `auto_xprompt_menu`       | bool        | `true`  | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens. |
-| `auto_directive_menu`     | bool        | `true`  | Automatically open directive completion while typing `%id` tokens and fixed values such as `%model:`.             |
-| `max_auto_rows`           | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                        |
-| `history_word_count`      | int         | `1000`  | Maximum unique recent prompt-history words retained for manual completion; `0` disables the fallback.             |
-| `history_word_min_length` | int         | `5`     | Minimum character length retained for prompt-history word completion; values below `1` are clamped to `1`.        |
+| Field                 | Type        | Default | Description                                                                                                       |
+| --------------------- | ----------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `auto`                | bool/string | `soft`  | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.         |
+| `debounce_ms`         | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                            |
+| `auto_file_paths`     | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.      |
+| `auto_xprompt_menu`   | bool        | `true`  | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens. |
+| `auto_directive_menu` | bool        | `true`  | Automatically open directive completion while typing `%id` tokens and fixed values such as `%model:`.             |
+| `max_auto_rows`       | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                        |
+| `history_word_count`  | int         | `1000`  | Maximum unique recent prompt-history words retained for manual completion; `0` disables the history fallback.     |
+| `word_min_length`     | int         | `5`     | Shared minimum length for prompt-local and prompt-history word candidates; values below `1` clamp to `1`.         |
 
-When a plain-word `Ctrl+T` prefix has no match elsewhere in the current prompt, ACE falls back to recent words derived
-from prompt history. Candidates retain their original spelling and appear in most-recently-used order. The cache is
-warmed off-thread and rebuilt when history shards change.
+The minimum applies to the complete candidate, so a shorter typed prefix can still complete an eligible word.
+Prompt-local words below the threshold are skipped before ACE considers the prompt-history fallback. Candidates from
+history retain their original spelling and appear in most-recently-used order. The cache is warmed off-thread and
+rebuilt when history shards or the shared minimum change. Setting `history_word_count: 0` disables only the history
+fallback; eligible prompt-local words remain available.
+
+The former `history_word_min_length` key has been replaced by `word_min_length`. Existing overrides must rename the key
+to keep controlling word completion.
 
 The `+query` project/ChangeSpec picker uses the same completion panel and opens when the plus is at absolute prompt
 offset zero or immediately follows a literal ASCII space. It is not disabled by `auto_xprompt_menu`. Manual `Ctrl+T`

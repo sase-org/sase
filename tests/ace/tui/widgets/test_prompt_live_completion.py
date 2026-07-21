@@ -101,7 +101,7 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
             "auto_directive_menu": False,
             "max_auto_rows": "0",
             "history_word_count": "25",
-            "history_word_min_length": "0",
+            "word_min_length": "0",
         }
     )
     assert parsed.debounce_ms == 0
@@ -110,16 +110,20 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
     assert parsed.auto_directive_menu is False
     assert parsed.max_auto_rows == 1
     assert parsed.history_word_count == 25
-    assert parsed.history_word_min_length == 1
+    assert parsed.word_min_length == 1
 
     garbage = parse_prompt_completion_settings(
         {
             "history_word_count": "many",
-            "history_word_min_length": None,
+            "word_min_length": None,
         }
     )
     assert garbage.history_word_count == 1000
-    assert garbage.history_word_min_length == 5
+    assert garbage.word_min_length == 5
+    assert (
+        parse_prompt_completion_settings({"history_word_min_length": 2}).word_min_length
+        == 5
+    )
 
 
 def test_xprompt_soft_builder_uses_warm_entries_only() -> None:

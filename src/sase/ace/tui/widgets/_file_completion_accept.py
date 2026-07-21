@@ -17,7 +17,6 @@ from sase.ace.tui.widgets.placeholder_completion import (
 )
 from sase.ace.tui.widgets.prompt_word_completion import (
     PROMPT_WORD_COMPLETION_KIND,
-    build_prompt_word_completion_result,
     word_range_at_cursor,
 )
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
@@ -196,8 +195,7 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             )
             return True
         if self._completion_kind == PROMPT_WORD_COMPLETION_KIND:
-            result = build_prompt_word_completion_result(
-                self.text,
+            result = self._prompt_word_completion_result(
                 self._absolute_offset(self.cursor_location),
             )
             self._update_file_completion_panel("" if result is None else result.prefix)
@@ -292,11 +290,15 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             self._clear_file_completion()
             return True
         if self._completion_kind == PROMPT_WORD_COMPLETION_KIND:
-            result = build_prompt_word_completion_result(
-                self.text,
+            result = self._prompt_word_completion_result(
                 self._absolute_offset(self.cursor_location),
             )
             if result is None:
+                self._clear_file_completion()
+                return False
+            if selected.insertion not in {
+                candidate.insertion for candidate in result.candidates
+            }:
                 self._clear_file_completion()
                 return False
             self._replace_absolute_range(

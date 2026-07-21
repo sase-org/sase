@@ -36,7 +36,7 @@ class StartupHistoryWordsMixin:
         """Schedule an off-thread cache staleness check and rebuild."""
         settings = self.get_prompt_completion_settings()
         max_words = settings.history_word_count
-        min_length = settings.history_word_min_length
+        min_length = settings.word_min_length
         if max_words <= 0:
             was_cold = self._history_prompt_words_cache is None
             self._history_prompt_words_cache = []
