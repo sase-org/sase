@@ -125,6 +125,56 @@ def test_configured_value_shadows_role_alias(
     assert coder.configured_value == "codex/o3"
 
 
+def test_custom_builtin_shadows_and_bucket_aggregate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {"smartest": "claude/opus"},
+                "custom": {
+                    "coder": {
+                        "model": "claude/sonnet",
+                        "description": "Wrong location.",
+                    },
+                    "codex_coder": {
+                        "model": "codex/o3",
+                        "description": "Also misplaced.",
+                    },
+                    "blogger": {
+                        "model": "claude/opus",
+                        "description": "Legitimate custom alias.",
+                    },
+                },
+            },
+        },
+    )
+    _patch_providers(monkeypatch)
+
+    views = build_alias_views()
+    by_name = {view.name: view for view in views}
+
+    assert by_name["coder"].kind == "role"
+    assert by_name["coder"].configured_source == "custom"
+    assert by_name["coder"].is_custom_builtin_shadow is True
+    assert by_name["codex_coder"].kind == "provider_coder"
+    assert by_name["codex_coder"].is_custom_builtin_shadow is True
+    assert by_name["blogger"].kind == "user"
+    assert by_name["blogger"].is_custom_builtin_shadow is False
+    assert by_name["smartest"].configured_source == "builtin"
+    assert by_name["smartest"].is_custom_builtin_shadow is False
+
+    coders = next(
+        row
+        for row in build_models_panel_rows(views)
+        if isinstance(row, BucketView) and row.name == "coders"
+    )
+    assert coders.custom_builtin_shadow_names == ("coder", "codex_coder")
+    assert coders.custom_builtin_shadow_count == 2
+
+
 @pytest.mark.parametrize(
     ("configured_value", "expected"),
     [

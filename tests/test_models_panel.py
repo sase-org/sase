@@ -19,6 +19,7 @@ from sase.ace.tui.modals.models_panel_duration import (
     RelativeOverrideDuration,
 )
 from sase.ace.tui.modals.models_panel_rendering import (
+    custom_builtin_shadow_warning_message,
     description_text_for_row,
     render_bucket_row,
 )
@@ -54,6 +55,14 @@ def test_format_duration_chosen_finite() -> None:
 # ---------------------------------------------------------------------------
 # Row rendering
 # ---------------------------------------------------------------------------
+
+
+def test_custom_builtin_warning_message_uses_singular_guidance() -> None:
+    assert custom_builtin_shadow_warning_message(["coder"]) == (
+        "Builtin alias @coder is configured under "
+        "llm_provider.model_aliases.custom. Move its model value from "
+        "llm_provider.model_aliases.custom to llm_provider.model_aliases.builtin."
+    )
 
 
 def test_kind_label_provider_coder_shows_coder() -> None:
@@ -128,6 +137,40 @@ def test_state_tag_implicit_provider_coder() -> None:
         now=0.0,
     )
     assert text.plain == "implicit → @coder"
+
+
+def test_custom_builtin_warning_survives_active_override() -> None:
+    view = make_alias_view(
+        "coder",
+        "role",
+        configured=True,
+        configured_value="@default",
+        configured_source="custom",
+    )
+    overridden = make_alias_view(
+        "coder",
+        "role",
+        configured=True,
+        configured_value="@default",
+        configured_source="custom",
+        override=make_override(),
+    )
+
+    line = _render_alias_row(view, now=0.0, provider_model_width=12).plain
+    override_line = _render_alias_row(
+        overridden, now=0.0, provider_model_width=12
+    ).plain
+    description = _description_text_for_view(view).plain
+
+    assert line.startswith("! role")
+    assert "configured → @default" in line
+    assert override_line.startswith("! role")
+    assert "override · 1h left" in override_line
+    assert description.splitlines() == [
+        "! Misplaced builtin alias: @coder",
+        "Move its model value from llm_provider.model_aliases.custom to "
+        "llm_provider.model_aliases.builtin.",
+    ]
 
 
 def test_state_tag_override_with_remaining() -> None:
@@ -291,6 +334,35 @@ def test_render_bucket_row_contains_count_and_override_state() -> None:
     assert "research" in line
     assert "2 aliases" in line
     assert "override · 1 active" in line
+
+
+def test_render_bucket_row_and_description_surface_custom_builtin_warnings() -> None:
+    bucket = BucketView(
+        name="coders",
+        description="Coder roles.",
+        members=(
+            make_alias_view(
+                "coder",
+                "role",
+                configured=True,
+                configured_source="custom",
+                override=make_override(),
+            ),
+            make_alias_view("codex_coder", "provider_coder"),
+        ),
+    )
+
+    line = render_bucket_row(bucket, provider_model_width=13).plain
+    description = description_text_for_row(bucket).plain
+
+    assert "▸ ! bucket" in line
+    assert "! 1 misplaced" in line
+    assert "1 override" in line
+    assert description.splitlines() == [
+        "! Misplaced builtin alias: @coder",
+        "Move its model value from llm_provider.model_aliases.custom to "
+        "llm_provider.model_aliases.builtin.",
+    ]
 
 
 def test_description_text_for_bucket_shows_description_and_model_mix() -> None:

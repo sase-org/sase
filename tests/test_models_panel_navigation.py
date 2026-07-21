@@ -123,6 +123,108 @@ async def test_panel_description_strip_updates_on_highlight(monkeypatch) -> None
         assert "Draft blog posts." in description.content.plain
 
 
+async def test_panel_does_not_warn_for_clean_alias_views(monkeypatch) -> None:
+    patch_alias_views(monkeypatch, [make_alias_view("default", "default")])
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+
+        panel.notify.assert_not_called()
+
+
+async def test_panel_warns_once_and_keeps_bucket_warning_through_refresh(
+    monkeypatch,
+) -> None:
+    views = [
+        make_alias_view("default", "default"),
+        make_alias_view(
+            "codex_coder",
+            "provider_coder",
+            configured=True,
+            configured_source="custom",
+            provider="codex",
+            model="o3",
+        ),
+        make_alias_view(
+            "coder",
+            "role",
+            configured=True,
+            configured_source="custom",
+            override=make_override(),
+        ),
+    ]
+    patch_alias_views(monkeypatch, views)
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+
+        panel.notify.assert_called_once_with(
+            "Builtin aliases @coder, @codex_coder are configured under "
+            "llm_provider.model_aliases.custom. Move each custom entry's model "
+            "value from llm_provider.model_aliases.custom to "
+            "llm_provider.model_aliases.builtin.",
+            severity="warning",
+        )
+
+        await pilot.press("j")
+        option_list = panel.query_one("#models-panel-list", OptionList)
+        bucket_row = option_list.get_option_at_index(1).prompt.plain
+        assert "▸ ! bucket" in bucket_row
+        assert "! 2 misplaced" in bucket_row
+        assert "1 override" in bucket_row
+        description = panel.query_one("#models-panel-description", Static).content.plain
+        assert "@coder, @codex_coder" in description
+        assert "llm_provider.model_aliases.custom" in description
+        assert "llm_provider.model_aliases.builtin" in description
+
+        await pilot.press("l")
+        await pilot.pause()
+        coder_row = option_list.get_option_at_index(0).prompt.plain
+        assert coder_row.startswith("! role")
+        assert "override · 1h left" in coder_row
+
+        panel._refresh_rows(keep="coder")
+        await pilot.pause()
+        assert option_list.get_option_at_index(0).prompt.plain.startswith("! role")
+        panel.notify.assert_called_once()
+
+        await pilot.press("h")
+        await pilot.pause()
+        assert "▸ ! bucket" in option_list.get_option_at_index(1).prompt.plain
+        panel.notify.assert_called_once()
+
+        views[:] = [
+            make_alias_view("default", "default"),
+            make_alias_view(
+                "coder",
+                "role",
+                configured=True,
+                configured_source="builtin",
+                override=make_override(),
+            ),
+            make_alias_view(
+                "codex_coder",
+                "provider_coder",
+                configured=True,
+                configured_source="builtin",
+                provider="codex",
+                model="o3",
+            ),
+        ]
+        panel._refresh_rows(keep="bucket:coders")
+        await pilot.pause()
+        repaired_bucket_row = option_list.get_option_at_index(1).prompt.plain
+        assert "!" not in repaired_bucket_row
+        assert "override · 1 active" in repaired_bucket_row
+        panel.notify.assert_called_once()
+
+
 async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> None:
     patch_alias_views(
         monkeypatch,

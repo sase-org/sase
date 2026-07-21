@@ -100,6 +100,7 @@ class ModelsPanel(
         self._row_by_id: dict[str, AliasView | BucketView] = {}
         self._active_bucket: str | None = None
         self._updating_highlight = False
+        self._warning_toast_emitted = False
         self._pending_alias = ""
         self._pending_raw_model = ""
         self._pending_edit_view: AliasView | None = None

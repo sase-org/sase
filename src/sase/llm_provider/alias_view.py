@@ -159,6 +159,17 @@ class AliasView:
         return self.override is not None
 
     @property
+    def is_custom_builtin_shadow(self) -> bool:
+        """Whether a custom entry is shadowing this builtin alias.
+
+        Alias kind is the centralized builtin classification used throughout
+        the model-alias policy.  Keeping the predicate on the display snapshot
+        lets presentation surfaces warn without re-reading configuration or
+        maintaining a second list of builtin names.
+        """
+        return self.configured_source == "custom" and self.kind != "user"
+
+    @property
     def references(self) -> str | None:
         """Return the immediate alias referenced by the configured value."""
         if self.configured_value is None or not self.configured_value.startswith("@"):
@@ -202,6 +213,18 @@ class BucketView:
     def override_count(self) -> int:
         """Return the number of members with an active temporary override."""
         return sum(member.is_overridden for member in self.members)
+
+    @property
+    def custom_builtin_shadow_names(self) -> tuple[str, ...]:
+        """Return member names whose custom entries shadow builtin aliases."""
+        return tuple(
+            member.name for member in self.members if member.is_custom_builtin_shadow
+        )
+
+    @property
+    def custom_builtin_shadow_count(self) -> int:
+        """Return the number of misplaced builtin aliases in this bucket."""
+        return len(self.custom_builtin_shadow_names)
 
     @staticmethod
     def _model_label(member: AliasView) -> str:

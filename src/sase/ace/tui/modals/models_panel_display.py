@@ -13,6 +13,7 @@ from textual.widgets._option_list import Option
 from sase.llm_provider import AliasView, BucketView
 
 from .models_panel_rendering import (
+    custom_builtin_shadow_warning_message,
     description_text_for_row,
     provider_model_column_width,
     render_alias_row,
@@ -37,6 +38,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
         _top_rows: list[AliasView | BucketView]
         _updating_highlight: bool
         _views: list[AliasView]
+        _warning_toast_emitted: bool
         _override_worker: Any
         _clear_worker: Any
 
@@ -61,6 +63,22 @@ class ModelsPanelDisplayMixin(_MixinBase):
         if option_list.option_count and option_list.highlighted is None:
             self._set_highlighted_index(option_list, 0)
         self._update_context()
+        self._emit_custom_builtin_shadow_warning()
+
+    def _emit_custom_builtin_shadow_warning(self) -> None:
+        """Emit the one opening warning derived from the loaded view snapshot."""
+        if self._warning_toast_emitted:
+            return
+        names = sorted(
+            view.name for view in self._views if view.is_custom_builtin_shadow
+        )
+        if not names:
+            return
+        self._warning_toast_emitted = True
+        self.notify(
+            custom_builtin_shadow_warning_message(names),
+            severity="warning",
+        )
 
     def _footer_markup(self) -> str:
         row = self._selected_row()

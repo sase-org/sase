@@ -48,6 +48,10 @@ _DESCRIPTION_STYLE = "italic #B0B0B0"
 _DESCRIPTION_MISSING_STYLE = "italic #D7AF87"
 _BUCKET_STYLE = "bold #FFD787"
 _BUCKET_DIM_STYLE = "dim #FFD787"
+_WARNING_STYLE = "bold #FFD75F"
+
+_CUSTOM_ALIASES_PATH = "llm_provider.model_aliases.custom"
+_BUILTIN_ALIASES_PATH = "llm_provider.model_aliases.builtin"
 
 
 def _pad(value: str, width: int) -> str:
@@ -60,6 +64,35 @@ def _pad(value: str, width: int) -> str:
 def kind_label(view: AliasView) -> str:
     """Return the small kind badge text for *view*."""
     return _KIND_LABELS.get(view.kind, view.kind)
+
+
+def custom_builtin_shadow_warning_message(names: Iterable[str]) -> str:
+    """Return actionable opening-toast text for misplaced builtin aliases."""
+    aliases = tuple(f"@{name}" for name in sorted(names))
+    if len(aliases) == 1:
+        return (
+            f"Builtin alias {aliases[0]} is configured under {_CUSTOM_ALIASES_PATH}. "
+            f"Move its model value from {_CUSTOM_ALIASES_PATH} to "
+            f"{_BUILTIN_ALIASES_PATH}."
+        )
+    return (
+        f"Builtin aliases {', '.join(aliases)} are configured under "
+        f"{_CUSTOM_ALIASES_PATH}. Move each custom entry's model value from "
+        f"{_CUSTOM_ALIASES_PATH} to {_BUILTIN_ALIASES_PATH}."
+    )
+
+
+def _custom_builtin_shadow_description(names: Iterable[str]) -> Text:
+    """Return the two-line persistent warning for highlighted problem rows."""
+    aliases = tuple(f"@{name}" for name in sorted(names))
+    noun = "alias" if len(aliases) == 1 else "aliases"
+    pronoun = "its model value" if len(aliases) == 1 else "their model values"
+    text = Text(style=_WARNING_STYLE, no_wrap=True, overflow="ellipsis")
+    text.append(f"! Misplaced builtin {noun}: {', '.join(aliases)}")
+    text.append(
+        f"\nMove {pronoun} from {_CUSTOM_ALIASES_PATH} to {_BUILTIN_ALIASES_PATH}."
+    )
+    return text
 
 
 def _override_chip(override: TemporaryLLMOverride, now: float) -> str:
@@ -127,7 +160,11 @@ def render_alias_row(view: AliasView, *, now: float, provider_model_width: int) 
     config value can never break rendering.
     """
     text = Text(no_wrap=True, overflow="ellipsis")
-    text.append(_pad(kind_label(view), _KIND_CELL), style=_KIND_STYLES.get(view.kind))
+    kind = kind_label(view)
+    if view.is_custom_builtin_shadow:
+        text.append(_pad(f"! {kind}", _KIND_CELL), style=_WARNING_STYLE)
+    else:
+        text.append(_pad(kind, _KIND_CELL), style=_KIND_STYLES.get(view.kind))
     text.append(" ")
     text.append(_pad(view.name, _NAME_CELL), style="bold")
     text.append(" ")
@@ -142,14 +179,27 @@ def render_alias_row(view: AliasView, *, now: float, provider_model_width: int) 
 def render_bucket_row(bucket: BucketView, *, provider_model_width: int) -> Text:
     """Render one collapsed bucket using the alias-row column skeleton."""
     text = Text(no_wrap=True, overflow="ellipsis")
-    text.append(_pad("▸ bucket", _KIND_CELL), style=_BUCKET_STYLE)
+    bucket_label = "▸ ! bucket" if bucket.custom_builtin_shadow_count else "▸ bucket"
+    bucket_style = (
+        _WARNING_STYLE if bucket.custom_builtin_shadow_count else _BUCKET_STYLE
+    )
+    text.append(_pad(bucket_label, _KIND_CELL), style=bucket_style)
     text.append(" ")
     text.append(_pad(bucket.name, _NAME_CELL), style="bold")
     text.append(" ")
     count_label = f"{bucket.alias_count} aliases"
     text.append(_pad(count_label, provider_model_width), style="dim")
     text.append(_STATE_GAP)
-    if bucket.override_count:
+    if bucket.custom_builtin_shadow_count:
+        text.append(
+            f"! {bucket.custom_builtin_shadow_count} misplaced", style=_WARNING_STYLE
+        )
+        if bucket.override_count:
+            text.append(
+                f" · {bucket.override_count} override",
+                style=_OVERRIDE_TAG_STYLE,
+            )
+    elif bucket.override_count:
         text.append(
             f"override · {bucket.override_count} active", style=_OVERRIDE_TAG_STYLE
         )
@@ -162,6 +212,8 @@ def description_text_for_view(view: AliasView | None) -> Text:
     """Return the two-line description strip content for *view*."""
     if view is None:
         return Text("", style=_DESCRIPTION_STYLE)
+    if view.is_custom_builtin_shadow:
+        return _custom_builtin_shadow_description((view.name,))
     if view.description:
         return Text(view.description, style=_DESCRIPTION_STYLE)
     if view.kind == "user":
@@ -175,6 +227,8 @@ def description_text_for_view(view: AliasView | None) -> Text:
 
 def _description_text_for_bucket(bucket: BucketView) -> Text:
     """Return the two-line description and effective-model mix for *bucket*."""
+    if bucket.custom_builtin_shadow_names:
+        return _custom_builtin_shadow_description(bucket.custom_builtin_shadow_names)
     text = Text()
     if bucket.description:
         text.append(bucket.description, style=_DESCRIPTION_STYLE)

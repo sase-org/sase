@@ -1354,6 +1354,13 @@ The two-line strip below the list explains the highlighted alias. Builtin aliase
 use `llm_provider.model_aliases.custom.<name>.description`; a malformed user alias without one shows that config path as
 the fix.
 
+If a builtin alias is mistakenly configured under `llm_provider.model_aliases.custom`, opening the panel emits one
+warning toast listing every affected `@alias`. A gold warning glyph remains on each affected alias row even while a
+temporary override is active; a collapsed bucket containing affected members keeps the glyph and reports their count.
+Highlighting either the alias or its bucket replaces the normal description with the same actionable advice. Move each
+entry's `model` value from `llm_provider.model_aliases.custom` to `llm_provider.model_aliases.builtin`; ACE identifies
+the misplaced entry but does not rewrite the configuration automatically.
+
 Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlighted alias:
 
 | Key                   | Action                                                                                     |

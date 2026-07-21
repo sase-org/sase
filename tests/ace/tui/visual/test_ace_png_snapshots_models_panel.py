@@ -215,6 +215,24 @@ def _override_views() -> list[AliasView]:
     ]
 
 
+def _custom_builtin_warning_views() -> list[AliasView]:
+    return [
+        _view(
+            "codex_coder",
+            "provider_coder",
+            configured=True,
+            configured_value="codex/o3",
+            provider="codex",
+            model="o3",
+            configured_source="custom",
+            description="Misplaced builtin coder alias.",
+        )
+        if row.name == "codex_coder"
+        else row
+        for row in _calm_views()
+    ]
+
+
 def _bucket_views() -> list[AliasView]:
     return [
         _view(
@@ -360,6 +378,32 @@ async def test_models_panel_overrides_png_snapshot(
             page,
             "models_panel_overrides_120x40",
             title="ACE models panel (overrides active)",
+        )
+
+
+async def test_models_panel_custom_builtin_warning_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        models_panel,
+        "build_alias_views",
+        lambda *a, **k: _custom_builtin_warning_views(),
+    )
+    monkeypatch.setattr(models_panel, "_now", lambda: _FROZEN_NOW)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(ModelsPanel())
+        await page.expect_modal("ModelsPanel")
+        await page.press("j")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_custom_builtin_warning_120x40",
+            title="ACE models panel (misplaced builtin warning)",
         )
 
 
