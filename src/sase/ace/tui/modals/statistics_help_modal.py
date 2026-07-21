@@ -108,6 +108,8 @@ class StatisticsHelpModal(ModalScreen[None]):
             Text(""),
             self._section("Metric glossary", self._glossary_text()),
             Text(""),
+            self._section("Runner methodology", self._runner_methodology_text()),
+            Text(""),
             self._section("Data & freshness", self._freshness_text()),
         )
 
@@ -209,6 +211,63 @@ class StatisticsHelpModal(ModalScreen[None]):
                 .strftime("%Y-%m-%d %H:%M:%S %Z")
             )
             text.append(f" — {loaded}.", style="dim")
+        return text
+
+    def _runner_methodology_text(self) -> Text:
+        """Explain the runner contract and present-day capacity caveat."""
+        rows = (
+            (
+                "Eligibility",
+                "Root agents and eligible parallel family agents that participate "
+                "in max_running_agents admission count as runners; serial bookkeeping "
+                "and non-agent workflow steps do not.",
+            ),
+            (
+                "Overlap",
+                "Carry-in agents and live agents are included only where they overlap "
+                "the selected window, and are clipped to its start and end.",
+            ),
+            (
+                "Human waits",
+                "Yielded plan and question waits are excluded from runner time.",
+            ),
+            (
+                "Zero occupancy",
+                "Idle wall time with no eligible runner is retained in the exact "
+                "distribution.",
+            ),
+            (
+                "Average",
+                "Concurrency is time-weighted: runner-seconds divided by analyzed "
+                "wall-clock seconds, never an average of slice averages.",
+            ),
+            (
+                "All time",
+                "Coverage begins at the earliest valid recorded runner segment rather "
+                "than the Unix epoch.",
+            ),
+            (
+                "Project scope",
+                f"{self._project_label}; the filter is applied before concurrency is "
+                "combined.",
+            ),
+            (
+                "Skipped data",
+                "Malformed rows and invalid intervals are reported and omitted without "
+                "discarding the remaining valid snapshot.",
+            ),
+            (
+                "Current limit",
+                "The displayed max_running_agents value is today's global reference, "
+                "not a historical limit or project-specific capacity.",
+            ),
+        )
+        text = Text()
+        for index, (term, meaning) in enumerate(rows):
+            if index:
+                text.append("\n")
+            text.append(f"{term} — ", style=f"bold {_CYAN}")
+            text.append(meaning, style="dim")
         return text
 
     def _scroll(self) -> VerticalScroll:

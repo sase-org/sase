@@ -246,6 +246,47 @@ def _populated_statistics_view(
             "truncated_changespec_rows": 0,
             "malformed_spec_files_skipped": 0,
         },
+        "runners": {
+            "start_ts": float(selected_range.start_ts),
+            "end_ts": float(selected_range.end_ts),
+            "peak_runners": 5,
+            "peak_seconds": 25_920.0,
+            "average_runners": 1.9,
+            "busy_seconds": 518_400.0,
+            "busy_share": 6 / 7,
+            "runner_seconds": 1_149_120.0,
+            "distribution": [
+                {"runners": 0, "seconds": 86_400.0, "share": 1 / 7},
+                {"runners": 1, "seconds": 172_800.0, "share": 2 / 7},
+                {"runners": 2, "seconds": 172_800.0, "share": 2 / 7},
+                {"runners": 3, "seconds": 86_400.0, "share": 1 / 7},
+                {"runners": 4, "seconds": 60_480.0, "share": 0.1},
+                {"runners": 5, "seconds": 25_920.0, "share": 3 / 70},
+            ],
+            "trend": [
+                {
+                    "start_ts": float(selected_range.start_ts + index * 86_400),
+                    "end_ts": float(selected_range.start_ts + (index + 1) * 86_400),
+                    "average_runners": average,
+                    "peak_runners": peak,
+                    "busy_seconds": busy,
+                    "runner_seconds": runner_time,
+                }
+                for index, (average, peak, busy, runner_time) in enumerate(
+                    (
+                        (0.5, 1, 43_200.0, 43_200.0),
+                        (1.25, 2, 75_600.0, 108_000.0),
+                        (2.5, 4, 86_400.0, 216_000.0),
+                        (3.8, 5, 86_400.0, 328_320.0),
+                        (1.8, 3, 82_800.0, 155_520.0),
+                        (2.2, 4, 86_400.0, 190_080.0),
+                        (1.25, 2, 57_600.0, 108_000.0),
+                    )
+                )
+            ],
+            "malformed_rows_skipped": 2,
+            "invalid_intervals_skipped": 1,
+        },
     }
     activity_payload = {
         "skills": [
@@ -294,6 +335,7 @@ def _populated_statistics_view(
             activity_payload,
             previous_run_payload={"totals": {"runs": 24}},
             project_display_snapshot=_PROJECT_DISPLAY_SNAPSHOT,
+            current_runner_limit=4,
         ),
         project_filter=project_filter,
         project_display_snapshot=_PROJECT_DISPLAY_SNAPSHOT,

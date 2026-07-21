@@ -33,6 +33,7 @@ from sase.stats.ranges import (
 from .statistics_pane_data import (
     PROJECTS_GROUP_ORDER,
     RUNTIME_GROUP_ORDER,
+    VIEW_COMPACT_LABELS,
     VIEW_LABELS,
     VIEW_ORDER,
     ProjectsGroupBy,
@@ -44,8 +45,15 @@ from .statistics_pane_rendering import StatisticsPanePresentationBase
 
 _ACCENT = "#FF87D7"
 _REFRESH_INTERVAL_SECONDS = 30.0
+_VIEWS_COMPACT_BELOW_WIDTH = 108
 _VIEW_TABS: tuple[PanelTab, ...] = tuple(
-    PanelTab(view, VIEW_LABELS[view], _ACCENT) for view in VIEW_ORDER
+    PanelTab(
+        view,
+        VIEW_LABELS[view],
+        _ACCENT,
+        compact_label=VIEW_COMPACT_LABELS[view],
+    )
+    for view in VIEW_ORDER
 )
 OVERVIEW_TILE_TARGETS: tuple[tuple[str, StatisticsView], ...] = (
     ("Agents Run", "runs"),
@@ -103,7 +111,7 @@ class _CustomRangeInput(Input):
 
 
 class StatisticsPane(StatisticsPanePresentationBase):
-    """Seven numeric Statistics views backed by durable agent activity."""
+    """Eight numeric Statistics views backed by durable agent activity."""
 
     can_focus = True
     BINDINGS = []
@@ -135,6 +143,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
         self._last_result: StatisticsViewData | None = None
         self._last_error = ""
         self._compact_scope = False
+        self._runners_stacked = False
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="statistics-heading"):
@@ -144,6 +153,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
             _VIEW_TABS,
             self._view,
             uppercase_active=True,
+            compact_below=_VIEWS_COMPACT_BELOW_WIDTH,
             id="statistics-views",
         )
         yield Static(
@@ -212,12 +222,18 @@ class StatisticsPane(StatisticsPanePresentationBase):
             self._worker.cancel()
 
     def on_resize(self, event: Resize) -> None:
-        """Update only scope copy when crossing the compact-width threshold."""
+        """Repaint only presentation whose responsive threshold changed."""
         compact = event.size.width < self._SCOPE_COMPACT_BELOW_WIDTH
-        if compact == self._compact_scope:
+        if compact != self._compact_scope:
+            self._compact_scope = compact
+            self._update_scope()
+
+        runners_stacked = event.size.width < self._RUNNERS_STACK_BELOW_WIDTH
+        if runners_stacked == self._runners_stacked:
             return
-        self._compact_scope = compact
-        self._update_scope()
+        self._runners_stacked = runners_stacked
+        if self._view == "runners" and self._last_result is not None:
+            self._paint_current_view()
 
     def focus_default(self) -> None:
         """Focus this key-driven pane and lazily perform its first load."""

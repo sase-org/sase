@@ -17,6 +17,7 @@ from sase.stats.views import StatisticsViews, build_statistics_views
 StatisticsView = Literal[
     "overview",
     "runs",
+    "runners",
     "projects",
     "providers",
     "runtime",
@@ -28,6 +29,7 @@ ProjectsGroupBy = Literal["project", "changespec", "drilldown"]
 VIEW_ORDER: tuple[StatisticsView, ...] = (
     "overview",
     "runs",
+    "runners",
     "projects",
     "providers",
     "runtime",
@@ -37,15 +39,21 @@ VIEW_ORDER: tuple[StatisticsView, ...] = (
 VIEW_LABELS: dict[StatisticsView, str] = {
     "overview": "Overview",
     "runs": "Runs",
+    "runners": "Runners",
     "projects": "Projects",
     "providers": "Providers",
     "runtime": "Runtime",
     "activity": "Activity",
     "plans_questions": "Plans & Questions",
 }
+VIEW_COMPACT_LABELS: dict[StatisticsView, str] = {
+    **VIEW_LABELS,
+    "plans_questions": "Plans/Q",
+}
 VIEW_DESCRIPTIONS: dict[StatisticsView, str] = {
     "overview": "Totals and trends across runs, commits, plans, and questions.",
     "runs": "Run outcomes, retries, workspace usage, and activity over time.",
+    "runners": "Runner occupancy, concurrency trends, and current-limit context.",
     "projects": "Run, ChangeSpec, commit, and runtime activity by project.",
     "providers": "Provider, model, and effort usage with success and runtime measures.",
     "runtime": "Runtime distribution and share grouped by the selected dimension.",
@@ -140,6 +148,7 @@ __all__ = [
     "PROJECTS_GROUP_ORDER",
     "RUNTIME_GROUP_ORDER",
     "VIEW_DESCRIPTIONS",
+    "VIEW_COMPACT_LABELS",
     "VIEW_LABELS",
     "VIEW_ORDER",
     "StatisticsView",

@@ -49,3 +49,21 @@ def test_help_documents_every_statistics_binding_and_current_scope() -> None:
     assert "Last 7 days · exact range" in controls
     assert "available in Runtime and Projects" in controls
     assert "All projects" in controls
+
+
+def test_help_explains_runner_eligibility_windows_and_capacity_caveats() -> None:
+    methodology = _modal()._runner_methodology_text().plain
+
+    for phrase in (
+        "eligible parallel family agents",
+        "Carry-in agents and live agents",
+        "Yielded plan and question waits",
+        "Zero occupancy",
+        "time-weighted",
+        "earliest valid recorded runner segment",
+        "filter is applied before concurrency",
+        "Malformed rows and invalid intervals",
+        "today's global reference",
+        "not a historical limit or project-specific capacity",
+    ):
+        assert phrase in methodology

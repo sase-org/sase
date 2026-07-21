@@ -14,6 +14,7 @@ from sase.telemetry.render import format_duration
 
 from .statistics_pane_data import StatisticsView, StatisticsViewData
 from .statistics_pane_projects import StatisticsProjectsRenderingMixin
+from .statistics_pane_runners import StatisticsRunnersRenderingMixin
 
 _ACCENT = "#FF87D7"
 _CYAN = "#87D7FF"
@@ -22,7 +23,10 @@ _GREEN = "#5FD75F"
 _RED = "#FF5F5F"
 
 
-class StatisticsViewsRenderingMixin(StatisticsProjectsRenderingMixin):
+class StatisticsViewsRenderingMixin(
+    StatisticsProjectsRenderingMixin,
+    StatisticsRunnersRenderingMixin,
+):
     """Build view-specific Rich renderables without performing any I/O."""
 
     _view: StatisticsView
@@ -36,6 +40,8 @@ class StatisticsViewsRenderingMixin(StatisticsProjectsRenderingMixin):
             renderable = self._overview_renderable(views.overview)
         elif self._view == "runs":
             renderable = self._runs_renderable(views.runs)
+        elif self._view == "runners":
+            renderable = self._runners_renderable(result)
         elif self._view == "projects":
             return self._projects_renderable(views.projects)
         elif self._view == "providers":

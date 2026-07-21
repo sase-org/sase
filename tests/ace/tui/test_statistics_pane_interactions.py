@@ -11,7 +11,9 @@ from sase.ace.tui.modals.statistics_pane_data import (
     StatisticsView,
     StatisticsViewData,
     VIEW_DESCRIPTIONS,
+    VIEW_ORDER,
 )
+from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from sase.project_display_names import ProjectDisplaySnapshot
 from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import StatsRange
@@ -295,8 +297,16 @@ async def test_view_cycle_reuses_composite_result_and_updates_strip(
     async with AcePage() as page:
         _, pane = await _open_statistics(page)
         await page.press("right_square_bracket", "right_square_bracket")
-        await page.wait_for(lambda _state: pane._view == "projects")
+        await page.wait_for(lambda _state: pane._view == "runners")
 
+        assert len(calls) == 1
+        assert (
+            pane.query_one("#statistics-description", Static).render().plain
+            == f"› {VIEW_DESCRIPTIONS['runners']}"
+        )
+
+        await page.press("right_square_bracket")
+        await page.wait_for(lambda _state: pane._view == "projects")
         assert len(calls) == 1
         assert (
             pane.query_one("#statistics-description", Static).render().plain
@@ -307,6 +317,29 @@ async def test_view_cycle_reuses_composite_result_and_updates_strip(
         await page.wait_for(lambda _state: pane._view == "providers")
         await page.press("left_square_bracket")
         await page.wait_for(lambda _state: pane._view == "projects")
+        assert len(calls) == 1
+
+
+async def test_eight_view_keyboard_and_mouse_navigation_share_order_without_reload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    _patch_center(monkeypatch, calls)
+
+    async with AcePage() as page:
+        _, pane = await _open_statistics(page)
+        visited = [pane._view]
+        for _ in range(len(VIEW_ORDER) - 1):
+            await page.press("right_square_bracket")
+            visited.append(pane._view)
+
+        assert tuple(visited) == VIEW_ORDER
+        strip = pane.query_one("#statistics-views", PanelTabStrip)
+        strip.post_message(PanelTabStrip.TabClicked("runners"))
+        await page.wait_for(lambda _state: pane._view == "runners")
+
+        assert VIEW_ORDER[2] == "runners"
+        assert strip._active_tab == "runners"
         assert len(calls) == 1
 
 

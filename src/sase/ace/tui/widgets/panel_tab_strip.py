@@ -19,6 +19,7 @@ class PanelTab:
     id: str
     label: str
     accent_color: str
+    compact_label: str | None = None
 
 
 class PanelTabStrip(Static):
@@ -46,9 +47,9 @@ class PanelTabStrip(Static):
         self._show_numbers = show_numbers
         self._uppercase_active = uppercase_active
         self._compact_below = compact_below
+        self._compact = False
         self._tab_ranges: dict[str, tuple[int, int]] = {}
         self._line_width = 0
-        self._content_width = 0
         super().__init__(self._build_content(), **kwargs)
 
     def set_active_tab(self, active_tab: str | None) -> None:
@@ -71,12 +72,6 @@ class PanelTabStrip(Static):
     def _build_content(self) -> Text:
         text = Text()
         self._tab_ranges.clear()
-        width = self._content_width
-        compact = bool(
-            self._compact_below is not None
-            and width > 0
-            and width < self._compact_below
-        )
         for index, tab in enumerate(self._tabs):
             if index > 0:
                 text.append(" │ ", style="#444444")
@@ -85,15 +80,22 @@ class PanelTabStrip(Static):
             start = len(text.plain)
             if self._show_numbers:
                 number_style = tab.accent_color if is_active else "#666666"
-                number = f"{index + 1} " if compact else f" {index + 1} "
+                number = f"{index + 1} " if self._compact else f" {index + 1} "
                 text.append(number, style=number_style)
             else:
-                if not compact:
+                if not self._compact:
                     text.append(" ")
-            label = (
-                tab.label.upper() if self._uppercase_active and is_active else tab.label
+            source_label = (
+                tab.compact_label
+                if self._compact and tab.compact_label is not None
+                else tab.label
             )
-            suffix = "" if compact else " "
+            label = (
+                source_label.upper()
+                if self._uppercase_active and is_active
+                else source_label
+            )
+            suffix = "" if self._compact else " "
             text.append(f"{label}{suffix}", style=label_style)
             self._tab_ranges[tab.id] = (start, len(text.plain))
         self._line_width = len(text.plain)
@@ -101,9 +103,13 @@ class PanelTabStrip(Static):
 
     def on_resize(self, _event: Resize) -> None:
         """Reflow strips that opt into a compact narrow-width layout."""
-        if self._compact_below is not None:
-            self._content_width = max(0, int(_event.size.width))
-            self.update(self._build_content())
+        if self._compact_below is None:
+            return
+        compact = 0 < int(_event.size.width) < self._compact_below
+        if compact == self._compact:
+            return
+        self._compact = compact
+        self.update(self._build_content())
 
     def on_click(self, event: Click) -> None:
         """Post :class:`TabClicked` when the user clicks a tab label."""

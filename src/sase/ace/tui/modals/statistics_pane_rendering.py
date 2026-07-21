@@ -41,6 +41,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     """Textual widget base responsible for painting statistics results."""
 
     _SCOPE_COMPACT_BELOW_WIDTH = 100
+    _RUNNERS_STACK_BELOW_WIDTH = 108
 
     _keymaps: StatisticsPaneKeymaps
     _view: StatisticsView
@@ -53,6 +54,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     _last_result: StatisticsViewData | None
     _last_error: str
     _compact_scope: bool
+    _runners_stacked: bool
 
     def _paint_loading(self) -> None:
         self._set_tiles_visible(self._view == "overview")
@@ -79,7 +81,14 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         if result is None:
             self._paint_loading()
             return
-        if result.views.empty:
+        if self._view == "runners" and not result.views.runners.available:
+            self._set_tiles_visible(False)
+            self._update_static(
+                "#statistics-body",
+                self._runners_unavailable_renderable(result),
+            )
+            return
+        if result.views.empty and self._view != "runners":
             self._set_tiles_visible(False)
             self._update_static(
                 "#statistics-body",
@@ -196,6 +205,44 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             ),
             title="Statistics unavailable",
             border_style="red",
+            height=max(8, int(self.size.height or 24) - 11),
+        )
+
+    def _runners_unavailable_renderable(self, result: StatisticsViewData) -> Panel:
+        """Build guidance for an absent runner payload without hiding other views."""
+        refresh_key = self._effective_key("refresh")
+        range_key = self._effective_key("cycle_range")
+        retry = Text()
+        retry.append(f"Press {refresh_key}", style=f"bold {_ACCENT}")
+        retry.append(" to retry, or ")
+        retry.append(range_key, style=f"bold {_CYAN}")
+        retry.append(" to choose another range.")
+        lines: list[Text] = [
+            Text(
+                "No runner occupancy snapshot is available for "
+                f"{result.selected_range.display_label}.",
+                style="dim italic",
+            ),
+            Text(
+                "The response may be older or partial, or All time may have no "
+                "valid runner coverage.",
+                style="dim",
+            ),
+            retry,
+        ]
+        if result.project_filter is not None:
+            project_key = self._effective_key("cycle_project_filter")
+            project_label = result.project_display_snapshot.label_for(
+                result.project_filter
+            )
+            clear_filter = Text()
+            clear_filter.append(f"Press {project_key}", style=f"bold {_GOLD}")
+            clear_filter.append(f" to clear the {project_label} project filter.")
+            lines.append(clear_filter)
+        return Panel(
+            Align.center(Group(*lines), vertical="middle"),
+            title="Runners unavailable",
+            border_style="#444444",
             height=max(8, int(self.size.height or 24) - 11),
         )
 

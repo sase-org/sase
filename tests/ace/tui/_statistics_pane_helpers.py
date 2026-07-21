@@ -251,6 +251,7 @@ def _result(
             run_payload,
             activity_payload,
             project_display_snapshot=display_snapshot,
+            current_runner_limit=2,
         ),
         project_filter=project_filter,
         project_display_snapshot=display_snapshot,

@@ -77,3 +77,20 @@ def test_scope_resize_only_repaints_when_compact_mode_changes(
     pane.on_resize(SimpleNamespace(size=SimpleNamespace(width=100)))  # type: ignore[arg-type]
 
     assert repaints == [True, True]
+
+
+def test_runner_resize_only_repaints_when_composition_threshold_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pane = StatisticsPane(auto_load=False)
+    pane._view = "runners"
+    pane._last_result = object()  # type: ignore[assignment]
+    repaints: list[bool] = []
+    monkeypatch.setattr(pane, "_paint_current_view", lambda: repaints.append(True))
+
+    pane.on_resize(SimpleNamespace(size=SimpleNamespace(width=120)))  # type: ignore[arg-type]
+    pane.on_resize(SimpleNamespace(size=SimpleNamespace(width=107)))  # type: ignore[arg-type]
+    pane.on_resize(SimpleNamespace(size=SimpleNamespace(width=90)))  # type: ignore[arg-type]
+    pane.on_resize(SimpleNamespace(size=SimpleNamespace(width=108)))  # type: ignore[arg-type]
+
+    assert repaints == [True, True]

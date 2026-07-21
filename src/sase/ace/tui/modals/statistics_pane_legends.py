@@ -32,6 +32,28 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
             "run records with ≥1 commit",
         ),
     ),
+    "runners": (
+        _MetricLegend(
+            "Runner",
+            "root or eligible parallel agent admitted by max_running_agents",
+        ),
+        _MetricLegend(
+            "Window",
+            "carry-in/live overlap clipped to range; yielded human waits excluded",
+        ),
+        _MetricLegend("Zero", "wall time with no eligible runner"),
+        _MetricLegend("Average", "runner-seconds ÷ analyzed wall time"),
+        _MetricLegend("All time", "begins at earliest valid runner coverage"),
+        _MetricLegend("Project", "filtered before concurrency is combined"),
+        _MetricLegend(
+            "Skipped",
+            "malformed rows/invalid intervals omitted while valid data remains",
+        ),
+        _MetricLegend(
+            "Current limit",
+            "today's global reference, not historical or project capacity",
+        ),
+    ),
     "projects": (
         _MetricLegend("Success", "completed ÷ all runs"),
         _MetricLegend("Share", "share of runs in range"),

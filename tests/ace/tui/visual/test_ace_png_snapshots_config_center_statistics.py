@@ -102,6 +102,58 @@ async def test_config_center_statistics_runs_png_snapshot(
         )
 
 
+async def test_config_center_statistics_runners_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("runners")
+        await page.pause()
+
+        assert pane._last_result is not None
+        assert pane._last_result.views.runners.available is True
+        assert pane._runners_stacked is False
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_runners_120x40",
+            title="ACE SASE Admin Center — Statistics runners",
+        )
+
+
+async def test_config_center_statistics_runners_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(
+        query='"visual"',
+        changespecs=changespecs(),
+        size=(90, 30),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("runners")
+        await page.pause()
+
+        assert pane._runners_stacked is True
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_runners_90x30",
+            title="ACE SASE Admin Center — Statistics runners narrow",
+        )
+
+
 async def test_config_center_statistics_help_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

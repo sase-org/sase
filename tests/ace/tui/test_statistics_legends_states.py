@@ -54,6 +54,7 @@ def test_view_renderables_include_verified_metric_definitions() -> None:
     expected = {
         "overview": "Success = completed ÷ finished runs",
         "runs": "Outcome share = share of finished runs",
+        "runners": "Average = runner-seconds ÷ analyzed wall time",
         "projects": "Success = completed ÷ all runs",
         "providers": "Avg runtime = mean among runs with a valid finish/stop duration",
         "runtime": "In progress = excluded from duration math",

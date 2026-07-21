@@ -68,7 +68,7 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
         assert pane._preset_key == "24h"
 
-        await page.press("f11", "f11", "f7")
+        await page.press("f11", "f11", "f11", "f7")
         await page.wait_for(
             lambda _state: (
                 pane._view == "projects" and pane._projects_group_by == "changespec"
