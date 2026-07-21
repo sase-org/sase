@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import UTC, datetime
 import logging
 import os
 from pathlib import Path
@@ -18,6 +19,8 @@ log = logging.getLogger(__name__)
 
 CLAN_SUMMARY_MAX_BYTES = 32 * 1024
 CLAN_SUMMARY_TIMEOUT_SECONDS = 20.0
+CLAN_SUMMARY_STDERR_LOG = "clan_summary_stderr.log"
+DEFAULT_CLAN_SUMMARY_ATTEMPT_LABEL = "directive-extraction"
 
 _CLAN_ENV_NAMES = (
     "SASE_CLAN_NAME",
@@ -45,6 +48,8 @@ def resolve_clan_summary_script(
     clan_generation: str,
     clan_tribe: str | None,
     agent_log_path: str | None = None,
+    artifacts_dir: str | None = None,
+    attempt_label: str = DEFAULT_CLAN_SUMMARY_ATTEMPT_LABEL,
     timeout_seconds: float | None = None,
     environment: Mapping[str, str] | None = None,
 ) -> str | None:
@@ -54,80 +59,143 @@ def resolve_clan_summary_script(
     decorative clan summary can never prevent the declaring agent from
     launching.
     """
+    subprocess_env = _summary_subprocess_env(
+        environment=environment,
+        clan_name=clan_name,
+        clan_generation=clan_generation,
+        clan_tribe=clan_tribe,
+    )
     try:
         script_argv = _resolve_summary_script_argv(script, workspace_dir)
     except (OSError, RuntimeError, ValueError) as exc:
+        diagnostic = f"resolution error: {exc}\n"
+        _record_summary_attempt(
+            artifacts_dir=artifacts_dir,
+            attempt_label=attempt_label,
+            script_argv=None,
+            outcome="not-found",
+            env=subprocess_env,
+            stderr_text=diagnostic,
+        )
         log.warning(
-            "Clan summary script %r could not be resolved (%s); omitting summary",
+            "Clan summary script %r could not be resolved (%s); omitting summary%s",
             script,
             exc,
+            _stderr_tail_suffix(diagnostic),
         )
         return None
     if script_argv is None:
-        log.warning("Clan summary script %r was not found; omitting summary", script)
+        diagnostic = f"summary script {script!r} was not found\n"
+        _record_summary_attempt(
+            artifacts_dir=artifacts_dir,
+            attempt_label=attempt_label,
+            script_argv=None,
+            outcome="not-found",
+            env=subprocess_env,
+            stderr_text=diagnostic,
+        )
+        log.warning(
+            "Clan summary script %r was not found; omitting summary%s",
+            script,
+            _stderr_tail_suffix(diagnostic),
+        )
         return None
-
-    subprocess_env = dict(os.environ if environment is None else environment)
-    for env_name in _CLAN_ENV_NAMES:
-        subprocess_env.pop(env_name, None)
-    subprocess_env["SASE_CLAN_NAME"] = clan_name
-    subprocess_env["SASE_CLAN_GENERATION"] = clan_generation
-    if clan_tribe:
-        subprocess_env["SASE_CLAN_TRIBE"] = clan_tribe
 
     timeout = (
         CLAN_SUMMARY_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
     )
+    _ensure_agent_log(agent_log_path)
     try:
-        with tempfile.TemporaryFile() as stdout_file:
-            log_file = _open_agent_log(agent_log_path)
+        with (
+            tempfile.TemporaryFile() as stdout_file,
+            tempfile.TemporaryFile() as stderr_file,
+        ):
+            process = subprocess.Popen(
+                script_argv,
+                cwd=workspace_dir,
+                env=subprocess_env,
+                stdin=subprocess.DEVNULL,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                start_new_session=os.name == "posix",
+            )
             try:
-                process = subprocess.Popen(
-                    script_argv,
-                    cwd=workspace_dir,
+                returncode = process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                _kill_process(process)
+                stderr_text = _read_temp_file_text(stderr_file)
+                _finish_summary_attempt(
+                    agent_log_path=agent_log_path,
+                    artifacts_dir=artifacts_dir,
+                    attempt_label=attempt_label,
+                    script_argv=script_argv,
+                    outcome="timeout",
                     env=subprocess_env,
-                    stdin=subprocess.DEVNULL,
-                    stdout=stdout_file,
-                    stderr=log_file,
-                    start_new_session=os.name == "posix",
+                    stderr_text=stderr_text,
                 )
-                try:
-                    returncode = process.wait(timeout=timeout)
-                except subprocess.TimeoutExpired:
-                    _kill_process(process)
-                    log.warning(
-                        "Clan summary script %r timed out after %.1fs; "
-                        "omitting summary",
-                        script,
-                        timeout,
-                    )
-                    return None
-            finally:
-                if log_file is not None:
-                    log_file.close()
+                log.warning(
+                    "Clan summary script %r timed out after %.1fs; omitting summary%s",
+                    script,
+                    timeout,
+                    _stderr_tail_suffix(stderr_text),
+                )
+                return None
+
+            stderr_text = _read_temp_file_text(stderr_file)
 
             if returncode != 0:
+                _finish_summary_attempt(
+                    agent_log_path=agent_log_path,
+                    artifacts_dir=artifacts_dir,
+                    attempt_label=attempt_label,
+                    script_argv=script_argv,
+                    outcome="exit-code",
+                    env=subprocess_env,
+                    stderr_text=stderr_text,
+                )
                 log.warning(
-                    "Clan summary script %r exited with status %s; omitting summary",
+                    "Clan summary script %r exited with status %s; omitting summary%s",
                     script,
                     returncode,
+                    _stderr_tail_suffix(stderr_text),
                 )
                 return None
 
             stdout_file.seek(0)
             raw_output = stdout_file.read(CLAN_SUMMARY_MAX_BYTES + 1)
     except (OSError, ValueError) as exc:
+        diagnostic = f"execution error: {exc}\n"
+        _record_summary_attempt(
+            artifacts_dir=artifacts_dir,
+            attempt_label=attempt_label,
+            script_argv=script_argv,
+            outcome="exit-code",
+            env=subprocess_env,
+            stderr_text=diagnostic,
+        )
         log.warning(
-            "Clan summary script %r could not run (%s); omitting summary",
+            "Clan summary script %r could not run (%s); omitting summary%s",
             script,
             exc,
+            _stderr_tail_suffix(diagnostic),
         )
         return None
 
     summary = normalize_clan_summary(raw_output.decode("utf-8", errors="replace"))
     if summary is None:
+        _finish_summary_attempt(
+            agent_log_path=agent_log_path,
+            artifacts_dir=artifacts_dir,
+            attempt_label=attempt_label,
+            script_argv=script_argv,
+            outcome="empty-output",
+            env=subprocess_env,
+            stderr_text=stderr_text,
+        )
         log.warning(
-            "Clan summary script %r produced no output; omitting summary", script
+            "Clan summary script %r produced no output; omitting summary%s",
+            script,
+            _stderr_tail_suffix(stderr_text),
         )
         return None
     if len(raw_output) > CLAN_SUMMARY_MAX_BYTES:
@@ -135,7 +203,33 @@ def resolve_clan_summary_script(
             "Clan summary script %r output exceeded 32 KiB and was truncated",
             script,
         )
+    _finish_summary_attempt(
+        agent_log_path=agent_log_path,
+        artifacts_dir=artifacts_dir,
+        attempt_label=attempt_label,
+        script_argv=script_argv,
+        outcome="ok",
+        env=subprocess_env,
+        stderr_text=stderr_text,
+    )
     return summary
+
+
+def _summary_subprocess_env(
+    *,
+    environment: Mapping[str, str] | None,
+    clan_name: str,
+    clan_generation: str,
+    clan_tribe: str | None,
+) -> dict[str, str]:
+    subprocess_env = dict(os.environ if environment is None else environment)
+    for env_name in _CLAN_ENV_NAMES:
+        subprocess_env.pop(env_name, None)
+    subprocess_env["SASE_CLAN_NAME"] = clan_name
+    subprocess_env["SASE_CLAN_GENERATION"] = clan_generation
+    if clan_tribe:
+        subprocess_env["SASE_CLAN_TRIBE"] = clan_tribe
+    return subprocess_env
 
 
 def _discover_summary_script(script: str, workspace_dir: str) -> Path | None:
@@ -167,18 +261,124 @@ def _resolve_summary_script_argv(
     return [str(executable), *tokens[1:]]
 
 
-def _open_agent_log(agent_log_path: str | None) -> BinaryIO | None:
-    if agent_log_path is None:
-        return None
+def _finish_summary_attempt(
+    *,
+    agent_log_path: str | None,
+    artifacts_dir: str | None,
+    attempt_label: str,
+    script_argv: list[str],
+    outcome: str,
+    env: Mapping[str, str],
+    stderr_text: str,
+) -> None:
+    if stderr_text:
+        _append_agent_log(agent_log_path, stderr_text)
+    if outcome == "ok" and not stderr_text:
+        return
+    _record_summary_attempt(
+        artifacts_dir=artifacts_dir,
+        attempt_label=attempt_label,
+        script_argv=script_argv,
+        outcome=outcome,
+        env=env,
+        stderr_text=stderr_text,
+    )
+
+
+def _append_agent_log(agent_log_path: str | None, stderr_text: str) -> None:
+    if agent_log_path is None or not stderr_text:
+        return
     try:
-        return open(agent_log_path, "ab")
+        with open(agent_log_path, "ab") as log_file:
+            log_file.write(stderr_text.encode("utf-8", errors="replace"))
     except OSError as exc:
         log.warning(
             "Could not append clan summary stderr to agent log %r (%s)",
             agent_log_path,
             exc,
         )
-        return None
+
+
+def _ensure_agent_log(agent_log_path: str | None) -> None:
+    if agent_log_path is None:
+        return
+    try:
+        with open(agent_log_path, "ab"):
+            pass
+    except OSError as exc:
+        log.warning(
+            "Could not open clan summary stderr agent log %r (%s)",
+            agent_log_path,
+            exc,
+        )
+
+
+def _record_summary_attempt(
+    *,
+    artifacts_dir: str | None,
+    attempt_label: str,
+    script_argv: list[str] | None,
+    outcome: str,
+    env: Mapping[str, str],
+    stderr_text: str,
+) -> None:
+    if artifacts_dir is None:
+        return
+
+    log_path = Path(artifacts_dir) / CLAN_SUMMARY_STDERR_LOG
+    timestamp = datetime.now(UTC).isoformat(timespec="seconds")
+    argv = "<not resolved>" if script_argv is None else shlex.join(script_argv)
+    env_names = _present_summary_env_names(env)
+    env_line = ", ".join(env_names) if env_names else "(none)"
+    record = (
+        "--- clan summary attempt ---\n"
+        f"timestamp: {timestamp}\n"
+        f"attempt: {attempt_label}\n"
+        f"outcome: {outcome}\n"
+        f"argv: {argv}\n"
+        f"env: {env_line}\n"
+        "stderr:\n"
+        f"{stderr_text.rstrip()}\n"
+        "\n"
+    )
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as file:
+            file.write(record)
+    except OSError as exc:
+        log.warning(
+            "Could not write clan summary stderr artifact %r (%s)",
+            str(log_path),
+            exc,
+        )
+
+
+def _present_summary_env_names(env: Mapping[str, str]) -> list[str]:
+    return sorted(
+        key
+        for key in env
+        if key.startswith("SASE_CLAN_") or key.startswith("SASE_EPIC_")
+    )
+
+
+def _read_temp_file_text(file: BinaryIO) -> str:
+    file.seek(0)
+    raw_stderr = file.read()
+    return raw_stderr.decode("utf-8", errors="replace")
+
+
+def _stderr_tail_suffix(stderr_text: str) -> str:
+    tail = _stderr_tail(stderr_text)
+    if not tail:
+        return ""
+    return f"; stderr tail: {tail}"
+
+
+def _stderr_tail(stderr_text: str, *, max_lines: int = 8) -> str:
+    lines = [line.rstrip() for line in stderr_text.strip().splitlines() if line.strip()]
+    if not lines:
+        return ""
+    return " | ".join(lines[-max_lines:])
 
 
 def _kill_process(process: subprocess.Popen[bytes]) -> None:
@@ -200,6 +400,7 @@ def _kill_process(process: subprocess.Popen[bytes]) -> None:
 
 __all__ = [
     "CLAN_SUMMARY_MAX_BYTES",
+    "CLAN_SUMMARY_STDERR_LOG",
     "CLAN_SUMMARY_TIMEOUT_SECONDS",
     "normalize_clan_summary",
     "resolve_clan_summary_script",

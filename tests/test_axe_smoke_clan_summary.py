@@ -24,7 +24,10 @@ from sase.agent.clan_membership import (
     ClanMembershipPlan,
     encode_clan_membership_plan,
 )
-from sase.axe.clan_summary_script import CLAN_SUMMARY_MAX_BYTES
+from sase.axe.clan_summary_script import (
+    CLAN_SUMMARY_MAX_BYTES,
+    CLAN_SUMMARY_STDERR_LOG,
+)
 from sase.axe.run_agent_directives import extract_directives_and_write_meta
 from sase.core.agent_scan_wire_markers import AgentMetaWire
 
@@ -306,7 +309,10 @@ print(f"[bold]{name}[/bold] gen={gen} tribe={tribe}")
         artifacts_dir.mkdir(exist_ok=True)
 
         script = workspace_dir / "broken.py"
-        self._write_script(script, "import sys\nsys.exit(1)\n")
+        self._write_script(
+            script,
+            "import sys\nsys.stderr.write('broken detail\\n')\nsys.exit(1)\n",
+        )
 
         monkeypatch.setenv(
             CLAN_MEMBERSHIP_ENV,
@@ -351,6 +357,9 @@ print(f"[bold]{name}[/bold] gen={gen} tribe={tribe}")
         assert persisted["agent_clan"] == "broken"
         # No summary is written when script fails
         assert "clan_summary" not in persisted
+        artifact = (artifacts_dir / CLAN_SUMMARY_STDERR_LOG).read_text(encoding="utf-8")
+        assert "outcome: exit-code" in artifact
+        assert "broken detail" in artifact
 
     def test_summary_script_timeout_omits_summary(
         self,

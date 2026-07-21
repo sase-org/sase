@@ -304,6 +304,7 @@ def extract_directives_and_write_meta(
                 clan_generation=clan_membership_plan.generation,
                 clan_tribe=directives.clan_tribe,
                 agent_log_path=output_path,
+                artifacts_dir=artifacts_dir,
                 environment=launch_environment,
             )
         if clan_summary:

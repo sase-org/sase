@@ -18,6 +18,7 @@ from sase.agent.clan_membership import (
 )
 from sase.axe.clan_summary_script import (
     CLAN_SUMMARY_MAX_BYTES,
+    CLAN_SUMMARY_STDERR_LOG,
     CLAN_SUMMARY_TIMEOUT_SECONDS,
 )
 from sase.axe.run_agent_directives import extract_directives_and_write_meta
@@ -124,6 +125,17 @@ print(
     assert meta["clan_tribe"] == "research"
     assert meta["clan_summary"] == "research|g1|research"
     assert "summary diagnostic" in output_path.read_text(encoding="utf-8")
+    artifact = (tmp_path / "artifacts" / CLAN_SUMMARY_STDERR_LOG).read_text(
+        encoding="utf-8"
+    )
+    assert "attempt: directive-extraction" in artifact
+    assert "outcome: ok" in artifact
+    assert f"argv: {script}" in artifact
+    assert "SASE_CLAN_NAME" in artifact
+    assert "SASE_CLAN_GENERATION" in artifact
+    assert "SASE_CLAN_TRIBE" in artifact
+    assert "summary diagnostic" in artifact
+    assert "research|g1|research" not in artifact
 
 
 @pytest.mark.parametrize(
@@ -165,6 +177,7 @@ def test_summary_script_persists_shell_quoted_argv_without_a_shell(
     )
 
     assert json.loads(str(meta["clan_summary"])) == ["alpha", "two words"]
+    assert not (tmp_path / "artifacts" / CLAN_SUMMARY_STDERR_LOG).exists()
 
 
 def test_summary_script_literal_executable_path_with_spaces_wins_before_argv(
@@ -264,13 +277,28 @@ def test_malformed_summary_script_quoting_never_blocks_launch(
 
     assert "clan_summary" not in meta
     assert "No closing quotation" in caplog.text
+    artifact = (tmp_path / "artifacts" / CLAN_SUMMARY_STDERR_LOG).read_text(
+        encoding="utf-8"
+    )
+    assert "outcome: not-found" in artifact
+    assert "resolution error: No closing quotation" in artifact
 
 
 @pytest.mark.parametrize(
-    ("script_body", "warning"),
+    ("script_body", "warning", "outcome", "stderr"),
     [
-        ("raise SystemExit(7)", "exited with status 7"),
-        ("print('   ')", "produced no output"),
+        (
+            "import sys\nsys.stderr.write('exit detail\\n')\nraise SystemExit(7)",
+            "exited with status 7",
+            "exit-code",
+            "exit detail",
+        ),
+        (
+            "import sys\nsys.stderr.write('empty detail\\n')\nprint('   ')",
+            "produced no output",
+            "empty-output",
+            "empty detail",
+        ),
     ],
     ids=["non-zero", "empty"],
 )
@@ -280,10 +308,13 @@ def test_failed_summary_script_never_blocks_launch(
     caplog: pytest.LogCaptureFixture,
     script_body: str,
     warning: str,
+    outcome: str,
+    stderr: str,
 ) -> None:
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
     _write_script(workspace_dir / "make_summary", script_body)
+    monkeypatch.setenv("SASE_EPIC_PLAN_REF", "secret-plan-value")
 
     with caplog.at_level("WARNING", logger="sase.axe.clan_summary_script"):
         meta = _extract_clan_meta(
@@ -294,6 +325,14 @@ def test_failed_summary_script_never_blocks_launch(
 
     assert "clan_summary" not in meta
     assert warning in caplog.text
+    assert stderr in caplog.text
+    artifact = (tmp_path / "artifacts" / CLAN_SUMMARY_STDERR_LOG).read_text(
+        encoding="utf-8"
+    )
+    assert f"outcome: {outcome}" in artifact
+    assert "SASE_EPIC_PLAN_REF" in artifact
+    assert "secret-plan-value" not in artifact
+    assert stderr in artifact
 
 
 def test_timed_out_summary_script_never_blocks_launch(
@@ -303,10 +342,14 @@ def test_timed_out_summary_script_never_blocks_launch(
 ) -> None:
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
-    _write_script(workspace_dir / "make_summary", "import time\ntime.sleep(60)")
+    _write_script(
+        workspace_dir / "make_summary",
+        "import sys\nimport time\nsys.stderr.write('timeout detail\\n')\n"
+        "sys.stderr.flush()\ntime.sleep(60)",
+    )
     monkeypatch.setattr(
         "sase.axe.clan_summary_script.CLAN_SUMMARY_TIMEOUT_SECONDS",
-        0.05,
+        0.3,
     )
 
     with caplog.at_level("WARNING", logger="sase.axe.clan_summary_script"):
@@ -317,7 +360,13 @@ def test_timed_out_summary_script_never_blocks_launch(
         )
 
     assert "clan_summary" not in meta
-    assert "timed out after 0.1s" in caplog.text
+    assert "timed out after 0.3s" in caplog.text
+    assert "timeout detail" in caplog.text
+    artifact = (tmp_path / "artifacts" / CLAN_SUMMARY_STDERR_LOG).read_text(
+        encoding="utf-8"
+    )
+    assert "outcome: timeout" in artifact
+    assert "timeout detail" in artifact
 
 
 def test_missing_summary_script_never_blocks_launch(
@@ -334,6 +383,11 @@ def test_missing_summary_script_never_blocks_launch(
 
     assert "clan_summary" not in meta
     assert "was not found" in caplog.text
+    artifact = (tmp_path / "artifacts" / CLAN_SUMMARY_STDERR_LOG).read_text(
+        encoding="utf-8"
+    )
+    assert "outcome: not-found" in artifact
+    assert "definitely_missing_summary_script" in artifact
 
 
 def test_summary_script_output_is_capped(
