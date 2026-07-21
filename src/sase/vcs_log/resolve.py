@@ -9,10 +9,8 @@ and canonicalizes the resulting catalog before collection.
 from __future__ import annotations
 
 import os
-import re
-from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from sase.core.paths import sase_projects_dir
@@ -20,9 +18,16 @@ from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 from sase.plan_documents import PlanWorkspace
 from sase.project_display_names import project_display_name_for
+from sase.vcs_log._resolve_catalog import (
+    _KIND_ORDER,
+    RepoCandidate,
+    apply_filters,
+    collapse_global_warnings,
+    deduplicate_and_name,
+    resolve_exclusions,
+    warn_once,
+)
 from sase.vcs_log.models import LogRepo, LogRepoKind
-
-_KIND_ORDER = {"primary": 0, "linked": 1, "sidecar": 2}
 
 
 @dataclass(frozen=True)
@@ -31,33 +36,6 @@ class ResolvedRepos:
 
     repos: list[LogRepo]
     warnings: list[str]
-
-
-@dataclass(frozen=True)
-class _RepoCandidate:
-    """One project-qualified route to a physical repository."""
-
-    name: str
-    path: str
-    kind: LogRepoKind
-    project_name: str
-    project_label: str
-    aliases: frozenset[str] = frozenset()
-    plan_workspaces: tuple[PlanWorkspace, ...] = ()
-
-
-@dataclass
-class _CatalogRepo:
-    """Canonical all-project repository before its final label is assigned."""
-
-    base_name: str
-    path: str
-    kind: LogRepoKind
-    project_name: str
-    project_label: str
-    aliases: set[str] = field(default_factory=set)
-    plan_workspaces: set[PlanWorkspace] = field(default_factory=set)
-    name: str = ""
 
 
 def resolve_log_repos(
@@ -96,9 +74,9 @@ def resolve_log_repos(
         )
         repos.sort(key=lambda repo: (_KIND_ORDER.get(repo.kind, 9), repo.name))
 
-    excluded = _resolve_exclusions(repos, exclude_repo_filters, warnings)
+    excluded = resolve_exclusions(repos, exclude_repo_filters, warnings)
     if repo_filters:
-        repos = _apply_filters(repos, list(repo_filters), warnings)
+        repos = apply_filters(repos, list(repo_filters), warnings)
     if excluded:
         repos = [repo for repo in repos if repo not in excluded]
 
@@ -148,7 +126,7 @@ def _resolve_explicit_project_repos(
     candidates = _resolve_record_candidates(
         matches[0], warnings, include_sidecars=include_sidecars
     )
-    repos = _deduplicate_and_name(candidates)
+    repos = deduplicate_and_name(candidates)
     if current_only:
         repos = [repo for repo in repos if repo.kind == "primary"]
     return repos
@@ -183,13 +161,13 @@ def _resolve_all_project_repos(
             sase_projects_dir(), ("enabled", "disabled"), include_home=False
         )
     except Exception as exc:  # pragma: no cover - facade failures are rare
-        _warn_once(
+        warn_once(
             warnings,
             f"all projects: project inventory could not be loaded: {exc}",
         )
         return []
 
-    candidates: list[_RepoCandidate] = []
+    candidates: list[RepoCandidate] = []
     for record in sorted(records, key=_record_sort_key):
         if record.project_name == "home" or record.system_managed:
             continue
@@ -199,8 +177,8 @@ def _resolve_all_project_repos(
             )
         )
 
-    repos = _deduplicate_and_name(candidates)
-    warnings[:] = _collapse_global_warnings(warnings, repos)
+    repos = deduplicate_and_name(candidates)
+    warnings[:] = collapse_global_warnings(warnings, repos)
     return repos
 
 
@@ -210,18 +188,18 @@ def _record_sort_key(record: ProjectRecordWire) -> tuple[str, str]:
 
 def _resolve_record_candidates(
     record: ProjectRecordWire, warnings: list[str], *, include_sidecars: bool
-) -> list[_RepoCandidate]:
+) -> list[RepoCandidate]:
     project_label = effective_project_name(record)
     project_ref = _project_ref(record, project_label)
 
     record_warnings = [*record.warnings, *record.parse_warnings]
     for warning in record_warnings:
-        _warn_once(warnings, f"{project_ref}: {warning}")
+        warn_once(warnings, f"{project_ref}: {warning}")
 
     project_file = Path(record.project_file).expanduser()
     if not project_file.is_file():
         if not _contains_warning(record_warnings, "projectspec file not found"):
-            _warn_once(
+            warn_once(
                 warnings,
                 f"{project_ref}: project file is unavailable: {project_file}",
             )
@@ -229,11 +207,11 @@ def _resolve_record_candidates(
 
     if not record.workspace_dir:
         if not _contains_warning(record_warnings, "workspace_dir"):
-            _warn_once(warnings, f"{project_ref}: no primary workspace is recorded")
+            warn_once(warnings, f"{project_ref}: no primary workspace is recorded")
         return []
     primary_dir = os.path.expanduser(record.workspace_dir)
     if not Path(primary_dir).is_dir():
-        _warn_once(
+        warn_once(
             warnings,
             f"{project_ref}: primary workspace is unavailable: {primary_dir}",
         )
@@ -246,7 +224,7 @@ def _resolve_record_candidates(
     }
     plan_workspace = _plan_workspace(record.project_name, primary_dir, 1)
     candidates = [
-        _RepoCandidate(
+        RepoCandidate(
             name=project_label,
             path=primary_dir,
             kind="primary",
@@ -275,11 +253,11 @@ def _resolve_record_candidates(
         else None
     )
     for warning in project_warnings:
-        _warn_once(warnings, f"{project_ref}: {warning}")
+        warn_once(warnings, f"{project_ref}: {warning}")
 
     for repo in linked:
         candidates.append(
-            _RepoCandidate(
+            RepoCandidate(
                 name=repo.name,
                 path=repo.path,
                 kind=repo.kind,
@@ -291,7 +269,7 @@ def _resolve_record_candidates(
         )
     if legacy_sidecar is not None:
         candidates.append(
-            _RepoCandidate(
+            RepoCandidate(
                 name=legacy_sidecar.name,
                 path=legacy_sidecar.path,
                 kind="sidecar",
@@ -479,58 +457,6 @@ def _resolve_fallback_repos(cwd: str, warnings: list[str]) -> list[LogRepo]:
     ]
 
 
-def _deduplicate_and_name(candidates: list[_RepoCandidate]) -> list[LogRepo]:
-    by_path: dict[str, list[_RepoCandidate]] = {}
-    for candidate in candidates:
-        canonical_path = _canonical_repo_path(candidate.path)
-        by_path.setdefault(canonical_path, []).append(candidate)
-
-    catalog: list[_CatalogRepo] = []
-    for path, equivalent in by_path.items():
-        winner = min(equivalent, key=_candidate_preference)
-        aliases = {
-            alias
-            for candidate in equivalent
-            for alias in (candidate.name, *candidate.aliases)
-            if alias
-        }
-        plan_workspaces = {
-            workspace
-            for candidate in equivalent
-            for workspace in candidate.plan_workspaces
-        }
-        catalog.append(
-            _CatalogRepo(
-                base_name=winner.name,
-                path=path,
-                kind=winner.kind,
-                project_name=winner.project_name,
-                project_label=winner.project_label,
-                aliases=aliases,
-                plan_workspaces=plan_workspaces,
-            )
-        )
-
-    catalog.sort(key=_catalog_sort_key)
-    _assign_unique_labels(catalog)
-    return [
-        LogRepo(
-            name=repo.name,
-            path=repo.path,
-            kind=repo.kind,
-            aliases=tuple(sorted(repo.aliases - {repo.name}, key=str.casefold)),
-            plan_workspaces=tuple(
-                sorted(repo.plan_workspaces, key=_plan_workspace_sort_key)
-            ),
-        )
-        for repo in sorted(catalog, key=_catalog_sort_key)
-    ]
-
-
-def _canonical_repo_path(path: str) -> str:
-    return os.path.normcase(os.path.realpath(os.path.abspath(os.path.expanduser(path))))
-
-
 def _plan_workspace(
     project_name: str | None,
     workspace_dir: str,
@@ -549,153 +475,6 @@ def _plan_workspace(
         plans_root=plans_root,
         project=project_name,
     )
-
-
-def _plan_workspace_sort_key(
-    workspace: PlanWorkspace,
-) -> tuple[str, str, int, str]:
-    return (
-        (workspace.project or "").casefold(),
-        workspace.workspace_dir,
-        workspace.workspace_num,
-        workspace.plans_root or "",
-    )
-
-
-def _candidate_preference(
-    candidate: _RepoCandidate,
-) -> tuple[int, str, str, str, str]:
-    return (
-        _KIND_ORDER.get(candidate.kind, 9),
-        candidate.name.casefold(),
-        candidate.project_label.casefold(),
-        candidate.project_name,
-        candidate.path,
-    )
-
-
-def _catalog_sort_key(repo: _CatalogRepo) -> tuple[int, str, str, str, str]:
-    label = repo.name or repo.base_name
-    return (
-        _KIND_ORDER.get(repo.kind, 9),
-        label.casefold(),
-        label,
-        repo.project_name,
-        repo.path,
-    )
-
-
-def _assign_unique_labels(catalog: list[_CatalogRepo]) -> None:
-    base_counts = Counter(repo.base_name for repo in catalog)
-    primary_counts = Counter(
-        repo.base_name for repo in catalog if repo.kind == "primary"
-    )
-
-    for repo in catalog:
-        if base_counts[repo.base_name] == 1:
-            repo.name = repo.base_name
-        elif repo.kind == "primary" and primary_counts[repo.base_name] == 1:
-            # A registered project keeps the convenient standalone name when
-            # a linked-only or sidecar label happens to collide with it.
-            repo.name = repo.base_name
-        elif repo.kind == "primary":
-            repo.name = repo.project_name
-        else:
-            owner = repo.project_label
-            if not owner or owner == repo.base_name:
-                owner = repo.project_name
-            repo.name = f"{owner}/{repo.base_name}"
-
-    used: set[str] = set()
-    for repo in catalog:
-        proposed = repo.name
-        if proposed in used:
-            proposed = f"{repo.project_name}/{repo.base_name}"
-        suffix = 2
-        root = proposed
-        while proposed in used:
-            proposed = f"{root}#{suffix}"
-            suffix += 1
-        repo.name = proposed
-        used.add(proposed)
-
-
-def _apply_filters(
-    repos: list[LogRepo], filters: list[str], warnings: list[str]
-) -> list[LogRepo]:
-    selected: set[int] = set()
-    for name in filters:
-        folded = name.casefold()
-        direct = [
-            index for index, repo in enumerate(repos) if repo.name.casefold() == folded
-        ]
-        if direct:
-            selected.update(direct)
-            continue
-
-        aliases = [
-            index
-            for index, repo in enumerate(repos)
-            if any(alias.casefold() == folded for alias in repo.aliases)
-        ]
-        if len(aliases) == 1:
-            selected.add(aliases[0])
-        elif len(aliases) > 1:
-            choices = ", ".join(repos[index].name for index in aliases)
-            _warn_once(
-                warnings,
-                f"--repo {name!r} is ambiguous; use one of: {choices}",
-            )
-        else:
-            _warn_once(
-                warnings,
-                f"--repo {name!r} did not match any repository",
-            )
-    return [repo for index, repo in enumerate(repos) if index in selected]
-
-
-def _resolve_exclusions(
-    repos: list[LogRepo],
-    filters: Sequence[str],
-    warnings: list[str],
-) -> set[LogRepo]:
-    """Resolve exclusions against the full catalog, accepting shared aliases."""
-    excluded: set[LogRepo] = set()
-    for name in filters:
-        folded = name.casefold()
-        matches = [
-            repo
-            for repo in repos
-            if repo.name.casefold() == folded
-            or any(alias.casefold() == folded for alias in repo.aliases)
-        ]
-        if matches:
-            excluded.update(matches)
-        else:
-            _warn_once(
-                warnings,
-                f"-repo {name!r} did not match any repository",
-            )
-    return excluded
-
-
-def _collapse_global_warnings(warnings: list[str], repos: list[LogRepo]) -> list[str]:
-    """Drop repeated discovery noise for repos already found globally."""
-    known_names = {name for repo in repos for name in (repo.name, *repo.aliases)}
-    collapsed: list[str] = []
-    skipped_link = re.compile(r": linked repos: Skipping linked repo '([^']+)':")
-    for warning in warnings:
-        match = skipped_link.search(warning)
-        if match is not None and match.group(1) in known_names:
-            continue
-        if warning not in collapsed:
-            collapsed.append(warning)
-    return collapsed
-
-
-def _warn_once(warnings: list[str], warning: str) -> None:
-    if warning not in warnings:
-        warnings.append(warning)
 
 
 __all__ = ["ResolvedRepos", "resolve_log_repos"]
