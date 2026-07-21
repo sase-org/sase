@@ -112,19 +112,39 @@ class AgentFooterDisplayMixin:
                 and isolation_revert() is not None
             )
             tools_visible = agent_detail.is_tools_visible()
-            parent_jump_kind: str | None = None
-            resolve_parent_jump = getattr(
-                self, "_resolve_agent_parent_jump_target", None
+            left_navigation_kind: str | None = None
+            resolve_left_navigation = getattr(
+                self, "_resolve_agent_left_navigation_target", None
+            )
+            if not panel_focused and callable(resolve_left_navigation):
+                left_navigation = resolve_left_navigation()
+                if left_navigation is not None:
+                    left_navigation_kind = left_navigation.kind
+
+            structural_collapse_kind: str | None = None
+            resolve_structural_collapse = getattr(
+                self, "_resolve_agent_structural_collapse_target", None
             )
             if (
                 not tools_visible
                 and not panel_focused
-                and self._current_group_key is None
-                and callable(resolve_parent_jump)
+                and callable(resolve_structural_collapse)
             ):
-                parent_jump = resolve_parent_jump()
-                if parent_jump is not None:
-                    parent_jump_kind = parent_jump.kind
+                structural_collapse = resolve_structural_collapse()
+                if structural_collapse is not None:
+                    structural_collapse_kind = structural_collapse.kind
+
+            group_collapse_available = False
+            resolve_group_collapse = getattr(
+                self, "_resolve_group_collapse_target", None
+            )
+            if (
+                not tools_visible
+                and not panel_focused
+                and structural_collapse_kind is None
+                and callable(resolve_group_collapse)
+            ):
+                group_collapse_available = resolve_group_collapse() is not None
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
@@ -134,7 +154,9 @@ class AgentFooterDisplayMixin:
                 panel_focused=panel_focused,
                 panel_collapsed=panel_collapsed,
                 panel_restore_armed=panel_restore_armed,
-                parent_jump_kind=parent_jump_kind,
+                left_navigation_kind=left_navigation_kind,
+                structural_collapse_kind=structural_collapse_kind,
+                group_collapse_available=group_collapse_available,
                 focused_panel_key=(
                     panel_focus.panel_key if panel_focus is not None else None
                 ),

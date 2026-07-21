@@ -97,7 +97,9 @@ class KeybindingBindingsMixin:
         panel_focused: bool = False,
         panel_collapsed: bool = False,
         panel_restore_armed: bool = False,
-        parent_jump_kind: str | None = None,
+        left_navigation_kind: str | None = None,
+        structural_collapse_kind: str | None = None,
+        group_collapse_available: bool = False,
         focused_panel_key: str | None = None,
         collapsed_panel_focused: bool = False,
         group_focused: bool = False,
@@ -152,6 +154,7 @@ class KeybindingBindingsMixin:
             bindings.append((self._kd("next_tab"), "focus artifact pane"))
             bindings.append((self._kd("quit"), "close artifact pane"))
 
+        tools_can_compact = False
         if tools_visible:
             level = ToolDetailLevel(
                 max(
@@ -159,18 +162,11 @@ class KeybindingBindingsMixin:
                     min(ToolDetailLevel.FULL, int(tools_detail_level)),
                 )
             )
+            tools_can_compact = level > ToolDetailLevel.COMPACT
             if level < ToolDetailLevel.FULL:
                 bindings.append((self._kd("expand_or_layout"), "more detail"))
-            if level > ToolDetailLevel.COMPACT:
-                bindings.append((self._kd("hooks_or_collapse"), "less detail"))
 
         if panel_focused:
-            bindings.append(
-                (
-                    self._kd("hooks_or_collapse_all"),
-                    "restore panels" if panel_restore_armed else "only panel",
-                )
-            )
             bindings.append(
                 (
                     f"{self._kd('next_changespec')}/{self._kd('prev_changespec')}",
@@ -185,18 +181,27 @@ class KeybindingBindingsMixin:
                 bindings.append((self._kd("expand_or_layout"), "enter panel"))
                 bindings.append(("Esc", "enter panel"))
 
-        if (
-            parent_jump_kind in {"family", "clan"}
-            and not tools_visible
-            and not panel_focused
-            and not group_focused
-        ):
+        if left_navigation_kind in {"family", "clan", "tribe"} and not panel_focused:
             bindings.append(
                 (
-                    self._kd("hooks_or_collapse_all"),
-                    f"parent {parent_jump_kind}",
+                    self._kd("hooks_or_collapse"),
+                    f"parent {left_navigation_kind}",
                 )
             )
+
+        collapse_all_label: str | None = None
+        if tools_can_compact:
+            collapse_all_label = "compact tools"
+        elif panel_focused:
+            collapse_all_label = (
+                "restore panels" if panel_restore_armed else "only panel"
+            )
+        elif structural_collapse_kind in {"workflow", "family", "clan"}:
+            collapse_all_label = f"collapse {structural_collapse_kind}"
+        elif group_collapse_available:
+            collapse_all_label = "collapse group"
+        if collapse_all_label is not None:
+            bindings.append((self._kd("hooks_or_collapse_all"), collapse_all_label))
 
         # When marks exist, A operates on the union of marked-agent artifacts.
         # Surface the affordance even if the focused agent has none of its own.

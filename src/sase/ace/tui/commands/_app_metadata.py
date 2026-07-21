@@ -257,15 +257,15 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     # Folding
     (
         "hooks_or_collapse",
-        "Toggle hooks / collapse / less tools detail",
+        "Navigate to parent container or tribe / collapse selected panel or fold",
         "Folding",
         ALL_TABS,
         (),
     ),
     (
         "hooks_or_collapse_all",
-        "Jump to parent container / show only or restore tribe panels / "
-        "collapse group or all folds / compact tools detail",
+        "Collapse workflow, family, clan, or group / show only or restore "
+        "tribe panels / compact tools detail / collapse all folds on other tabs",
         "Folding",
         ALL_TABS,
         (),

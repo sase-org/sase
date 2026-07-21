@@ -23,11 +23,16 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("ctrl+o", "jump_to_entry_fast", "Fast Jump", show=False),
     Binding("ctrl+shift+o", "jump_to_entry_forward", "Forward Jump", show=False),
     Binding("grave_accent", "jump_to_all_entries", "Jump All", show=False),
-    Binding("h", "hooks_or_collapse", "Collapse / Select Panel", show=False),
+    Binding(
+        "h",
+        "hooks_or_collapse",
+        "Parent Container / Collapse Panel/Fold",
+        show=False,
+    ),
     Binding(
         "H",
         "hooks_or_collapse_all",
-        "Parent Container / Only/Restore Panels / Collapse Group / All",
+        "Collapse Context / Only/Restore Panels / All",
         show=False,
     ),
     Binding("f", "edit_hooks", "Edit Hooks", show=False),

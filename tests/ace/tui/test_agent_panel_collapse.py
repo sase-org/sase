@@ -11,6 +11,9 @@ from sase.ace.tui.actions.agents._navigation_order import AgentNavigationOrderMi
 from sase.ace.tui.actions.agents._panel_navigation import AgentPanelNavigationMixin
 from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
+from sase.ace.tui.actions.navigation._entry_jump_agents import (
+    EntryJumpAgentHistoryMixin,
+)
 from sase.ace.tui.actions.navigation._entry_jump_mode import EntryJumpModeMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
@@ -21,6 +24,7 @@ from sase.ace.tui.models.fold_state import FoldStateManager
 
 
 class _StubApp(
+    EntryJumpAgentHistoryMixin,
     AgentFoldingMixin,
     AgentSelectionMixin,
     AgentPanelNavigationMixin,
@@ -62,6 +66,9 @@ class _StubApp(
         self.affected_refreshes: list[set[str | None]] = []
         self.footer_refresh_calls = 0
         self.notifications: list[str] = []
+        self._entry_jump_agents_anchor_stack = []
+        self._entry_jump_agents_forward_anchor_stack = []
+        self.armed_departures: list[Agent] = []
 
     def _agent_panel_index(self) -> Any:
         cached = self._panel_index_cache
@@ -115,6 +122,10 @@ class _StubApp(
     def notify(self, message: str, **_kwargs: Any) -> None:
         self.notifications.append(message)
 
+    def _arm_manual_unread_after_departure(self, agent: Agent | None) -> None:
+        if agent is not None:
+            self.armed_departures.append(agent)
+
     def _record_agents_panel_fold_change(
         self,
         panel_key: str | None,
@@ -160,6 +171,9 @@ def test_h_selects_then_collapses_panel_and_l_expands_then_descends() -> None:
     assert focus.collapsed is False
     assert app._panel_selection_memory["alpha"] == ("agent", 2)
     assert app._collapsed_panel_keys == set()
+    assert app.current_attempt_number is None
+    assert app._entry_jump_agents_anchor_stack == [("agent", 2, "alpha")]
+    assert app.armed_departures == [app._agents[2]]
 
     app.action_hooks_or_collapse()
 

@@ -22,12 +22,22 @@ _FOCUSED_PANEL = object()
 
 
 @dataclass(frozen=True, slots=True)
-class _AgentParentJumpTarget:
-    """Validated immediate structural parent for an Agents-tab ``H`` jump."""
+class _AgentLeftNavigationTarget:
+    """Validated immediate target for an Agents-tab ``h`` navigation."""
 
-    index: int
-    agent: Agent
-    kind: Literal["family", "clan"]
+    kind: Literal["family", "clan", "tribe"]
+    index: int | None = None
+    agent: Agent | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _AgentStructuralCollapseTarget:
+    """The next workflow, family, or clan fold owned by Agents-tab ``H``."""
+
+    fold_key: str
+    kind: Literal["workflow", "family", "clan"]
+    reanchor: bool = False
+    binary: bool = False
 
 
 class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
@@ -101,22 +111,38 @@ class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
             changed = True
         return changed
 
-    def _resolve_agent_parent_jump_target(self) -> _AgentParentJumpTarget | None:
-        """Resolve the selected row's supported immediate tree parent.
+    def _can_select_focused_tribe_panel(self) -> bool:
+        """Return whether the focused split panel can become a whole selection."""
+        panel_group = getattr(self, "_panel_group", None)
+        return bool(
+            self.current_tab == "agents"
+            and panel_group is not None
+            and not getattr(self, "_agent_panels_grouped", False)
+            and len(panel_group.panel_keys) > 1
+        )
+
+    def _resolve_agent_left_navigation_target(
+        self,
+    ) -> _AgentLeftNavigationTarget | None:
+        """Resolve the selected row/banner's validated immediate parent.
 
         The resolver stays entirely within the loaded Agents projection.  It
-        accepts only concrete agent -> sequential family and sequential family
-        -> synthetic clan edges, and rejects duplicate/stale parent keys.
+        accepts concrete agent -> sequential family, direct member -> clan, and
+        sequential family -> clan edges. A row or grouping banner reaches its
+        tribe panel only after proving that it has no structural parent.
         """
-        if (
-            self.current_tab != "agents"
-            or self._current_group_key is not None
-            or not (0 <= self.current_idx < len(self._agents))
+        if self.current_tab != "agents" or not (
+            0 <= self.current_idx < len(self._agents)
         ):
             return None
 
         resolve_panel = getattr(self, "_resolve_focused_panel", None)
         if callable(resolve_panel) and resolve_panel() is not None:
+            return None
+
+        if self._current_group_key is not None:
+            if self._can_select_focused_tribe_panel():
+                return _AgentLeftNavigationTarget("tribe")
             return None
 
         selected = self._get_selected_agent()  # type: ignore[attr-defined]
@@ -132,6 +158,20 @@ class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
 
         parent_key = agent_parent_fold_key(selected)
         if parent_key is None:
+            if (
+                selected.is_child_row
+                or selected.is_hidden_step
+                or selected.tree_parent_key is not None
+                or selected.tree_depth != 0
+                or not (
+                    selected.is_agent_entry
+                    or selected.is_clan_container
+                    or is_sequential_family_container(selected)
+                )
+            ):
+                return None
+            if self._can_select_focused_tribe_panel():
+                return _AgentLeftNavigationTarget("tribe")
             return None
         parent = tree_parent_lookup(self._agents).get(parent_key)
         if parent is None or parent is selected:
@@ -160,34 +200,53 @@ class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
                 or selected.tree_depth != 1
             ):
                 return None
-            return _AgentParentJumpTarget(parent_index, parent, "clan")
+            return _AgentLeftNavigationTarget("clan", parent_index, parent)
 
         if (
             selected.is_clan_container
-            or not selected.is_child_row
             or not selected.is_agent_entry
             or selected.is_hidden_step
-            or not is_sequential_family_container(parent)
         ):
+            return None
+
+        if parent.is_clan_container:
+            if (
+                selected.tree_parent_key != parent_key
+                or selected.tree_depth != parent.tree_depth + 1
+            ):
+                return None
+            return _AgentLeftNavigationTarget("clan", parent_index, parent)
+
+        if not selected.is_child_row or not is_sequential_family_container(parent):
             return None
         if (
             selected.tree_parent_key is not None
             and selected.tree_depth != parent.tree_depth + 1
         ):
             return None
-        return _AgentParentJumpTarget(parent_index, parent, "family")
+        return _AgentLeftNavigationTarget("family", parent_index, parent)
 
-    def _jump_to_agent_parent_container(self) -> bool:
-        """Move focus to a validated family/clan parent without changing folds."""
-        target = self._resolve_agent_parent_jump_target()
+    def _navigate_agent_left(self) -> bool:
+        """Move to the validated structural parent or containing tribe panel."""
+        target = self._resolve_agent_left_navigation_target()
         if target is None:
             return False
 
-        origin = self._agents[self.current_idx]
         save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
         if callable(save_jump_anchor):
             save_jump_anchor()
 
+        origin = self._agents[self.current_idx]
+        if target.kind == "tribe":
+            if self._current_group_key is None:
+                arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
+                if callable(arm_manual):
+                    arm_manual(origin)
+            activate_panel = getattr(self, "_activate_focused_panel", None)
+            return bool(callable(activate_panel) and activate_panel())
+
+        if target.index is None or target.agent is None:
+            return False
         if origin.identity != target.agent.identity:
             arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
             if callable(arm_manual):
@@ -205,6 +264,96 @@ class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
         if callable(acknowledge):
             acknowledge(target.agent)
         return True
+
+    def _structural_fold_kind(
+        self, fold_key: str
+    ) -> Literal["workflow", "family", "clan"]:
+        """Classify a canonical structural fold key for contextual labels."""
+        from ...models._agent_tree import agent_fold_key
+        from ...models.agent_family_members import is_sequential_family_container
+
+        owner = next(
+            (
+                candidate
+                for candidate in self._agents
+                if agent_fold_key(candidate) == fold_key
+            ),
+            None,
+        )
+        if owner is not None and owner.is_clan_container:
+            return "clan"
+        if owner is not None and is_sequential_family_container(owner):
+            return "family"
+        return "workflow"
+
+    def _resolve_agent_structural_collapse_target(
+        self,
+    ) -> _AgentStructuralCollapseTarget | None:
+        """Resolve the highest-priority open structural fold for ``H``."""
+        if self.current_tab != "agents" or self._current_group_key is not None:
+            return None
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        if callable(resolve_panel) and resolve_panel() is not None:
+            return None
+
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
+            return None
+
+        from ...models._agent_tree import agent_parent_fold_key
+        from ...models.fold_state import FoldLevel
+
+        fold_key = self._get_workflow_key_for_agent(agent)
+        if (
+            fold_key is not None
+            and self._fold_manager.get(fold_key) != FoldLevel.COLLAPSED
+        ):
+            level = self._fold_manager.get(fold_key)
+            selected_is_child = (
+                agent_parent_fold_key(agent) == fold_key and agent.is_child_row
+            )
+            reanchor = selected_is_child and (
+                level == FoldLevel.EXPANDED
+                or (level == FoldLevel.FULLY_EXPANDED and agent.is_hidden_step)
+            )
+            kind = self._structural_fold_kind(fold_key)
+            return _AgentStructuralCollapseTarget(
+                fold_key,
+                kind,
+                reanchor=reanchor,
+                binary=kind == "clan",
+            )
+
+        clan_parent_key = agent_parent_fold_key(agent)
+        if (
+            agent.tree_depth == 1
+            and clan_parent_key is not None
+            and clan_parent_key.startswith("clan:")
+            and self._fold_manager.get(clan_parent_key) != FoldLevel.COLLAPSED
+        ):
+            return _AgentStructuralCollapseTarget(
+                clan_parent_key,
+                "clan",
+                reanchor=True,
+                binary=True,
+            )
+        return None
+
+    def _collapse_agent_structural_fold(self) -> bool:
+        """Collapse one Agents workflow/family/clan target, if available."""
+        target = self._resolve_agent_structural_collapse_target()
+        if target is None:
+            return False
+        if target.reanchor:
+            self._reanchor_to_fold_owner(target.fold_key)
+        changed = (
+            self._collapse_clan_fold(target.fold_key)
+            if target.binary
+            else self._fold_manager.collapse(target.fold_key)
+        )
+        if changed:
+            self._refilter_agents()  # type: ignore[attr-defined]
+        return changed
 
     def _active_grouping_mode(self) -> GroupingMode:
         """Return the active grouping mode, defaulting to STANDARD.
@@ -438,17 +587,13 @@ class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
         self._current_group_key = None
 
     def _collapse_fold(self) -> None:
-        """Collapse the fold for the focused row (one level).
+        """Navigate outward on Agents, or collapse one fold on other tabs.
 
-        On Agents, ``h`` walks only structural agent/family/clan folds. Once
-        none remain (or a collapsed group banner is selected), it promotes
-        focus to the enclosing tribe panel. Grouping-strategy folds belong to
-        ``H`` and are handled by :meth:`_collapse_group_fold`.
+        Agents keeps the explicit selected-panel collapse exception, but rows
+        and grouping banners otherwise move to their immediate structural or
+        tribe parent without changing any fold state.
         """
         if self.current_tab == "agents":
-            from ...models._agent_tree import agent_parent_fold_key
-            from ...models.fold_state import FoldLevel
-
             resolve_panel = getattr(self, "_resolve_focused_panel", None)
             panel_focus = resolve_panel() if callable(resolve_panel) else None
             if panel_focus is not None:
@@ -460,50 +605,7 @@ class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
                     self._collapse_focused_panel()
                 return
 
-            agent = self._get_selected_agent()  # type: ignore[attr-defined]
-            if agent is not None and self._current_group_key is None:
-                key = self._get_workflow_key_for_agent(agent)
-                if (
-                    key is not None
-                    and self._fold_manager.get(key) != FoldLevel.COLLAPSED
-                ):
-                    level = self._fold_manager.get(key)
-                    selected_parent_key = agent_parent_fold_key(agent)
-                    selected_is_child = (
-                        selected_parent_key == key and agent.is_child_row
-                    )
-                    if selected_is_child and (
-                        level == FoldLevel.EXPANDED
-                        or (level == FoldLevel.FULLY_EXPANDED and agent.is_hidden_step)
-                    ):
-                        self._reanchor_to_fold_owner(key)
-
-                    changed = (
-                        self._collapse_clan_fold(key)
-                        if agent.is_clan_container
-                        else self._fold_manager.collapse(key)
-                    )
-                    if changed:
-                        self._refilter_agents()  # type: ignore[attr-defined]
-                        return
-
-                # Once a direct member's own fold is collapsed, walk up to
-                # the enclosing clan before falling through to group folds.
-                clan_parent_key = agent_parent_fold_key(agent)
-                if (
-                    agent.tree_depth == 1
-                    and clan_parent_key is not None
-                    and clan_parent_key.startswith("clan:")
-                    and self._fold_manager.get(clan_parent_key) != FoldLevel.COLLAPSED
-                ):
-                    self._reanchor_to_fold_owner(clan_parent_key)
-                    if self._collapse_clan_fold(clan_parent_key):
-                        self._refilter_agents()  # type: ignore[attr-defined]
-                        return
-
-            activate_panel = getattr(self, "_activate_focused_panel", None)
-            if callable(activate_panel):
-                activate_panel()
+            self._navigate_agent_left()
             return
 
         # Non-agents tabs: preserve original per-workflow behavior.
@@ -528,36 +630,39 @@ class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
         if self._fold_manager.collapse(key):
             self._refilter_agents()  # type: ignore[attr-defined]
 
-    def _collapse_group_fold(self) -> None:
-        """Collapse the enclosing Agents grouping-strategy fold with ``H``."""
+    def _resolve_group_collapse_target(self) -> GroupKey | None:
+        """Resolve the grouping-strategy fold reached after structural folds."""
         if self.current_tab != "agents":
-            return
+            return None
         resolve_panel = getattr(self, "_resolve_focused_panel", None)
         if callable(resolve_panel) and resolve_panel() is not None:
-            return
+            return None
 
         if self._current_group_key is not None:
             cur_key: GroupKey = tuple(self._current_group_key)
             registry = focused_panel_fold_registry(self)
             if len(cur_key) > 1 and registry.is_collapsed(cur_key):
                 parent_key: GroupKey = cur_key[:-1]
-                if registry.collapse(parent_key):
-                    self._current_group_key = parent_key
-                    self._refilter_agents()  # type: ignore[attr-defined]
-                    self._persist_group_fold_change(parent_key, collapsed=True)
-                return
-            if registry.collapse(cur_key):
-                self._refilter_agents()  # type: ignore[attr-defined]
-                self._persist_group_fold_change(cur_key, collapsed=True)
-            return
+                return None if registry.is_collapsed(parent_key) else parent_key
+            return None if registry.is_collapsed(cur_key) else cur_key
 
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
-            return
+            return None
         l1_key, l0_key = self._focused_group_keys()
         target = l1_key or l0_key
         registry = focused_panel_fold_registry(self)
-        if target is not None and registry.collapse(target):
+        if target is None or registry.is_collapsed(target):
+            return None
+        return target
+
+    def _collapse_group_fold(self) -> None:
+        """Collapse the enclosing Agents grouping-strategy fold with ``H``."""
+        target = self._resolve_group_collapse_target()
+        if target is None:
+            return
+        registry = focused_panel_fold_registry(self)
+        if registry.collapse(target):
             self._current_group_key = target
             self._snap_focus_after_group_fold_change()
             self._refilter_agents()  # type: ignore[attr-defined]

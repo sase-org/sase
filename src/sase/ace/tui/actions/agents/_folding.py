@@ -64,9 +64,7 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_hooks_or_collapse(self) -> None:
-        """Collapse fold on agents/axe tab, collapse ChangeSpec group on ChangeSpecs tab."""
-        if self._route_tools_detail_level("collapse"):
-            return
+        """Navigate left on Agents, or collapse the contextual fold elsewhere."""
         if self.current_tab == "agents":
             self._collapse_fold()
         elif self.current_tab == "axe":
@@ -76,13 +74,13 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_hooks_or_collapse_all(self) -> None:
-        """Jump to an Agents parent, isolate a panel, or collapse group/all folds."""
+        """Collapse Agents context, isolate a panel, or collapse all folds."""
         if self._route_tools_detail_level("min"):
             return
         if self.current_tab == "agents":
             if (
                 not self._isolate_focused_panel()
-                and not self._jump_to_agent_parent_container()
+                and not self._collapse_agent_structural_fold()
             ):
                 self._collapse_group_fold()
         elif self.current_tab == "axe":

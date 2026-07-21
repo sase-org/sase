@@ -1,10 +1,9 @@
 """Per-group transition tests for the agents-tab fold mixin.
 
 Covers the boundary between the per-group :class:`AgentGroupFoldRegistry`
-and the existing per-workflow :class:`FoldStateManager`: ``l`` expands
-the focused group (or runs per-workflow expansion when an agent is
-focused inside an already-expanded chain); ``h`` collapses structural
-agent/family/clan folds, while ``H`` collapses grouping-strategy folds.
+and the existing per-workflow :class:`FoldStateManager`: ``l`` expands the
+focused group (or a structural fold), ``h`` navigates to a structural/tribe
+parent, and ``H`` collapses structural folds before grouping-strategy folds.
 Whole-panel behavior is covered separately in ``test_agent_panel_collapse.py``.
 """
 
@@ -23,6 +22,7 @@ from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
+from sase.ace.tui.models.agent_tribe_summary import AgentPanelFocus
 from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
 
 
@@ -56,6 +56,7 @@ class _StubApp(EntryJumpAgentHistoryMixin, AgentFoldingMixin):
         self._detail = None
         self.footer_refresh_calls = 0
         self.fold_selector_calls = 0
+        self.panel_focus_refresh_calls = 0
 
     # The mixin calls these via attribute lookups.
     def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
@@ -87,8 +88,34 @@ class _StubApp(EntryJumpAgentHistoryMixin, AgentFoldingMixin):
         self,
         stop: tuple[str, int | tuple[str, ...]] | None = None,
     ) -> None:
-        if stop is not None:
-            self._panel_selection_memory[self._panel_group.focused_key] = stop
+        if stop is None:
+            stop = (
+                ("banner", self._current_group_key)
+                if self._current_group_key is not None
+                else ("agent", self.current_idx)
+            )
+        self._panel_selection_memory[self._panel_group.focused_key] = stop
+
+    def _resolve_focused_panel(self) -> AgentPanelFocus | None:
+        key = self._panel_group.focused_key
+        collapsed = key in self._collapsed_panel_keys
+        if not collapsed and not self._expanded_panel_focus:
+            return None
+        return AgentPanelFocus(key, collapsed)
+
+    def _activate_focused_panel(self) -> bool:
+        if (
+            self._agent_panels_grouped
+            or len(self._panel_group.panel_keys) <= 1
+            or self._resolve_focused_panel() is not None
+        ):
+            return self._resolve_focused_panel() is not None
+        self._remember_focused_panel_selection()
+        self._expanded_panel_focus = True
+        self._current_group_key = None
+        self.current_attempt_number = None
+        self.panel_focus_refresh_calls += 1
+        return True
 
     def _arm_manual_unread_after_departure(self, agent: Agent | None) -> None:
         if agent is not None:
@@ -150,8 +177,9 @@ def _sequential_family(
     *,
     clan: str | None = None,
     status: str = "RUNNING",
+    tribe: str | None = None,
 ) -> tuple[list[Agent], Agent, Agent]:
-    family = _agent(raw_suffix="family", status=status)
+    family = _agent(raw_suffix="family", status=status, tribe=tribe)
     family.plan_chain_root = True
     family.agent_family = "family"
     member = _agent(raw_suffix="member", status=status)
@@ -169,10 +197,12 @@ def _sequential_family(
     return projected, family, member
 
 
-def test_tools_panel_routes_fold_keys_except_capital_l_to_detail_level() -> None:
-    agent = _agent(agent_name="coder.claude")
+def test_tools_panel_h_navigates_while_capital_h_compacts_detail() -> None:
+    agent = _agent(agent_name="coder.claude", tribe="research")
+    other = _agent(agent_name="planner.codex", tribe="ops")
     detail = _ToolsDetail()
-    app = _StubApp([agent], current_idx=0)
+    app = _StubApp([agent, other], current_idx=0)
+    app._panel_group.focused_idx = app._panel_group.panel_keys.index("research")
     app._detail = detail
 
     app.action_expand_or_layout()
@@ -180,10 +210,12 @@ def test_tools_panel_routes_fold_keys_except_capital_l_to_detail_level() -> None
     app.action_expand_all_folds()
     app.action_hooks_or_collapse_all()
 
-    assert detail.actions == ["expand", "collapse", "set:0"]
+    assert detail.actions == ["expand", "set:0"]
+    assert app._expanded_panel_focus is True
+    assert app._panel_selection_memory["research"] == ("agent", 0)
     assert app.fold_selector_calls == 1
     assert app.refilter_calls == 0
-    assert app.footer_refresh_calls == 3
+    assert app.footer_refresh_calls == 2
 
 
 def test_tools_panel_detail_clamp_does_not_fall_through_to_folds() -> None:
@@ -243,36 +275,29 @@ def test_capital_h_on_agent_collapses_only_its_group() -> None:
     assert app._current_group_key == ("projA", "cl-a")
 
 
-def test_capital_h_walks_family_then_clan_before_group_fold() -> None:
+def test_capital_h_collapses_family_then_clan_before_group_fold() -> None:
     projected, family, member = _sequential_family(clan="research")
     clan = projected[0]
     app = _StubApp(projected, current_idx=projected.index(member))
-    tree_folds_before = app._fold_manager.snapshot()
-    group_folds_before = app._group_fold_registry.snapshot()
-    panel_folds_before = (
-        set(app._collapsed_panel_keys),
-        set(app._expanded_panel_keys),
-    )
+    family_key = agent_fold_key(family)
+    clan_key = agent_fold_key(clan)
+    assert family_key is not None
+    assert clan_key is not None
+    app._fold_manager.expand(clan_key)
+    app._fold_manager.expand(family_key)
 
     app.action_hooks_or_collapse_all()
 
     assert app.current_idx == projected.index(family)
-    assert app._fold_manager.snapshot() == tree_folds_before
-    assert app._group_fold_registry.snapshot() == group_folds_before
-    assert (
-        app._collapsed_panel_keys,
-        app._expanded_panel_keys,
-    ) == panel_folds_before
+    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(clan_key) is FoldLevel.EXPANDED
+    assert app._group_fold_registry.snapshot() == ()
 
     app.action_hooks_or_collapse_all()
 
     assert app.current_idx == projected.index(clan)
-    assert app._fold_manager.snapshot() == tree_folds_before
-    assert app._group_fold_registry.snapshot() == group_folds_before
-    assert (
-        app._collapsed_panel_keys,
-        app._expanded_panel_keys,
-    ) == panel_folds_before
+    assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
+    assert app._group_fold_registry.snapshot() == ()
 
     app.action_hooks_or_collapse_all()
 
@@ -280,13 +305,55 @@ def test_capital_h_walks_family_then_clan_before_group_fold() -> None:
     assert app._group_fold_registry.snapshot()
 
 
-def test_capital_h_parent_jump_preserves_selection_bookkeeping_and_history() -> None:
+def test_h_walks_member_family_clan_tribe_without_changing_folds() -> None:
+    projected, family, member = _sequential_family(
+        clan="research",
+        tribe="research",
+    )
+    clan = projected[0]
+    projected.append(_agent(raw_suffix="ops", tribe="ops"))
+    app = _StubApp(projected, current_idx=projected.index(member))
+    app._panel_group.focused_idx = app._panel_group.panel_keys.index("research")
+    family_key = agent_fold_key(family)
+    clan_key = agent_fold_key(clan)
+    assert family_key is not None
+    assert clan_key is not None
+    app._fold_manager.expand(clan_key)
+    app._fold_manager.expand(family_key)
+    tree_folds_before = app._fold_manager.snapshot()
+    group_folds_before = app._group_fold_registry.snapshot()
+    panel_folds_before = (
+        set(app._collapsed_panel_keys),
+        set(app._expanded_panel_keys),
+    )
+
+    app.action_hooks_or_collapse()
+    assert app.current_idx == projected.index(family)
+    app.action_hooks_or_collapse()
+    assert app.current_idx == projected.index(clan)
+    app.action_hooks_or_collapse()
+
+    assert app._expanded_panel_focus is True
+    assert app._panel_selection_memory["research"] == (
+        "agent",
+        projected.index(clan),
+    )
+    assert app._fold_manager.snapshot() == tree_folds_before
+    assert app._group_fold_registry.snapshot() == group_folds_before
+    assert (
+        app._collapsed_panel_keys,
+        app._expanded_panel_keys,
+    ) == panel_folds_before
+    assert app.refilter_calls == 0
+
+
+def test_h_parent_navigation_preserves_selection_bookkeeping_and_history() -> None:
     projected, family, member = _sequential_family(clan="research")
     app = _StubApp(projected, current_idx=projected.index(member))
     app.current_attempt_number = 3
     app._current_group_key = None
 
-    app.action_hooks_or_collapse_all()
+    app.action_hooks_or_collapse()
 
     family_idx = projected.index(family)
     member_idx = projected.index(member)
@@ -310,7 +377,7 @@ def test_capital_h_parent_jump_preserves_selection_bookkeeping_and_history() -> 
     assert app.current_idx == family_idx
 
 
-def test_capital_h_parent_ladder_is_grouping_mode_independent() -> None:
+def test_h_parent_ladder_is_grouping_mode_independent() -> None:
     projected, family, member = _sequential_family(
         clan="research",
         status="RUNNING",
@@ -319,30 +386,29 @@ def test_capital_h_parent_ladder_is_grouping_mode_independent() -> None:
     app = _StubApp(projected, current_idx=projected.index(member))
     app._grouping_mode = GroupingMode.BY_STATUS
 
-    app.action_hooks_or_collapse_all()
+    app.action_hooks_or_collapse()
     assert app.current_idx == projected.index(family)
-    app.action_hooks_or_collapse_all()
+    app.action_hooks_or_collapse()
     assert app.current_idx == projected.index(clan)
-    app.action_hooks_or_collapse_all()
-
-    assert app._current_group_key == ("Running",)
-    assert app._group_fold_registry.is_collapsed(("Running",)) is True
+    assert app._group_fold_registry.snapshot() == ()
 
 
-def test_capital_h_standalone_family_member_jumps_then_folds_group() -> None:
-    agents, family, member = _sequential_family()
+def test_h_standalone_family_member_then_top_level_family_selects_tribe() -> None:
+    agents, family, member = _sequential_family(tribe="research")
+    agents.append(_agent(raw_suffix="ops", tribe="ops"))
     app = _StubApp(agents, current_idx=agents.index(member))
+    app._panel_group.focused_idx = app._panel_group.panel_keys.index("research")
 
-    app.action_hooks_or_collapse_all()
+    app.action_hooks_or_collapse()
     assert app.current_idx == agents.index(family)
     assert app._group_fold_registry.snapshot() == ()
 
-    app.action_hooks_or_collapse_all()
-    assert app._current_group_key is not None
-    assert app._group_fold_registry.snapshot()
+    app.action_hooks_or_collapse()
+    assert app._expanded_panel_focus is True
+    assert app._group_fold_registry.snapshot() == ()
 
 
-def test_capital_h_accepts_only_real_agent_family_children() -> None:
+def test_h_accepts_only_real_agent_family_children() -> None:
     family = _agent(raw_suffix="family", agent_type=AgentType.WORKFLOW)
     family.plan_chain_root = True
     family.agent_family = "family"
@@ -365,54 +431,110 @@ def test_capital_h_accepts_only_real_agent_family_children() -> None:
     agents = [family, agent_step, continuation, bash_step]
 
     app = _StubApp(agents, current_idx=agents.index(agent_step))
-    app.action_hooks_or_collapse_all()
+    app.action_hooks_or_collapse()
     assert app.current_idx == agents.index(family)
 
     app = _StubApp(agents, current_idx=agents.index(bash_step))
-    app.action_hooks_or_collapse_all()
+    app.action_hooks_or_collapse()
     assert app.current_idx == agents.index(bash_step)
-    assert app._current_group_key is not None
+    assert app._current_group_key is None
+    assert app._group_fold_registry.snapshot() == ()
 
 
-def test_capital_h_rejects_direct_clan_member_and_malformed_parent_edges() -> None:
-    direct = _agent(raw_suffix="direct")
+def test_h_direct_clan_member_navigates_to_clan_then_tribe() -> None:
+    direct = _agent(raw_suffix="direct", tribe="research")
     direct.agent_clan = "research"
     direct.agent_clan_generation = "generation"
-    projected = project_clan_tree([direct])
+    projected = project_clan_tree([direct, _agent(raw_suffix="ops", tribe="ops")])
+    clan = projected[0]
     app = _StubApp(projected, current_idx=projected.index(direct))
+    app._panel_group.focused_idx = app._panel_group.panel_keys.index("research")
 
-    assert app._resolve_agent_parent_jump_target() is None
-    app.action_hooks_or_collapse_all()
-    assert app.current_idx == projected.index(direct)
-    assert app._current_group_key is not None
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None and target.kind == "clan"
+    app.action_hooks_or_collapse()
+    assert app.current_idx == projected.index(clan)
+    app.action_hooks_or_collapse()
+    assert app._expanded_panel_focus is True
 
-    agents, _family, member = _sequential_family()
+
+def test_h_rejects_stale_ambiguous_and_self_referential_parent_edges() -> None:
+    agents, _family, member = _sequential_family(tribe="research")
+    agents.append(_agent(raw_suffix="ops", tribe="ops"))
     member.tree_parent_key = "missing"
     member.tree_depth = 1
     stale = _StubApp(agents, current_idx=agents.index(member))
-    assert stale._resolve_agent_parent_jump_target() is None
+    stale._panel_group.focused_idx = stale._panel_group.panel_keys.index("research")
+    assert stale._resolve_agent_left_navigation_target() is None
+    stale.action_hooks_or_collapse()
+    assert stale.current_idx == agents.index(member)
+    assert stale._expanded_panel_focus is False
 
-    duplicate = _agent(raw_suffix="family")
-    ambiguous_agents, _family, member = _sequential_family()
+    ambiguous_agents, _family, member = _sequential_family(tribe="research")
+    duplicate = _agent(raw_suffix="family", tribe="research")
     ambiguous_agents.append(duplicate)
+    ambiguous_agents.append(_agent(raw_suffix="ops", tribe="ops"))
     ambiguous = _StubApp(
         ambiguous_agents,
         current_idx=ambiguous_agents.index(member),
     )
-    assert ambiguous._resolve_agent_parent_jump_target() is None
+    ambiguous._panel_group.focused_idx = ambiguous._panel_group.panel_keys.index(
+        "research"
+    )
+    assert ambiguous._resolve_agent_left_navigation_target() is None
+    ambiguous.action_hooks_or_collapse()
+    assert ambiguous._expanded_panel_focus is False
+
+    self_agents, _family, self_member = _sequential_family(tribe="research")
+    self_agents.append(_agent(raw_suffix="ops", tribe="ops"))
+    self_member.tree_parent_key = self_member.raw_suffix
+    self_member.tree_depth = 1
+    self_ref = _StubApp(
+        self_agents,
+        current_idx=self_agents.index(self_member),
+    )
+    self_ref._panel_group.focused_idx = self_ref._panel_group.panel_keys.index(
+        "research"
+    )
+    assert self_ref._resolve_agent_left_navigation_target() is None
+    self_ref.action_hooks_or_collapse()
+    assert self_ref._expanded_panel_focus is False
 
 
-def test_parent_jump_resolver_yields_to_banner_and_panel_focus() -> None:
-    agents, _family, member = _sequential_family()
-    app = _StubApp(agents, current_idx=agents.index(member))
+def test_h_grouping_banner_selects_tribe_and_selected_panel_has_no_parent() -> None:
+    research = _agent(raw_suffix="research", tribe="research")
+    ops = _agent(raw_suffix="ops", tribe="ops")
+    app = _StubApp([research, ops], current_idx=0)
+    app._panel_group.focused_idx = app._panel_group.panel_keys.index("research")
 
     app._current_group_key = ("proj", "demo")
-    assert app._resolve_agent_parent_jump_target() is None
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None and target.kind == "tribe"
+    app.action_hooks_or_collapse()
 
-    app._current_group_key = None
-    app._expanded_panel_focus = True
-    app._resolve_focused_panel = lambda: object()  # type: ignore[method-assign]
-    assert app._resolve_agent_parent_jump_target() is None
+    assert app._expanded_panel_focus is True
+    assert app._panel_selection_memory["research"] == (
+        "banner",
+        ("proj", "demo"),
+    )
+    assert app._resolve_agent_left_navigation_target() is None
+
+
+def test_h_top_level_to_tribe_is_safe_in_single_and_merged_layouts() -> None:
+    single = _StubApp([_agent(raw_suffix="single")])
+    merged = _StubApp(
+        [
+            _agent(raw_suffix="research", tribe="research"),
+            _agent(raw_suffix="ops", tribe="ops"),
+        ]
+    )
+    merged._agent_panels_grouped = True
+
+    single.action_hooks_or_collapse()
+    merged.action_hooks_or_collapse()
+
+    assert single._expanded_panel_focus is False
+    assert merged._expanded_panel_focus is False
 
 
 def test_capital_h_inside_l1_collapses_l1_then_parent_l0() -> None:
@@ -494,12 +616,12 @@ def test_clan_l_is_a_binary_outer_fold_and_second_l_is_clamped() -> None:
     assert app._fold_manager.get(key) is FoldLevel.EXPANDED
     app.action_expand_or_layout()
     assert app._fold_manager.get(key) is FoldLevel.EXPANDED
-    app.action_hooks_or_collapse()
+    app.action_hooks_or_collapse_all()
     assert app._fold_manager.get(key) is FoldLevel.COLLAPSED
     assert app.refilter_calls == 2
 
 
-def test_clan_member_l_l_and_child_member_h_h_are_isolated() -> None:
+def test_clan_member_l_l_and_child_member_capital_h_are_isolated() -> None:
     workflow = _agent(raw_suffix="workflow", agent_type=AgentType.WORKFLOW)
     workflow.agent_clan = "research"
     workflow.agent_clan_generation = "generation"
@@ -542,15 +664,15 @@ def test_clan_member_l_l_and_child_member_h_h_are_isolated() -> None:
     assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
 
     app.current_idx = projected.index(hidden)
-    app.action_hooks_or_collapse()
+    app.action_hooks_or_collapse_all()
     assert app._fold_manager.get(workflow_key) is FoldLevel.EXPANDED
     assert app.current_idx == projected.index(workflow)
 
-    app.action_hooks_or_collapse()
+    app.action_hooks_or_collapse_all()
     assert app._fold_manager.get(workflow_key) is FoldLevel.COLLAPSED
     assert app.current_idx == projected.index(workflow)
 
-    app.action_hooks_or_collapse()
+    app.action_hooks_or_collapse_all()
     assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
     assert app.current_idx == projected.index(container)
     assert app._group_fold_registry.collapsed == set()
@@ -578,7 +700,7 @@ def test_collapsed_clan_masks_member_state_until_reopened() -> None:
     assert app._fold_manager.get(member_key) is FoldLevel.EXPANDED
 
     app.current_idx = projected.index(container)
-    app.action_hooks_or_collapse()
+    app.action_hooks_or_collapse_all()
     assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
     assert app._fold_manager.get(member_key) is FoldLevel.EXPANDED
 
@@ -587,14 +709,14 @@ def test_collapsed_clan_masks_member_state_until_reopened() -> None:
     assert app._fold_manager.get(member_key) is FoldLevel.EXPANDED
 
 
-def test_per_workflow_h_runs_before_group_collapse() -> None:
-    """Per-workflow ``h`` beats group collapse for an expanded workflow."""
+def test_per_workflow_capital_h_runs_before_group_collapse() -> None:
+    """Per-workflow ``H`` beats group collapse for an expanded workflow."""
     parent = _agent(raw_suffix="ts1", agent_type=AgentType.WORKFLOW)
     app = _StubApp([parent])
     app._fold_counts["ts1"] = (1, 0)
     app._fold_manager.expand("ts1")  # EXPANDED
 
-    app.action_hooks_or_collapse()
+    app.action_hooks_or_collapse_all()
     # Workflow collapsed; group registry untouched.
     assert app._fold_manager.get("ts1") == FoldLevel.COLLAPSED
     assert app._group_fold_registry.collapsed == set()

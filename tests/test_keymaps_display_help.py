@@ -139,7 +139,7 @@ def test_agents_help_uses_f_for_fork_not_r_for_resume() -> None:
     assert ("e", "Edit chat in editor") not in agent_pairs
 
 
-def test_agents_help_describes_capital_h_panel_and_group_contexts() -> None:
+def test_agents_help_describes_h_navigation_and_capital_h_collapsing() -> None:
     reg = load_keymap_registry({})
     agent_pairs = {
         (key, label)
@@ -149,8 +149,12 @@ def test_agents_help_describes_capital_h_panel_and_group_contexts() -> None:
 
     assert (
         "H",
-        "Parent family/clan / only panel ⇄ restore panels / collapse group / "
+        "Collapse workflow/family/clan/group / only panel ⇄ restore panels / "
         "compact Tools",
+    ) in agent_pairs
+    assert (
+        "l / h",
+        "Expand/enter panel · parent family/clan/tribe or collapse panel",
     ) in agent_pairs
 
 

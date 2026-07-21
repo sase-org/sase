@@ -19,6 +19,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.tools import cache as tools_cache_module
 from sase.ace.tui.widgets import tools_panel as tools_panel_module
+from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from sase.ace.tui.widgets.tools_panel import AgentToolsPanel, ToolDetailLevel
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
@@ -367,6 +368,7 @@ async def _open_tools_panel(page: AcePage) -> AgentToolsPanel:
     await wait_for_visual_idle(page)
     await page.press("right_square_bracket")
     await _wait_for_tools_loaded(page)
+    page.app._refresh_agent_footer_bindings_only()
     await wait_for_visual_idle(page)
     return page.app.query_one("#agent-tools-panel", AgentToolsPanel)
 
@@ -433,7 +435,12 @@ async def test_agents_tools_panel_detail_level_png_snapshots(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         panel = await _open_tools_panel(page)
         assert panel.set_detail_level(detail_level) is True
+        page.app._refresh_agent_footer_bindings_only()
         await wait_for_visual_idle(page)
+
+        footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
+        assert footer._last_layout_inputs is not None
+        assert ("H", "compact tools") in footer._last_layout_inputs[0]
 
         ace_png_visual.assert_page_png(
             page,

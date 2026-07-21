@@ -42,12 +42,16 @@ def test_footer_tools_detail_chips_follow_level() -> None:
 
     assert ("l", "more detail") in compact
     assert ("h", "less detail") not in compact
+    assert ("H", "compact tools") not in compact
     assert ("l", "more detail") in expanded
-    assert ("h", "less detail") in expanded
+    assert ("h", "less detail") not in expanded
+    assert ("H", "compact tools") in expanded
     assert ("l", "more detail") not in full
-    assert ("h", "less detail") in full
+    assert ("h", "less detail") not in full
+    assert ("H", "compact tools") in full
     assert ("l", "more detail") not in hidden
     assert ("h", "less detail") not in hidden
+    assert ("H", "compact tools") not in hidden
 
 
 def test_footer_without_selected_agent_omits_agent_only_actions() -> None:
@@ -103,35 +107,60 @@ def test_footer_armed_panel_isolation_advertises_restore_action() -> None:
     assert ("H", "only panel") not in bindings
 
 
-def test_footer_parent_jump_labels_and_context_precedence() -> None:
+def test_footer_left_navigation_and_collapse_target_labels() -> None:
     footer = KeybindingFooter()
 
-    family = _labels(footer._compute_agent_bindings(None, parent_jump_kind="family"))
-    clan = _labels(footer._compute_agent_bindings(None, parent_jump_kind="clan"))
+    family = _labels(
+        footer._compute_agent_bindings(None, left_navigation_kind="family")
+    )
+    clan = _labels(footer._compute_agent_bindings(None, left_navigation_kind="clan"))
+    tribe = _labels(
+        footer._compute_agent_bindings(
+            None,
+            left_navigation_kind="tribe",
+            group_focused=True,
+        )
+    )
     tools = _labels(
         footer._compute_agent_bindings(
             None,
-            parent_jump_kind="family",
+            left_navigation_kind="family",
             tools_visible=True,
+            tools_detail_level=ToolDetailLevel.EXPANDED,
         )
     )
     panel = _labels(
         footer._compute_agent_bindings(
             None,
-            parent_jump_kind="family",
+            left_navigation_kind="family",
             panel_focused=True,
+            structural_collapse_kind="family",
         )
     )
-    group = _labels(
+    workflow_collapse = _labels(
         footer._compute_agent_bindings(
             None,
-            parent_jump_kind="family",
-            group_focused=True,
+            structural_collapse_kind="workflow",
         )
     )
+    family_collapse = _labels(
+        footer._compute_agent_bindings(None, structural_collapse_kind="family")
+    )
+    clan_collapse = _labels(
+        footer._compute_agent_bindings(None, structural_collapse_kind="clan")
+    )
+    group_collapse = _labels(
+        footer._compute_agent_bindings(None, group_collapse_available=True)
+    )
 
-    assert ("H", "parent family") in family
-    assert ("H", "parent clan") in clan
-    assert not any(label.startswith("parent ") for _key, label in tools)
+    assert ("h", "parent family") in family
+    assert ("h", "parent clan") in clan
+    assert ("h", "parent tribe") in tribe
+    assert ("h", "parent family") in tools
+    assert ("H", "compact tools") in tools
     assert not any(label.startswith("parent ") for _key, label in panel)
-    assert not any(label.startswith("parent ") for _key, label in group)
+    assert ("H", "only panel") in panel
+    assert ("H", "collapse workflow") in workflow_collapse
+    assert ("H", "collapse family") in family_collapse
+    assert ("H", "collapse clan") in clan_collapse
+    assert ("H", "collapse group") in group_collapse

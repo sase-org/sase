@@ -192,12 +192,15 @@ def test_fallback_bindings_match_numbered_artifacts_and_saved_query_picker() -> 
     )
 
 
-def test_capital_h_binding_metadata_describes_panel_isolation() -> None:
+def test_h_binding_metadata_describes_navigation_and_contextual_collapse() -> None:
     runtime_by_action = {
         binding.action: binding for binding in build_app_bindings(default_app_keymaps())
     }
     fallback_by_action = {binding.action: binding for binding in DEFAULT_BINDINGS}
 
-    expected = "Parent Container / Only/Restore Panels / Collapse Group / All"
-    assert runtime_by_action["hooks_or_collapse_all"].description == expected
-    assert fallback_by_action["hooks_or_collapse_all"].description == expected
+    lower = "Parent Container / Collapse Panel/Fold"
+    upper = "Collapse Context / Only/Restore Panels / All"
+    assert runtime_by_action["hooks_or_collapse"].description == lower
+    assert fallback_by_action["hooks_or_collapse"].description == lower
+    assert runtime_by_action["hooks_or_collapse_all"].description == upper
+    assert fallback_by_action["hooks_or_collapse_all"].description == upper

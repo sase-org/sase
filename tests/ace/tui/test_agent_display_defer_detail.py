@@ -223,12 +223,21 @@ def test_leader_footer_refresh_keeps_unread_and_stopped_flags() -> None:
     assert call["has_stopped_agent"] is True
 
 
-def test_footer_refresh_uses_parent_jump_resolver_capability() -> None:
+def test_footer_refresh_uses_navigation_and_collapse_resolver_capabilities() -> None:
     app = _FakeApp()
-    app._resolve_agent_parent_jump_target = lambda: SimpleNamespace(kind="family")  # type: ignore[attr-defined]
+    app._resolve_agent_left_navigation_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
+        kind="family"
+    )
+    app._resolve_agent_structural_collapse_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
+        kind="clan"
+    )
+    app._resolve_group_collapse_target = lambda: ("proj", "demo")  # type: ignore[attr-defined]
 
     app._apply_agent_footer_update(
         _DetailWidget(), app.footer_widget, app._get_selected_agent()
     )
 
-    assert app.footer_widget.agent_binding_calls[-1]["parent_jump_kind"] == "family"
+    call = app.footer_widget.agent_binding_calls[-1]
+    assert call["left_navigation_kind"] == "family"
+    assert call["structural_collapse_kind"] == "clan"
+    assert call["group_collapse_available"] is False
