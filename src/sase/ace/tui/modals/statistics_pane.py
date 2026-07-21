@@ -241,11 +241,19 @@ class StatisticsPane(StatisticsPanePresentationBase):
 
     def action_cycle_range(self) -> None:
         """Cycle through Today, 24h, 7d, 30d, 90d, and All."""
+        self._cycle_range(1)
+
+    def action_cycle_range_reverse(self) -> None:
+        """Cycle backward through All, 90d, 30d, 7d, 24h, and Today."""
+        self._cycle_range(-1)
+
+    def _cycle_range(self, delta: int) -> None:
+        """Select the next preset in ``delta`` direction and schedule a reload."""
         if self._preset_key is None:
-            next_key = PRESET_ORDER[0]
+            next_key = PRESET_ORDER[0] if delta > 0 else PRESET_ORDER[-1]
         else:
             index = PRESET_ORDER.index(self._preset_key)
-            next_key = PRESET_ORDER[(index + 1) % len(PRESET_ORDER)]
+            next_key = PRESET_ORDER[(index + delta) % len(PRESET_ORDER)]
         self._preset_key = next_key
         self._custom_range_value = None
         self._range = resolve_preset(next_key)

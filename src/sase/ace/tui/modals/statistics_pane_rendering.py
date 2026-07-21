@@ -12,7 +12,7 @@ from rich.text import Text
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 
-from sase.ace.tui.keymaps import StatisticsPaneKeymaps, statistics_help_bindings
+from sase.ace.tui.keymaps import StatisticsPaneKeymaps, key_display_name
 from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import PresetKey, StatsRange
 from sase.telemetry.render import categorical_color, render_stat_tile
@@ -156,8 +156,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
 
     def _empty_state_renderable(self, result: StatisticsViewData) -> Panel:
         """Build recovery guidance for a range with no matching runs."""
-        bindings = statistics_help_bindings(self._keymaps)
-        range_key = bindings[2][0]
+        range_key = self._effective_key("cycle_range")
         recovery = Text()
         recovery.append(f"Press {range_key}", style=f"bold {_CYAN}")
         recovery.append(" to widen the range.")
@@ -169,7 +168,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             recovery,
         ]
         if result.project_filter is not None:
-            project_key = bindings[5][0]
+            project_key = self._effective_key("cycle_project_filter")
             project_label = result.project_display_snapshot.label_for(
                 result.project_filter
             )
@@ -186,7 +185,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
 
     def _error_state_renderable(self, message: str) -> Panel:
         """Build first-load failure guidance using the effective refresh key."""
-        refresh_key = statistics_help_bindings(self._keymaps)[6][0]
+        refresh_key = self._effective_key("refresh")
         retry = Text()
         retry.append(f"Press {refresh_key}", style=f"bold {_ACCENT}")
         retry.append(" to retry.")
@@ -238,7 +237,12 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         return scope
 
     def _range_scope_text(self) -> Text:
-        key = statistics_help_bindings(self._keymaps)[2][0]
+        key = "/".join(
+            (
+                self._effective_key("cycle_range"),
+                self._effective_key("cycle_range_reverse"),
+            )
+        )
         scope = self._scope_text(key, "Range", accent=_CYAN)
         if self._preset_key is None:
             scope.append("Custom", style=f"bold {_CYAN}")
@@ -250,7 +254,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         return scope
 
     def _group_scope_text(self) -> Text:
-        key = statistics_help_bindings(self._keymaps)[4][0]
+        key = self._effective_key("cycle_group")
         scope = self._scope_text(key, "Group", accent=_GREEN)
         if self._view == "runtime":
             scope.append(
@@ -267,7 +271,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         return scope
 
     def _project_scope_text(self) -> Text:
-        key = statistics_help_bindings(self._keymaps)[5][0]
+        key = self._effective_key("cycle_project_filter")
         scope = self._scope_text(key, "Project", accent=_GOLD)
         if self._project_filter is None:
             scope.append("All projects", style=f"bold {_GOLD}")
@@ -283,22 +287,25 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         return scope
 
     def _hints_text(self) -> Text:
-        bindings = statistics_help_bindings(self._keymaps)
         hints = Text(justify="center")
-        if len(bindings) >= 2:
-            hints.append(
-                f"{bindings[0][0]} / {bindings[1][0]}", style=f"bold {_ACCENT}"
-            )
-            hints.append(" views")
-        for (key, description), color in (
-            (bindings[3], _CYAN),
-            (bindings[6], _ACCENT),
-            (bindings[7], _ACCENT),
+        hints.append(
+            f"{self._effective_key('prev_view')} / {self._effective_key('next_view')}",
+            style=f"bold {_ACCENT}",
+        )
+        hints.append(" views")
+        for action, description, color in (
+            ("custom_range", "custom range", _CYAN),
+            ("refresh", "refresh", _ACCENT),
+            ("help", "help", _ACCENT),
         ):
             hints.append("   ")
-            hints.append(key, style=f"bold {color}")
-            hints.append(f" {description.lower()}")
+            hints.append(self._effective_key(action), style=f"bold {color}")
+            hints.append(f" {description}")
         return hints
+
+    def _effective_key(self, action: str) -> str:
+        """Return the configured display key for one Statistics action."""
+        return key_display_name(getattr(self._keymaps, action))
 
     def _update_heading(self) -> None:
         self._update_static("#statistics-title", self._heading_text())

@@ -640,6 +640,10 @@
                   "type": "string",
                   "description": "Cycle to the next statistics time range"
                 },
+                "cycle_range_reverse": {
+                  "type": "string",
+                  "description": "Cycle to the previous statistics time range"
+                },
                 "custom_range": {
                   "type": "string",
                   "description": "Open the custom statistics range input"

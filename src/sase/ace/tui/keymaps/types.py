@@ -166,6 +166,7 @@ _STATISTICS_BINDING_META: tuple[tuple[str, str], ...] = (
     ("prev_view", "Previous View"),
     ("next_view", "Next View"),
     ("cycle_range", "Time Range"),
+    ("cycle_range_reverse", "Previous Time Range"),
     ("custom_range", "Custom Range"),
     ("cycle_group", "Group By"),
     ("cycle_project_filter", "Project Filter"),
@@ -466,6 +467,7 @@ class StatisticsPaneKeymaps:
     prev_view: str = "left_square_bracket"
     next_view: str = "right_square_bracket"
     cycle_range: str = "t"
+    cycle_range_reverse: str = "T"
     custom_range: str = "c"
     cycle_group: str = "g"
     cycle_project_filter: str = "p"

@@ -23,14 +23,14 @@ def test_scope_renderables_cover_range_group_project_and_status(
     absolute_span = pane._range.label
 
     assert pane._range_scope_text().plain == (
-        f" t  Range {pane._range.display_label} · {absolute_span}"
+        f" t/T  Range {pane._range.display_label} · {absolute_span}"
     )
     pane._compact_scope = True
-    assert pane._range_scope_text().plain == f" t  Range {pane._range.display_label}"
+    assert pane._range_scope_text().plain == f" t/T  Range {pane._range.display_label}"
 
     pane._preset_key = None
     assert pane._range_scope_text().plain == (
-        f" t  Range Custom · {pane._range.display_label}"
+        f" t/T  Range Custom · {pane._range.display_label}"
     )
 
     assert pane._group_scope_text().plain == " g  Group —"

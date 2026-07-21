@@ -44,8 +44,13 @@ async def test_range_and_group_switches_coalesce_to_latest_selection(
 
     async with AcePage() as page:
         _, pane = await _open_statistics(page)
+        pane.action_cycle_project_filter()
+        await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
+        assert pane._project_filter == "sase"
+
         pane._set_view("runtime")
         pane.action_cycle_range()
+        pane.action_cycle_range_reverse()
         pane.action_cycle_range()
         pane.action_cycle_group()
         await page.wait_for(
@@ -58,14 +63,60 @@ async def test_range_and_group_switches_coalesce_to_latest_selection(
             )
         )
 
-        assert len(calls) == 2
+        assert len(calls) == 3
         assert calls[-1][0] == "runtime"
         assert calls[-1][1].label == pane._range.label
         assert calls[-1][1].display_label == pane._range.display_label
-        assert pane._preset_key == "90d"
-        assert pane._range.display_label == "Last 90 days"
+        assert calls[-1][3] == "sase"
+        assert pane._preset_key == "30d"
+        assert pane._range.display_label == "Last 30 days"
         assert pane._runtime_group_by == "clan"
         _assert_range_scope_matches_selection(pane)
+
+
+async def test_reverse_range_cycles_backward_wraps_and_reenters_from_custom(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    _patch_center(monkeypatch, calls)
+
+    async with AcePage() as page:
+        _, pane = await _open_statistics(page)
+
+        await page.press("T")
+        assert pane._preset_key == "24h"
+        assert pane._range.display_label == "Last 24 hours"
+        pane.action_cycle_range_reverse()
+        assert pane._preset_key == "today"
+        pane.action_cycle_range_reverse()
+        assert pane._preset_key == "all"
+        pane.action_cycle_range_reverse()
+        assert pane._preset_key == "90d"
+        await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
+
+        await page.press("c")
+        custom_input = pane.query_one("#statistics-custom-range", Input)
+        custom_input.value = "14d"
+        await page.press("enter")
+        await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
+        assert pane._preset_key is None
+        assert pane._custom_range_value == "14d"
+
+        await page.press("T")
+        await page.wait_for(lambda _state: len(calls) == 4 and not pane._loading)
+        assert pane._preset_key == "all"
+        assert pane._range.display_label == "All time"
+        assert pane._custom_range_value is None
+
+        await page.press("c")
+        custom_input.value = "14d"
+        await page.press("enter")
+        await page.wait_for(lambda _state: len(calls) == 5 and not pane._loading)
+        await page.press("t")
+        await page.wait_for(lambda _state: len(calls) == 6 and not pane._loading)
+        assert pane._preset_key == "today"
+        assert pane._range.display_label == "Today"
+        assert pane._custom_range_value is None
 
 
 async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(

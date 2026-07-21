@@ -143,7 +143,7 @@ class StatisticsHelpModal(ModalScreen[None]):
     def _control_value(self, action: str) -> str:
         if action in {"prev_view", "next_view"}:
             return f"current view: {VIEW_LABELS[self._current_view]}"
-        if action == "cycle_range":
+        if action in {"cycle_range", "cycle_range_reverse"}:
             return (
                 f"{self._selected_range.display_label} · {self._selected_range.label}"
             )

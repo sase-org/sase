@@ -56,6 +56,7 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.statistics.prev_view == "left_square_bracket"
     assert reg.statistics.next_view == "right_square_bracket"
     assert reg.statistics.cycle_range == "t"
+    assert reg.statistics.cycle_range_reverse == "T"
     assert reg.statistics.custom_range == "c"
     assert reg.statistics.cycle_group == "g"
     assert reg.statistics.cycle_project_filter == "p"
@@ -86,11 +87,12 @@ def test_statistics_pane_keys_can_be_overridden_independently() -> None:
                     "prev_view": "f12",
                     "next_view": "f11",
                     "cycle_range": "f10",
-                    "custom_range": "f9",
-                    "cycle_group": "f8",
-                    "cycle_project_filter": "f7",
-                    "refresh": "f6",
-                    "help": "f5",
+                    "cycle_range_reverse": "f9",
+                    "custom_range": "f8",
+                    "cycle_group": "f7",
+                    "cycle_project_filter": "f6",
+                    "refresh": "f5",
+                    "help": "f4",
                 }
             }
         }
@@ -99,11 +101,12 @@ def test_statistics_pane_keys_can_be_overridden_independently() -> None:
     assert reg.statistics.prev_view == "f12"
     assert reg.statistics.next_view == "f11"
     assert reg.statistics.cycle_range == "f10"
-    assert reg.statistics.custom_range == "f9"
-    assert reg.statistics.cycle_group == "f8"
-    assert reg.statistics.cycle_project_filter == "f7"
-    assert reg.statistics.refresh == "f6"
-    assert reg.statistics.help == "f5"
+    assert reg.statistics.cycle_range_reverse == "f9"
+    assert reg.statistics.custom_range == "f8"
+    assert reg.statistics.cycle_group == "f7"
+    assert reg.statistics.cycle_project_filter == "f6"
+    assert reg.statistics.refresh == "f5"
+    assert reg.statistics.help == "f4"
 
 
 def test_duplicate_statistics_help_override_reverts_to_default(

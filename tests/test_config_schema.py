@@ -52,11 +52,12 @@ def test_config_schema_accepts_scoped_statistics_keymaps() -> None:
                         "prev_view": "f12",
                         "next_view": "f11",
                         "cycle_range": "f10",
-                        "custom_range": "f9",
-                        "cycle_group": "f8",
-                        "cycle_project_filter": "f7",
-                        "refresh": "f6",
-                        "help": "f5",
+                        "cycle_range_reverse": "f9",
+                        "custom_range": "f8",
+                        "cycle_group": "f7",
+                        "cycle_project_filter": "f6",
+                        "refresh": "f5",
+                        "help": "f4",
                     }
                 }
             }

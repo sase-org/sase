@@ -200,6 +200,15 @@ def test_duplicate_statistics_keys_revert_overrides() -> None:
     assert reg.statistics.next_view == "right_square_bracket"
 
 
+def test_reverse_statistics_range_key_collision_reverts_override() -> None:
+    reg = load_keymap_registry(
+        {"keymaps": {"statistics": {"cycle_range_reverse": "t"}}}
+    )
+
+    assert reg.statistics.cycle_range == "t"
+    assert reg.statistics.cycle_range_reverse == "T"
+
+
 def test_invalid_statistics_key_reverts_to_default() -> None:
     reg = load_keymap_registry(
         {"keymaps": {"statistics": {"refresh": "not_a_real_key"}}}

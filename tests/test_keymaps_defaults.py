@@ -389,6 +389,7 @@ def test_default_config_covers_all_statistics_keymaps() -> None:
         "prev_view": "left_square_bracket",
         "next_view": "right_square_bracket",
         "cycle_range": "t",
+        "cycle_range_reverse": "T",
         "custom_range": "c",
         "cycle_group": "g",
         "cycle_project_filter": "p",

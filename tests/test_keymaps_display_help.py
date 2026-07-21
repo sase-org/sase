@@ -86,6 +86,14 @@ def test_help_panel_tab_switch_display_is_present() -> None:
         assert ("[ / ]", "Switch Keymaps / Guide") in pairs
 
 
+def test_admin_center_help_summary_includes_both_statistics_range_directions() -> None:
+    reg = load_keymap_registry({})
+
+    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+        labels = {label for _section, bindings in sections for _key, label in bindings}
+        assert "Admin Center: 1-7 jumps; Statistics [/] t/T/c/g/p/r/?" in labels
+
+
 def test_leader_prefix_override_updates_repeat_last_help_display() -> None:
     """Leader help displays the configured prefix for repeat_last."""
     reg = load_keymap_registry(
