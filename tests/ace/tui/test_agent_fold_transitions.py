@@ -14,6 +14,9 @@ from datetime import datetime
 from typing import Literal
 
 from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
+from sase.ace.tui.actions.navigation._entry_jump_agents import (
+    EntryJumpAgentHistoryMixin,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
@@ -23,7 +26,7 @@ from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
 
 
-class _StubApp(AgentFoldingMixin):
+class _StubApp(EntryJumpAgentHistoryMixin, AgentFoldingMixin):
     """Minimal harness mounting the fold mixin in isolation."""
 
     def __init__(self, agents: list[Agent], current_idx: int = 0) -> None:
@@ -36,6 +39,17 @@ class _StubApp(AgentFoldingMixin):
         self._agent_panels_grouped = False
         self._panel_group = AgentPanelGroup.from_agents(agents)
         self._current_group_key: tuple[str, ...] | None = None
+        self._expanded_panel_focus = False
+        self._collapsed_panel_keys: set[str | None] = set()
+        self._expanded_panel_keys: set[str | None] = set()
+        self._panel_selection_memory: dict[
+            str | None, tuple[str, int | tuple[str, ...]]
+        ] = {}
+        self._entry_jump_agents_anchor_stack = []
+        self._entry_jump_agents_forward_anchor_stack = []
+        self.current_attempt_number: int | None = None
+        self.armed_departures: list[Agent] = []
+        self.acknowledged: list[Agent] = []
         self.refilter_calls = 0
         self.focus_artifact_result = False
         self.focus_artifact_calls = 0
@@ -63,6 +77,26 @@ class _StubApp(AgentFoldingMixin):
 
     def _refresh_agent_footer_bindings_only(self) -> None:
         self.footer_refresh_calls += 1
+
+    def _panel_keys_per_agent(self) -> list[str | None]:
+        from sase.ace.tui.models.agent_panels import panel_key_per_agent
+
+        return panel_key_per_agent(self._agents)
+
+    def _remember_focused_panel_selection(
+        self,
+        stop: tuple[str, int | tuple[str, ...]] | None = None,
+    ) -> None:
+        if stop is not None:
+            self._panel_selection_memory[self._panel_group.focused_key] = stop
+
+    def _arm_manual_unread_after_departure(self, agent: Agent | None) -> None:
+        if agent is not None:
+            self.armed_departures.append(agent)
+
+    def _acknowledge_agent_unread(self, agent: Agent) -> bool:
+        self.acknowledged.append(agent)
+        return True
 
     def action_toggle_selected_agent_panels(self) -> None:
         self.fold_selector_calls += 1
@@ -110,6 +144,29 @@ def _agent(
         agent_name=agent_name,
         tribe=tribe,
     )
+
+
+def _sequential_family(
+    *,
+    clan: str | None = None,
+    status: str = "RUNNING",
+) -> tuple[list[Agent], Agent, Agent]:
+    family = _agent(raw_suffix="family", status=status)
+    family.plan_chain_root = True
+    family.agent_family = "family"
+    member = _agent(raw_suffix="member", status=status)
+    member.parent_timestamp = family.raw_suffix
+    member.agent_family = "family"
+    member.agent_family_role = "code"
+    family.followup_agents.append(member)
+    family.runtime_children.append(member)
+    if clan is not None:
+        family.agent_clan = clan
+        family.agent_clan_generation = "generation"
+        projected = project_clan_tree([family, member])
+    else:
+        projected = [family, member]
+    return projected, family, member
 
 
 def test_tools_panel_routes_fold_keys_except_capital_l_to_detail_level() -> None:
@@ -184,6 +241,178 @@ def test_capital_h_on_agent_collapses_only_its_group() -> None:
     assert app._group_fold_registry.is_collapsed(("projB", "cl-b")) is False
     # Focus snapped onto the now-visible projA banner.
     assert app._current_group_key == ("projA", "cl-a")
+
+
+def test_capital_h_walks_family_then_clan_before_group_fold() -> None:
+    projected, family, member = _sequential_family(clan="research")
+    clan = projected[0]
+    app = _StubApp(projected, current_idx=projected.index(member))
+    tree_folds_before = app._fold_manager.snapshot()
+    group_folds_before = app._group_fold_registry.snapshot()
+    panel_folds_before = (
+        set(app._collapsed_panel_keys),
+        set(app._expanded_panel_keys),
+    )
+
+    app.action_hooks_or_collapse_all()
+
+    assert app.current_idx == projected.index(family)
+    assert app._fold_manager.snapshot() == tree_folds_before
+    assert app._group_fold_registry.snapshot() == group_folds_before
+    assert (
+        app._collapsed_panel_keys,
+        app._expanded_panel_keys,
+    ) == panel_folds_before
+
+    app.action_hooks_or_collapse_all()
+
+    assert app.current_idx == projected.index(clan)
+    assert app._fold_manager.snapshot() == tree_folds_before
+    assert app._group_fold_registry.snapshot() == group_folds_before
+    assert (
+        app._collapsed_panel_keys,
+        app._expanded_panel_keys,
+    ) == panel_folds_before
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._current_group_key is not None
+    assert app._group_fold_registry.snapshot()
+
+
+def test_capital_h_parent_jump_preserves_selection_bookkeeping_and_history() -> None:
+    projected, family, member = _sequential_family(clan="research")
+    app = _StubApp(projected, current_idx=projected.index(member))
+    app.current_attempt_number = 3
+    app._current_group_key = None
+
+    app.action_hooks_or_collapse_all()
+
+    family_idx = projected.index(family)
+    member_idx = projected.index(member)
+    assert app.current_idx == family_idx
+    assert app.current_attempt_number is None
+    assert app._current_group_key is None
+    assert app._panel_selection_memory[None] == ("agent", family_idx)
+    assert app.armed_departures == [member]
+    assert app.acknowledged == [family]
+
+    assert app._restore_agents_jump_anchor() is True
+    assert app.current_idx == member_idx
+
+    forward = app._entry_jump_agents_forward_stack()
+    family_anchor = app._pop_agents_jump_anchor(forward)
+    assert family_anchor == ("agent", family_idx, None)
+    current = app._current_agents_jump_anchor()
+    assert current is not None
+    app._push_agents_jump_anchor(app._entry_jump_agents_anchor_stack, current)
+    app._restore_agents_jump_anchor_value(family_anchor)
+    assert app.current_idx == family_idx
+
+
+def test_capital_h_parent_ladder_is_grouping_mode_independent() -> None:
+    projected, family, member = _sequential_family(
+        clan="research",
+        status="RUNNING",
+    )
+    clan = projected[0]
+    app = _StubApp(projected, current_idx=projected.index(member))
+    app._grouping_mode = GroupingMode.BY_STATUS
+
+    app.action_hooks_or_collapse_all()
+    assert app.current_idx == projected.index(family)
+    app.action_hooks_or_collapse_all()
+    assert app.current_idx == projected.index(clan)
+    app.action_hooks_or_collapse_all()
+
+    assert app._current_group_key == ("Running",)
+    assert app._group_fold_registry.is_collapsed(("Running",)) is True
+
+
+def test_capital_h_standalone_family_member_jumps_then_folds_group() -> None:
+    agents, family, member = _sequential_family()
+    app = _StubApp(agents, current_idx=agents.index(member))
+
+    app.action_hooks_or_collapse_all()
+    assert app.current_idx == agents.index(family)
+    assert app._group_fold_registry.snapshot() == ()
+
+    app.action_hooks_or_collapse_all()
+    assert app._current_group_key is not None
+    assert app._group_fold_registry.snapshot()
+
+
+def test_capital_h_accepts_only_real_agent_family_children() -> None:
+    family = _agent(raw_suffix="family", agent_type=AgentType.WORKFLOW)
+    family.plan_chain_root = True
+    family.agent_family = "family"
+    continuation = _agent(raw_suffix="continuation")
+    continuation.parent_timestamp = family.raw_suffix
+    continuation.agent_family = "family"
+    continuation.agent_family_role = "code"
+    family.followup_agents.append(continuation)
+    family.runtime_children.append(continuation)
+
+    agent_step = _agent(raw_suffix="agent-step", agent_type=AgentType.WORKFLOW)
+    agent_step.parent_timestamp = family.raw_suffix
+    agent_step.parent_workflow = "workflow"
+    agent_step.step_type = "agent"
+    bash_step = _agent(raw_suffix="bash-step", agent_type=AgentType.WORKFLOW)
+    bash_step.parent_timestamp = family.raw_suffix
+    bash_step.parent_workflow = "workflow"
+    bash_step.step_type = "bash"
+    bash_step.is_hidden_step = True
+    agents = [family, agent_step, continuation, bash_step]
+
+    app = _StubApp(agents, current_idx=agents.index(agent_step))
+    app.action_hooks_or_collapse_all()
+    assert app.current_idx == agents.index(family)
+
+    app = _StubApp(agents, current_idx=agents.index(bash_step))
+    app.action_hooks_or_collapse_all()
+    assert app.current_idx == agents.index(bash_step)
+    assert app._current_group_key is not None
+
+
+def test_capital_h_rejects_direct_clan_member_and_malformed_parent_edges() -> None:
+    direct = _agent(raw_suffix="direct")
+    direct.agent_clan = "research"
+    direct.agent_clan_generation = "generation"
+    projected = project_clan_tree([direct])
+    app = _StubApp(projected, current_idx=projected.index(direct))
+
+    assert app._resolve_agent_parent_jump_target() is None
+    app.action_hooks_or_collapse_all()
+    assert app.current_idx == projected.index(direct)
+    assert app._current_group_key is not None
+
+    agents, _family, member = _sequential_family()
+    member.tree_parent_key = "missing"
+    member.tree_depth = 1
+    stale = _StubApp(agents, current_idx=agents.index(member))
+    assert stale._resolve_agent_parent_jump_target() is None
+
+    duplicate = _agent(raw_suffix="family")
+    ambiguous_agents, _family, member = _sequential_family()
+    ambiguous_agents.append(duplicate)
+    ambiguous = _StubApp(
+        ambiguous_agents,
+        current_idx=ambiguous_agents.index(member),
+    )
+    assert ambiguous._resolve_agent_parent_jump_target() is None
+
+
+def test_parent_jump_resolver_yields_to_banner_and_panel_focus() -> None:
+    agents, _family, member = _sequential_family()
+    app = _StubApp(agents, current_idx=agents.index(member))
+
+    app._current_group_key = ("proj", "demo")
+    assert app._resolve_agent_parent_jump_target() is None
+
+    app._current_group_key = None
+    app._expanded_panel_focus = True
+    app._resolve_focused_panel = lambda: object()  # type: ignore[method-assign]
+    assert app._resolve_agent_parent_jump_target() is None
 
 
 def test_capital_h_inside_l1_collapses_l1_then_parent_l0() -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
 from ._fold_scope import focused_panel_fold_registry, panel_fold_registry
@@ -18,6 +19,15 @@ if TYPE_CHECKING:
 
 TabName = Literal["changespecs", "agents", "axe"]
 _FOCUSED_PANEL = object()
+
+
+@dataclass(frozen=True, slots=True)
+class _AgentParentJumpTarget:
+    """Validated immediate structural parent for an Agents-tab ``H`` jump."""
+
+    index: int
+    agent: Agent
+    kind: Literal["family", "clan"]
 
 
 class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
@@ -90,6 +100,111 @@ class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
                 break
             changed = True
         return changed
+
+    def _resolve_agent_parent_jump_target(self) -> _AgentParentJumpTarget | None:
+        """Resolve the selected row's supported immediate tree parent.
+
+        The resolver stays entirely within the loaded Agents projection.  It
+        accepts only concrete agent -> sequential family and sequential family
+        -> synthetic clan edges, and rejects duplicate/stale parent keys.
+        """
+        if (
+            self.current_tab != "agents"
+            or self._current_group_key is not None
+            or not (0 <= self.current_idx < len(self._agents))
+        ):
+            return None
+
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        if callable(resolve_panel) and resolve_panel() is not None:
+            return None
+
+        selected = self._get_selected_agent()  # type: ignore[attr-defined]
+        if selected is None:
+            return None
+
+        from ...models._agent_tree import (
+            agent_fold_key,
+            agent_parent_fold_key,
+            tree_parent_lookup,
+        )
+        from ...models.agent_family_members import is_sequential_family_container
+
+        parent_key = agent_parent_fold_key(selected)
+        if parent_key is None:
+            return None
+        parent = tree_parent_lookup(self._agents).get(parent_key)
+        if parent is None or parent is selected:
+            return None
+
+        # The canonical lookup intentionally resolves legacy duplicate keys
+        # deterministically for presentation.  A navigation edge must be
+        # unambiguous, however, so require exactly one rendered owner.
+        parent_matches = [
+            (index, candidate)
+            for index, candidate in enumerate(self._agents)
+            if agent_fold_key(candidate) == parent_key
+        ]
+        if (
+            len(parent_matches) != 1
+            or parent_matches[0][1] is not parent
+            or agent_fold_key(parent) != parent_key
+        ):
+            return None
+        parent_index = parent_matches[0][0]
+
+        if is_sequential_family_container(selected):
+            if (
+                not parent.is_clan_container
+                or selected.tree_parent_key != parent_key
+                or selected.tree_depth != 1
+            ):
+                return None
+            return _AgentParentJumpTarget(parent_index, parent, "clan")
+
+        if (
+            selected.is_clan_container
+            or not selected.is_child_row
+            or not selected.is_agent_entry
+            or selected.is_hidden_step
+            or not is_sequential_family_container(parent)
+        ):
+            return None
+        if (
+            selected.tree_parent_key is not None
+            and selected.tree_depth != parent.tree_depth + 1
+        ):
+            return None
+        return _AgentParentJumpTarget(parent_index, parent, "family")
+
+    def _jump_to_agent_parent_container(self) -> bool:
+        """Move focus to a validated family/clan parent without changing folds."""
+        target = self._resolve_agent_parent_jump_target()
+        if target is None:
+            return False
+
+        origin = self._agents[self.current_idx]
+        save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
+        if callable(save_jump_anchor):
+            save_jump_anchor()
+
+        if origin.identity != target.agent.identity:
+            arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
+            if callable(arm_manual):
+                arm_manual(origin)
+
+        self._current_group_key = None
+        if hasattr(self, "current_attempt_number"):
+            self.current_attempt_number = None  # type: ignore[attr-defined]
+        self.current_idx = target.index
+
+        remember = getattr(self, "_remember_focused_panel_selection", None)
+        if callable(remember):
+            remember(("agent", target.index))
+        acknowledge = getattr(self, "_acknowledge_agent_unread", None)
+        if callable(acknowledge):
+            acknowledge(target.agent)
+        return True
 
     def _active_grouping_mode(self) -> GroupingMode:
         """Return the active grouping mode, defaulting to STANDARD.

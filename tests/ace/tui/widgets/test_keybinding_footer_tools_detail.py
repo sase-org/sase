@@ -101,3 +101,37 @@ def test_footer_armed_panel_isolation_advertises_restore_action() -> None:
 
     assert ("H", "restore panels") in bindings
     assert ("H", "only panel") not in bindings
+
+
+def test_footer_parent_jump_labels_and_context_precedence() -> None:
+    footer = KeybindingFooter()
+
+    family = _labels(footer._compute_agent_bindings(None, parent_jump_kind="family"))
+    clan = _labels(footer._compute_agent_bindings(None, parent_jump_kind="clan"))
+    tools = _labels(
+        footer._compute_agent_bindings(
+            None,
+            parent_jump_kind="family",
+            tools_visible=True,
+        )
+    )
+    panel = _labels(
+        footer._compute_agent_bindings(
+            None,
+            parent_jump_kind="family",
+            panel_focused=True,
+        )
+    )
+    group = _labels(
+        footer._compute_agent_bindings(
+            None,
+            parent_jump_kind="family",
+            group_focused=True,
+        )
+    )
+
+    assert ("H", "parent family") in family
+    assert ("H", "parent clan") in clan
+    assert not any(label.startswith("parent ") for _key, label in tools)
+    assert not any(label.startswith("parent ") for _key, label in panel)
+    assert not any(label.startswith("parent ") for _key, label in group)

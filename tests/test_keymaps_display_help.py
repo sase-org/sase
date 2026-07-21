@@ -149,7 +149,8 @@ def test_agents_help_describes_capital_h_panel_and_group_contexts() -> None:
 
     assert (
         "H",
-        "Only panel ⇄ restore panels / collapse group / compact Tools",
+        "Parent family/clan / only panel ⇄ restore panels / collapse group / "
+        "compact Tools",
     ) in agent_pairs
 
 

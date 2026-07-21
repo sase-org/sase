@@ -208,10 +208,10 @@ ace:
       sync: "Y"
       refresh: "y"
       # Fold / collapse (Agents: h folds then selects the tribe panel; H
-      # toggles a selected panel between solo and its prior panel layout or
-      # folds a grouping banner; l expands or enters a selected panel; L
-      # selects visible folds by numeric hint. Other tabs retain all-fold
-      # behavior.)
+      # jumps a family member to its family or a family to its clan, toggles a
+      # selected panel between solo and its prior panel layout, or folds a
+      # grouping banner; l expands or enters a selected panel; L selects
+      # visible folds by numeric hint. Other tabs retain all-fold behavior.)
       hooks_or_collapse: "h"
       hooks_or_collapse_all: "H"
       expand_or_layout: "l"

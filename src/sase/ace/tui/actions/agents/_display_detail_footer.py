@@ -111,6 +111,20 @@ class AgentFooterDisplayMixin:
                 and callable(isolation_revert)
                 and isolation_revert() is not None
             )
+            tools_visible = agent_detail.is_tools_visible()
+            parent_jump_kind: str | None = None
+            resolve_parent_jump = getattr(
+                self, "_resolve_agent_parent_jump_target", None
+            )
+            if (
+                not tools_visible
+                and not panel_focused
+                and self._current_group_key is None
+                and callable(resolve_parent_jump)
+            ):
+                parent_jump = resolve_parent_jump()
+                if parent_jump is not None:
+                    parent_jump_kind = parent_jump.kind
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
@@ -120,6 +134,7 @@ class AgentFooterDisplayMixin:
                 panel_focused=panel_focused,
                 panel_collapsed=panel_collapsed,
                 panel_restore_armed=panel_restore_armed,
+                parent_jump_kind=parent_jump_kind,
                 focused_panel_key=(
                     panel_focus.panel_key if panel_focus is not None else None
                 ),
@@ -136,7 +151,7 @@ class AgentFooterDisplayMixin:
                     if current_agent is not None and current_agent.is_clan_container
                     else self._selected_agent_tmux_choice_count(current_agent)
                 ),
-                tools_visible=agent_detail.is_tools_visible(),
+                tools_visible=tools_visible,
                 tools_detail_level=int(agent_detail.tools_detail_level),
             )
 

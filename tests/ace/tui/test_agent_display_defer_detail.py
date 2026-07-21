@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -40,6 +41,8 @@ class _ListWidget:
 
 
 class _DetailWidget:
+    tools_detail_level = 0
+
     def update_display(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         return
 
@@ -49,13 +52,17 @@ class _DetailWidget:
     def is_file_visible(self) -> bool:
         return False
 
+    def is_tools_visible(self) -> bool:
+        return False
+
 
 class _FooterWidget:
     def __init__(self) -> None:
         self.leader_binding_calls: list[dict[str, object]] = []
+        self.agent_binding_calls: list[dict[str, object]] = []
 
     def update_agent_bindings(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
-        return
+        self.agent_binding_calls.append(dict(kwargs))
 
     def update_leader_bindings(self, **kwargs: object) -> None:
         self.leader_binding_calls.append(dict(kwargs))
@@ -214,3 +221,14 @@ def test_leader_footer_refresh_keeps_unread_and_stopped_flags() -> None:
     call = app.footer_widget.leader_binding_calls[-1]
     assert call["has_unread_completed_agent"] is True
     assert call["has_stopped_agent"] is True
+
+
+def test_footer_refresh_uses_parent_jump_resolver_capability() -> None:
+    app = _FakeApp()
+    app._resolve_agent_parent_jump_target = lambda: SimpleNamespace(kind="family")  # type: ignore[attr-defined]
+
+    app._apply_agent_footer_update(
+        _DetailWidget(), app.footer_widget, app._get_selected_agent()
+    )
+
+    assert app.footer_widget.agent_binding_calls[-1]["parent_jump_kind"] == "family"

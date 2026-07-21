@@ -97,6 +97,7 @@ class KeybindingBindingsMixin:
         panel_focused: bool = False,
         panel_collapsed: bool = False,
         panel_restore_armed: bool = False,
+        parent_jump_kind: str | None = None,
         focused_panel_key: str | None = None,
         collapsed_panel_focused: bool = False,
         group_focused: bool = False,
@@ -183,6 +184,19 @@ class KeybindingBindingsMixin:
                 bindings.append((self._kd("hooks_or_collapse"), "collapse panel"))
                 bindings.append((self._kd("expand_or_layout"), "enter panel"))
                 bindings.append(("Esc", "enter panel"))
+
+        if (
+            parent_jump_kind in {"family", "clan"}
+            and not tools_visible
+            and not panel_focused
+            and not group_focused
+        ):
+            bindings.append(
+                (
+                    self._kd("hooks_or_collapse_all"),
+                    f"parent {parent_jump_kind}",
+                )
+            )
 
         # When marks exist, A operates on the union of marked-agent artifacts.
         # Surface the affordance even if the focused agent has none of its own.
