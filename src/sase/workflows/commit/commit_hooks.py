@@ -174,19 +174,17 @@ def _get_repo_root(cwd: str) -> str:
 
 
 def _infer_prompt_link(reference_root: str, plan_path: str) -> str | None:
-    """Infer an SDD-root-relative prompt link for a plan path, if one exists."""
+    """Infer a canonical clickable prompt link for a plan path, if one exists."""
     from pathlib import Path
 
     from sase.sdd.files import find_sdd_file
+    from sase.sdd.frontmatter_links import canonical_sdd_frontmatter_link
 
     root = Path(reference_root)
     prompt = find_sdd_file(root, "prompts", os.path.basename(plan_path))
     if prompt is None:
         return None
-    try:
-        return prompt.relative_to(root).as_posix()
-    except ValueError:
-        return os.path.relpath(prompt, reference_root).replace(os.sep, "/")
+    return canonical_sdd_frontmatter_link(root, Path(plan_path), prompt)
 
 
 def _store_owning_plan_path(

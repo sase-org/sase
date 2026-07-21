@@ -3,18 +3,17 @@
 from pathlib import Path
 
 from sase.sdd._paths import get_yyyymm
+from sase.sdd.frontmatter_links import (
+    canonical_sdd_frontmatter_link,
+    stable_sdd_reference,
+)
 
 _QA_HEADER = "### Questions and Answers"
 
 
 def sdd_link_path(sdd_dir: Path, path: Path) -> str:
     """Return the stable relative path to write into SDD frontmatter."""
-    relative = path.relative_to(sdd_dir).as_posix()
-    if sdd_dir.name == "sdd" and sdd_dir.parent.name == ".sase":
-        return f".sase/sdd/{relative}"
-    if sdd_dir.name == "sdd":
-        return f"sdd/{relative}"
-    return relative
+    return stable_sdd_reference(sdd_dir, path)
 
 
 def write_sdd_spec(
@@ -35,7 +34,12 @@ def write_sdd_spec(
     prompts_dir = plans_dir / "prompts"
     prompt_path = prompts_dir / f"{plan_name}.md"
     plan_path = plans_dir / f"{plan_name}.md"
-    plan_link = sdd_link_path(sdd_dir, plan_path)
+    plan_link = canonical_sdd_frontmatter_link(
+        sdd_dir,
+        prompt_path,
+        plan_path,
+        label_prefix="../",
+    )
 
     from sase.sdd.frontmatter import set_frontmatter_fields
 
@@ -73,7 +77,11 @@ def write_sdd_files(
     plans_dir = (sdd_dir / "plans" if plans_root is None else plans_root) / yyyymm
     prompt_path = plans_dir / "prompts" / f"{plan_name}.md"
     plan_path = plans_dir / f"{plan_name}.md"
-    prompt_link = sdd_link_path(sdd_dir, prompt_path)
+    prompt_link = canonical_sdd_frontmatter_link(
+        sdd_dir,
+        plan_path,
+        prompt_path,
+    )
 
     from sase.sdd.frontmatter import set_frontmatter_fields
 

@@ -136,16 +136,23 @@ Prompt snapshots and plan-like artifacts link to each other through YAML frontma
 
 ```yaml
 # plans/202605/prompts/example.md
-plan: plans/202605/example.md
+plan: "[../sdd/plans/202605/example.md](../example.md)"
 
 # plans/202605/example.md
-prompt: plans/202605/prompts/example.md
+prompt: "[sdd/plans/202605/prompts/example.md](prompts/example.md)"
 tier: tale
 ```
 
-The example shows the in-tree/local/legacy single-root link form. In a split `--plans` repository, the same links omit
-the leading `plans/` component (`202605/example.md` and `202605/prompts/example.md`) because monthly directories live at
-the repository root.
+The text inside `[]` is the stable SDD reference GitHub displays, while the target inside `()` is resolved from the file
+that contains the frontmatter. The prompt-to-plan target therefore ascends from `prompts/`, while the plan-to-prompt
+target descends into it. Local `.sase/sdd` labels retain that prefix. In a flat `--plans` sidecar, the equivalent values
+are `'[../202605/example.md](../example.md)'` in the prompt and `'[202605/prompts/example.md](prompts/example.md)'` in
+the plan.
+
+Historical plain-path values such as `plan: plans/202605/example.md` remain readable, searchable, and valid. Ordinary
+search, validation, initialization, and upgrades do not rewrite them. Run `sase plan links repair` to preview the
+unambiguous links that would be migrated, then run `sase plan links repair --write` once to replace plain or stale
+values with canonical clickable links while preserving the rest of each file.
 
 `sase plan links validate` checks these bidirectional links for prompts, tales, and epics. It treats unpaired historical
 files as warnings by default and as errors with `--strict`. Research notes are durable SDD context, but they are not
@@ -159,7 +166,7 @@ under. The value uses the same syntax `%model` accepts: a bare known model name 
 
 ```yaml
 # plans/202605/example.md
-prompt: plans/202605/prompts/example.md
+prompt: "[sdd/plans/202605/prompts/example.md](prompts/example.md)"
 tier: tale
 model: opus
 ```
@@ -274,7 +281,7 @@ command group:
 | `sase init repo`           | Alias for `sase repo init`                                                                     |
 | `sase repo path REPO`      | Print a primary or sidecar path; `-e/--ensure` materializes the selected sidecar               |
 | `sase plan links [list]`   | Print each prompt/plan frontmatter link and whether its reverse link is intact                 |
-| `sase plan links repair`   | Infer unambiguous prompt/plan pairs; add `-w/--write` to update files                          |
+| `sase plan links repair`   | Preview canonical link migration; add `-w/--write` to update unambiguous pairs                 |
 | `sase plan links validate` | Validate links; `-j/--json`, `-q/--quiet`, `-s/--strict`, and `-W/--show-warnings` tune output |
 | `sase plan search`         | Search or browse tale, epic, prompt, and research artifacts                                    |
 | `sase plan validate`       | Validate one plan path with required `-t/--tier`; supports `-j/--json` and `-q/--quiet`        |

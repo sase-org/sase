@@ -20,6 +20,12 @@ from sase.sdd._link_models import (
     validation_to_json,
 )
 from sase.sdd.frontmatter import set_frontmatter_fields
+from sase.sdd.frontmatter_links import (
+    SddFrontmatterLink,
+    SddFrontmatterLinkKind,
+    canonical_sdd_frontmatter_link,
+    parse_sdd_frontmatter_link,
+)
 from sase.sdd.plan_tiers import (
     classify_plan_file,
     normalize_plan_tier,
@@ -141,12 +147,24 @@ def validate_sdd_tree(
                     severity="error",
                     code="link-type",
                     path=file.relpath,
-                    message=f"{link_field!r} must be a string path",
+                    message=f"{link_field!r} must be a string link",
                 )
             )
             continue
 
-        target_path = _resolve_link_path(root, link_value)
+        parsed_link = parse_sdd_frontmatter_link(link_value)
+        if parsed_link.kind is SddFrontmatterLinkKind.INVALID:
+            issues.append(
+                _SddIssue(
+                    severity="error",
+                    code="link-format",
+                    path=file.relpath,
+                    message=f"invalid {link_field!r} link: {parsed_link.reason}",
+                )
+            )
+            continue
+
+        target_path = _resolve_link_path(root, file.path, parsed_link)
         target = by_path.get(target_path.resolve())
         if target is None:
             issues.append(
@@ -154,7 +172,8 @@ def validate_sdd_tree(
                     severity="error",
                     code="link-missing-target",
                     path=file.relpath,
-                    message=f"{link_field!r} target does not exist: {link_value}",
+                    message=f"{link_field!r} target does not exist: "
+                    f"{parsed_link.resolution_target}",
                 )
             )
             continue
@@ -191,7 +210,19 @@ def validate_sdd_tree(
             )
             continue
 
-        reverse_path = _resolve_link_path(root, reverse_value).resolve()
+        reverse_link = parse_sdd_frontmatter_link(reverse_value)
+        if reverse_link.kind is SddFrontmatterLinkKind.INVALID:
+            issues.append(
+                _SddIssue(
+                    severity="error",
+                    code="reverse-link",
+                    path=file.relpath,
+                    message=f"{target.relpath} has invalid {reverse_field!r} link: "
+                    f"{reverse_link.reason}",
+                )
+            )
+            continue
+        reverse_path = _resolve_link_path(root, target.path, reverse_link).resolve()
         if reverse_path != file.path.resolve():
             issues.append(
                 _SddIssue(
@@ -249,25 +280,39 @@ def collect_sdd_links(root: Path) -> list[dict[str, Any]]:
     for file in files:
         link_field = "plan" if file.kind == "prompts" else "prompt"
         link_value = file.frontmatter.get(link_field)
+        parsed_link = (
+            parse_sdd_frontmatter_link(link_value)
+            if isinstance(link_value, str)
+            else None
+        )
         row: dict[str, Any] = {
             "path": file.relpath,
             "kind": file.kind,
             "field": link_field,
-            "target": link_value if isinstance(link_value, str) else None,
+            "target": parsed_link.reference if parsed_link is not None else None,
             "target_exists": False,
             "bidirectional": False,
         }
-        if isinstance(link_value, str):
-            target = by_path.get(_resolve_link_path(root, link_value).resolve())
+        if (
+            parsed_link is not None
+            and parsed_link.kind is not SddFrontmatterLinkKind.INVALID
+        ):
+            target = by_path.get(
+                _resolve_link_path(root, file.path, parsed_link).resolve()
+            )
             row["target_exists"] = target is not None
             if target is not None:
                 reverse_field = "prompt" if file.kind == "prompts" else "plan"
                 reverse_value = target.frontmatter.get(reverse_field)
-                row["bidirectional"] = (
-                    isinstance(reverse_value, str)
-                    and _resolve_link_path(root, reverse_value).resolve()
-                    == file.path.resolve()
-                )
+                if isinstance(reverse_value, str):
+                    reverse_link = parse_sdd_frontmatter_link(reverse_value)
+                    row["bidirectional"] = (
+                        reverse_link.kind is not SddFrontmatterLinkKind.INVALID
+                        and _resolve_link_path(
+                            root, target.path, reverse_link
+                        ).resolve()
+                        == file.path.resolve()
+                    )
         rows.append(row)
     return rows
 
@@ -347,8 +392,22 @@ def repair_sdd_links(path: str | None = None, *, write: bool = False) -> _Repair
     )
 
 
-def _resolve_link_path(root: Path, link: str) -> Path:
-    """Resolve a frontmatter link string to a filesystem path."""
+def _resolve_link_path(
+    root: Path,
+    source: Path,
+    link: SddFrontmatterLink,
+) -> Path:
+    """Resolve canonical hrefs or historical root-relative paths."""
+    if link.kind is SddFrontmatterLinkKind.CANONICAL:
+        assert link.target is not None
+        return source.parent / Path(link.target)
+
+    assert link.path is not None
+    return _resolve_legacy_link_path(root, link.path)
+
+
+def _resolve_legacy_link_path(root: Path, link: str) -> Path:
+    """Resolve a historical plain frontmatter path with legacy fallbacks."""
     link_path = Path(link)
     if link_path.is_absolute():
         return link_path
@@ -365,15 +424,6 @@ def _resolve_link_path(root: Path, link: str) -> Path:
     if link.startswith("sdd/") or link.startswith(".sase/sdd/"):
         return root.parent / link_path
     return root / link_path
-
-
-def _link_value_for(root: Path, target: Path) -> str:
-    relative = target.relative_to(root).as_posix()
-    if root.name == "sdd" and root.parent.name == ".sase":
-        return f".sase/sdd/{relative}"
-    if root.name == "sdd":
-        return f"sdd/{relative}"
-    return relative
 
 
 def _read_sdd_file(root: Path, path: Path, kind: str) -> _SddFile | None:
@@ -447,7 +497,12 @@ def _queue_update(
     updates: dict[Path, dict[str, str]],
     actions: list[_RepairAction],
 ) -> None:
-    new = _link_value_for(root, target.path)
+    new = canonical_sdd_frontmatter_link(
+        root,
+        source.path,
+        target.path,
+        label_prefix="../" if source.kind == "prompts" else "",
+    )
     old_value = source.frontmatter.get(field)
     old = old_value if isinstance(old_value, str) else None
     if old == new:

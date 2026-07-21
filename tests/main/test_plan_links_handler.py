@@ -95,10 +95,49 @@ def test_repair_links_write_backfills_unambiguous_pair(
         "plans/202605/fixme.md",
         "plans/202605/prompts/fixme.md",
     ]
-    assert "plan: sdd/plans/202605/fixme.md" in prompt.read_text(encoding="utf-8")
+    assert "plan: '[../sdd/plans/202605/fixme.md](../fixme.md)'" in prompt.read_text(
+        encoding="utf-8"
+    )
     plan_text = plan.read_text(encoding="utf-8")
     assert "keep: true" in plan_text
-    assert "prompt: sdd/plans/202605/prompts/fixme.md" in plan_text
+    assert (
+        "prompt: '[sdd/plans/202605/prompts/fixme.md](prompts/fixme.md)'" in plan_text
+    )
+    assert plan_text.endswith("---\n# Epic\n")
+    assert prompt.read_text(encoding="utf-8").endswith("---\n# Prompt\n")
+
+    second = make_args(plan_links_subcommand="repair", path=str(root), write=True)
+    with pytest.raises(SystemExit) as second_excinfo:
+        handle_plan_links_command(second)
+    assert second_excinfo.value.code == 0
+    second_payload = json.loads(capsys.readouterr().out)
+    assert second_payload["actions"] == []
+    assert second_payload["changed_files"] == []
+
+
+def test_repair_dry_run_reports_legacy_links_without_writing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "sdd"
+    prompt, plan = write_pair(root)
+    before = {
+        prompt: prompt.read_text(encoding="utf-8"),
+        plan: plan.read_text(encoding="utf-8"),
+    }
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_plan_links_command(
+            make_args(plan_links_subcommand="repair", path=str(root), write=False)
+        )
+
+    assert excinfo.value.code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert {action["field"] for action in payload["actions"]} == {
+        "plan",
+        "prompt",
+    }
+    assert payload["changed_files"] == []
+    assert {path: path.read_text(encoding="utf-8") for path in before} == before
 
 
 def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -115,6 +154,36 @@ def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     assert {row["path"] for row in rows} == {
         "plans/202605/linked.md",
         "plans/202605/prompts/linked.md",
+    }
+    assert all(row["bidirectional"] for row in rows)
+
+
+def test_links_json_projects_canonical_labels(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo--plans"
+    prompt = root / "202607" / "prompts" / "linked.md"
+    plan = root / "202607" / "linked.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(
+        "---\nplan: '[../202607/linked.md](../linked.md)'\n---\n# Prompt\n",
+        encoding="utf-8",
+    )
+    plan.write_text(
+        "---\nprompt: '[202607/prompts/linked.md](prompts/linked.md)'\n"
+        "tier: tale\n---\n# Plan\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit):
+        handle_plan_links_command(
+            make_args(plan_links_subcommand="list", path=str(root), json=True)
+        )
+
+    rows = json.loads(capsys.readouterr().out)
+    assert {row["target"] for row in rows} == {
+        "../202607/linked.md",
+        "202607/prompts/linked.md",
     }
     assert all(row["bidirectional"] for row in rows)
 

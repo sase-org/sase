@@ -27,6 +27,7 @@ from sase.core.paths import sase_subdir
 from sase.core.rust import require_rust_binding
 from sase.plan_search.model import PlanSearchMatch
 from sase.plan_search.wire import plan_search_matches_from_list
+from sase.sdd.frontmatter_links import parse_sdd_frontmatter_link
 from sase.sdd.links import resolve_sdd_root
 from sase.sdd.store import resolve_sdd_dir
 
@@ -279,7 +280,12 @@ def _search_repo_prompts(
             plan["source"] = SOURCE_REPO
             plan["kind"] = "prompt"
             plan["relpath"] = relpath
-            plan["prompt_link"] = str(frontmatter.get("plan") or "")
+            raw_plan_link = str(frontmatter.get("plan") or "")
+            plan["prompt_link"] = (
+                parse_sdd_frontmatter_link(raw_plan_link).reference
+                if raw_plan_link
+                else ""
+            )
             result = dict(item)
             result["plan"] = plan
             result["score"] = float(item.get("score", 0.0)) + 1.0

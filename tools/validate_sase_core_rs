@@ -60,6 +60,8 @@ REQUIRED_BINDINGS = (
     "rewrite_prompt_stash",
     "plan_validate",
     "plan_frontmatter_schema",
+    "sdd_frontmatter_link_parse",
+    "sdd_frontmatter_link_render",
     "telemetry_record_batch",
     "telemetry_query_instant",
     "telemetry_query_range",

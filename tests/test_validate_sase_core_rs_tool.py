@@ -41,7 +41,12 @@ def _module_with_required_bindings(
 
 def test_validate_sase_core_rs_requires_plan_validation_bindings() -> None:
     validator = _load_validate_sase_core_rs()
-    plan_bindings = {"plan_validate", "plan_frontmatter_schema"}
+    plan_bindings = {
+        "plan_validate",
+        "plan_frontmatter_schema",
+        "sdd_frontmatter_link_parse",
+        "sdd_frontmatter_link_render",
+    }
 
     assert plan_bindings <= set(validator.REQUIRED_BINDINGS)
     assert validator._validate_bindings(_module_with_required_bindings(validator))

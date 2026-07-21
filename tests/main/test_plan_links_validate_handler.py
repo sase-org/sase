@@ -118,6 +118,73 @@ def test_validate_fails_broken_bidirectional_link(
     assert prompt.exists()
 
 
+def test_validate_accepts_mixed_canonical_and_legacy_links(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "repo--plans"
+    prompt = root / "202607" / "prompts" / "mixed.md"
+    plan = root / "202607" / "mixed.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(
+        "---\nplan: '[../202607/mixed.md](../mixed.md)'\n---\n# Prompt\n",
+        encoding="utf-8",
+    )
+    plan.write_text(
+        "---\nprompt: 202607/prompts/mixed.md\ntier: tale\n---\n# Plan\n",
+        encoding="utf-8",
+    )
+
+    validation = validate_sdd_tree(str(root))
+
+    assert validation.ok
+    assert validation.errors == []
+
+
+def test_validate_reports_broken_canonical_href(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "repo--plans"
+    prompt = root / "202607" / "prompts" / "broken.md"
+    plan = root / "202607" / "broken.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(
+        "---\nplan: '[../202607/broken.md](../missing.md)'\n---\n# Prompt\n",
+        encoding="utf-8",
+    )
+    plan.write_text(
+        "---\nprompt: '[202607/prompts/broken.md](prompts/broken.md)'\n"
+        "tier: tale\n---\n# Plan\n",
+        encoding="utf-8",
+    )
+
+    validation = validate_sdd_tree(str(root))
+
+    assert not validation.ok
+    issue = next(
+        issue for issue in validation.errors if issue.code == "link-missing-target"
+    )
+    assert "../missing.md" in issue.message
+
+
+def test_validate_rejects_malformed_markdown_like_link(tmp_path: Path) -> None:
+    root = tmp_path / "repo--plans"
+    prompt = root / "202607" / "prompts" / "malformed.md"
+    plan = root / "202607" / "malformed.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text(
+        "---\nplan: '[../202607/malformed.md] ../malformed.md'\n---\n# Prompt\n",
+        encoding="utf-8",
+    )
+    plan.write_text(
+        "---\nprompt: 202607/prompts/malformed.md\ntier: tale\n---\n# Plan\n",
+        encoding="utf-8",
+    )
+
+    validation = validate_sdd_tree(str(root))
+
+    assert any(issue.code == "link-format" for issue in validation.errors)
+
+
 def test_validate_reports_invalid_yaml_frontmatter(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

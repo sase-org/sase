@@ -21,6 +21,7 @@ from sase.prompt.search.dates import resolve_sdd_date
 from sase.prompt.search.model import PromptHit, PromptSource
 from sase.sdd._paths import sdd_prompt_roots
 from sase.sdd.frontmatter import parse_frontmatter
+from sase.sdd.frontmatter_links import parse_sdd_frontmatter_link
 
 # Frontmatter key for free-form user tags, mirroring ``prompt export`` so a
 # round-tripped snapshot's tags are recovered here.
@@ -123,7 +124,7 @@ def _load_sdd_file(path: Path, base_dir: Path) -> PromptHit | None:
         date=resolve_sdd_date(frontmatter, path),
         text_sha256=recorded_sha or _sha256(text),
         path=_relative_path(path, base_dir),
-        plan=_str_or_none(frontmatter.get("plan")),
+        plan=_frontmatter_link_reference(frontmatter.get("plan")),
         tags=_sdd_tags(frontmatter, text),
         cancelled=None,
         also_in_local=False,
@@ -248,6 +249,14 @@ def _relative_path(path: Path, base_dir: Path) -> str:
         return str(path.relative_to(base_dir))
     except ValueError:
         return str(path)
+
+
+def _frontmatter_link_reference(value: Any) -> str | None:
+    """Project canonical Markdown links to their stable visible labels."""
+    raw = _str_or_none(value)
+    if raw is None:
+        return None
+    return parse_sdd_frontmatter_link(raw).reference
 
 
 def _str_or_none(value: Any) -> str | None:
