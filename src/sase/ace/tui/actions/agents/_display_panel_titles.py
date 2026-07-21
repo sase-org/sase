@@ -138,10 +138,13 @@ def agent_panel_border_title(
     hint = selection_hint if selection_hint is not None else jump_hint
     if hint is not None:
         title.append(f"[{hint}] ", style="bold #FFFF00")
-    if selected:
+    if selected and not collapsed:
         title.append("❖ ", style=_PANEL_SELECTED_CHROME_STYLE)
     if collapsed:
-        title.append("▸ ", style=_PANEL_COUNT_STYLE)
+        title.append(
+            "▸ ",
+            style=(_PANEL_SELECTED_CHROME_STYLE if selected else _PANEL_COUNT_STYLE),
+        )
     if merge_tribe_panels:
         title.append("All agents", style="bold #AFFFFF")
     else:

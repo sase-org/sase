@@ -36,7 +36,7 @@ def test_panel_title_places_icon_before_tribe_label() -> None:
         icon="†",
     )
 
-    assert title.plain == "❖ ▸ † @chop · 3"
+    assert title.plain == "▸ † @chop · 3"
 
     merged = agent_panel_border_title(
         None,
@@ -180,6 +180,84 @@ def test_selected_expanded_panel_title_has_focus_marker() -> None:
         style=_PANEL_COUNT_STYLE,
         text=" · ",
     )
+
+
+def test_selected_collapsed_panel_title_accents_chrome_without_marker() -> None:
+    selected_style = _PANEL_SELECTED_CHROME_STYLE
+    title = agent_panel_border_title(
+        "research",
+        225,
+        counts=AgentPanelCounts(
+            asking=10,
+            running=21,
+            waiting=32,
+            failed=43,
+            unread=54,
+            read=65,
+        ),
+        collapsed=True,
+        selected=True,
+        icon="∴",
+        color="#5FD7AF",
+    )
+
+    assert title.plain == "▸ ∴ @research · 225 [S10 R21 W32 F43 U54 D65]"
+    assert title.plain.startswith("▸ ")
+    assert "❖" not in title.plain
+    _assert_title_span(title, start=0, end=2, style=selected_style, text="▸ ")
+    _assert_title_span(title, start=2, end=4, style="bold #5FD7AF", text="∴ ")
+    _assert_title_span(
+        title,
+        start=4,
+        end=13,
+        style="bold #5FD7AF",
+        text="@research",
+    )
+
+    separator_start = title.plain.index(" · ")
+    _assert_title_span(
+        title,
+        start=separator_start,
+        end=separator_start + 3,
+        style=_PANEL_COUNT_STYLE,
+        text=" · ",
+    )
+    total_start = title.plain.index("225", separator_start)
+    _assert_title_range_style(
+        title,
+        start=total_start,
+        end=total_start + 3,
+        style=selected_style,
+    )
+
+    chip_start = title.plain.index("[", total_start)
+    for position in (
+        index
+        for index in range(chip_start, len(title.plain))
+        if title.plain[index] in "[] SRWFUD"
+    ):
+        _assert_title_range_style(
+            title,
+            start=position,
+            end=position + 1,
+            style=selected_style,
+        )
+
+    for token, metric_name in (
+        ("S10", "asking"),
+        ("R21", "running"),
+        ("W32", "waiting"),
+        ("F43", "failed"),
+        ("U54", "unread"),
+        ("D65", "read"),
+    ):
+        token_start = title.plain.index(token, chip_start)
+        _assert_title_range_style(
+            title,
+            start=token_start + 1,
+            end=token_start + len(token),
+            style=_PANEL_METRIC_STYLES[metric_name],
+        )
 
 
 def test_panel_title_places_isolation_restore_marker_after_tribe_name() -> None:

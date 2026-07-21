@@ -12,8 +12,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from rich.text import Text
 from textual.css.scalar import Unit
 
+from sase.ace.tui.actions.agents._display_panel_titles import (
+    _PANEL_SELECTED_CHROME_STYLE,
+)
 from sase.ace.tui.actions.agents._panel_navigation import AgentPanelNavigationMixin
 from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
@@ -22,6 +26,8 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.models.agent_tribe_summary import AgentPanelFocus
+
+from ._agent_panel_title_helpers import _assert_title_range_style
 
 
 class _Styles:
@@ -164,6 +170,12 @@ class _InteractiveFakeApp(
 ):
     def _refresh_agent_focus_detail(self, **_kwargs: Any) -> None:
         return
+
+
+def _title_text(widget: _ListWidget) -> Text:
+    title = widget.border_title
+    assert isinstance(title, Text)
+    return title
 
 
 def _agent(*, name: str, tribe: str | None, suffix: str) -> Agent:
@@ -374,6 +386,7 @@ def test_whole_panel_navigation_refreshes_selected_and_collapsed_titles() -> Non
     apple = app._panel_widgets["agent-list-panel-2"]
     assert getattr(banana.border_title, "plain", "") == "@banana · 1 [R1]"
     assert getattr(apple.border_title, "plain", "") == "▸ @apple · 1 [R1]"
+    _assert_title_range_style(_title_text(apple), start=0, end=2, style="#AFAFAF")
 
     assert app._activate_focused_panel() is True
     assert getattr(banana.border_title, "plain", "") == "❖ @banana · 1 [R1]"
@@ -381,10 +394,21 @@ def test_whole_panel_navigation_refreshes_selected_and_collapsed_titles() -> Non
     BasicNavigationMixin._navigate_agents_panel(app, 1)
     assert getattr(banana.border_title, "plain", "") == "@banana · 1 [R1]"
     assert getattr(apple.border_title, "plain", "") == "▸ @apple · 1 [R1]"
+    apple_title = _title_text(apple)
+    for text in ("▸", "1", "[", "R", "]"):
+        position = apple_title.plain.index(text)
+        _assert_title_range_style(
+            apple_title,
+            start=position,
+            end=position + len(text),
+            style=_PANEL_SELECTED_CHROME_STYLE,
+        )
+    assert "❖" not in apple_title.plain
 
     BasicNavigationMixin._navigate_agents_panel(app, -1)
     assert getattr(banana.border_title, "plain", "") == "❖ @banana · 1 [R1]"
     assert getattr(apple.border_title, "plain", "") == "▸ @apple · 1 [R1]"
+    _assert_title_range_style(_title_text(apple), start=0, end=2, style="#AFAFAF")
 
 
 def test_separator_rows_are_included_in_fit_boundary() -> None:

@@ -101,11 +101,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         panel_collapsed = key in collapsed_keys
         resolve_panel = getattr(self, "_resolve_focused_panel", None)
         panel_focus = resolve_panel() if callable(resolve_panel) else None
-        selected_expanded = bool(
-            panel_focus is not None
-            and not panel_focus.collapsed
-            and panel_focus.panel_key == key
-        )
+        panel_selected = bool(panel_focus is not None and panel_focus.panel_key == key)
         selection_hint = None
         if getattr(self, "_panel_fold_hint_mode_active", False):
             selection_hint = getattr(self, "_panel_fold_target_to_hint", {}).get(
@@ -121,7 +117,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             merge_tribe_panels=merge_tribe_panels,
             counts=counts,
             collapsed=panel_collapsed,
-            selected=selected_expanded,
+            selected=panel_selected,
             isolation_restore_marked=isolation_restore_marked,
             jump_hint=(
                 panel_jump_hints.get(("panel", key)) if panel_jump_hints else None
