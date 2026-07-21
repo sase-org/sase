@@ -2,15 +2,33 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 import json
 import os
 from typing import Any, TYPE_CHECKING
 
+from sase.bead.work import (
+    SASE_EPIC_BEAD_ID_ENV,
+    SASE_EPIC_CLAN_TRIBE_ENV,
+    SASE_EPIC_PLAN_REF_ENV,
+    SASE_EPIC_PLAN_SNAPSHOT_ENV,
+    SASE_PHASE_BEAD_ID_ENV,
+)
+
 if TYPE_CHECKING:
     from sase.agent.clan_membership import ClanMembershipPlan
     from sase.agent.family_attach import FamilyAttachLaunchPlan
     from sase.xprompt.directives import PromptDirectives
+
+
+EPIC_WORK_ENV_METADATA_NAMES = (
+    (SASE_EPIC_PLAN_REF_ENV, "epic_plan_ref"),
+    (SASE_EPIC_PLAN_SNAPSHOT_ENV, "epic_plan_snapshot"),
+    (SASE_EPIC_BEAD_ID_ENV, "epic_bead_id"),
+    (SASE_PHASE_BEAD_ID_ENV, "phase_bead_id"),
+    (SASE_EPIC_CLAN_TRIBE_ENV, "clan_tribe"),
+)
 
 
 @dataclass(frozen=True)
@@ -93,22 +111,8 @@ def epic_work_metadata_from_env() -> dict[str, Any]:
     to the same epic role. ``SASE_BEAD_ID`` is intentionally left untouched:
     it remains the commit workflow's bead attribution.
     """
-    from sase.bead.work import (
-        SASE_EPIC_BEAD_ID_ENV,
-        SASE_EPIC_CLAN_TRIBE_ENV,
-        SASE_EPIC_PLAN_REF_ENV,
-        SASE_EPIC_PLAN_SNAPSHOT_ENV,
-        SASE_PHASE_BEAD_ID_ENV,
-    )
-
     metadata: dict[str, Any] = {}
-    for env_name, meta_name in (
-        (SASE_EPIC_PLAN_REF_ENV, "epic_plan_ref"),
-        (SASE_EPIC_PLAN_SNAPSHOT_ENV, "epic_plan_snapshot"),
-        (SASE_EPIC_BEAD_ID_ENV, "epic_bead_id"),
-        (SASE_PHASE_BEAD_ID_ENV, "phase_bead_id"),
-        (SASE_EPIC_CLAN_TRIBE_ENV, "clan_tribe"),
-    ):
+    for env_name, meta_name in EPIC_WORK_ENV_METADATA_NAMES:
         value = os.environ.pop(env_name, "").strip()
         if value:
             metadata[meta_name] = value
@@ -119,6 +123,18 @@ def epic_work_metadata_from_env() -> dict[str, Any]:
         metadata["sdd_plan_path"] = metadata["epic_plan_ref"]
         metadata["plan_committed"] = True
     return metadata
+
+
+def epic_work_environment_from_metadata(
+    agent_meta: Mapping[str, Any],
+) -> dict[str, str]:
+    """Reconstruct consumed epic-work launch variables from agent metadata."""
+    environment: dict[str, str] = {}
+    for env_name, meta_name in EPIC_WORK_ENV_METADATA_NAMES:
+        value = agent_meta.get(meta_name)
+        if isinstance(value, str) and value.strip():
+            environment[env_name] = value
+    return environment
 
 
 def build_agent_meta(

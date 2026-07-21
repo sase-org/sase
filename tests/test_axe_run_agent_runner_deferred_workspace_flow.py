@@ -8,6 +8,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sase.axe.clan_summary_script import (
+    POST_WORKSPACE_PREPARATION_ATTEMPT_LABEL,
+)
+from sase.axe.run_agent_phases import ClanSummaryResolutionRequest
 from sase.linked_repos import LinkedRepoResolution, _ResolvedLinkedRepo
 
 from tests._axe_run_agent_runner_retry_helpers import (
@@ -101,7 +105,16 @@ class TestDeferredWorkspaceFlow:
         real_ws.mkdir()
         events: list[Any] = []
 
-        wait_info = AGENT_INFO._replace(wait_names=["dep"], bead_id="sase-8f.2")
+        wait_info = AGENT_INFO._replace(
+            wait_names=["dep"],
+            bead_id="sase-8f.2",
+            clan_summary_resolution=ClanSummaryResolutionRequest(
+                script="./describe-clan",
+                clan_name="sase-8f",
+                clan_generation="generation-1",
+                clan_tribe="epic",
+            ),
+        )
         patches = base_patches(artifacts_dir)
         patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
             return_value=wait_info
@@ -141,6 +154,12 @@ class TestDeferredWorkspaceFlow:
             events.append(("prepare", workspace_dir))
             return True
 
+        def prepare_sidecars(workspace_dir: str, workspace_num: int) -> frozenset[str]:
+            assert workspace_dir == str(real_ws)
+            assert workspace_num == 3
+            events.append("prepare-sidecars")
+            return frozenset()
+
         def refresh_linked_repos(*_args: Any, **_kwargs: Any) -> LinkedRepoResolution:
             assert_run_started_at()
             events.append("refresh-linked")
@@ -160,6 +179,14 @@ class TestDeferredWorkspaceFlow:
             assert_run_started_at()
             resolution = kwargs["resolution"]
             events.append(("prepare-linked", resolution.repos[0].workspace_dir))
+
+        def resolve_clan_summary(_script: str, **kwargs: Any) -> None:
+            assert kwargs["workspace_dir"] == str(real_ws)
+            assert kwargs["clan_name"] == "sase-8f"
+            assert kwargs["clan_generation"] == "generation-1"
+            assert kwargs["clan_tribe"] == "epic"
+            assert kwargs["attempt_label"] == POST_WORKSPACE_PREPARATION_ATTEMPT_LABEL
+            events.append("summary")
 
         def claim_bead(**kwargs: Any) -> None:
             assert_run_started_at()
@@ -189,10 +216,12 @@ class TestDeferredWorkspaceFlow:
         patches[f"{RUNNER}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
         patches[f"{RUNNER}.claim_deferred_workspace"] = claim_deferred
         patches[f"{SETUP}.prepare_workspace"] = prepare_ws
+        patches[f"{SETUP}.prepare_launch_workspace_repos"] = prepare_sidecars
         patches[f"{RUNNER}.refresh_linked_repos_for_workspace"] = refresh_linked_repos
         patches[f"{RUNNER}.prepare_linked_repo_workspaces_if_needed"] = (
             prepare_linked_repos
         )
+        patches[f"{RUNNER}.resolve_clan_summary_script"] = resolve_clan_summary
         patches[f"{RUNNER}.claim_bead_for_agent_launch"] = claim_bead
         patches[f"{RUNNER}.capture_sdd_base_sha"] = capture_sdd
         patches[f"{RUNNER}.run_execution_loop"] = run_loop
@@ -212,8 +241,10 @@ class TestDeferredWorkspaceFlow:
             "gate",
             "claim",
             ("prepare", str(real_ws)),
+            "prepare-sidecars",
             "refresh-linked",
             ("prepare-linked", str(tmp_path / "sase-core_3")),
+            "summary",
             "claim-bead",
             "capture-sdd",
             ("run", 3, str(real_ws)),

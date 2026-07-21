@@ -9,10 +9,12 @@ import sys
 
 from sase.axe.run_agent_directives import (
     AgentInfo,
+    ClanSummaryResolutionRequest,
     extract_directives_and_write_meta,
 )
 from sase.axe.run_agent_markers import (
     build_done_marker,
+    persist_refreshed_clan_summary,
     record_run_started_at,
     record_stop_time,
     write_agent_meta,
@@ -166,10 +168,12 @@ def _deferred_target_workspace_num() -> int | None:
 
 __all__ = [
     "AgentInfo",
+    "ClanSummaryResolutionRequest",
     "build_done_marker",
     "claim_deferred_workspace",
     "extract_directives_and_write_meta",
     "remaining_until",
+    "persist_refreshed_clan_summary",
     "record_run_started_at",
     "record_stop_time",
     "resolve_agent_refs_in_prompt",

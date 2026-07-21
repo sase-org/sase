@@ -86,10 +86,12 @@ the summary, so use `summary=` when ordinary work instructions follow the declar
 `summary_script=` are mutually exclusive, and both belong only on the create-only `%clan` declaration;
 `%id(..., clan=...)` joiners cannot declare or replace a summary.
 
-A summary executable runs synchronously while SASE extracts launch directives, before dependency waits, runner-slot
-admission, and workspace preparation. Its working directory is the workspace path with which the runner started. For a
-deferred-workspace launch, that is the placeholder workspace, not the workspace claimed after the wait. If a waiting
-runner re-execs to load updated SASE code, directive extraction can run the executable again.
+A summary executable may run synchronously twice: first while SASE extracts launch directives, before dependency waits,
+runner-slot admission, and workspace preparation, and again after the primary workspace and every applicable sidecar and
+linked-repository workspace have been prepared. The first attempt uses the workspace path with which the runner started;
+for a deferred-workspace launch, that is the placeholder workspace. The second attempt uses the real prepared workspace
+claimed after the wait. A waiting runner that re-execs to load updated SASE code can repeat this sequence, so summary
+executables must be read-only and idempotent.
 
 A bare executable name is resolved next to the running Python interpreter and then on `PATH`; a value containing `/` is
 resolved as an executable absolute path or a path relative to that initial workspace. SASE first probes the complete
@@ -97,15 +99,20 @@ value as a literal executable, preserving executable filenames that contain spac
 shell-style quoting, resolves the first token by the same rules, and passes the remaining tokens directly as argv; it
 never invokes a shell.
 
-The script inherits the complete launch environment. SASE overrides `SASE_CLAN_NAME`, `SASE_CLAN_GENERATION`, and, when
-the declaration has one, `SASE_CLAN_TRIBE` (otherwise an ambient clan-tribe value is removed). Epic work also provides
-`SASE_EPIC_PLAN_REF`, `SASE_EPIC_BEAD_ID`, and `SASE_EPIC_CLAN_TRIBE`, which remain available to a summary script. When
-launch-time snapshotting succeeds, it additionally provides `SASE_EPIC_PLAN_SNAPSHOT`: an absolute, project-scoped,
-guaranteed-local best-effort copy used by the built-in epic summary script after ordinary checkout candidates. The
-original plan reference remains the displayed and persisted association. Standard output becomes the summary and
-standard error is appended to the agent log. Execution is capped at 20 seconds, and the stored summary is capped at 32
-KiB of UTF-8. Missing executables, malformed quoting, timeouts, nonzero exits, and empty output are logged and omit the
-optional summary without blocking the agent launch.
+Each attempt inherits the runner environment available at that point. The post-preparation attempt therefore sees
+environment updates made while preparing the workspace and linked repositories. SASE gives both attempts the same
+identity contract: it overrides `SASE_CLAN_NAME`, `SASE_CLAN_GENERATION`, and, when the declaration has one,
+`SASE_CLAN_TRIBE` (otherwise an ambient clan-tribe value is removed). Epic work also provides `SASE_EPIC_PLAN_REF`,
+`SASE_EPIC_PLAN_SNAPSHOT`, `SASE_EPIC_BEAD_ID`, `SASE_PHASE_BEAD_ID`, and `SASE_EPIC_CLAN_TRIBE`; SASE reconstructs
+these values from persisted agent metadata after launch-only variables have been consumed. The snapshot is an absolute,
+project-scoped, guaranteed-local best-effort copy used by the built-in epic summary script after ordinary checkout
+candidates. The original plan reference remains the displayed and persisted association.
+
+Standard output becomes the summary and standard error is appended to the agent log. Every attempt has the same
+20-second timeout and non-fatal failure handling, and the stored summary is capped at 32 KiB of UTF-8. Missing
+executables, malformed quoting, timeouts, nonzero exits, and empty output are logged without blocking the agent launch.
+SASE uses the last successful non-empty output: a successful post-preparation attempt replaces the extraction-time
+value, while a later failed or empty attempt leaves the newest successful summary untouched.
 
 SASE trims trailing whitespace and persists the result as `clan_summary` on the declaring agent's metadata. The scan
 contract resolves summaries within one clan generation deterministically, using the newest explicit declaration if it

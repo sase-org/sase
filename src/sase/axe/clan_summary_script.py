@@ -21,6 +21,7 @@ CLAN_SUMMARY_MAX_BYTES = 32 * 1024
 CLAN_SUMMARY_TIMEOUT_SECONDS = 20.0
 CLAN_SUMMARY_STDERR_LOG = "clan_summary_stderr.log"
 DEFAULT_CLAN_SUMMARY_ATTEMPT_LABEL = "directive-extraction"
+POST_WORKSPACE_PREPARATION_ATTEMPT_LABEL = "post-workspace-preparation"
 
 _CLAN_ENV_NAMES = (
     "SASE_CLAN_NAME",
@@ -402,6 +403,7 @@ __all__ = [
     "CLAN_SUMMARY_MAX_BYTES",
     "CLAN_SUMMARY_STDERR_LOG",
     "CLAN_SUMMARY_TIMEOUT_SECONDS",
+    "POST_WORKSPACE_PREPARATION_ATTEMPT_LABEL",
     "normalize_clan_summary",
     "resolve_clan_summary_script",
 ]

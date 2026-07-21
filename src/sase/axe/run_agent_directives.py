@@ -2,6 +2,7 @@
 
 import json
 import os
+from dataclasses import dataclass
 from typing import Any, NamedTuple
 
 from sase.axe.run_agent_directive_identity import (
@@ -14,6 +15,16 @@ from sase.axe.run_agent_directive_metadata import (
     preserved_agent_metadata,
 )
 from sase.axe.run_agent_markers import write_agent_meta
+
+
+@dataclass(frozen=True)
+class ClanSummaryResolutionRequest:
+    """Stable inputs for a declaring member's post-preparation summary run."""
+
+    script: str
+    clan_name: str
+    clan_generation: str
+    clan_tribe: str | None
 
 
 class AgentInfo(NamedTuple):
@@ -35,6 +46,7 @@ class AgentInfo(NamedTuple):
     approve: bool
     plan: bool
     tribe: str | None
+    clan_summary_resolution: ClanSummaryResolutionRequest | None
     meta: dict[str, Any]
     local_xprompts: dict[str, Any]
 
@@ -288,6 +300,7 @@ def extract_directives_and_write_meta(
     agent_tribe = identity.tribe
     clan_membership_plan = identity.clan_membership_plan
     agent_meta = identity.meta
+    clan_summary_resolution: ClanSummaryResolutionRequest | None = None
 
     if clan_membership_plan and directives.clan_declared:
         from sase.axe.clan_summary_script import (
@@ -297,6 +310,12 @@ def extract_directives_and_write_meta(
 
         clan_summary = normalize_clan_summary(directives.clan_summary or "")
         if directives.clan_summary_script:
+            clan_summary_resolution = ClanSummaryResolutionRequest(
+                script=directives.clan_summary_script,
+                clan_name=clan_membership_plan.clan_name,
+                clan_generation=clan_membership_plan.generation,
+                clan_tribe=directives.clan_tribe,
+            )
             clan_summary = resolve_clan_summary_script(
                 directives.clan_summary_script,
                 workspace_dir=workspace_dir,
@@ -342,6 +361,7 @@ def extract_directives_and_write_meta(
         approve=auto_mode == "plan",
         plan=auto_mode in {"epic", "tale"},
         tribe=agent_tribe,
+        clan_summary_resolution=clan_summary_resolution,
         meta=agent_meta,
         local_xprompts=multi.local_xprompts,
     )

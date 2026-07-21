@@ -1105,14 +1105,16 @@ The declaring `%clan` can also attach one launch-time description with `summary=
 `%clan...::` text-block shorthand. These forms are mutually exclusive, and clan joiners cannot replace the description.
 The `::` form requires a following space and captures up to the next top-level line beginning with a `%` directive or
 `#` reference. The captured text becomes metadata rather than member instructions; use the explicit `summary=` form when
-the work prompt follows immediately. Script-backed summaries run synchronously during directive extraction, before waits
-and workspace preparation, with a bounded, non-fatal contract. `summary_script=` may contain shell-style quoted argv
-(without invoking a shell), and `sase_clan_summary_plan PLAN_REF` renders a valid tale or epic with the shared PLAN-lane
-layout; without `PLAN_REF`, it uses `SASE_EPIC_PLAN_REF`. Scripts inherit the launch environment, including epic
-`SASE_EPIC_PLAN_REF`, `SASE_EPIC_BEAD_ID`, and `SASE_EPIC_CLAN_TRIBE`, while SASE overrides the clan identity variables.
-Successful epic-work launches also provide `SASE_EPIC_PLAN_SNAPSHOT`, an absolute project-scoped best-effort copy that
-the built-in epic summary script uses as a guaranteed-local fallback after the normal checkout candidates; the original
-reference remains authoritative for display and metadata. See
+the work prompt follows immediately. Script-backed summaries may run synchronously during directive extraction and again
+after the primary workspace, sidecars, and linked repositories are prepared. Both attempts share the same 20-second,
+non-fatal contract and clan/epic environment; the last successful non-empty output wins. Scripts must be read-only and
+idempotent because runner re-exec can repeat them. `summary_script=` may contain shell-style quoted argv (without
+invoking a shell), and `sase_clan_summary_plan PLAN_REF` renders a valid tale or epic with the shared PLAN-lane layout;
+without `PLAN_REF`, it uses `SASE_EPIC_PLAN_REF`. Scripts inherit the environment available to each attempt, including
+epic `SASE_EPIC_PLAN_REF`, `SASE_EPIC_PLAN_SNAPSHOT`, `SASE_EPIC_BEAD_ID`, `SASE_PHASE_BEAD_ID`, and
+`SASE_EPIC_CLAN_TRIBE`, while SASE overrides the clan identity variables. The snapshot is an absolute project-scoped
+best-effort copy that the built-in epic summary script uses as a guaranteed-local fallback after the normal checkout
+candidates; the original reference remains authoritative for display and metadata. See
 [Launch-time clan summaries](agent_families.md#launch-time-clan-summaries) for the complete ordering, execution, and
 persistence details.
 

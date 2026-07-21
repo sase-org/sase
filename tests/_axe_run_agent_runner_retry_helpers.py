@@ -43,6 +43,7 @@ AGENT_INFO = AgentInfo(
     approve=False,
     plan=False,
     tribe=None,
+    clan_summary_resolution=None,
     meta={"pid": 1},
     local_xprompts={},
 )

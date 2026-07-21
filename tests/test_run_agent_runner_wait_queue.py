@@ -52,6 +52,7 @@ def _agent_info() -> SimpleNamespace:
         vcs_provider=None,
         hidden=False,
         approve=False,
+        clan_summary_resolution=None,
         meta={"name": "foo--reviewer"},
         local_xprompts={},
     )

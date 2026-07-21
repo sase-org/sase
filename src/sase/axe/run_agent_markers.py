@@ -11,6 +11,28 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 
 
+def persist_refreshed_clan_summary(
+    artifacts_dir: str,
+    agent_meta: dict[str, Any],
+    clan_summary: str,
+) -> dict[str, Any]:
+    """Merge a refreshed clan summary into current disk and runner metadata."""
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    disk_meta: dict[str, Any] = {}
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            loaded = json.load(f)
+        if isinstance(loaded, dict):
+            disk_meta = loaded
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+    merged_meta = {**disk_meta, **agent_meta, "clan_summary": clan_summary}
+    agent_meta.update(merged_meta)
+    write_agent_meta(artifacts_dir, merged_meta)
+    return merged_meta
+
+
 def record_run_started_at(artifacts_dir: str, agent_meta: dict[str, Any]) -> str:
     """Persist the execution-loop start timestamp if it has not been recorded."""
     from datetime import UTC, datetime

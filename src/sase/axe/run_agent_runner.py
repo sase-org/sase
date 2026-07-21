@@ -21,9 +21,17 @@ from sase.ace.hooks import format_duration
 from sase.artifacts import convert_timestamp_to_artifacts_format, launch_artifacts_dir
 from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
+from sase.axe.clan_summary_script import (
+    POST_WORKSPACE_PREPARATION_ATTEMPT_LABEL,
+    resolve_clan_summary_script,
+)
+from sase.axe.run_agent_directive_metadata import (
+    epic_work_environment_from_metadata,
+)
 from sase.axe.run_agent_phases import (
     claim_deferred_workspace,
     extract_directives_and_write_meta,
+    persist_refreshed_clan_summary,
     record_run_started_at,
     resolve_agent_refs_in_prompt,
     resolve_wait_chat_paths,
@@ -442,6 +450,30 @@ def main() -> None:
                         cl_name=cl_name,
                         fresh_sidecar_paths=fresh_sidecar_paths,
                     )
+
+                clan_summary_resolution = info.clan_summary_resolution
+                if clan_summary_resolution is not None:
+                    summary_environment = {
+                        **os.environ,
+                        **epic_work_environment_from_metadata(agent_meta),
+                    }
+                    refreshed_clan_summary = resolve_clan_summary_script(
+                        clan_summary_resolution.script,
+                        workspace_dir=workspace_dir,
+                        clan_name=clan_summary_resolution.clan_name,
+                        clan_generation=clan_summary_resolution.clan_generation,
+                        clan_tribe=clan_summary_resolution.clan_tribe,
+                        agent_log_path=output_path,
+                        artifacts_dir=artifacts_dir,
+                        attempt_label=POST_WORKSPACE_PREPARATION_ATTEMPT_LABEL,
+                        environment=summary_environment,
+                    )
+                    if refreshed_clan_summary:
+                        persist_refreshed_clan_summary(
+                            artifacts_dir,
+                            agent_meta,
+                            refreshed_clan_summary,
+                        )
 
                 if is_home_mode:
                     running_marker_path = write_home_running_marker(
