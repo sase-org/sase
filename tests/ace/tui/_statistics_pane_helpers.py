@@ -148,6 +148,33 @@ def _run_payload(selected_range: StatsRange, group_by: RuntimeGroupBy) -> dict:
             "truncated_changespec_rows": 0,
             "malformed_spec_files_skipped": 0,
         },
+        "runners": {
+            "start_ts": float(selected_range.start_ts),
+            "end_ts": float(selected_range.end_ts),
+            "peak_runners": 2,
+            "peak_seconds": 1_800.0,
+            "average_runners": 1.0,
+            "busy_seconds": 5_400.0,
+            "busy_share": 0.75,
+            "runner_seconds": 7_200.0,
+            "distribution": [
+                {"runners": 0, "seconds": 1_800.0, "share": 0.25},
+                {"runners": 1, "seconds": 3_600.0, "share": 0.5},
+                {"runners": 2, "seconds": 1_800.0, "share": 0.25},
+            ],
+            "trend": [
+                {
+                    "start_ts": float(selected_range.start_ts),
+                    "end_ts": float(selected_range.start_ts + 86_400),
+                    "average_runners": 1.0,
+                    "peak_runners": 2,
+                    "busy_seconds": 2_700.0,
+                    "runner_seconds": 3_600.0,
+                }
+            ],
+            "malformed_rows_skipped": 0,
+            "invalid_intervals_skipped": 0,
+        },
     }
 
 

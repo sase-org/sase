@@ -204,8 +204,57 @@ class _PlansQuestionsView:
 
 
 @dataclass(frozen=True, slots=True)
+class _RunnerOccupancyRow:
+    """Exact wall-clock time and share observed at one runner count."""
+
+    runners: int
+    seconds: float
+    share: float
+
+
+@dataclass(frozen=True, slots=True)
+class _RunnerTrendSlice:
+    """One bounded, contiguous slice of the runner-occupancy trend."""
+
+    start_ts: float
+    end_ts: float
+    label: str
+    average_runners: float
+    peak_runners: int
+    busy_seconds: float
+    runner_seconds: float
+
+
+@dataclass(frozen=True, slots=True)
+class _RunnersView:
+    """Historical runner-slot occupancy over one effective analysis window.
+
+    ``available`` distinguishes a present payload (even a wholly idle fixed
+    window that renders an honest zero-runner distribution) from an absent one
+    (an all-time request with no recorded runner coverage, or an older/partial
+    payload). ``current_limit`` carries the current global ``max_running_agents``
+    reference captured off-thread, never a historical saturation value.
+    """
+
+    available: bool
+    start_ts: float
+    end_ts: float
+    peak_runners: int
+    peak_seconds: float
+    average_runners: float
+    busy_seconds: float
+    busy_share: float
+    runner_seconds: float
+    current_limit: int | None
+    distribution: tuple[_RunnerOccupancyRow, ...]
+    trend: tuple[_RunnerTrendSlice, ...]
+    malformed_rows_skipped: int
+    invalid_intervals_skipped: int
+
+
+@dataclass(frozen=True, slots=True)
 class StatisticsViews:
-    """All seven views built from one run and one activity response."""
+    """All eight views built from one run and one activity response."""
 
     start_ts: int
     end_ts: int
@@ -217,6 +266,7 @@ class StatisticsViews:
     runtime: _RuntimeView
     activity: _ActivityView
     plans_questions: _PlansQuestionsView
+    runners: _RunnersView
 
 
 def build_statistics_views(
@@ -226,6 +276,7 @@ def build_statistics_views(
     previous_run_payload: Payload | None = None,
     timezone: tzinfo | None = None,
     project_display_snapshot: ProjectDisplaySnapshot | None = None,
+    current_runner_limit: int | None = None,
 ) -> StatisticsViews:
     """Build every Statistics view without performing I/O."""
     display_snapshot = (
@@ -233,6 +284,7 @@ def build_statistics_views(
         if project_display_snapshot is not None
         else ProjectDisplaySnapshot()
     )
+    resolved_timezone = timezone or get_timezone()
     totals = _mapping(run_payload.get("totals"))
     projects = _build_projects_view(run_payload, display_snapshot)
     return StatisticsViews(
@@ -243,7 +295,7 @@ def build_statistics_views(
             run_payload,
             activity_payload,
             previous_run_payload=previous_run_payload,
-            timezone=timezone,
+            timezone=resolved_timezone,
             projects=projects,
         ),
         runs=_build_runs_view(run_payload),
@@ -256,6 +308,11 @@ def build_statistics_views(
             display_snapshot,
         ),
         plans_questions=_build_plans_questions_view(run_payload, activity_payload),
+        runners=_build_runners_view(
+            run_payload,
+            current_runner_limit=current_runner_limit,
+            timezone=resolved_timezone,
+        ),
     )
 
 
@@ -574,6 +631,74 @@ def _build_plans_questions_view(
     )
 
 
+def _build_runners_view(
+    run_payload: Payload,
+    *,
+    current_runner_limit: int | None,
+    timezone: tzinfo,
+) -> _RunnersView:
+    runners = run_payload.get("runners")
+    if not isinstance(runners, Mapping):
+        # Absent only for an all-time window with no recorded runner coverage
+        # or an older/partial payload; render an unavailable, still-typed view.
+        return _RunnersView(
+            available=False,
+            start_ts=0.0,
+            end_ts=0.0,
+            peak_runners=0,
+            peak_seconds=0.0,
+            average_runners=0.0,
+            busy_seconds=0.0,
+            busy_share=0.0,
+            runner_seconds=0.0,
+            current_limit=current_runner_limit,
+            distribution=(),
+            trend=(),
+            malformed_rows_skipped=0,
+            invalid_intervals_skipped=0,
+        )
+    distribution = tuple(
+        _RunnerOccupancyRow(
+            runners=_integer(row.get("runners")),
+            seconds=_number(row.get("seconds")),
+            share=_number(row.get("share")),
+        )
+        for row in _rows(runners, "distribution")
+    )
+    trend = tuple(
+        _RunnerTrendSlice(
+            start_ts=_number(row.get("start_ts")),
+            end_ts=_number(row.get("end_ts")),
+            label=_slice_label(
+                _number(row.get("start_ts")),
+                _number(row.get("end_ts")),
+                timezone,
+            ),
+            average_runners=_number(row.get("average_runners")),
+            peak_runners=_integer(row.get("peak_runners")),
+            busy_seconds=_number(row.get("busy_seconds")),
+            runner_seconds=_number(row.get("runner_seconds")),
+        )
+        for row in _rows(runners, "trend")
+    )
+    return _RunnersView(
+        available=True,
+        start_ts=_number(runners.get("start_ts")),
+        end_ts=_number(runners.get("end_ts")),
+        peak_runners=_integer(runners.get("peak_runners")),
+        peak_seconds=_number(runners.get("peak_seconds")),
+        average_runners=_number(runners.get("average_runners")),
+        busy_seconds=_number(runners.get("busy_seconds")),
+        busy_share=_number(runners.get("busy_share")),
+        runner_seconds=_number(runners.get("runner_seconds")),
+        current_limit=current_runner_limit,
+        distribution=distribution,
+        trend=trend,
+        malformed_rows_skipped=_integer(runners.get("malformed_rows_skipped")),
+        invalid_intervals_skipped=_integer(runners.get("invalid_intervals_skipped")),
+    )
+
+
 def _rows(payload: Payload, key: str) -> tuple[Payload, ...]:
     value = payload.get(key)
     if not isinstance(value, (list, tuple)):
@@ -657,6 +782,16 @@ def _delta_ratio(current: int, previous: int | None) -> float | None:
 def _bucket_label(start_ts: int, bucket_seconds: int, timezone: tzinfo) -> str:
     value = datetime.fromtimestamp(start_ts, timezone)
     return value.strftime("%a %H:%M" if bucket_seconds < 86_400 else "%b %d")
+
+
+def _slice_label(start_ts: float, end_ts: float, timezone: tzinfo) -> str:
+    """Label a trend slice by its start in the configured SASE timezone.
+
+    Sub-day slices carry a weekday and clock time; wider slices use a calendar
+    date, mirroring :func:`_bucket_label` so both charts read consistently.
+    """
+    value = datetime.fromtimestamp(start_ts, timezone)
+    return value.strftime("%a %H:%M" if (end_ts - start_ts) < 86_400 else "%b %d")
 
 
 __all__ = [

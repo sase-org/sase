@@ -93,8 +93,11 @@ def load_statistics_view(
     runtime_group_by: RuntimeGroupBy,
     project_filter: str | None = None,
 ) -> StatisticsViewData:
-    """Query composite bindings and build all seven view models off-thread."""
+    """Query composite bindings and build all eight view models off-thread."""
+    from sase.config.core import get_max_running_agents
+
     project_display_snapshot = load_project_display_snapshot()
+    current_runner_limit = get_max_running_agents()
     run_payload = query_run_stats(
         start_ts=selected_range.start_ts,
         end_ts=selected_range.end_ts,
@@ -126,6 +129,7 @@ def load_statistics_view(
             activity_payload,
             previous_run_payload=previous_run_payload,
             project_display_snapshot=project_display_snapshot,
+            current_runner_limit=current_runner_limit,
         ),
         project_filter=project_filter,
         project_display_snapshot=project_display_snapshot,

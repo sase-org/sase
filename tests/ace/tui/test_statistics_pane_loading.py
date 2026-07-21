@@ -198,6 +198,7 @@ def test_loader_queries_current_activity_and_previous_equal_window(
         "sase.ace.tui.modals.statistics_pane_data.load_project_display_snapshot",
         load_snapshot,
     )
+    monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 9)
 
     result = sp.load_statistics_view("overview", selected_range, "tribe", "sase")
 
@@ -211,3 +212,6 @@ def test_loader_queries_current_activity_and_previous_equal_window(
     assert snapshot_loads == 1
     assert result.project_display_snapshot is display_snapshot
     assert result.views.projects.projects[0].project_label == "SASE Display"
+    # The current global runner limit is captured off-thread and carried on the
+    # immutable result so rendering performs no configuration I/O.
+    assert result.views.runners.current_limit == 9

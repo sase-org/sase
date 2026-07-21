@@ -203,9 +203,9 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
     if not isinstance(payload, dict):
         _error("agent statistics work-schema probe returned a non-dict payload")
         return False
-    if payload.get("schema_version") != 2:
+    if payload.get("schema_version") != 3:
         _error(
-            "agent statistics work-schema probe requires schema version 2: "
+            "agent statistics work-schema probe requires schema version 3: "
             f"got {payload.get('schema_version')!r}"
         )
         return False

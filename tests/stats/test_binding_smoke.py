@@ -5,6 +5,7 @@ import pytest
 
 from sase.core.agent_scan_facade import rebuild_agent_artifact_index
 from sase.stats.query import query_activity_stats, query_run_stats
+from sase.stats.views import build_statistics_views
 
 
 def test_statistics_facade_smoke_through_real_bindings(tmp_path: Path) -> None:
@@ -71,3 +72,15 @@ def test_statistics_facade_smoke_through_real_bindings(tmp_path: Path) -> None:
     assert runs["work"]["projects"][0]["project"] == "proj"
     assert runs["work"]["unattributed_runs"] == 1
     assert activity["skills"] == [{"name": "review", "count": 1, "distinct_agents": 1}]
+
+    if runs.get("schema_version", 0) < 3 or "runners" not in runs:
+        pytest.skip("installed sase_core_rs predates runner occupancy schema v3")
+    runners = build_statistics_views(runs, activity, current_runner_limit=8).runners
+    assert runners.available is True
+    assert runners.peak_runners == 1
+    assert runners.current_limit == 8
+    assert [row.runners for row in runners.distribution] == [0, 1]
+    assert sum(row.seconds for row in runners.distribution) == pytest.approx(
+        runners.end_ts - runners.start_ts
+    )
+    assert runners.trend and runners.trend[0].peak_runners == 1
