@@ -41,12 +41,13 @@ class VimVisualKeyHandlingMixin(VimVisualPendingMixin):
         if event.key == "escape":
             self._pending_keys = ""
             self._pending_count = None
+            self._pending_visual_surround_range = None
             self._count_prefix = ""
             self._enter_normal_mode()
             return True
 
         if self._pending_keys:
-            return self._handle_visual_pending_key(key)
+            return self._handle_visual_pending_key(key, event)
 
         if key in "123456789" or (key == "0" and self._count_prefix):
             self._count_prefix += key
@@ -196,6 +197,9 @@ class VimVisualKeyHandlingMixin(VimVisualPendingMixin):
 
         if key in ("d", "x"):
             self._apply_visual_operator("d")
+            return True
+        if key == "S":
+            self._queue_visual_surround()
             return True
         if key in ("c", "s"):
             self._apply_visual_operator("c")

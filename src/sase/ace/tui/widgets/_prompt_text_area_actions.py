@@ -48,6 +48,9 @@ class PromptTextAreaActionsMixin(_MixinBase):
             ]
             | None
         )
+        _pending_visual_surround_range: (
+            tuple[str, tuple[int, int], tuple[int, int], int] | None
+        )
         _snippet_tabstops: list[int]
         _insert_g_prefix_pending: bool
         _normal_g_prefix_pending: bool

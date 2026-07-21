@@ -5,6 +5,7 @@ from __future__ import annotations
 from textual.document._document import Selection
 
 from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
+from sase.ace.tui.widgets._vim_normal_state import VisualMutation
 from sase.ace.tui.widgets._vim_registers import first_non_blank_col
 from sase.ace.tui.widgets._vim_transforms import apply_case_operator
 from sase.ace.tui.widgets._vim_visual_state import VimVisualStateMixin, VisualKind
@@ -40,19 +41,80 @@ class VimVisualOperatorMixin(VimVisualStateMixin):
         size = self._absolute_offset(end) - self._absolute_offset(start)
         return ("charwise", max(0, size))
 
-    def _record_visual_mutation(self, op: str, *, units: int = 1) -> None:
+    def _record_visual_mutation(
+        self,
+        op: str,
+        *,
+        units: int = 1,
+        delimiter: str | None = None,
+        shape: tuple[str, int] | None = None,
+    ) -> None:
         """Record a visual-mode change for dot-repeat."""
         if self._replaying_dot:
             return
-        kind, size = self._visual_mutation_shape(op)
+        kind, size = shape if shape is not None else self._visual_mutation_shape(op)
         if size <= 0:
             self._mutation_key_buffer.clear()
             return
-        self._last_visual_mutation = (op, kind, size, max(1, units))
+        self._last_visual_mutation = VisualMutation(
+            op,
+            kind,
+            size,
+            max(1, units),
+            delimiter,
+        )
         self._last_mutation_keys = []
         self._last_mutation_count = 1
         self._last_mutation_insert = None
         self._mutation_key_buffer.clear()
+
+    def _queue_visual_surround(self) -> None:
+        """Snapshot the active visual range and wait for a delimiter key."""
+        kind = self._visual_kind()
+        if kind == "linewise":
+            first, last = self._linewise_visual_rows()
+            start = (first, 0)
+            end = (last, len(self.document.get_line(last)))
+            size = last - first + 1
+        else:
+            start, end = self._charwise_visual_range()
+            size = self._absolute_offset(end) - self._absolute_offset(start)
+
+        if size <= 0 or not self._get_text_in_range(start, end):
+            self._pending_visual_surround_range = None
+            self._pending_keys = ""
+            self._enter_normal_mode()
+            return
+
+        self._pending_visual_surround_range = (kind, start, end, size)
+        self._pending_keys = "visual-surround"
+        self._update_visual_display()
+
+    def _apply_pending_visual_surround(self, key: str) -> None:
+        """Apply a delimiter to the saved visual range and return to Normal."""
+        target = self._pending_visual_surround_range
+        self._pending_visual_surround_range = None
+        if target is None:
+            self._enter_normal_mode()
+            return
+
+        kind, start, end, size = target
+        applied = self._apply_surround_to_range(
+            key,
+            kind,
+            start,
+            end,
+            preserve_boundaries=True,
+        )
+        if applied:
+            self._record_visual_mutation(
+                "S",
+                delimiter=key,
+                shape=(kind, size),
+            )
+        cursor = self.cursor_location
+        self._clear_visual_state(cursor)
+        self._enter_normal_mode()
 
     def _linewise_replacement_payload(self, text: str) -> str:
         """Return replacement text for a linewise visual range."""

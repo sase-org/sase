@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Literal
 from textual.document._document import Selection
 
 from sase.ace.tui.widgets._vim_normal_ops import VimNormalOpsMixin
+from sase.ace.tui.widgets._vim_normal_state import VisualMutation
 from sase.ace.tui.widgets._vim_registers import VimRegister
 
 VisualKind = Literal["charwise", "linewise"]
@@ -26,12 +27,15 @@ class VimVisualStateMixin(VimNormalOpsMixin):
         _last_mutation_keys: list[str]
         _last_mutation_count: int
         _last_mutation_insert: str | None
-        _last_visual_mutation: tuple[str, str, int, int] | None
+        _last_visual_mutation: VisualMutation | None
         _replaying_dot: bool
         _last_char_search: tuple[str, str] | None
         _vim_register: VimRegister
         _visual_anchor: tuple[int, int] | None
         _visual_cursor: tuple[int, int] | None
+        _pending_visual_surround_range: (
+            tuple[str, tuple[int, int], tuple[int, int], int] | None
+        )
 
         def _update_vim_mode_display(self, indicator: str = "") -> None: ...
 
@@ -61,6 +65,7 @@ class VimVisualStateMixin(VimNormalOpsMixin):
         self._pending_count = None
         self._pending_operator = ""
         self._pending_operator_count = 1
+        self._pending_visual_surround_range = None
         self._count_prefix = ""
         self._mutation_key_buffer.clear()
         self._visual_anchor = self.cursor_location
@@ -198,7 +203,10 @@ class VimVisualStateMixin(VimNormalOpsMixin):
         The active visual kind is read from ``_vim_mode`` by the host hook, so
         only the pending count prefix needs to be passed as the indicator.
         """
-        self._update_vim_mode_display(self._count_prefix)
+        indicator = (
+            "S" if self._pending_keys == "visual-surround" else self._count_prefix
+        )
+        self._update_vim_mode_display(indicator)
 
     def _move_visual_cursor(self, location: tuple[int, int]) -> None:
         """Move the visual cursor and extend the active selection."""

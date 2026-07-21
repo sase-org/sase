@@ -23,6 +23,7 @@ from textual.widgets import TextArea
 
 from sase.ace.tui.widgets._line_rendering import LineRenderingMixin
 from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
+from sase.ace.tui.widgets._vim_normal_state import VisualMutation
 from sase.ace.tui.widgets._vim_registers import VimRegister
 from sase.ace.tui.widgets._vim_search import SearchDirection
 
@@ -80,13 +81,16 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self._last_mutation_keys: list[str] = []
         self._last_mutation_count: int = 1
         self._last_mutation_insert: str | None = None
-        self._last_visual_mutation: tuple[str, str, int, int] | None = None
+        self._last_visual_mutation: VisualMutation | None = None
         self._dot_insert_capture_offset: int | None = None
         self._replaying_dot: bool = False
         self._last_char_search: tuple[str, str] | None = None
         self._vim_register: VimRegister = VimRegister()
         self._visual_anchor: tuple[int, int] | None = None
         self._visual_cursor: tuple[int, int] | None = None
+        self._pending_visual_surround_range: (
+            tuple[str, tuple[int, int], tuple[int, int], int] | None
+        ) = None
 
     # -- Offset helpers (used pervasively by the vim tower) --------------------
 
@@ -169,6 +173,7 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self._pending_operator_count = 1
         self._pending_surround_range = None
         self._pending_change_surround_locations = None
+        self._pending_visual_surround_range = None
         self.read_only = True
         self._sync_vim_cursor_class()
         self.show_line_numbers = self.document.line_count > 1
@@ -183,6 +188,7 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self._pending_operator_count = 1
         self._pending_surround_range = None
         self._pending_change_surround_locations = None
+        self._pending_visual_surround_range = None
         self.read_only = False
         self._sync_vim_cursor_class()
         self.show_line_numbers = self.document.line_count > 1

@@ -51,25 +51,47 @@ class VimNormalSurroundMixin(VimNormalStateMixin):
         self._pending_keys = "surround"
         self._update_count_display()
 
-    def _apply_pending_surround(self, key: str) -> None:
+    def _apply_pending_surround(self, key: str) -> bool:
         """Wrap the pending ``ys`` target with the delimiter from *key*."""
         target = self._pending_surround_range
         self._pending_surround_range = None
-        delimiters = self._surround_delimiters(key)
-        if target is None or delimiters is None:
+        if target is None:
             self._mutation_key_buffer.clear()
-            return
+            return False
 
         kind, start, end = target
+        return self._apply_surround_to_range(
+            key,
+            kind,
+            start,
+            end,
+            preserve_boundaries=False,
+        )
+
+    def _apply_surround_to_range(
+        self,
+        key: str,
+        kind: str,
+        start: tuple[int, int],
+        end: tuple[int, int],
+        *,
+        preserve_boundaries: bool,
+    ) -> bool:
+        """Wrap a resolved range, optionally preserving its exact boundaries."""
+        delimiters = self._surround_delimiters(key)
+        if delimiters is None:
+            self._mutation_key_buffer.clear()
+            return False
+
         if start > end:
             start, end = end, start
         text = self._get_text_in_range(start, end)
         if not text:
             self._mutation_key_buffer.clear()
-            return
+            return False
 
         open_delim, close_delim = delimiters
-        if kind == "charwise":
+        if kind == "charwise" and not preserve_boundaries:
             leading_len = len(text) - len(text.lstrip())
             without_leading = text[leading_len:]
             trailing_len = len(without_leading) - len(without_leading.rstrip())
@@ -93,6 +115,7 @@ class VimNormalSurroundMixin(VimNormalStateMixin):
         self._replace_via_keyboard(replacement, start, end)
         self.read_only = was_readonly
         self.cursor_location = self._location_from_absolute(cursor_offset)
+        return True
 
     def _delete_surround(self, key: str, count: int = 1) -> None:
         """Delete the nearest surrounding delimiters matching *key*."""

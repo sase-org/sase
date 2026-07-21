@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from textual.events import Key
+
 from sase.ace.tui.widgets._vim_motions import (
     find_a_paragraph_rows,
     find_a_WORD,
@@ -22,13 +24,24 @@ from sase.ace.tui.widgets._vim_visual_ops import VimVisualOperatorMixin
 class VimVisualPendingMixin(VimVisualOperatorMixin):
     """Mixin for visual-mode multi-key sequence and text-object resolution."""
 
-    def _handle_visual_pending_key(self, key: str) -> bool:
+    def _handle_visual_pending_key(self, key: str, event: Key) -> bool:
         """Handle a key after a visual pending prefix."""
         pending = self._pending_keys
         self._pending_keys = ""
         pending_count = self._pending_count
         self._pending_count = None
         motion_count = pending_count if pending_count is not None else 1
+
+        if pending == "visual-surround":
+            char = event.character
+            if char is None and event.key == "space":
+                char = " "
+            if char is None or len(char) != 1 or not char.isprintable():
+                self._pending_visual_surround_range = None
+                self._enter_normal_mode()
+            else:
+                self._apply_pending_visual_surround(char)
+            return True
 
         if pending == "g" and key == "g":
             target = (

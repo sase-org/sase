@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from textual.events import Key
 
@@ -12,6 +12,16 @@ if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 else:
     _MixinBase = object
+
+
+class VisualMutation(NamedTuple):
+    """A repeatable mutation captured from a visual selection."""
+
+    operation: str
+    kind: str
+    size: int
+    units: int
+    delimiter: str | None = None
 
 
 class VimNormalStateMixin(_MixinBase):
@@ -40,7 +50,7 @@ class VimNormalStateMixin(_MixinBase):
         _last_mutation_keys: list[str]
         _last_mutation_count: int
         _last_mutation_insert: str | None
-        _last_visual_mutation: tuple[str, str, int, int] | None
+        _last_visual_mutation: VisualMutation | None
         _dot_insert_capture_offset: int | None
         _replaying_dot: bool
         _last_char_search: tuple[str, str] | None
@@ -101,6 +111,16 @@ class VimNormalStateMixin(_MixinBase):
             start: tuple[int, int],
             text: str,
         ) -> tuple[int, int]: ...
+
+        def _apply_surround_to_range(
+            self,
+            key: str,
+            kind: str,
+            start: tuple[int, int],
+            end: tuple[int, int],
+            *,
+            preserve_boundaries: bool,
+        ) -> bool: ...
 
     # -- Mixin implementation --
 
@@ -241,7 +261,7 @@ class VimNormalStateMixin(_MixinBase):
         change = self._last_visual_mutation
         if change is None:
             return
-        op, kind, size, units = change
+        op, kind, size, units, delimiter = change
         if has_count:
             size *= max(1, count)
 
@@ -249,7 +269,15 @@ class VimNormalStateMixin(_MixinBase):
         try:
             if kind == "linewise":
                 first_row, last_row = self._visual_dot_line_rows(size)
-                if op in {"d", "c"}:
+                if op == "S" and delimiter is not None:
+                    self._apply_surround_to_range(
+                        delimiter,
+                        "linewise",
+                        (first_row, 0),
+                        (last_row, len(self.document.get_line(last_row))),
+                        preserve_boundaries=True,
+                    )
+                elif op in {"d", "c"}:
                     self._execute_linewise_operator(first_row, last_row, op)
                 elif self._is_indent_operator(op) or self._is_case_operator(op):
                     self._execute_linewise_transform_operator(
@@ -260,7 +288,15 @@ class VimNormalStateMixin(_MixinBase):
                     )
             else:
                 start, end = self._visual_dot_char_range(size)
-                if op in {"d", "c"}:
+                if op == "S" and delimiter is not None:
+                    self._apply_surround_to_range(
+                        delimiter,
+                        "charwise",
+                        start,
+                        end,
+                        preserve_boundaries=True,
+                    )
+                elif op in {"d", "c"}:
                     self._execute_charwise_operator(start, end, op)
                 elif self._is_case_operator(op):
                     self._execute_charwise_case_operator(start, end, op)
