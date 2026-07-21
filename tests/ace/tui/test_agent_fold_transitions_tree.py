@@ -9,6 +9,7 @@ from sase.ace.tui.models.fold_state import FoldLevel
 from ._agent_fold_transition_helpers import (
     StubFoldApp,
     make_agent,
+    make_loader_shaped_aliased_plan_family,
     make_sequential_family,
 )
 
@@ -41,6 +42,20 @@ def test_capital_h_collapses_family_then_clan_before_group_fold() -> None:
 
     assert app._current_group_key is not None
     assert app._group_fold_registry.snapshot()
+
+
+def test_capital_h_collapses_aliased_plan_family_before_group_fold() -> None:
+    agents, root, _main, coder, _script = make_loader_shaped_aliased_plan_family()
+    app = StubFoldApp(agents, current_idx=agents.index(coder))
+    family_key = agent_fold_key(root)
+    assert family_key is not None
+    app._fold_manager.expand(family_key)
+
+    app.action_hooks_or_collapse_all()
+
+    assert app.current_idx == agents.index(root)
+    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app._group_fold_registry.snapshot() == ()
 
 
 def test_l_expands_running_parent_with_family_child() -> None:

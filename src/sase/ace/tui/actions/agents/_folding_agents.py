@@ -114,11 +114,13 @@ class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
     def _can_select_focused_tribe_panel(self) -> bool:
         """Return whether the focused split panel can become a whole selection."""
         panel_group = getattr(self, "_panel_group", None)
+        panel_keys = getattr(panel_group, "panel_keys", ())
+        focused_idx = getattr(panel_group, "focused_idx", -1)
         return bool(
             self.current_tab == "agents"
             and panel_group is not None
             and not getattr(self, "_agent_panels_grouped", False)
-            and len(panel_group.panel_keys) > 1
+            and 0 <= focused_idx < len(panel_keys)
         )
 
     def _resolve_agent_left_navigation_target(
@@ -177,21 +179,25 @@ class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
         if parent is None or parent is selected:
             return None
 
-        # The canonical lookup intentionally resolves legacy duplicate keys
-        # deterministically for presentation.  A navigation edge must be
-        # unambiguous, however, so require exactly one rendered owner.
-        parent_matches = [
-            (index, candidate)
-            for index, candidate in enumerate(self._agents)
-            if agent_fold_key(candidate) == parent_key
-        ]
+        # Workflow-step rows in legacy/loader-shaped projections can repeat
+        # their root's raw suffix. They alias the root's fold; they are not
+        # competing structural owners. Navigation still requires one exact,
+        # non-child owner and one occurrence of the canonical lookup result.
+        parent_positions: list[int] = []
+        owner_matches: list[tuple[int, Agent]] = []
+        for index, candidate in enumerate(self._agents):
+            if candidate is parent:
+                parent_positions.append(index)
+            if not candidate.is_child_row and agent_fold_key(candidate) == parent_key:
+                owner_matches.append((index, candidate))
         if (
-            len(parent_matches) != 1
-            or parent_matches[0][1] is not parent
+            len(parent_positions) != 1
+            or len(owner_matches) != 1
+            or owner_matches[0][1] is not parent
             or agent_fold_key(parent) != parent_key
         ):
             return None
-        parent_index = parent_matches[0][0]
+        parent_index = parent_positions[0]
 
         if is_sequential_family_container(selected):
             if (

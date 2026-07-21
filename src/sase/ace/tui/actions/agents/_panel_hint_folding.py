@@ -121,9 +121,9 @@ class AgentPanelHintFoldingMixin:
 
         for panel_key in panel_keys:
             panel_collapsed = panel_key in collapsed_keys
-            # Expanded single-panel and merged layouts cannot collapse their
-            # title. A persisted single collapsed panel can still expand.
-            if not merged and (len(panel_keys) > 1 or panel_collapsed):
+            # Every split tribe panel is a real fold owner, even when it is
+            # the only panel. The merged ``All agents`` surface is not one.
+            if not merged:
                 target: FoldHintTarget = ("panel", panel_key)
                 targets.append(target)
                 seen_actions.add(("panel", panel_key))

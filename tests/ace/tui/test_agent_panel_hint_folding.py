@@ -386,7 +386,7 @@ def test_merged_and_single_panel_layouts_still_hint_in_panel_folds() -> None:
     )
     single.action_toggle_selected_agent_panels()
     assert single._panel_fold_hint_mode_active is True
-    assert all(target[0] != "panel" for target in single._panel_fold_hint_snapshot)
+    assert ("panel", None) in single._panel_fold_hint_snapshot
 
 
 def test_display_maps_reuse_panel_banner_and_agent_channels() -> None:

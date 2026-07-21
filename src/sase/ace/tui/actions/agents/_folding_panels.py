@@ -222,10 +222,12 @@ class AgentPanelFoldingMixin:
         if self.current_tab != "agents":
             return
         panel_group = getattr(self, "_panel_group", None)
+        panel_keys = getattr(panel_group, "panel_keys", ())
+        focused_idx = getattr(panel_group, "focused_idx", -1)
         if (
             panel_group is None
             or getattr(self, "_agent_panels_grouped", False)
-            or len(panel_group.panel_keys) <= 1
+            or not (0 <= focused_idx < len(panel_keys))
         ):
             return
 

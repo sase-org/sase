@@ -9,6 +9,7 @@ from sase.ace.tui.models.agent_groups import GroupingMode
 from ._agent_fold_transition_helpers import (
     StubFoldApp,
     make_agent,
+    make_loader_shaped_aliased_plan_family,
     make_sequential_family,
 )
 
@@ -99,6 +100,68 @@ def test_h_parent_ladder_is_grouping_mode_independent() -> None:
     app.action_hooks_or_collapse()
     assert app.current_idx == projected.index(clan)
     assert app._group_fold_registry.snapshot() == ()
+
+
+def test_h_loader_aliased_plan_family_reaches_root_and_sole_default_panel() -> None:
+    agents, root, main, coder, script = make_loader_shaped_aliased_plan_family()
+    app = StubFoldApp(agents, current_idx=agents.index(coder))
+    app._grouping_mode = GroupingMode.BY_STATUS
+    tree_folds_before = app._fold_manager.snapshot()
+    group_folds_before = app._group_fold_registry.snapshot()
+    panel_folds_before = (
+        set(app._collapsed_panel_keys),
+        set(app._expanded_panel_keys),
+    )
+
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None and target.kind == "family"
+    app.action_hooks_or_collapse()
+    assert app._agents[app.current_idx] is root
+    assert app.acknowledged == [root]
+    assert app.armed_departures == [coder]
+
+    app.current_idx = agents.index(main)
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None and target.kind == "family"
+    app.action_hooks_or_collapse()
+    assert app._agents[app.current_idx] is root
+
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None and target.kind == "tribe"
+    app.action_hooks_or_collapse()
+
+    assert app._expanded_panel_focus is True
+    assert app._panel_selection_memory[None] == ("agent", agents.index(root))
+    assert app._fold_manager.snapshot() == tree_folds_before
+    assert app._group_fold_registry.snapshot() == group_folds_before
+    assert (
+        app._collapsed_panel_keys,
+        app._expanded_panel_keys,
+    ) == panel_folds_before
+
+    app._expanded_panel_focus = False
+    app.current_idx = agents.index(script)
+    assert app._resolve_agent_left_navigation_target() is None
+
+
+def test_h_loader_aliased_plan_family_keeps_duplicate_owner_rejection() -> None:
+    agents, root, _main, coder, _script = make_loader_shaped_aliased_plan_family()
+    duplicate = make_agent(raw_suffix="20260720120000")
+    agents.append(duplicate)
+    app = StubFoldApp(agents, current_idx=agents.index(coder))
+
+    assert app._resolve_agent_left_navigation_target() is None
+    app.action_hooks_or_collapse()
+
+    assert app.current_idx == agents.index(coder)
+    assert app._expanded_panel_focus is False
+
+    repeated_owner_agents = [*agents[:-1], root]
+    repeated_owner = StubFoldApp(
+        repeated_owner_agents,
+        current_idx=repeated_owner_agents.index(coder),
+    )
+    assert repeated_owner._resolve_agent_left_navigation_target() is None
 
 
 def test_h_standalone_family_member_then_top_level_family_selects_tribe() -> None:
@@ -228,7 +291,7 @@ def test_h_grouping_banner_selects_tribe_and_selected_panel_has_no_parent() -> N
     assert app._resolve_agent_left_navigation_target() is None
 
 
-def test_h_top_level_to_tribe_is_safe_in_single_and_merged_layouts() -> None:
+def test_h_top_level_selects_single_split_tribe_but_not_merged_layout() -> None:
     single = StubFoldApp([make_agent(raw_suffix="single")])
     merged = StubFoldApp(
         [
@@ -241,5 +304,6 @@ def test_h_top_level_to_tribe_is_safe_in_single_and_merged_layouts() -> None:
     single.action_hooks_or_collapse()
     merged.action_hooks_or_collapse()
 
-    assert single._expanded_panel_focus is False
+    assert single._expanded_panel_focus is True
+    assert single._panel_selection_memory[None] == ("agent", 0)
     assert merged._expanded_panel_focus is False

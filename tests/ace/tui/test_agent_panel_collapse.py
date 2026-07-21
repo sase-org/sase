@@ -208,12 +208,101 @@ def test_h_selects_then_collapses_panel_and_l_expands_then_descends() -> None:
     assert app.panel_fold_changes == [("alpha", True), ("alpha", False)]
 
 
-def test_panel_collapse_guards_single_merged_and_repeated_actions() -> None:
+def test_h_selects_collapses_and_reenters_sole_default_panel() -> None:
     single = _StubApp([_agent(name="only", project="one", tribe=None)])
-    single.action_hooks_or_collapse()
-    assert single._collapsed_panel_keys == set()
-    assert single.refresh_calls == []
 
+    single.action_hooks_or_collapse()
+
+    focus = single._resolve_focused_panel()
+    assert focus is not None
+    assert focus.panel_key is None
+    assert focus.collapsed is False
+    assert single._panel_selection_memory[None] == ("agent", 0)
+    assert single._entry_jump_agents_anchor_stack == [("agent", 0, None)]
+    assert single.armed_departures == [single._agents[0]]
+    assert single._collapsed_panel_keys == set()
+
+    single.action_hooks_or_collapse()
+
+    focus = single._resolve_focused_panel()
+    assert focus is not None and focus.collapsed is True
+    assert single._collapsed_panel_keys == {None}
+    assert single.panel_fold_changes == [(None, True)]
+
+    single.action_expand_or_layout()
+    focus = single._resolve_focused_panel()
+    assert focus is not None and focus.collapsed is False
+    assert single._collapsed_panel_keys == set()
+    assert single._panel_selection_memory[None] == ("agent", 0)
+
+    single.action_expand_or_layout()
+
+    assert single._resolve_focused_panel() is None
+    assert single.current_idx == 0
+    assert single._panel_selection_memory[None] == ("agent", 0)
+    assert single.panel_fold_changes == [(None, True), (None, False)]
+    assert single.refresh_calls == [False, True, True, False]
+
+
+def test_h_selects_sole_named_panel_and_saves_reversible_jump_anchor() -> None:
+    agent = _agent(name="only", project="one", tribe="research")
+    app = _StubApp([agent], focused_key="research")
+
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None and target.kind == "tribe"
+    app.action_hooks_or_collapse()
+
+    focus = app._resolve_focused_panel()
+    assert focus is not None
+    assert focus.panel_key == "research"
+    assert focus.collapsed is False
+    assert app._panel_selection_memory["research"] == ("agent", 0)
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, "research")]
+
+    assert app._restore_agents_jump_anchor() is True
+    assert app._resolve_focused_panel() is None
+    assert app.current_idx == 0
+    assert app._entry_jump_agents_forward_stack() == [("panel", "research")]
+
+    app.action_hooks_or_collapse()
+    app.action_hooks_or_collapse()
+
+    focus = app._resolve_focused_panel()
+    assert focus is not None and focus.collapsed is True
+    assert app._collapsed_panel_keys == {"research"}
+
+    app.action_expand_or_layout()
+    app.action_expand_or_layout()
+
+    assert app._resolve_focused_panel() is None
+    assert app.current_idx == 0
+    assert app._panel_selection_memory["research"] == ("agent", 0)
+    assert app.panel_fold_changes == [("research", True), ("research", False)]
+
+
+def test_h_selects_grouping_banner_in_sole_named_panel() -> None:
+    app = _StubApp(
+        [
+            _agent(name="one", project="one", tribe="research"),
+            _agent(name="two", project="two", tribe="research"),
+        ],
+        focused_key="research",
+    )
+    banner = app._all_known_group_keys()[0]
+    app._group_fold_registry.for_panel("research").collapse(banner)
+    app._current_group_key = banner
+
+    assert ("banner", banner) in app._panel_navigation_stops()
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None and target.kind == "tribe"
+    app.action_hooks_or_collapse()
+
+    focus = app._resolve_focused_panel()
+    assert focus is not None and focus.panel_key == "research"
+    assert app._panel_selection_memory["research"] == ("banner", banner)
+
+
+def test_panel_collapse_guards_merged_and_repeated_actions() -> None:
     merged = _StubApp(_multi_panel_agents(), merged=True)
     merged.action_hooks_or_collapse()
     assert merged._collapsed_panel_keys == set()

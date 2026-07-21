@@ -142,6 +142,21 @@ def _panel_auto_expand_agents() -> list[Agent]:
     return agents
 
 
+def _sole_default_panel_agent() -> Agent:
+    """One top-level row in the split ``@default`` panel."""
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-sole-default-panel",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 20, 12, 0, 0),
+        raw_suffix="20260720-120000-sole-default",
+        agent_name="visual.sole.default.panel",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+
+
 def _overflowing_panel_agents() -> list[Agent]:
     """Large no-tribe panel followed by two compact tribe panels."""
     project_file = "/workspace/sase/visual_project.sase"
@@ -211,6 +226,72 @@ def _assert_collapsed_panel_summary(page: AcePage) -> None:
     svg = page.export_svg(title="ACE collapsed summary assertion")
     assert "Name:" in svg
     assert "ChangeSpec:" not in svg
+
+
+async def test_agents_sole_selected_panel_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = _sole_default_panel_agent()
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert page.app._panel_group.panel_keys == [None]
+        footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
+        assert footer._last_layout_inputs is not None
+        row_bindings, _mode_label = footer._last_layout_inputs
+        assert ("h", "parent tribe") in row_bindings
+
+        await page.press("h")
+        await page.wait_for(
+            lambda _screen: (
+                (focus := page.app._resolve_focused_panel()) is not None
+                and not focus.collapsed
+            )
+        )
+        await wait_for_visual_idle(page)
+
+        panel = page.app.query_one("#agent-list-panel", AgentList)
+        assert Text.from_markup(panel.border_title).plain.startswith("❖ ⌂ @default")
+        assert footer._last_layout_inputs is not None
+        selected_bindings, _mode_label = footer._last_layout_inputs
+        assert ("h", "collapse panel") in selected_bindings
+        assert ("l", "enter panel") in selected_bindings
+        assert ("Esc", "enter panel") in selected_bindings
+        assert ("H", "only panel") in selected_bindings
+        assert not any(label.startswith("parent ") for _key, label in selected_bindings)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_sole_selected_panel_120x40",
+            title="ACE agents sole selected panel",
+        )
+
+        await page.press("h")
+        await page.wait_for(
+            lambda _screen: (
+                (focus := page.app._resolve_focused_panel()) is not None
+                and focus.collapsed
+            )
+        )
+        assert page.app._collapsed_panel_keys == {None}
+
+        await page.press("l")
+        await page.wait_for(
+            lambda _screen: (
+                (focus := page.app._resolve_focused_panel()) is not None
+                and not focus.collapsed
+            )
+        )
+        await page.press("l")
+        await page.wait_for(lambda _screen: page.app._resolve_focused_panel() is None)
+        assert page.app.current_idx == 0
 
 
 async def test_agents_collapsed_panel_png_snapshot(

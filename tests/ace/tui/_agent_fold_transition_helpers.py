@@ -95,11 +95,7 @@ class StubFoldApp(EntryJumpAgentHistoryMixin, AgentFoldingMixin):
         return AgentPanelFocus(key, collapsed)
 
     def _activate_focused_panel(self) -> bool:
-        if (
-            self._agent_panels_grouped
-            or len(self._panel_group.panel_keys) <= 1
-            or self._resolve_focused_panel() is not None
-        ):
+        if self._agent_panels_grouped or self._resolve_focused_panel() is not None:
             return self._resolve_focused_panel() is not None
         self._remember_focused_panel_selection()
         self._expanded_panel_focus = True
@@ -140,6 +136,59 @@ def make_agent(
         agent_name=agent_name,
         tribe=tribe,
     )
+
+
+def make_loader_shaped_aliased_plan_family() -> tuple[
+    list[Agent], Agent, Agent, Agent, Agent
+]:
+    """Build the workflow/family suffix shape emitted by the real loader."""
+    root = make_agent(
+        cl_name="he",
+        agent_name="he",
+        raw_suffix="20260720120000",
+        agent_type=AgentType.WORKFLOW,
+        status="PLAN APPROVED",
+    )
+    root.plan_chain_root = True
+    root.agent_family = "he"
+    root.agent_family_role = "root"
+
+    main = make_agent(
+        cl_name="main",
+        agent_name="he--plan",
+        raw_suffix=root.raw_suffix,
+        agent_type=AgentType.WORKFLOW,
+        status="DONE",
+    )
+    main.parent_timestamp = root.raw_suffix
+    main.parent_workflow = "ace-run"
+    main.step_type = "agent"
+
+    script = make_agent(
+        cl_name="resolve",
+        raw_suffix=root.raw_suffix,
+        agent_type=AgentType.WORKFLOW,
+        status="DONE",
+    )
+    script.parent_timestamp = root.raw_suffix
+    script.parent_workflow = "ace-run"
+    script.step_type = "bash"
+    script.is_hidden_step = True
+
+    coder = make_agent(
+        cl_name="he",
+        agent_name="he--code",
+        raw_suffix="20260720123000",
+        status="RUNNING",
+    )
+    coder.parent_timestamp = root.raw_suffix
+    coder.agent_family = "he"
+    coder.agent_family_role = "code"
+
+    root.followup_agents.append(coder)
+    root.runtime_children.extend([main, coder, script])
+    agents = [root, main, coder, script]
+    return agents, root, main, coder, script
 
 
 def make_sequential_family(
