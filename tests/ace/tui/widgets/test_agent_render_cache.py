@@ -61,6 +61,31 @@ def test_cached_format_agent_option_invalidates_on_unread_change() -> None:
     assert parts_after[1].plain == "✅"
 
 
+def test_cached_format_agent_option_invalidates_on_missing_wait_target_change() -> None:
+    cache = AgentRenderCache()
+    agent = _agent(status="WAITING")
+    agent.waiting_for = ["ghost_deploy"]
+
+    known = cached_format_agent_option(
+        cache,
+        agent,
+        0,
+        is_selected=False,
+        has_missing_wait_target=False,
+    )
+    missing = cached_format_agent_option(
+        cache,
+        agent,
+        0,
+        is_selected=False,
+        has_missing_wait_target=True,
+    )
+
+    assert known[0] is not missing[0]
+    assert known[0].plain.endswith("(WAITING)")
+    assert missing[0].plain.endswith("(WAITING ?)")
+
+
 def test_cached_family_root_invalidates_when_first_real_member_is_added() -> None:
     cache = AgentRenderCache()
     root = _agent(agent_name="demo")

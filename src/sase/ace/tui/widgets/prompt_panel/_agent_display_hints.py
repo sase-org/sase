@@ -8,7 +8,7 @@ from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
 
 from ...agent_completion import agent_wait_status_maps_for_app
-from ...models.agent import Agent, AgentType
+from ...models.agent import Agent, AgentType, wait_display_agent
 from ...util.trace import tui_trace
 from ...util.xprompt_syntax import apply_xprompt_overlays
 from ._agent_display_content import (
@@ -151,7 +151,7 @@ class AgentHintsDisplayMixin:
             publish_opened_workspaces_cache(self, agent, summary.opened_workspaces)
         wait_status_maps = (
             agent_wait_status_maps_for_app(getattr(self, "app", None))
-            if agent.waiting_for
+            if wait_display_agent(agent).waiting_for
             else None
         )
         agent_status_buckets, clan_wait_member_statuses = wait_status_maps or (

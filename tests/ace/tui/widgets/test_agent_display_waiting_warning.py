@@ -13,6 +13,7 @@ from sase.ace.tui.agent_completion import (
     _collect_agent_wait_status_maps,
     agent_status_buckets_for_app,
     agent_wait_status_maps_for_app,
+    missing_wait_dependency_names,
     wait_dependencies_satisfied,
 )
 from sase.ace.tui.models.agent import Agent
@@ -471,3 +472,92 @@ def test_wait_dependencies_satisfied_uses_clan_aggregate() -> None:
 
     assert wait_dependencies_satisfied(agent, done_buckets) is True
     assert wait_dependencies_satisfied(agent, active_buckets) is False
+
+
+def test_missing_wait_dependency_names_returns_ordered_partial_list() -> None:
+    agent = make_agent(
+        status="WAITING",
+        waiting_for=["coder", "ghost_deploy", "reviewer"],
+    )
+
+    assert missing_wait_dependency_names(
+        agent,
+        {"coder": "Running", "reviewer": "Failed"},
+    ) == ("ghost_deploy",)
+
+
+def test_missing_wait_dependency_names_treats_every_known_status_as_existing() -> None:
+    agent = make_agent(
+        status="WAITING",
+        waiting_for=["running", "waiting", "failed", "stopped", "starting"],
+    )
+
+    assert (
+        missing_wait_dependency_names(
+            agent,
+            {
+                "running": "Running",
+                "waiting": "Waiting",
+                "failed": "Failed",
+                "stopped": "Stopped",
+                "starting": "Starting",
+            },
+        )
+        == ()
+    )
+
+
+def test_missing_wait_dependency_names_keeps_missing_target_when_another_is_done() -> (
+    None
+):
+    agent = make_agent(
+        status="WAITING",
+        waiting_for=["done_target", "missing_target"],
+    )
+
+    assert missing_wait_dependency_names(agent, {"done_target": "Done"}) == (
+        "missing_target",
+    )
+
+
+def test_missing_wait_dependency_names_preserves_multiple_missing_names() -> None:
+    agent = make_agent(
+        status="WAITING",
+        waiting_for=["first_missing", "known", "second_missing"],
+    )
+
+    assert missing_wait_dependency_names(agent, {"known": "Done"}) == (
+        "first_missing",
+        "second_missing",
+    )
+
+
+def test_missing_wait_dependency_names_preserves_unavailable_snapshot() -> None:
+    agent = make_agent(status="WAITING", waiting_for=["ghost_deploy"])
+
+    assert missing_wait_dependency_names(agent, None) is None
+
+
+def test_missing_wait_dependency_names_uses_wait_display_source() -> None:
+    root = make_agent(status="WAITING")
+    child = make_agent(
+        status="WAITING",
+        cl_name="child",
+        waiting_for=["known", "missing"],
+    )
+    root.wait_display_source = child
+
+    assert missing_wait_dependency_names(root, {"known": "Done"}) == ("missing",)
+
+
+def test_missing_wait_dependency_names_recognizes_clan_aggregate() -> None:
+    agent = make_agent(status="WAITING", waiting_for=["sase-7g"])
+    buckets = _collect_agent_status_buckets(
+        _clan_rows(
+            "sase-7g",
+            "20260719120000",
+            [("plan", "DONE"), ("code", "RUNNING")],
+        )
+    )
+
+    assert missing_wait_dependency_names(agent, buckets) == ()

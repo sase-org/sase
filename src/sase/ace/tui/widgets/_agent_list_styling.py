@@ -103,6 +103,11 @@ _BEAD_GLYPH_STYLE = "bold #5FD7AF"
 _FILE_CHANGE_GLYPH = "✏️"
 _FILE_CHANGE_GLYPH_STYLE = "bold #FFD75F"
 
+# Missing named agent wait target. Shared by the compact WAITING row marker
+# and the per-target metadata badge so both surfaces use one visual contract.
+_MISSING_WAIT_TARGET_GLYPH = "?"
+_MISSING_WAIT_TARGET_GLYPH_STYLE = "bold #FFAF5F"
+
 # Reverted badge for agents whose commits were intentionally undone via `,r`.
 _REVERTED_GLYPH = "↺"
 _REVERTED_GLYPH_STYLE = "bold #D7875F"

@@ -415,6 +415,36 @@ def test_render_key_changes_when_wait_deps_satisfied_flips() -> None:
     assert pending_key != satisfied_key
 
 
+def test_render_key_changes_when_missing_wait_target_flag_flips() -> None:
+    agent = _agent(status="WAITING")
+    agent.waiting_for = ["ghost_deploy"]
+
+    known_key = agent_render_key(
+        agent,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+        has_missing_wait_target=False,
+    )
+    missing_key = agent_render_key(
+        agent,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+        has_missing_wait_target=True,
+    )
+
+    assert known_key != missing_key
+
+
 def test_render_key_changes_when_runner_slot_count_changes() -> None:
     agent = _agent(status="WAITING")
     agent.wait_runners = 9

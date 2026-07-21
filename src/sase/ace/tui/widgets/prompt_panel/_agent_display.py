@@ -5,7 +5,7 @@ from __future__ import annotations
 from rich.console import Group
 
 from ...agent_completion import agent_wait_status_maps_for_app
-from ...models.agent import Agent
+from ...models.agent import Agent, wait_display_agent
 from ...models.agent_tribe_summary import AgentTribeSummarySnapshot
 from ...tools.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.trace import tui_trace
@@ -203,7 +203,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             self._cancel_agent_detail_header_worker_for_selection_change(agent)
             wait_status_maps = (
                 agent_wait_status_maps_for_app(getattr(self, "app", None))
-                if agent.waiting_for
+                if wait_display_agent(agent).waiting_for
                 else None
             )
             agent_status_buckets, clan_wait_member_statuses = wait_status_maps or (

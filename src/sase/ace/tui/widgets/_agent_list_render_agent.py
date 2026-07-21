@@ -63,6 +63,8 @@ from ._agent_list_styling import (
     _FILE_CHANGE_GLYPH,
     _FILE_CHANGE_GLYPH_STYLE,
     _HIDDEN_ICON,
+    _MISSING_WAIT_TARGET_GLYPH,
+    _MISSING_WAIT_TARGET_GLYPH_STYLE,
     _REVERTED_GLYPH,
     _REVERTED_GLYPH_STYLE,
     _STEP_TYPE_COLORS,
@@ -110,6 +112,7 @@ def format_agent_option(
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
+    has_missing_wait_target: bool = False,
     parallel_family_counts: ParallelFamilyStatusCounts | None = None,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
 ) -> tuple[Text, Text, str]:
@@ -267,6 +270,12 @@ def format_agent_option(
     elif agent.status == "WAITING":
         text.append(display_status, style="bold #AF87FF")  # Amethyst
         wait_agent = wait_display_agent(agent)
+        if has_missing_wait_target and wait_agent.waiting_for:
+            text.append(" ")
+            text.append(
+                _MISSING_WAIT_TARGET_GLYPH,
+                style=_MISSING_WAIT_TARGET_GLYPH_STYLE,
+            )
         if (
             wait_agent.slot_requested_at
             and wait_agent.wait_runners is not None
@@ -451,6 +460,7 @@ def cached_format_agent_option(
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
+    has_missing_wait_target: bool = False,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
 ) -> tuple[Text, Text, str]:
     """Memoized wrapper for :func:`format_agent_option`.
@@ -479,6 +489,7 @@ def cached_format_agent_option(
         now=now,
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,
+        has_missing_wait_target=has_missing_wait_target,
         parallel_family_counts=family_counts,
         unread_agent_ids=unread_agent_ids,
     )
@@ -499,6 +510,7 @@ def cached_format_agent_option(
         now=now,
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,
+        has_missing_wait_target=has_missing_wait_target,
         parallel_family_counts=family_counts,
         unread_agent_ids=unread_agent_ids,
     )

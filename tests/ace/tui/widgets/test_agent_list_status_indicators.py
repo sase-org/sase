@@ -4,15 +4,27 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+from rich.text import Text
+
 from sase.ace.tui.models.agent_status import (
     STOPPED_COLOR,
     STOPPED_GLYPH,
     STOPPED_STATUS,
 )
-from sase.ace.tui.models.agent import AgentType
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
+
+
+def _styles_covering(text: Text, substring: str) -> set[str]:
+    plain = text.plain
+    start = plain.index(substring)
+    end = start + len(substring)
+    return {
+        str(span.style) for span in text.spans if span.start < end and span.end > start
+    }
 
 
 class TestAgentListRevertedIndicator:
@@ -194,6 +206,124 @@ class TestAwareWaitUntilRendering:
 
         assert "Wait: until " in header.plain
         assert " left)" in header.plain
+
+
+class TestMissingWaitTargetIndicator:
+    def test_waiting_row_renders_one_amber_bold_marker(self) -> None:
+        agent = make_agent(status="WAITING", waiting_for=["ghost_deploy"])
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            has_missing_wait_target=True,
+        )
+
+        assert left.plain.endswith("test_cl (WAITING ?)")
+        assert "bold #FFAF5F" in _styles_covering(left, "?")
+
+    def test_waiting_row_keeps_marker_singular_for_multiple_missing_targets(
+        self,
+    ) -> None:
+        agent = make_agent(
+            status="WAITING",
+            waiting_for=["first_missing", "second_missing"],
+        )
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            has_missing_wait_target=True,
+        )
+
+        assert left.plain.count("?") == 1
+        assert left.plain.endswith("test_cl (WAITING ?)")
+
+    @pytest.mark.parametrize(
+        "agent",
+        [
+            make_agent(
+                status="WAITING",
+                waiting_for_beads=["sase-87.2"],
+            ),
+            make_agent(status="WAITING", wait_duration=300),
+            make_agent(
+                status="WAITING",
+                wait_runners=3,
+                slot_requested_at="2026-07-12T12:00:00Z",
+                runner_slots_in_use=4,
+            ),
+            make_agent(status="RUNNING", waiting_for=["ghost_deploy"]),
+        ],
+    )
+    def test_marker_is_absent_for_non_agent_waits_and_non_waiting_rows(
+        self,
+        agent: Agent,
+    ) -> None:
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            has_missing_wait_target=True,
+        )
+
+        assert "?" not in left.plain
+
+    def test_marker_precedes_runner_slot_annotation(self) -> None:
+        agent = make_agent(
+            status="WAITING",
+            waiting_for=["ghost_deploy"],
+            wait_runners=0,
+            wait_runners_explicit=True,
+            slot_requested_at="2026-07-12T12:00:00Z",
+            runner_slots_in_use=3,
+        )
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            has_missing_wait_target=True,
+        )
+
+        assert left.plain.endswith("test_cl (WAITING ? ▶3→0)")
+
+    def test_marker_precedes_relative_duration_annotation(self) -> None:
+        agent = make_agent(
+            status="WAITING",
+            waiting_for=["ghost_deploy"],
+            wait_duration=300,
+        )
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            has_missing_wait_target=True,
+        )
+
+        assert left.plain.endswith("test_cl (WAITING ? +5m)")
+
+    def test_marker_precedes_absolute_time_annotation(self) -> None:
+        now = datetime(2026, 4, 11, 14, 13, 31, tzinfo=UTC)
+        wait_until = datetime(2026, 4, 11, 14, 15, 0, tzinfo=UTC).isoformat()
+        agent = make_agent(
+            status="WAITING",
+            waiting_for=["ghost_deploy"],
+            wait_until=wait_until,
+        )
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            now=now,
+            wait_deps_satisfied=False,
+            has_missing_wait_target=True,
+        )
+
+        assert left.plain.endswith("test_cl (WAITING ? (until 14:15, 1m29s))")
 
 
 class TestRelativeWaitDurationRendering:

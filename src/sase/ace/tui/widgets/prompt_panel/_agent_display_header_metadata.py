@@ -13,10 +13,13 @@ from sase.agent.status_buckets import (
 )
 from sase.project_display_names import humanize_cl_name
 
+from ...agent_completion import missing_wait_dependency_names
 from ...models.agent import Agent
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
     _FAMILY_NAME_STYLE,
+    _MISSING_WAIT_TARGET_GLYPH,
+    _MISSING_WAIT_TARGET_GLYPH_STYLE,
 )
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
 from ._file_path_hints import append_text_with_file_hints
@@ -31,8 +34,6 @@ from ._helpers import (
 
 
 _UNASSIGNED_AGENT_NAME_DISPLAY = "unassigned"
-_UNKNOWN_WAIT_AGENT_GLYPH = "?"
-_UNKNOWN_WAIT_AGENT_GLYPH_STYLE = "bold #FFAF5F"
 _WAITING_VALUE_STYLE = "#FF87D7"
 # Glyphs mirror ``AGENT_STATUS_BUCKET_GLYPHS``; colors mirror agent-row status
 # accents in ``_agent_list_render_agent.py`` / ``models.agent_status``.
@@ -64,8 +65,8 @@ def _append_wait_status_badge(text: Text, bucket: str | None) -> None:
     badge = _WAIT_STATUS_BADGES.get(bucket) if bucket is not None else None
     if badge is None:
         glyph, style = (
-            _UNKNOWN_WAIT_AGENT_GLYPH,
-            _UNKNOWN_WAIT_AGENT_GLYPH_STYLE,
+            _MISSING_WAIT_TARGET_GLYPH,
+            _MISSING_WAIT_TARGET_GLYPH_STYLE,
         )
     else:
         glyph, style = badge
@@ -205,6 +206,8 @@ def _append_wait_field(
 
     text.append("Wait: ", style="bold #87D7FF")
     appended_dependency_names = False
+    missing_names = missing_wait_dependency_names(agent, agent_status_buckets)
+    missing_name_set = set(missing_names or ())
     if wait_agent.waiting_for:
         for index, name in enumerate(wait_agent.waiting_for):
             if index:
@@ -229,8 +232,12 @@ def _append_wait_field(
                     text.append(label, style=_WAITING_VALUE_STYLE)
                     _append_wait_status_badge(text, bucket)
                 text.append(")", style="dim #AF87FF")
-            elif agent_status_buckets is not None:
-                _append_wait_status_badge(text, agent_status_buckets.get(name))
+            elif missing_names is not None:
+                assert agent_status_buckets is not None
+                target_bucket = (
+                    None if name in missing_name_set else agent_status_buckets[name]
+                )
+                _append_wait_status_badge(text, target_bucket)
         appended_dependency_names = True
 
     if wait_agent.waiting_for_beads:

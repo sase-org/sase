@@ -137,10 +137,29 @@ def wait_dependencies_satisfied(
     return all(status_buckets.get(name) == "Done" for name in wait_agent.waiting_for)
 
 
+def missing_wait_dependency_names(
+    agent: Agent,
+    status_buckets: Mapping[str, str] | None,
+) -> tuple[str, ...] | None:
+    """Return ordered agent wait targets absent from a usable status snapshot.
+
+    ``None`` preserves the distinction between an unavailable snapshot and a
+    usable snapshot where every target is known. Synthetic family, clan, and
+    root rows inherit the effective wait source used by the rest of the TUI.
+    """
+    from sase.ace.tui.models.agent_time import wait_display_agent
+
+    if status_buckets is None:
+        return None
+    wait_agent = wait_display_agent(agent)
+    return tuple(name for name in wait_agent.waiting_for if name not in status_buckets)
+
+
 __all__ = [
     "agent_status_buckets_for_app",
     "agent_wait_status_maps_for_app",
     "collect_agent_status_buckets",
     "collect_agent_wait_status_maps",
+    "missing_wait_dependency_names",
     "wait_dependencies_satisfied",
 ]

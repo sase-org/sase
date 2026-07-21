@@ -17,6 +17,7 @@ from textual.widgets.option_list import Option
 from ..agent_completion import (
     agent_status_buckets_for_app,
     collect_agent_status_buckets,
+    missing_wait_dependency_names,
     wait_dependencies_satisfied,
 )
 from ..models.agent import Agent, AgentType
@@ -286,6 +287,9 @@ def build_list(
         )
         tier_styles = agent_tier_styles.get(i, ())
         wait_deps_done = wait_dependencies_satisfied(agent, status_buckets)
+        has_missing_wait_target = bool(
+            missing_wait_dependency_names(agent, status_buckets)
+        )
         left, suffix, option_id = cached_format_agent_option(
             widget._agent_render_cache,
             agent,
@@ -301,6 +305,7 @@ def build_list(
             now=now,
             tier_styles=tier_styles,
             wait_deps_satisfied=wait_deps_done,
+            has_missing_wait_target=has_missing_wait_target,
             unread_agent_ids=unread,
         )
         agent_parts[i] = (left, suffix, option_id)
@@ -314,6 +319,7 @@ def build_list(
             "panel_tribe": panel_tribe,
             "is_selected": is_selected_agent,
             "wait_deps_satisfied": wait_deps_done,
+            "has_missing_wait_target": has_missing_wait_target,
         }
         widget._row_tier_styles[i] = tier_styles
         max_left = max(max_left, left.cell_len)
@@ -600,6 +606,7 @@ def patch_row(
         now=now,
         tier_styles=widget._row_tier_styles.get(agent_idx, ()),
         wait_deps_satisfied=ctx.get("wait_deps_satisfied"),
+        has_missing_wait_target=ctx.get("has_missing_wait_target", False),
         unread_agent_ids=effective_unread,
     )
 

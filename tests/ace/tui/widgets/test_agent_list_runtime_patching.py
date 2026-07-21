@@ -48,6 +48,41 @@ async def test_patch_active_runtime_rows_advances_running_row() -> None:
 
 
 @pytest.mark.asyncio
+async def test_normal_refresh_removes_missing_wait_marker_when_target_appears() -> None:
+    app = AgentListHarness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        waiting = agent(status="WAITING", run_start=None)
+        waiting.agent_name = "waiter"
+        waiting.waiting_for = ["target-outside-panel"]
+        app._agents_with_children = [waiting]
+
+        widget.update_list([waiting], current_idx=0)
+        await pilot.pause()
+
+        row = agent_row_index(widget, 0)
+        missing_prompt = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert "(WAITING ?)" in missing_prompt
+        assert widget._row_render_ctx[0]["has_missing_wait_target"] is True
+
+        target = agent(
+            status="RUNNING",
+            raw_suffix="20260425143100",
+            cl_name="target",
+        )
+        target.agent_name = "target-outside-panel"
+        app._agents_with_children = [waiting, target]
+
+        widget.update_list([waiting], current_idx=0)
+        await pilot.pause()
+
+        refreshed_prompt = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert "(WAITING ?)" not in refreshed_prompt
+        assert "(WAITING)" in refreshed_prompt
+        assert widget._row_render_ctx[0]["has_missing_wait_target"] is False
+
+
+@pytest.mark.asyncio
 async def test_patch_active_runtime_rows_advances_plan_approved_parent() -> None:
     app = AgentListHarness()
     async with app.run_test() as pilot:
