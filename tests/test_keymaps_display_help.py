@@ -91,7 +91,7 @@ def test_admin_center_help_summary_includes_both_statistics_range_directions() -
 
     for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
         labels = {label for _section, bindings in sections for _key, label in bindings}
-        assert "Admin Center: 1-7 jumps; Statistics [/] t/T/c/g/p/r/?" in labels
+        assert "Admin Center: 1-7 jumps; Statistics [/] t/T/c/g/p/P/r/?" in labels
 
 
 def test_leader_prefix_override_updates_repeat_last_help_display() -> None:

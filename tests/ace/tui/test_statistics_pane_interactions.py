@@ -129,6 +129,20 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
 
     async with AcePage() as page:
         _, pane = await _open_statistics(page)
+
+        for view in VIEW_ORDER:
+            pane._set_view(view)
+            await page.pause()
+            group_scope = pane.query_one("#statistics-scope-group", Static)
+            assert group_scope.display is (view in {"projects", "runtime"})
+            if view in {"projects", "runtime"}:
+                continue
+            pane.action_cycle_group()
+            await page.pause()
+            assert pane._projects_group_by == "project"
+            assert pane._runtime_group_by == "tribe"
+            assert len(calls) == 1
+
         pane._set_view("projects")
         pane.action_cycle_group()
         await page.pause()
@@ -141,13 +155,26 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
             pane.query_one("#statistics-hints", Static).render().plain
         )
 
+        pane._set_view("runtime")
+        pane.action_cycle_group()
+        await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
+        assert pane._projects_group_by == "changespec"
+        assert pane._runtime_group_by == "clan"
+        assert "Runtime · Clan" in _scope_plain(pane, "group")
+
         pane._set_view("runs")
         pane.action_cycle_group()
         await page.pause()
         assert pane._projects_group_by == "changespec"
-        assert pane._runtime_group_by == "tribe"
-        assert len(calls) == 1
-        assert _scope_plain(pane, "group").endswith("Group —")
+        assert pane._runtime_group_by == "clan"
+        assert len(calls) == 2
+        assert pane.query_one("#statistics-scope-group", Static).display is False
+
+        pane._set_view("projects")
+        await page.pause()
+        assert pane.query_one("#statistics-scope-group", Static).display is True
+        assert "Projects · By ChangeSpec" in _scope_plain(pane, "group")
+        assert len(calls) == 2
 
 
 async def test_project_filter_cycles_ranked_projects_and_survives_range_change(
@@ -186,9 +213,31 @@ async def test_project_filter_cycles_ranked_projects_and_survives_range_change(
         assert pane._project_filter is None
         assert calls[-1][3] is None
 
+        pane.action_cycle_project_filter_reverse()
+        await page.wait_for(lambda _state: len(calls) == 6 and not pane._loading)
+        assert pane._project_filter == "core"
+        assert calls[-1][3] == "core"
 
-async def test_empty_project_filter_clears_to_all_projects_with_one_keypress(
+        pane.action_cycle_project_filter_reverse()
+        await page.wait_for(lambda _state: len(calls) == 7 and not pane._loading)
+        assert pane._project_filter == "sase"
+        assert calls[-1][3] == "sase"
+
+        pane.action_cycle_project_filter_reverse()
+        await page.wait_for(lambda _state: len(calls) == 8 and not pane._loading)
+        assert pane._project_filter is None
+        assert calls[-1][3] is None
+
+
+@pytest.mark.parametrize(
+    ("key", "expected_filter", "expected_label"),
+    (("p", "sase", "SASE"), ("P", "core", "Core")),
+)
+async def test_empty_project_filter_clears_to_all_projects_in_either_direction(
     monkeypatch: pytest.MonkeyPatch,
+    key: str,
+    expected_filter: str,
+    expected_label: str,
 ) -> None:
     calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
     _patch_other_panes(monkeypatch)
@@ -217,18 +266,45 @@ async def test_empty_project_filter_clears_to_all_projects_with_one_keypress(
         _, pane = await _open_statistics(page)
         assert pane._project_filter_options == ("sase", "core")
 
-        await page.press("p")
+        await page.press(key)
         await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
-        assert pane._project_filter == "sase"
+        assert pane._project_filter == expected_filter
         assert pane._last_result is not None
         empty_state = _render_plain(pane._empty_state_renderable(pane._last_result))
-        assert "Press p to clear the SASE project filter." in empty_state
+        assert f"Press p/P to clear the {expected_label} project filter." in empty_state
 
-        await page.press("p")
+        await page.press(key)
         await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
         assert pane._project_filter is None
         assert calls[-1][3] is None
         assert "All projects" in _scope_plain(pane, "project")
+
+
+def test_project_filter_cycle_is_inert_without_choices_and_handles_stale_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pane = sp.StatisticsPane(auto_load=False)
+    changes: list[bool] = []
+    monkeypatch.setattr(
+        pane,
+        "_selection_changed",
+        lambda *, reload: changes.append(reload),
+    )
+
+    pane.action_cycle_project_filter()
+    pane.action_cycle_project_filter_reverse()
+    assert pane._project_filter is None
+    assert changes == []
+
+    pane._project_filter_options = ("sase", "core")
+    pane._project_filter = "stale"
+    pane.action_cycle_project_filter()
+    assert pane._project_filter == "sase"
+
+    pane._project_filter = "stale"
+    pane.action_cycle_project_filter_reverse()
+    assert pane._project_filter == "core"
+    assert changes == [True, True]
 
 
 async def test_project_filter_label_submits_canonical_key_across_reload_paths(

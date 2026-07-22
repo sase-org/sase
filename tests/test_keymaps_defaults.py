@@ -393,6 +393,7 @@ def test_default_config_covers_all_statistics_keymaps() -> None:
         "custom_range": "c",
         "cycle_group": "g",
         "cycle_project_filter": "p",
+        "cycle_project_filter_reverse": "P",
         "scroll_down": "ctrl+d",
         "scroll_up": "ctrl+u",
         "refresh": "r",

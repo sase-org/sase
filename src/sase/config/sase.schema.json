@@ -673,7 +673,11 @@
                 },
                 "cycle_project_filter": {
                   "type": "string",
-                  "description": "Cycle the global statistics project filter"
+                  "description": "Cycle the global statistics project filter forward"
+                },
+                "cycle_project_filter_reverse": {
+                  "type": "string",
+                  "description": "Cycle the global statistics project filter backward"
                 },
                 "scroll_down": {
                   "type": "string",

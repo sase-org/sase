@@ -37,6 +37,7 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
                     "custom_range": "f8",
                     "cycle_group": "f7",
                     "cycle_project_filter": "f6",
+                    "cycle_project_filter_reverse": "f1",
                     "scroll_down": "f5",
                     "scroll_up": "f4",
                     "refresh": "f3",
@@ -54,6 +55,7 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         ("f8", "Custom Range"),
         ("f7", "Group By"),
         ("f6", "Project Filter"),
+        ("f1", "Previous Project Filter"),
         ("f5", "Scroll Down"),
         ("f4", "Scroll Up"),
         ("f3", "Refresh"),
@@ -69,10 +71,21 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
             "f12 / f11 views   f8 custom range   f5/f4 scroll   f3 refresh   f2 help"
         )
         assert _scope_plain(pane, "range").startswith(" f10/f9  Range ")
-        assert _scope_plain(pane, "group").startswith(" f7  Group ")
-        assert _scope_plain(pane, "project").startswith(" f6  Project ")
-        await page.press("f9")
+        assert pane.query_one("#statistics-scope-group", Static).display is False
+        assert _scope_plain(pane, "project").startswith(" f6/f1  Project ")
+
+        await page.press("f1")
         await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
+        assert pane._project_filter == "core"
+        assert calls[-1][3] == "core"
+
+        await page.press("f6")
+        await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
+        assert pane._project_filter is None
+        assert calls[-1][3] is None
+
+        await page.press("f9")
+        await page.wait_for(lambda _state: len(calls) == 4 and not pane._loading)
         assert pane._preset_key == "24h"
 
         await page.press("f11", "f11", "f11", "f7")
@@ -81,7 +94,9 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
                 pane._view == "projects" and pane._projects_group_by == "changespec"
             )
         )
-        assert len(calls) == 2
+        assert pane.query_one("#statistics-scope-group", Static).display is True
+        assert _scope_plain(pane, "group").startswith(" f7  Group ")
+        assert len(calls) == 4
 
         pane._set_view("runners")
         scroll = pane.query_one("#statistics-body-scroll", VerticalScroll)
@@ -92,7 +107,7 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         await page.press("f4")
         await page.wait_for(lambda _state: scroll.scroll_y < moved)
         assert pane._view == "runners"
-        assert len(calls) == 2
+        assert len(calls) == 4
 
 
 async def test_default_half_page_scroll_does_not_reload_or_capture_range_input(

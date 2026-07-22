@@ -91,7 +91,10 @@ def test_empty_state_names_filtered_project_and_effective_clear_key() -> None:
     project_key = "gh_acme__widgets"
     pane = StatisticsPane(
         auto_load=False,
-        keymaps=StatisticsPaneKeymaps(cycle_project_filter="f7"),
+        keymaps=StatisticsPaneKeymaps(
+            cycle_project_filter="f7",
+            cycle_project_filter_reverse="f8",
+        ),
     )
     result = _result(
         pane._view,
@@ -104,7 +107,7 @@ def test_empty_state_names_filtered_project_and_effective_clear_key() -> None:
 
     rendered = _render_plain(pane._empty_state_renderable(result))
 
-    assert "Press f7 to clear the widgets project filter." in rendered
+    assert "Press f7/f8 to clear the widgets project filter." in rendered
     assert project_key not in rendered
 
 

@@ -6,6 +6,7 @@ from sase.ace.tui.keymaps import StatisticsPaneKeymaps
 from sase.ace.tui.keymaps.types import _STATISTICS_BINDING_META
 from sase.ace.tui.modals.statistics_help_modal import StatisticsHelpModal
 from sase.ace.tui.modals.statistics_pane_data import (
+    StatisticsView,
     VIEW_DESCRIPTIONS,
     VIEW_LABELS,
     VIEW_ORDER,
@@ -14,9 +15,9 @@ from sase.ace.tui.modals.statistics_pane_legends import VIEW_LEGENDS
 from sase.stats.ranges import StatsRange
 
 
-def _modal() -> StatisticsHelpModal:
+def _modal(current_view: StatisticsView = "overview") -> StatisticsHelpModal:
     return StatisticsHelpModal(
-        current_view="overview",
+        current_view=current_view,
         selected_range=StatsRange(100, 200, "exact range", "Last 7 days"),
         runtime_group_by="tribe",
         projects_group_by="project",
@@ -44,11 +45,25 @@ def test_help_documents_every_statistics_binding_and_current_scope() -> None:
     modal = _modal()
     controls = modal._controls_text().plain
 
-    for _action, description in _STATISTICS_BINDING_META:
-        assert description in controls
+    for action, description in _STATISTICS_BINDING_META:
+        if action == "cycle_group":
+            assert description not in controls
+        else:
+            assert description in controls
     assert "Last 7 days · exact range" in controls
-    assert "available in Runtime and Projects" in controls
-    assert "All projects" in controls
+    assert "next ranked project; current: All projects" in controls
+    assert "previous ranked project; current: All projects" in controls
+
+
+def test_help_group_control_is_visible_only_for_grouping_views() -> None:
+    for view in VIEW_ORDER:
+        controls = _modal(view)._controls_text().plain
+        if view == "projects":
+            assert "Group By — Projects · By Project" in controls
+        elif view == "runtime":
+            assert "Group By — Runtime · Tribe" in controls
+        else:
+            assert "Group By" not in controls
 
 
 def test_help_explains_runner_eligibility_windows_and_capacity_caveats() -> None:

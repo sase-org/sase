@@ -156,12 +156,12 @@ performs aggregation off the UI thread, refreshes every 30 seconds, and shows lo
 states in place.
 
 The scope header makes the current controls explicit: **Range** shows a friendly summary and, when space permits, its
-absolute span; **Group** names the active dimension in the Projects and Runtime views and shows an em dash elsewhere;
-and **Project** shows **All projects** or the selected project's display name (falling back to its canonical key),
-preceded by a categorical color swatch. A custom range is labeled **Custom**, and narrow terminals compact the chips
-without changing the selection. Project keys remain canonical internally even when a configured display name is shown.
+absolute span; **Group** appears only in the Projects and Runtime views and names the active dimension; and **Project**
+shows **All projects** or the selected project's display name (falling back to its canonical key), preceded by a
+categorical color swatch. A custom range is labeled **Custom**, and narrow terminals compact the chips without changing
+the selection. Project keys remain canonical internally even when a configured display name is shown.
 
-The seven views answer different questions:
+The eight views answer different questions:
 
 | View                  | Contents                                                                                                                                                |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -178,24 +178,26 @@ glossary, control list, active range/group/project scope, and freshness notes. O
 Rate, and Commits tiles open Runs when clicked; Plans Proposed and Questions open Plans & Questions without another data
 load.
 
-| Key     | Action                                                              |
-| ------- | ------------------------------------------------------------------- |
-| `[`/`]` | Cycle statistic views.                                              |
-| `t`     | Cycle Today, 24h, 7d, 30d, 90d, and All.                            |
-| `c`     | Enter a custom absolute or relative time range.                     |
-| `g`     | Cycle grouping in the Projects or Runtime view.                     |
-| `p`     | Cycle All → each project from the latest unfiltered ranking → All.  |
-| `r`     | Refresh immediately.                                                |
-| `?`     | Open contextual help; press the configured help key again to close. |
+| Key     | Action                                                               |
+| ------- | -------------------------------------------------------------------- |
+| `[`/`]` | Cycle statistic views.                                               |
+| `t`     | Cycle Today, 24h, 7d, 30d, 90d, and All.                             |
+| `c`     | Enter a custom absolute or relative time range.                      |
+| `g`     | Cycle grouping in the Projects or Runtime view.                      |
+| `p`     | Cycle All → each project from the latest unfiltered ranking → All.   |
+| `P`     | Cycle the same project order backward, wrapping in either direction. |
+| `r`     | Refresh immediately.                                                 |
+| `?`     | Open contextual help; press the configured help key again to close.  |
 
 Custom ranges accept elapsed windows such as `12h`, `14d`, or `8w`; a calendar month such as `2026-07`; a closed date
 range such as `2026-07-01..2026-07-18`; or an open-ended range such as `2026-07-01..`. Calendar inputs use the
 configured SASE timezone, closed ranges include the final date, and future time is excluded.
 
-The project choices are ranked by run count in the most recently loaded unfiltered result. If you change the range while
-a project remains selected, `p` continues to use that cached list; cycle back to **All** and let the pane reload to rank
-projects for the new range. When the selected project has no rows in the range, one `p` clears the filter directly to
-**All projects**.
+The project choices are ranked by run count in the most recently loaded unfiltered result. The cycle is **All projects**
+followed by those ranked projects: `p` moves forward and wraps, while `P` moves backward and wraps. From **All**, `p`
+selects the first ranked project and `P` selects the last. If you change the range while a project remains selected,
+both keys continue to use that cached list; cycle back to **All** and let the pane reload to rank projects for the new
+range. When the selected project has no rows in the range, either key clears the filter directly to **All projects**.
 
 The project filter applies to run-backed metrics, project-attributed activity, and—in Plans & Questions—the run-backed
 plan lifecycle, Sessions, and Asking agents summaries. Plan tiers and phases, plus total-question counts and
@@ -218,6 +220,7 @@ ace:
       custom_range: "c"
       cycle_group: "g"
       cycle_project_filter: "p"
+      cycle_project_filter_reverse: "P"
       scroll_down: "ctrl+d"
       scroll_up: "ctrl+u"
       refresh: "r"

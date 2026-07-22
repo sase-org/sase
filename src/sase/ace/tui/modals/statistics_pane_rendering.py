@@ -23,6 +23,7 @@ from .statistics_pane_data import (
     StatisticsViewData,
     VIEW_DESCRIPTIONS,
     VIEW_LABELS,
+    statistics_view_supports_grouping,
 )
 from .statistics_pane_views import StatisticsViewsRenderingMixin
 
@@ -177,12 +178,12 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             recovery,
         ]
         if result.project_filter is not None:
-            project_key = self._effective_key("cycle_project_filter")
+            project_keys = self._effective_project_keys()
             project_label = result.project_display_snapshot.label_for(
                 result.project_filter
             )
             clear_filter = Text()
-            clear_filter.append(f"Press {project_key}", style=f"bold {_GOLD}")
+            clear_filter.append(f"Press {project_keys}", style=f"bold {_GOLD}")
             clear_filter.append(f" to clear the {project_label} project filter.")
             lines.append(clear_filter)
         return Panel(
@@ -231,12 +232,12 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             retry,
         ]
         if result.project_filter is not None:
-            project_key = self._effective_key("cycle_project_filter")
+            project_keys = self._effective_project_keys()
             project_label = result.project_display_snapshot.label_for(
                 result.project_filter
             )
             clear_filter = Text()
-            clear_filter.append(f"Press {project_key}", style=f"bold {_GOLD}")
+            clear_filter.append(f"Press {project_keys}", style=f"bold {_GOLD}")
             clear_filter.append(f" to clear the {project_label} project filter.")
             lines.append(clear_filter)
         return Panel(
@@ -318,7 +319,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         return scope
 
     def _project_scope_text(self) -> Text:
-        key = self._effective_key("cycle_project_filter")
+        key = self._effective_project_keys()
         scope = self._scope_text(key, "Project", accent=_GOLD)
         if self._project_filter is None:
             scope.append("All projects", style=f"bold {_GOLD}")
@@ -363,6 +364,15 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             return f"{down}/{up.removeprefix(prefix)}"
         return f"{down}/{up}"
 
+    def _effective_project_keys(self) -> str:
+        """Combine the configured forward and reverse project-filter keys."""
+        return "/".join(
+            (
+                self._effective_key("cycle_project_filter"),
+                self._effective_key("cycle_project_filter_reverse"),
+            )
+        )
+
     def _effective_key(self, action: str) -> str:
         """Return the configured display key for one Statistics action."""
         return key_display_name(getattr(self._keymaps, action))
@@ -375,7 +385,15 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
 
     def _update_scope(self) -> None:
         self._update_static("#statistics-scope-range", self._range_scope_text())
-        self._update_static("#statistics-scope-group", self._group_scope_text())
+        try:
+            group_scope = self.query_one("#statistics-scope-group", Static)
+            group_scope.set_class(
+                not statistics_view_supports_grouping(self._view),
+                "hidden",
+            )
+            group_scope.update(self._group_scope_text())
+        except Exception:
+            pass
         self._update_static("#statistics-scope-project", self._project_scope_text())
 
     def _update_hints(self) -> None:

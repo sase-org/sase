@@ -80,6 +80,11 @@ RUNTIME_GROUP_ORDER: tuple[RuntimeGroupBy, ...] = (
 )
 
 
+def statistics_view_supports_grouping(view: StatisticsView) -> bool:
+    """Return whether ``view`` exposes a configurable grouping strategy."""
+    return view in ("projects", "runtime")
+
+
 @dataclass(frozen=True, slots=True)
 class StatisticsViewData:
     """One immutable result painted by :class:`StatisticsPane`."""
@@ -155,4 +160,5 @@ __all__ = [
     "StatisticsViewData",
     "ProjectsGroupBy",
     "load_statistics_view",
+    "statistics_view_supports_grouping",
 ]

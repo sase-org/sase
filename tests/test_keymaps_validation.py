@@ -209,6 +209,15 @@ def test_reverse_statistics_range_key_collision_reverts_override() -> None:
     assert reg.statistics.cycle_range_reverse == "T"
 
 
+def test_reverse_statistics_project_key_collision_reverts_override() -> None:
+    reg = load_keymap_registry(
+        {"keymaps": {"statistics": {"cycle_project_filter_reverse": "p"}}}
+    )
+
+    assert reg.statistics.cycle_project_filter == "p"
+    assert reg.statistics.cycle_project_filter_reverse == "P"
+
+
 def test_invalid_statistics_key_reverts_to_default() -> None:
     reg = load_keymap_registry(
         {"keymaps": {"statistics": {"refresh": "not_a_real_key"}}}

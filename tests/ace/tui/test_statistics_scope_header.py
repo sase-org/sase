@@ -7,13 +7,21 @@ from types import SimpleNamespace
 import pytest
 
 from sase.ace.tui.modals.statistics_pane import StatisticsPane
-from sase.ace.tui.modals.statistics_pane_data import VIEW_DESCRIPTIONS, VIEW_ORDER
+from sase.ace.tui.modals.statistics_pane_data import (
+    VIEW_DESCRIPTIONS,
+    VIEW_ORDER,
+    statistics_view_supports_grouping,
+)
 from sase.project_display_names import ProjectDisplaySnapshot
 
 
 def test_every_ordered_statistics_view_has_a_description() -> None:
     assert set(VIEW_DESCRIPTIONS) == set(VIEW_ORDER)
     assert all(VIEW_DESCRIPTIONS[view].strip() for view in VIEW_ORDER)
+    assert {view for view in VIEW_ORDER if statistics_view_supports_grouping(view)} == {
+        "projects",
+        "runtime",
+    }
 
 
 def test_scope_renderables_cover_range_group_project_and_status(
@@ -39,7 +47,7 @@ def test_scope_renderables_cover_range_group_project_and_status(
     pane._view = "projects"
     assert pane._group_scope_text().plain == " g  Group Projects · By Project"
 
-    assert pane._project_scope_text().plain == " p  Project All projects"
+    assert pane._project_scope_text().plain == " p/P  Project All projects"
     project_key = "gh_acme__widgets"
     pane._project_filter = project_key
     pane._last_result = SimpleNamespace(  # type: ignore[assignment]
@@ -51,7 +59,7 @@ def test_scope_renderables_cover_range_group_project_and_status(
     )
     project_scope = pane._project_scope_text()
     swatch_offset = project_scope.plain.index("■")
-    assert project_scope.plain == " p  Project ■ widgets"
+    assert project_scope.plain == " p/P  Project ■ widgets"
     assert any(
         span.start <= swatch_offset < span.end and str(span.style) == "#123456"
         for span in project_scope.spans

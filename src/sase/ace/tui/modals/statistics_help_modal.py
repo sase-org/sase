@@ -28,6 +28,7 @@ from .statistics_pane_data import (
     VIEW_ORDER,
     ProjectsGroupBy,
     StatisticsView,
+    statistics_view_supports_grouping,
 )
 from .statistics_pane_legends import VIEW_LEGENDS
 
@@ -132,14 +133,20 @@ class StatisticsHelpModal(ModalScreen[None]):
     def _controls_text(self) -> Text:
         bindings = statistics_help_bindings(self._keymaps)
         text = Text()
-        for index, ((action, description), (key, _)) in enumerate(
-            zip(_STATISTICS_BINDING_META, bindings, strict=True)
+        visible_count = 0
+        for (action, description), (key, _) in zip(
+            _STATISTICS_BINDING_META, bindings, strict=True
         ):
-            if index:
+            if action == "cycle_group" and not statistics_view_supports_grouping(
+                self._current_view
+            ):
+                continue
+            if visible_count:
                 text.append("\n")
             text.append(f" {key} ", style=f"bold reverse {_ACCENT}")
             text.append(f" {description}", style="bold")
             text.append(f" — {self._control_value(action)}", style="dim")
+            visible_count += 1
         return text
 
     def _control_value(self, action: str) -> str:
@@ -152,14 +159,13 @@ class StatisticsHelpModal(ModalScreen[None]):
         if action == "custom_range":
             return "enter a relative, calendar, or exact date range"
         if action == "cycle_group":
-            current = "—"
             if self._current_view == "runtime":
-                current = f"Runtime · {self._runtime_group_by.title()}"
-            elif self._current_view == "projects":
-                current = f"Projects · {self._projects_group_label()}"
-            return f"{current}; available in Runtime and Projects"
+                return f"Runtime · {self._runtime_group_by.title()}"
+            return f"Projects · {self._projects_group_label()}"
         if action == "cycle_project_filter":
-            return self._project_label
+            return f"next ranked project; current: {self._project_label}"
+        if action == "cycle_project_filter_reverse":
+            return f"previous ranked project; current: {self._project_label}"
         if action in {"scroll_down", "scroll_up"}:
             return "move the Statistics body by half of its visible height"
         if action == "refresh":

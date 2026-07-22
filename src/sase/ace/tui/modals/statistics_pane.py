@@ -40,6 +40,7 @@ from .statistics_pane_data import (
     StatisticsView,
     StatisticsViewData,
     load_statistics_view,
+    statistics_view_supports_grouping,
 )
 from .statistics_pane_rendering import StatisticsPanePresentationBase
 
@@ -171,7 +172,11 @@ class StatisticsPane(StatisticsPanePresentationBase):
             yield Static(
                 self._group_scope_text(),
                 id="statistics-scope-group",
-                classes="statistics-scope-part",
+                classes=(
+                    "statistics-scope-part"
+                    if statistics_view_supports_grouping(self._view)
+                    else "statistics-scope-part hidden"
+                ),
                 markup=False,
             )
             yield Static(
@@ -285,6 +290,8 @@ class StatisticsPane(StatisticsPanePresentationBase):
 
     def action_cycle_group(self) -> None:
         """Cycle the active view's grouping strategy when it supports one."""
+        if not statistics_view_supports_grouping(self._view):
+            return
         if self._view == "runtime":
             index = RUNTIME_GROUP_ORDER.index(self._runtime_group_by)
             self._runtime_group_by = RUNTIME_GROUP_ORDER[
@@ -299,7 +306,15 @@ class StatisticsPane(StatisticsPanePresentationBase):
             self._selection_changed(reload=False)
 
     def action_cycle_project_filter(self) -> None:
-        """Cycle projects, or clear an active filter with an empty result."""
+        """Cycle forward through All and cached ranked projects."""
+        self._cycle_project_filter(1)
+
+    def action_cycle_project_filter_reverse(self) -> None:
+        """Cycle backward through All and cached ranked projects."""
+        self._cycle_project_filter(-1)
+
+    def _cycle_project_filter(self, delta: int) -> None:
+        """Cycle projects in ``delta`` direction or escape an empty filter."""
         if (
             self._project_filter is not None
             and self._last_result is not None
@@ -321,7 +336,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
             index = cycle.index(self._project_filter)
         except ValueError:
             index = 0
-        self._project_filter = cycle[(index + 1) % len(cycle)]
+        self._project_filter = cycle[(index + delta) % len(cycle)]
         self._selection_changed(reload=True)
 
     def action_scroll_down(self) -> None:

@@ -269,7 +269,11 @@ def test_idle_and_carry_in_payloads_render_even_when_launch_views_are_empty(
 def test_missing_runner_payload_has_distinct_recovery_guidance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    result = _runner_result(include_runner_payload=False, launched_runs=2)
+    result = _runner_result(
+        include_runner_payload=False,
+        launched_runs=2,
+        project_filter="widgets",
+    )
     assert result.views.empty is False
     assert result.views.runners.available is False
     pane = StatisticsPane(auto_load=False)
@@ -292,6 +296,7 @@ def test_missing_runner_payload_has_distinct_recovery_guidance(
     )
     assert "older or partial" in rendered
     assert "No agent runs recorded" not in rendered
+    assert "Press p/P to clear the Widgets project filter." in rendered
 
 
 def test_wide_and_narrow_compositions_switch_without_changing_data() -> None:

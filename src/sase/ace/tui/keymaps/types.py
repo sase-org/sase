@@ -174,6 +174,7 @@ _STATISTICS_BINDING_META: tuple[tuple[str, str], ...] = (
     ("custom_range", "Custom Range"),
     ("cycle_group", "Group By"),
     ("cycle_project_filter", "Project Filter"),
+    ("cycle_project_filter_reverse", "Previous Project Filter"),
     ("scroll_down", "Scroll Down"),
     ("scroll_up", "Scroll Up"),
     ("refresh", "Refresh"),
@@ -477,6 +478,7 @@ class StatisticsPaneKeymaps:
     custom_range: str = "c"
     cycle_group: str = "g"
     cycle_project_filter: str = "p"
+    cycle_project_filter_reverse: str = "P"
     scroll_down: str = "ctrl+d"
     scroll_up: str = "ctrl+u"
     refresh: str = "r"
