@@ -899,14 +899,20 @@ materializes and prepares those entries before execution. Lazy entries remain av
 their per-repository `*_DIR` environment variables are not exported until the clone exists. Repositories with
 `auto_clone: true` are omitted from generated agent instructions because agents do not need to open them manually.
 
-Sidecar entries use their `name` as both the role and `sase/repos/<name>` clone directory. Their repository defaults to
-`<project>--<name>` in the primary repository's GitHub organization; `repo` can pin a bare slug or `owner/repo`. An
-explicit unpinned entry uses that project-local derivation even when a legacy SDD store record names a different
-repository. Configured sidecars appear in `sase repo list` even before cloning and can be opened by role name or
-repository slug. Enabled sidecars that are not auto-cloned also appear by repository slug in generated agent instruction
-files, where their `description` tells agents when to open them with `/sase_repo`. Set `disabled: true` in a later
-config layer to suppress a matching global entry or implicit fallback; disabled and auto-cloned sidecars are omitted
-from generated instructions.
+Sidecar entries use their `name` as the role and primary CLI lookup key. Ordinary roles use `sase/repos/<name>` as their
+workspace clone directory. Their repository defaults to `<project>--<name>` in the primary repository's GitHub
+organization; `repo` can pin a bare slug or `owner/repo`. An explicit unpinned entry uses that project-local derivation
+even when a legacy SDD store record names a different repository. Configured sidecars appear in `sase repo list` even
+before cloning and can be opened by role name or repository slug. Enabled ordinary sidecars that are not auto-cloned
+also appear by repository slug in generated agent instruction files, where their `description` tells agents when to open
+them with `/sase_repo`. Set `disabled: true` in a later config layer to suppress a matching global entry or implicit
+fallback; disabled and auto-cloned sidecars are omitted from generated instructions.
+
+The `agents` role is intrinsically hidden from agent workflows. It never appears in generated memory, launch metadata,
+linked-repository environment variables, or a workspace's `sase/repos/` tree, even if an override sets
+`auto_clone: true`. It remains visible to users as a `sidecar` row in `sase repo list`, and `sase repo path agents` or
+`sase repo open agents -r "<reason>"` explicitly accesses the one machine-level clone at
+`~/.sase/projects/<project_key>/repos/agents`. The derived or pinned repository slug is also accepted by those commands.
 
 The workspace provider owns sidecar transport. GitHub sidecars use canonical SSH origins on the primary repository's
 GitHub host (`git@host:owner/repo.git`, or `ssh://git@host:port/owner/repo.git` when a port is configured). Read-only
@@ -916,11 +922,13 @@ HTTPS clones keep their checkout and local state while SASE rewrites `origin` in
 cannot be derived from consistent GitHub provider, host, and repository metadata fails materialization before Git runs.
 Rerun `sase repo init` to persist the migrated record; it is not required to make a launch safe.
 
-Managed projects (`is_sase_managed: true`) continue to receive a deterministic `<project>--plans` (`auto_clone: true`)
-compatibility entry when no matching explicit sidecar is configured. Research is config-declared per project and
-defaults to `<owner>/<project>--research`; `sase repo init` writes both managed entries. Set `disabled: true` on the
-project's research entry to opt out, or set project-local `default_linked_repos: false` to disable the injected plans
-entry.
+Managed projects (`is_sase_managed: true`) receive deterministic `<project>--plans` (`auto_clone: true`) and
+`<project>--agents` (`auto_clone: false`, public visibility) entries when no matching explicit sidecar is configured.
+Research is config-declared per project and defaults to `<owner>/<project>--research`; `sase repo init` writes the plans
+and research entries. A project-local `agents` entry replaces the implicit entry: use `disabled: true` to opt out or
+`visibility: private` to retain it with a private remote policy. Project-local `default_linked_repos: false` suppresses
+both implicit managed-project entries. This foundation only declares, inventories, and explicitly materializes the
+agents sidecar; automatic repo-init creation, consent, seeding, and agent-data synchronization are separate behavior.
 
 The deprecated `linked_repos` and `sibling_repos` keys are still accepted as aliases during the compatibility window.
 Canonical `repos.linked` entries take precedence over both aliases when the same name is defined.
@@ -940,22 +948,24 @@ repos:
     - name: research
       description: Durable SASE research reports and generated media.
       visibility: public
+    - name: agents
+      visibility: private
 ```
 
 | Field                         | Type           | Default  | Description                                                                         |
 | ----------------------------- | -------------- | -------- | ----------------------------------------------------------------------------------- |
 | `github_orgs`                 | string or list | -        | GitHub user/org namespaces available to provider completion and PR workflows.       |
-| `default_linked_repos`        | boolean        | `true`   | Inject the managed-project `--plans` compatibility sidecar.                         |
+| `default_linked_repos`        | boolean        | `true`   | Inject managed-project `--plans` and hidden `--agents` sidecars.                    |
 | `repos.linked[].auto_clone`   | boolean        | `false`  | Materialize and prepare the repository automatically before each agent launch.      |
 | `repos.linked[].name`         | string         | required | Stable alias used in generated environment variable names and memory summaries.     |
 | `repos.linked[].path`         | string         | required | Primary checkout path. Relative paths resolve from the project's primary workspace. |
 | `repos.linked[].description`  | string         | required | Human-readable purpose used when generating agent memory for the linked repository. |
-| `repos.sidecar[].name`        | string         | required | Role name, clone directory, and primary CLI lookup key.                             |
+| `repos.sidecar[].name`        | string         | required | Role and CLI key; `agents` uses the stable machine-level clone path.                |
 | `repos.sidecar[].repo`        | string         | derived  | Optional bare slug or `owner/repo` pin.                                             |
 | `repos.sidecar[].description` | string         | -        | Purpose shown in inventory; required in generated instructions for lazy entries.    |
-| `repos.sidecar[].auto_clone`  | boolean        | `false`  | Materialize the sidecar automatically before agent launch.                          |
-| `repos.sidecar[].visibility`  | public/private | `public` | Visibility used when creating the remote.                                           |
-| `repos.sidecar[].disabled`    | boolean        | `false`  | Disable the entry and suppress matching implicit sidecars.                          |
+| `repos.sidecar[].auto_clone`  | boolean        | `false`  | Materialize before agent launch; intrinsically ignored for `agents`.                |
+| `repos.sidecar[].visibility`  | public/private | `public` | Remote visibility; project-local `private` overrides the `agents` default.          |
+| `repos.sidecar[].disabled`    | boolean        | `false`  | Disable the entry and suppress matching implicit sidecars, including `agents`.      |
 
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace numbers use
 `<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by host project and workspace number. Agent and
@@ -963,9 +973,11 @@ workflow launch preparation atomically removes the numbered checkout's entire `<
 required `plans` sidecar is then cloned directly from the canonical SSH or local remote resolved from its recorded
 metadata; other linked repositories and sidecars remain lazy unless configured with `auto_clone: true`. Legacy GitHub
 HTTPS metadata is normalized before the clone command is built, and unresolved HTTP(S) metadata stops launch setup
-before Git executes. Agents materialize lazy entries on demand through `/sase_repo`. `sase repo init` manages the
-tracked `/sase/repos/` ignore rule, while SASE also installs the rule in `.git/info/exclude` before materialization.
-SASE passes resolved metadata for all entries and exports per-repository paths only for materialized entries:
+before Git executes. The hidden `agents` sidecar is excluded from this clone mapping and always resolves every
+registered workspace number to `~/.sase/projects/<project_key>/repos/agents`. Agents materialize ordinary lazy entries
+on demand through `/sase_repo`. `sase repo init` manages the tracked `/sase/repos/` ignore rule, while SASE also
+installs the rule in `.git/info/exclude` before materialization. SASE passes resolved metadata for all entries and
+exports per-repository paths only for materialized entries:
 
 | Variable                                  | Description                                      |
 | ----------------------------------------- | ------------------------------------------------ |
@@ -2118,7 +2130,8 @@ repos come from ProjectSpecs, sidecars from `repos.sidecar` plus SDD store recor
 `repos.linked` (including compatibility aliases), and external repos from materialized workspace-local clones; a sidecar
 wins when the same checkout is also auto-injected as linked. The Rich table reports whether each repo is cloned in the
 selected workspace plus the number of registered workspaces containing it. External rows use the canonical project name
-or provider ref such as `gh:pallets/click`.
+or provider ref such as `gh:pallets/click`. Hidden `agents` rows remain visible and report the same stable machine-level
+path for every registered workspace context.
 
 | List flag         | Description                                                                 |
 | ----------------- | --------------------------------------------------------------------------- |

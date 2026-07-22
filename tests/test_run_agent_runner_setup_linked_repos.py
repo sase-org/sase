@@ -26,6 +26,7 @@ def _resolution(
     workspace_num: int = 7,
     auto_clone: bool = True,
     kind: str = "linked",
+    slug: str | None = None,
     remote_url: str | None = None,
 ) -> LinkedRepoResolution:
     return LinkedRepoResolution(
@@ -38,6 +39,7 @@ def _resolution(
                 workspace_num=workspace_num,
                 auto_clone=auto_clone,
                 kind=kind,
+                slug=slug,
                 remote_url=remote_url,
             ),
         )
@@ -335,6 +337,66 @@ def test_prepare_linked_repo_workspaces_skips_lazy_entries() -> None:
 
     materialize.assert_not_called()
     prepare.assert_not_called()
+
+
+def test_prepare_linked_repo_workspaces_defensively_skips_hidden_sidecars() -> None:
+    resolution = _resolution(
+        name="widget--agents",
+        kind="sidecar",
+        slug="widget--agents",
+        auto_clone=True,
+        remote_url="git@example.test:owner/widget--agents.git",
+    )
+
+    with (
+        patch("sase.linked_repos.materialize_linked_repo_workspace") as materialize,
+        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        patch("sase.linked_repos.apply_linked_repo_env") as apply_env,
+    ):
+        prepare_linked_repo_workspaces_if_needed(
+            resolution=resolution,
+            cl_name="feature",
+        )
+
+    materialize.assert_not_called()
+    prepare.assert_not_called()
+    apply_env.assert_not_called()
+
+
+def test_refresh_linked_repos_filters_stale_hidden_sidecar_metadata(
+    tmp_path: Path,
+) -> None:
+    meta = {"pid": 123, "workspace_dir": "/placeholder"}
+    hidden = _resolution(
+        name="agents",
+        kind="sidecar",
+        slug="widget--agents",
+        auto_clone=True,
+    )
+
+    with (
+        patch(
+            "sase.linked_repos.resolve_linked_repos_for_project",
+            return_value=hidden,
+        ),
+        patch(
+            "sase.axe.run_agent_runner_setup."
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+    ):
+        refreshed = refresh_linked_repos_for_workspace(
+            project_file=str(tmp_path / "project.sase"),
+            workspace_dir=str(tmp_path / "widget_7"),
+            workspace_num=7,
+            artifacts_dir=str(tmp_path),
+            agent_meta=meta,
+        )
+
+    assert refreshed.repos == ()
+    assert "linked_repos" not in meta
+    assert "sibling_repos" not in meta
+    assert LINKED_REPOS_JSON_ENV not in os.environ
+    assert SIBLING_REPOS_JSON_ENV not in os.environ
 
 
 def test_prepare_linked_repo_workspaces_skips_primary_paths() -> None:

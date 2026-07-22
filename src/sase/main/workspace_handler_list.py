@@ -201,6 +201,17 @@ def resolve_checkout_path(
 
     Materializes (cloning when missing) only when *materialize* is true.
     """
+    if ctx.is_machine_scoped_repo:
+        if materialize and ctx.linked_repo_remote_url:
+            from sase.linked_repos import materialize_linked_repo_workspace
+
+            return materialize_linked_repo_workspace(
+                primary_dir=ctx.primary_workspace_dir,
+                workspace_dir=ctx.primary_workspace_dir,
+                workspace_num=workspace_num,
+                expected_remote_url=ctx.linked_repo_remote_url,
+            )
+        return ctx.primary_workspace_dir.rstrip("/") or ctx.primary_workspace_dir
     if workspace_num <= 1:
         if materialize and ctx.is_configured_linked_repo and ctx.linked_repo_remote_url:
             from sase.linked_repos import materialize_linked_repo_workspace

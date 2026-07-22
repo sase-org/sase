@@ -159,6 +159,68 @@ def test_repo_path_ensure_materializes_configured_sidecar(
     assert capsys.readouterr().out.strip() == str(target)
 
 
+@pytest.mark.parametrize("requested", ["agents", "demo--agents"])
+def test_repo_path_hidden_agents_uses_stable_path_in_numbered_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    requested: str,
+) -> None:
+    ctx = _project_context(tmp_path)
+    primary = _primary_record(ctx)
+    stable = tmp_path / "state" / "projects" / "demo" / "repos" / "agents"
+    agents = RepoRecord(
+        name="agents",
+        kind="sidecar",
+        project="demo",
+        project_key="demo",
+        path=str(stable),
+        exists=False,
+        auto_clone=False,
+        description="Hidden agent data.",
+        source="test",
+        env_name=None,
+        slug="demo--agents",
+        remote_url="git@example.test:acme/demo--agents.git",
+        clones=(
+            RepoCloneRecord(0, str(stable), False),
+            RepoCloneRecord(12, str(stable), False),
+        ),
+    )
+    _patch_context_and_inventory(
+        monkeypatch,
+        ctx,
+        RepoInventory((primary, agents)),
+    )
+    calls: list[dict[str, Any]] = []
+
+    def materialize(**kwargs: Any) -> str:
+        calls.append(kwargs)
+        return str(stable)
+
+    monkeypatch.setattr(
+        "sase.linked_repos.materialize_linked_repo_workspace",
+        materialize,
+    )
+    args = create_parser().parse_args(
+        ["repo", "path", requested, "--ensure", "--workspace", "12"]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        handle_repo_command(args)
+
+    assert exc_info.value.code == 0
+    assert calls == [
+        {
+            "primary_dir": str(stable),
+            "workspace_dir": str(stable),
+            "workspace_num": 12,
+            "expected_remote_url": "git@example.test:acme/demo--agents.git",
+        }
+    ]
+    assert capsys.readouterr().out.strip() == str(stable)
+
+
 @pytest.mark.parametrize(
     ("storage", "kind", "expected_relpath"),
     [

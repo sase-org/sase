@@ -31,6 +31,7 @@ class ProjectContext:
     store: WorkspaceStore
     is_sibling: bool = False
     is_configured_linked_repo: bool = False
+    is_machine_scoped_repo: bool = False
     linked_host_primary_workspace_dir: str | None = None
     linked_repo_remote_url: str | None = None
 

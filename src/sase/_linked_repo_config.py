@@ -23,8 +23,13 @@ LINKED_REPOS_CONFIG_KEY = "linked_repos"
 SIBLING_REPOS_CONFIG_KEY = "sibling_repos"
 DEFAULT_LINKED_REPOS_CONFIG_KEY = "default_linked_repos"
 
+AGENTS_SIDECAR_ROLE = "agents"
+DEFAULT_AGENTS_DESCRIPTION = (
+    "Hidden sidecar that stores commit-associated sase agent data for this project."
+)
 DEFAULT_PLANS_DESCRIPTION = "Durable SASE plans, prompt snapshots, and bead state."
 DEFAULT_RESEARCH_DESCRIPTION = "Durable SASE research reports and generated media."
+HIDDEN_SIDECAR_ROLES = frozenset({AGENTS_SIDECAR_ROLE})
 
 _DEFAULT_LINKED_REPO_MARKER = "_sase_default_linked_repo"
 _SIDECAR_REPO_MARKER = "_sase_sidecar_repo"
@@ -273,6 +278,7 @@ def inject_default_linked_repos(
     *,
     primary_workspace_dir: str,
     local_config: Mapping[str, Any],
+    config: Mapping[str, Any] | None = None,
 ) -> list[Mapping[str, Any]]:
     """Inject managed-project sidecar repos unless locally disabled."""
 
@@ -318,6 +324,36 @@ def inject_default_linked_repos(
                 _SIDECAR_SLUG_KEY: name,
                 _SIDECAR_REPO_REF_KEY: name,
                 _SIDECAR_REMOTE_URL_KEY: None,
+            }
+        )
+
+    agents_identity = _sidecar_repo_identity(
+        {
+            "name": AGENTS_SIDECAR_ROLE,
+            _DEFAULT_LINKED_REPO_MARKER: True,
+        },
+        primary_workspace_dir=primary_workspace_dir,
+        config=config if config is not None else local_config,
+    )
+    if agents_identity is not None and not (
+        agents_identity.slug in configured_names
+        or {AGENTS_SIDECAR_ROLE, agents_identity.slug}.intersection(
+            configured_sidecar_tokens
+        )
+    ):
+        merged.append(
+            {
+                "name": agents_identity.slug,
+                "path": f"../{agents_identity.slug}",
+                "description": DEFAULT_AGENTS_DESCRIPTION,
+                "auto_clone": False,
+                "visibility": "public",
+                _DEFAULT_LINKED_REPO_MARKER: True,
+                _SIDECAR_REPO_MARKER: True,
+                _SIDECAR_ROLE_KEY: AGENTS_SIDECAR_ROLE,
+                _SIDECAR_SLUG_KEY: agents_identity.slug,
+                _SIDECAR_REPO_REF_KEY: agents_identity.repo,
+                _SIDECAR_REMOTE_URL_KEY: agents_identity.remote_url,
             }
         )
     return merged

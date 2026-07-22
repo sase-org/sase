@@ -139,6 +139,100 @@ def test_repo_open_accepts_sidecar_slug(
     assert capsys.readouterr().out == f"{sidecar.path}\n"
 
 
+def test_repo_open_hidden_agents_stays_machine_scoped_for_numbered_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    host_ctx = project_context(tmp_path)
+    stable = tmp_path / "state" / "projects" / "demo" / "repos" / "agents"
+    stable.mkdir(parents=True)
+    agents = RepoRecord(
+        name="agents",
+        kind="sidecar",
+        project="demo",
+        project_key="demo",
+        path=str(stable),
+        exists=True,
+        auto_clone=False,
+        description="Hidden agent data.",
+        source="test",
+        env_name=None,
+        slug="demo--agents",
+        remote_url="git@example.test:acme/demo--agents.git",
+        clones=(
+            RepoCloneRecord(0, str(stable), True),
+            RepoCloneRecord(12, str(stable), True),
+        ),
+    )
+    materialize_calls: list[dict[str, object]] = []
+    audit_calls: list[dict[str, object]] = []
+
+    def materialize(**kwargs: object) -> str:
+        materialize_calls.append(kwargs)
+        return str(stable)
+
+    monkeypatch.setattr(
+        "sase.main.workspace_handler._resolve_project_context",
+        lambda _project: host_ctx,
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_handler.collect_repo_inventory",
+        lambda **_kwargs: RepoInventory((agents,)),
+    )
+    monkeypatch.setattr("sase.main.repo_handler.load_merged_config", lambda: {})
+    monkeypatch.setattr(
+        "sase.linked_repos.materialize_linked_repo_workspace",
+        materialize,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.files.ensure_bare_git_sdd_initialized", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        "sase.axe.runner_workspace.prepare_workspace",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.linked_repos.record_opened_linked_repo",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_handler._record_repo_open",
+        lambda **kwargs: audit_calls.append(kwargs),
+    )
+    args = create_parser().parse_args(
+        [
+            "repo",
+            "open",
+            "demo--agents",
+            "--project",
+            "demo",
+            "--reason",
+            "inspect agent archive",
+            "--workspace",
+            "12",
+        ]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        handle_repo_command(args)
+
+    assert exc_info.value.code == 0
+    assert materialize_calls
+    assert {call["workspace_dir"] for call in materialize_calls} == {str(stable)}
+    assert audit_calls == [
+        {
+            "host_ctx": host_ctx,
+            "repo_name": "agents",
+            "repo_kind": "sidecar",
+            "workspace_num": 12,
+            "path": str(stable),
+            "reason": "inspect agent archive",
+        }
+    ]
+    assert capsys.readouterr().out == f"{stable}\n"
+
+
 def test_unknown_repo_lists_valid_candidates(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

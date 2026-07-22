@@ -12,6 +12,7 @@ from sase._repo_inventory_models import (
     RepoInventoryIssue,
     RepoRecord,
 )
+from sase._linked_repo_config import HIDDEN_SIDECAR_ROLES
 from sase.external_repos import (
     EXTERNAL_PROJECTS_NAMESPACE,
     external_repo_clone_parts_from_name,
@@ -80,6 +81,16 @@ def repo_clones(
     workspace_checkouts: Sequence[tuple[int, str]],
 ) -> tuple[RepoCloneRecord, ...]:
     """Build one repository's clone matrix across registered workspaces."""
+
+    if record.kind == "sidecar" and record.name in HIDDEN_SIDECAR_ROLES:
+        return tuple(
+            RepoCloneRecord(
+                workspace_num=workspace_num,
+                path=record.path,
+                exists=Path(record.path).is_dir(),
+            )
+            for workspace_num, _host_checkout in workspace_checkouts
+        )
 
     clones: list[RepoCloneRecord] = []
     normalized_primary = normalize_path(host_primary)

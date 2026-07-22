@@ -23,6 +23,7 @@ from .repo_handler_common import (
     MarkerFinder,
     ProjectContextResolver,
     RepoOpenResolutionError,
+    clone_for_workspace,
     is_relative_to,
 )
 from .workspace_handler_context import ConfigLoader, ProjectContext
@@ -109,6 +110,12 @@ def handle_open_command(
         return 0
 
     target_ctx = target_context(host_ctx, repo)
+    if target_ctx.is_machine_scoped_repo:
+        try:
+            clone_for_workspace(repo, workspace_num)
+        except RepoOpenResolutionError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
     path = prepare_opened_checkout(
         target_ctx,
         workspace_num,
@@ -176,6 +183,8 @@ def repo_target_context(
     *,
     load_config: ConfigLoader,
 ) -> ProjectContext:
+    from sase._linked_repo_config import HIDDEN_SIDECAR_ROLES
+
     if repo.kind == "primary":
         return host_ctx
     primary_clone = repo.clone_for_workspace(0)
@@ -187,6 +196,9 @@ def repo_target_context(
         store=WorkspaceStore(primary_dir, config=load_config()),
         is_sibling=True,
         is_configured_linked_repo=True,
+        is_machine_scoped_repo=(
+            repo.kind == "sidecar" and repo.name in HIDDEN_SIDECAR_ROLES
+        ),
         linked_host_primary_workspace_dir=host_ctx.primary_workspace_dir,
         linked_repo_remote_url=repo.remote_url,
     )

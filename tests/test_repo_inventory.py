@@ -8,7 +8,8 @@ import subprocess
 import pytest
 
 from sase.core.project_lifecycle_wire import ProjectRecordWire
-from sase.linked_repos import external_repo_clone_dir
+from sase._linked_repo_config import DEFAULT_AGENTS_DESCRIPTION
+from sase.linked_repos import external_repo_clone_dir, hidden_sidecar_clone_dir
 from sase.repo_inventory import collect_repo_inventory
 from sase.sdd.store import write_sdd_store_record
 from sase.workspace_provider.registry import (
@@ -364,6 +365,89 @@ def test_inventory_joins_registered_workspace_clone_matrix(
     assert linked_clones[1].path == str(linked_10)
     assert linked_clones[1].exists is True
     assert linked_clones[2].exists is False
+
+
+def test_inventory_exposes_hidden_agents_at_one_machine_level_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project_record(tmp_path)
+    primary = Path(project.workspace_dir or "")
+    _set_github_origin(primary)
+    state_root = tmp_path / "state"
+    monkeypatch.setenv("SASE_HOME", str(state_root))
+    config = {"workspace": {"root": str(tmp_path / "managed")}}
+    store = WorkspaceStore(str(primary), config=config)
+    registry = load_registry(store)
+    workspace_10 = tmp_path / "widget_10"
+    workspace_10.mkdir()
+    registry.workspaces["10"] = _workspace_entry(workspace_10)
+    save_registry(store, registry)
+
+    monkeypatch.setattr(
+        "sase.repo_inventory.list_project_records",
+        lambda *_args, **_kwargs: [project],
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.resolution_config",
+        lambda *_args, **_kwargs: config,
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.read_project_local_config",
+        lambda *_args, **_kwargs: {"is_sase_managed": True},
+    )
+
+    inventory = collect_repo_inventory(tmp_path / "projects")
+
+    agents = next(record for record in inventory.records if record.name == "agents")
+    expected = hidden_sidecar_clone_dir(project.project_name, "agents")
+    assert agents.kind == "sidecar"
+    assert agents.slug == "widget--agents"
+    assert agents.description == DEFAULT_AGENTS_DESCRIPTION
+    assert agents.remote_url == "git@github.com:acme/widget--agents.git"
+    assert agents.path == expected
+    assert agents.exists is False
+    assert agents.auto_clone is False
+    assert agents.env_name is None
+    assert [clone.workspace_num for clone in agents.clones] == [0, 10]
+    assert {clone.path for clone in agents.clones} == {expected}
+    assert all(not clone.exists for clone in agents.clones)
+    assert not (primary / "sase" / "repos" / "agents").exists()
+    assert not (workspace_10 / "sase" / "repos" / "agents").exists()
+
+
+@pytest.mark.parametrize(
+    "local_config",
+    [
+        {},
+        {
+            "is_sase_managed": True,
+            "repos": {"sidecar": [{"name": "agents", "disabled": True}]},
+        },
+    ],
+)
+def test_inventory_omits_unmanaged_or_disabled_agents_sidecar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    local_config: dict[str, object],
+) -> None:
+    project = _project_record(tmp_path)
+    monkeypatch.setattr(
+        "sase.repo_inventory.list_project_records",
+        lambda *_args, **_kwargs: [project],
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.resolution_config",
+        lambda *_args, **_kwargs: local_config,
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.read_project_local_config",
+        lambda *_args, **_kwargs: local_config,
+    )
+
+    inventory = collect_repo_inventory(tmp_path / "projects")
+
+    assert all(record.name != "agents" for record in inventory.records)
 
 
 def test_inventory_scans_external_repos_across_registered_workspaces(

@@ -21,6 +21,14 @@ top-level state files such as ``machine_name`` and the JSON stores — either
 bounded, already structured, or below the threshold at which flat-directory
 scans become noticeable.  Revisit individually if any of these later crosses
 ~1000 entries.
+
+Project-scoped repository state
+-------------------------------
+
+Repositories that must exist once per machine and project, rather than once
+per workspace, live below ``~/.sase/projects/<project_key>/repos/<role>``.
+Hidden sidecars use this layout so ephemeral workspace cleanup and launch-time
+repository preparation cannot copy them into ``sase/repos/`` checkouts.
 """
 
 import os

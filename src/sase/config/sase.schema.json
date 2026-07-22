@@ -40,7 +40,7 @@
       "properties": {
         "auto_clone": {
           "type": "boolean",
-          "description": "Materialize and synchronize this sidecar automatically before each agent launch.",
+          "description": "Materialize and synchronize this sidecar automatically before each agent launch. The intrinsic agents role ignores this setting and is never exposed to launched agents or cloned into workspaces.",
           "default": false
         },
         "description": {
@@ -50,12 +50,12 @@
         },
         "disabled": {
           "type": "boolean",
-          "description": "Disable this sidecar entry and suppress matching implicit sidecar defaults.",
+          "description": "Disable this sidecar entry and suppress matching implicit sidecar defaults, including the managed-project agents sidecar.",
           "default": false
         },
         "name": {
           "type": "string",
-          "description": "Stable role name used as the sase/repos/<name> clone directory and CLI lookup key.",
+          "description": "Stable role name and CLI lookup key. Ordinary roles clone at sase/repos/<name>; the intrinsic agents role uses the machine-level ~/.sase/projects/<project_key>/repos/agents path.",
           "minLength": 1
         },
         "repo": {
@@ -65,7 +65,7 @@
         },
         "visibility": {
           "type": "string",
-          "description": "Visibility used when creating a missing sidecar repository.",
+          "description": "Visibility used when creating a missing sidecar repository. Set the managed-project agents role to private to override its public default.",
           "enum": ["public", "private"],
           "default": "public"
         }
@@ -1558,7 +1558,7 @@
     },
     "default_linked_repos": {
       "type": "boolean",
-      "description": "Inject the default plans sidecar repository for SASE-managed projects.",
+      "description": "Inject the default plans and intrinsically hidden agents sidecar repositories for SASE-managed projects.",
       "default": true
     },
     "repos": {
@@ -1576,7 +1576,7 @@
         },
         "sidecar": {
           "type": "array",
-          "description": "Project-owned sidecar repositories cloned below sase/repos/<name>.",
+          "description": "Project-owned sidecar repositories. Ordinary roles clone below sase/repos/<name>; the hidden agents role is explicitly accessible only at ~/.sase/projects/<project_key>/repos/agents.",
           "items": {
             "$ref": "#/definitions/sidecarRepo"
           },

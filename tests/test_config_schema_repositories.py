@@ -85,6 +85,26 @@ def test_config_schema_accepts_canonical_linked_and_sidecar_repos() -> None:
     )
 
 
+def test_config_schema_documents_intrinsic_agents_sidecar_contract() -> None:
+    public_schema = schema()
+    sidecar = public_schema["definitions"]["sidecarRepo"]["properties"]
+
+    assert (
+        "hidden agents"
+        in public_schema["properties"]["default_linked_repos"]["description"]
+    )
+    assert (
+        "hidden agents"
+        in public_schema["properties"]["repos"]["properties"]["sidecar"]["description"]
+    )
+    assert (
+        "~/.sase/projects/<project_key>/repos/agents" in sidecar["name"]["description"]
+    )
+    assert "never exposed" in sidecar["auto_clone"]["description"]
+    assert "agents sidecar" in sidecar["disabled"]["description"]
+    assert "private" in sidecar["visibility"]["description"]
+
+
 @pytest.mark.parametrize(
     ("entry", "field"),
     [

@@ -9,7 +9,7 @@ import re
 import subprocess
 from typing import Any
 
-from sase._linked_repo_config import REPOS_SIDECAR_CONFIG_KEY
+from sase._linked_repo_config import HIDDEN_SIDECAR_ROLES, REPOS_SIDECAR_CONFIG_KEY
 from sase.content_layout import resolve_project_layout
 from sase.linked_repos import (
     LINKED_REPOS_CONFIG_KEY,
@@ -301,6 +301,8 @@ def linked_entries_from_config(
                     errors.append(f"{prefix} is missing required string field 'name'")
                     continue
                 role = role.strip()
+                if role in HIDDEN_SIDECAR_ROLES:
+                    continue
 
                 description = item.get("description")
                 if not isinstance(description, str) or not description.strip():

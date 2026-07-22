@@ -42,6 +42,30 @@ if TYPE_CHECKING:
     from sase.linked_repos import LinkedRepoResolution
 
 
+def _without_hidden_sidecars(
+    resolution: "LinkedRepoResolution",
+) -> "LinkedRepoResolution":
+    """Defensively remove hidden sidecars from launch-facing metadata."""
+
+    from sase._linked_repo_config import HIDDEN_SIDECAR_ROLES
+    from sase.linked_repos import LinkedRepoResolution
+
+    def is_hidden(repo: Any) -> bool:
+        if repo.kind != "sidecar":
+            return False
+        if repo.name in HIDDEN_SIDECAR_ROLES:
+            return True
+        return bool(
+            repo.slug == repo.name
+            and any(repo.name.endswith(f"--{role}") for role in HIDDEN_SIDECAR_ROLES)
+        )
+
+    visible = tuple(repo for repo in resolution.repos if not is_hidden(repo))
+    if visible == resolution.repos:
+        return resolution
+    return LinkedRepoResolution(visible, resolution.warnings)
+
+
 def prepare_workspace_if_needed(
     *,
     workspace_dir: str,
@@ -86,6 +110,7 @@ def prepare_linked_repo_workspaces_if_needed(
     fresh_sidecar_paths: frozenset[str] = frozenset(),
 ) -> None:
     """Materialize and prepare host-scoped linked repo workspaces for a launch."""
+    resolution = _without_hidden_sidecars(resolution)
     repos = [
         repo
         for repo in resolution.repos
@@ -403,6 +428,7 @@ def refresh_linked_repos_for_workspace(
         workspace_num=workspace_num,
         materialize=False,
     )
+    resolution = _without_hidden_sidecars(resolution)
     apply_linked_repo_env(os.environ, resolution)
     agent_meta["workspace_dir"] = workspace_dir
     if resolution.repos:

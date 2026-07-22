@@ -19,11 +19,13 @@ from typing import Any
 import uuid
 
 from sase._git_remote import git_remotes_match
-from sase.git_lock_retry import run_with_git_lock_retry
 from sase._linked_repo_config import (
+    AGENTS_SIDECAR_ROLE,
+    DEFAULT_AGENTS_DESCRIPTION,
     DEFAULT_LINKED_REPOS_CONFIG_KEY,
     DEFAULT_PLANS_DESCRIPTION,
     DEFAULT_RESEARCH_DESCRIPTION,
+    HIDDEN_SIDECAR_ROLES,
     LINKED_REPOS_CONFIG_KEY,
     REPOS_CONFIG_KEY,
     SIBLING_REPOS_CONFIG_KEY,
@@ -67,6 +69,8 @@ from sase._linked_repo_markers import (
     record_opened_linked_repo,
     record_opened_repo,
 )
+from sase.core.paths import sase_projects_dir
+from sase.git_lock_retry import run_with_git_lock_retry
 
 # Host-scoped linked and sidecar clones are launch-scoped in numbered
 # workspaces. Sidecars created there are cloned from their recorded remotes.
@@ -80,6 +84,8 @@ LinkedRepoResolution.__module__ = __name__
 _ResolvedLinkedRepo.__module__ = __name__
 
 __all__ = [
+    "AGENTS_SIDECAR_ROLE",
+    "DEFAULT_AGENTS_DESCRIPTION",
     "DEFAULT_LINKED_REPOS_CONFIG_KEY",
     "DEFAULT_PLANS_DESCRIPTION",
     "DEFAULT_RESEARCH_DESCRIPTION",
@@ -90,6 +96,7 @@ __all__ = [
     "LINKED_REPO_ENV_SUFFIXES",
     "LINKED_REPOS_CONFIG_KEY",
     "LINKED_REPOS_JSON_ENV",
+    "HIDDEN_SIDECAR_ROLES",
     "OPENED_LINKED_FILENAME",
     "OPENED_SIBLINGS_FILENAME",
     "OpenedRepoKind",
@@ -102,6 +109,7 @@ __all__ = [
     "apply_linked_repo_env",
     "clear_workspace_repos",
     "external_repo_clone_dir",
+    "hidden_sidecar_clone_dir",
     "sidecar_repo_clone_dir",
     "is_legacy_static_linked_repo_record",
     "linked_repo_clone_dir",
@@ -142,6 +150,7 @@ def resolve_linked_repos_for_project(
         entries,
         primary_workspace_dir=primary_workspace_dir,
         local_config=config if config is not None else local_config,
+        config=resolved_config,
     )
     resolution = _resolve_linked_repos(
         entries,
@@ -183,6 +192,8 @@ def _resolve_linked_repos(
         sidecar_slug = _entry_text(entry, _SIDECAR_SLUG_KEY)
         remote_url = _entry_text(entry, _SIDECAR_REMOTE_URL_KEY)
         if disabled:
+            continue
+        if is_sidecar and sidecar_role in HIDDEN_SIDECAR_ROLES:
             continue
         if not isinstance(name, str) or not name.strip():
             kind = "sidecar" if is_sidecar else "linked repo"
@@ -294,6 +305,25 @@ def sidecar_repo_clone_dir(host_checkout: str | Path, dirname: str) -> str:
     )
 
 
+def hidden_sidecar_clone_dir(project_key: str, role: str) -> str:
+    """Return one project's stable machine-level hidden-sidecar clone path."""
+
+    components = {"project key": project_key, "sidecar role": role}
+    for label, component in components.items():
+        if (
+            not isinstance(component, str)
+            or not component
+            or component in {".", ".."}
+            or component != component.strip()
+            or component.startswith(".")
+            or "/" in component
+            or "\\" in component
+            or "\x00" in component
+        ):
+            raise ValueError(f"{label} must be a safe path component")
+    return normalize_path(str(sase_projects_dir() / project_key / "repos" / role))
+
+
 def _repo_basename(repo: str) -> str:
     return repo.rstrip("/").rsplit("/", 1)[-1]
 
@@ -311,6 +341,7 @@ def _sdd_sidecar_repo_dirnames(
     configured: dict[str, str] = {}
     configured_roles: set[str] = set()
     disabled: set[str] = set()
+    hidden: set[str] = set()
     try:
         resolved_config = resolution_config(str(primary), config)
         configured_entries = merged_sidecar_entries_from_config(
@@ -323,6 +354,9 @@ def _sdd_sidecar_repo_dirnames(
         role = _entry_text(entry, _SIDECAR_ROLE_KEY)
         slug = _entry_text(entry, _SIDECAR_SLUG_KEY)
         tokens = {token for token in (role, slug) if token}
+        if role in HIDDEN_SIDECAR_ROLES:
+            hidden.update(tokens)
+            continue
         if role:
             configured_roles.add(role)
         if entry.get("disabled") is True:
@@ -339,9 +373,15 @@ def _sdd_sidecar_repo_dirnames(
             if (sidecar := record.sidecar_for_kind(kind)) is not None
             and kind not in configured_roles
             and kind not in disabled
+            and kind not in hidden
             and _repo_basename(sidecar.repo) not in disabled
+            and _repo_basename(sidecar.repo) not in hidden
         }
-        return {**store_mapping, **configured}
+        return {
+            key: value
+            for key, value in {**store_mapping, **configured}.items()
+            if key not in hidden and value not in hidden
+        }
 
     project_name = primary.name
     if not project_name:
@@ -351,9 +391,15 @@ def _sdd_sidecar_repo_dirnames(
         for kind in ("plans", "research")
         if kind not in configured_roles
         if kind not in disabled
+        if kind not in hidden
         if (slug := f"{project_name}--{kind}") not in disabled
+        if slug not in hidden
     }
-    return {**fallbacks, **configured}
+    return {
+        key: value
+        for key, value in {**fallbacks, **configured}.items()
+        if key not in hidden and value not in hidden
+    }
 
 
 def sdd_sidecar_clone_dirname(

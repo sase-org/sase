@@ -15,8 +15,10 @@ import re
 from typing import Any
 
 from sase._linked_repo_config import (
+    DEFAULT_AGENTS_DESCRIPTION,
     DEFAULT_PLANS_DESCRIPTION,
     DEFAULT_RESEARCH_DESCRIPTION,
+    HIDDEN_SIDECAR_ROLES,
     _DEFAULT_LINKED_REPO_MARKER,
     _SIDECAR_REMOTE_URL_KEY,
     _SIDECAR_REPO_MARKER,
@@ -49,6 +51,7 @@ from sase.core.project_lifecycle_wire import (
     effective_project_name,
 )
 from sase.linked_repos import (
+    hidden_sidecar_clone_dir,
     sidecar_repo_clone_dir,
     sdd_sidecar_clone_dirname,
 )
@@ -165,6 +168,7 @@ def _collect_project_repos(
             entries,
             primary_workspace_dir=primary,
             local_config=local_config,
+            config=resolved_config,
         )
         issues.extend(
             RepoInventoryIssue(project, warning) for warning in merge_warnings
@@ -296,7 +300,42 @@ def _collect_project_repos(
             or entry.get(_DEFAULT_LINKED_REPO_MARKER) is True
             or sidecar_kind is not None
         )
+        sidecar_role = _optional_text(entry.get(_SIDECAR_ROLE_KEY))
         entry_slug = _optional_text(entry.get(_SIDECAR_SLUG_KEY))
+        if is_sidecar and sidecar_role in HIDDEN_SIDECAR_ROLES:
+            try:
+                hidden_path = hidden_sidecar_clone_dir(project_key, sidecar_role)
+            except ValueError as exc:
+                issues.append(
+                    RepoInventoryIssue(
+                        project,
+                        f"Unable to resolve hidden sidecar {sidecar_role!r}: {exc}",
+                    )
+                )
+                continue
+            records.append(
+                RepoRecord(
+                    name=sidecar_role,
+                    kind="sidecar",
+                    project=project,
+                    project_key=project_key,
+                    path=hidden_path,
+                    exists=Path(hidden_path).is_dir(),
+                    auto_clone=False,
+                    description=_optional_text(entry.get("description"))
+                    or DEFAULT_AGENTS_DESCRIPTION,
+                    source=(
+                        "auto-injected sidecar"
+                        if entry.get(_DEFAULT_LINKED_REPO_MARKER) is True
+                        else "repos.sidecar config"
+                    ),
+                    env_name=None,
+                    slug=entry_slug,
+                    remote_url=_optional_text(entry.get(_SIDECAR_REMOTE_URL_KEY)),
+                    sdd_storage=None,
+                )
+            )
+            continue
         if (
             linked_name in materialized_sidecars
             or (entry_slug is not None and entry_slug in materialized_sidecars)

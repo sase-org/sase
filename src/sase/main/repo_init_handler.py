@@ -406,6 +406,7 @@ def _plan_sidecar_actions(
 
 def _configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]:
     from sase._linked_repo_config import (
+        HIDDEN_SIDECAR_ROLES,
         _DEFAULT_LINKED_REPO_MARKER,
         _SIDECAR_REMOTE_URL_KEY,
         _SIDECAR_REPO_REF_KEY,
@@ -428,6 +429,7 @@ def _configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]
         entries,
         primary_workspace_dir=str(primary),
         local_config=read_project_local_config(str(primary)),
+        config=config,
     )
 
     specs: list[SidecarInitSpec] = []
@@ -435,7 +437,7 @@ def _configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]
         if entry.get("disabled") is True:
             continue
         role = _entry_text(entry, _SIDECAR_ROLE_KEY) or _entry_text(entry, "name")
-        if not role:
+        if not role or role in HIDDEN_SIDECAR_ROLES:
             continue
         raw_repo = _entry_text(entry, "repo")
         repo: str | None = None
