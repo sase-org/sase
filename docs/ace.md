@@ -821,11 +821,11 @@ selection always lands somewhere meaningful in the rendered tree.
 Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes. The Agents tab shows a brief toast
 (`Grouping: by project` / `by date` / `by status`) on each cycle:
 
-| Mode        | L0 buckets                                                         | Notes                                                                                                                                                             |
-| ----------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STANDARD`  | Project (with optional ChangeSpec sub-level)                       | The "by project" default. Uses the 2-/3-level layout described above.                                                                                             |
-| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`                    | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.                                                                         |
-| `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; status priority fixes bucket position, while launch recency sorts display units only within a bucket. Name subgroups remain. |
+| Mode        | L0 buckets                                                         | Notes                                                                                                                                                                          |
+| ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `STANDARD`  | Project (with optional ChangeSpec sub-level)                       | The "by project" default. Uses the 2-/3-level layout described above.                                                                                                          |
+| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`                    | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.                                                                                      |
+| `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; status priority fixes bucket position. Standalone houses precede name subgroups, with launch recency sorting units inside each partition. |
 
 In `BY_DATE` mode, ACE chooses one L1 subgroup style from the L0 date bucket: one-hour windows (`09:00`) for `Today` and
 `Yesterday`, calendar-day labels for `This Week`, and Monday-start week ranges for `Earlier`. The time anchor is
@@ -834,9 +834,11 @@ children inherit the parent's anchor so they stay adjacent regardless of their o
 timestamp fall into a `(no time)` subgroup that sorts last.
 
 In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root, with the same singleton-suppression rule
-as `STANDARD`. Status priority fixes the bucket order: Stopped, Failed, Running, Waiting, Done, Starting. Launch time
-never moves a display unit across those buckets; within a bucket, top-level display units sort by `start_time`, newest
-first. Units with no launch timestamp sort after timestamped units, with structural names and input order providing
+as `STANDARD`. Status priority fixes the bucket order: Stopped, Failed, Running, Waiting, Done, Starting. Within each
+bucket, standalone houses render before every visible name-root subgroup; `start_time` sorts houses newest-first inside
+the standalone partition and subgroup units newest-first inside the subgroup partition. The same partitioning rule
+applies under a name-root, where directly contained houses precede visible dotted-prefix subgroups. Units with no launch
+timestamp sort after timestamped units within their partition, with structural names and input order providing
 deterministic tie-breakers. A family, clan, or workflow subtree uses its outer/root agent's launch time and remains
 contiguous. Inside a clan, direct members still use the clan-local Failed, Stopped, Running/Starting, Waiting, Done
 priority described above, with launch recency breaking same-status ties; that order intentionally differs from this L0

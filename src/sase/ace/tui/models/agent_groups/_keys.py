@@ -293,8 +293,9 @@ def walk_anchors(
 
     Under ``BY_STATUS``, every display unit anchors on the outer presentation
     root's ``start_time``. :func:`walk_order` then shares one effective value
-    across each visible name group so a newer child or follow-up cannot split
-    or re-anchor its family. Other modes receive neutral metadata.
+    across each visible name-root or dotted-prefix subgroup so a newer child or
+    follow-up cannot split or re-anchor its family. Other modes receive neutral
+    metadata.
 
     Agents with no usable anchor sort last within their bucket (``+inf``
     in the negated-epoch slot).
@@ -356,16 +357,20 @@ def walk_order(
     else:
         sortable_indices = list(range(len(keys_per_agent)))
 
-    # BY_STATUS puts recency ahead of the structural name keys. Give every
-    # visible name group one effective recency first so its banner and members
-    # stay contiguous instead of being split by a newer singleton. When the
-    # group has an exact root marker (``foo`` alongside ``foo.bar``), that
-    # outer/root agent owns the group's launch anchor; otherwise the newest
-    # atomic cluster anchors the group. Missing anchors remain ``+inf`` and
-    # therefore sort after timestamped units.
-    status_recencies = [0.0] * len(keys_per_agent)
+    # BY_STATUS partitions each status bucket into standalone houses followed
+    # by visible name-root subgroups. Recency applies only inside those two
+    # partitions, so an older standalone cannot fall below a newer subgroup.
+    # Apply the same rule inside each visible name-root: direct houses precede
+    # visible dotted-prefix subgroups, with recency ordering each partition.
+    # Every visible subgroup receives one effective recency so its banner and
+    # members stay contiguous. An exact root/prefix marker owns that subgroup's
+    # launch anchor; otherwise its newest atomic cluster does. Missing anchors
+    # remain ``+inf`` and therefore sort last within their partition.
+    status_sort_keys: list[tuple[int, float, str, int, float, str, int]] = [
+        (0, 0.0, "", 0, 0.0, "", 0)
+    ] * len(keys_per_agent)
     if mode is GroupingMode.BY_STATUS:
-        status_units: dict[tuple[object, ...], list[int]] = {}
+        root_units: dict[tuple[object, ...], list[int]] = {}
         for i in sortable_indices:
             k = keys_per_agent[i]
             grouped_root = (
@@ -377,20 +382,74 @@ def walk_order(
                 unit_key = ("name", parent_keys[i], k.name_root)
             else:
                 unit_key = ("cluster", i)
-            status_units.setdefault(unit_key, []).append(i)
+            root_units.setdefault(unit_key, []).append(i)
 
-        for members in status_units.values():
+        root_recencies = [0.0] * len(keys_per_agent)
+        grouped_roots = [False] * len(keys_per_agent)
+        for unit_key, members in root_units.items():
+            grouped_root = unit_key[0] == "name"
             exact_roots = [
                 i
                 for i in members
                 if keys_per_agent[i].name_root and not keys_per_agent[i].name_prefix
             ]
-            if exact_roots:
+            if grouped_root and exact_roots:
                 effective_recency = anchors[min(exact_roots)][0]
             else:
                 effective_recency = min(anchors[i][0] for i in members)
             for i in members:
-                status_recencies[i] = effective_recency
+                root_recencies[i] = effective_recency
+                grouped_roots[i] = grouped_root
+
+        prefix_units: dict[tuple[object, ...], list[int]] = {}
+        for i in sortable_indices:
+            if not grouped_roots[i]:
+                continue
+            k = keys_per_agent[i]
+            grouped_prefix = (
+                bool(k.name_prefix)
+                and prefix_counts.get((parent_keys[i], k.name_root, k.name_prefix), 0)
+                >= 2
+            )
+            if grouped_prefix:
+                unit_key = (
+                    "prefix",
+                    parent_keys[i],
+                    k.name_root,
+                    k.name_prefix,
+                )
+            else:
+                unit_key = ("cluster", i)
+            prefix_units.setdefault(unit_key, []).append(i)
+
+        prefix_recencies = [0.0] * len(keys_per_agent)
+        grouped_prefixes = [False] * len(keys_per_agent)
+        for unit_key, members in prefix_units.items():
+            grouped_prefix = unit_key[0] == "prefix"
+            exact_prefixes = [
+                i for i in members if keys_per_agent[i].name_prefix_member_rank == 0
+            ]
+            if grouped_prefix and exact_prefixes:
+                effective_recency = anchors[min(exact_prefixes)][0]
+            else:
+                effective_recency = min(anchors[i][0] for i in members)
+            for i in members:
+                prefix_recencies[i] = effective_recency
+                grouped_prefixes[i] = grouped_prefix
+
+        for i in sortable_indices:
+            k = keys_per_agent[i]
+            grouped_root = grouped_roots[i]
+            grouped_prefix = grouped_prefixes[i]
+            status_sort_keys[i] = (
+                1 if grouped_root else 0,
+                root_recencies[i],
+                k.name_root.lower() if grouped_root else "",
+                1 if grouped_prefix else 0,
+                prefix_recencies[i] if grouped_root else 0.0,
+                k.name_prefix.lower() if grouped_prefix else "",
+                k.name_prefix_member_rank if grouped_prefix else 0,
+            )
 
     ordered = sorted(
         sortable_indices,
@@ -401,7 +460,7 @@ def walk_order(
                 if use_changespec_level
                 else (0, "")
             ),
-            status_recencies[i],
+            status_sort_keys[i],
             _date_subgroup_sort_key(
                 keys_per_agent[i].project,
                 keys_per_agent[i].date_subgroup,

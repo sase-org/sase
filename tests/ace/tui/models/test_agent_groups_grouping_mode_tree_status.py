@@ -113,6 +113,42 @@ def test_build_agent_tree_by_status_sorts_running_units_by_launch_recency() -> N
     ]
 
 
+def test_build_agent_tree_by_status_keeps_standalone_houses_above_subgroups() -> None:
+    hh = _agent(
+        cl_name="hh",
+        agent_name="hh",
+        start_time=datetime(2026, 4, 26, 12, 0, 0),
+    )
+    hi = _agent(
+        cl_name="hi",
+        agent_name="hi",
+        start_time=datetime(2026, 4, 26, 8, 0, 0),
+    )
+    hk = _agent(
+        cl_name="hk",
+        agent_name="hk",
+        start_time=datetime(2026, 4, 26, 11, 0, 0),
+    )
+    hk_followup = _agent(
+        cl_name="hk-followup",
+        agent_name="hk.f0",
+        start_time=datetime(2026, 4, 26, 13, 0, 0),
+    )
+    agents = [hk_followup, hi, hk, hh]
+
+    entries = build_agent_tree(agents, mode=GroupingMode.BY_STATUS, now=_NOW)
+
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("agent", 3),
+        ("agent", 1),
+        ("group", 1),
+        ("agent", 0),
+        ("agent", 2),
+    ]
+    assert _group_keys(entries, level=1) == [("Running", "hk")]
+
+
 @pytest.mark.parametrize("status", ["DONE", "WAITING"])
 def test_build_agent_tree_by_status_sorts_terminal_and_waiting_by_launch_recency(
     status: str,
@@ -194,15 +230,16 @@ def test_build_agent_tree_by_status_keeps_root_anchored_family_contiguous() -> N
 
     entries = build_agent_tree(agents, mode=GroupingMode.BY_STATUS, now=_NOW)
 
-    # The family's 09:00 root anchors the complete name group. Its newer
-    # follow-up and workflow child neither split it nor move it above the 10:00
-    # singleton, and its established root/follow-up/child preorder is retained.
+    # Standalone houses remain above the visible family subgroup and stay
+    # newest-first within that partition. The family's 09:00 root still anchors
+    # the complete name group, and its established root/follow-up/child preorder
+    # remains intact.
     assert [entry.agent_idx for entry in entries if entry.kind == "agent"] == [
         3,
+        4,
         0,
         1,
         2,
-        4,
     ]
     rendered_banner_keys = [
         entry.group.group_key
@@ -315,6 +352,118 @@ def test_build_agent_tree_by_status_groups_shared_second_period_prefixes() -> No
         ("agent", 1),
         ("agent", 0),
         ("agent", 3),
+    ]
+
+
+def test_build_agent_tree_by_status_partitions_direct_houses_before_prefix_groups() -> (
+    None
+):
+    root = _agent(
+        cl_name="root",
+        agent_name="hk",
+        start_time=datetime(2026, 4, 26, 10, 0, 0),
+    )
+    direct = _agent(
+        cl_name="direct",
+        agent_name="hk.f0",
+        start_time=datetime(2026, 4, 26, 8, 0, 0),
+    )
+    g1_root = _agent(
+        cl_name="g1-root",
+        agent_name="hk.g1",
+        start_time=datetime(2026, 4, 26, 11, 0, 0),
+    )
+    g1_child = _agent(
+        cl_name="g1-child",
+        agent_name="hk.g1.f0",
+        start_time=datetime(2026, 4, 26, 13, 0, 0),
+    )
+    g2_a = _agent(
+        cl_name="g2-a",
+        agent_name="hk.g2.a",
+        start_time=datetime(2026, 4, 26, 12, 0, 0),
+    )
+    g2_b = _agent(
+        cl_name="g2-b",
+        agent_name="hk.g2.b",
+        start_time=datetime(2026, 4, 26, 7, 0, 0),
+    )
+    agents = [g1_child, direct, g2_b, root, g1_root, g2_a]
+
+    entries = build_agent_tree(agents, mode=GroupingMode.BY_STATUS, now=_NOW)
+
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("group", 1),
+        ("agent", 3),
+        ("agent", 1),
+        ("group", 2),
+        ("agent", 2),
+        ("agent", 5),
+        ("group", 2),
+        ("agent", 4),
+        ("agent", 0),
+    ]
+    assert _group_keys(entries, level=2) == [
+        ("Running", "hk", "hk.g2"),
+        ("Running", "hk", "hk.g1"),
+    ]
+
+
+def test_build_agent_tree_by_status_sorts_name_subgroups_by_launch_recency() -> None:
+    newer_root = _agent(
+        cl_name="newer-root",
+        agent_name="newer",
+        start_time=datetime(2026, 4, 26, 11, 0, 0),
+    )
+    newer_child = _agent(
+        cl_name="newer-child",
+        agent_name="newer.f0",
+        start_time=datetime(2026, 4, 26, 7, 0, 0),
+    )
+    older_root = _agent(
+        cl_name="older-root",
+        agent_name="older",
+        start_time=datetime(2026, 4, 26, 9, 0, 0),
+    )
+    older_child = _agent(
+        cl_name="older-child",
+        agent_name="older.f0",
+        start_time=datetime(2026, 4, 26, 13, 0, 0),
+    )
+    missing_root = _agent(
+        cl_name="missing-root",
+        agent_name="missing",
+        start_time=None,
+    )
+    missing_child = _agent(
+        cl_name="missing-child",
+        agent_name="missing.f0",
+        start_time=datetime(2026, 4, 26, 12, 0, 0),
+    )
+    agents = [
+        older_child,
+        missing_child,
+        newer_root,
+        older_root,
+        newer_child,
+        missing_root,
+    ]
+
+    entries = build_agent_tree(agents, mode=GroupingMode.BY_STATUS, now=_NOW)
+
+    assert _group_keys(entries, level=1) == [
+        ("Running", "newer"),
+        ("Running", "older"),
+        ("Running", "missing"),
+    ]
+    assert [entry.agent_idx for entry in entries if entry.kind == "agent"] == [
+        2,
+        4,
+        0,
+        3,
+        1,
+        5,
     ]
 
 

@@ -23,10 +23,13 @@ any of its non-project-scoped agents targets a ChangeSpec
        fourth structural level.
 
 ``BY_STATUS`` replaces the project level with a priority-ordered status
-bucket, then uses the same name-root and optional name-prefix levels. Its
-top-level display units sort newest-launch-first using the outer/root agent's
-``start_time``. ``BY_DATE`` replaces the tree with date bucket → time subgroup
-and intentionally suppresses name-root/name-prefix grouping.
+bucket, then uses the same name-root and optional name-prefix levels. Within a
+status bucket, standalone houses render before visible name-root subgroups;
+launch recency sorts units only within those two partitions. The same rule
+places houses directly under a name-root before its visible dotted-prefix
+subgroups. Subgroups use their outer/root agent's ``start_time`` and remain
+contiguous. ``BY_DATE`` replaces the tree with date bucket → time subgroup and
+intentionally suppresses name-root/name-prefix grouping.
 
 Tribe-level grouping is not part of this tree — tribes drive the dynamic
 side panels (see :mod:`sase.ace.tui.models.agent_panels`), so each panel
@@ -44,9 +47,10 @@ list's order: named projects sort before ``(no project)``; named
 ChangeSpecs sort before the ``(no ChangeSpec)`` bucket; ungrouped
 agents (dotless and singleton-name-root) sort first within their
 ChangeSpec bucket so they render directly under the ChangeSpec banner,
-before any name-root banner.  Within each group, members keep their
-original projected parent/child preorder, and each rooted subtree is sorted as
-one atomic cluster.
+before any name-root banner. Under ``BY_STATUS``, launch recency cannot
+interleave that standalone partition with visible subgroups. Within each
+group, members keep their original projected parent/child preorder, and each
+rooted subtree is sorted as one atomic cluster.
 
 Name-root and name-prefix banners are only emitted when the group
 contains two or more entries; singleton groups render their agents
