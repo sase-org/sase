@@ -204,6 +204,60 @@ def _axe_lumberjack_tree_fixture() -> AxeCollectedData:
     )
 
 
+def _axe_disabled_chop_fixture() -> AxeCollectedData:
+    """Fixture with a configured but disabled chop visible in the tree."""
+    disabled = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="slow_typecheck",
+        description="slow typecheck",
+        runs=[],
+        enabled=False,
+        script="sase_chop_typecheck",
+        resolved_path=None,
+        config_status="disabled",
+    )
+    active = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="fast_lint",
+        description="fast lint",
+        runs=[
+            _make_chop_run(
+                "hooks",
+                "fast_lint",
+                run_id="20260509T100100_000000",
+                status="success",
+            )
+        ],
+        script="sase_chop_lint",
+    )
+    hooks_status = _make_lumberjack_status(
+        "hooks", chops=["fast_lint", "slow_typecheck"]
+    )
+    metrics = LumberjackMetrics(
+        cycles_run=8, chops_executed=15, total_updates=8, errors_encountered=0
+    )
+    return axe_collected_data(
+        lumberjack_names=["hooks"],
+        lumberjack_statuses={"hooks": hooks_status},
+        lumberjack_metrics={"hooks": metrics},
+        lumberjack_log_tails={"hooks": ""},
+        lumberjack_chop_names={"hooks": ["fast_lint", "slow_typecheck"]},
+        chop_snapshots={
+            ("hooks", "fast_lint"): active,
+            ("hooks", "slow_typecheck"): disabled,
+        },
+        lumberjack_snapshots={
+            "hooks": LumberjackSnapshot(
+                name="hooks",
+                status=hooks_status,
+                metrics=metrics,
+                log_tail="",
+                chops=[active, disabled],
+            ),
+        },
+    )
+
+
 async def test_axe_lumberjack_tree_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -221,6 +275,29 @@ async def test_axe_lumberjack_tree_png_snapshot(
             page,
             "axe_lumberjack_tree_120x40",
             title="ACE axe lumberjack tree",
+        )
+
+
+async def test_axe_disabled_chop_row_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Disabled chops stay visible and clearly marked in the AXE tree."""
+    patch_startup_loaders(monkeypatch, axe_data=_axe_disabled_chop_fixture())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+        await page.press("j")
+        await page.press("j")
+        page.app._refresh_axe_display()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_disabled_chop_row_120x40",
+            title="ACE axe disabled chop row",
         )
 
 

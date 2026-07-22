@@ -28,6 +28,11 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.changespec import ChangeSpec
+from sase.ace.tui.actions.axe_display._data import (
+    AxeCollectedData,
+    ChopSnapshot,
+    LumberjackSnapshot,
+)
 from sase.ace.tui.app import AceApp
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
@@ -39,6 +44,7 @@ from sase.ace.tui.models.fold_scale import CLAN_FOLD_SCALE, TRIBE_FOLD_SCALE
 pytestmark = pytest.mark.slow
 
 _KEYS_PER_SCENARIO = 20
+_AXE_P95_BUDGET_MS = 16.0
 # A selected-panel hop repaints two disjoint panel chrome regions (departed
 # and destination), unlike a row move's single cursor region. Keep that path
 # within two 60 Hz frames while the ordinary row/clan budget remains 16 ms.
@@ -138,6 +144,66 @@ def _install_clan_agents_fixture(app: AceApp, count: int = 48) -> None:
     app._invalidate_agent_panel_cache()
 
 
+def _make_axe_cached_data(
+    *,
+    lumberjack_count: int = 12,
+    chops_per_lumberjack: int = 6,
+) -> AxeCollectedData:
+    """Build a cached AXE data set large enough for j/k benchmarks."""
+    lumberjack_names = [f"bench.lumberjack.{i:02d}" for i in range(lumberjack_count)]
+    lumberjack_chop_names: dict[str, list[str]] = {}
+    chop_snapshots: dict[tuple[str, str], ChopSnapshot] = {}
+    lumberjack_snapshots: dict[str, LumberjackSnapshot] = {}
+
+    for lumberjack_idx, lumberjack_name in enumerate(lumberjack_names):
+        chops: list[ChopSnapshot] = []
+        chop_names = [
+            f"cached.chop.{lumberjack_idx:02d}.{chop_idx:02d}"
+            for chop_idx in range(chops_per_lumberjack)
+        ]
+        lumberjack_chop_names[lumberjack_name] = chop_names
+        for chop_idx, chop_name in enumerate(chop_names):
+            snap = ChopSnapshot(
+                lumberjack_name=lumberjack_name,
+                chop_name=chop_name,
+                description=f"cached AXE benchmark row {lumberjack_idx}.{chop_idx}",
+                runs=[],
+                enabled=(lumberjack_idx + chop_idx) % 7 != 0,
+                script=f"sase_chop_cached_{lumberjack_idx:02d}_{chop_idx:02d}",
+                resolved_path=f"/workspace/chops/{chop_name}",
+            )
+            chop_snapshots[(lumberjack_name, chop_name)] = snap
+            chops.append(snap)
+        lumberjack_snapshots[lumberjack_name] = LumberjackSnapshot(
+            name=lumberjack_name,
+            status=None,
+            metrics=None,
+            log_tail="",
+            chops=chops,
+        )
+
+    return AxeCollectedData(
+        axe_running=True,
+        axe_status=None,
+        axe_metrics=None,
+        axe_output="",
+        lumberjack_names=lumberjack_names,
+        bgcmd_slots=[],
+        lumberjack_statuses=dict.fromkeys(lumberjack_names),
+        lumberjack_metrics=dict.fromkeys(lumberjack_names),
+        lumberjack_log_tails=dict.fromkeys(lumberjack_names, ""),
+        bgcmd_details={},
+        lumberjack_chop_names=lumberjack_chop_names,
+        chop_snapshots=chop_snapshots,
+        lumberjack_snapshots=lumberjack_snapshots,
+    )
+
+
+def _install_axe_fixture(app: AceApp) -> None:
+    app._apply_axe_status_data(_make_axe_cached_data())
+    app._refresh_axe_display()
+
+
 @pytest.fixture
 def _perf_jsonl(
     tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
@@ -199,6 +265,13 @@ async def _warm_agents_navigation(pilot: object) -> None:
         await pilot.pause(0.01)  # type: ignore[attr-defined]
 
 
+async def _warm_axe_navigation(pilot: object) -> None:
+    """Settle AXE layout and debounce state before recording cached j/k p95."""
+    for key in ("j", "k") * 4:
+        await pilot.press(key)  # type: ignore[attr-defined]
+        await pilot.pause(0.01)  # type: ignore[attr-defined]
+
+
 async def test_bench_changespecs_jk(_perf_jsonl: Path, tmp_path: Path) -> None:
     """Measure j/k latency on the ChangeSpecs tab with 50 synthetic ChangeSpecs."""
     gp_file = tmp_path / "bench" / "bench.sase"
@@ -231,33 +304,37 @@ async def test_bench_changespecs_jk(_perf_jsonl: Path, tmp_path: Path) -> None:
 
 
 async def test_bench_axe_jk(_perf_jsonl: Path) -> None:
-    """Measure j/k latency on the Axe tab with synthetic bgcmd items."""
-    app = AceApp(query="!!!", auto_start_axe=False)
+    """Measure cached j/k latency on the Axe tab with synthetic AXE rows."""
+    app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
     async with app.run_test() as pilot:
         await _wait_for_startup(app, pilot)
-        await pilot.press("ctrl+l")  # next_tab: agents → changespecs
+        await pilot.press("tab")  # next_tab: agents -> changespecs
         await pilot.pause()
-        await pilot.press("ctrl+l")  # next_tab: changespecs → axe
+        await pilot.press("tab")  # next_tab: changespecs -> axe
         await pilot.pause()
+        _install_axe_fixture(app)
+        await pilot.pause(0.2)
+        assert len(app._axe_items) > (_KEYS_PER_SCENARIO * 2)
+        await _warm_axe_navigation(pilot)
+        before = len(_read_samples(_perf_jsonl))
         for _ in range(_KEYS_PER_SCENARIO):
             await pilot.press("j")
             await pilot.pause(0.01)
+        for _ in range(_KEYS_PER_SCENARIO):
+            await pilot.press("k")
+            await pilot.pause(0.01)
 
-    samples = _read_samples(_perf_jsonl)
+    samples = _read_samples(_perf_jsonl)[before:]
     summary = _summarize(samples)
-    _print_table("Axe tab j/k baseline:", summary)
-    # No assert on samples: the axe tab may have no items in this minimal
-    # fixture (j/k is a no-op when the list is empty), but the test still
-    # exercises the dispatch path so a regression in the harness shows up.
-    _ = samples  # tolerated empty
-    if not summary:
-        # Empty axe list means j/k early-returns before the watch hook
-        # mutates current_idx -- emit a note so the baseline report can
-        # explain the gap rather than silently misreporting zero samples.
-        print(
-            "  (no samples — axe list empty; current_idx never mutated)",
-            file=sys.stderr,
-        )
+    _print_table("Axe tab cached j/k baseline:", summary)
+    assert samples, "perf JSONL captured no AXE samples; instrumentation may be broken"
+    assert {str(sample["tab"]) for sample in samples} == {"axe"}
+    assert {"next", "prev"} <= set(summary)
+    assert all(stats["p95"] < _AXE_P95_BUDGET_MS for stats in summary.values()), (
+        f"AXE cached j/k exceeded {_AXE_P95_BUDGET_MS:g} ms p95: {summary}"
+    )
+    stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
+    assert not stall_path.exists() or not stall_path.read_text().strip()
 
 
 async def test_bench_agents_jk_and_panel_navigation(_perf_jsonl: Path) -> None:

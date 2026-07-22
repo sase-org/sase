@@ -172,12 +172,24 @@ class AxeOnboarding(VerticalScroll):
         append_keycap(text, key_display_name(app.edit_spec))
         text.append("edit the selected AXE config.")
         text.append("\n")
+        text.append(
+            "Choose a source scope, preview effective before/after config, and use "
+            "raw YAML for compound fields. Generated rows edit their base chop.",
+            style="dim",
+        )
+        text.append("\n")
+        text.append(
+            "When AXE is running, save & restart reconciles immediately; save only "
+            "keeps the daemon on its previous config until restart.",
+            style="dim",
+        )
+        text.append("\n")
         append_keycap(text, key_display_name(app.next_agent_file))
         text.append("/")
         append_keycap(text, key_display_name(app.prev_agent_file))
         text.append("next or previous chop run.")
         append_keycap(text, key_display_name(app.edit_panel))
-        text.append("open the captured output in your editor.")
+        text.append("open recorded output.")
         text.append("\n")
         text.append(
             "Every chop keeps run history: status, duration, and captured output "

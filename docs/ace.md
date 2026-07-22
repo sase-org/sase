@@ -1205,10 +1205,13 @@ numerical identity.
 | `X` | Clear output                                                                                         |
 | `/` | Edit the current Axe query                                                                           |
 
-The `a` flow discovers installed `sase_chop_*` executables and also accepts a custom executable. Both add and edit show
-an exact effective before/after preview and a source-file diff before writing. Editing a generated chop row edits its
-immutable base chop and warns that every generated instance is affected. When AXE is running, the editor offers restart
-or save-only behavior; save-only leaves the current daemon configuration active until the next restart.
+The `a` flow discovers installed `sase_chop_*` executables and also accepts a custom executable. Both add and edit let
+you choose the writable source scope, keep inherited fields sparse unless you touch them, and show an exact effective
+before/after preview plus a source-file diff before writing. Compound and advanced fields open as raw YAML, with
+inherit/reset available for removing a target-layer override. Editing a generated chop row edits its immutable base chop
+and warns that every generated instance is affected. When AXE is running, the preview makes restart explicit: save and
+restart AXE to reconcile the daemon immediately, or save only and leave the current daemon configuration active until
+the next restart. `E` remains reserved for opening recorded chop output.
 
 ### Leader Mode (`,` prefix)
 
