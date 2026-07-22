@@ -2,12 +2,14 @@
 
 An agent shown as `WAITING` on runner slots is at an admission boundary: it has finished its dependency and time-based
 waits, or it has received an answer after temporarily yielding its slot at `QUESTION`. SASE limits slot-participating
-user agents globally using `max_running_agents` (default: 10). Participants are top-level user agents—including every
-clan member launched independently—plus parallel family members. A prompt can use `%wait(runners=N)` to override the
-threshold for its initial launch.
+user agents globally using the effective `max_running_agents` value (configured default: 10). Participants are top-level
+user agents—including every clan member launched independently—plus parallel family members. A prompt can use
+`%wait(runners=N)` to override the threshold for its initial launch.
 
-The ACE Agents header summarizes the same global state as `[R/L · Q queued]`: slots in use, configured limit, and live
-waiters governed by that configured limit. `Q` does not include waits with an explicit `%wait(runners=N)` threshold.
+The ACE Agents header summarizes the same global state as `[R/L · Q queued]`: slots in use, effective limit, and live
+waiters governed by that effective limit. The effective value is an active machine-wide override from
+`~/.sase/max_running_agents_override.json` first and merged configuration second. `Q` does not include waits with an
+explicit `%wait(runners=N)` threshold.
 
 Admission sorts eligible waiters by lower numeric `%wait(priority=N)` first, then first-in, first-out within the same
 priority, across all projects. Priority defaults to `10` and does not age, so sustained higher-priority arrivals can
@@ -21,8 +23,9 @@ To diagnose a wait:
 1. Check active and waiting agents with `sase agent list` or the ACE Agents tab.
 2. Inspect the launch's `waiting.json`. `wait_runners` is the effective existing-runner threshold and
    `slot_requested_at` is its FIFO time among currently eligible waiters.
-3. Raise `max_running_agents` in `sase.yml` if more concurrency is safe. Parked agents reread configuration and normally
-   react within about two seconds.
+3. Press fixed `Ctrl+R` in the Models panel to edit `max_running_agents` persistently or apply/clear a temporary value.
+   Parked implicit-cap agents reread the effective value and normally react within about two seconds. Setting another
+   temporary value replaces the first; expiry or Clear resumes configured behavior.
 4. Kill an unwanted parked agent normally. Dead or stale waiter PIDs are ignored automatically and cannot wedge the
    queue. A crashed running process likewise stops consuming a slot as soon as its PID is observed dead.
 
@@ -36,6 +39,12 @@ authoritative while the user is deciding and while the answered agent is queued 
 current global cap to reacquire through the same locked priority/FIFO gate; a full cap therefore changes the row from
 `QUESTION`/`ANSWERED` to the normal runner-slot `WAITING` state. Killing it during either pause cleans up the question
 and queue markers. Question continuations keep their authored priority while reacquiring under the current global cap.
+
+Lowering the effective cap below current occupancy is safe and non-preemptive: no running process is killed or forced to
+yield, but no implicit-cap participant is admitted until occupancy falls far enough. Raising it does not bypass
+priority/FIFO order. If the bounded temporary-state lock or file read is briefly unavailable, an implicit launch fails
+closed for that poll, remains published as waiting, releases the slot lock, and retries instead of crashing or silently
+admitting against configuration alone.
 
 A `%wait(runners=0)` launch is intentionally a drain barrier: it starts only at a true global lull. Newer immediate
 slot-participating launches may start while the barrier is parked when their own thresholds permit it, keeping the

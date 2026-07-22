@@ -14,6 +14,7 @@ from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
     effort_snapshot,
     override_views,
     pool_effort_views,
+    runner_limit_snapshot,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
@@ -77,6 +78,35 @@ async def test_models_panel_default_effort_override_png_snapshot(
             page,
             "models_panel_effort_override_120x40",
             title="ACE models panel — active default-effort override",
+        )
+
+
+async def test_models_panel_runner_limit_override_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: calm_views())
+    monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
+    monkeypatch.setattr(
+        ModelsPanel,
+        "_load_effective_runner_limit_snapshot",
+        lambda self: (runner_limit_snapshot(), True),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(ModelsPanel())
+        await page.expect_modal("ModelsPanel")
+        await wait_for_svg_contains(page, "override · 42m left")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_runner_limit_override_120x40",
+            title="ACE models panel — active runner-limit override",
         )
 
 

@@ -46,9 +46,7 @@ def test_refresh_runner_slot_context_orders_currently_eligible_waiters() -> None
         slot_requested_at="2026-07-12T12:00:01Z",
     )
 
-    capacity = refresh_runner_slot_context(
-        [running, second, first], configured_limit=10
-    )
+    capacity = refresh_runner_slot_context([running, second, first], effective_limit=10)
 
     assert capacity == RunnerCapacitySnapshot(10, 1, 1)
     assert first.runner_slots_in_use == 1
@@ -73,7 +71,7 @@ def test_runner_slot_context_orders_priority_before_fifo() -> None:
         slot_requested_at="2026-07-12T12:00:02Z",
     )
 
-    refresh_runner_slot_context([older, newer], configured_limit=10)
+    refresh_runner_slot_context([older, newer], effective_limit=10)
 
     assert newer.runner_slot_queue_position == 1
     assert older.runner_slot_queue_position == 2
@@ -118,7 +116,7 @@ def test_runner_slot_context_defaults_missing_and_invalid_priorities() -> None:
             explicit_default,
             explicit_priority,
         ],
-        configured_limit=10,
+        effective_limit=10,
     )
 
     assert explicit_priority.runner_slot_queue_position == 1
@@ -141,7 +139,7 @@ def test_drain_waiter_joins_fifo_order_when_running_count_reaches_zero() -> None
         slot_requested_at="2026-07-12T12:00:01Z",
     )
 
-    capacity = refresh_runner_slot_context([second, first], configured_limit=10)
+    capacity = refresh_runner_slot_context([second, first], effective_limit=10)
 
     assert capacity == RunnerCapacitySnapshot(10, 0, 1)
     assert first.runner_slot_queue_position == 1
@@ -177,7 +175,7 @@ def test_refresh_runner_slot_context_counts_parallel_family_children_only() -> N
     )
 
     capacity = refresh_runner_slot_context(
-        [serial_child, parallel_child, axe, waiter], configured_limit=10
+        [serial_child, parallel_child, axe, waiter], effective_limit=10
     )
 
     assert capacity == RunnerCapacitySnapshot(10, 1, 1)
@@ -206,7 +204,7 @@ def test_question_paused_root_is_excluded_from_displayed_occupancy() -> None:
     )
 
     capacity = refresh_runner_slot_context(
-        [running, paused, answered_waiter], configured_limit=10
+        [running, paused, answered_waiter], effective_limit=10
     )
 
     assert capacity == RunnerCapacitySnapshot(10, 1, 1)
@@ -215,7 +213,7 @@ def test_question_paused_root_is_excluded_from_displayed_occupancy() -> None:
 
 
 def test_runner_capacity_empty_pool_and_neutral_fallback() -> None:
-    assert refresh_runner_slot_context([], configured_limit=7) == (
+    assert refresh_runner_slot_context([], effective_limit=7) == (
         RunnerCapacitySnapshot(7, 0, 0)
     )
     assert refresh_runner_slot_context([]) == RunnerCapacitySnapshot()
@@ -243,7 +241,7 @@ def test_runner_capacity_excludes_non_slot_and_explicit_waits_from_global_queue(
     )
 
     capacity = refresh_runner_slot_context(
-        [explicit, dependency_wait, implicit], configured_limit=10
+        [explicit, dependency_wait, implicit], effective_limit=10
     )
 
     assert capacity == RunnerCapacitySnapshot(10, 0, 1)
@@ -283,7 +281,7 @@ def test_runner_capacity_counts_only_live_rows_and_excludes_yielded_question() -
 
     capacity = refresh_runner_slot_context(
         [dead_waiter, yielded_question, dead_holder, live_holder],
-        configured_limit=10,
+        effective_limit=10,
     )
 
     assert capacity == RunnerCapacitySnapshot(10, 1, 0)
@@ -299,6 +297,6 @@ def test_runner_capacity_reports_over_limit_without_clamping() -> None:
         for index in range(2)
     ]
 
-    capacity = refresh_runner_slot_context(holders, configured_limit=1)
+    capacity = refresh_runner_slot_context(holders, effective_limit=1)
 
     assert capacity == RunnerCapacitySnapshot(1, 2, 0)

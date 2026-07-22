@@ -213,17 +213,34 @@ def get_use_chezmoi() -> bool:
     return bool(data.get("use_chezmoi", False))
 
 
-def get_max_running_agents() -> int:
-    """Return the configured global limit for running user agents.
+DEFAULT_MAX_RUNNING_AGENTS = 10
+
+
+def get_configured_max_running_agents() -> int:
+    """Return the validated configured global runner limit.
 
     ``load_merged_config()`` provides the process cache and invalidates it when
     a config source changes, so callers can poll this accessor without parsing
     unchanged YAML on every call while still observing live config edits.
     """
-    value = load_merged_config().get("max_running_agents", 10)
+    value = load_merged_config().get("max_running_agents", DEFAULT_MAX_RUNNING_AGENTS)
     if type(value) is int and value >= 1:
         return value
-    return 10
+    return DEFAULT_MAX_RUNNING_AGENTS
+
+
+def get_max_running_agents(now: float | None = None) -> int:
+    """Return the live admission limit, preferring a temporary override.
+
+    State-access errors deliberately propagate. Admission callers must fail
+    closed for that poll rather than silently falling back to configuration.
+    """
+    from sase.config.runner_limit_override import get_active_runner_limit_override
+
+    override = get_active_runner_limit_override(now)
+    if override is not None:
+        return override.limit
+    return get_configured_max_running_agents()
 
 
 def _deep_merge(

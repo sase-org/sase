@@ -324,7 +324,7 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
         on_agents_tab: bool,
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None = None,
-        configured_runner_limit: int | None = None,
+        effective_runner_limit: int | None = None,
     ) -> None:
         """Apply loaded agent data to app state (main thread only).
 
@@ -363,5 +363,5 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
             or bool(prep.recovered_bundle_identities)
             or bool(prep.auto_dismissed_identities),
             dismissed_changes_include_removals=bool(orphaned),
-            configured_runner_limit=configured_runner_limit,
+            effective_runner_limit=effective_runner_limit,
         )

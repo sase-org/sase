@@ -187,7 +187,7 @@ class AgentLoadingStateMixin:
         incomplete_merge_already_applied: bool = False,
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,
-        configured_runner_limit: int | None = None,
+        effective_runner_limit: int | None = None,
     ) -> None:
         raise NotImplementedError
 

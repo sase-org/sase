@@ -11,7 +11,17 @@ from __future__ import annotations
 from textual.screen import ModalScreen
 from textual.worker import Worker
 
-from sase.config import get_use_chezmoi
+from sase.config import (
+    DEFAULT_MAX_RUNNING_AGENTS,
+    EffectiveRunnerLimitSnapshot,
+    TemporaryRunnerLimitOverride,
+    clear_runner_limit_override,
+    get_active_runner_limit_override,
+    get_configured_max_running_agents,
+    get_use_chezmoi,
+    set_runner_limit_override,
+    set_runner_limit_override_until,
+)
 from sase.llm_provider import (
     AliasView,
     BucketView,
@@ -49,6 +59,8 @@ from .models_panel_edit_helpers import (
     build_alias_commit_offer,
 )
 from .models_panel_override import ModelsPanelOverrideMixin
+from .models_panel_runner_limit import ModelsPanelRunnerLimitMixin
+from .models_panel_runner_limit_edit import build_runner_limit_commit_offer
 from .model_picker_modal import AliasSelectionContext
 from .models_panel_rendering import (
     PROVIDER_MODEL_CELL_MAX as _PROVIDER_MODEL_CELL_MAX,
@@ -73,6 +85,7 @@ _LEGACY_TEST_EXPORTS = (
 
 class ModelsPanel(
     ModelsPanelDisplayMixin,
+    ModelsPanelRunnerLimitMixin,
     ModelsPanelEffortMixin,
     ModelsPanelOverrideMixin,
     ModelsPanelAliasEditMixin,
@@ -101,6 +114,7 @@ class ModelsPanel(
         ("e", "edit", "Edit"),
         ("r", "reset", "Reset"),
         ("ctrl+e", "manage_default_effort", "Effort"),
+        ("ctrl+r", "manage_runner_limit", "Limit"),
     ]
 
     def __init__(self) -> None:
@@ -113,6 +127,12 @@ class ModelsPanel(
             captured_at=_now(),
         )
         self._effort_uses_chezmoi = False
+        self._runner_limit_snapshot = EffectiveRunnerLimitSnapshot(
+            configured_limit=DEFAULT_MAX_RUNNING_AGENTS,
+            temporary_override=None,
+            captured_at=_now(),
+        )
+        self._runner_limit_uses_chezmoi = False
         self._views: list[AliasView] = []
         self._top_rows: list[AliasView | BucketView] = []
         self._bucket_by_name: dict[str, BucketView] = {}
@@ -137,6 +157,25 @@ class ModelsPanel(
         ) = None
         self._effort_clear_worker: Worker[tuple[bool | None, str | None]] | None = None
         self._effort_commit_offer_worker: Worker[AliasCommitOffer | None] | None = None
+        self._runner_limit_snapshot_worker: (
+            Worker[tuple[EffectiveRunnerLimitSnapshot, bool]] | None
+        ) = None
+        self._runner_limit_override_worker: (
+            Worker[tuple[TemporaryRunnerLimitOverride | None, str | None]] | None
+        ) = None
+        self._runner_limit_clear_worker: (
+            Worker[tuple[bool | None, str | None]] | None
+        ) = None
+        self._runner_limit_commit_offer_worker: (
+            Worker[AliasCommitOffer | None] | None
+        ) = None
+        self._runner_limit_write_value: int | None = None
+        self._runner_limit_write_result: (
+            RelativeOverrideDuration
+            | OverrideUntilCleared
+            | ResolvedOverrideUntil
+            | None
+        ) = None
         self._effort_write_level: str | None = None
         self._effort_write_result: (
             RelativeOverrideDuration
@@ -181,6 +220,19 @@ class ModelsPanel(
     ) -> list[AliasView | BucketView]:
         return build_models_panel_rows(views)
 
+    def _load_effective_runner_limit_snapshot(
+        self,
+    ) -> tuple[EffectiveRunnerLimitSnapshot, bool]:
+        captured_at = self._models_panel_now()
+        return (
+            EffectiveRunnerLimitSnapshot(
+                configured_limit=get_configured_max_running_agents(),
+                temporary_override=get_active_runner_limit_override(captured_at),
+                captured_at=captured_at,
+            ),
+            get_use_chezmoi(),
+        )
+
     def _models_panel_now(self) -> float:
         return _now()
 
@@ -220,6 +272,29 @@ class ModelsPanel(
     def _clear_default_effort_override(self) -> bool:
         return clear_effort_override()
 
+    def _set_runner_limit_override(
+        self, limit: int, seconds: float | None
+    ) -> TemporaryRunnerLimitOverride:
+        return set_runner_limit_override(
+            limit,
+            seconds,
+            source="ace",
+            now=self._models_panel_now(),
+        )
+
+    def _set_runner_limit_override_until(
+        self, limit: int, expires_at: float
+    ) -> TemporaryRunnerLimitOverride:
+        return set_runner_limit_override_until(
+            limit,
+            expires_at,
+            source="ace",
+            now=self._models_panel_now(),
+        )
+
+    def _clear_runner_limit_override(self) -> bool:
+        return clear_runner_limit_override()
+
     def _build_alias_commit_offer(
         self, path: str, *, op: str, alias: str
     ) -> AliasCommitOffer | None:
@@ -228,16 +303,27 @@ class ModelsPanel(
     def _build_default_effort_commit_offer(self, path: str) -> AliasCommitOffer | None:
         return build_default_effort_commit_offer(path)
 
+    def _build_runner_limit_commit_offer(self, path: str) -> AliasCommitOffer | None:
+        return build_runner_limit_commit_offer(path)
+
+    def _request_agents_refresh(self, source: str) -> None:
+        request_refresh = getattr(self.app, "request_agents_refresh", None)
+        if callable(request_refresh):
+            request_refresh(source)
+
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if self._on_config_commit_offer_worker_state(event):
             return
         if self._on_effort_worker_state_changed(event):
+            return
+        if self._on_runner_limit_worker_state_changed(event):
             return
         ModelsPanelOverrideMixin.on_worker_state_changed(self, event)
 
     def on_unmount(self) -> None:
         self._cancel_config_commit_offer()
         self._cancel_effort_workers()
+        self._cancel_runner_limit_workers()
         for worker in (self._override_worker, self._clear_worker):
             if worker is not None and not worker.is_finished:
                 worker.cancel()

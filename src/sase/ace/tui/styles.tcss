@@ -1856,10 +1856,11 @@ ModelsPanel {
     height: auto;
     /* Full-budget: container border (2) + padding (2) + title + margin (2) +
        list cap (22) + description strip margin + height (1 + 4 = 5) + footer
-       margin + border + padding + text (4) = 37.  Sized so the taller
+       margin + border + padding + text (5) = 39.  Sized so the three-line
+       launch-control title and two-line footer plus the taller
        description strip cannot push the footer out of the modal when the alias
        list is at its 22-row cap. */
-    max-height: 37;
+    max-height: 39;
     border: double $primary;
     background: $surface;
     padding: 1 2;
@@ -1963,6 +1964,87 @@ DefaultEffortLevelModal {
 
 #default-effort-action-footer,
 #default-effort-level-footer {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    color: $text-muted;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
+/* Models panel — global runner-limit action and value cards */
+RunnerLimitActionModal,
+RunnerLimitValueModal {
+    align: center middle;
+}
+
+#runner-limit-action-container,
+#runner-limit-value-container {
+    width: 72;
+    max-width: 94%;
+    height: auto;
+    max-height: 90%;
+    border: double cyan;
+    background: $surface;
+    padding: 1 2;
+}
+
+#runner-limit-value-container {
+    width: 58;
+}
+
+#runner-limit-action-title,
+#runner-limit-value-title {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    text-style: bold;
+    color: cyan;
+    margin-bottom: 1;
+}
+
+#runner-limit-action-status {
+    width: 100%;
+    height: auto;
+    border: solid $secondary;
+    padding: 1 2;
+    margin-bottom: 1;
+}
+
+#runner-limit-action-choices {
+    height: auto;
+}
+
+.runner-limit-action-row {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#runner-limit-action-note,
+#runner-limit-value-subtitle,
+#runner-limit-value-constraints {
+    height: auto;
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+#runner-limit-value-input {
+    width: 100%;
+    height: 3;
+    margin-bottom: 1;
+    border: tall cyan;
+    text-style: bold;
+}
+
+#runner-limit-value-error {
+    width: 100%;
+    height: 1;
+    color: $warning;
+    margin-bottom: 1;
+}
+
+#runner-limit-action-footer,
+#runner-limit-value-footer {
     width: 100%;
     height: auto;
     text-align: center;
@@ -5352,12 +5434,14 @@ ConfigEditModal #config-edit-hints {
 
 /* Models panel — persistent alias edit preview/confirm (sase-5e Phase 3) */
 AliasEditPreviewModal,
-DefaultEffortEditPreviewModal {
+DefaultEffortEditPreviewModal,
+RunnerLimitEditPreviewModal {
     align: center middle;
 }
 
 AliasEditPreviewModal #alias-edit-container,
-DefaultEffortEditPreviewModal #alias-edit-container {
+DefaultEffortEditPreviewModal #alias-edit-container,
+RunnerLimitEditPreviewModal #alias-edit-container {
     width: 84;
     height: auto;
     max-height: 90%;
@@ -5367,27 +5451,31 @@ DefaultEffortEditPreviewModal #alias-edit-container {
 }
 
 AliasEditPreviewModal #alias-edit-title,
-DefaultEffortEditPreviewModal #alias-edit-title {
+DefaultEffortEditPreviewModal #alias-edit-title,
+RunnerLimitEditPreviewModal #alias-edit-title {
     text-style: bold;
     height: 1;
     margin-bottom: 1;
 }
 
 AliasEditPreviewModal #alias-edit-preview-scroll,
-DefaultEffortEditPreviewModal #alias-edit-preview-scroll {
+DefaultEffortEditPreviewModal #alias-edit-preview-scroll,
+RunnerLimitEditPreviewModal #alias-edit-preview-scroll {
     width: 100%;
     height: auto;
     max-height: 24;
 }
 
 AliasEditPreviewModal #alias-edit-preview,
-DefaultEffortEditPreviewModal #alias-edit-preview {
+DefaultEffortEditPreviewModal #alias-edit-preview,
+RunnerLimitEditPreviewModal #alias-edit-preview {
     width: 100%;
     height: auto;
 }
 
 AliasEditPreviewModal #alias-edit-hints,
-DefaultEffortEditPreviewModal #alias-edit-hints {
+DefaultEffortEditPreviewModal #alias-edit-hints,
+RunnerLimitEditPreviewModal #alias-edit-hints {
     height: 1;
     color: $text-muted;
     margin-top: 1;

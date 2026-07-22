@@ -1712,7 +1712,7 @@
     },
     "max_running_agents": {
       "type": "integer",
-      "description": "Maximum number of root user agents that may be running concurrently across all projects.",
+      "description": "Maximum number of slot-participating user agents that may be running concurrently across all projects: top-level user agents and eligible parallel family members; serial follow-ups, workflow Python/bash steps, and axe runners are excluded.",
       "minimum": 1,
       "default": 10
     },

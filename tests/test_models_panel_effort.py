@@ -107,6 +107,7 @@ async def test_panel_title_and_chooser_show_effective_and_configured_values(
         title = panel.query_one("#models-panel-title", Static).content.plain
         assert title == (
             "Models\ndefault effort: @ medium  override · 42m left  configured @ xhigh"
+            "\nmax running agents: 10"
         )
         assert (
             "[green]ctrl+e[/green]=Effort"

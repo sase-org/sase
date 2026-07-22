@@ -150,7 +150,7 @@ def test_config_schema_rejects_max_running_agents_below_minimum() -> None:
         Draft7Validator(schema()).validate({"max_running_agents": 0})
 
 
-def test_get_max_running_agents_reads_merged_config(monkeypatch) -> None:
+def test_configured_max_running_agents_reads_merged_config(monkeypatch) -> None:
     from sase.config import core as config_core
 
     monkeypatch.setattr(
@@ -159,7 +159,23 @@ def test_get_max_running_agents_reads_merged_config(monkeypatch) -> None:
         lambda: {"max_running_agents": 7},
     )
 
+    assert config_core.get_configured_max_running_agents() == 7
     assert config_core.get_max_running_agents() == 7
+
+
+@pytest.mark.parametrize("value", [None, 0, -1, True, "7"])
+def test_configured_max_running_agents_falls_back_to_package_default(
+    monkeypatch, value: object
+) -> None:
+    from sase.config import core as config_core
+
+    monkeypatch.setattr(
+        config_core,
+        "load_merged_config",
+        lambda: {"max_running_agents": value},
+    )
+
+    assert config_core.get_configured_max_running_agents() == 10
 
 
 def test_config_schema_accepts_positive_big_epic_phase_threshold() -> None:

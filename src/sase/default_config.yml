@@ -17,8 +17,10 @@ repos:
   linked: []
   sidecar: []
 
-# Maximum number of root user agents that may run concurrently across all
-# projects. Axe ChangeSpec runners use their separate axe.max_* limits.
+# Maximum number of slot-participating user agents that may run concurrently
+# across all projects: top-level user agents and eligible parallel family
+# members. Serial follow-ups, workflow Python/bash steps, and axe runners are
+# excluded; axe ChangeSpec runners use their separate axe.max_* limits.
 max_running_agents: 10
 
 update:

@@ -132,7 +132,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
                 on_agents_tab,
                 selected_identity,
                 load_state=load_result.load_state,
-                configured_runner_limit=get_max_running_agents(),
+                effective_runner_limit=get_max_running_agents(),
             )
         finally:
             if installed_active_source:

@@ -113,12 +113,12 @@ class AgentInfoPanel(Static):
     def update_runner_capacity(
         self,
         slots_in_use: int,
-        configured_limit: int,
+        effective_limit: int,
         queue_count: int,
     ) -> None:
         """Update the cached global user-agent runner capacity snapshot."""
         self._runner_slots_in_use = slots_in_use
-        self._runner_limit = configured_limit
+        self._runner_limit = effective_limit
         self._runner_queue_count = queue_count
         self._update_display()
 

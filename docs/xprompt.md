@@ -1262,7 +1262,7 @@ first, then the time floor applies, and the runner-slot gate is the final admiss
 preparation starts only after admission, so admitted runner counts include that preparation work.
 
 The `runners=N` keyword is a per-prompt threshold, not a reservation of future capacity: the agent starts only when at
-most `N` other slot-participating user agents are holding slots. It overrides the configured `max_running_agents - 1`
+most `N` other slot-participating user agents are holding slots. It overrides the effective `max_running_agents - 1`
 threshold for that launch, so it can either lower or raise the effective limit. Among waiters eligible at the current
 running count, the lowest numeric `priority=N` starts first, with FIFO ordering among equal priorities. There is no
 priority aging, so a steady stream of higher-priority arrivals can starve default- or lower-priority waiters. An older
@@ -1271,16 +1271,17 @@ barrier that waits for true quiescence. Newer eligible launches can start while 
 they also finish. Both values must be non-negative integers and may each appear only once across a prompt's `%wait`
 directives; priority defaults to `10`.
 
-Without an explicit `runners=`, the global `max_running_agents` config limits concurrent slot-participating user agents
-(default `10`). Participants are top-level user agents—including every clan member launched independently—plus parallel
-family members, even when ACE renders them as nested rows. Immediate participating launches claim a slot before
-workspace preparation; dependency, time, and fork waiters remain uncounted until those prerequisites resolve. Serial
-family follow-ups, workflow Python/bash steps, and axe ChangeSpec runners do not consume these slots.
+Without an explicit `runners=`, the effective global `max_running_agents` value limits concurrent slot-participating
+user agents (configured default `10`; an active `~/.sase/max_running_agents_override.json` value wins). Participants are
+top-level user agents—including every clan member launched independently—plus parallel family members, even when ACE
+renders them as nested rows. Immediate participating launches claim a slot before workspace preparation; dependency,
+time, and fork waiters remain uncounted until those prerequisites resolve. Serial family follow-ups, workflow
+Python/bash steps, and axe ChangeSpec runners do not consume these slots.
 
 A slot participant that pauses at `QUESTION` temporarily yields its slot while waiting for the user's answer. Answering
 does not bypass the cap: before follow-up work resumes, the agent reacquires capacity through the same locked
-priority/FIFO gate using the current global `max_running_agents` limit. If the cap is full, the answered agent appears
-as a normal runner-slot `WAITING` row until admitted. Its original `%wait(runners=N)` threshold governed initial
+priority/FIFO gate using the current effective global `max_running_agents` limit. If the cap is full, the answered agent
+appears as a normal runner-slot `WAITING` row until admitted. Its original `%wait(runners=N)` threshold governed initial
 admission and is not reapplied to this resume, while its authored `priority=N` is retained for admission under the
 current global cap.
 
@@ -1660,7 +1661,8 @@ Agent dependencies, time floors, and runner thresholds can be mixed freely:
 
 ```
 %wait(agent1, time=5m, runners=1)
-Wait for agent1 to finish, wait at least 5 minutes from launch, then wait until at most one other root agent is running.
+Wait for agent1 to finish, wait at least 5 minutes from launch, then wait until at most one other slot participant is
+running.
 ```
 
 ## Command Substitution

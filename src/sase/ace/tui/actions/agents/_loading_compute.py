@@ -168,7 +168,7 @@ def prepare_loaded_agents_apply_boundary(
     snapshot: PreparedApplySnapshot,
     *,
     merge_incomplete: bool = True,
-    configured_runner_limit: int | None = None,
+    effective_runner_limit: int | None = None,
 ) -> PreparedApplyBoundary:
     """Prepare pure post-load apply data from an explicit app-state snapshot."""
     from ...util.trace import tui_trace
@@ -189,7 +189,7 @@ def prepare_loaded_agents_apply_boundary(
 
     runner_capacity = refresh_runner_slot_context(
         prep.filtered_agents,
-        configured_limit=configured_runner_limit,
+        effective_limit=effective_runner_limit,
     )
 
     unfiltered_agents = list(prep.filtered_agents)
@@ -389,5 +389,5 @@ def prepare_loaded_agents_worker_boundary(
         prep,
         snapshot,
         merge_incomplete=False,
-        configured_runner_limit=get_max_running_agents(),
+        effective_runner_limit=get_max_running_agents(),
     )

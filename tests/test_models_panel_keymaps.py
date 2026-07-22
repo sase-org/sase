@@ -118,3 +118,4 @@ def test_models_panel_includes_bucket_drill_bindings() -> None:
     assert ("right", "enter_bucket") in bindings
     assert ("h", "leave_bucket") in bindings
     assert ("left", "leave_bucket") in bindings
+    assert ("ctrl+r", "manage_runner_limit") in bindings

@@ -266,8 +266,9 @@ class StatisticsHelpModal(ModalScreen[None]):
             ),
             (
                 "Current limit",
-                "The displayed max_running_agents value is today's global reference, "
-                "not a historical limit or project-specific capacity.",
+                "The displayed max_running_agents value is today's effective global "
+                "reference (including a live temporary override), not a historical "
+                "limit or project-specific capacity.",
             ),
         )
         text = Text()

@@ -231,7 +231,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         incomplete_merge_already_applied: bool = False,
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,
-        configured_runner_limit: int | None = None,
+        effective_runner_limit: int | None = None,
     ) -> None:
         """UI-thread step that folds prepared filter output into ``self``.
 
@@ -263,7 +263,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 incomplete_merge_already_applied=incomplete_merge_already_applied,
                 precomputed_boundary=precomputed_boundary,
                 precomputed_fold_levels=precomputed_fold_levels,
-                configured_runner_limit=configured_runner_limit,
+                effective_runner_limit=effective_runner_limit,
             )
 
     def _apply_loaded_agents_prepared_inner(
@@ -278,7 +278,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         incomplete_merge_already_applied: bool = False,
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,
-        configured_runner_limit: int | None = None,
+        effective_runner_limit: int | None = None,
     ) -> None:
         """Implementation for the traced prepared-apply UI continuation."""
         first_agents_load = not self._agents_first_load_done
@@ -342,11 +342,9 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 boundary = precomputed_boundary
 
         if boundary is None:
-            boundary_limit = configured_runner_limit
+            boundary_limit = effective_runner_limit
             if boundary_limit is None and precomputed_boundary is not None:
-                precomputed_limit = (
-                    precomputed_boundary.runner_capacity.configured_limit
-                )
+                precomputed_limit = precomputed_boundary.runner_capacity.effective_limit
                 if precomputed_limit > 0:
                     boundary_limit = precomputed_limit
             boundary = prepare_loaded_agents_apply_boundary(
@@ -357,7 +355,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                     load_state=load_state,
                 ),
                 merge_incomplete=False,
-                configured_runner_limit=boundary_limit,
+                effective_runner_limit=boundary_limit,
             )
         prep = boundary.prep
 

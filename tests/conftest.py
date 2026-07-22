@@ -314,6 +314,19 @@ def _isolate_default_llm_effort(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _isolate_runner_limit_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent ambient machine-wide runner state from changing tests."""
+    monkeypatch.setattr(
+        "sase.config.runner_limit_override.get_active_runner_limit_override",
+        lambda now=None: None,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.models_panel.get_active_runner_limit_override",
+        lambda now=None: None,
+    )
+
+
+@pytest.fixture(autouse=True)
 def _mock_system_clipboard(request: pytest.FixtureRequest):
     """Prevent tests from touching the real system clipboard / X11 display."""
     if request.node.get_closest_marker("real_clipboard"):

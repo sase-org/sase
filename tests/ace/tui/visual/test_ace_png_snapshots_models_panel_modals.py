@@ -11,11 +11,16 @@ from sase.ace.tui.modals.models_panel_effort_cards import (
     DefaultEffortActionModal,
     DefaultEffortLevelModal,
 )
+from sase.ace.tui.modals.models_panel_runner_limit_cards import (
+    RunnerLimitActionModal,
+    RunnerLimitValueModal,
+)
 from sase.ace.tui.modals.models_panel_time import OverrideUntilModal
 from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
     EASTERN,
     FROZEN_NOW,
     effort_snapshot,
+    runner_limit_snapshot,
     time_modal_clock,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -88,6 +93,69 @@ async def test_models_panel_default_effort_level_png_snapshots(
             )
         )
         await page.expect_modal("DefaultEffortLevelModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
+
+
+async def test_models_panel_runner_limit_action_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(
+            RunnerLimitActionModal(
+                runner_limit_snapshot(), now=FROZEN_NOW, use_chezmoi=True
+            )
+        )
+        await page.expect_modal("RunnerLimitActionModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_runner_limit_action_120x40",
+            title="ACE models panel — runner-limit action chooser",
+        )
+
+
+@pytest.mark.parametrize(
+    ("mode", "snapshot_name", "title", "initial"),
+    [
+        (
+            "edit",
+            "models_panel_runner_limit_value_edit_120x40",
+            "ACE models panel — persistent runner-limit editor",
+            10,
+        ),
+        (
+            "override",
+            "models_panel_runner_limit_value_override_120x40",
+            "ACE models panel — temporary runner-limit editor",
+            4,
+        ),
+    ],
+)
+async def test_models_panel_runner_limit_value_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    snapshot_name: str,
+    title: str,
+    initial: int,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(
+            RunnerLimitValueModal(mode, initial=initial)  # type: ignore[arg-type]
+        )
+        await page.expect_modal("RunnerLimitValueModal")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)

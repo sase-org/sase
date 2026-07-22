@@ -78,7 +78,8 @@ def test_help_explains_runner_eligibility_windows_and_capacity_caveats() -> None
         "earliest valid recorded runner segment",
         "filter is applied before concurrency",
         "Malformed rows and invalid intervals",
-        "today's global reference",
+        "today's effective global reference",
+        "including a live temporary override",
         "not a historical limit or project-specific capacity",
     ):
         assert phrase in methodology

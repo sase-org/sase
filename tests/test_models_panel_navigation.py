@@ -254,6 +254,7 @@ async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> 
         assert panel._highlighted_row_id() == "research_a"
         assert panel.query_one("#models-panel-title", Static).content.plain == (
             "Models › research\ndefault effort: provider default"
+            "\nmax running agents: 10"
         )
         assert "h" in str(panel.query_one("#models-panel-footer", Static).content)
 
@@ -262,7 +263,7 @@ async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> 
         assert panel._active_bucket is None
         assert panel._highlighted_row_id() == "bucket:research"
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models\ndefault effort: provider default"
+            "Models\ndefault effort: provider default\nmax running agents: 10"
         )
 
 
@@ -406,7 +407,7 @@ async def test_refresh_auto_leaves_bucket_when_last_member_disappears(
 
         assert panel._active_bucket is None
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models\ndefault effort: provider default"
+            "Models\ndefault effort: provider default\nmax running agents: 10"
         )
         assert panel.query_one("#models-panel-list", OptionList).option_count == 3
 
@@ -422,7 +423,7 @@ async def test_panel_title_shows_configured_default_effort(monkeypatch) -> None:
         await pilot.pause()
 
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models\ndefault effort: @ xhigh"
+            "Models\ndefault effort: @ xhigh\nmax running agents: 10"
         )
         effort.assert_called_once_with()
 

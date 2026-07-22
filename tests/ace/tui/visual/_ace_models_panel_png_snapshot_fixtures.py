@@ -13,6 +13,7 @@ from sase.llm_provider import (
 )
 from sase.llm_provider.config import ModelAliasSelectorMember
 from sase.llm_provider.load_balancing import ModelAliasSelectorMode
+from sase.config import EffectiveRunnerLimitSnapshot, TemporaryRunnerLimitOverride
 
 
 # Frozen clocks keep override countdowns and time previews deterministic.
@@ -31,6 +32,20 @@ def effort_snapshot() -> EffectiveDefaultEffortSnapshot:
         temporary_override=TemporaryEffortOverride(
             version=1,
             effort="medium",
+            created_at=FROZEN_NOW,
+            expires_at=FROZEN_NOW + 42 * 60,
+            source="visual",
+        ),
+        captured_at=FROZEN_NOW,
+    )
+
+
+def runner_limit_snapshot() -> EffectiveRunnerLimitSnapshot:
+    return EffectiveRunnerLimitSnapshot(
+        configured_limit=10,
+        temporary_override=TemporaryRunnerLimitOverride(
+            version=1,
+            limit=4,
             created_at=FROZEN_NOW,
             expires_at=FROZEN_NOW + 42 * 60,
             source="visual",

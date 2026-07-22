@@ -140,8 +140,9 @@ On Repos and Workspaces, `p` opens a shared project picker. Choosing a disabled 
 
 The Statistics tab aggregates durable agent run and activity records over a selectable time range. Its eight views are
 **Overview**, **Runs**, **Runners**, **Projects**, **Providers**, **Runtime**, **Activity**, and **Plans & Questions**.
-The Projects view can group by project, by ChangeSpec, or as a project-to-ChangeSpec drilldown. A pane-wide project
-filter lets you apply the same scope to the other views.
+The Runners view uses today's effective global limit—including a temporary override—as present-day context, never as
+historical configuration. The Projects view can group by project, by ChangeSpec, or as a project-to-ChangeSpec
+drilldown. A pane-wide project filter lets you apply the same scope to the other views.
 
 The pane loads only while visible, refreshes every 30 seconds, and performs its queries off the UI thread. Use `[` / `]`
 to change views, `t`/`T` or `c` to choose a preset or custom range, `g` to change the Projects or Runtime grouping,
@@ -731,6 +732,10 @@ The same panel's fixed `Ctrl+E` binding manages the separate machine-wide defaul
 `~/.sase/llm_effort_override.json`. It uses the alias override duration and exact-time cards, but its state and
 precedence are independent: explicit prompt effort and alias/member effort win, then the temporary effort override, then
 `llm_provider.default_effort`, then the provider default. See [Reasoning Effort](llms.md#reasoning-effort).
+
+Its fixed `Ctrl+R` binding manages `max_running_agents`: persistent edits target the user-base `sase.yml` (or its
+chezmoi source), while temporary values live independently in `~/.sase/max_running_agents_override.json`. This is a
+Models-modal binding, not an `ace.keymaps` option.
 
 #### `llm_provider.retry`
 
@@ -1404,19 +1409,29 @@ Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/commit_hooks.p
 
 ### max_running_agents
 
-The global cap on concurrently running root user agents across all projects. Agents that reach the runner-slot gate
-after the cap is full remain in the standard `WAITING` state until admitted. Child agents, workflow Python/bash steps,
-and axe ChangeSpec runners are excluded; axe runners continue to use their separate `axe.max_*_runners` limits. An
-unanswered root `QUESTION` temporarily yields its slot. After the user answers, that root must reacquire against the
-current cap before follow-up work resumes and may therefore appear as a runner-slot `WAITING` row.
+The configured global cap on concurrently running slot participants across all projects. Participants are top-level user
+agents—including independently launched clan members—and eligible parallel family members. Serial family follow-ups,
+workflow Python/bash steps, and axe ChangeSpec runners are excluded; axe runners continue to use their separate
+`axe.max_*_runners` limits. An unanswered participant at `QUESTION` temporarily yields its slot. After the user answers,
+it must reacquire against the current effective cap before follow-up work resumes and may therefore appear as a
+runner-slot `WAITING` row.
 
 ```yaml
 max_running_agents: 10
 ```
 
-| Field                | Type | Default | Minimum | Description                                                 |
-| -------------------- | ---- | ------- | ------- | ----------------------------------------------------------- |
-| `max_running_agents` | int  | `10`    | `1`     | Maximum concurrently running root user agents on this host. |
+| Field                | Type | Default | Minimum | Description                                                   |
+| -------------------- | ---- | ------- | ------- | ------------------------------------------------------------- |
+| `max_running_agents` | int  | `10`    | `1`     | Configured maximum concurrent slot participants on this host. |
+
+The effective cap is an active machine-wide temporary override first and this merged configured value second. In the
+Models panel, fixed `Ctrl+R` opens **Max Running Agents**: `e` previews and writes the user-base/chezmoi source, `o`
+chooses a relative, custom, until-cleared, or exact-time override, and `x` clears it. Temporary state is stored as a
+versioned record at `~/.sase/max_running_agents_override.json`; a new set replaces the previous value, expiry is
+enforced at its deadline, and a persistent edit leaves an active override in force. Lowering the effective value is
+non-preemptive, so existing agents continue and new implicit-cap launches wait for occupancy to drain. Parked implicit
+waiters and question continuations reread the effective cap on each normal poll. An explicit `%wait(runners=N)` keeps
+its own initial-admission threshold and may be either stricter or looser than the global cap.
 
 ### timezone
 

@@ -301,8 +301,38 @@ def _try_claim_runner_slot(
         try:
             waiting_path = Path(artifacts_dir) / "waiting.json"
             waiting_data = _read_json_dict(waiting_path)
-            threshold, explicit = _marker_threshold(waiting_data, directive_threshold)
             priority = _marker_priority(waiting_data, directive_priority)
+            try:
+                threshold, explicit = _marker_threshold(
+                    waiting_data, directive_threshold
+                )
+            except Exception as error:  # noqa: BLE001 - admission fails closed.
+                requested_at = (
+                    waiting_data.get("slot_requested_at")
+                    if waiting_data is not None
+                    else None
+                )
+                if not isinstance(requested_at, str) or not requested_at:
+                    requested_at = datetime.now(UTC).isoformat()
+                marker = dict(waiting_data or {})
+                previous_threshold = marker.get("wait_runners")
+                if type(previous_threshold) is not int or previous_threshold < 0:
+                    previous_threshold = 0
+                marker.update(
+                    {
+                        "cl_name": cl_name,
+                        "timestamp": timestamp,
+                        "wait_runners": previous_threshold,
+                        "wait_runners_explicit": False,
+                        "wait_priority": priority,
+                        "slot_requested_at": requested_at,
+                        "runner_limit_unavailable": str(error),
+                    }
+                )
+                parked = waiting_data is None or "slot_requested_at" not in waiting_data
+                if waiting_data != marker:
+                    _write_waiting_marker(artifacts_dir, marker)
+                return None, parked
             records = _scan_runner_slot_records()
             is_live = _record_liveness_probe()
             queue = live_runner_slot_waiters(records, is_live)
@@ -320,6 +350,7 @@ def _try_claim_runner_slot(
             if not isinstance(requested_at, str) or not requested_at:
                 requested_at = datetime.now(UTC).isoformat()
             marker = dict(waiting_data or {})
+            marker.pop("runner_limit_unavailable", None)
             marker.update(
                 {
                     "cl_name": cl_name,
@@ -348,12 +379,16 @@ def wait_for_runner_slot(
     wait_priority: int | None = None,
     claim: Callable[[], str],
 ) -> str:
-    """Pass the final root-agent runner-slot gate and atomically claim RUNNING.
+    """Pass the final participating-agent gate and atomically claim RUNNING.
 
-    Child/follow-up agents are exempt so a parent waiting on its children can
-    never deadlock while holding a slot.
+    Serial family follow-ups are exempt so a parent waiting on its children can
+    never deadlock while holding a slot. Parallel family members participate in
+    the global cap independently.
     """
-    if agent_meta.get("parent_timestamp"):
+    if (
+        agent_meta.get("parent_timestamp")
+        and agent_meta.get("agent_family_parallel") is not True
+    ):
         return claim()
 
     while not was_killed():

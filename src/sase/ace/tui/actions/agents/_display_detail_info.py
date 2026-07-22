@@ -170,7 +170,7 @@ class AgentInfoDisplayMixin:
                 search_query=self._agent_search_query,
                 grouping_mode=grouping_mode,
                 view_mode=view_mode,
-                runner_limit=runner_capacity.configured_limit,
+                runner_limit=runner_capacity.effective_limit,
                 runner_slots_in_use=runner_capacity.slots_in_use,
                 runner_queue_count=runner_capacity.global_cap_queue_count,
             )
@@ -183,7 +183,7 @@ class AgentInfoDisplayMixin:
         if callable(update_runner_capacity):
             update_runner_capacity(
                 runner_capacity.slots_in_use,
-                runner_capacity.configured_limit,
+                runner_capacity.effective_limit,
                 runner_capacity.global_cap_queue_count,
             )
         agent_info_panel.update_agent_counts(

@@ -170,6 +170,7 @@ The eight views answer different questions:
 | **Projects**          | Project and ChangeSpec run counts, success, commits, wall time, and last activity; `g` cycles project, ChangeSpec, and project-to-ChangeSpec groupings. |
 | **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                               |
 | **Runtime**           | Total, mean, p50, p95, and maximum runtime; `g` cycles tribe, clan, family, agent, provider, model, workflow, project, and ChangeSpec dimensions.       |
+| **Runners**           | Historical runner occupancy and concurrency trends, with today's effective global limit (including a temporary override) as present-day context.        |
 | **Activity**          | Skill, memory, and workspace use.                                                                                                                       |
 | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                     |
 

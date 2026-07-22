@@ -20,6 +20,7 @@ from .models_panel_rendering import (
     render_alias_row,
     render_bucket_row,
 )
+from .models_panel_runner_limit_rendering import append_runner_limit_title
 from .models_panel_types import ModelsPanelResult
 
 if TYPE_CHECKING:
@@ -37,6 +38,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
         _changed: bool
         _default_effort: str | None
         _effort_snapshot: Any
+        _runner_limit_snapshot: Any
         _row_by_id: dict[str, AliasView | BucketView]
         _top_rows: list[AliasView | BucketView]
         _updating_highlight: bool
@@ -53,7 +55,13 @@ class ModelsPanelDisplayMixin(_MixinBase):
 
         def _refresh_effort_clock(self) -> None: ...
 
+        def _start_runner_limit_snapshot_load(self) -> None: ...
+
+        def _refresh_runner_limit_clock(self) -> None: ...
+
         def _effort_write_busy(self) -> bool: ...
+
+        def _runner_limit_write_busy(self) -> bool: ...
 
         def _load_models_panel_rows(
             self, views: list[AliasView]
@@ -77,7 +85,13 @@ class ModelsPanelDisplayMixin(_MixinBase):
         self._update_context()
         self._emit_custom_builtin_shadow_warning()
         self._start_effort_snapshot_load()
-        self.set_interval(5.0, self._refresh_effort_clock)
+        self._start_runner_limit_snapshot_load()
+        self.set_interval(5.0, self._refresh_models_clock)
+
+    def _refresh_models_clock(self) -> None:
+        """Advance captured countdowns without reading disk or state."""
+        self._refresh_effort_clock()
+        self._refresh_runner_limit_clock()
 
     def _emit_custom_builtin_shadow_warning(self) -> None:
         """Emit the one opening warning derived from the loaded view snapshot."""
@@ -98,13 +112,13 @@ class ModelsPanelDisplayMixin(_MixinBase):
         row = self._selected_row()
         if self._active_bucket is None and isinstance(row, BucketView):
             return (
-                "[green]ctrl+e[/green]=Effort  "
+                "[green]ctrl+e[/green]=Effort  [green]ctrl+r[/green]=Limit\n"
                 "[green]l/enter[/green]=Open  "
                 "[dim]j/k[/dim]=Navigate  "
                 "[dim]esc[/dim]=Close"
             )
         footer = (
-            "[green]ctrl+e[/green]=Effort  "
+            "[green]ctrl+e[/green]=Effort  [green]ctrl+r[/green]=Limit\n"
             "[green]o[/green]=Override  "
             "[green]x[/green]=Clear  "
             "[green]e[/green]=Edit  "
@@ -123,6 +137,12 @@ class ModelsPanelDisplayMixin(_MixinBase):
         append_default_effort_title(
             text,
             self._effort_snapshot,
+            now=self._models_panel_now(),
+        )
+        text.append("\n")
+        append_runner_limit_title(
+            text,
+            self._runner_limit_snapshot,
             now=self._models_panel_now(),
         )
         return text
@@ -276,6 +296,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
             self._override_worker is not None
             or self._clear_worker is not None
             or self._effort_write_busy()
+            or self._runner_limit_write_busy()
         ):
             self.notify("An override update is still in progress.", severity="warning")
             return

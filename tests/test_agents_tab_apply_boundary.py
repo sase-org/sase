@@ -244,7 +244,7 @@ def test_runner_capacity_installs_atomically_and_survives_local_refilters() -> N
     boundary = prepare_loaded_agents_apply_boundary(
         prep,
         snapshot,
-        configured_runner_limit=10,
+        effective_runner_limit=10,
     )
 
     assert boundary.runner_capacity == RunnerCapacitySnapshot(10, 1, 1)
@@ -279,7 +279,7 @@ def test_runner_capacity_installs_atomically_and_survives_local_refilters() -> N
     assert child not in app._agents
 
 
-def test_worker_boundary_observes_changed_configured_runner_limit(
+def test_worker_boundary_observes_changed_effective_runner_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     limits = iter((10, 4))

@@ -233,16 +233,16 @@ class StatisticsRunnersRenderingMixin:
             if self._project_filter:
                 notes.append(
                     Text(
-                        "Current limit is today's global reference, not project-specific "
-                        "capacity or a historical limit.",
+                        "Current limit is today's effective global reference, not "
+                        "project-specific capacity or a historical limit.",
                         style=f"dim {_GOLD}",
                     )
                 )
             else:
                 notes.append(
                     Text(
-                        "Current limit is today's global reference, not a historical "
-                        "limit.",
+                        "Current limit is today's effective global reference, not a "
+                        "historical limit.",
                         style=f"dim {_GOLD}",
                     )
                 )

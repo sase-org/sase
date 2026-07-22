@@ -859,12 +859,12 @@ visually.
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
 session mode is always visible after the cycle toast fades. After the first scan, the header starts with the top-level
 agent total `N`, followed by an always-visible capacity chip in the form `[R/L · Q queued]`: `R` is the global number of
-slot-participating user agents currently holding runner slots, `L` is the current `max_running_agents` limit, and `Q`
-counts live waiters governed by that configured cap. Slot participants are top-level user agents—including every clan
-member launched independently—plus parallel family members. Serial family follow-ups, workflow Python/bash steps, and
-axe ChangeSpec runners do not participate. Waits with an explicit `%wait(runners=N)` threshold are intentionally
-excluded from `Q`. Occupancy is green below the limit, gold at the limit, and red above it; a nonzero queue count is
-violet.
+slot-participating user agents currently holding runner slots, `L` is the current effective `max_running_agents` limit
+(temporary override first, configured value second), and `Q` counts live waiters governed by that effective cap. Slot
+participants are top-level user agents—including every clan member launched independently—plus parallel family members.
+Serial family follow-ups, workflow Python/bash steps, and axe ChangeSpec runners do not participate. Waits with an
+explicit `%wait(runners=N)` threshold are intentionally excluded from `Q`. Occupancy is green below the limit, gold at
+the limit, and red above it; a nonzero queue count is violet.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with numeric counts in place of the
@@ -943,9 +943,9 @@ the start-timestamp half is rendered as a humanized `(date_prefix, time)` pair s
 - **Different year**: `Mon DD 'YY` (date only)
 
 The elapsed duration starts at `BEGIN` when a row recorded wait-before-run metadata, otherwise at the row start time.
-For root agents, `BEGIN` is runner admission and includes primary and linked-workspace preparation in the active
-runtime. Completed `DONE` / `PLAN DONE` / `TALE DONE` workflow rows use the terminal agent stop time when one exists;
-plan-step rows that finish without a subprocess stop time anchor to the latest recorded plan submission time so
+For slot-participating user agents, `BEGIN` is runner admission and includes primary and linked-workspace preparation in
+the active runtime. Completed `DONE` / `PLAN DONE` / `TALE DONE` workflow rows use the terminal agent stop time when one
+exists; plan-step rows that finish without a subprocess stop time anchor to the latest recorded plan submission time so
 completed planning rows do not keep ticking. `PLAN APPROVED` rows with a running follow-up show active elapsed time for
 the planner segment plus the coder segment, excluding the idle approval gap between plan submission and code launch. The
 date prefix uses a softer `dim #8787AF` while the time half keeps the standard `#8787AF`, giving the column internal
@@ -1369,10 +1369,12 @@ provider/model as a provider-themed badge, and a state tag — `configured`, `im
 `override · <time> left` / `override · until cleared` chip when a temporary override is active. The title's second line
 shows the launch-effective default effort. With no temporary override it says `default effort: @ <level>` or
 `provider default`; with an active override it shows that `@<level>`, its remaining time, and the configured value
-underneath it. An explicit effort suffix inherited from an alias target appears beside that row's model badge; rows that
-simply inherit the header default omit the redundant suffix. The top level is sorted deterministically: `default`, the
-built-in `coders` bucket, `epic_lander`, `big_epic_lander`, the built-in `phase_worker` bucket, `smartest`, `cheaper`,
-`cheapest`, then custom buckets and ungrouped user aliases in alphabetical order.
+beside it. The third line shows the effective `max running agents` global cap; an active temporary cap shows its
+remaining time and configured value on the same line. An explicit effort suffix inherited from an alias target appears
+beside that row's model badge; rows that simply inherit the header default omit the redundant suffix. The top level is
+sorted deterministically: `default`, the built-in `coders` bucket, `epic_lander`, `big_epic_lander`, the built-in
+`phase_worker` bucket, `smartest`, `cheaper`, `cheapest`, then custom buckets and ungrouped user aliases in alphabetical
+order.
 
 Two built-in buckets are always present. `coders` groups `coder` first and every registered `<provider>_coder` alias
 alphabetically. `phase_worker` groups `small_phase_worker`, `medium_phase_worker`, and `large_phase_worker`, followed by
@@ -1411,6 +1413,7 @@ Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlight
 | `e`                   | **Edit** — change the persistent configured value (model picker / custom input → preview)  |
 | `r`                   | **Reset** — unset the configured value back to its implicit fallback                       |
 | `Ctrl+E`              | **Effort** — persistently edit, temporarily override, or clear the global default effort   |
+| `Ctrl+R`              | **Limit** — persistently edit, temporarily override, or clear the global runner limit      |
 | `Esc` / `q`           | Close the panel                                                                            |
 
 ### Default effort controls
@@ -1439,6 +1442,28 @@ YAML diff. With `use_chezmoi: true`, the actual write goes to the chezmoi source
 reports success. A dirty Git-backed target receives the usual tracked commit/pull/push offer with
 `chore: update default model effort`. An active temporary override remains launch-effective after this write until it
 expires or is cleared; the preview and success notification both make that explicit.
+
+### Max running agents controls
+
+`Ctrl+R` is a fixed Models-panel binding and works from every alias, collapsed bucket, and open bucket. It is not a
+leader-keymap setting. The **Max Running Agents** card shows the current effective global cap and, while a temporary
+override is active, its remaining time plus the configured value. Press `e` to edit the user-base configuration, `o` to
+set a temporary machine-wide override, or `x` to clear an active override.
+
+Edit and Override open a focused positive-integer card. Edit is prefilled with the configured value; Override is
+prefilled with the current effective value. The input accepts an unsigned base-10 whole number with minimum `1` and no
+product maximum. A persistent edit previews the exact `max_running_agents` path, actual user or chezmoi source target,
+configured before/after values, validation diagnostics, and source-preserving YAML diff. Its tracked commit offer uses
+`chore: update max running agents`. A higher-precedence overlay can keep the configured effective value different from
+the requested user-layer value, which the reload notification reports truthfully.
+
+Temporary Limit overrides reuse the same relative/custom/exact-time duration cards as model and effort overrides. The
+versioned machine-wide record is `~/.sase/max_running_agents_override.json`; setting a value replaces the previous
+runner-limit override, `now >= expires_at` expires it, and Clear is idempotent. A persistent edit does not clear a live
+temporary override. Lowering the effective cap never stops an already-running agent: occupancy may temporarily exceed
+the cap, and new implicit-cap work waits until enough slots drain. Raising the cap lets eligible parked agents advance
+through the existing priority/FIFO gate on their next poll. Launches with an explicit `%wait(runners=N)` retain their
+own initial-admission threshold, while question continuations reacquire against the current effective global cap.
 
 ### Temporary overrides
 
@@ -1969,7 +1994,7 @@ a pinned attempt view resets the cursor.
     metadata and validated plan frontmatter, while exact epic and legacy phase/`.land` rows retain compatibility
     inference
   - `WAIT` — when the agent was spawned (waiting for a slot)
-  - `BEGIN` — when runner admission completed, before workspace preparation for root agents
+  - `BEGIN` — when runner admission completed, before workspace preparation for slot-participating user agents
   - `PLAN` — each plan proposal round (multiple entries when re-planning occurs)
   - `FBACK` — each time the agent requested feedback from the user
   - `QUEST` — each time the agent asked the user a question

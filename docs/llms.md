@@ -948,8 +948,10 @@ clearing these overrides — for the `default` alias or any role/user alias.
 The panel also shows a two-line description for the highlighted alias or bucket. Builtin aliases have fixed
 descriptions, custom aliases read `llm_provider.model_aliases.custom.<name>.description`, selector aliases list each
 member, its current availability, and the current selection, and the built-in `coders` and `phase_worker` buckets report
-their aggregate effective-model-and-effort mix and active override count. The title shows the configured default effort,
-while non-pool aliases that explicitly carry an effort explain its provenance on the second description line.
+their aggregate effective-model-and-effort mix and active override count. The title shows the launch-effective default
+effort and current effective `max_running_agents` cap; active temporary values include their remaining time and
+configured provenance. Non-pool aliases that explicitly carry an effort explain its provenance on the second description
+line.
 
 Overrides are **per-alias** and independent. The `default` override only changes the _default_ provider/model selection
 for new agent launches; an override on any other alias takes effect wherever that alias is resolved. For example, an
