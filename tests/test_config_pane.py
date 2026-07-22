@@ -5,8 +5,8 @@ without standing up a Textual app: the join between the field model and the
 inventory provenance, modified detection, filter + modified-only narrowing,
 ancestor reveal, row / source-rail / detail rendering, jump matching, and the
 stat-token inventory cache. The widget wiring (worker load + tree population +
-key handling) is covered by ``tests/ace/tui/test_config_pane_widget.py`` and the
-Config Center PNG snapshots.
+key handling) is covered by the ``tests/ace/tui/test_config_pane_widget*.py``
+modules and the Config Center PNG snapshots.
 """
 
 from __future__ import annotations
