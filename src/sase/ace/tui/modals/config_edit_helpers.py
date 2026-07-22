@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
@@ -214,6 +215,13 @@ def check_constraints(value: Any, field: ConfigField) -> tuple[Any, str | None]:
             return None, f"must be at least {constraints.min_length} char(s)"
         if constraints.max_length is not None and len(value) > constraints.max_length:
             return None, f"must be at most {constraints.max_length} char(s)"
+        if constraints.pattern is not None:
+            try:
+                matches = re.search(constraints.pattern, value) is not None
+            except re.error:
+                matches = False
+            if not matches:
+                return None, f"must match pattern {constraints.pattern}"
     return value, None
 
 

@@ -8,20 +8,18 @@ rendering base, and overlay-name prompt live in sibling modules.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from textual import events
 from textual.binding import Binding
-from textual.containers import VerticalScroll
 from textual.widgets import TextArea
-from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 
 from sase.config import (
     AppliedResult,
-    ConfigEditError,
     ConfigEditOp,
     ConfigField,
     ConfigInventory,
@@ -52,6 +50,14 @@ from .config_edit_helpers import (
 from .config_edit_overlay_modal import OverlayNameModal
 from .config_edit_rendering import ConfigEditModalBase
 from .config_edit_types import EditorKind, Stage
+from .config_transaction import (
+    ConfigTransactionApplyResult,
+    ConfigTransactionControllerMixin,
+    ConfigTransactionInputError,
+    ConfigTransactionMetadata,
+    ConfigTransactionRequest,
+    ConfigTransactionScopeUpdate,
+)
 
 if TYPE_CHECKING:
     from sase.ace.tui.modals.config_pane import ConfigPaneView
@@ -76,7 +82,14 @@ _yaml_loads = yaml_loads
 _LIVE_YAML_PARSE_MAX_BYTES = 16_000
 
 
-class ConfigEditModal(ConfigEditModalBase):
+@dataclass(frozen=True)
+class _ConfigFieldMutation:
+    inventory: ConfigInventory
+    path: str
+    op: ConfigEditOp
+
+
+class ConfigEditModal(ConfigTransactionControllerMixin, ConfigEditModalBase):
     """Edit a single config field and write it."""
 
     # Focus is managed explicitly (``_focus_editor``); hidden Input/TextArea
@@ -108,6 +121,7 @@ class ConfigEditModal(ConfigEditModalBase):
         ("ctrl+t", "cycle_scope", "Scope"),
         ("ctrl+n", "new_overlay", "New overlay"),
         ("ctrl+r", "toggle_reset", "Reset to default"),
+        ("ctrl+l", "reload_transaction", "Reload conflict"),
     ]
 
     def __init__(
@@ -127,14 +141,22 @@ class ConfigEditModal(ConfigEditModalBase):
         self._status: str | None = None
         self._busy = False
         self._plan: EditPlanResult | None = None
-        self._plan_worker: Worker[Any] | None = None
-        self._apply_worker: Worker[Any] | None = None
         self._target: str | None = None
         self._enum_index = 0
         self._bool_value = False
         self._initial_value: Any = None
         if field is not None:
             self._init_field_state(field)
+        self._init_config_transaction(
+            metadata=ConfigTransactionMetadata(
+                title="Edit config field",
+                identity=(field.path,) if field is not None else (),
+            ),
+            plan_callback=self._plan_config_transaction,
+            apply_callback=self._apply_config_transaction,
+            new_scope_modal_factory=OverlayNameModal,
+            create_scope_callback=self._create_overlay_scope,
+        )
 
     def _init_field_state(self, field: ConfigField) -> None:
         state = self._view.state_by_path.get(field.path)
@@ -184,42 +206,13 @@ class ConfigEditModal(ConfigEditModalBase):
             return self._can_pick_option_by_number()
         return super().check_action(action, parameters)
 
-    def action_cycle_scope(self) -> None:
-        if self._stage != "edit" or self._busy:
-            return
-        writable = self._writable_sources()
-        if len(writable) <= 1:
-            return
-        names = [s.name for s in writable]
-        try:
-            index = names.index(self._target) if self._target in names else -1
-        except ValueError:
-            index = -1
-        self._target = names[(index + 1) % len(names)]
-        self._error = None
-        self._render_all()
+    def _create_overlay_scope(self, name: str) -> ConfigTransactionScopeUpdate:
+        inventory, target = inventory_with_new_overlay(self._inventory, name)
+        return ConfigTransactionScopeUpdate(inventory, target)
 
-    def action_new_overlay(self) -> None:
-        if self._stage != "edit" or self._busy:
-            return
-
-        def _on_name(name: str | None) -> None:
-            if not name:
-                return
-            try:
-                inventory, layer_name = inventory_with_new_overlay(
-                    self._inventory, name
-                )
-            except Exception as exc:
-                self._error = f"could not create overlay: {exc}"
-                self._render_all()
-                return
-            self._inventory = inventory
-            self._target = layer_name
-            self._error = None
-            self._render_all()
-
-        self.app.push_screen(OverlayNameModal(), _on_name)
+    def _accept_transaction_scope_state(self, state: Any) -> None:
+        if isinstance(state, ConfigInventory):
+            self._inventory = state
 
     def action_toggle_reset(self) -> None:
         if self._stage != "edit" or self._busy:
@@ -258,43 +251,6 @@ class ConfigEditModal(ConfigEditModalBase):
         if not self._can_pick_option_by_number():
             return
         self._set_option_index(number - 1)
-
-    def action_preview_page_down(self) -> None:
-        self._scroll_preview(page_delta=1)
-
-    def action_preview_page_up(self) -> None:
-        self._scroll_preview(page_delta=-1)
-
-    def action_preview_top(self) -> None:
-        try:
-            self.query_one("#config-edit-preview-scroll", VerticalScroll).scroll_home(
-                animate=False, immediate=True, force=True
-            )
-        except Exception:
-            pass
-
-    def action_preview_bottom(self) -> None:
-        try:
-            self.query_one("#config-edit-preview-scroll", VerticalScroll).scroll_end(
-                animate=False, immediate=True, force=True
-            )
-        except Exception:
-            pass
-
-    def _scroll_preview(self, *, lines: int = 0, page_delta: int = 0) -> None:
-        if self._stage != "preview":
-            return
-        try:
-            scroll = self.query_one("#config-edit-preview-scroll", VerticalScroll)
-        except Exception:
-            return
-        delta = lines
-        if page_delta:
-            height = scroll.scrollable_content_region.height
-            delta += page_delta * max(1, height // 2)
-        # Textual's deferred scroll path can drop keypresses while scrollbar
-        # state is stale during preview relayout; apply preview keys directly.
-        scroll.scroll_relative(y=delta, animate=False, immediate=True, force=True)
 
     def _can_choose_option(self) -> bool:
         return (
@@ -338,37 +294,6 @@ class ConfigEditModal(ConfigEditModalBase):
             self._enum_index = index
         self._error = None
         self._render_all()
-
-    def _select_scope_index(self, index: int) -> None:
-        if self._stage != "edit" or self._busy:
-            return
-        writable = self._writable_sources()
-        if index < 0 or index >= len(writable):
-            return
-        self._target = writable[index].name
-        self._error = None
-        self._render_all()
-
-    def action_back(self) -> None:
-        if self._busy:
-            return
-        if self._stage == "preview":
-            self._stage = "edit"
-            self._plan = None
-            self._error = None
-            self._status = None
-            self._render_all()
-            self._focus_editor()
-            return
-        self.dismiss(None)
-
-    def action_confirm(self) -> None:
-        if self._busy:
-            return
-        if self._stage == "edit":
-            self._start_plan()
-        else:
-            self._start_apply()
 
     def on_single_line_vim_text_area_submitted(
         self, event: SingleLineVimTextArea.Submitted
@@ -452,105 +377,38 @@ class ConfigEditModal(ConfigEditModalBase):
             return None, error
         return ConfigEditOp.set_value(value), None
 
-    def _start_plan(self) -> None:
-        if self._target is None:
-            self._error = "no writable target — create an overlay (ctrl+n)"
-            self._render_all()
-            return
+    def _build_transaction_mutation(self, _target: str) -> _ConfigFieldMutation:
         op, error = self._current_op()
         if op is None or error is not None:
-            self._error = error
-            self._render_all()
-            return
-        self._error = None
-        self._status = None
-        self._busy = True
-        self._stage = "preview"
-        self._plan = None
-        self.set_focus(None)
-        self._render_all()
-        inventory = self._inventory
+            raise ConfigTransactionInputError(error or "invalid value")
         path = self._field.path if self._field is not None else ""
-        target = self._target
-
-        def task() -> EditPlanResult:
-            return plan_config_edit(inventory, path, target, op)
-
-        self._plan_worker = self.run_worker(task, thread=True, exclusive=True)
-
-    def _start_apply(self) -> None:
-        plan = self._plan
-        if plan is None:
-            return
-        if not plan.is_valid:
-            self._error = "fix validation errors before writing"
-            self._render_all()
-            return
-        if not plan.text_diff.strip():
-            self._error = "nothing to write — no change"
-            self._render_all()
-            return
-        self._busy = True
-        self._error = None
-        self._render_all()
-
-        def task() -> tuple[AppliedResult, str | None]:
-            result = apply_config_edit(plan)
-            note: str | None = None
-            # ``chezmoi apply`` takes the home *target* path, not the chezmoi
-            # source we just wrote to. Only apply when a real source→target
-            # remap happened (target differs from the written source path).
-            target = plan.write_plan.file
-            if result.used_chezmoi and target is not None and target != result.path:
-                proc = apply_chezmoi(target)
-                if proc.returncode != 0:
-                    detail = proc.stderr.strip() or f"exit {proc.returncode}"
-                    note = f"chezmoi apply failed: {detail}"
-            return result, note
-
-        self._apply_worker = self.run_worker(task, thread=True, exclusive=True)
-
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        if event.worker is self._plan_worker:
-            self._on_plan_worker(event)
-        elif event.worker is self._apply_worker:
-            self._on_apply_worker(event)
-
-    def _on_plan_worker(self, event: Worker.StateChanged) -> None:
-        if event.state == WorkerState.SUCCESS:
-            self._busy = False
-            self._plan = event.worker.result
-            self._render_all()
-        elif event.state == WorkerState.ERROR:
-            self._busy = False
-            self._error = self._worker_error(event, "could not plan edit")
-            self._stage = "edit"
-            self._render_all()
-            self._focus_editor()
-
-    def _on_apply_worker(self, event: Worker.StateChanged) -> None:
-        if event.state == WorkerState.SUCCESS:
-            self._busy = False
-            outcome = event.worker.result
-            if not isinstance(outcome, tuple):
-                self.dismiss(None)
-                return
-            result, note = outcome
-            if note is not None:
-                # The file was written, but chezmoi propagation failed; keep the
-                # modal open so the user can retry or apply chezmoi manually.
-                self._error = note
-                self._render_all()
-                return
-            self.dismiss(result)
-        elif event.state == WorkerState.ERROR:
-            self._busy = False
-            self._error = self._worker_error(event, "write failed")
-            self._render_all()
+        return _ConfigFieldMutation(self._inventory, path, op)
 
     @staticmethod
-    def _worker_error(event: Worker.StateChanged, fallback: str) -> str:
-        error = event.worker.error
-        if isinstance(error, ConfigEditError):
-            return str(error)
-        return str(error) if error else fallback
+    def _plan_config_transaction(
+        request: ConfigTransactionRequest[_ConfigFieldMutation],
+    ) -> EditPlanResult:
+        mutation = request.mutation
+        return plan_config_edit(
+            mutation.inventory,
+            mutation.path,
+            request.target,
+            mutation.op,
+        )
+
+    @staticmethod
+    def _apply_config_transaction(
+        plan: EditPlanResult,
+    ) -> ConfigTransactionApplyResult[AppliedResult]:
+        result = apply_config_edit(plan)
+        note: str | None = None
+        # ``chezmoi apply`` takes the home *target* path, not the chezmoi
+        # source we just wrote to. Only apply when a real source→target remap
+        # happened (target differs from the written source path).
+        target = plan.write_plan.file
+        if result.used_chezmoi and target is not None and target != result.path:
+            proc = apply_chezmoi(target)
+            if proc.returncode != 0:
+                detail = proc.stderr.strip() or f"exit {proc.returncode}"
+                note = f"chezmoi apply failed: {detail}"
+        return ConfigTransactionApplyResult(result, note)

@@ -3149,6 +3149,64 @@ AddPropertyModal #add-property-footer {
     padding-top: 1;
 }
 
+/* Generic schema-property picker. The legacy AddPropertyModal keeps the
+   selectors above so its visual snapshots remain byte-for-byte stable. */
+PropertyPickerModal.-generic {
+    align: center middle;
+}
+
+PropertyPickerModal.-generic > Container {
+    width: 76;
+    height: auto;
+    max-height: 80%;
+    border: thick #D7A85B;
+    background: $surface;
+    padding: 1 2;
+}
+
+PropertyPickerModal.-generic #modal-title {
+    text-align: center;
+    text-style: bold;
+    color: #F0C674;
+    margin-bottom: 1;
+}
+
+PropertyPickerModal.-generic #property-picker-guidance {
+    height: auto;
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+PropertyPickerModal.-generic #property-picker-list {
+    height: auto;
+    max-height: 12;
+    scrollbar-gutter: stable;
+}
+
+PropertyPickerModal.-generic .property-picker-row {
+    height: 1;
+    padding: 0 1;
+}
+
+PropertyPickerModal.-generic .property-picker-row.selected {
+    background: #B87333 25%;
+    border-left: thick #D7A85B;
+    padding: 0 1 0 0;
+}
+
+PropertyPickerModal.-generic #property-picker-detail,
+PropertyPickerModal.-generic #property-picker-footer {
+    height: auto;
+    color: $text-muted;
+    border-top: solid #B87333;
+    margin-top: 1;
+    padding-top: 1;
+}
+
+PropertyPickerModal.-generic #property-picker-footer {
+    text-align: center;
+}
+
 /* Structured input / xprompts sub-form modals for the frontmatter panel */
 XPromptWriteConflictModal {
     align: center middle;
@@ -5430,6 +5488,157 @@ ConfigEditModal #config-edit-hints {
     height: 1;
     color: $text-muted;
     margin-top: 1;
+}
+
+/* Reusable AXE lumberjack/chop schema editor. */
+AxeEntryEditorModal {
+    align: center middle;
+}
+
+AxeEntryEditorModal > #axe-editor-container {
+    width: 94%;
+    height: 92%;
+    border: thick #D7A85B;
+    background: $surface;
+    padding: 1 2;
+}
+
+AxeEntryEditorModal #axe-editor-title {
+    height: 1;
+    text-style: bold;
+}
+
+AxeEntryEditorModal #axe-editor-status {
+    height: auto;
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+AxeEntryEditorModal #axe-editor-body {
+    width: 100%;
+    height: 1fr;
+}
+
+AxeEntryEditorModal #axe-editor-navigation {
+    width: 38;
+    height: 100%;
+    border-right: solid #B87333;
+    padding-right: 1;
+}
+
+AxeEntryEditorModal #axe-editor-scopes {
+    height: auto;
+    max-height: 9;
+    border: solid #B87333;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+AxeEntryEditorModal #axe-editor-properties {
+    height: 1fr;
+}
+
+AxeEntryEditorModal .axe-editor-group-header {
+    height: 1;
+    color: #B87333;
+    text-style: bold;
+    margin-top: 1;
+}
+
+AxeEntryEditorModal .axe-editor-field {
+    height: 1;
+    padding: 0 1;
+}
+
+AxeEntryEditorModal .axe-editor-field.selected {
+    background: #D7A85B 20%;
+    border-left: thick #D7A85B;
+    padding: 0 1 0 0;
+}
+
+AxeEntryEditorModal #axe-editor-add-guidance {
+    height: 1;
+    color: $text-muted;
+}
+
+AxeEntryEditorModal #axe-editor-value-pane {
+    width: 1fr;
+    height: 100%;
+    padding-left: 2;
+}
+
+AxeEntryEditorModal #axe-editor-field-info {
+    height: auto;
+    max-height: 12;
+    border-bottom: solid #B87333;
+    padding-bottom: 1;
+    margin-bottom: 1;
+}
+
+AxeEntryEditorModal #axe-editor-options {
+    height: auto;
+    border: solid #B87333;
+    padding: 0 1;
+}
+
+AxeEntryEditorModal #axe-editor-input {
+    margin-top: 1;
+}
+
+AxeEntryEditorModal #axe-editor-textarea {
+    width: 100%;
+    height: 1fr;
+    min-height: 8;
+    border: solid #B87333;
+}
+
+AxeEntryEditorModal #axe-editor-validation {
+    height: auto;
+    min-height: 1;
+    margin-top: 1;
+}
+
+AxeEntryEditorModal #axe-editor-preview-scroll {
+    width: 100%;
+    height: 1fr;
+}
+
+AxeEntryEditorModal #axe-editor-preview {
+    width: 100%;
+    height: auto;
+}
+
+AxeEntryEditorModal #axe-editor-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
+AxeEntryEditorModal.-narrow > #axe-editor-container {
+    width: 98%;
+    height: 96%;
+    padding: 0 1;
+}
+
+AxeEntryEditorModal.-narrow #axe-editor-body {
+    layout: vertical;
+}
+
+AxeEntryEditorModal.-narrow #axe-editor-navigation {
+    width: 100%;
+    height: 42%;
+    border-right: none;
+    border-bottom: solid #B87333;
+    padding-right: 0;
+    padding-bottom: 1;
+}
+
+AxeEntryEditorModal.-narrow #axe-editor-value-pane {
+    width: 100%;
+    height: 1fr;
+    padding-left: 0;
+    padding-top: 1;
 }
 
 /* Models panel — persistent alias edit preview/confirm (sase-5e Phase 3) */

@@ -1,6 +1,41 @@
 """Modal dialogs for the ace TUI."""
 
 from .add_property_modal import AddableProperty, AddPropertyModal
+from .property_picker_modal import (
+    PropertyPickerItem,
+    PropertyPickerModal,
+    PropertyPickerRecord,
+)
+from .axe_entry_editor_modal import (
+    AxeEntryEditorModal,
+    AxeEntryEditorResult,
+    AxeEntryEditorSeed,
+    AxeEntryIdentity,
+    AxeEntryKind,
+    AxeEntryMutationRequest,
+    AxeWritableScope,
+    axe_entry_schema,
+)
+from .config_transaction import (
+    ConfigTransactionApplyResult,
+    ConfigTransactionConflict,
+    ConfigTransactionMetadata,
+    ConfigTransactionRequest,
+)
+from .config_transaction_preview import (
+    ConfigTransactionPreview,
+    TransactionDiagnostic,
+    TransactionEffectivePreview,
+    render_transaction_preview,
+)
+from .schema_object_form import (
+    SchemaFieldDiagnostic,
+    SchemaFieldOperation,
+    SchemaFormModel,
+    SchemaObjectField,
+    SchemaObjectForm,
+    SchemaObjectFormModel,
+)
 from .agent_name_modal import AgentNameModal
 from .agent_neighbor_modal import AgentNeighborChoice, AgentNeighborModal
 from .agent_workspace_tmux_modal import (
@@ -154,6 +189,31 @@ from .xprompt_select_modal import XPromptSelection, XPromptSelectModal
 __all__ = [
     "AddableProperty",
     "AddPropertyModal",
+    "PropertyPickerItem",
+    "PropertyPickerModal",
+    "PropertyPickerRecord",
+    "AxeEntryEditorModal",
+    "AxeEntryEditorResult",
+    "AxeEntryEditorSeed",
+    "AxeEntryIdentity",
+    "AxeEntryKind",
+    "AxeEntryMutationRequest",
+    "AxeWritableScope",
+    "axe_entry_schema",
+    "ConfigTransactionApplyResult",
+    "ConfigTransactionConflict",
+    "ConfigTransactionMetadata",
+    "ConfigTransactionPreview",
+    "ConfigTransactionRequest",
+    "TransactionDiagnostic",
+    "TransactionEffectivePreview",
+    "render_transaction_preview",
+    "SchemaFieldDiagnostic",
+    "SchemaFieldOperation",
+    "SchemaFormModel",
+    "SchemaObjectField",
+    "SchemaObjectForm",
+    "SchemaObjectFormModel",
     "InputItemModal",
     "IssueEditModal",
     "IssueEditResult",

@@ -36,6 +36,7 @@ from .config_edit_types import (
     _OK_COLOR,
     _WARN_COLOR,
 )
+from .config_transaction_preview import render_edit_plan_preview
 
 
 _MODAL_VALUE_BLOCK_MAX_LINES = 3
@@ -357,16 +358,7 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
         plan = self._plan
         if plan is None:
             return Text("")
-        text = Text()
-        text.append("Target file\n", style="bold")
-        text.append(f"  {plan.target_path or '(none)'}", style=_ACCENT)
-        if plan.used_chezmoi:
-            text.append("  (chezmoi source)", style=_MUTED)
-        text.append("\n\n")
-        self._append_effective(plan, text)
-        self._append_validation(plan, text)
-        self._append_diff(plan, text)
-        return text
+        return render_edit_plan_preview(plan)
 
     def _append_effective(self, plan: EditPlanResult, text: Text) -> None:
         preview = plan.effective_preview
@@ -429,8 +421,13 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
             # The editors now support vim modes; surface the two-stage Escape.
             vim = "vim: esc→normal (esc again backs out)  "
         reset = "ctrl+r: un-reset" if self._op_unset else "ctrl+r: reset"
+        conflict = (
+            "ctrl+l: reload/re-plan  "
+            if getattr(self, "_transaction_conflict", False)
+            else ""
+        )
         return (
-            f"{toggle}{vim}ctrl+t: scope  ctrl+n: new overlay  {reset}  "
+            f"{conflict}{toggle}{vim}ctrl+t: scope  ctrl+n: new overlay  {reset}  "
             "ctrl+s: preview  esc: cancel"
         )
 
