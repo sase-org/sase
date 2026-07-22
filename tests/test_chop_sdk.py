@@ -20,6 +20,7 @@ from sase.chops.sdk import (
     ChopLogger,
     ChopResultBuilder,
     emit_summary,
+    launch_proposal,
     parse_chop_arguments,
     parse_summary,
 )
@@ -75,6 +76,7 @@ def test_summary_builder_writes_valid_atomic_result(tmp_path: Path) -> None:
 
 def test_result_builder_proposal_helper_round_trips(tmp_path: Path) -> None:
     result_path = tmp_path / "result.json"
+    clan_summary = "[bold magenta]Finding[/bold magenta]\nSplit with care."
     document = (
         ChopResultBuilder(summary="one finding", counters={"findings": 1})
         .add_evidence("reports/finding.json")
@@ -84,6 +86,7 @@ def test_result_builder_proposal_helper_round_trips(tmp_path: Path) -> None:
             proposal_id="fix",
             agent_name="worker",
             clan="findings-@",
+            clan_summary=clan_summary,
             model="codex/gpt-5.6-sol",
             env={"FINDING": "1"},
             dedupe_key="finding:1",
@@ -95,9 +98,34 @@ def test_result_builder_proposal_helper_round_trips(tmp_path: Path) -> None:
     assert proposal["id"] == "fix"
     assert proposal["agent_name"] == "worker"
     assert proposal["clan"] == "findings-@"
+    assert proposal["clan_summary"] == clan_summary
     assert proposal["workspace"] == "gh:sase-org/sase"
     assert proposal["env"] == {"FINDING": "1"}
     assert document["evidence"] == ["reports/finding.json"]
+    assert json.loads(result_path.read_text(encoding="utf-8")) == document
+
+
+def test_launch_proposal_omits_absent_clan_summary(tmp_path: Path) -> None:
+    legacy = launch_proposal("Audit.", "git:sase", clan="audit", agent_name="one")
+    summarized = launch_proposal(
+        "Audit.",
+        "git:sase",
+        clan="audit",
+        clan_summary="[bold]Audit clan[/bold]",
+        agent_name="one",
+    )
+
+    assert "clan_summary" not in legacy
+    assert summarized["clan_summary"] == "[bold]Audit clan[/bold]"
+
+    result_path = tmp_path / "legacy.json"
+    document = (
+        ChopResultBuilder()
+        .add_proposal("Audit.", "git:sase", clan="audit", agent_name="one")
+        .write(result_path)
+    )
+    assert "clan_summary" not in document["proposed_launches"][0]
+    assert json.loads(result_path.read_text(encoding="utf-8")) == document
 
 
 def test_common_arguments_and_debug_logging_honor_verbose_env(

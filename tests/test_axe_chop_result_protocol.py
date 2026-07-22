@@ -21,6 +21,7 @@ from sase.axe.state import (
     read_chop_run,
 )
 from sase.core.axe_chop_facade import derive_chop_agent_name
+from sase.xprompt.directives import extract_prompt_directives
 
 from tests.axe_chop_runner_helpers import make_script
 
@@ -150,6 +151,55 @@ def test_standalone_workflow_proposal_fails_closed(
     assert "workflow_reference_forbidden" in str(outcome.error)
 
 
+def test_conflicting_raw_clan_summaries_fail_before_launch(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    _result_script(
+        tmp_path,
+        "conflict",
+        {
+            "schema_version": 1,
+            "status": "ok",
+            "proposed_launches": [
+                {
+                    "prompt": "First.",
+                    "workspace": "git:sase",
+                    "agent_name": "first",
+                    "clan": "review-@",
+                    "clan_summary": "First summary",
+                },
+                {
+                    "prompt": "Second.",
+                    "workspace": "git:sase",
+                    "agent_name": "second",
+                    "clan": "review-@",
+                    "clan_summary": "Different summary",
+                },
+            ],
+        },
+    )
+
+    with (
+        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.launch_agent_from_cwd") as launch_one,
+        patch("sase.axe.chop_runner.launch_agents_from_cwd") as launch_many,
+    ):
+        outcome = run_configured_chop_once(
+            lumberjack_name="checks",
+            chop=ChopConfig(name="conflict", description=""),
+            axe_config=_config(tmp_path),
+            dry_run=True,
+        )
+
+    launch_one.assert_not_called()
+    launch_many.assert_not_called()
+    assert outcome.status == "check_error"
+    assert outcome.error is not None
+    assert "conflicting_clan_summary" in str(outcome.error)
+    assert "proposed_launches[1].clan_summary" in str(outcome.error)
+
+
 def test_dry_run_previews_scaffolds_and_never_launches(
     temp_state_dir: Path,
     tmp_path: Path,
@@ -218,6 +268,7 @@ def test_deduped_clan_head_promotes_first_survivor_to_declarer(
                     "workspace": "git:sase",
                     "agent_name": "split_file.head",
                     "clan": "toobig-@",
+                    "clan_summary": "[bold]Large modules[/bold]\n  Split safely.",
                     "dedupe_key": "split:head",
                 },
                 {
@@ -256,9 +307,65 @@ def test_deduped_clan_head_promotes_first_survivor_to_declarer(
 
     assert previews[0]["validation"] == "duplicate"
     assert previews[0]["clan_role"] == "join"
+    assert previews[0]["clan_summary"] is None
     assert previews[1]["clan_role"] == "declare"
+    assert previews[1]["clan_summary"] == (
+        "[bold]Large modules[/bold]\n  Split safely."
+    )
     assert previews[1]["wait_name"] is None
-    assert "%clan(toobig-0, tribe=chop)" in previews[1]["prompt"]
+    _, directives = extract_prompt_directives(str(previews[1]["prompt"]))
+    assert directives.clan_summary == "[bold]Large modules[/bold]\nSplit safely."
+    assert sum("summary=[[" in str(preview["prompt"]) for preview in previews) == 1
+
+
+def test_clan_summary_inherits_per_raw_clan_before_planning(
+    temp_state_dir: Path,
+) -> None:
+    prepared = prepare_chop_proposals(
+        "split",
+        {
+            "proposed_launches": [
+                {
+                    "prompt": "Research first.",
+                    "workspace": "git:sase",
+                    "agent_name": "first",
+                    "clan": "research-@",
+                },
+                {
+                    "prompt": "Review.",
+                    "workspace": "git:sase",
+                    "agent_name": "reviewer",
+                    "clan": "review-@",
+                    "clan_summary": "[italic]Review[/italic]",
+                },
+                {
+                    "prompt": "Research second.",
+                    "workspace": "git:sase",
+                    "agent_name": "second",
+                    "clan": "research-@",
+                    "clan_summary": "[bold]Research[/bold]",
+                },
+            ]
+        },
+    )
+
+    assert [proposal.clan_summary for proposal in prepared] == [
+        "[bold]Research[/bold]",
+        "[italic]Review[/italic]",
+        "[bold]Research[/bold]",
+    ]
+    plans = plan_chop_proposals(prepared)
+    assert [plan.clan_summary for plan in plans] == [
+        "[bold]Research[/bold]",
+        "[italic]Review[/italic]",
+        None,
+    ]
+    extracted = [extract_prompt_directives(plan.prompt)[1] for plan in plans]
+    assert [item.clan_summary for item in extracted] == [
+        "[bold]Research[/bold]",
+        "[italic]Review[/italic]",
+        None,
+    ]
 
 
 def test_clan_planning_allocates_multiple_templates_after_historical_generation(
@@ -303,3 +410,9 @@ def test_clan_planning_allocates_multiple_templates_after_historical_generation(
         "review-0.reviewer",
     ]
     assert all(plan.declares_clan for plan in plans)
+    assert plans[0].prompt == (
+        "#git:sase\n%id:toobig-1.split_file.new\n%clan(toobig-1, tribe=chop)\nSplit.\n"
+    )
+    assert plans[1].prompt == (
+        "#git:sase\n%id:review-0.reviewer\n%clan(review-0, tribe=chop)\nReview.\n"
+    )

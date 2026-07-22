@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
@@ -24,6 +24,7 @@ class _PreparedChopProposal:
     agent_name: str
     explicit_agent_name: bool
     clan: str | None
+    clan_summary: str | None
     tribe: str
     model: str | None
     effort: str | None
@@ -41,6 +42,7 @@ class _PlannedChopProposal:
     clan: str | None
     member_id: str | None
     declares_clan: bool
+    clan_summary: str | None
     prompt: str
 
 
@@ -54,6 +56,12 @@ def _full_name_template(proposal: _PreparedChopProposal) -> str:
     return f"{proposal.clan}.{proposal.agent_name}"
 
 
+def _clan_declaration_directive(clan: str, summary: str | None) -> str:
+    if summary is None:
+        return f"%clan({clan}, tribe=chop)"
+    return f"%clan({clan}, tribe=chop, summary=[[{summary}]])"
+
+
 def _scaffolded_prompt(
     proposal: _PreparedChopProposal,
     wait_name: str | None,
@@ -62,6 +70,7 @@ def _scaffolded_prompt(
     clan: str | None = None,
     member_id: str | None = None,
     declares_clan: bool = False,
+    clan_summary: str | None = None,
 ) -> str:
     resolved_name = agent_name or _full_name_template(proposal)
     resolved_clan = clan if proposal.clan is not None else None
@@ -72,7 +81,7 @@ def _scaffolded_prompt(
             lines.extend(
                 [
                     f"%id:{resolved_name}",
-                    f"%clan({resolved_clan}, tribe=chop)",
+                    _clan_declaration_directive(resolved_clan, clan_summary),
                 ]
             )
         else:
@@ -134,6 +143,11 @@ def prepare_chop_proposals(
                 agent_name=agent_name,
                 explicit_agent_name=bool(configured_name),
                 clan=str(normalized["clan"]) if normalized.get("clan") else None,
+                clan_summary=(
+                    str(normalized["clan_summary"])
+                    if normalized.get("clan_summary") is not None
+                    else None
+                ),
                 tribe=str(normalized.get("tribe") or "chop"),
                 model=str(normalized["model"]) if normalized.get("model") else None,
                 effort=str(normalized["effort"]) if normalized.get("effort") else None,
@@ -146,7 +160,29 @@ def prepare_chop_proposals(
                 wait_on=normalized.get("wait_on"),
             )
         )
-    return prepared
+    summaries_by_clan: dict[str, str] = {}
+    for proposal in prepared:
+        if proposal.clan is None or proposal.clan_summary is None:
+            continue
+        agreed = summaries_by_clan.setdefault(
+            proposal.clan,
+            proposal.clan_summary,
+        )
+        if proposal.clan_summary != agreed:
+            raise ValueError(
+                f"conflicting clan_summary values for raw clan {proposal.clan!r}"
+            )
+    return [
+        replace(
+            proposal,
+            clan_summary=(
+                summaries_by_clan.get(proposal.clan)
+                if proposal.clan is not None
+                else None
+            ),
+        )
+        for proposal in prepared
+    ]
 
 
 def _render_template_value(value: str, token: str | None) -> str:
@@ -287,6 +323,7 @@ def plan_chop_proposals(
         else:
             plan_clan, agent_name, plan_member_id = concrete
             declares_clan = first_by_clan[plan_clan] == proposal.index
+        clan_summary = proposal.clan_summary if declares_clan else None
         wait_name = _resolve_wait_name(
             proposal.wait_on,
             names_by_index,
@@ -299,6 +336,7 @@ def plan_chop_proposals(
             clan=plan_clan,
             member_id=plan_member_id,
             declares_clan=declares_clan,
+            clan_summary=clan_summary,
         )
         planned.append(
             _PlannedChopProposal(
@@ -307,6 +345,7 @@ def plan_chop_proposals(
                 clan=plan_clan,
                 member_id=plan_member_id,
                 declares_clan=declares_clan,
+                clan_summary=clan_summary,
                 prompt=prompt,
             )
         )
@@ -329,6 +368,7 @@ def _fallback_plan(proposal: _PreparedChopProposal) -> _PlannedChopProposal:
         clan=proposal.clan,
         member_id=proposal.agent_name if proposal.clan is not None else None,
         declares_clan=False,
+        clan_summary=None,
         prompt=_scaffolded_prompt(
             proposal,
             None,
@@ -373,6 +413,7 @@ def proposal_previews(
             clan=plan.clan,
             member_id=plan.member_id,
             declares_clan=plan.declares_clan,
+            clan_summary=plan.clan_summary,
         )
         previews.append(
             {
@@ -384,6 +425,7 @@ def proposal_previews(
                 "clan_role": ("declare" if plan.declares_clan else "join")
                 if plan.clan is not None
                 else None,
+                "clan_summary": plan.clan_summary,
                 "tribe": proposal.tribe,
                 "workspace": proposal.workspace,
                 "model": proposal.model,

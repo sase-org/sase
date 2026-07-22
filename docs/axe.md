@@ -320,15 +320,25 @@ is required. A proposal-emitting script atomically writes a schema-versioned JSO
 
 Result `status` is `ok`, `no_op`, or `check_error`. Results can also carry a `reason`, integer `counters`, and relative
 `evidence` file paths. Each proposal requires `prompt` and `workspace`; optional fields are `id`, `agent_name`, `clan`,
-`tribe`, `model`, `effort`, `env`, `dedupe_key`, and `wait_on` (an earlier proposal index or ID). With `clan`,
-`agent_name` is the member ID and the runner owns concrete clan allocation plus the full `<clan>.<member>` identity.
-Clan proposals cannot also set `tribe`; the first accepted member declares the clan with the default `chop` tribe.
+`clan_summary`, `tribe`, `model`, `effort`, `env`, `dedupe_key`, and `wait_on` (an earlier proposal index or ID). With
+`clan`, `agent_name` is the member ID and the runner owns concrete clan allocation plus the full `<clan>.<member>`
+identity. Clan proposals cannot also set `tribe`; the first accepted member declares the clan with the default `chop`
+tribe.
+
+`clan_summary` is an optional literal Rich-markup summary and is valid only with `clan`. Every non-null summary attached
+to the same raw clan template must be identical; members that omit it inherit that agreed value before once-per
+filtering. The first accepted member therefore retains and declares the summary even when an earlier member is
+deduplicated. Different raw clan templates may have different summaries. A summary must be nonblank, contain no NUL
+byte, fit within 32 KiB of UTF-8, and avoid both the `]]` text-block terminator and `+` (which xprompt argument decoding
+would turn into a space).
 
 The runner validates the full document before launching anything. It injects the workspace reference, a deterministic
 agent name and `tribe=chop` in one `%id(...)` directive, model/effort directives, and a `%wait` dependency for
 `wait_on`, then launches proposals in document order. Clan-scoped proposals are preplanned as one multi-prompt batch:
 the first surviving member declares one concrete clan generation and later members join it, while waits use their full
-resolved names. Standalone `#!workflow` references are forbidden in proposal prompts; reusable inline `#xprompt`
+resolved names. A summarized declarer receives `%clan(<name>, tribe=chop, summary=[[<literal Rich markup>]])`; joiners
+receive only `%id(<member>, clan=<name>)`. Axe neither executes the value as a summary script nor inserts it into any
+proposal's work prompt. Standalone `#!workflow` references are forbidden in proposal prompts; reusable inline `#xprompt`
 references remain valid. The runner records every launched agent in `agent_chops.json` and finalizes the chop only when
 the linked agents reach terminal state.
 
@@ -370,7 +380,8 @@ follows the skipped proposal's own dependency until it reaches the nearest earli
 filter. If no such proposal exists, AXE removes the wait. Dry-run and recorded proposal previews put the resulting
 dependency in `wait_on` and explain the change in `dedupe_reason`, so removing duplicate work does not also discard a
 new downstream proposal. For a clan, the first surviving member becomes the declarer; dry runs show the same concrete
-clan, declaration/join roles, full member names, and effective waits without reserving names or spawning agents.
+clan, declaration/join roles, declarer-only `clan_summary`, full member names, exact scaffolded prompts, and effective
+waits without reserving names or spawning agents.
 
 A proposal that supplies an explicit `agent_name` treats a name collision at launch as idempotency, not failure: the
 sequential launch path records that proposal as skipped with a name-collision reason, releases its once-per key, and

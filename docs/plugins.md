@@ -414,7 +414,10 @@ launches proposals so dry runs remain side-effect free and action lifecycle stay
 
 Packages can group proposals in one runner-owned clan by passing the same template to `clan` and a member ID to
 `agent_name`. The runner allocates one concrete clan, makes the first accepted proposal its declarer, assigns the `chop`
-tribe at clan level, and resolves `wait_on` to full member names. Do not combine `clan` with `tribe`.
+tribe at clan level, and resolves `wait_on` to full member names. Authors may also pass a literal Rich `clan_summary`;
+repeat the identical value on every member that shares the raw clan template. Axe remains the sole owner of concrete
+clan allocation and emits the summary only on the surviving declarer's `%clan` directive. Do not combine `clan` with
+`tribe`.
 
 ## Disabling Plugins
 
@@ -555,15 +558,25 @@ def main() -> None:
     target = invocation.context.target or {}
     workspace = str(target["workspace"])
     result = ChopResultBuilder(
-        summary="audit: targets=1 proposals=1",
-        counters={"targets": 1, "proposals": 1},
+        summary="audit: targets=1 proposals=2",
+        counters={"targets": 1, "proposals": 2},
     )
+    clan_summary = "[bold]Project audit[/bold]"
     result.propose(
         "Audit recent changes and fix confirmed correctness bugs only.",
         workspace,
         proposal_id="audit",
         agent_name="audit",
         clan="project-audit-@",
+        clan_summary=clan_summary,
+    )
+    result.propose(
+        "Review the audit fixes and add focused regression tests.",
+        workspace,
+        agent_name="review",
+        clan="project-audit-@",
+        clan_summary=clan_summary,
+        wait_on="audit",
     )
     result.write(context=invocation.context)
 ```
