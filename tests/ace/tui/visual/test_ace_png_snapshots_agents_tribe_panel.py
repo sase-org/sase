@@ -11,6 +11,7 @@ from rich.text import Text
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.widgets import KeybindingFooter
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     pin_agents_visual_now,
@@ -217,6 +218,11 @@ async def test_tribe_panel_four_level_png_snapshots(
         )
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "↺")
+        footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
+        assert footer._last_layout_inputs is not None
+        bindings, _mode_label = footer._last_layout_inputs
+        assert ("H", "collapse group") in bindings
+        assert ("Z", "restore panels") in bindings
         ace_png_visual.assert_page_png(
             page,
             "agents_tribe_panel_isolation_armed_120x40",
@@ -300,6 +306,9 @@ async def test_tribe_panel_four_level_png_snapshots(
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "❖")
         assert_page_svg_contains(page, "▲ @epic")
+        assert footer._last_layout_inputs is not None
+        bindings, _mode_label = footer._last_layout_inputs
+        assert ("H", "collapse group") in bindings
         ace_png_visual.assert_page_png(
             page,
             "agents_tribe_panel_selected_expanded_120x40",

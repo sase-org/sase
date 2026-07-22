@@ -150,8 +150,9 @@ def test_agents_help_describes_zoom_isolation_and_capital_h_collapsing() -> None
     assert ("l", "Expand real fold / enter panel") in agent_pairs
     assert ("h", "Up: workflow/family/clan/tribe") in agent_pairs
     assert ("h", "Collapse selected panel") in agent_pairs
-    assert ("H", "Fully collapse houses in next group") in agent_pairs
-    assert ("H", "Then collapse clan/group / compact Tools") in agent_pairs
+    assert ("H", "Fully collapse houses in next group/panel") in agent_pairs
+    assert ("H", "Then clan/group; selected panel groups/panel") in agent_pairs
+    assert ("H", "Compact expanded Tools detail") in agent_pairs
     assert (
         "Z",
         "Zoom detail / only panel ⇄ restore panels",

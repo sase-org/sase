@@ -64,7 +64,9 @@ class _StubApp(
         self._nav_stops_cache: tuple[Any, ...] | None = None
         self._panel_index_cache: tuple[Any, bool, Any] | None = None
         self.refresh_calls: list[bool] = []
+        self.refilter_kwargs: list[dict[str, object]] = []
         self.panel_fold_changes: list[tuple[str | None, bool]] = []
+        self.group_fold_changes: list[tuple[str | None, tuple[str, ...], bool]] = []
         self.affected_refreshes: list[set[str | None]] = []
         self.footer_refresh_calls = 0
         self.notifications: list[str] = []
@@ -107,6 +109,13 @@ class _StubApp(
         if list_changed:
             self._sync_panel_group()
 
+    def _refilter_agents(
+        self,
+        *,
+        refresh_content_index: bool = True,
+    ) -> None:
+        self.refilter_kwargs.append({"refresh_content_index": refresh_content_index})
+
     def _refresh_focused_agent_panel(self, *, old_focused_idx: int | None) -> None:
         del old_focused_idx
         self._refresh_agents_display(list_changed=False)
@@ -135,6 +144,15 @@ class _StubApp(
         collapsed: bool,
     ) -> None:
         self.panel_fold_changes.append((panel_key, collapsed))
+
+    def _record_agents_group_fold_change(
+        self,
+        group_key: tuple[str, ...],
+        *,
+        collapsed: bool,
+        panel_key: str | None = None,
+    ) -> None:
+        self.group_fold_changes.append((panel_key, group_key, collapsed))
 
 
 def _agent(*, name: str, project: str, tribe: str | None) -> Agent:
@@ -403,16 +421,52 @@ def test_capital_z_can_leave_no_tribe_panel_as_selected_survivor() -> None:
     ]
 
 
-def test_capital_h_does_not_change_focused_panel_isolation_state() -> None:
+def test_capital_h_walks_selected_panel_groups_then_collapses_panel() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app.current_idx = 2
+    remembered = ("agent", 2)
+    app._panel_selection_memory["alpha"] = remembered
     app._expanded_panel_focus = True
+    registry = app._group_fold_registry.for_panel("alpha")
+
+    target = app._resolve_focused_panel_group_collapse_target()
+    assert target is not None
+    assert target.group_key == ("zeta",)
 
     app.action_hooks_or_collapse_all()
 
     assert app._collapsed_panel_keys == set()
+    assert registry.is_collapsed(("zeta",))
+    assert not registry.is_collapsed(("alpha",))
+    assert app._resolve_focused_panel() is not None
+    assert app.current_idx == 2
+    assert app._panel_selection_memory["alpha"] == remembered
     assert app._panel_isolation_revert is None
     assert app.panel_fold_changes == []
-    assert app.refresh_calls == []
+    assert app.refilter_kwargs == [{"refresh_content_index": False}]
+    assert app.group_fold_changes == [("alpha", ("zeta",), True)]
+
+    app.action_hooks_or_collapse_all()
+
+    assert registry.is_collapsed(("alpha",))
+    assert app._collapsed_panel_keys == set()
+    assert app.group_fold_changes == [
+        ("alpha", ("zeta",), True),
+        ("alpha", ("alpha",), True),
+    ]
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._collapsed_panel_keys == {"alpha"}
+    assert app._panel_isolation_revert is None
+    assert app.panel_fold_changes == [("alpha", True)]
+    assert app.refresh_calls == [True]
+
+    group_state = app._group_fold_registry.snapshot()
+    app.action_hooks_or_collapse_all()
+
+    assert app._group_fold_registry.snapshot() == group_state
+    assert app.notifications == ["Panel is already collapsed"]
 
 
 def test_selected_panel_j_and_k_cycle_without_descending() -> None:

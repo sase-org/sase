@@ -79,10 +79,26 @@ def test_footer_without_selected_agent_omits_agent_only_actions() -> None:
     )
 
 
-def test_footer_selected_panel_advertises_only_panel_action() -> None:
+def test_footer_selected_panel_advertises_next_collapse_ladder_step() -> None:
     footer = KeybindingFooter()
 
-    expanded = _labels(
+    houses = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            panel_collapsed=False,
+            house_collapse_available=True,
+        )
+    )
+    group = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            panel_collapsed=False,
+            group_collapse_available=True,
+        )
+    )
+    terminal = _labels(
         footer._compute_agent_bindings(
             None,
             panel_focused=True,
@@ -97,10 +113,13 @@ def test_footer_selected_panel_advertises_only_panel_action() -> None:
         )
     )
 
-    assert ("Z", "only panel") in expanded
+    assert ("H", "collapse houses") in houses
+    assert ("H", "collapse group") in group
+    assert ("h", "collapse panel") in terminal
+    assert not any(key == "H" for key, _label in terminal)
+    assert ("Z", "only panel") in houses
     assert ("Z", "only panel") in collapsed
-    assert ("H", "only panel") not in expanded
-    assert ("H", "only panel") not in collapsed
+    assert not any(key == "H" for key, _label in collapsed)
 
 
 def test_footer_armed_panel_isolation_advertises_restore_action() -> None:
@@ -134,10 +153,16 @@ def test_footer_panel_isolation_uses_custom_zoom_action_key() -> None:
         )
     )
 
-    bindings = _labels(footer._compute_agent_bindings(None, panel_focused=True))
+    bindings = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            house_collapse_available=True,
+        )
+    )
 
     assert ("<f2>", "only panel") in bindings
-    assert ("<f3>", "only panel") not in bindings
+    assert ("<f3>", "collapse houses") in bindings
 
 
 def test_footer_left_navigation_and_collapse_target_labels() -> None:

@@ -344,6 +344,14 @@ changing its remembered row. When isolation changes the layout, ACE remembers th
 session: `↺` title markers and the `Z restore panels` footer hint show that the next `Z`, from any whole-panel focus,
 will restore it. A separate sibling-panel or layout mutation invalidates that one-step restore.
 
+Uppercase `H` on a selected expanded panel walks a panel-wide collapse ladder without changing the remembered row: it
+first fully collapses every open canonical workflow/family house in that panel, including houses hidden by grouping
+banners; then it collapses the last expanded top-level grouping banner in rendered order, one per press; finally it
+collapses the panel through the same path as lowercase `h`. Nested grouping folds and equal keys in sibling panels are
+left alone. An already collapsed panel is the saturated terminal state. Whole-panel `H` is unavailable in merged layout,
+where the existing row/group-scoped ladder remains in effect. Custom keys bound to `hooks_or_collapse_all` receive the
+same contextual behavior and footer labels.
+
 Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four `zz` metadata detail levels are:
 
 | Level | Name      | Tribe summary content                                                                                         |

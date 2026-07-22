@@ -264,11 +264,11 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "hooks_or_collapse_all",
-        "Fully collapse houses in next group, then clan or group / compact "
-        "tools detail / collapse all folds on other tabs",
+        "Collapse Agents houses, groups, then selected panel / compact tools "
+        "detail / collapse all folds on other tabs",
         "Folding",
         ALL_TABS,
-        (),
+        ("collapse houses", "collapse group", "collapse selected panel"),
     ),
     (
         "expand_or_layout",

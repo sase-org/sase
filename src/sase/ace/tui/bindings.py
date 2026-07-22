@@ -32,7 +32,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding(
         "H",
         "hooks_or_collapse_all",
-        "Collapse Context / Compact Tools / All",
+        "Collapse Houses/Groups/Panel / Compact Tools / All",
         show=False,
     ),
     Binding("f", "edit_hooks", "Edit Hooks", show=False),

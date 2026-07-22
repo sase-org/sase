@@ -78,6 +78,30 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
         if self._route_tools_detail_level("min"):
             return
         if self.current_tab == "agents":
+            resolve_panel = getattr(self, "_resolve_focused_panel", None)
+            panel_focus = resolve_panel() if callable(resolve_panel) else None
+            if panel_focus is not None:
+                if panel_focus.collapsed:
+                    # Keep the existing lowercase-h saturated notification and
+                    # avoid mutating inner state hidden by a collapsed panel.
+                    self._collapse_fold()
+                    return
+                panel_house_target = self._resolve_focused_panel_house_collapse_target()
+                if panel_house_target is not None and self._collapse_agent_house_folds(
+                    panel_house_target
+                ):
+                    return
+                panel_group_target = self._resolve_focused_panel_group_collapse_target()
+                if (
+                    panel_group_target is not None
+                    and self._collapse_focused_panel_group_fold(panel_group_target)
+                ):
+                    return
+                # The terminal step is exactly lowercase h's selected-panel
+                # transition, including persistence and isolation handling.
+                self._collapse_fold()
+                return
+
             house_target = self._resolve_agent_house_collapse_target()
             if house_target is not None:
                 self._collapse_agent_house_folds(house_target)

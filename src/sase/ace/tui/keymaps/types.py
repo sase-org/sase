@@ -49,7 +49,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("hooks_or_collapse", "Parent Container / Collapse Panel/Fold", False),
     (
         "hooks_or_collapse_all",
-        "Collapse Context / Compact Tools / All",
+        "Collapse Houses/Groups/Panel / Compact Tools / All",
         False,
     ),
     ("edit_hooks", "Edit Hooks", False),

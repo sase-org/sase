@@ -1,4 +1,4 @@
-"""Group-scoped agent-house collapse target resolution."""
+"""Group- and panel-scoped agent-house collapse target resolution."""
 
 from __future__ import annotations
 
@@ -17,6 +17,15 @@ class AgentHouseCollapseTarget:
 
     panel_key: PanelKey
     group_key: GroupKey
+    fold_keys: tuple[str, ...]
+    reanchor_index: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AgentPanelHouseCollapseTarget:
+    """One validated, panel-wide, saturating house-collapse action."""
+
+    panel_key: PanelKey
     fold_keys: tuple[str, ...]
     reanchor_index: int | None = None
 
@@ -60,45 +69,25 @@ def _is_canonical_house_owner(
     return len(clan_owners) == 1
 
 
-def resolve_group_house_collapse_target(
+def _open_canonical_house_keys(
     owner: Any,
-    group_key: GroupKey,
-) -> AgentHouseCollapseTarget | None:
-    """Resolve every open canonical house in one focused-panel group.
-
-    Group membership comes from a fully expanded grouping projection. This
-    recovers the complete target membership when the focused banner is a
-    collapsed child whose next ``H`` target is its parent, without changing
-    any persisted or in-memory grouping fold state during the probe.
-    """
-    from ...models._agent_tree import agent_fold_key, agent_parent_fold_key
-    from ...models.agent_groups import build_agent_tree
+    *,
+    panel_agents: list[Agent],
+    global_indices: list[int],
+    candidate_indices: tuple[int, ...],
+) -> tuple[tuple[str, ...], dict[str, int]]:
+    """Return validated open house keys and their global owner indices."""
+    from ...models._agent_tree import agent_fold_key
     from ...models.fold_state import FoldLevel
-    from ...models.group_fold import GroupFoldRegistry
-
-    global_indices, panel_agents, _registry = owner._focused_panel_fold_context()
-    target_group = next(
-        (
-            entry.group
-            for entry in build_agent_tree(
-                panel_agents,
-                fold_registry=GroupFoldRegistry(),
-                mode=owner._active_grouping_mode(),
-            )
-            if entry.kind == "group"
-            and entry.group is not None
-            and entry.group.group_key == group_key
-        ),
-        None,
-    )
-    if target_group is None:
-        return None
 
     # Fold keys live in one global manager, so duplicate validation must span
-    # every visible panel. Otherwise matching malformed owners in two tribe
+    # every loaded panel. Otherwise matching malformed owners in two tribe
     # panels would make a supposedly panel-local mutation affect both.
     owners_by_key: dict[str, list[Agent]] = {}
-    for candidate in getattr(owner, "_agents", panel_agents):
+    loaded_agents = getattr(owner, "_agents_with_children", None) or getattr(
+        owner, "_agents", panel_agents
+    )
+    for candidate in loaded_agents:
         candidate_key = agent_fold_key(candidate)
         if candidate_key is None or candidate.is_child_row:
             continue
@@ -109,7 +98,7 @@ def resolve_group_house_collapse_target(
     open_keys: list[str] = []
     owner_global_index: dict[str, int] = {}
     seen: set[str] = set()
-    for local_index in target_group.agent_indices:
+    for local_index in candidate_indices:
         if not (0 <= local_index < len(panel_agents)):
             continue
         candidate = panel_agents[local_index]
@@ -134,6 +123,49 @@ def resolve_group_house_collapse_target(
         open_keys.append(fold_key)
         owner_global_index[fold_key] = global_indices[local_index]
 
+    return tuple(open_keys), owner_global_index
+
+
+def resolve_group_house_collapse_target(
+    owner: Any,
+    group_key: GroupKey,
+) -> AgentHouseCollapseTarget | None:
+    """Resolve every open canonical house in one focused-panel group.
+
+    Group membership comes from a fully expanded grouping projection. This
+    recovers the complete target membership when the focused banner is a
+    collapsed child whose next ``H`` target is its parent, without changing
+    any persisted or in-memory grouping fold state during the probe.
+    """
+    from ...models._agent_tree import agent_parent_fold_key
+    from ...models.agent_groups import build_agent_tree
+    from ...models.group_fold import GroupFoldRegistry
+
+    global_indices, panel_agents, _registry = owner._focused_panel_fold_context()
+    target_group = next(
+        (
+            entry.group
+            for entry in build_agent_tree(
+                panel_agents,
+                fold_registry=GroupFoldRegistry(),
+                mode=owner._active_grouping_mode(),
+            )
+            if entry.kind == "group"
+            and entry.group is not None
+            and entry.group.group_key == group_key
+        ),
+        None,
+    )
+    if target_group is None:
+        return None
+
+    open_keys, owner_global_index = _open_canonical_house_keys(
+        owner,
+        panel_agents=panel_agents,
+        global_indices=global_indices,
+        candidate_indices=target_group.agent_indices,
+    )
+
     if not open_keys:
         return None
 
@@ -156,4 +188,31 @@ def resolve_group_house_collapse_target(
     )
 
 
-__all__ = ["AgentHouseCollapseTarget", "resolve_group_house_collapse_target"]
+def resolve_panel_house_collapse_target(
+    owner: Any,
+    panel_key: PanelKey,
+) -> AgentPanelHouseCollapseTarget | None:
+    """Resolve every open canonical house in one selected tribe panel."""
+    from ._navigation_order import rendered_panel_slice
+
+    global_indices, panel_agents = rendered_panel_slice(owner, panel_key)
+    open_keys, _owner_global_index = _open_canonical_house_keys(
+        owner,
+        panel_agents=panel_agents,
+        global_indices=global_indices,
+        candidate_indices=tuple(range(len(panel_agents))),
+    )
+    if not open_keys:
+        return None
+    return AgentPanelHouseCollapseTarget(
+        panel_key=panel_key,
+        fold_keys=open_keys,
+    )
+
+
+__all__ = [
+    "AgentHouseCollapseTarget",
+    "AgentPanelHouseCollapseTarget",
+    "resolve_group_house_collapse_target",
+    "resolve_panel_house_collapse_target",
+]

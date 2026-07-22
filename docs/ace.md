@@ -706,7 +706,11 @@ Lowercase `l` only advances a real fold owned by the selected row or its immedia
 hidden leaf under an already fully expanded workflow is a no-op. Uppercase `H` is the structural mutation key. In the
 next grouping scope it fully collapses every open workflow/family house in one press, regardless of which house row is
 selected. Repeated presses then collapse a distinct binary clan layer and finally the grouping banner. Tools detail
-still takes priority, and `H` remains a no-op while a whole panel is selected.
+still takes priority. On a selected expanded whole panel, `H` uses a separate panel-wide ladder: the first press fully
+collapses every open canonical house in that panel, including houses hidden by grouping banners; later presses collapse
+the last expanded top-level grouping banner in rendered order, one banner per press; and the final press collapses the
+panel through the same path as lowercase `h`. An already collapsed panel is a terminal no-op with the usual
+already-collapsed notification. The merged layout has no whole-panel focus and keeps the row-focused behavior.
 
 With a whole panel selected, uppercase `Z` keeps that panel expanded and collapses every sibling panel. If that changes
 the layout, ACE remembers the prior collapsed-panel set for one session-local restore. Panels whose state would change
@@ -776,7 +780,7 @@ independent folding layers can therefore be visible at once:
 | `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel              |
 | `h` | Collapse one structural level; when none remains, select a panel that supports whole-panel focus; on panel focus, collapse it |
 | `L` | Expand a collapsed focused panel and enter its first selectable row                                                           |
-| `H` | Fully collapse all houses in the next group, then clan/group layers on repeats; compact expanded Tools detail                 |
+| `H` | Collapse row-scoped houses/clan/group, or selected-panel houses/top-level groups/panel; compact expanded Tools detail         |
 | `Z` | On whole-panel focus, isolate that panel or restore the pre-isolation layout; otherwise zoom the active detail panel          |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain visible headings but are skipped by
@@ -807,6 +811,13 @@ contains any open standalone workflow, agent, or sequential-family house, the fi
 directly to fully collapsed while leaving the banner open. A selected child row re-anchors to its visible house owner.
 The footer advertises `H collapse houses` for that step and changes to `H collapse clan` or `H collapse group` once no
 open canonical house remains. Equal group names in other tribe panels are never affected.
+
+Whole-panel focus has its own `H` ordering because it has no selected row or grouping scope. It first fully collapses
+all open canonical houses anywhere in the selected panel in one press. It then walks backward through that panel's
+expanded level-0 banners in actual rendered order, collapsing only one per press and leaving nested banner folds
+unchanged. Once no house or top-level banner remains open, the next press collapses the panel itself. The footer shows
+the configured `hooks_or_collapse_all` key as `collapse houses` or `collapse group` for the next distinct inner step; at
+the terminal step, the existing lowercase `h collapse panel` chip is the sole panel-collapse hint.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  ` segment per ancestor L0/L1
 banner (in the parent tier's dim accent — project blue or ChangeSpec cooler accent), so nesting reads as a tree at a

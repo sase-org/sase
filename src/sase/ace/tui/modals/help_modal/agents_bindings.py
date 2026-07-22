@@ -146,11 +146,15 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.hooks_or_collapse_all),
-                    "Fully collapse houses in next group",
+                    "Fully collapse houses in next group/panel",
                 ),
                 (
                     d(a.hooks_or_collapse_all),
-                    "Then collapse clan/group / compact Tools",
+                    "Then clan/group; selected panel groups/panel",
+                ),
+                (
+                    d(a.hooks_or_collapse_all),
+                    "Compact expanded Tools detail",
                 ),
             ],
         ),

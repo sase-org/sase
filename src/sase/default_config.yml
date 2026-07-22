@@ -213,12 +213,13 @@ ace:
       sync: "Y"
       refresh: "y"
       # Fold / collapse (Agents: h navigates member → family → clan → tribe,
-      # except that it collapses an explicitly selected panel; H compacts
-      # Tools, fully collapses houses in the next group, then collapses clan
-      # and grouping folds on repeats. l expands or enters a selected panel;
-      # L selects visible folds by numeric hint. Z zooms agent detail or
-      # isolates/restores a selected panel. Other tabs retain their fold
-      # behavior.)
+      # except that it collapses an explicitly selected panel. H compacts
+      # Tools; on row focus it fully collapses houses in the next group, then
+      # clan/group folds. On whole-panel focus it collapses every open house in
+      # that panel, the last expanded top-level group per press, then the panel.
+      # l expands or enters a selected panel; L selects visible folds by
+      # numeric hint. Z zooms agent detail or isolates/restores a selected
+      # panel. Other tabs retain their fold behavior.)
       hooks_or_collapse: "h"
       hooks_or_collapse_all: "H"
       expand_or_layout: "l"
