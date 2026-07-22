@@ -178,7 +178,7 @@ def test_panel_title_shorthand_counts_only_top_level_agents() -> None:
     app._refresh_panel_widgets(jump_hints=None)
 
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "@apple · 2 [R1]"
+        "@apple · 1 [R1]"
     )
 
 
@@ -258,17 +258,18 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    # Hidden family members replace the aggregate root status in each chip,
-    # while the existing panel row totals and panel scoping stay unchanged.
+    # Loaded legacy parallel-family members remain individual holes and replace
+    # the aggregate root status in each chip. Serial descendants add neither a
+    # hole nor a concrete status projection.
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "@apple · 7 [R3 W1 U1 D1]"
+        "@apple · 6 [R3 W1 U1 D1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
-        "@banana · 5 [S1 F1 D1]"
+        "@banana · 3 [S1 F1 D1]"
     )
 
 
-def test_panel_title_projects_sequential_family_members_concretely() -> None:
+def test_panel_title_uses_family_hole_with_concrete_statuses_in_all_layouts() -> None:
     planner = _agent(
         name="build--plan",
         tribe="apple",
@@ -288,12 +289,33 @@ def test_panel_title_projects_sequential_family_members_concretely() -> None:
     coder.agent_family_role = "code"
     coder.role_suffix = "--code"
     planner.followup_agents = [coder]
-    app = _FakeApp([planner, coder])
+    standalone = _agent(
+        name="standalone",
+        tribe="apple",
+        suffix="standalone",
+        status="DONE",
+    )
+    agents = [planner, coder, standalone]
+    app = _FakeApp(agents)
 
     app._refresh_panel_widgets(jump_hints=None)
 
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "@apple · 2 [R1 D1]"
+        "@apple · 2 [R1 D2]"
+    )
+
+    app._collapsed_panel_keys = {"apple"}
+    collapsed_title = app._agent_panel_title(
+        "apple",
+        app._agent_panel_index().slice_for("apple").agents,
+        merge_tribe_panels=False,
+    )
+    assert collapsed_title.plain == ("▸ @apple · 2 [R1 D2]")
+
+    merged = _FakeApp(agents, merge_tribe_panels=True)
+    merged._refresh_panel_widgets(jump_hints=None)
+    assert _title_text(merged._panel_widgets["agent-list-panel"]).plain == (
+        "All agents · 2 [R1 D2]"
     )
 
 

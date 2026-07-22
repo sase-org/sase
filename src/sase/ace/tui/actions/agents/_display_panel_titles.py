@@ -13,19 +13,8 @@ from ...agent_count_chip import (
     AGENT_COUNT_CHIP_NEUTRAL_STYLE,
     format_agent_count_chip,
 )
-from ...models._agent_clan import (
-    agent_status_projections,
-    agent_summary_status_counts,
-)
-from ...models._agent_tree import (
-    agent_is_tree_child,
-    presentation_anchor_lookup,
-    tree_parent_lookup,
-)
-from ...models.agent_family_members import (
-    is_sequential_family_container,
-    is_workflow_aggregate_row,
-)
+from ...models._agent_clan import agent_hole_count, agent_summary_status_counts
+from ...models._agent_tree import agent_is_tree_child
 from ...models.agent_panels import agent_panel_label
 
 if TYPE_CHECKING:
@@ -49,9 +38,9 @@ _PANEL_METRIC_LABELS: tuple[tuple[str, str], ...] = tuple(
 
 @dataclass(frozen=True)
 class AgentPanelCounts:
-    """Compact top-level agent counts scoped to one rendered panel."""
+    """Hole total and concrete status counts for one rendered panel."""
 
-    total: int = 0
+    hole_count: int = 0
     asking: int = 0
     running: int = 0
     waiting: int = 0
@@ -79,9 +68,8 @@ def agent_panel_counts(
         visible_top_level_agents,
         unread_ids,
     )
-    total = _panel_concrete_agent_total(agents, visible_top_level_agents)
     return AgentPanelCounts(
-        total=total,
+        hole_count=agent_hole_count(visible_top_level_agents),
         asking=projected.stopped,
         running=projected.running,
         waiting=projected.waiting,
@@ -91,36 +79,9 @@ def agent_panel_counts(
     )
 
 
-def _panel_concrete_agent_total(
-    agents: list[Agent],
-    roots: list[Agent],
-) -> int:
-    """Count container roots concretely while preserving ordinary row totals."""
-    if not roots:
-        return 0
-    anchors = presentation_anchor_lookup(agents, tree_parent_lookup(agents))
-    row_count_by_anchor: dict[int, int] = {}
-    for agent in agents:
-        anchor = anchors.get(id(agent), agent)
-        row_count_by_anchor[id(anchor)] = row_count_by_anchor.get(id(anchor), 0) + 1
-
-    total = 0
-    for root in roots:
-        project_concretely = (
-            root.is_clan_container
-            or is_sequential_family_container(root)
-            or (not root.agent_family_parallel and is_workflow_aggregate_row(root))
-        )
-        if project_concretely:
-            total += len(agent_status_projections((root,)))
-        else:
-            total += row_count_by_anchor.get(id(root), 1)
-    return total
-
-
 def agent_panel_border_title(
     key: PanelKey,
-    agent_count: int,
+    hole_count: int,
     *,
     merge_tribe_panels: bool = False,
     counts: AgentPanelCounts | None = None,
@@ -156,7 +117,7 @@ def agent_panel_border_title(
         title.append("↺", style=_PANEL_ISOLATION_RESTORE_STYLE)
     title.append(" · ", style=_PANEL_COUNT_STYLE)
     title.append(
-        str(agent_count),
+        str(hole_count),
         style=_PANEL_SELECTED_CHROME_STYLE if selected else _PANEL_COUNT_STYLE,
     )
     if counts is not None:

@@ -692,18 +692,21 @@ The Agents tab is laid out as a series of vertically-stacked side panels, one pe
 without a stored tribe live in the reserved `@default` panel; an explicit `default` assignment converges on the same
 panel, so the UI never creates a duplicate default bucket. `@default` is derived for presentation and is not backfilled
 into `agent_meta.json` or `agent_tribes.json`; clearing a user-managed tribe returns the agent to this panel. Every
-tribe renders as `@<tribe>` with an agent count in the panel title. Per-tribe icons, identity colors, and initial
-expansion are configurable through [`ace.tribes`](configuration.md#acetribes); the special `default` entry styles the
-reserved panel, and explicit panel folds are remembered and override the configured initial state. Identity colors apply
-only to the icon and `@tribe` name, leaving selection, fold, and status chrome in its semantic palette. Each panel title
-can also show compact scoped metrics in the form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R` is running,
-`W` is waiting to start, `F` is failed, `U` is unread terminal work, and `D` is done/read terminal work. Zero-count
-metrics are omitted. The panel-title total retains the same concrete-agent semantics as its adjacent status metrics; it
-is separate from the global agent-hole headline described below. On the selected whole panel, the title marker, total,
-brackets, and metric letters use the focus accent; each numeric metric count retains its semantic status color. Panel
-heights are sized to their content and separated by a one-row gap. When the panels fit, the first panel grows to absorb
-leftover vertical space while later panels stay pinned to their natural height; when the panels overflow, space is
-weighted by each panel's rendered row count.
+tribe renders as `@<tribe>` with an agent-hole count in the panel title. One standalone agent or one sequential family
+is one hole, and a rootless clan contributes one hole per direct member rather than one for its synthetic container.
+Per-tribe icons, identity colors, and initial expansion are configurable through
+[`ace.tribes`](configuration.md#acetribes); the special `default` entry styles the reserved panel, and explicit panel
+folds are remembered and override the configured initial state. Identity colors apply only to the icon and `@tribe`
+name, leaving selection, fold, and status chrome in its semantic palette. Each panel title can also show compact scoped
+metrics in the form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R` is running, `W` is waiting to start, `F`
+is failed, `U` is unread terminal work, and `D` is done/read terminal work. Zero-count metrics are omitted. The status
+metrics remain concrete, so a sequential family's members can make their sum larger than the hole total. The selected
+whole-panel `TRIBE` composition reports the same total explicitly as `N hole` or `N holes`, while its nested count
+preserves the concrete-member distinction. On the selected whole panel, the title marker, total, brackets, and metric
+letters use the focus accent; each numeric metric count retains its semantic status color. Panel heights are sized to
+their content and separated by a one-row gap. When the panels fit, the first panel grows to absorb leftover vertical
+space while later panels stay pinned to their natural height; when the panels overflow, space is weighted by each
+panel's rendered row count.
 
 Use `J` / `K` to move across panels (forward / reverse) and enter the first or last selectable row in the destination;
 collapsed grouping banners count as rows. Whole-panel focus is available only in the split layout. Lowercase `h` walks
@@ -814,14 +817,15 @@ kind without an additional icon. A clan is a selectable synthetic container, nev
 `<name>` after its rolled-up status and member counts. A real multi-member family root remains a teal agent row and ends
 in an azure `<name>`; ordinary agent annotations and lone plan proposers with only their display-only planner child
 remain gold. Clan `@tribe` labels follow the orchid name. A clan's outer fold is binary: from a collapsed clan row,
-press `l` once to reveal its direct agents, family rows, and visible workflow rows. To reveal descendants within a
-family or workflow, move to that row and press `l` there; pressing `l` again on the clan row itself has no effect. `h`
-collapses the focused structural row one level at a time and re-anchors to a visible owner when necessary. Sequential
-family members use `--<suffix>` names and run one after another. Killing or dismissing a clan row cascades to the clan's
-live members; acting on one member leaves its siblings alone. Direct clan members always sort by the clan-local status
-priority Failed, Stopped, Running, Waiting, Done in every grouping mode; Starting shares Running's rank. Launch recency
-orders only members in the same status bucket. A family row moves as one unit with its follow-ups and workflow steps,
-preserving their adjacency and internal order.
+press `l` once to reveal its direct agents, family rows, and visible workflow rows. The clan row's fold count and status
+chrome count those direct clan holes once; nested family or workflow members do not inflate them. To reveal descendants
+within a family or workflow, move to that row and press `l` there; pressing `l` again on the clan row itself has no
+effect. `h` collapses the focused structural row one level at a time and re-anchors to a visible owner when necessary.
+Sequential family members use `--<suffix>` names and run one after another. Killing or dismissing a clan row cascades to
+the clan's live members; acting on one member leaves its siblings alone. Direct clan members always sort by the
+clan-local status priority Failed, Stopped, Running, Waiting, Done in every grouping mode; Starting shares Running's
+rank. Launch recency orders only members in the same status bucket. A family row moves as one unit with its follow-ups
+and workflow steps, preserving their adjacency and internal order.
 
 The uppercase `H` ladder is scope-wide rather than selection-wide. If the grouping banner that `H` would collapse next
 contains any open standalone workflow, agent, or sequential-family house, the first press drives every such house

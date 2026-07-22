@@ -116,7 +116,7 @@ def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -
 
     assert pulse.startswith(
         "TRIBE\nName: ▲ @epic\nStatus: FAILED [R1 W1 F1]\n"
-        "Composition: 1 family · 3 agents · 1 nested\n"
+        "Composition: 1 family · 2 holes · 1 nested\n"
         "Runtime: 1h\nFold: 1/4\n"
     )
     assert "▸ NEEDS ATTENTION · 1\n• failed · FAILED · Build failed" in pulse
@@ -192,6 +192,7 @@ def test_tribe_family_children_use_effective_status_glyphs() -> None:
         fold_level=FoldLevel.FULLY_EXPANDED,
     )
 
+    assert "Composition: 1 family · 1 hole · 2 nested" in detail.plain
     assert "[R1 D1]" in detail.plain
     assert "--plan-step · step · ✓ TALE APPROVED" in detail.plain
     assert "--code · agent · ▶ WORKING TALE" in detail.plain
@@ -307,7 +308,7 @@ def test_empty_sections_are_omitted_at_every_level() -> None:
             fold_level=level,
         ).plain
 
-        assert "Composition: 0 agents" in rendered
+        assert "Composition: 0 holes" in rendered
         assert "NEEDS ATTENTION" not in rendered
         assert "TRIBE MEMBERS" not in rendered
         assert "ERRORS" not in rendered

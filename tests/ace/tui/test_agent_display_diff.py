@@ -6,6 +6,8 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any
 
+from rich.text import Text
+
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.agents._display_diff import (
     build_agent_display_diff,
@@ -338,6 +340,47 @@ def test_same_position_row_change_patches_without_panel_rebuild(
     assert "row_patch" in _display_costs(app)
     assert "display_full_rebuild" not in _display_costs(app)
     assert app._agent_detail_debouncer.is_pending
+
+
+def test_row_patch_preserves_family_hole_panel_total(monkeypatch: Any) -> None:
+    planner = _agent(
+        "build--plan",
+        tribe="apple",
+        suffix="build-plan",
+        status="TALE APPROVED",
+    )
+    planner.agent_family = "build"
+    planner.agent_family_role = "root"
+    planner.role_suffix = "--plan"
+    planner.plan_chain_root = True
+    coder = _agent(
+        "build--code",
+        tribe="apple",
+        suffix="build-code",
+        status="WORKING TALE",
+    )
+    coder.parent_timestamp = planner.raw_suffix
+    coder.agent_family = "build"
+    coder.agent_family_role = "code"
+    coder.role_suffix = "--code"
+    planner.followup_agents = [coder]
+    standalone = _agent(
+        "standalone",
+        tribe="apple",
+        suffix="standalone",
+        status="DONE",
+    )
+    app = _DisplayDiffApp([planner, coder, standalone], monkeypatch)
+    widget = app._widgets["#agent-list-panel"]
+
+    assert Text.from_markup(widget.border_title).plain == "@apple · 2 [R1 D2]"
+
+    standalone.live_file_change_hint = True
+    assert app._try_patch_agent_row(standalone) is True
+
+    assert Text.from_markup(widget.border_title).plain == "@apple · 2 [R1 D2]"
+    assert app.full_rebuilds == 0
+    assert "row_patch" in _display_costs(app)
 
 
 def test_collapsed_last_panel_order_still_allows_incremental_row_patch(

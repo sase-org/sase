@@ -9,6 +9,7 @@ from typing import Literal
 
 from sase.agent.status_buckets import status_bucket_for_values
 from ._agent_clan import (
+    agent_hole_count,
     agent_status_projections,
     agent_summary_status_counts,
     aggregate_clan_status,
@@ -127,7 +128,7 @@ class AgentTribeSummarySnapshot:
     counts: TribeStatusCounts
     clan_count: int
     family_count: int
-    agent_count: int
+    hole_count: int
     nested_count: int
     runtime_span: str
     units: tuple[_TribeUnitSnapshot, ...]
@@ -372,7 +373,6 @@ def build_agent_tribe_summary_snapshot(
     real_rows = _dedupe_rows(
         tuple(row for root in roots for row in tribe_unit_real_rows(root))
     )
-    concrete_statuses = agent_status_projections(roots)
     labels = {row.identity: _row_name(row) for row in real_rows}
     attention = tuple(
         TribeAttentionEntry(
@@ -412,7 +412,7 @@ def build_agent_tribe_summary_snapshot(
         counts=_status_counts(roots, unread_ids),
         clan_count=sum(unit.kind == "clan" for unit in units),
         family_count=len(family_identities),
-        agent_count=len(concrete_statuses),
+        hole_count=agent_hole_count(roots),
         nested_count=nested_count,
         runtime_span=_runtime_span(real_rows, now=reference),
         units=units,

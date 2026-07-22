@@ -223,6 +223,46 @@ def test_clan_header_uses_same_unread_aggregate_as_list_row() -> None:
     assert "Status: DONE [U1 D1]\n" in detail.plain
 
 
+def test_clan_family_and_standalone_render_as_two_direct_holes() -> None:
+    family_name = "research.writer"
+    planner = make_clan_agent(
+        f"{family_name}--plan",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        family=family_name,
+    )
+    planner.agent_family_role = "root"
+    planner.role_suffix = "--plan"
+    planner.plan_chain_root = True
+    coder = make_clan_agent(
+        f"{family_name}--code",
+        status="DONE",
+        start=datetime(2026, 7, 17, 12, 1, 0),
+        parent_timestamp=planner.raw_suffix,
+        family=family_name,
+    )
+    coder.agent_family_role = "code"
+    coder.role_suffix = "--code"
+    planner.runtime_children = [coder]
+    planner.followup_agents = [coder]
+    standalone = make_clan_agent(
+        "research.standalone",
+        status="WAITING",
+        start=datetime(2026, 7, 17, 12, 2, 0),
+    )
+    container = project_clan_tree([planner, coder, standalone])[0]
+
+    detail = build_clan_detail_text(container).plain
+
+    assert {member.identity for member in container.runtime_children} == {
+        planner.identity,
+        standalone.identity,
+    }
+    assert "Status: RUNNING [R1 W1]\n" in detail
+    assert "Members: 3 agents · 1 family\n" in detail
+    assert "▸ ❖ CLAN MEMBERS · 2\n" in detail
+
+
 def test_clan_build_header_path_is_aggregate_only() -> None:
     member = make_clan_agent(
         "research.only",

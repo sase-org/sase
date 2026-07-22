@@ -171,7 +171,7 @@ def _append_header(
             f"famil{'ies' if snapshot.family_count != 1 else 'y'}"
         )
     composition.append(
-        f"{snapshot.agent_count} agent{'s' if snapshot.agent_count != 1 else ''}"
+        f"{snapshot.hole_count} hole{'s' if snapshot.hole_count != 1 else ''}"
     )
     if snapshot.nested_count:
         composition.append(f"{snapshot.nested_count} nested")

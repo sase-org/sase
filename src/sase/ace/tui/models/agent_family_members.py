@@ -40,7 +40,7 @@ def is_sequential_family_container(agent: Agent) -> bool:
     )
 
 
-def is_workflow_aggregate_row(agent: Agent) -> bool:
+def _is_workflow_aggregate_row(agent: Agent) -> bool:
     """Return whether ``agent`` owns workflow-step presentation rows."""
     if agent.is_workflow_child:
         return False
@@ -66,7 +66,7 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
             return (agent,)
         return ()
 
-    if is_workflow_aggregate_row(agent):
+    if _is_workflow_aggregate_row(agent):
         agent_steps = _dedupe_rows(
             tuple(
                 child
@@ -192,5 +192,4 @@ __all__ = [
     "concrete_family_member_rows",
     "family_member_status_buckets",
     "is_sequential_family_container",
-    "is_workflow_aggregate_row",
 ]

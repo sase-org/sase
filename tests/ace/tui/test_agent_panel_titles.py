@@ -7,13 +7,55 @@ from sase.ace.tui.actions.agents._display_panel_titles import (
     _PANEL_SELECTED_CHROME_STYLE,
     AgentPanelCounts,
     agent_panel_border_title,
+    agent_panel_counts,
 )
 from sase.ace.tui.actions.agents._display_panels import (
     _PANEL_COUNT_STYLE,
     _PANEL_METRIC_STYLES,
 )
+from sase.ace.tui.models._agent_tree import project_clan_tree
+from sase.ace.tui.models.agent import Agent
 
-from ._agent_panel_title_helpers import _assert_title_range_style, _assert_title_span
+from ._agent_panel_title_helpers import (
+    _agent,
+    _assert_title_range_style,
+    _assert_title_span,
+)
+
+
+def _sequential_family(
+    name: str,
+    *,
+    tribe: str | None = None,
+    clan: str | None = None,
+) -> tuple[Agent, Agent]:
+    root = _agent(
+        name=f"{name}--plan",
+        tribe=tribe,
+        suffix=f"{name}-plan",
+        status="TALE APPROVED",
+    )
+    root.agent_family = name
+    root.agent_family_role = "root"
+    root.role_suffix = "--plan"
+    root.plan_chain_root = True
+    root.agent_clan = clan
+    root.agent_clan_generation = "gen-1" if clan else None
+    child = _agent(
+        name=f"{name}--code",
+        tribe=tribe,
+        suffix=f"{name}-code",
+        status="WORKING TALE",
+        parent_timestamp=root.raw_suffix,
+    )
+    child.agent_family = name
+    child.agent_family_role = "code"
+    child.role_suffix = "--code"
+    child.agent_clan = clan
+    child.agent_clan_generation = "gen-1" if clan else None
+    root.followup_agents = [child]
+    root.runtime_children = [child]
+    return root, child
 
 
 def test_collapsed_panel_title_prepends_chevron_and_preserves_summary() -> None:
@@ -334,3 +376,39 @@ def test_panel_title_renders_multi_digit_numeric_selection_hint() -> None:
         style="bold #FFFF00",
         text="[12] ",
     )
+
+
+def test_panel_counts_use_holes_while_statuses_remain_concrete() -> None:
+    standalone = _agent(
+        name="standalone",
+        suffix="standalone",
+        status="DONE",
+    )
+    family_root, family_child = _sequential_family("family")
+    clan_family_root, clan_family_child = _sequential_family(
+        "research.family",
+        clan="research",
+    )
+    clan_standalone = _agent(
+        name="research.standalone",
+        suffix="research-standalone",
+        status="WAITING",
+    )
+    clan_standalone.agent_clan = "research"
+    clan_standalone.agent_clan_generation = "gen-1"
+    agents = project_clan_tree(
+        [
+            standalone,
+            family_root,
+            family_child,
+            clan_family_root,
+            clan_family_child,
+            clan_standalone,
+        ]
+    )
+
+    counts = agent_panel_counts(agents, set())
+
+    assert counts.hole_count == 4
+    assert (counts.running, counts.waiting, counts.read) == (2, 1, 3)
+    assert sum(value for _name, value in counts.metric_items()) == 6

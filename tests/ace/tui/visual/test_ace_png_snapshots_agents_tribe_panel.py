@@ -202,6 +202,12 @@ async def test_tribe_panel_four_level_png_snapshots(
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
 
+        epic_index = page.app._panel_group.panel_keys.index("epic")
+        epic_panel = list(page.app.query("AgentList"))[epic_index]
+        assert Text.from_markup(epic_panel.border_title).plain == (
+            "▲ @epic · 2 [R1 W1 F1]"
+        )
+
         await page.press("J")
         assert page.app._panel_group.focused_key == "epic"
         await page.press("h")
@@ -241,6 +247,10 @@ async def test_tribe_panel_four_level_png_snapshots(
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "TRIBE")
         assert_page_svg_contains(page, "@epic")
+        tribe_summary = page.app._focused_tribe_summary()
+        assert tribe_summary is not None
+        assert tribe_summary.hole_count == 2
+        assert_page_svg_contains(page, "holes")
         assert_page_svg_contains(page, "NEEDS ATTENTION")
         assert page.app._member_jump_maps[("panel", "epic")].targets
         ace_png_visual.assert_page_png(
