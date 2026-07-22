@@ -439,7 +439,7 @@ jump-back history.
 | `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                  |
 | `p`                 | Toggle file / prompt layout                                                                                |
 | `z`                 | Start metadata fold mode for clan, family, or selected whole-tribe detail panels                           |
-| `Z`                 | Open the zoom modal for the active detail panel                                                            |
+| `Z`                 | Zoom the active detail panel, or isolate/restore a selected tribe panel                                    |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                              |
 
 ### Forking Agents and Groups
@@ -707,9 +707,9 @@ hidden leaf under an already fully expanded workflow is a no-op. Uppercase `H` i
 collapses the selected workflow/family/clan context before grouping collapse, or isolates/restores panels while a whole
 panel is selected.
 
-With a whole panel selected, uppercase `H` keeps that panel expanded and collapses every sibling panel. If that changes
+With a whole panel selected, uppercase `Z` keeps that panel expanded and collapses every sibling panel. If that changes
 the layout, ACE remembers the prior collapsed-panel set for one session-local restore. Panels whose state would change
-back show `↺` in their titles, the footer changes to `H restore panels`, and the next `H` from any whole-panel focus
+back show `↺` in their titles, the footer changes to `Z restore panels`, and the next `Z` from any whole-panel focus
 restores the remembered layout. A separate sibling-panel or layout mutation invalidates the pending restore. An already
 isolated panel is an idempotent no-op and does not arm a restore. This action preserves the selected panel's remembered
 row and is available only in the split layout.
@@ -770,12 +770,13 @@ independent folding layers can therefore be visible at once:
 | Structural row    | Clan members, family members, and workflow descendants   | `h` collapses; `l` expands                            |
 | Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` or `L` expands |
 
-| Key | Action                                                                                                                         |
-| --- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel               |
-| `h` | Collapse one structural level; when none remains, select a panel that supports whole-panel focus; on panel focus, collapse it  |
-| `L` | Expand a collapsed focused panel and enter its first selectable row                                                            |
-| `H` | On whole-panel focus, isolate that panel or restore the pre-isolation layout; otherwise collapse the deepest banner on repeats |
+| Key | Action                                                                                                                        |
+| --- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel              |
+| `h` | Collapse one structural level; when none remains, select a panel that supports whole-panel focus; on panel focus, collapse it |
+| `L` | Expand a collapsed focused panel and enter its first selectable row                                                           |
+| `H` | Collapse the deepest structural or grouping banner on repeats; compact expanded Tools detail                                  |
+| `Z` | On whole-panel focus, isolate that panel or restore the pre-isolation layout; otherwise zoom the active detail panel          |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain visible headings but are skipped by
 row navigation. When a collapsed banner is focused, `l` expands only that banner and moves focus to the next visible
@@ -1720,9 +1721,10 @@ notice; press `E` to open the complete content.
 
 ## Agents Zoom Panel
 
-Press `Z` on the Agents tab to open a near-fullscreen view of the active detail panel. The header shows the available
-panel tabs (`METADATA`, `FILE`, `TOOLS`) with the active panel highlighted; use `]` / `[` to cycle those panels with
-wrap-around.
+Press `Z` on an agent row in the Agents tab to open a near-fullscreen view of the active detail panel. With whole-panel
+focus, the same action instead isolates that tribe panel or restores the previously remembered panel layout. In the
+detail modal, the header shows the available panel tabs (`METADATA`, `FILE`, `TOOLS`) with the active panel highlighted;
+use `]` / `[` to cycle those panels with wrap-around.
 
 When the zoom modal shows files, the file list is fixed for the life of that modal so refreshes cannot add, remove,
 reorder, or jump the selected file. Use `Ctrl+N` / `Ctrl+P` to cycle files with first-to-last wrap-around. Multi-file

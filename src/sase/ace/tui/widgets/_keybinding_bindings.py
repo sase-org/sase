@@ -180,6 +180,12 @@ class KeybindingBindingsMixin:
                 bindings.append((self._kd("hooks_or_collapse"), "collapse panel"))
                 bindings.append((self._kd("expand_or_layout"), "enter panel"))
                 bindings.append(("Esc", "enter panel"))
+            bindings.append(
+                (
+                    self._kd("zoom_panel"),
+                    "restore panels" if panel_restore_armed else "only panel",
+                )
+            )
 
         if (
             left_navigation_kind in {"workflow", "family", "clan", "tribe"}
@@ -195,10 +201,6 @@ class KeybindingBindingsMixin:
         collapse_all_label: str | None = None
         if tools_can_compact:
             collapse_all_label = "compact tools"
-        elif panel_focused:
-            collapse_all_label = (
-                "restore panels" if panel_restore_armed else "only panel"
-            )
         elif structural_collapse_kind in {"workflow", "family", "clan"}:
             collapse_all_label = f"collapse {structural_collapse_kind}"
         elif group_collapse_available:

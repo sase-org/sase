@@ -74,14 +74,11 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_hooks_or_collapse_all(self) -> None:
-        """Collapse Agents context, isolate a panel, or collapse all folds."""
+        """Collapse Agents context or collapse all folds on another tab."""
         if self._route_tools_detail_level("min"):
             return
         if self.current_tab == "agents":
-            if (
-                not self._isolate_focused_panel()
-                and not self._collapse_agent_structural_fold()
-            ):
+            if not self._collapse_agent_structural_fold():
                 self._collapse_group_fold()
         elif self.current_tab == "axe":
             self._collapse_all_axe_folds()

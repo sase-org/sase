@@ -75,7 +75,7 @@ class AgentPanelFoldingMixin:
         return None
 
     def _panel_isolation_marked_keys(self) -> set[PanelKey]:
-        """Return panels marked as changing on the next whole-panel ``H``."""
+        """Return panels marked as changing on the next whole-panel zoom action."""
         revert = self._panel_isolation_revert_record()
         if revert is None:
             return set()
@@ -157,7 +157,7 @@ class AgentPanelFoldingMixin:
         Returns ``True`` when whole-panel focus owns the action, including an
         idempotent transition that does not change any panel folds. The first
         changing isolate arms one session-local restore; the next whole-panel
-        ``H`` applies it from whichever panel is currently focused.
+        zoom action applies it from whichever panel is currently focused.
         """
         if self.current_tab != "agents":
             return False

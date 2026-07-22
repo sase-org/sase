@@ -92,6 +92,24 @@ def test_expanded_panel_exposes_kill_but_hides_remembered_agent_commands() -> No
         assert not is_command_available(catalog[command_id], ctx), command_id
 
 
+def test_zoom_panel_available_for_agent_or_whole_panel_focus_only() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.zoom_panel"]
+
+    assert is_command_available(spec, CommandContext(tab="agents", agent=_make_agent()))
+    assert is_command_available(spec, CommandContext(tab="agents", panel_focused=True))
+    assert is_command_available(
+        spec, CommandContext(tab="agents", collapsed_panel_focused=True)
+    )
+    assert not is_command_available(spec, CommandContext(tab="agents"))
+    assert not is_command_available(
+        spec, CommandContext(tab="agents", group_focused=True)
+    )
+    assert not is_command_available(
+        spec, CommandContext(tab="changespecs", agent=_make_agent())
+    )
+
+
 def test_kill_agent_hidden_when_no_agent_no_group_no_marks() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.kill_agent"]

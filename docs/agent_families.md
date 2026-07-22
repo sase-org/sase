@@ -177,10 +177,10 @@ the current panel level, while the `▸`/`▾`/`▼` heading glyph shows each se
 sections stay hidden during enrichment behind one `scanning member data…` tail; represented sections appear when known,
 and known-empty sections remain omitted. The compact roster and its numeric jumps remain available at every level.
 
-The fold prefix is available only while the Agents tab is active. Press uppercase `Z` to zoom the largest panel; the
-lowercase `z` key starts fold mode. Fold state is panel-wide and applies when a clan or multi-member family container is
-selected. Using a fold chord on a regular agent updates the session state for the next container selection without
-changing that agent's sections.
+The fold prefix is available only while the Agents tab is active. Press uppercase `Z` to zoom the largest detail panel
+from an agent row, or to isolate/restore a tribe panel from whole-panel focus; lowercase `z` starts fold mode. Fold
+state is panel-wide and applies when a clan or multi-member family container is selected. Using a fold chord on a
+regular agent updates the session state for the next container selection without changing that agent's sections.
 
 ### Epic bead-work example
 
@@ -338,9 +338,9 @@ expands the panel and enters its first selectable row. While an expanded whole p
 panels without descending, and `l` or `Esc` returns to the remembered row. `J` / `K` always move to the first / last
 selectable row of the next / previous panel. Whole-panel focus is unavailable in the merged layout. Apostrophe jump can
 select any split-panel title, including a lone expanded panel, but a lone panel cannot be collapsed. With whole-panel
-focus active, uppercase `H` isolates the selected panel by keeping it expanded and collapsing every sibling without
+focus active, uppercase `Z` isolates the selected panel by keeping it expanded and collapsing every sibling without
 changing its remembered row. When isolation changes the layout, ACE remembers the prior collapsed-panel set for the
-session: `↺` title markers and the `H restore panels` footer hint show that the next `H`, from any whole-panel focus,
+session: `↺` title markers and the `Z restore panels` footer hint show that the next `Z`, from any whole-panel focus,
 will restore it. A separate sibling-panel or layout mutation invalidates that one-step restore.
 
 Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four `zz` metadata detail levels are:

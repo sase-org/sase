@@ -208,7 +208,7 @@ async def test_tribe_panel_four_level_png_snapshots(
             lambda _screen: page.app._resolve_focused_panel() is not None
         )
 
-        await page.press("H")
+        await page.press("Z")
         await page.wait_for(
             lambda _screen: (
                 None in page.app._collapsed_panel_keys
@@ -223,7 +223,7 @@ async def test_tribe_panel_four_level_png_snapshots(
             title="ACE tribe panel isolation restore markers",
         )
 
-        await page.press("H")
+        await page.press("Z")
         await page.wait_for(
             lambda _screen: (
                 None not in page.app._collapsed_panel_keys

@@ -1,4 +1,4 @@
-"""Undo semantics for the Agents-tab ``H`` panel-isolation toggle."""
+"""Undo semantics for the Agents-tab zoom-action panel isolation."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ def test_isolate_then_restore_round_trips_an_arbitrary_layout() -> None:
     app._collapsed_panel_keys.update({None, "alpha"})
     app._sync_panel_group()
 
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
 
     assert app._collapsed_panel_keys == {None, "beta"}
     assert app._panel_isolation_revert == PanelIsolationRevert(
@@ -26,11 +26,11 @@ def test_isolate_then_restore_round_trips_an_arbitrary_layout() -> None:
     )
     assert app._panel_isolation_marked_keys() == {"alpha", "beta"}
 
-    # The armed restore belongs to H, not to the original target panel.
+    # The armed restore belongs to the zoom action, not the original target panel.
     BasicNavigationMixin._navigate_agents_panel(app, 1)
     BasicNavigationMixin._navigate_agents_panel(app, 1)
     assert app._panel_group.focused_key == "beta"
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
 
     focus = app._resolve_focused_panel()
     assert focus is not None
@@ -54,7 +54,7 @@ def test_idempotent_isolation_does_not_arm_restore() -> None:
     app._sync_panel_group()
     app._expanded_panel_focus = True
 
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
 
     assert app._collapsed_panel_keys == {None, "beta"}
     assert app._panel_isolation_revert is None
@@ -66,7 +66,7 @@ def test_idempotent_isolation_does_not_arm_restore() -> None:
 def test_target_panel_changes_keep_restore_but_other_panel_change_disarms() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key="alpha")
     app._expanded_panel_focus = True
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
     armed = app._panel_isolation_revert
     assert armed is not None
 
@@ -90,7 +90,7 @@ def test_target_panel_changes_keep_restore_but_other_panel_change_disarms() -> N
 def test_numeric_panel_fold_funnel_disarms_non_target_change() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key="alpha")
     app._expanded_panel_focus = True
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
     assert app._panel_isolation_revert is not None
 
     # Numeric fold selection mutates first, then records through this funnel.
@@ -104,7 +104,7 @@ def test_numeric_panel_fold_funnel_disarms_non_target_change() -> None:
 def test_merged_layout_toggle_disarms_restore() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key="alpha")
     app._expanded_panel_focus = True
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
     assert app._panel_isolation_revert is not None
 
     app.action_toggle_agent_panel_grouping()
@@ -117,7 +117,7 @@ def test_merged_layout_toggle_disarms_restore() -> None:
 def test_vanished_target_expires_restore_when_markers_are_computed() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key="alpha")
     app._expanded_panel_focus = True
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
     assert app._panel_isolation_revert is not None
 
     app._agents = [agent for agent in app._agents if agent.tribe != "alpha"]
@@ -133,7 +133,7 @@ def test_restore_preserves_vanished_intent_and_leaves_new_panels_expanded() -> N
     app._collapsed_panel_keys.add("beta")
     app._sync_panel_group()
     app._expanded_panel_focus = True
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
     assert app._panel_isolation_revert is not None
 
     app._agents = [agent for agent in app._agents if agent.tribe != "beta"]
@@ -142,7 +142,7 @@ def test_restore_preserves_vanished_intent_and_leaves_new_panels_expanded() -> N
     app._sync_panel_group()
     assert "gamma" not in app._collapsed_panel_keys
 
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
 
     assert app._collapsed_panel_keys == {"beta"}
     assert "gamma" not in app._collapsed_panel_keys
@@ -161,7 +161,7 @@ def test_restore_with_no_remaining_diff_disarms_and_reports_zero() -> None:
         target_key="alpha",
         collapsed_before=frozenset({None, "beta"}),
     )
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
 
     assert app._panel_isolation_revert is None
     assert app.refresh_calls == []

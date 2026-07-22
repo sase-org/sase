@@ -199,8 +199,11 @@ def test_h_binding_metadata_describes_navigation_and_contextual_collapse() -> No
     fallback_by_action = {binding.action: binding for binding in DEFAULT_BINDINGS}
 
     lower = "Parent Container / Collapse Panel/Fold"
-    upper = "Collapse Context / Only/Restore Panels / All"
+    upper = "Collapse Context / Compact Tools / All"
+    zoom = "Zoom Detail / Only/Restore Panels"
     assert runtime_by_action["hooks_or_collapse"].description == lower
     assert fallback_by_action["hooks_or_collapse"].description == lower
     assert runtime_by_action["hooks_or_collapse_all"].description == upper
     assert fallback_by_action["hooks_or_collapse_all"].description == upper
+    assert runtime_by_action["zoom_panel"].description == zoom
+    assert fallback_by_action["zoom_panel"].description == zoom

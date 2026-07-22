@@ -264,8 +264,8 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "hooks_or_collapse_all",
-        "Collapse workflow, family, clan, or group / show only or restore "
-        "tribe panels / compact tools detail / collapse all folds on other tabs",
+        "Collapse workflow, family, clan, or group / compact tools detail / "
+        "collapse all folds on other tabs",
         "Folding",
         ALL_TABS,
         (),
@@ -354,7 +354,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AGENTS_ONLY,
         ("go to pr",),
     ),
-    ("zoom_panel", "Zoom largest panel", "Display", AGENTS_ONLY, ("zoom",)),
+    (
+        "zoom_panel",
+        "Zoom detail / isolate or restore tribe panel",
+        "Display",
+        AGENTS_ONLY,
+        ("zoom", "only panel", "restore panels"),
+    ),
     ("edit_panel", "Edit panel file", "Agents", AGENTS_ONLY, ()),
     (
         "open_artifact_files",

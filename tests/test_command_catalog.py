@@ -201,12 +201,14 @@ def test_zoom_panel_command_is_agents_only_display_command() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.zoom_panel"]
 
-    assert spec.label == "Zoom largest panel"
+    assert spec.label == "Zoom detail / isolate or restore tribe panel"
     assert spec.category == "Display"
     assert spec.tabs == ("agents",)
     assert spec.key_sequence == ("Z",)
     assert spec.key_display == "Z"
     assert "zoom" in spec.aliases
+    assert "only panel" in spec.aliases
+    assert "restore panels" in spec.aliases
 
 
 def test_h_commands_describe_navigation_and_contextual_collapsing() -> None:
@@ -220,8 +222,8 @@ def test_h_commands_describe_navigation_and_contextual_collapsing() -> None:
     assert lower.key_sequence == ("h",)
     assert lower.key_display == "h"
     assert upper.label == (
-        "Collapse workflow, family, clan, or group / show only or restore "
-        "tribe panels / compact tools detail / collapse all folds on other tabs"
+        "Collapse workflow, family, clan, or group / compact tools detail / "
+        "collapse all folds on other tabs"
     )
     assert upper.key_sequence == ("H",)
     assert upper.key_display == "H"

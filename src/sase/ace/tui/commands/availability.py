@@ -165,7 +165,6 @@ _REQUIRES_AGENT: frozenset[str] = frozenset(
         "app.toggle_agent_unread",
         "app.start_agent_from_changespec",
         "app.jump_to_agent_changespec",
-        "app.zoom_panel",
     }
 )
 
@@ -325,6 +324,9 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 
     if spec.id == "app.save_marked_agents":
         return ctx.mark_count > 0
+
+    if spec.id == "app.zoom_panel":
+        return panel_focused or agent is not None
 
     # add_tag on Agents starts a new prompt with a wait dependency. Marks
     # take precedence over every focused row/scope, matching the action.

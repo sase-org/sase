@@ -9,6 +9,7 @@ from sase.ace.tui.actions.agents._display_panel_refresh import PanelRefreshMixin
 from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
 from sase.ace.tui.actions.agents._navigation_order import AgentNavigationOrderMixin
 from sase.ace.tui.actions.agents._panel_navigation import AgentPanelNavigationMixin
+from sase.ace.tui.actions.agents._panel_detail import AgentPanelDetailMixin
 from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.actions.navigation._entry_jump_agents import (
@@ -25,6 +26,7 @@ from sase.ace.tui.models.fold_state import FoldStateManager
 
 class _StubApp(
     EntryJumpAgentHistoryMixin,
+    AgentPanelDetailMixin,
     AgentFoldingMixin,
     AgentSelectionMixin,
     AgentPanelNavigationMixin,
@@ -319,7 +321,7 @@ def test_panel_collapse_guards_merged_and_repeated_actions() -> None:
     assert split.refresh_calls == [False, True, True, False]
 
 
-def test_capital_h_expands_selected_panel_and_collapses_every_other_panel() -> None:
+def test_capital_z_expands_selected_panel_and_collapses_every_other_panel() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key="alpha")
     app.current_idx = 2
     remembered = ("agent", 2)
@@ -331,7 +333,7 @@ def test_capital_h_expands_selected_panel_and_collapses_every_other_panel() -> N
     app._sync_panel_group()
     app._current_group_key = ("stale",)
 
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
 
     focus = app._resolve_focused_panel()
     assert focus is not None
@@ -354,7 +356,7 @@ def test_capital_h_expands_selected_panel_and_collapses_every_other_panel() -> N
     ]
 
 
-def test_capital_h_only_changes_expanded_siblings_then_restores() -> None:
+def test_capital_z_only_changes_expanded_siblings_then_restores() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key="alpha")
     app.current_idx = 2
     app._panel_selection_memory["alpha"] = ("agent", 2)
@@ -362,7 +364,7 @@ def test_capital_h_only_changes_expanded_siblings_then_restores() -> None:
     app._sync_panel_group()
     app._expanded_panel_focus = True
 
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
 
     assert app._collapsed_panel_keys == {None, "beta"}
     assert app._panel_group.panel_keys == ["alpha", None, "beta"]
@@ -370,7 +372,7 @@ def test_capital_h_only_changes_expanded_siblings_then_restores() -> None:
     assert app.refresh_calls == [True]
     assert app.panel_fold_changes == [(None, True)]
 
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
 
     assert app._resolve_focused_panel() is not None
     assert app._collapsed_panel_keys == {"beta"}
@@ -379,12 +381,12 @@ def test_capital_h_only_changes_expanded_siblings_then_restores() -> None:
     assert app.notifications == ["Restored 1 panel"]
 
 
-def test_capital_h_can_leave_no_tribe_panel_as_selected_survivor() -> None:
+def test_capital_z_can_leave_no_tribe_panel_as_selected_survivor() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key=None)
     app._collapsed_panel_keys.add(None)
     app._sync_panel_group()
 
-    app.action_hooks_or_collapse_all()
+    app.action_zoom_panel()
 
     focus = app._resolve_focused_panel()
     assert focus is not None
@@ -399,6 +401,18 @@ def test_capital_h_can_leave_no_tribe_panel_as_selected_survivor() -> None:
         ("beta", True),
         (None, False),
     ]
+
+
+def test_capital_h_does_not_change_focused_panel_isolation_state() -> None:
+    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app._expanded_panel_focus = True
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._collapsed_panel_keys == set()
+    assert app._panel_isolation_revert is None
+    assert app.panel_fold_changes == []
+    assert app.refresh_calls == []
 
 
 def test_selected_panel_j_and_k_cycle_without_descending() -> None:

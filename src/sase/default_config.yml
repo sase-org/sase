@@ -209,9 +209,10 @@ ace:
       refresh: "y"
       # Fold / collapse (Agents: h navigates member → family → clan → tribe,
       # except that it collapses an explicitly selected panel; H compacts
-      # Tools, toggles selected-panel isolation, then collapses structural and
-      # grouping folds. l expands or enters a selected panel; L selects visible
-      # folds by numeric hint. Other tabs retain their fold behavior.)
+      # Tools, then collapses structural and grouping folds. l expands or enters
+      # a selected panel; L selects visible folds by numeric hint. Z zooms agent
+      # detail or isolates/restores a selected panel. Other tabs retain their
+      # fold behavior.)
       hooks_or_collapse: "h"
       hooks_or_collapse_all: "H"
       expand_or_layout: "l"

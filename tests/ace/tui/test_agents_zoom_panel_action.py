@@ -70,6 +70,16 @@ def test_action_zoom_panel_warns_without_agent() -> None:
     assert app.notifications == [("No agent selected", "warning")]
 
 
+def test_action_zoom_panel_routes_focused_panel_without_modal_or_warning() -> None:
+    app = _FakeZoomApp(agent=None, isolation_owned=True)
+
+    app.action_zoom_panel()
+
+    assert app.isolation_calls == 1
+    assert app.pushed == []
+    assert app.notifications == []
+
+
 def test_action_zoom_panel_provider_resolves_fresh_agent_by_identity() -> None:
     agent = _make_agent(status="RUNNING")
     app = _FakeZoomApp(agent=agent)

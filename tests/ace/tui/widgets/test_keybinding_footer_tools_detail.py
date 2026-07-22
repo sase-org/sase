@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from sase.ace.tui.widgets.tools_panel import ToolDetailLevel
@@ -96,8 +97,10 @@ def test_footer_selected_panel_advertises_only_panel_action() -> None:
         )
     )
 
-    assert ("H", "only panel") in expanded
-    assert ("H", "only panel") in collapsed
+    assert ("Z", "only panel") in expanded
+    assert ("Z", "only panel") in collapsed
+    assert ("H", "only panel") not in expanded
+    assert ("H", "only panel") not in collapsed
 
 
 def test_footer_armed_panel_isolation_advertises_restore_action() -> None:
@@ -111,8 +114,30 @@ def test_footer_armed_panel_isolation_advertises_restore_action() -> None:
         )
     )
 
-    assert ("H", "restore panels") in bindings
-    assert ("H", "only panel") not in bindings
+    assert ("Z", "restore panels") in bindings
+    assert ("Z", "only panel") not in bindings
+    assert ("H", "restore panels") not in bindings
+
+
+def test_footer_panel_isolation_uses_custom_zoom_action_key() -> None:
+    footer = KeybindingFooter()
+    footer.set_keymap_registry(
+        load_keymap_registry(
+            {
+                "keymaps": {
+                    "app": {
+                        "zoom_panel": "f2",
+                        "hooks_or_collapse_all": "f3",
+                    }
+                }
+            }
+        )
+    )
+
+    bindings = _labels(footer._compute_agent_bindings(None, panel_focused=True))
+
+    assert ("<f2>", "only panel") in bindings
+    assert ("<f3>", "only panel") not in bindings
 
 
 def test_footer_left_navigation_and_collapse_target_labels() -> None:
@@ -171,7 +196,8 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     assert ("h", "parent family") in tools
     assert ("H", "compact tools") in tools
     assert not any(label.startswith("parent ") for _key, label in panel)
-    assert ("H", "only panel") in panel
+    assert ("Z", "only panel") in panel
+    assert ("H", "only panel") not in panel
     assert ("H", "collapse workflow") in workflow_collapse
     assert ("H", "collapse family") in family_collapse
     assert ("H", "collapse clan") in clan_collapse

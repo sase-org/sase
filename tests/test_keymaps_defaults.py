@@ -69,7 +69,7 @@ def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
         for _section, bindings in agents_bindings(reg)
         for key, label in bindings
     }
-    assert ("Z", "Zoom largest panel popup") in agent_pairs
+    assert ("Z", "Zoom detail / only panel ⇄ restore panels") in agent_pairs
     assert ("zz", "Cycle panel fold level forward") in agent_pairs
     assert ("zZ", "Toggle all metadata folds") in agent_pairs
     assert ("za", "Cycle section/member forward") in agent_pairs
