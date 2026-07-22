@@ -9,7 +9,10 @@ from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.core.paths import sase_projects_dir
 from sase.project_display_names import humanize_cl_name, humanize_vcs_refs_in_text
 
-from ._entry_name_prompts import prepare_kill_and_edit_prompt
+from ._entry_name_prompts import (
+    prepare_kill_and_edit_prompt,
+    prompt_facing_agent_name,
+)
 from ._types import PromptContext
 
 if TYPE_CHECKING:
@@ -53,12 +56,16 @@ class EntryRelaunchMixin:
         if agent.agent_name:
             try:
                 from sase.agent.names import allocate_retry_name
-                from sase.plan_chain import agent_family_base
+                from sase.plan_chain import AGENT_FAMILY_SEPARATOR, agent_family_base
 
-                retry_source_name = (
-                    agent_family_base(agent.agent_name) or agent.agent_name
+                retry_source_name = prompt_facing_agent_name(agent.agent_name)
+                if AGENT_FAMILY_SEPARATOR in retry_source_name:
+                    retry_source_name = (
+                        agent_family_base(retry_source_name) or retry_source_name
+                    )
+                retry_name = prompt_facing_agent_name(
+                    allocate_retry_name(retry_source_name)
                 )
-                retry_name = allocate_retry_name(retry_source_name)
                 raw_prompt = self._rewrite_retry_prompt_name(
                     raw_prompt,
                     retry_name,

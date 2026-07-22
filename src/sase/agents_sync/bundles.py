@@ -386,16 +386,45 @@ def _historical_commit_associations(
         except (ValueError, TypeError, RuntimeError):
             continue
         raw_name = tags.get("AGENT")
-        commit_machine = tags.get("MACHINE")
-        if not raw_name or (commit_machine and commit_machine != machine):
+        if not raw_name:
             continue
-        name = qualify_local_agent_name(raw_name, identity)
+        name = _historical_local_agent_name(
+            raw_name,
+            tags.get("MACHINE"),
+            identity,
+        )
+        if name is None:
+            continue
         try:
             validate_qualified_name(name, machine)
         except AgentsSyncFormatError:
             continue
         associations.append((name, CommitRecord(sha, subject, committed_at)))
     return associations
+
+
+def _historical_local_agent_name(
+    raw_name: str,
+    commit_machine: str | None,
+    identity: MachineHoodIdentity,
+) -> str | None:
+    """Classify legacy and modern commit provenance for local backfill.
+
+    Legacy footers stored an unqualified agent alongside the host name.  That
+    host name is not the configured machine identity and therefore cannot be
+    used as an ownership filter.  Modern footers qualify the agent with the
+    same machine hood they record; those explicit foreign identities must
+    remain foreign instead of being re-qualified as local.
+    """
+    machine = identity.machine_name
+    if (
+        machine is not None
+        and commit_machine
+        and raw_name.startswith(f"{commit_machine}.")
+        and commit_machine != machine
+    ):
+        return None
+    return qualify_local_agent_name(raw_name, identity)
 
 
 def _transcript_path(meta: Mapping[str, Any], done: Mapping[str, Any]) -> Path | None:

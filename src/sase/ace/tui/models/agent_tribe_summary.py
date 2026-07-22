@@ -223,10 +223,11 @@ def _dedupe_rows(rows: Sequence[Agent]) -> tuple[Agent, ...]:
 def _relative_child_label(unit: Agent, child: Agent) -> str:
     name = _row_name(child)
     if unit.is_clan_container:
-        prefix = f"{unit.agent_clan or unit.display_name}."
+        clan_name = unit.presented_clan_reference_name() or unit.display_name
+        prefix = f"{clan_name}."
         if name.startswith(prefix):
             return name[len(prefix) - 1 :]
-    family_name = unit.agent_family or unit.family_reference_name()
+    family_name = unit.presented_family_reference_name()
     if family_name and name.startswith(family_name) and len(name) > len(family_name):
         return name[len(family_name) :]
     return name

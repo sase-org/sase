@@ -3,6 +3,13 @@
 from __future__ import annotations
 
 
+def prompt_facing_agent_name(agent_name: str) -> str:
+    """Return the editable-prompt spelling of a durable agent name."""
+    from sase.core.machine_hood_facade import strip_local_agent_name
+
+    return strip_local_agent_name(agent_name)
+
+
 def rewrite_retry_prompt_name(
     raw_prompt: str,
     retry_name: str,
@@ -70,7 +77,7 @@ def prepare_kill_and_edit_prompt(
     # ``sase-8k.2`` -> ``sase-8k``), forcing reuse of the bare clan name and
     # crashing ``rewrite_prompt_clan_member_name``. Preserving the full clan
     # member name lets forced reuse target the actual agent.
-    replacement_name = agent_name
-    if agent_name and AGENT_FAMILY_SEPARATOR in agent_name:
-        replacement_name = agent_family_base(agent_name) or agent_name
+    replacement_name = prompt_facing_agent_name(agent_name) if agent_name else None
+    if replacement_name and AGENT_FAMILY_SEPARATOR in replacement_name:
+        replacement_name = agent_family_base(replacement_name) or replacement_name
     return force_name_reuse_in_prompt(raw_prompt, replacement_name=replacement_name)

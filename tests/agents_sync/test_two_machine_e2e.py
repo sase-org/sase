@@ -10,20 +10,25 @@ artifact dirs, chats, and the durable name registry are genuinely separate.
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 import subprocess
+from unittest.mock import patch
 
 import pytest
 
 from sase.agents_sync import git_sync
 from sase.agents_sync.git import run_git
 from sase.agents_sync.models import ProjectTarget
+from sase.chat.cli_list import handle_chat_list
 from sase.core.agent_artifact_paths import (
     ACE_RUN_WORKFLOW_DIR,
     canonical_agent_artifact_path,
     iter_agent_artifact_dirs,
 )
+from sase.core.machine_hood_facade import MachineHoodIdentity
+from sase.core.paths import sase_home
 from sase.workflows.commit.runtime_tags import (
     RUNTIME_COMMIT_TAG_KEYS,
     update_trailing_commit_tags,
@@ -83,7 +88,19 @@ def _make_primary_with_agent_commit(
     return primary
 
 
-def _seed_local_completed_agent(suffix: str, chat_text: str, timestamp: str) -> Path:
+def _chat_transcript(machine: str, suffix: str) -> str:
+    return (
+        f"# Chat History - {ACE_RUN_WORKFLOW_DIR} ({machine}.{suffix})\n\n"
+        f"## Prompt\n\nImplement {suffix} work.\n\n"
+        f"## Response\n\nCompleted {machine} {suffix} work.\n"
+    )
+
+
+def _seed_local_completed_agent(
+    suffix: str,
+    machine: str,
+    timestamp: str,
+) -> Path:
     """Materialize a terminal, commit-worthy local agent for the current machine.
 
     ``SASE_HOME`` must already point at this machine's state directory so the
@@ -94,8 +111,15 @@ def _seed_local_completed_agent(suffix: str, chat_text: str, timestamp: str) -> 
         PROJECT_KEY, ACE_RUN_WORKFLOW_DIR, timestamp
     )
     artifact.mkdir(parents=True)
-    chat = artifact / "chat.md"
-    chat.write_text(chat_text)
+    chat_timestamp = f"{timestamp[2:8]}_{timestamp[8:]}"
+    chat = (
+        sase_home()
+        / "chats"
+        / timestamp[:6]
+        / f"project-{ACE_RUN_WORKFLOW_DIR}-{suffix}-{chat_timestamp}.md"
+    )
+    chat.parent.mkdir(parents=True, exist_ok=True)
+    chat.write_text(_chat_transcript(machine, suffix))
     # ``pid``/``workspace_dir`` are deliberately machine-local: the portable
     # projection must drop them, so their survival on the far machine is a bug.
     (artifact / "agent_meta.json").write_text(
@@ -127,8 +151,11 @@ def _target(project_primary: Path, sidecar: Path, remote: Path) -> ProjectTarget
     )
 
 
-def _imported_artifact_meta(project_key: str, qualified_name: str) -> dict[str, object]:
-    """Return the imported artifact ``agent_meta.json`` for *qualified_name*."""
+def _imported_artifact(
+    project_key: str,
+    qualified_name: str,
+) -> tuple[Path, dict[str, object]]:
+    """Return the imported artifact and metadata for *qualified_name*."""
 
     for artifact in iter_agent_artifact_dirs(
         project_key, ACE_RUN_WORKFLOW_DIR, newest_first=True
@@ -138,7 +165,7 @@ def _imported_artifact_meta(project_key: str, qualified_name: str) -> dict[str, 
             continue
         meta = json.loads(meta_path.read_text())
         if meta.get("name") == qualified_name:
-            return meta
+            return artifact, meta
     raise AssertionError(f"no imported artifact for {qualified_name!r}")
 
 
@@ -149,8 +176,21 @@ def _registry_entry(home: Path, qualified_name: str) -> dict[str, object]:
     return entries[qualified_name]
 
 
+def _listed_chats(
+    identity: MachineHoodIdentity,
+    capsys: pytest.CaptureFixture[str],
+) -> list[dict[str, object]]:
+    with patch.object(MachineHoodIdentity, "current", return_value=identity):
+        handle_chat_list(argparse.Namespace(limit=None, query=None, json=True))
+    rows = json.loads(capsys.readouterr().out)
+    assert isinstance(rows, list)
+    return rows
+
+
 def test_two_machines_round_trip_completed_agents_through_shared_sidecar(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     remote = _seed_bare_remote(tmp_path)
 
@@ -169,12 +209,18 @@ def test_two_machines_round_trip_completed_agents_through_shared_sidecar(
 
     # --- Machine alpha: record a completed agent and publish it. ------------
     monkeypatch.setenv("SASE_HOME", str(home_alpha))
-    _seed_local_completed_agent("worker", "alpha worker transcript\n", "20260722010101")
+    _seed_local_completed_agent("worker", "alpha", "20260722010101")
 
     alpha_first = git_sync._sync_project(target_alpha, "alpha", git_runner=run_git)
     assert alpha_first.error is None, alpha_first.error
     assert alpha_first.exported == 1
     assert alpha_first.pushed
+    alpha_chat_rows = _listed_chats(
+        MachineHoodIdentity("alpha", ("alpha", "beta")),
+        capsys,
+    )
+    assert [row["agent"] for row in alpha_chat_rows] == ["worker"]
+    assert alpha_chat_rows[0]["workflow"] == ACE_RUN_WORKFLOW_DIR
 
     # The published bundle exists on the shared remote under the qualified name.
     verify = tmp_path / "verify"
@@ -189,9 +235,7 @@ def test_two_machines_round_trip_completed_agents_through_shared_sidecar(
 
     # --- Machine beta: import alpha's agent and publish its own. ------------
     monkeypatch.setenv("SASE_HOME", str(home_beta))
-    _seed_local_completed_agent(
-        "builder", "beta builder transcript\n", "20260722020202"
-    )
+    _seed_local_completed_agent("builder", "beta", "20260722020202")
 
     beta_first = git_sync._sync_project(target_beta, "beta", git_runner=run_git)
     assert beta_first.error is None, beta_first.error
@@ -201,17 +245,33 @@ def test_two_machines_round_trip_completed_agents_through_shared_sidecar(
 
     # Alpha's agent reconstructs as a normal terminal artifact on beta, keeps
     # its fully qualified foreign name, and drops machine-local metadata.
-    imported_on_beta = _imported_artifact_meta(PROJECT_KEY, "alpha.worker")
+    artifact_on_beta, imported_on_beta = _imported_artifact(
+        PROJECT_KEY,
+        "alpha.worker",
+    )
     assert imported_on_beta["imported_from_machine"] == "alpha"
     assert imported_on_beta["model"] == "opus"
     assert "pid" not in imported_on_beta
     assert "workspace_dir" not in imported_on_beta
-    assert (
-        Path(str(imported_on_beta["chat_path"])).read_text()
-        == "alpha worker transcript\n"
-    )
+    chat_on_beta = Path(str(imported_on_beta["chat_path"])).expanduser()
+    done_on_beta = json.loads((artifact_on_beta / "done.json").read_text())
+    response_on_beta = Path(str(done_on_beta["response_path"])).expanduser()
+    assert chat_on_beta == response_on_beta
+    assert chat_on_beta.read_text() == _chat_transcript("alpha", "worker")
     beta_registry_entry = _registry_entry(home_beta, "alpha.worker")
     assert beta_registry_entry["imported_from_machine"] == "alpha"
+    beta_chat_rows = _listed_chats(
+        MachineHoodIdentity("beta", ("alpha", "beta")),
+        capsys,
+    )
+    assert {row["agent"] for row in beta_chat_rows} == {
+        "builder",
+        "alpha.worker",
+    }
+    imported_beta_row = next(
+        row for row in beta_chat_rows if row["agent"] == "alpha.worker"
+    )
+    assert imported_beta_row["path"] == str(chat_on_beta)
 
     # --- Machine alpha again: import beta's agent (round trip closes). ------
     monkeypatch.setenv("SASE_HOME", str(home_alpha))
@@ -221,15 +281,27 @@ def test_two_machines_round_trip_completed_agents_through_shared_sidecar(
     # Alpha's own bundle is already published and unchanged.
     assert alpha_second.exported == 0
 
-    imported_on_alpha = _imported_artifact_meta(PROJECT_KEY, "beta.builder")
-    assert imported_on_alpha["imported_from_machine"] == "beta"
-    assert (
-        Path(str(imported_on_alpha["chat_path"])).read_text()
-        == "beta builder transcript\n"
+    artifact_on_alpha, imported_on_alpha = _imported_artifact(
+        PROJECT_KEY,
+        "beta.builder",
     )
+    assert imported_on_alpha["imported_from_machine"] == "beta"
+    chat_on_alpha = Path(str(imported_on_alpha["chat_path"])).expanduser()
+    done_on_alpha = json.loads((artifact_on_alpha / "done.json").read_text())
+    response_on_alpha = Path(str(done_on_alpha["response_path"])).expanduser()
+    assert chat_on_alpha == response_on_alpha
+    assert chat_on_alpha.read_text() == _chat_transcript("beta", "builder")
     assert (
         _registry_entry(home_alpha, "beta.builder")["imported_from_machine"] == "beta"
     )
+    alpha_round_trip_rows = _listed_chats(
+        MachineHoodIdentity("alpha", ("alpha", "beta")),
+        capsys,
+    )
+    assert {row["agent"] for row in alpha_round_trip_rows} == {
+        "worker",
+        "beta.builder",
+    }
 
     # --- Idempotence: a further beta sync imports nothing new. --------------
     monkeypatch.setenv("SASE_HOME", str(home_beta))

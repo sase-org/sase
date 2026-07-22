@@ -16,6 +16,17 @@ from sase.ace.tui.actions.agent_workflow._entry_points import (
     _force_name_reuse_in_prompt,
     _rewrite_retry_prompt_name,
 )
+from sase.core.machine_hood_facade import MachineHoodIdentity
+
+
+@pytest.fixture(autouse=True)
+def _configured_machine_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    monkeypatch.setattr(
+        MachineHoodIdentity,
+        "current",
+        classmethod(lambda _cls: identity),
+    )
 
 
 @dataclass
@@ -281,15 +292,35 @@ def test_retry_edit_agent_prepends_allocated_retry_name(
 
 @patch(
     "sase.agent.names.allocate_retry_name",
-    return_value="sase-8a.3.r0",
+    return_value="athena.foo.r0",
 )
-def test_retry_edit_family_phase_allocates_from_base_name(
+def test_retry_edit_qualified_local_agent_uses_prompt_facing_name(
+    mock_allocate: Mock,
+) -> None:
+    app = _App(_Agent("%id:foo\nDo work", agent_name="athena.foo"))
+
+    app._retry_edit_agent()
+
+    mock_allocate.assert_called_once_with("foo")
+    assert app.launched == (
+        "%id:foo.r0\nDo work",
+        "/tmp/proj/proj.sase",
+        "branch",
+        False,
+    )
+
+
+@patch(
+    "sase.agent.names.allocate_retry_name",
+    return_value="athena.sase-8a.3.r0",
+)
+def test_retry_edit_qualified_local_family_phase_allocates_from_presented_base(
     mock_allocate: Mock,
 ) -> None:
     app = _App(
         _Agent(
             "%id:sase-8a.3\n%auto\nDo work",
-            agent_name="sase-8a.3--plan",
+            agent_name="athena.sase-8a.3--plan",
         )
     )
 
@@ -298,6 +329,31 @@ def test_retry_edit_family_phase_allocates_from_base_name(
     mock_allocate.assert_called_once_with("sase-8a.3")
     assert app.launched == (
         "%id:sase-8a.3.r0\n%auto\nDo work",
+        "/tmp/proj/proj.sase",
+        "branch",
+        False,
+    )
+
+
+@patch(
+    "sase.agent.names.allocate_retry_name",
+    return_value="athena.sase-8k.2.r0",
+)
+def test_retry_edit_qualified_local_clan_member_preserves_clan_name(
+    mock_allocate: Mock,
+) -> None:
+    app = _App(
+        _Agent(
+            "%id(2, clan=sase-8k, bead=sase-8k.2)\nDo work",
+            agent_name="athena.sase-8k.2",
+        )
+    )
+
+    app._retry_edit_agent()
+
+    mock_allocate.assert_called_once_with("sase-8k.2")
+    assert app.launched == (
+        "%id(2.r0, clan=sase-8k, bead=sase-8k.2)\nDo work",
         "/tmp/proj/proj.sase",
         "branch",
         False,
@@ -419,7 +475,7 @@ def test_kill_and_edit_agent_demotes_clan_declaration() -> None:
 
 
 def test_kill_and_edit_agent_forces_name_reuse_for_done_agent() -> None:
-    app = _App(_Agent("%i:foo\nDo work", agent_name="foo"))
+    app = _App(_Agent("%i:foo\nDo work", agent_name="athena.foo"))
 
     app._kill_and_edit_agent()
 
@@ -436,7 +492,7 @@ def test_kill_and_edit_family_phase_forces_base_name_reuse() -> None:
     app = _App(
         _Agent(
             "%id:sase-8a.3\n%auto\nDo work",
-            agent_name="sase-8a.3--plan",
+            agent_name="athena.sase-8a.3--plan",
         )
     )
 
@@ -454,7 +510,7 @@ def test_kill_and_edit_clan_member_preserves_hood() -> None:
     app = _App(
         _Agent(
             "%id(2, clan=sase-8k, bead=sase-8k.2)\nDo work",
-            agent_name="sase-8k.2",
+            agent_name="athena.sase-8k.2",
         )
     )
 

@@ -10,6 +10,7 @@ from sase.ace.tui.models.agent_tribe_summary import (
     build_agent_tribe_summary_snapshot,
     _tribe_panel_identity,
 )
+from sase.core.machine_hood_facade import MachineHoodIdentity
 
 _NOW = datetime(2026, 7, 18, 15, 0, 0)
 
@@ -270,6 +271,59 @@ def test_finished_family_projects_all_members_to_done() -> None:
     assert snapshot.counts.done == 1
     assert snapshot.hole_count == 1
     assert snapshot.nested_count == 1
+
+
+def test_machine_qualified_children_compact_against_presented_containers() -> None:
+    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    local_clan_member = _agent(
+        "athena.research.worker",
+        "DONE",
+        start_minute=0,
+        clan="athena.research",
+        generation="local",
+    )
+    foreign_clan_member = _agent(
+        "zeus.review.peer",
+        "DONE",
+        start_minute=1,
+        clan="zeus.review",
+        generation="foreign",
+    )
+    family_root = _agent(
+        "athena.build--plan",
+        "RUNNING",
+        start_minute=2,
+        family="athena.build",
+        role="plan",
+    )
+    family_child = _agent(
+        "athena.build--code",
+        "WAITING",
+        start_minute=3,
+        family="athena.build",
+        role="code",
+        parent=family_root.raw_suffix,
+    )
+    family_root.followup_agents = [family_child]
+
+    projected = project_clan_tree(
+        [local_clan_member, foreign_clan_member, family_root, family_child]
+    )
+    for agent in projected:
+        agent.refresh_presented_agent_name(identity)
+
+    snapshot = build_agent_tribe_summary_snapshot(
+        "epic",
+        projected,
+        panel_collapsed=True,
+        now=_NOW,
+    )
+
+    units = {unit.label: unit for unit in snapshot.units}
+    assert [child.label for child in units["research"].children] == [".worker"]
+    assert [child.label for child in units["build"].children] == ["--code"]
+    assert "zeus.review" in units
+    assert [child.label for child in units["zeus.review"].children] == [".peer"]
 
 
 def test_reference_tribe_counts_six_hole_statuses_and_eight_nested() -> None:

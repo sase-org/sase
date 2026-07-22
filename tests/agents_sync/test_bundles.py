@@ -179,7 +179,7 @@ def test_local_bundle_uses_legacy_footer_backfill_and_allowlists_meta(
     sha = "b" * 40
     log_output = (
         f"{sha}\x00100\x00subject\x00subject\n\n"
-        "SASE_AGENT=worker\nSASE_MACHINE=athena\x00"
+        "SASE_AGENT=worker\nSASE_MACHINE=legacy-host\x00"
     )
 
     def runner(
@@ -200,19 +200,6 @@ def test_local_bundle_uses_legacy_footer_backfill_and_allowlists_meta(
         "parse_agent_artifact_path",
         lambda _path: SimpleNamespace(timestamp="20260722123456", layout_version=2),
     )
-    monkeypatch.setattr(
-        bundles,
-        "qualify_local_agent_name",
-        lambda name, _identity: (
-            name if name.startswith("athena.") else f"athena.{name}"
-        ),
-    )
-    monkeypatch.setattr(
-        bundles,
-        "parse_trailing_commit_tags",
-        lambda _message: {"AGENT": "worker", "MACHINE": "athena"},
-    )
-
     built, skipped, diagnostics = bundles._build_local_bundles(
         target, "athena", git_runner=runner, incremental_only=False
     )
@@ -225,3 +212,40 @@ def test_local_bundle_uses_legacy_footer_backfill_and_allowlists_meta(
     assert portable["model"] == "gpt-test"
     assert "pid" not in portable
     assert "workspace_dir" not in portable
+
+
+def test_historical_footer_classification_accepts_legacy_and_local_modern_only(
+    tmp_path: Path,
+) -> None:
+    target = _target(tmp_path)
+    legacy_sha = "a" * 40
+    local_sha = "b" * 40
+    foreign_sha = "c" * 40
+    log_output = "".join(
+        (
+            f"{legacy_sha}\x00100\x00legacy\x00legacy\n\n"
+            "SASE_AGENT=worker\nSASE_MACHINE=old-host\x00",
+            f"{local_sha}\x00200\x00local\x00local\n\n"
+            "SASE_AGENT=athena.builder\nSASE_MACHINE=athena\x00",
+            f"{foreign_sha}\x00300\x00foreign\x00foreign\n\n"
+            "SASE_AGENT=zeus.reviewer\nSASE_MACHINE=zeus\x00",
+        )
+    )
+
+    def runner(
+        _cwd: Path, args: list[str], *, network: bool = False, op: str = ""
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        assert args[0] == "log"
+        return subprocess.CompletedProcess(args, 0, log_output, "")
+
+    associations = bundles._historical_commit_associations(
+        target,
+        "athena",
+        runner,
+    )
+
+    assert associations == [
+        ("athena.worker", CommitRecord(legacy_sha, "legacy", 100)),
+        ("athena.builder", CommitRecord(local_sha, "local", 200)),
+    ]
