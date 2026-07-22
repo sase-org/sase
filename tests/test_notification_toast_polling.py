@@ -7,6 +7,8 @@ import threading
 from datetime import datetime
 from unittest.mock import patch
 
+import pytest
+
 from sase.core.time import get_timezone
 
 from tests._notification_toasts_helpers import (
@@ -27,10 +29,13 @@ class TestPollingDelta:
         assert app.notify.call_count == 0
         assert app._bell_rung == 0
 
-    def test_single_new_plan_approval_rings_bell_and_warns(self) -> None:
+    @pytest.mark.parametrize("action", ["PlanApproval", "EpicApproval"])
+    def test_single_new_plan_review_warns_without_terminal_bell(
+        self, action: str
+    ) -> None:
         app = _FakeApp()
         new_notif = _make(
-            action="PlanApproval",
+            action=action,
             notes=["Plan ready for review: sase_plan_foo.md"],
             action_data={"agent_name": "sase-n.4"},
             files=["/p/sase_plan_foo.md"],
@@ -38,7 +43,9 @@ class TestPollingDelta:
         with _patch_snapshot([new_notif]):
             saw_new = asyncio.run(app._poll_agent_completions())
         assert saw_new is True
-        assert app._bell_rung == 1
+        assert app._bell_rung == 0
+        assert app._indicator_priority == 1
+        assert app._indicator_rest == 0
         assert app.notify.call_count == 1
         call = app.notify.call_args
         message = call.args[0]
@@ -86,6 +93,38 @@ class TestPollingDelta:
             saw_new = asyncio.run(app._poll_agent_completions())
         assert saw_new is True
         assert app.notify.call_count == 2
+        assert [call.args[0] for call in app.notify.call_args_list] == [
+            "Plan ready for review: a.md",
+            "What?",
+        ]
+        assert app._bell_rung == 1
+
+    def test_plan_and_epic_only_batch_is_terminal_silent(self) -> None:
+        app = _FakeApp()
+        tale = _make(action="PlanApproval", notes=["Tale ready"])
+        epic = _make(action="EpicApproval", notes=["Epic ready"])
+
+        with _patch_snapshot([tale, epic]):
+            saw_new = asyncio.run(app._poll_agent_completions())
+
+        assert saw_new is True
+        assert app._indicator_priority == 2
+        assert [call.args[0] for call in app.notify.call_args_list] == [
+            "Tale ready",
+            "Epic ready",
+        ]
+        assert app._bell_rung == 0
+
+    def test_single_regular_notification_still_rings(self) -> None:
+        app = _FakeApp()
+        completed = _make(action="JumpToAgent", notes=["Agent completed"])
+
+        with _patch_snapshot([completed]):
+            saw_new = asyncio.run(app._poll_agent_completions())
+
+        assert saw_new is True
+        assert app.notify.call_count == 1
+        assert app._bell_rung == 1
 
     def test_five_new_mixed_grouped(self) -> None:
         app = _FakeApp()
@@ -108,6 +147,21 @@ class TestPollingDelta:
         with _patch_snapshot([silent]):
             saw_new = asyncio.run(app._poll_agent_completions())
         assert saw_new is False
+        assert app.notify.call_count == 0
+        assert app._bell_rung == 0
+
+    def test_muted_and_read_notifications_never_alert(self) -> None:
+        app = _FakeApp()
+        muted = _make(action="UserQuestion", notes=["muted"], muted=True)
+        read = _make(action="JumpToAgent", notes=["read"], read=True)
+
+        with _patch_snapshot([muted, read]):
+            saw_new = asyncio.run(app._poll_agent_completions())
+
+        assert saw_new is False
+        assert app._indicator_priority == 0
+        assert app._indicator_rest == 0
+        assert app._indicator_muted == 1
         assert app.notify.call_count == 0
         assert app._bell_rung == 0
 
@@ -204,6 +258,21 @@ class TestSnoozeExpiry:
         assert app._indicator_rest == 0
         assert app._indicator_muted == 0
         # The reminder bell still rings — that's the whole point of the snooze.
+        assert app._bell_rung == 1
+
+    def test_expired_plan_snooze_keeps_explicit_reminder_bell(self) -> None:
+        app = _FakeApp()
+        expired_plan = _make(
+            action="PlanApproval",
+            notes=["Plan reminder"],
+            id="expired-plan-snooze",
+        )
+
+        with _patch_snapshot([expired_plan], expired_ids=[expired_plan.id]):
+            saw_new = asyncio.run(app._poll_agent_completions())
+
+        assert saw_new is True
+        assert app.notify.call_count == 1
         assert app._bell_rung == 1
 
 

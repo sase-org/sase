@@ -70,7 +70,7 @@ plan, launch, and question rows in the batch use the same `y` / `n` confirmation
 
 Press `M` on a notification to toggle its muted state. Muted notifications are dimmed in the list, prefixed with `~`,
 and moved to the `Muted` tab. They are still delivered to the JSONL store and remain visible in the modal — only the
-bell indicator and toast pipeline ignore them.
+top-bar indicator, toast pipeline, and arrival bell ignore them.
 
 Press `s` to snooze a notification for `15m`, `1h`, `4h`, or until tomorrow morning. Snoozed notifications are
 implicitly muted (so they fall into the `Muted` tab) and display a `⏰ <remaining>` badge counting down to the snooze
@@ -91,6 +91,16 @@ When muted unread notifications coexist with orange or gold actionable rows, the
 adds a trailing dot; the tooltip shows the exact priority/other/muted breakdown.
 
 Silent notifications never contribute to the indicator (see [Silent Notifications](#silent-notifications) below).
+
+### Visual and Audible Delivery
+
+New unmuted notifications remain visually prominent through the top-bar indicator and action-specific toasts. Initial
+`PlanApproval` and `EpicApproval` delivery is terminal-silent: tale and epic reviews still create priority inbox rows,
+warning toasts, and the producer's desktop notification, but do not write a BEL character to the terminal. Questions,
+launch/custom/HITL gates, errors, agent completions, and ordinary notifications retain their arrival bell.
+
+Snooze expiry is an explicit reminder chosen by the user and remains audible for every notification class, including a
+snoozed tale or epic review.
 
 ## Notification Types
 
@@ -187,29 +197,29 @@ id when delivery succeeds.
 
 Each notification contains:
 
-| Field          | Type         | Description                                                                                           |
-| -------------- | ------------ | ----------------------------------------------------------------------------------------------------- |
-| `id`           | string       | UUID4 unique identifier                                                                               |
-| `timestamp`    | string       | ISO-8601 creation timestamp                                                                           |
-| `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                       |
-| `icon`         | string\|null | Optional single emoji or display glyph                                                                |
-| `notes`        | list[string] | Human-readable message lines                                                                          |
-| `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                  |
-| `tags`         | list[string] | Optional normalized labels for filtering and modal tabs                                               |
-| `action`       | string       | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `UserQuestion`, `LaunchApproval`, etc.           |
-| `action_data`  | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json` |
-| `read`         | bool         | Whether the notification has been read                                                                |
-| `dismissed`    | bool         | Whether the notification has been dismissed                                                           |
-| `silent`       | bool         | Silent notifications are stored but hidden from the TUI                                               |
-| `muted`        | bool         | Muted notifications appear under the `Muted` tab and are excluded from the bell indicator and toasts  |
-| `snooze_until` | string\|null | ISO-8601 timestamp at which a snoozed notification automatically un-mutes                             |
+| Field          | Type         | Description                                                                                            |
+| -------------- | ------------ | ------------------------------------------------------------------------------------------------------ |
+| `id`           | string       | UUID4 unique identifier                                                                                |
+| `timestamp`    | string       | ISO-8601 creation timestamp                                                                            |
+| `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                        |
+| `icon`         | string\|null | Optional single emoji or display glyph                                                                 |
+| `notes`        | list[string] | Human-readable message lines                                                                           |
+| `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                   |
+| `tags`         | list[string] | Optional normalized labels for filtering and modal tabs                                                |
+| `action`       | string       | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `UserQuestion`, `LaunchApproval`, etc.            |
+| `action_data`  | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json`  |
+| `read`         | bool         | Whether the notification has been read                                                                 |
+| `dismissed`    | bool         | Whether the notification has been dismissed                                                            |
+| `silent`       | bool         | Silent notifications are stored but hidden from the TUI                                                |
+| `muted`        | bool         | Muted notifications appear under `Muted` and are excluded from the indicator, arrival bell, and toasts |
+| `snooze_until` | string\|null | ISO-8601 timestamp at which a snoozed notification automatically un-mutes                              |
 
 ## Silent Notifications
 
 Notifications from hidden background agents (summarize-hook, fix-hook, mentor) are created with `silent=True`. Silent
-notifications are written to the JSONL file (preserving the audit trail) but excluded from the TUI unread count, bell
-indicator, toast, notification modal, and Telegram delivery. They remain visible to local inspection commands such as
-`sase notify list`.
+notifications are written to the JSONL file (preserving the audit trail) but excluded from the TUI unread count, top-bar
+indicator, arrival bell, toast, notification modal, and Telegram delivery. They remain visible to local inspection
+commands such as `sase notify list`.
 
 Agent completion and failure events from hidden background agents still write a notification row, but with the silent
 flag set. This keeps the JSONL audit trail complete while keeping the inbox focused on user-facing agent work.

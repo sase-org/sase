@@ -203,10 +203,9 @@ def handle_plan_approval(
             action=auto_action,
         )
 
-    # Desktop notification + tmux bell
+    # Plan gates stay visually prominent without ringing the terminal.
     from sase.main.plan_approve_handler import (
         get_tmux_prefix,
-        ring_tmux_bell,
         send_desktop_notification,
     )
 
@@ -215,7 +214,6 @@ def handle_plan_approval(
         send_desktop_notification(
             f"{prefix} Plan Complete", "Plan ready for review in sase ace"
         )
-        ring_tmux_bell()
 
     auto_resolved = auto_enabled
 

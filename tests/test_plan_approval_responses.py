@@ -154,6 +154,43 @@ def test_handle_plan_approval_none_plan_file() -> None:
     assert handle_plan_approval(None, "session-123") is None
 
 
+@pytest.mark.parametrize(
+    ("plan_content", "choice", "expected_action"),
+    [
+        (VALID_TALE_PLAN, "approve", "approve"),
+        (VALID_EPIC_PLAN, "epic", "epic"),
+    ],
+)
+def test_manual_plan_gate_sends_desktop_notification_without_terminal_bell(
+    plan_content: str,
+    choice: str,
+    expected_action: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text(plan_content, encoding="utf-8")
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+
+    with (
+        _respond_after_gate_creation(choice),
+        patch("sase.main.plan_approve_handler.send_desktop_notification") as desktop,
+        patch("sase.main.plan_approve_handler.ring_tmux_bell") as bell,
+        patch(
+            "sase.main.plan_approve_handler.get_tmux_prefix",
+            return_value="[test]",
+        ),
+    ):
+        result = handle_plan_approval(str(plan), f"manual-{expected_action}")
+
+    assert result is not None
+    assert result.action == expected_action
+    desktop.assert_called_once_with(
+        "[test] Plan Complete", "Plan ready for review in sase ace"
+    )
+    bell.assert_not_called()
+
+
 def test_handle_plan_approval_approve_with_options(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

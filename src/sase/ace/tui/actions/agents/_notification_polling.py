@@ -7,13 +7,16 @@ from typing import Any
 from ._notification_utils import unread_notification_buckets
 
 
+_TERMINAL_SILENT_ACTIONS = frozenset({"PlanApproval", "EpicApproval"})
+
+
 class AgentNotificationPollingMixin:
     """Poll notification state and update notification indicators."""
 
     async def _poll_agent_completions(self: Any) -> bool:
         """Poll notification store for new unread notifications.
 
-        Detects when unread count increases and triggers bell/toast.
+        Detects when unread count increases and applies toast/bell policy.
         Called on every auto-refresh regardless of current tab. The disk
         parse happens off the main thread so the polling tick doesn't
         block the event loop while the user is settling into the TUI.
@@ -64,19 +67,23 @@ class AgentNotificationPollingMixin:
                 if notification.id not in auto_dismissed_ids
             ]
 
-        # Muted arrivals do not toast/bell. Snooze expirations ring once per
-        # batch because read-and-snoozed rows do not re-enter unread.
-        should_ring_bell = False
+        # Muted arrivals do not toast or ring. Plan reviews remain visible and
+        # actionable without an unsolicited terminal bell on initial arrival.
+        # Snooze expirations independently ring once per batch because read and
+        # snoozed rows do not re-enter unread.
+        terminal_audible_notifications = [
+            notification
+            for notification in new_notifications
+            if notification.action not in _TERMINAL_SILENT_ACTIONS
+        ]
+        should_ring_bell = bool(terminal_audible_notifications or expired_snoozes)
         if new_notifications:
-            should_ring_bell = True
             for message, severity in format_batch_toasts(new_notifications):
                 self.notify(  # type: ignore[attr-defined]
                     message,
                     severity=severity,
                     timeout=8,
                 )
-        elif expired_snoozes:
-            should_ring_bell = True
 
         before_unread_agents = set(getattr(self, "_unread_completed_agent_ids", set()))
         self._reconcile_unread_from_completion_notifications(notifications)
@@ -204,7 +211,7 @@ class AgentNotificationPollingMixin:
         await asyncio.to_thread(self._ring_tmux_bell)
 
     def _ring_tmux_bell(self: Any) -> None:
-        """Ring tmux bell to notify user of agent completion."""
+        """Ring tmux bell for an audible notification or reminder."""
         import os
         import subprocess
 
