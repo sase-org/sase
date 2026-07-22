@@ -61,7 +61,7 @@ async def test_prompt_todo_restored_png_snapshot(
         await page.expect_state("tab", "changespecs")
         bar = await mount_prompt_bar(page, TODO_RESTORED_PROMPT)
 
-        assert "TODO 4" in str(bar.border_title)
+        assert "TODO 5" in str(bar.border_title)
         assert bar.active_text_area().cursor_location[0] == 32
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 

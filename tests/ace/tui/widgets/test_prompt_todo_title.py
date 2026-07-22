@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from rich.color import Color
+from rich.console import Console
 from rich.markup import render as render_markup
+from rich.style import Style
 from textual.theme import Theme
 
+from sase.ace.tui.models.agent_status import RUNNING_COLOR
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import XPromptBinding
 from sase.xprompt import jinja_inspect
@@ -14,6 +18,16 @@ from ._prompt_input_bar_stack_helpers import _PromptBarApp, _XPromptMarkdownApp
 
 def _plain_title(bar: PromptInputBar) -> str:
     return render_markup(str(bar.border_title)).plain
+
+
+def _rendered_todo_title_style(bar: PromptInputBar) -> Style:
+    title = render_markup(str(bar.border_title))
+    segments = Console(color_system="truecolor", force_terminal=True).render(title)
+    return next(
+        segment.style
+        for segment in segments
+        if "TODO" in segment.text and isinstance(segment.style, Style)
+    )
 
 
 def _compute_jinja_now(bar: PromptInputBar) -> None:
@@ -161,12 +175,12 @@ async def test_todo_title_keeps_binding_mode_agent_and_jinja_adornments(
 
 
 async def test_todo_title_capsule_keeps_running_gold_after_theme_switch() -> None:
-    app = _PromptBarApp("TODO: theme")
+    app = _PromptBarApp("TODO TODO: TODO(owner) TODO(owner): note")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        before = str(bar.border_title)
+        before = _rendered_todo_title_style(bar)
 
         app.register_theme(
             Theme(
@@ -180,8 +194,10 @@ async def test_todo_title_capsule_keeps_running_gold_after_theme_switch() -> Non
         )
         app.theme = "todo-light"
         await pilot.pause()
-        after = str(bar.border_title)
+        after = _rendered_todo_title_style(bar)
 
-        assert "TODO 1" in _plain_title(bar)
-        assert "bold #000000 on #FFD700" in after
+        assert "TODO 4" in _plain_title(bar)
+        assert after.color == Color.parse("#000000")
+        assert after.bgcolor == Color.parse(RUNNING_COLOR)
+        assert after.bold is True
         assert after == before

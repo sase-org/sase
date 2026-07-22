@@ -28,6 +28,7 @@ else:
 
 
 _TODO_HEADER_RE = re.compile(r"(?<!\w)TODO(?!\w)(?:\([^()\n]+\))?:?")
+_TODO_MARKER_FOREGROUND = "#000000"
 _TODO_NOTE_FOREGROUND_WARMTH = 0.30
 
 
@@ -81,7 +82,7 @@ def _scan_todo_annotation_spans(text: str) -> tuple[_TodoAnnotationSpan, ...]:
                 header_start=match.start(),
                 header_end=match.end(),
                 body_start=match.end(),
-                body_end=body_end,
+                body_end=body_end if match.group().endswith(":") else match.end(),
             )
         )
     return tuple(annotations)
@@ -95,7 +96,7 @@ def todo_theme_colors(
     """Return running-gold chip colors and a theme-aware note foreground."""
     text = Color.parse(foreground or ("#ffffff" if dark else "#000000"))
     chip_background = Color.parse(RUNNING_COLOR)
-    chip_foreground = chip_background.get_contrast_text(alpha=1.0)
+    chip_foreground = Color.parse(_TODO_MARKER_FOREGROUND)
     note_foreground = text.blend(chip_background, _TODO_NOTE_FOREGROUND_WARMTH)
     return chip_foreground, chip_background, note_foreground
 

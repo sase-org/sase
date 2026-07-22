@@ -35,9 +35,11 @@ def _highlight_names(text_area: PromptTextArea) -> list[str]:
     [
         ("TODO", ("TODO",)),
         ("TODO: ship it", ("TODO:",)),
+        ("TODO(bryan) is owned", ("TODO(bryan)",)),
         ("- [ ] TODO(bryan): ship it", ("TODO(bryan):",)),
         ("preTODO TODOS TODO2 todo TODO", ("TODO",)),
         ("TODO: first TODO(owner): second", ("TODO:", "TODO(owner):")),
+        ('A quoted "TODO" remains ordinary.', ("TODO",)),
         ("`TODO: literal`\n```\nTODO(dev): fenced\n```", ("TODO:", "TODO(dev):")),
     ],
 )
@@ -59,6 +61,27 @@ def test_todo_annotation_body_stops_before_the_next_marker_on_a_line() -> None:
 
     assert text[first.body_start : first.body_end] == " first task; "
     assert text[second.body_start : second.body_end] == " second task"
+
+
+def test_only_colon_terminated_todo_headers_activate_body_notes() -> None:
+    text = 'A quoted "TODO" remains plain; TODO: styled note; TODO(owner)! plain'
+
+    quoted, colon_terminated, owned = _todo_annotation_spans(text)
+
+    assert quoted.body_start == quoted.body_end == quoted.header_end
+    assert text[colon_terminated.body_start : colon_terminated.body_end] == (
+        " styled note; "
+    )
+    assert owned.body_start == owned.body_end == owned.header_end
+
+
+def test_todo_count_includes_all_supported_header_forms() -> None:
+    assert (
+        _todo_highlight.todo_annotation_count(
+            "TODO TODO: TODO(owner) TODO(owner): note"
+        )
+        == 4
+    )
 
 
 def test_todo_annotation_fast_path_and_overlay_ceilings() -> None:
@@ -155,6 +178,23 @@ async def test_todo_overlay_uses_utf8_byte_columns_and_coexists_with_syntax() ->
         assert names.index("search.current") < names.index("yank.flash")
 
 
+async def test_todo_overlay_does_not_style_prose_after_a_bare_marker() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        text_area = app.query_one(PromptTextArea)
+        text = 'A quoted "TODO" leaves this prose ordinary; TODO: style this note'
+        text_area.load_text(text)
+        text_area._build_highlight_map()
+
+        body_ranges = [
+            (start, end)
+            for start, end, name in text_area._highlights[0]
+            if name == "todo.body"
+        ]
+        colon_header_end = text.index("TODO:") + len("TODO:")
+        assert body_ranges == [(colon_header_end, len(text))]
+
+
 async def test_todo_overlay_registers_theme_styles_and_updates_on_theme_change() -> (
     None
 ):
@@ -197,20 +237,49 @@ async def test_todo_overlay_registers_theme_styles_and_updates_on_theme_change()
 class _TodoRenderApp(App[None]):
     CSS = "PromptTextArea { width: 40; height: 5; }"
 
+    def __init__(self, text: str = "TODO: keep overlays legible") -> None:
+        super().__init__()
+        self._text = text
+
     def compose(self) -> ComposeResult:
         yield PromptTextArea(
-            "TODO: keep overlays legible",
+            self._text,
             language="markdown",
             soft_wrap=True,
         )
 
 
-def _background_at(text_area: PromptTextArea, cell: int) -> Color | None:
+def _style_at(text_area: PromptTextArea, cell: int) -> Style | None:
     strip = text_area.render_line(0).crop(cell, cell + 1)
     for segment in strip._segments:
         if segment.control is None and segment.style is not None:
-            return segment.style.bgcolor
+            return segment.style
     return None
+
+
+def _background_at(text_area: PromptTextArea, cell: int) -> Color | None:
+    style = _style_at(text_area, cell)
+    return style.bgcolor if style is not None else None
+
+
+@pytest.mark.parametrize("theme", ["textual-dark", "textual-light"])
+async def test_todo_header_final_cells_are_black_on_running_gold(theme: str) -> None:
+    header = "TODO(owner):"
+    app = _TodoRenderApp(f"{header} keep the marker legible")
+    async with app.run_test(size=(50, 10)) as pilot:
+        app.theme = theme
+        await pilot.pause()
+        text_area = app.query_one(PromptTextArea)
+        text_area.focus()
+        text_area.cursor_location = (0, len(text_area.text))
+        text_area._build_highlight_map()
+        await pilot.pause()
+
+        for cell in range(len(header)):
+            style = _style_at(text_area, cell)
+            assert style is not None
+            assert style.color == Color.parse("#000000")
+            assert style.bgcolor == Color.parse(RUNNING_COLOR)
 
 
 async def test_todo_background_yields_to_selection_search_yank_and_cursor() -> None:

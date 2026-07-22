@@ -106,7 +106,7 @@ TODO_RESTORED_PROMPT = (
     "## Remaining work\n"
     "- [ ] TODO: verify the migration against a clean workspace\n"
     "- [ ] TODO(ops): capture the final dashboard screenshot\n"
-    "Keep `TODO: literal commands count too` beside the exact command.\n"
+    'A quoted "TODO" leaves this prose ordinary; TODO: style only this note.\n'
     "Lowercase todo stays ordinary, then write the final summary here."
 )
 TODO_HIGHLIGHT_STACK = (
