@@ -42,6 +42,8 @@ class StubFoldApp(EntryJumpAgentHistoryMixin, AgentFoldingMixin):
         self.armed_departures: list[Agent] = []
         self.acknowledged: list[Agent] = []
         self.refilter_calls = 0
+        self.refilter_kwargs: list[dict[str, object]] = []
+        self.group_fold_changes: list[tuple[object, ...]] = []
         self.focus_artifact_result = False
         self.focus_artifact_calls = 0
         self._detail = None
@@ -50,8 +52,28 @@ class StubFoldApp(EntryJumpAgentHistoryMixin, AgentFoldingMixin):
         self.panel_focus_refresh_calls = 0
 
     # The mixin calls these via attribute lookups.
-    def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
+    def _refilter_agents(
+        self,
+        *,
+        prior_pos: int | None = None,
+        refresh_content_index: bool = True,
+    ) -> None:
         self.refilter_calls += 1
+        self.refilter_kwargs.append(
+            {
+                "prior_pos": prior_pos,
+                "refresh_content_index": refresh_content_index,
+            }
+        )
+
+    def _record_agents_group_fold_change(
+        self,
+        group_key: tuple[str, ...],
+        *,
+        collapsed: bool,
+        panel_key: str | None = None,
+    ) -> None:
+        self.group_fold_changes.append((panel_key, group_key, collapsed))
 
     def _focus_tracked_artifact_file_tmux_pane(self) -> bool:
         self.focus_artifact_calls += 1

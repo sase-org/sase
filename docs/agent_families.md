@@ -144,12 +144,13 @@ agent annotations and a lone plan proposer with only its display-only planner ch
 collapsed clan to reveal its direct members. The clan's outer fold is binary, so move to a family or workflow row and
 press `l` there to reveal that row's descendants. Lowercase `h` moves from any agent, Bash, Python, parallel, embedded,
 or compatibility workflow step to its validated immediate workflow, family, clan, or tribe parent without changing fold
-state. Uppercase `H` collapses the focused workflow, family, or clan before falling back to grouping collapse. Selecting
-the clan row shows an aggregate `CLAN` header and a navigable summary of every section represented across its members.
-In the Agents list, direct members sort by status priority — Failed, Stopped, Running/Starting, Waiting, Done — and then
-by launch recency within a bucket. The metadata roster uses chronological launch order instead, keeping its
-number-to-member mapping stable while statuses change. The runtime is the union of member run intervals, with human-wait
-windows excluded, so concurrent members are not double-counted.
+state. Uppercase `H` first fully collapses every open workflow/family house in the next grouping scope, then collapses
+the focused binary clan layer, and only then falls back to grouping collapse on a later press. Selecting the clan row
+shows an aggregate `CLAN` header and a navigable summary of every section represented across its members. In the Agents
+list, direct members sort by status priority — Failed, Stopped, Running/Starting, Waiting, Done — and then by launch
+recency within a bucket. The metadata roster uses chronological launch order instead, keeping its number-to-member
+mapping stable while statuses change. The runtime is the union of member run intervals, with human-wait windows
+excluded, so concurrent members are not double-counted.
 
 ### Clan summary folding
 

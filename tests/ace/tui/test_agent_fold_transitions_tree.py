@@ -61,7 +61,7 @@ def test_capital_h_collapses_aliased_plan_family_before_group_fold() -> None:
     assert app._group_fold_registry.snapshot() == ()
 
 
-@pytest.mark.parametrize("step_kind", ["agent", "bash", "python"])
+@pytest.mark.parametrize("step_kind", ["agent", "bash", "python", "pre_prompt"])
 def test_capital_h_collapses_workflow_step_owner_before_group(
     step_kind: str,
 ) -> None:
@@ -77,6 +77,8 @@ def test_capital_h_collapses_workflow_step_owner_before_group(
     assert app.current_idx == agents.index(root)
     assert app._fold_manager.get(workflow_key) is FoldLevel.COLLAPSED
     assert app._group_fold_registry.snapshot() == ()
+    assert app.refilter_kwargs == [{"prior_pos": None, "refresh_content_index": False}]
+    assert app._panel_selection_memory[None] == ("agent", agents.index(root))
 
 
 def test_l_expands_child_owner_but_saturated_hidden_leaf_is_noop() -> None:
@@ -177,10 +179,6 @@ def test_clan_member_l_l_and_child_member_capital_h_are_isolated() -> None:
 
     app.current_idx = projected.index(hidden)
     app.action_hooks_or_collapse_all()
-    assert app._fold_manager.get(workflow_key) is FoldLevel.EXPANDED
-    assert app.current_idx == projected.index(workflow)
-
-    app.action_hooks_or_collapse_all()
     assert app._fold_manager.get(workflow_key) is FoldLevel.COLLAPSED
     assert app.current_idx == projected.index(workflow)
 
@@ -213,12 +211,16 @@ def test_collapsed_clan_masks_member_state_until_reopened() -> None:
 
     app.current_idx = projected.index(container)
     app.action_hooks_or_collapse_all()
+    assert app._fold_manager.get(clan_key) is FoldLevel.EXPANDED
+    assert app._fold_manager.get(member_key) is FoldLevel.COLLAPSED
+
+    app.action_hooks_or_collapse_all()
     assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
-    assert app._fold_manager.get(member_key) is FoldLevel.EXPANDED
+    assert app._fold_manager.get(member_key) is FoldLevel.COLLAPSED
 
     app.action_expand_or_layout()
     assert app._fold_manager.get(clan_key) is FoldLevel.EXPANDED
-    assert app._fold_manager.get(member_key) is FoldLevel.EXPANDED
+    assert app._fold_manager.get(member_key) is FoldLevel.COLLAPSED
 
 
 def test_per_workflow_capital_h_runs_before_group_collapse() -> None:

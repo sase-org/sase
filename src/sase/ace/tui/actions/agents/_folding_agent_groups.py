@@ -6,6 +6,10 @@ from typing import TYPE_CHECKING, cast
 
 from ._fold_scope import focused_panel_fold_registry, panel_fold_registry
 from ._folding_agent_tree import AgentStructuralFoldingMixin
+from ._folding_houses import (
+    AgentHouseCollapseTarget,
+    resolve_group_house_collapse_target,
+)
 from ._navigation_order import rendered_panel_slice
 
 if TYPE_CHECKING:
@@ -318,6 +322,43 @@ class AgentGroupFoldingMixin(AgentStructuralFoldingMixin):
 
         if self._fold_manager.collapse(key):
             self._refilter_agents()  # type: ignore[attr-defined]
+
+    def _resolve_agent_house_collapse_target(
+        self,
+    ) -> AgentHouseCollapseTarget | None:
+        """Resolve the group-wide house step that precedes structural ``H``."""
+        group_key = self._resolve_group_collapse_target()
+        if group_key is None:
+            return None
+        return resolve_group_house_collapse_target(self, group_key)
+
+    def _collapse_agent_house_folds(
+        self,
+        target: AgentHouseCollapseTarget | None = None,
+    ) -> bool:
+        """Fully collapse all open canonical houses in one grouping scope."""
+        if target is None:
+            target = self._resolve_agent_house_collapse_target()
+        if target is None:
+            return False
+
+        if target.reanchor_index is not None:
+            self.current_idx = target.reanchor_index
+        changed = self._fold_manager.collapse_fully_all(list(target.fold_keys))
+        if not changed:
+            return False
+
+        # A fold-only mutation neither changes the cached content corpus nor
+        # needs one background content-index rebuild. Apply every fold state
+        # first, then take the normal in-memory display path exactly once.
+        self._refilter_agents(  # type: ignore[attr-defined]
+            refresh_content_index=False
+        )
+        if target.reanchor_index is not None:
+            remember = getattr(self, "_remember_focused_panel_selection", None)
+            if callable(remember):
+                remember()
+        return True
 
     def _resolve_group_collapse_target(self) -> GroupKey | None:
         """Resolve the grouping-strategy fold reached after structural folds."""

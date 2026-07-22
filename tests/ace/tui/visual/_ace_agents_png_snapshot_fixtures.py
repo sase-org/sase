@@ -158,6 +158,90 @@ def parent_navigation_family_agents() -> list[Agent]:
     return [root, main, coder, prepare, setup]
 
 
+def group_house_collapse_precedence_agents() -> list[Agent]:
+    """Return three Running houses with workflow and family descendants."""
+    project_file = "/workspace/sase/visual_project.sase"
+    started = datetime(2026, 7, 22, 7, 0, 0)
+
+    def workflow_house(name: str, minute: int) -> tuple[Agent, Agent, Agent]:
+        fold_key = f"2026072207{minute:02d}00"
+        root = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name=f"visual-{name}",
+            project_file=project_file,
+            status="RUNNING",
+            start_time=started.replace(minute=minute),
+            raw_suffix=fold_key,
+            agent_name=name,
+            workflow=f"{name}-workflow",
+            llm_provider="codex",
+            model="gpt-5",
+        )
+        agent_step = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name=f"{name}-agent-step",
+            project_file=project_file,
+            status="RUNNING",
+            start_time=root.start_time,
+            raw_suffix=fold_key,
+            parent_timestamp=fold_key,
+            parent_workflow=root.workflow,
+            step_name="implement",
+            step_type="agent",
+        )
+        hidden_step = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name=f"{name}-prepare-step",
+            project_file=project_file,
+            status="DONE",
+            start_time=root.start_time,
+            raw_suffix=fold_key,
+            parent_timestamp=fold_key,
+            parent_workflow=root.workflow,
+            step_name="prepare",
+            step_type="python",
+            is_hidden_step=True,
+            is_pre_prompt_step=True,
+        )
+        root.runtime_children.extend([agent_step, hidden_step])
+        return root, agent_step, hidden_step
+
+    hu = workflow_house("hu", 0)
+    ht = workflow_house("ht", 1)
+
+    hs_root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-hs",
+        project_file=project_file,
+        status="RUNNING",
+        start_time=started.replace(minute=2),
+        raw_suffix="20260722070200",
+        agent_name="hs",
+        agent_family="hs",
+        agent_family_role="root",
+        plan_chain_root=True,
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    hs_member = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-hs-code",
+        project_file=project_file,
+        status="RUNNING",
+        start_time=started.replace(minute=3),
+        raw_suffix="20260722070300",
+        parent_timestamp=hs_root.raw_suffix,
+        agent_name="hs--code",
+        agent_family="hs",
+        agent_family_role="code",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    hs_root.followup_agents.append(hs_member)
+    hs_root.runtime_children.append(hs_member)
+    return [*hu, *ht, hs_root, hs_member]
+
+
 def parallel_family_agents() -> list[Agent]:
     root = Agent(
         agent_type=AgentType.RUNNING,

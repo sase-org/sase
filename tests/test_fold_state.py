@@ -52,3 +52,16 @@ def test_collapse_all_returns_false_when_all_collapsed() -> None:
     """Test collapse_all returns False when nothing to collapse."""
     mgr = FoldStateManager()
     assert mgr.collapse_all(["k1", "k2"]) is False
+
+
+def test_collapse_fully_all_saturates_mixed_levels_in_one_call() -> None:
+    mgr = FoldStateManager()
+    mgr.expand("expanded")
+    mgr.expand("full")
+    mgr.expand("full")
+
+    assert mgr.collapse_fully_all(["collapsed", "expanded", "full"]) is True
+    assert mgr.get("collapsed") is FoldLevel.COLLAPSED
+    assert mgr.get("expanded") is FoldLevel.COLLAPSED
+    assert mgr.get("full") is FoldLevel.COLLAPSED
+    assert mgr.collapse_fully_all(["collapsed", "expanded", "full"]) is False

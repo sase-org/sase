@@ -98,6 +98,7 @@ class KeybindingBindingsMixin:
         panel_collapsed: bool = False,
         panel_restore_armed: bool = False,
         left_navigation_kind: str | None = None,
+        house_collapse_available: bool = False,
         structural_collapse_kind: str | None = None,
         group_collapse_available: bool = False,
         focused_panel_key: str | None = None,
@@ -201,6 +202,8 @@ class KeybindingBindingsMixin:
         collapse_all_label: str | None = None
         if tools_can_compact:
             collapse_all_label = "compact tools"
+        elif house_collapse_available:
+            collapse_all_label = "collapse houses"
         elif structural_collapse_kind in {"workflow", "family", "clan"}:
             collapse_all_label = f"collapse {structural_collapse_kind}"
         elif group_collapse_available:

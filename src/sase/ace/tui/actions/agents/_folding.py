@@ -78,7 +78,10 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
         if self._route_tools_detail_level("min"):
             return
         if self.current_tab == "agents":
-            if not self._collapse_agent_structural_fold():
+            house_target = self._resolve_agent_house_collapse_target()
+            if house_target is not None:
+                self._collapse_agent_house_folds(house_target)
+            elif not self._collapse_agent_structural_fold():
                 self._collapse_group_fold()
         elif self.current_tab == "axe":
             self._collapse_all_axe_folds()

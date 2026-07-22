@@ -212,6 +212,21 @@ class FoldStateManager:
                 changed = True
         return changed
 
+    def collapse_fully_all(self, keys: list[str]) -> bool:
+        """Drive every open fold in *keys* directly to ``COLLAPSED``.
+
+        Unlike :meth:`collapse_all`, this is a saturating bulk operation:
+        ``FULLY_EXPANDED`` folds do not stop at the intermediate level.  The
+        state mutations are completed together so callers can repaint once.
+        """
+        changed = False
+        for key in keys:
+            if self.get(key) == FoldLevel.COLLAPSED:
+                continue
+            self._states[key] = FoldLevel.COLLAPSED
+            changed = True
+        return changed
+
     def has_any_fully_expanded(self, keys: list[str]) -> bool:
         """Check if any of the given keys are fully expanded.
 

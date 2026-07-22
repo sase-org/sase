@@ -228,6 +228,9 @@ def test_footer_refresh_uses_navigation_and_collapse_resolver_capabilities() -> 
     app._resolve_agent_left_navigation_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
         kind="family"
     )
+    app._resolve_agent_house_collapse_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
+        fold_keys=("house",)
+    )
     app._resolve_agent_structural_collapse_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
         kind="clan"
     )
@@ -239,5 +242,6 @@ def test_footer_refresh_uses_navigation_and_collapse_resolver_capabilities() -> 
 
     call = app.footer_widget.agent_binding_calls[-1]
     assert call["left_navigation_kind"] == "family"
-    assert call["structural_collapse_kind"] == "clan"
+    assert call["house_collapse_available"] is True
+    assert call["structural_collapse_kind"] is None
     assert call["group_collapse_available"] is False

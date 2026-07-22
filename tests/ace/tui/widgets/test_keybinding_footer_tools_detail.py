@@ -185,6 +185,14 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     clan_collapse = _labels(
         footer._compute_agent_bindings(None, structural_collapse_kind="clan")
     )
+    house_collapse = _labels(
+        footer._compute_agent_bindings(
+            None,
+            house_collapse_available=True,
+            structural_collapse_kind="clan",
+            group_collapse_available=True,
+        )
+    )
     group_collapse = _labels(
         footer._compute_agent_bindings(None, group_collapse_available=True)
     )
@@ -201,6 +209,9 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     assert ("H", "collapse workflow") in workflow_collapse
     assert ("H", "collapse family") in family_collapse
     assert ("H", "collapse clan") in clan_collapse
+    assert ("H", "collapse houses") in house_collapse
+    assert ("H", "collapse clan") not in house_collapse
+    assert ("H", "collapse group") not in house_collapse
     assert ("H", "collapse group") in group_collapse
 
 
@@ -241,7 +252,7 @@ def test_footer_omits_parent_for_invalid_ancestry() -> None:
     assert not any(label.startswith("parent ") for _key, label in bindings)
 
 
-def test_footer_saturated_hidden_leaf_keeps_parent_and_capital_h_targets() -> None:
+def test_footer_saturated_hidden_leaf_advertises_group_house_collapse() -> None:
     agents, root, steps = make_standalone_workflow_house()
     app = StubFoldApp(agents, current_idx=agents.index(steps["pre_prompt"]))
     assert root.raw_suffix is not None
@@ -249,7 +260,7 @@ def test_footer_saturated_hidden_leaf_keeps_parent_and_capital_h_targets() -> No
     app._fold_manager.expand(root.raw_suffix)
     assert app._fold_manager.get(root.raw_suffix) is FoldLevel.FULLY_EXPANDED
     left = app._resolve_agent_left_navigation_target()
-    collapse = app._resolve_agent_structural_collapse_target()
+    collapse = app._resolve_agent_house_collapse_target()
     assert left is not None
     assert collapse is not None
 
@@ -257,9 +268,9 @@ def test_footer_saturated_hidden_leaf_keeps_parent_and_capital_h_targets() -> No
         KeybindingFooter()._compute_agent_bindings(
             None,
             left_navigation_kind=left.kind,
-            structural_collapse_kind=collapse.kind,
+            house_collapse_available=True,
         )
     )
 
     assert ("h", "parent workflow") in bindings
-    assert ("H", "collapse workflow") in bindings
+    assert ("H", "collapse houses") in bindings

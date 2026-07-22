@@ -703,9 +703,10 @@ row. Apostrophe jump hints include every split-panel title, even a lone expanded
 support the normal `Ctrl+O` jump back.
 
 Lowercase `l` only advances a real fold owned by the selected row or its immediate workflow/family owner, so a visible
-hidden leaf under an already fully expanded workflow is a no-op. Uppercase `H` is the structural mutation key: it
-collapses the selected workflow/family/clan context before grouping collapse, or isolates/restores panels while a whole
-panel is selected.
+hidden leaf under an already fully expanded workflow is a no-op. Uppercase `H` is the structural mutation key. In the
+next grouping scope it fully collapses every open workflow/family house in one press, regardless of which house row is
+selected. Repeated presses then collapse a distinct binary clan layer and finally the grouping banner. Tools detail
+still takes priority, and `H` remains a no-op while a whole panel is selected.
 
 With a whole panel selected, uppercase `Z` keeps that panel expanded and collapses every sibling panel. If that changes
 the layout, ACE remembers the prior collapsed-panel set for one session-local restore. Panels whose state would change
@@ -764,18 +765,18 @@ Labels such as L0, L1, and L2 describe a banner's nesting depth, not a shared fo
 banner has its own binary expanded/collapsed state, kept separately for each tribe panel and grouping mode. Three
 independent folding layers can therefore be visible at once:
 
-| Layer             | What it controls                                         | Default keys                                          |
-| ----------------- | -------------------------------------------------------- | ----------------------------------------------------- |
-| Grouping banner   | Project, ChangeSpec, date, status, and name buckets      | `H` collapses; `l` expands                            |
-| Structural row    | Clan members, family members, and workflow descendants   | `h` collapses; `l` expands                            |
-| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` or `L` expands |
+| Layer             | What it controls                                         | Default keys                                              |
+| ----------------- | -------------------------------------------------------- | --------------------------------------------------------- |
+| Grouping banner   | Project, ChangeSpec, date, status, and name buckets      | Repeated `H` collapses after scoped houses; `l` expands   |
+| Structural row    | Clan members, family members, and workflow descendants   | `H` fully collapses scoped houses, then clan; `l` expands |
+| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` or `L` expands     |
 
 | Key | Action                                                                                                                        |
 | --- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel              |
 | `h` | Collapse one structural level; when none remains, select a panel that supports whole-panel focus; on panel focus, collapse it |
 | `L` | Expand a collapsed focused panel and enter its first selectable row                                                           |
-| `H` | Collapse the deepest structural or grouping banner on repeats; compact expanded Tools detail                                  |
+| `H` | Fully collapse all houses in the next group, then clan/group layers on repeats; compact expanded Tools detail                 |
 | `Z` | On whole-panel focus, isolate that panel or restore the pre-isolation layout; otherwise zoom the active detail panel          |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain visible headings but are skipped by
@@ -800,6 +801,12 @@ live members; acting on one member leaves its siblings alone. Direct clan member
 priority Failed, Stopped, Running, Waiting, Done in every grouping mode; Starting shares Running's rank. Launch recency
 orders only members in the same status bucket. A family row moves as one unit with its follow-ups and workflow steps,
 preserving their adjacency and internal order.
+
+The uppercase `H` ladder is scope-wide rather than selection-wide. If the grouping banner that `H` would collapse next
+contains any open standalone workflow, agent, or sequential-family house, the first press drives every such house
+directly to fully collapsed while leaving the banner open. A selected child row re-anchors to its visible house owner.
+The footer advertises `H collapse houses` for that step and changes to `H collapse clan` or `H collapse group` once no
+open canonical house remains. Equal group names in other tribe panels are never affected.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  ` segment per ancestor L0/L1
 banner (in the parent tier's dim accent — project blue or ChangeSpec cooler accent), so nesting reads as a tree at a

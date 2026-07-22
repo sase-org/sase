@@ -264,8 +264,8 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "hooks_or_collapse_all",
-        "Collapse workflow, family, clan, or group / compact tools detail / "
-        "collapse all folds on other tabs",
+        "Fully collapse houses in next group, then clan or group / compact "
+        "tools detail / collapse all folds on other tabs",
         "Folding",
         ALL_TABS,
         (),
