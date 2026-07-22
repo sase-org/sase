@@ -208,6 +208,11 @@ def main() -> NoReturn:
                 sys.exit(run_init_onboarding_all(args))
             sys.exit(run_init_onboarding(args))
 
+        if args.init_subcommand == "config":
+            from .config_init_handler import run_config_init
+
+            sys.exit(run_config_init(args))
+
         if args.init_subcommand == "memory":
             from .init_memory_handler import handle_init_memory_command
 

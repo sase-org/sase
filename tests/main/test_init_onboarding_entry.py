@@ -100,6 +100,35 @@ def test_init_check_memory_alias_does_not_apply(
     assert "create memory files" in capsys.readouterr().out
 
 
+def test_init_check_config_alias_does_not_prompt_or_write(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main import config_init_handler, entry
+
+    monkeypatch.setattr(sys, "argv", ["sase", "init", "config", "--check"])
+    monkeypatch.setattr(
+        config_init_handler,
+        "plan_config_init",
+        lambda args: _plan(
+            "config",
+            actions=(_changed_action(".sase/machine_name"),),
+            summary="choose a machine identity",
+        ),
+    )
+    monkeypatch.setattr(
+        config_init_handler,
+        "_prompt_machine_name",
+        lambda *_args, **_kwargs: pytest.fail("check mode must not prompt"),
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        entry.main()
+
+    assert exc.value.code == 1
+    assert "choose a machine identity" in capsys.readouterr().out
+
+
 def test_init_check_skills_alias_does_not_apply(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

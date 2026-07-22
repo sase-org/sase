@@ -8,11 +8,15 @@ import pytest
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import ValidationError
 
-from tests._config_schema_helpers import schema
+from tests._config_schema_helpers import schema, with_machine_name
+
+
+def _validate(config: dict[str, Any]) -> None:
+    Draft7Validator(schema()).validate(with_machine_name(config))
 
 
 def test_config_schema_accepts_script_chops_and_compound_durations() -> None:
-    Draft7Validator(schema()).validate(
+    _validate(
         {
             "axe": {
                 "lumberjacks": {
@@ -35,7 +39,7 @@ def test_config_schema_accepts_script_chops_and_compound_durations() -> None:
 
 
 def test_config_schema_accepts_declarative_chop_policies() -> None:
-    Draft7Validator(schema()).validate(
+    _validate(
         {
             "axe": {
                 "lumberjacks": {
@@ -73,7 +77,7 @@ def test_config_schema_accepts_declarative_chop_policies() -> None:
 
 
 def test_config_schema_accepts_keyed_chops_secret_refs_and_targets() -> None:
-    Draft7Validator(schema()).validate(
+    _validate(
         {
             "axe": {
                 "lumberjacks": {
@@ -108,7 +112,7 @@ def test_config_schema_accepts_keyed_chops_secret_refs_and_targets() -> None:
 
 def test_config_schema_rejects_invalid_chop_secret_reference() -> None:
     with pytest.raises(ValidationError):
-        Draft7Validator(schema()).validate(
+        _validate(
             {
                 "axe": {
                     "lumberjacks": {
@@ -144,7 +148,7 @@ def test_config_schema_rejects_removed_or_invalid_chop_fields(
     value: str,
 ) -> None:
     with pytest.raises(ValidationError):
-        Draft7Validator(schema()).validate(
+        _validate(
             {
                 "axe": {
                     "lumberjacks": {
@@ -159,7 +163,7 @@ def test_config_schema_rejects_removed_or_invalid_chop_fields(
 
 
 def test_config_schema_accepts_telegram_commands() -> None:
-    Draft7Validator(schema()).validate(
+    _validate(
         {
             "telegram": {
                 "commands": {
@@ -181,7 +185,7 @@ def test_config_schema_accepts_telegram_commands() -> None:
 )
 def test_config_schema_rejects_invalid_telegram_command_names(name: str) -> None:
     with pytest.raises(ValidationError):
-        Draft7Validator(schema()).validate(
+        _validate(
             {
                 "telegram": {
                     "commands": {
@@ -204,14 +208,12 @@ def test_config_schema_requires_telegram_command_fields(missing: str) -> None:
     del command[missing]
 
     with pytest.raises(ValidationError):
-        Draft7Validator(schema()).validate(
-            {"telegram": {"commands": {"tasks": command}}}
-        )
+        _validate({"telegram": {"commands": {"tasks": command}}})
 
 
 def test_config_schema_rejects_invalid_telegram_command_output() -> None:
     with pytest.raises(ValidationError):
-        Draft7Validator(schema()).validate(
+        _validate(
             {
                 "telegram": {
                     "commands": {
@@ -231,7 +233,7 @@ def test_config_schema_rejects_invalid_telegram_command_timeout(
     timeout: str,
 ) -> None:
     with pytest.raises(ValidationError):
-        Draft7Validator(schema()).validate(
+        _validate(
             {
                 "telegram": {
                     "commands": {

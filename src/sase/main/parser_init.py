@@ -77,8 +77,8 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Initialize SASE-managed resources",
         description=(
             "Check and initialize SASE-managed resources. With no subcommand, "
-            "runs the onboarding coordinator for memory, repositories, and "
-            "skills."
+            "runs the onboarding coordinator for config, memory, repositories, "
+            "and skills."
         ),
         epilog=(
             "Advanced deploy controls live on explicit subcommands; for example, "
@@ -119,6 +119,22 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="init_subcommand",
         help="Initialization subcommands",
         required=False,
+    )
+
+    config_parser = init_subparsers.add_parser(
+        "config",
+        help="Alias for `sase config init`",
+        description=(
+            "Compatibility alias for `sase config init`, which interactively "
+            "selects or creates the machine-local SASE identity."
+        ),
+    )
+    config_parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Report whether machine identity initialization is needed",
     )
 
     memory_parser = init_subparsers.add_parser(

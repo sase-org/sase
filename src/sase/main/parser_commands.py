@@ -36,6 +36,22 @@ def register_config_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="config_subcommand", help="Config subcommands"
     )
 
+    # sase config init
+    config_init_parser = config_subparsers.add_parser(
+        "init",
+        help="Initialize the machine-local SASE identity",
+        description=(
+            "Interactively select an existing machine overlay or create a new "
+            "sase_<machine>.yml overlay, then record the local selector."
+        ),
+    )
+    config_init_parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        help="Report whether machine identity initialization is needed",
+    )
+
     # sase config layers
     config_subparsers.add_parser(
         "layers", help="Show per-layer breakdown of the config merge chain"

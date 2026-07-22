@@ -4,10 +4,13 @@ Loads ``default_config.yml`` (bundled in the package) as the base layer,
 then deep-merges plugin ``default_config.yml`` files, then
 ``~/.config/sase/sase.yml`` (with list replacement), then
 deep-merges any overlay files matching ``~/.config/sase/sase_*.yml`` (sorted
-alphabetically, with list concatenation) on top, then finally the current
-project's ``sase/sase.yml`` (with root-level ``sase.yml`` as a read fallback),
-unless local config loading has been disabled via ``set_include_local_config(False)``
-(e.g. for ``sase ace`` runs where the TUI should not inherit repo-level config).
+alphabetically, with list concatenation) on top. Overlays whose top-level YAML
+mapping contains ``machine_name`` participate only when that value matches the
+machine-local ``~/.sase/machine_name`` selector; ordinary overlays always
+participate. The current project's ``sase/sase.yml`` (with root-level
+``sase.yml`` as a read fallback) is merged last, unless local config loading has
+been disabled via ``set_include_local_config(False)`` (e.g. for ``sase ace``
+runs where the TUI should not inherit repo-level config).
 
 After the first config-token read, filesystem freshness checks use
 stale-while-revalidate semantics so render-path callers never perform stat/glob
@@ -17,6 +20,7 @@ external file edits may take roughly two polling windows to become visible.
 
 import importlib.resources
 import logging
+import re
 import threading
 import time
 from pathlib import Path
@@ -25,6 +29,7 @@ from typing import Any, Literal
 import yaml  # type: ignore[import-untyped]
 
 from sase.content_layout import discover_project_root, resolve_project_layout
+from sase.core.paths import machine_name_path
 from sase.config.layers import (
     DEPRECATED_TOP_LEVEL_KEYS,
     RETIRED_SDD_SELECTOR_KEYS,
@@ -43,6 +48,8 @@ log = logging.getLogger(__name__)
 
 CONFIG_DIR = Path("~/.config/sase").expanduser()
 CHEZMOI_HOME = Path("~/.local/share/chezmoi/home").expanduser()
+MACHINE_NAME_PATTERN = r"^[a-z_]+$"
+_MACHINE_NAME_RE = re.compile(MACHINE_NAME_PATTERN)
 
 # When False, get_local_config_path() always returns None.
 # Set to False for `sase ace` so the TUI doesn't pick up a repo's project config;
@@ -122,6 +129,7 @@ def _compute_current_config_token() -> tuple[Any, ...]:
         parts.append(None)
 
     parts.append(stat_token(CONFIG_DIR / "sase.yml"))
+    parts.append(stat_token(machine_name_path()))
     parts.append(tuple(stat_token(p) for p in _get_overlay_paths()))
 
     project_root = discover_project_root() if _include_local_config else None
@@ -211,6 +219,58 @@ def get_use_chezmoi() -> bool:
     """Return whether chezmoi path remapping is enabled."""
     data = load_merged_config()
     return bool(data.get("use_chezmoi", False))
+
+
+def is_valid_machine_name(value: object) -> bool:
+    """Return whether *value* satisfies the public machine-name contract."""
+    return isinstance(value, str) and _MACHINE_NAME_RE.fullmatch(value) is not None
+
+
+def _read_machine_name_selector() -> str | None:
+    """Read and validate the one-line machine-local identity selector.
+
+    Missing, unreadable, multiline, and invalid selectors are treated as
+    unset. This keeps legacy installations usable while ensuring an invalid
+    selector can never enable a machine-specific overlay.
+    """
+    path = machine_name_path()
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except OSError:
+        log.warning("Failed to read machine-name selector: %s", path, exc_info=True)
+        return None
+
+    lines = text.splitlines()
+    if len(lines) != 1 or not is_valid_machine_name(lines[0]):
+        log.warning("Ignoring invalid machine-name selector at %s", path)
+        return None
+    return lines[0]
+
+
+def get_machine_name() -> str | None:
+    """Return the selected, resolving machine identity, or ``None``.
+
+    A selector alone is not enough: the final merged ``machine_name`` must
+    agree with it. This preserves legacy operation when initialization has not
+    happened and fails closed if a later config layer overrides the identity.
+    """
+    selector = _read_machine_name_selector()
+    if selector is None:
+        return None
+    value = load_merged_config().get("machine_name")
+    return selector if value == selector else None
+
+
+def require_machine_name() -> str:
+    """Return the machine identity or raise with an initialization command."""
+    machine_name = get_machine_name()
+    if machine_name is None:
+        raise RuntimeError(
+            "SASE machine identity is not configured; run `sase config init`."
+        )
+    return machine_name
 
 
 DEFAULT_MAX_RUNNING_AGENTS = 10
@@ -328,6 +388,39 @@ def _get_overlay_paths() -> list[Path]:
     return sorted(CONFIG_DIR.glob("sase_*.yml"))
 
 
+def discover_machine_names() -> tuple[str, ...]:
+    """Return valid identities declared by any raw user overlay."""
+    names: set[str] = set()
+    for path in _get_overlay_paths():
+        data = _load_yaml_file(path)
+        if data is None:
+            continue
+        name = data.get("machine_name")
+        if isinstance(name, str) and is_valid_machine_name(name):
+            names.add(name)
+    return tuple(sorted(names))
+
+
+def _get_selected_overlay_paths() -> list[Path]:
+    """Return ordinary overlays plus the overlay selected for this machine.
+
+    Every candidate is parsed only when a config consumer is rebuilding its
+    view. The freshness token still stats every raw overlay, so a foreign
+    overlay edit can invalidate the cached view without adding YAML parsing to
+    render-path token checks.
+    """
+    selector = _read_machine_name_selector()
+    selected: list[Path] = []
+    for path in _get_overlay_paths():
+        data = _load_yaml_file(path)
+        if data is None or "machine_name" not in data:
+            selected.append(path)
+            continue
+        if data.get("machine_name") == selector:
+            selected.append(path)
+    return selected
+
+
 def get_local_config_path() -> Path | None:
     """Return the selected project-local config path, if one exists.
 
@@ -401,7 +494,7 @@ def load_xprompts_by_source() -> list[tuple[str, dict[str, Any]]]:
         config_dir=CONFIG_DIR,
         default_loader=_load_default_config,
         yaml_loader=_load_yaml_file,
-        overlay_paths=_get_overlay_paths(),
+        overlay_paths=_get_selected_overlay_paths(),
         local_path=get_local_config_path(),
         resource_files=importlib.resources.files,
     )
@@ -414,7 +507,8 @@ def load_merged_config() -> dict[str, Any]:
     1. ``default_config.yml`` (bundled package defaults)
     2. Plugin ``default_config.yml`` files (sorted by EP name, lists concatenate)
     3. ``sase.yml`` (user config — lists **replace** defaults)
-    4. ``sase_*.yml`` overlays (sorted alphabetically — lists **concatenate**)
+    4. ordinary ``sase_*.yml`` overlays plus the selected machine overlay
+       (sorted alphabetically — lists **concatenate**)
     5. project ``sase/sase.yml`` (legacy ``sase.yml`` is read-compatible;
        lists **concatenate**, highest priority)
 
@@ -455,7 +549,7 @@ def load_merged_config() -> dict[str, Any]:
         )
         result = _deep_merge(result, user_base, list_strategy="replace")
 
-    for overlay_path in _get_overlay_paths():
+    for overlay_path in _get_selected_overlay_paths():
         overlay = _load_yaml_file(overlay_path)
         if overlay:
             log.debug(
@@ -500,7 +594,7 @@ def load_config_layers() -> list[ConfigLayer]:
     return _load_config_layers(
         config_dir=CONFIG_DIR,
         default_loader=_load_default_config,
-        overlay_paths=_get_overlay_paths(),
+        overlay_paths=_get_selected_overlay_paths(),
         local_path=local_path,
         local_fallback_path=local_fallback_path,
         resource_files=importlib.resources.files,

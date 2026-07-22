@@ -6,6 +6,7 @@ and CLI flags.
 ## Table of Contents
 
 - [Config File Location](#config-file-location)
+- [Machine Identity](#machine-identity)
 - [SASE Admin Center (interactive editor)](#sase-admin-center-interactive-editor)
   - [Config tab](#config-tab)
   - [Projects tab](#projects-tab)
@@ -15,6 +16,7 @@ and CLI flags.
   - [amd_h1_title](#amd_h1_title)
   - [generated templates](#generated-templates)
   - [is_sase_managed](#is_sase_managed)
+  - [machine_name](#machine_name)
   - [ace](#ace)
   - [llm_provider](#llm_provider)
   - [commit](#commit)
@@ -60,6 +62,43 @@ exclusive read fallback during the [layout compatibility window](content_layout.
 both files exist, SASE reports a collision instead of merging them. The ACE TUI deliberately disables project-local
 config loading for its own process so opening `sase ace` inside a repo does not inherit that repo's agent-run settings.
 See [Deep-Merge System](#deep-merge-system) below.
+
+## Machine Identity
+
+SASE has one explicit, machine-local identity. Initialize it interactively with either equivalent command:
+
+```bash
+sase config init
+sase init config
+```
+
+The initializer lists identities already declared by machine overlays, suggests the lowercase hostname with every
+character outside `[a-z_]` replaced by `_`, and keeps prompting until the selected name matches `^[a-z_]+$`. If the
+chosen top-level hood is already occupied in the durable agent-name registry, continuing requires an explicit `y` or
+`yes` confirmation; the default is no. Prompting requires a TTY. Use `sase config init --check` or
+`sase init config --check` for a read-only status check.
+
+The selection itself is stored in the bounded local state file `~/.sase/machine_name` (or `$SASE_HOME/machine_name`). It
+contains exactly one valid name and is deliberately not portable configuration. The corresponding overlay contains the
+schema field:
+
+```yaml
+machine_name: athena
+```
+
+Any `sase_*.yml` overlay with a top-level `machine_name` is machine-specific. SASE loads it only when that value matches
+the local selector; foreign machine overlays do not contribute runtime settings, Config inventory layers, or config-
+defined xprompts. Overlays without `machine_name` remain ordinary overlays and always participate. Changing the selector
+invalidates the merged-config cache just like changing a config file.
+
+Selecting an existing identity writes only `~/.sase/machine_name`. Creating a new identity minimally adds `machine_name`
+to `~/.config/sase/sase_<name>.yml`, preserving unrelated YAML where possible, then writes the selector. With
+`use_chezmoi: true`, the overlay edit is made in the chezmoi source tree. Direct `sase config init` uses the normal
+commit/push/apply deployment; bare `sase init` combines that source edit with its deferred chezmoi deployment.
+
+There is intentionally no bundled `machine_name` default. Existing installations continue to load and run with the
+optional machine identity unset until initialization, while features that require a machine hood report the actionable
+`sase config init` instruction.
 
 ## SASE Admin Center (interactive editor)
 
@@ -246,13 +285,14 @@ Sase builds a merged configuration through five layers, each merged on top of th
 2. **Plugin `default_config.yml` files** — from installed plugin packages (via `sase_config` entry points), sorted by
    entry-point name; lists concatenate
 3. **`sase.yml`** — user config (`~/.config/sase/sase.yml`); lists **replace** defaults (not concatenate)
-4. **`sase_*.yml` overlays** — sorted alphabetically; lists **concatenate**
+4. **Selected `sase_*.yml` overlays** — ordinary overlays plus only the machine overlay whose `machine_name` matches
+   `~/.sase/machine_name`, sorted alphabetically; lists **concatenate**
 5. **Local `sase.yml`** — project-level config in the current working directory; lists **concatenate** (highest
    priority)
 
-This allows splitting configuration across multiple files (e.g., `sase_work.yml`, `sase_personal.yml`) without
-duplication, plugins can provide sensible defaults that users can override, and individual projects can customize
-behavior without changing global config.
+This allows splitting shared configuration across ordinary files (e.g., `sase_work.yml`, `sase_personal.yml`) without
+duplication and keeping machine-specific settings in selector-safe overlays. Plugins can provide sensible defaults that
+users can override, and individual projects can customize behavior without changing global config.
 
 Merge semantics:
 
@@ -349,6 +389,25 @@ Home and chezmoi-home memory initialization does not use this project-local swit
 existing project `AGENTS.md` files remain independent of it.
 
 Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`
+
+### machine_name
+
+Declares the identity owned by a machine-specific user overlay:
+
+```yaml
+machine_name: athena
+```
+
+| Field          | Type   | Default | Description                                                               |
+| -------------- | ------ | ------- | ------------------------------------------------------------------------- |
+| `machine_name` | string | none    | Required schema identity matching `^[a-z_]+$`; activated by the selector. |
+
+The public schema requires this field, but the bundled defaults do not synthesize one. Runtime config therefore remains
+compatible with a legacy/uninitialized installation: no machine overlay is selected and the optional accessor returns
+unset. Run `sase config init` to select or create the overlay and write the local state selector. See
+[Machine Identity](#machine-identity) for loading and deployment behavior.
+
+Source: `src/sase/config/core.py`, `src/sase/config/sase.schema.json`, `src/sase/core/paths.py`
 
 ### ace
 
@@ -2464,10 +2523,11 @@ under `sase plan`. Link commands accept `-p/--path`, which may point at an SDD r
 
 ### `sase validate`
 
-`sase validate` is the top-level SASE validation command. It currently runs `sase init --check` and
-`sase plan links validate`, prints one status line per check, and exits non-zero if any check fails. Because
-`sase init --check` includes home-level memory and skill deployment surfaces, this command can fail on user/home
-initialization drift even when repository-local SDD validation passes.
+`sase validate` is the top-level portable SASE validation command. It runs the explicit `sase init memory --check`,
+`sase init repo --check`, and `sase init skills --check` surfaces plus `sase plan links validate`, prints one status
+line per check, and exits non-zero if any check fails. It deliberately leaves the machine-local Config planner to bare
+`sase init --check` and `sase doctor`, so clean CI hosts do not need a synthetic machine identity. The command can still
+fail on user/home memory or skill deployment drift even when repository-local SDD validation passes.
 
 ### `sase doctor`
 

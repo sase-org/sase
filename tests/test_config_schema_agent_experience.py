@@ -6,7 +6,7 @@ import pytest
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import ValidationError
 
-from tests._config_schema_helpers import format_schema_error, schema
+from tests._config_schema_helpers import format_schema_error, schema, with_machine_name
 
 
 def test_config_schema_accepts_xprompt_input_descriptions() -> None:
@@ -37,7 +37,7 @@ def test_config_schema_accepts_xprompt_input_descriptions() -> None:
     }
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(config),
+        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -58,7 +58,7 @@ def test_config_schema_accepts_xprompt_log_skill_use() -> None:
     }
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(config),
+        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -68,14 +68,16 @@ def test_config_schema_accepts_xprompt_log_skill_use() -> None:
 def test_config_schema_rejects_retired_memory_keywords() -> None:
     with pytest.raises(ValidationError):
         Draft7Validator(schema()).validate(
-            {
-                "xprompts": {
-                    "legacy_memory": {
-                        "content": "Legacy memory prompt",
-                        "keywords": ["memory"],
+            with_machine_name(
+                {
+                    "xprompts": {
+                        "legacy_memory": {
+                            "content": "Legacy memory prompt",
+                            "keywords": ["memory"],
+                        }
                     }
                 }
-            }
+            )
         )
 
 
@@ -84,7 +86,7 @@ def test_config_schema_accepts_amd_h1_title_string_or_null() -> None:
 
     for config in ({"amd_h1_title": None}, {"amd_h1_title": "Agent Instructions"}):
         errors = sorted(
-            Draft7Validator(public_schema).iter_errors(config),
+            Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
             key=lambda error: list(error.absolute_path),
         )
 
@@ -102,7 +104,9 @@ def test_config_schema_accepts_markdown_template_paths_or_null() -> None:
     ):
         for value in (None, "templates/AGENTS.md"):
             errors = sorted(
-                Draft7Validator(public_schema).iter_errors({key: value}),
+                Draft7Validator(public_schema).iter_errors(
+                    with_machine_name({key: value})
+                ),
                 key=lambda error: list(error.absolute_path),
             )
 
@@ -116,17 +120,23 @@ def test_config_schema_accepts_boolean_sase_management_marker() -> None:
 
     for is_managed in (False, True):
         errors = tuple(
-            Draft7Validator(public_schema).iter_errors({"is_sase_managed": is_managed})
+            Draft7Validator(public_schema).iter_errors(
+                with_machine_name({"is_sase_managed": is_managed})
+            )
         )
         assert errors == ()
 
     with pytest.raises(ValidationError):
-        Draft7Validator(public_schema).validate({"is_sase_managed": "true"})
+        Draft7Validator(public_schema).validate(
+            with_machine_name({"is_sase_managed": "true"})
+        )
 
 
 def test_config_schema_rejects_retired_memory_opt_in() -> None:
     with pytest.raises(ValidationError):
-        Draft7Validator(schema()).validate({"memory": {"enabled": True}})
+        Draft7Validator(schema()).validate(
+            with_machine_name({"memory": {"enabled": True}})
+        )
 
 
 def test_config_schema_accepts_closed_commit_hooks_object() -> None:
@@ -135,14 +145,16 @@ def test_config_schema_accepts_closed_commit_hooks_object() -> None:
     assert (
         tuple(
             validator.iter_errors(
-                {"commit_hooks": {"before": "just fix", "after": "just deploy"}}
+                with_machine_name(
+                    {"commit_hooks": {"before": "just fix", "after": "just deploy"}}
+                )
             )
         )
         == ()
     )
 
     with pytest.raises(ValidationError):
-        validator.validate({"commit_hooks": {"during": "just nope"}})
+        validator.validate(with_machine_name({"commit_hooks": {"during": "just nope"}}))
 
 
 def test_config_schema_accepts_ace_tool_call_slow_threshold() -> None:
@@ -150,7 +162,7 @@ def test_config_schema_accepts_ace_tool_call_slow_threshold() -> None:
     config = {"ace": {"tool_calls": {"slow_threshold_seconds": 30}}}
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(config),
+        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -162,7 +174,7 @@ def test_config_schema_rejects_negative_ace_tool_call_slow_threshold() -> None:
     config = {"ace": {"tool_calls": {"slow_threshold_seconds": -1}}}
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(config),
+        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -178,7 +190,7 @@ def test_config_schema_accepts_positive_ace_update_check_interval(
     minutes: float,
 ) -> None:
     Draft7Validator(schema()).validate(
-        {"ace": {"updates": {"check_interval_minutes": minutes}}}
+        with_machine_name({"ace": {"updates": {"check_interval_minutes": minutes}}})
     )
 
 
@@ -188,7 +200,7 @@ def test_config_schema_rejects_nonpositive_ace_update_check_interval(
 ) -> None:
     with pytest.raises(ValidationError):
         Draft7Validator(schema()).validate(
-            {"ace": {"updates": {"check_interval_minutes": minutes}}}
+            with_machine_name({"ace": {"updates": {"check_interval_minutes": minutes}}})
         )
 
 
@@ -197,7 +209,7 @@ def test_config_schema_accepts_positive_ace_update_recompute_interval(
     minutes: float,
 ) -> None:
     Draft7Validator(schema()).validate(
-        {"ace": {"updates": {"recompute_interval_minutes": minutes}}}
+        with_machine_name({"ace": {"updates": {"recompute_interval_minutes": minutes}}})
     )
 
 
@@ -207,5 +219,7 @@ def test_config_schema_rejects_nonpositive_ace_update_recompute_interval(
 ) -> None:
     with pytest.raises(ValidationError):
         Draft7Validator(schema()).validate(
-            {"ace": {"updates": {"recompute_interval_minutes": minutes}}}
+            with_machine_name(
+                {"ace": {"updates": {"recompute_interval_minutes": minutes}}}
+            )
         )

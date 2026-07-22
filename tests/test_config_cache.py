@@ -19,6 +19,7 @@ from sase.config.core import (
     set_include_local_config,
 )
 from sase.config.mentor import _load_mentor_profiles
+from sase.core.paths import machine_name_path
 
 
 def _write_user_config(global_dir: Path, content: dict) -> None:
@@ -137,6 +138,63 @@ def test_clear_config_cache_forces_reload(tmp_path: Path) -> None:
     # Distinct dicts because the cache was dropped between calls.
     assert first is not second
     assert first == second
+
+
+def test_selector_stat_participates_in_config_freshness_token(tmp_path: Path) -> None:
+    global_dir = tmp_path / "global"
+    global_dir.mkdir()
+    (global_dir / "sase_athena.yml").write_text(
+        "machine_name: athena\nvalue: selected\n", encoding="utf-8"
+    )
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_dir),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+    ):
+        before = config_core._compute_current_config_token()
+        machine_name_path().write_text("athena\n", encoding="utf-8")
+        after = config_core._compute_current_config_token()
+
+    assert before != after
+    assert any(
+        isinstance(part, tuple) and part and part[0] == str(machine_name_path())
+        for part in after
+    )
+
+
+def test_selector_change_eventually_invalidates_merged_config(tmp_path: Path) -> None:
+    global_dir = tmp_path / "global"
+    global_dir.mkdir()
+    (global_dir / "sase_athena.yml").write_text(
+        "machine_name: athena\nvalue: first\n", encoding="utf-8"
+    )
+    (global_dir / "sase_zeus.yml").write_text(
+        "machine_name: zeus\nvalue: second\n", encoding="utf-8"
+    )
+    selector = machine_name_path()
+    selector.write_text("athena\n", encoding="utf-8")
+
+    now = [10.0]
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_dir),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+    ):
+        first = load_merged_config()
+        assert first["value"] == "first"
+
+        selector.write_text("zeus\n", encoding="utf-8")
+        new_mtime_ns = selector.stat().st_mtime_ns + 10_000_000
+        import os
+
+        os.utime(selector, ns=(new_mtime_ns, new_mtime_ns))
+        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+
+        assert load_merged_config() is first
+        second = _wait_for_new_merged_config(first)
+
+    assert second["machine_name"] == "zeus"
+    assert second["value"] == "second"
 
 
 def test_load_merged_config_caches_default_layer(tmp_path: Path) -> None:

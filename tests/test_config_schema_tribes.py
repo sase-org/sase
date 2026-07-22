@@ -9,23 +9,26 @@ from jsonschema import Draft7Validator
 from jsonschema.exceptions import ValidationError
 
 from sase.config.inventory import load_config_schema
+from tests._config_schema_helpers import with_machine_name
 
 
 def test_config_schema_accepts_ace_tribe_display_settings() -> None:
     Draft7Validator(load_config_schema()).validate(
-        {
-            "ace": {
-                "tribes": {
-                    "default": {"icon": "🏠", "color": "#ABCDEF"},
-                    "my.tribe-1": {
-                        "icon": "X",
-                        "color": "#abcdef",
-                        "initially_expanded": False,
-                    },
-                    "empty": {"color": ""},
+        with_machine_name(
+            {
+                "ace": {
+                    "tribes": {
+                        "default": {"icon": "🏠", "color": "#ABCDEF"},
+                        "my.tribe-1": {
+                            "icon": "X",
+                            "color": "#abcdef",
+                            "initially_expanded": False,
+                        },
+                        "empty": {"color": ""},
+                    }
                 }
             }
-        }
+        )
     )
 
 
@@ -51,4 +54,6 @@ def test_config_schema_rejects_invalid_ace_tribe_display_settings(
     tribes: dict[str, Any],
 ) -> None:
     with pytest.raises(ValidationError):
-        Draft7Validator(load_config_schema()).validate({"ace": {"tribes": tribes}})
+        Draft7Validator(load_config_schema()).validate(
+            with_machine_name({"ace": {"tribes": tribes}})
+        )

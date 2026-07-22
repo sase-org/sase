@@ -57,12 +57,18 @@ def test_validate_suppresses_successful_child_output(
 
     assert exit_code == 0
     assert calls == [
-        [sys.executable, "-m", "sase", "init", "--check"],
+        [sys.executable, "-m", "sase", "init", "memory", "--check"],
+        [sys.executable, "-m", "sase", "init", "repo", "--check"],
+        [sys.executable, "-m", "sase", "init", "skills", "--check"],
         [sys.executable, "-m", "sase", "plan", "links", "validate"],
     ]
     captured = capsys.readouterr()
     assert captured.out == (
-        "SASE validation\n  ok     init --check\n  ok     plan links validate\n"
+        "SASE validation\n"
+        "  ok     init memory --check\n"
+        "  ok     init repo --check\n"
+        "  ok     init skills --check\n"
+        "  ok     plan links validate\n"
     )
     assert captured.err == ""
 
@@ -74,6 +80,8 @@ def test_validate_runs_both_checks_when_first_fails(
     calls: list[list[str]] = []
     results = [
         (2, "init stdout\n", "init stderr\n"),
+        (0, "repo success stdout\n", "repo success stderr\n"),
+        (0, "skills success stdout\n", "skills success stderr\n"),
         (0, "sdd success stdout\n", "sdd success stderr\n"),
     ]
 
@@ -94,13 +102,17 @@ def test_validate_runs_both_checks_when_first_fails(
 
     assert exit_code == 1
     assert calls == [
-        [sys.executable, "-m", "sase", "init", "--check"],
+        [sys.executable, "-m", "sase", "init", "memory", "--check"],
+        [sys.executable, "-m", "sase", "init", "repo", "--check"],
+        [sys.executable, "-m", "sase", "init", "skills", "--check"],
         [sys.executable, "-m", "sase", "plan", "links", "validate"],
     ]
     out = capsys.readouterr().out
-    assert "  fail   init --check\n" in out
+    assert "  fail   init memory --check\n" in out
+    assert "  ok     init repo --check\n" in out
+    assert "  ok     init skills --check\n" in out
     assert "  ok     plan links validate\n" in out
-    assert "init --check failed (exit 2)" in out
+    assert "init memory --check failed (exit 2)" in out
     assert "stdout:\ninit stdout\n" in out
     assert "stderr:\ninit stderr\n" in out
     assert "sdd success stdout" not in out
@@ -114,6 +126,8 @@ def test_validate_prints_output_for_each_failed_check(
 ) -> None:
     results = [
         (1, "", "init broken\n"),
+        (0, "", ""),
+        (0, "", ""),
         (3, "sdd broken\n", ""),
     ]
 
@@ -133,9 +147,11 @@ def test_validate_prints_output_for_each_failed_check(
 
     assert exit_code == 1
     out = capsys.readouterr().out
-    assert "  fail   init --check\n" in out
+    assert "  fail   init memory --check\n" in out
+    assert "  ok     init repo --check\n" in out
+    assert "  ok     init skills --check\n" in out
     assert "  fail   plan links validate\n" in out
-    assert "init --check failed (exit 1)" in out
+    assert "init memory --check failed (exit 1)" in out
     assert "stderr:\ninit broken\n" in out
     assert "plan links validate failed (exit 3)" in out
     assert "stdout:\nsdd broken\n" in out

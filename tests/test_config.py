@@ -10,12 +10,15 @@ from sase.content_layout import LayoutCollisionError
 from sase.config.core import (
     CONFIG_DIR,
     _deep_merge,
+    get_machine_name,
     get_local_config_path,
     load_config_layers,
     load_merged_config,
     load_xprompts_by_source,
+    require_machine_name,
     set_include_local_config,
 )
+from sase.core.paths import machine_name_path
 
 
 # --- _deep_merge tests ---
@@ -100,6 +103,108 @@ def test_load_merged_config_non_dict_yaml_skipped(tmp_path: Path) -> None:
         result = load_merged_config()
 
     assert result["key"] == "base"
+
+
+def test_machine_overlays_require_matching_selector_and_keep_ordinary_overlays(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "sase_common.yml").write_text("common: true\n", encoding="utf-8")
+    (tmp_path / "sase_athena.yml").write_text(
+        "machine_name: athena\nselected: athena\n", encoding="utf-8"
+    )
+    (tmp_path / "sase_zeus.yml").write_text(
+        "machine_name: zeus\nselected: zeus\n", encoding="utf-8"
+    )
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+    ):
+        without_selector = load_merged_config()
+        assert without_selector["common"] is True
+        assert "machine_name" not in without_selector
+        assert "selected" not in without_selector
+
+        machine_name_path().write_text("athena\n", encoding="utf-8")
+        from sase.config.core import clear_config_cache
+
+        clear_config_cache()
+        selected = load_merged_config()
+
+    assert selected["machine_name"] == "athena"
+    assert selected["selected"] == "athena"
+    assert selected["common"] is True
+
+
+def test_machine_overlay_selection_is_shared_by_layers_and_xprompt_sources(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "sase_common.yml").write_text(
+        "xprompts:\n  common: common\n", encoding="utf-8"
+    )
+    (tmp_path / "sase_athena.yml").write_text(
+        "machine_name: athena\nxprompts:\n  athena: selected\n", encoding="utf-8"
+    )
+    (tmp_path / "sase_zeus.yml").write_text(
+        "machine_name: zeus\nxprompts:\n  zeus: foreign\n", encoding="utf-8"
+    )
+    machine_name_path().write_text("athena\n", encoding="utf-8")
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+    ):
+        layer_names = {layer.name for layer in load_config_layers()}
+        sources = dict(load_xprompts_by_source())
+
+    assert "overlay:sase_common.yml" in layer_names
+    assert "overlay:sase_athena.yml" in layer_names
+    assert "overlay:sase_zeus.yml" not in layer_names
+    assert sources["config_overlay:sase_common.yml"] == {"common": "common"}
+    assert sources["config_overlay:sase_athena.yml"] == {"athena": "selected"}
+    assert "config_overlay:sase_zeus.yml" not in sources
+
+
+def test_machine_name_accessors_require_resolving_selected_overlay(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "sase_athena.yml").write_text(
+        "machine_name: athena\n", encoding="utf-8"
+    )
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+    ):
+        assert get_machine_name() is None
+        with pytest.raises(RuntimeError, match="sase config init"):
+            require_machine_name()
+
+        machine_name_path().write_text("athena\n", encoding="utf-8")
+        from sase.config.core import clear_config_cache
+
+        clear_config_cache()
+        assert get_machine_name() == "athena"
+        assert require_machine_name() == "athena"
+
+
+@pytest.mark.parametrize("selector", ["Athena", "athena-1", "athena\nzeus\n"])
+def test_invalid_machine_selector_never_selects_overlay(
+    tmp_path: Path,
+    selector: str,
+) -> None:
+    (tmp_path / "sase_athena.yml").write_text(
+        "machine_name: athena\nprivate_value: true\n", encoding="utf-8"
+    )
+    machine_name_path().write_text(selector, encoding="utf-8")
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+    ):
+        result = load_merged_config()
+
+    assert "machine_name" not in result
+    assert "private_value" not in result
 
 
 def test_config_dir_is_correct() -> None:

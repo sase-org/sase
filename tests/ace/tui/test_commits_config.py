@@ -11,11 +11,14 @@ from sase.ace.tui.widgets.artifacts.commit_config import (
 )
 from sase.config.inventory import config_field_model, load_config_schema
 from sase.vcs_log.filter_query import parse_commit_filter_query, to_query_string
+from tests._config_schema_helpers import with_machine_name
 
 
 def test_commits_default_query_schema_accepts_nested_string() -> None:
     Draft7Validator(load_config_schema()).validate(
-        {"ace": {"artifacts": {"commits": {"default_query": "sidecar:true"}}}}
+        with_machine_name(
+            {"ace": {"artifacts": {"commits": {"default_query": "sidecar:true"}}}}
+        )
     )
 
 
@@ -31,7 +34,9 @@ def test_commits_default_query_is_exposed_in_config_inventory() -> None:
 def test_commits_default_query_schema_rejects_wrong_types(value: object) -> None:
     with pytest.raises(ValidationError):
         Draft7Validator(load_config_schema()).validate(
-            {"ace": {"artifacts": {"commits": {"default_query": value}}}}
+            with_machine_name(
+                {"ace": {"artifacts": {"commits": {"default_query": value}}}}
+            )
         )
 
 

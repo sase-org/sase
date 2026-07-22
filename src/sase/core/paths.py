@@ -16,10 +16,11 @@ Criteria for sharding a ``~/.sase/`` subdir:
 Excluded from sharding: ``projects/`` (bounded by registered-project count),
 ``comments/``, ``reverted/``, ``user_question/``, ``notifications/``,
 ``telegram/``, ``axe/``, ``commit_state/``, ``logs/``, ``home/``,
-``repos/``, ``spec_writer/``, ``images/``, ``archived/``, and top-level
-JSON files — either bounded, already structured, or below the threshold
-at which flat-directory scans become noticeable.  Revisit individually
-if any of these later crosses ~1000 entries.
+``repos/``, ``spec_writer/``, ``images/``, ``archived/``, and bounded
+top-level state files such as ``machine_name`` and the JSON stores — either
+bounded, already structured, or below the threshold at which flat-directory
+scans become noticeable.  Revisit individually if any of these later crosses
+~1000 entries.
 """
 
 import os
@@ -67,6 +68,15 @@ def prompt_stash_path() -> Path:
     top-level file, so it is excluded from YYYYMM sharding.
     """
     return sase_home() / "prompt_stash.jsonl"
+
+
+def machine_name_path() -> Path:
+    """Return the path to the machine-local identity selector.
+
+    This is one bounded top-level state file (``~/.sase/machine_name`` by
+    default), not a sharded history or a portable configuration file.
+    """
+    return sase_home() / "machine_name"
 
 
 _PROJECT_NAME_PATH_SEPARATORS = ("/", "\\")

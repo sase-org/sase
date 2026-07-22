@@ -8,7 +8,12 @@ def handle_config_command(args: argparse.Namespace) -> None:
     """Handle the 'sase config' subcommands."""
     config_sub = getattr(args, "config_subcommand", None)
 
-    if config_sub == "layers":
+    if config_sub == "init":
+        from .config_init_handler import run_config_init
+
+        sys.exit(run_config_init(args))
+
+    elif config_sub == "layers":
         from sase.config.core import DEPRECATED_TOP_LEVEL_KEYS, load_config_layers
 
         layers = load_config_layers()
@@ -87,5 +92,5 @@ def handle_config_command(args: argparse.Namespace) -> None:
         sys.exit(0)
 
     else:
-        print("Usage: sase config {layers,mentor-match,show}")
+        print("Usage: sase config {init,layers,mentor-match,show}")
         sys.exit(1)

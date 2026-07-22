@@ -3,6 +3,7 @@
   "title": "SASE Configuration",
   "description": "Configuration schema for sase.yml files",
   "type": "object",
+  "required": ["machine_name"],
   "additionalProperties": false,
   "definitions": {
     "linkedRepo": {
@@ -343,6 +344,11 @@
       "type": "boolean",
       "description": "Explicitly authorize SASE to manage repository resources, including project memory, root AGENTS.md, and SDD initialization. Only the target repository's own sase/sase.yml is consulted.",
       "default": false
+    },
+    "machine_name": {
+      "type": "string",
+      "pattern": "^[a-z_]+$",
+      "description": "Machine-local identity selected through ~/.sase/machine_name. Machine-specific sase_*.yml overlays load only when this value matches the selector."
     },
     "ace": {
       "type": "object",

@@ -24,7 +24,12 @@ class _ValidationResult:
 
 
 _CHECKS = (
-    _ValidationCheck("init --check", ("init", "--check")),
+    # Machine identity is intentionally local and may be absent on a clean CI
+    # host. Validate portable initialization surfaces explicitly; users and
+    # doctor still get the full Config-first plan from bare `sase init --check`.
+    _ValidationCheck("init memory --check", ("init", "memory", "--check")),
+    _ValidationCheck("init repo --check", ("init", "repo", "--check")),
+    _ValidationCheck("init skills --check", ("init", "skills", "--check")),
     _ValidationCheck(
         "plan links validate",
         ("plan", "links", "validate"),

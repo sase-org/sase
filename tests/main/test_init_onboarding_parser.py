@@ -55,6 +55,23 @@ def test_parser_accepts_bare_init_modes() -> None:
 def test_parser_accepts_scoped_init_check_modes() -> None:
     parser = create_parser()
 
+    config_short_args = parser.parse_args(["config", "init", "-c"])
+    assert config_short_args.command == "config"
+    assert config_short_args.config_subcommand == "init"
+    assert config_short_args.check is True
+
+    config_long_args = parser.parse_args(["config", "init", "--check"])
+    assert config_long_args.check is True
+
+    init_config_args = parser.parse_args(["init", "config", "--check"])
+    assert init_config_args.command == "init"
+    assert init_config_args.init_subcommand == "config"
+    assert init_config_args.check is True
+
+    parent_config_args = parser.parse_args(["init", "--check", "config"])
+    assert parent_config_args.init_subcommand == "config"
+    assert parent_config_args.check is True
+
     repo_short_args = parser.parse_args(["repo", "init", "-c"])
     assert repo_short_args.command == "repo"
     assert repo_short_args.repo_subcommand == "init"
@@ -165,6 +182,7 @@ def test_init_help_lists_existing_subcommands(
     assert exc.value.code == 0
     out = capsys.readouterr().out
     assert "amd" not in out
+    assert "config" in out
     assert "memory" in out
     assert "repo" in out
     assert "skills" in out
@@ -182,8 +200,9 @@ def test_init_help_lists_existing_subcommands(
     assert out.index("-M, --enable-project-memory") < out.index("-y, --yes")
 
 
-def test_registry_order_is_memory_repo_skills() -> None:
+def test_registry_order_is_config_memory_repo_skills() -> None:
     assert tuple(spec.name for spec in iter_init_command_specs()) == (
+        "config",
         "memory",
         "repo",
         "skills",

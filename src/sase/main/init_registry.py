@@ -22,15 +22,22 @@ class InitCommandSpec:
 def iter_init_command_specs() -> tuple[InitCommandSpec, ...]:
     """Return registered onboarding specs in execution order.
 
-    The memory spec owns agent-document initialization (managed AGENTS.md and
-    provider shims), while the repo spec owns configured sidecars and project
-    repository wiring.
+    Config establishes the machine-local identity before the memory spec owns
+    agent-document initialization (managed AGENTS.md and provider shims), and
+    before the repo spec owns configured sidecars and project repository wiring.
     """
+    from .config_init_handler import plan_config_init, run_config_init
     from .init_skills_handler import plan_init_skills, run_init_skills
     from .init_memory_handler import plan_init_memory, run_init_memory
     from .repo_init_handler import plan_repo_init, run_repo_init
 
     return (
+        InitCommandSpec(
+            name="config",
+            label="Config",
+            plan=plan_config_init,
+            run=run_config_init,
+        ),
         InitCommandSpec(
             name="memory",
             label="Memory",

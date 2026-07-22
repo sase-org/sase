@@ -134,7 +134,9 @@ def _render_no_specs(console: Console) -> None:
     console.print("SASE initialization check", style="bold")
     console.print()
     console.print("No init planners are registered yet.")
-    console.print("Run an explicit subcommand: init memory, init repo, or init skills.")
+    console.print(
+        "Run an explicit subcommand: init config, init memory, init repo, or init skills."
+    )
 
 
 def _prompt_for_plan(

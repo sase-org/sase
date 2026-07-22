@@ -65,7 +65,11 @@ def overlay_config_path(name: str) -> Path:
     stem = raw if raw.startswith("sase_") else f"sase_{raw}"
     if not stem.endswith(".yml"):
         stem = f"{stem}.yml"
-    return CONFIG_DIR / stem
+    # Resolve through the live core module so tests and embedded frontends that
+    # redirect the config root keep this helper aligned with config loading.
+    from sase.config import core as config_core
+
+    return config_core.CONFIG_DIR / stem
 
 
 def _writable_sources(inventory: ConfigInventory) -> list[ConfigSource]:
