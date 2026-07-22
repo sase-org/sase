@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from sase.agent_clis.models import AgentCliUpdateResult, UpdateResultStatus
+from sase.agents_sync.models import SyncOutcome
 from sase.dev_update.models import DevUpdateResult
 from sase.main.update_types import CombinedUpdateResult
 from sase.uv_tool.render import UpdateSummary
@@ -44,6 +45,8 @@ class ComprehensiveUpdateResult:
     sase: ComprehensiveSaseUpdateResult
     provider_results: tuple[AgentCliUpdateResult, ...] = ()
     provider_error: str | None = None
+    agents_outcomes: tuple[SyncOutcome, ...] = ()
+    agents_error: str | None = None
     elapsed: float = 0.0
 
     @property
@@ -53,14 +56,16 @@ class ComprehensiveUpdateResult:
 
     @property
     def has_failures(self) -> bool:
-        """Return whether either independent leg reported a failure."""
+        """Return whether any independent leg reported a failure."""
         return bool(
             self.sase.status is SaseUpdateResultStatus.FAILED
             or self.provider_error
+            or self.agents_error
             or any(
                 result.status is UpdateResultStatus.FAILED
                 for result in self.provider_results
             )
+            or any(outcome.error for outcome in self.agents_outcomes)
         )
 
     @property
@@ -71,10 +76,28 @@ class ComprehensiveUpdateResult:
         )
 
     @property
+    def has_successful_agents_change(self) -> bool:
+        return any(
+            outcome.error is None
+            and outcome.skip_reason is None
+            and bool(
+                outcome.integrated
+                or outcome.refreshed
+                or outcome.exported
+                or outcome.export_refreshed
+                or outcome.committed
+                or outcome.pushed
+            )
+            for outcome in self.agents_outcomes
+        )
+
+    @property
     def fully_failed(self) -> bool:
         """Return whether the run failed without changing either leg."""
         return self.has_failures and not (
-            self.code_changed or self.has_successful_provider_change
+            self.code_changed
+            or self.has_successful_provider_change
+            or self.has_successful_agents_change
         )
 
 

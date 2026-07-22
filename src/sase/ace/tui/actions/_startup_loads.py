@@ -108,6 +108,10 @@ class StartupLoadsMixin:
             self._schedule_startup_update_toast_check()
         except Exception:
             log.debug("Failed to schedule startup update toast", exc_info=True)
+        try:
+            self._schedule_startup_agents_sync_check()
+        except Exception:
+            log.debug("Failed to schedule startup agents-sync check", exc_info=True)
 
     async def _run_mount_state_loads(self: Any) -> None:
         """Load mount-time disk state without occupying the App message pump."""

@@ -26,6 +26,7 @@ from ._changespec_list_layout import (
 from .models.fold_state import FoldLevel
 from .actions import (
     AgentsMixin,
+    AgentsSyncActionsMixin,
     AgentWorkflowMixin,
     ArtifactBugsMixin,
     ArtifactsMixin,
@@ -58,6 +59,7 @@ from .widgets import (
     AgentDetail,
     AgentInfoPanel,
     AgentList,
+    AgentsSyncIndicator,
     AliasOverridesIndicator,
     ArtifactsSubTab,
     ArtifactsView,
@@ -102,6 +104,7 @@ _BGCMD_LIST_RESERVED_FOR_DASHBOARD = 40
 class AceApp(
     AgentWorkflowMixin,
     AgentsMixin,
+    AgentsSyncActionsMixin,
     AxeMixin,
     ArtifactBugsMixin,
     ArtifactsMixin,
@@ -441,6 +444,7 @@ class AceApp(
             yield TabBar(id="tab-bar")
             yield TaskIndicator(id="task-indicator")
             yield UpdatesAvailableIndicator(id="updates-indicator")
+            yield AgentsSyncIndicator(id="agents-sync-indicator")
             yield LLMOverrideIndicator(id="llm-override-indicator")
             yield AliasOverridesIndicator(id="alias-overrides-indicator")
             yield StashedPromptsIndicator(id="stashed-prompts-indicator")

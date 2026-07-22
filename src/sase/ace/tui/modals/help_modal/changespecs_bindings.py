@@ -347,7 +347,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'update_sase'))}",
-                    "Update eligible SASE + agent CLIs",
+                    "Update SASE + agent CLIs + agents repos",
                 ),
             ],
         ),

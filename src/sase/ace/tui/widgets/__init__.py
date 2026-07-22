@@ -4,6 +4,7 @@ from .agent_detail import AgentDetail
 from .agent_info_panel import AgentInfoPanel
 from .agent_list import AgentList
 from .agent_onboarding import AgentOnboarding
+from .agents_sync_indicator import AgentsSyncIndicator
 from .alias_overrides_indicator import AliasOverridesIndicator
 from .file_panel import FileLineCountChanged
 from .ancestors_children_panel import AncestorsChildrenPanel
@@ -59,6 +60,7 @@ __all__ = [
     "ToolDetailLevel",
     "AgentList",
     "AgentOnboarding",
+    "AgentsSyncIndicator",
     "AliasOverridesIndicator",
     "AncestorsChildrenPanel",
     "ActiveXPromptArgHint",

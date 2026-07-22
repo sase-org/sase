@@ -25,6 +25,7 @@ from ..models.fold_state import FoldStateManager, SectionFoldStateManager
 from ..util.fs_watcher import ArtifactWatcher
 from ..util.nav_gate import NavigationGate
 from ._state_init_late import init_late_startup_state
+from .agents_sync import initialize_agents_sync_state
 from .update_toast import _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS
 
 if TYPE_CHECKING:
@@ -117,6 +118,7 @@ class StateInitMixin:
             _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS
         )
         self._automatic_update_check_timer: Timer | None = None
+        initialize_agents_sync_state(self)
         # Deferred live-workspace pencil-hint scan coalescing. The expensive
         # per-agent live VCS diff is computed in a background worker after the
         # first agents load applies (never on the startup-critical loader

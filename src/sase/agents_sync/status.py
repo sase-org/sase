@@ -34,12 +34,22 @@ def get_agents_sync_status(
     projects: Sequence[str] = (),
     *,
     refresh: bool = False,
+    revalidate_only: bool = False,
     now: float | None = None,
     ttl_seconds: float = DEFAULT_STATUS_TTL_SECONDS,
     git_runner: GitRunner = run_git,
     path: Path | None = None,
 ) -> SyncStatusSnapshot:
-    """Return cached/revalidated status, fetching only on recompute/refresh."""
+    """Return locally revalidated status, optionally refreshing remote refs.
+
+    ``revalidate_only`` is the explicit no-network mode for periodic and
+    preview callers. It recomputes local git and unexported-agent facts even
+    when the cache is missing or stale, while preserving the last successful
+    fetch timestamp. ``refresh`` remains the explicit forced-network mode.
+    """
+
+    if refresh and revalidate_only:
+        raise ValueError("refresh and revalidate_only are mutually exclusive")
 
     checked_at = time.time() if now is None else now
     selection = resolve_sync_targets(projects)
@@ -64,7 +74,7 @@ def get_agents_sync_status(
     fresh = previous is not None and _snapshot_is_fresh(
         previous, now=checked_at, ttl_seconds=ttl_seconds
     )
-    fetch = refresh or not fresh
+    fetch = not revalidate_only and (refresh or not fresh)
     previous_by_key = (
         {status.project_key: status for status in previous.projects}
         if previous is not None

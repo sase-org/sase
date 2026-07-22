@@ -133,8 +133,16 @@ def test_start_post_mount_background_loads_schedules_all_once() -> None:
     assert scheduled.count(app._run_mount_state_loads) == 1
     assert scheduled.count(app._run_agents_fold_state_load) == 1
     assert scheduled.count(app._run_startup_update_toast_check) == 1
+    assert (
+        sum(
+            getattr(callback, "func", None) == app._run_agents_sync_status_check
+            for callback in scheduled
+        )
+        == 1
+    )
     assert intervals == [
-        (600.0, app._on_periodic_update_check, "automatic-update-check")
+        (600.0, app._on_periodic_update_check, "automatic-update-check"),
+        (600.0, app._on_periodic_agents_sync_check, "agents-sync-check"),
     ]
     assert app._post_mount_background_loads_started is True
 
@@ -198,6 +206,26 @@ def test_startup_configures_periodic_update_interval_from_loaded_config() -> Non
     assert intervals == [
         (90.0, app._on_periodic_update_check, "automatic-update-check")
     ]
+
+
+def test_startup_configures_agents_sync_cadences_from_loaded_config() -> None:
+    with patch(
+        "sase.config.load_merged_config",
+        return_value={
+            "ace": {
+                "agents_sync": {
+                    "check_interval_minutes": 2,
+                    "recompute_interval_minutes": 7,
+                    "indicator": False,
+                }
+            }
+        },
+    ):
+        app = AceApp()
+
+    assert app._agents_sync_check_interval_seconds == 120.0
+    assert app._agents_sync_recompute_interval_seconds == 420.0
+    assert app._agents_sync_indicator_enabled is False
 
 
 @pytest.mark.asyncio

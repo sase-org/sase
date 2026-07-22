@@ -43,6 +43,31 @@ def test_default_config_matches_public_schema() -> None:
     assert errors == [], "\n".join(format_schema_error(error) for error in errors)
 
 
+def test_config_schema_validates_ace_agents_sync_settings() -> None:
+    validator = Draft7Validator(schema())
+    validator.validate(
+        with_machine_name(
+            {
+                "ace": {
+                    "agents_sync": {
+                        "check_interval_minutes": 5,
+                        "recompute_interval_minutes": 30,
+                        "indicator": False,
+                    }
+                }
+            }
+        )
+    )
+    for invalid in (
+        {"check_interval_minutes": 0},
+        {"recompute_interval_minutes": -1},
+        {"indicator": "yes"},
+        {"unknown": True},
+    ):
+        with pytest.raises(ValidationError):
+            validator.validate(with_machine_name({"ace": {"agents_sync": invalid}}))
+
+
 def test_prompt_completion_word_min_length_schema_contract() -> None:
     public_schema = schema()
     prompt_completion = public_schema["properties"]["ace"]["properties"][

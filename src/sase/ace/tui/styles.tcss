@@ -45,6 +45,11 @@
     content-align: right middle;
 }
 
+#agents-sync-indicator {
+    width: auto;
+    content-align: right middle;
+}
+
 #stashed-prompts-indicator {
     width: auto;
     content-align: right middle;

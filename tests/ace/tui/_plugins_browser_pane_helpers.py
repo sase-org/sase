@@ -11,6 +11,7 @@ from rich.console import Console
 from textual.widgets import OptionList
 
 from sase.agent_clis.models import AgentCliStatus, InstallMethod
+from sase.agents_sync.models import SyncStatusSnapshot
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
@@ -267,6 +268,10 @@ def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane.list_project_records",
         lambda *_a, **_kw: [],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plugins_browser_comprehensive_update.get_agents_sync_status",
+        lambda **_kwargs: SyncStatusSnapshot(0.0),
     )
     monkeypatch.setattr(
         sp,

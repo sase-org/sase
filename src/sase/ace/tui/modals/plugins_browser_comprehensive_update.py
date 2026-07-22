@@ -14,6 +14,7 @@ from sase.ace.tui.actions.task_actions import (
 from sase.ace.tui.task_subprocess import TaskReporter
 from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
 from sase.agent_clis.models import AgentCliStatus
+from sase.agents_sync import get_agents_sync_status
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
 from sase.uv_tool.detect import NotUvToolInstall
 from sase.uv_tool.errors import NotAUvToolInstallError
@@ -35,6 +36,7 @@ from .plugins_browser_comprehensive_update_models import (
     error_text,
 )
 from .plugins_browser_comprehensive_update_preview import (
+    agents_preview_section,
     dev_update_commands,
     plan_captured_providers,
     provider_preview_section,
@@ -51,6 +53,7 @@ from .plugins_browser_sase_update_summary import load_receipt_for_summary
 _ComprehensiveUpdatePreview = ComprehensiveUpdatePreview
 _DroppedProviderCandidate = DroppedProviderCandidate
 _comprehensive_update_summary = comprehensive_update_summary
+_agents_preview_section = agents_preview_section
 _dev_update_commands = dev_update_commands
 _error_text = error_text
 _order_provider_results = order_provider_results
@@ -122,6 +125,12 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         sase_current = self._sase_up_to_date()
 
         def task() -> ComprehensiveUpdatePreview:
+            agents_status = None
+            agents_error = None
+            try:
+                agents_status = get_agents_sync_status(revalidate_only=True)
+            except Exception as exc:  # noqa: BLE001 - preserve other preview legs.
+                agents_error = error_text(exc)
             provider_plan, dropped, provider_error = plan_captured_providers(
                 request.provider_names,
                 statuses,
@@ -136,6 +145,8 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
                     provider_plan=provider_plan,
                     provider_dropped=dropped,
                     provider_error=provider_error,
+                    agents_status=agents_status,
+                    agents_error=agents_error,
                 )
             if isinstance(install, NotUvToolInstall):
                 return ComprehensiveUpdatePreview(
@@ -145,6 +156,8 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
                     provider_plan=provider_plan,
                     provider_dropped=dropped,
                     provider_error=provider_error,
+                    agents_status=agents_status,
+                    agents_error=agents_error,
                 )
             try:
                 receipt = load_receipt_for_summary(install)
@@ -171,6 +184,8 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
                 provider_plan=provider_plan,
                 provider_dropped=dropped,
                 provider_error=provider_error,
+                agents_status=agents_status,
+                agents_error=agents_error,
             )
 
         self._comprehensive_update_plan_worker = self.run_worker(  # type: ignore[attr-defined]
@@ -195,7 +210,8 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         if self._incoming_commits_enabled:
             incoming_empty_message = (
                 "No repository commit ranges are available for this update. "
-                "Agent CLI installers do not expose trustworthy commit ranges."
+                "Agent CLI installers and agents-repository synchronization do "
+                "not expose trustworthy commit ranges."
                 if not preview.sase_runnable
                 else "No repository commit ranges are available for the captured "
                 "SASE update."
@@ -204,8 +220,8 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         modal = PluginActionConfirmModal(
             title="Comprehensive update",
             intro=(
-                "Confirm the snapshot-gated SASE and provider work below. "
-                "Provider commands run first and sequentially."
+                "Confirm the snapshot-gated SASE, provider, and agents-repository "
+                "work below. Agent CLI commands run first and sequentially."
             ),
             variants=(
                 PluginActionVariant(
@@ -216,6 +232,7 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
                     sections=(
                         sase_preview_section(preview),
                         provider_preview_section(preview),
+                        agents_preview_section(preview),
                     ),
                 ),
             ),
@@ -245,7 +262,13 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
             )
             return
         errors = tuple(
-            item for item in (preview.sase_blocker, preview.provider_error) if item
+            item
+            for item in (
+                preview.sase_blocker,
+                preview.provider_error,
+                preview.agents_error,
+            )
+            if item
         )
         if errors:
             self._notify("; ".join(errors), severity="error")
@@ -266,7 +289,7 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
     def _submit_comprehensive_update_task(
         self, preview: ComprehensiveUpdatePreview
     ) -> bool:
-        """Submit exactly one task claiming both update mutation scopes."""
+        """Submit exactly one task claiming all update mutation scopes."""
 
         def task(
             reporter: TaskReporter,
@@ -276,10 +299,13 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
                 preview, reporter
             )
             sase_result = self._execute_comprehensive_sase_leg(preview, reporter)
+            agents_outcomes, agents_error = self._execute_agents_leg(preview, reporter)
             result = ComprehensiveUpdateResult(
                 sase=sase_result,
                 provider_results=provider_results,
                 provider_error=provider_error or preview.provider_error,
+                agents_outcomes=agents_outcomes,
+                agents_error=agents_error or preview.agents_error,
                 elapsed=max(0.0, time.monotonic() - start),
             )
             message = comprehensive_update_summary(result)
@@ -297,13 +323,15 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
             return False
         task_info = submit(
             "comprehensive-update",
-            "sase + agent CLIs",
+            "sase + agent CLIs + agents repos",
             "",
             task,
             display_name="comprehensive update",
             dedup_key="comprehensive-update",
-            exclusive_scopes=("sase-update", "agent-cli-update"),
-            duplicate_message="A SASE or agent CLI update is already running.",
+            exclusive_scopes=("sase-update", "agent-cli-update", "agents-sync"),
+            duplicate_message=(
+                "A SASE, agent CLI, or agents-repository update is already running."
+            ),
             on_complete=self._on_comprehensive_update_complete,
             reload_on_complete=False,
             notify_on_complete=False,
@@ -319,6 +347,13 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         refresh = getattr(self.app, "_schedule_updates_indicator_revalidation", None)
         if callable(refresh):
             refresh()
+        refresh_agents = getattr(
+            self.app,
+            "_schedule_agents_sync_indicator_revalidation",
+            None,
+        )
+        if callable(refresh_agents):
+            refresh_agents()
 
         result = completion.payload
         if result is None:

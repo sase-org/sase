@@ -112,6 +112,16 @@ def init_late_startup_state(
     self._automatic_update_check_interval_seconds = resolve_check_interval_seconds(
         updates_cfg if isinstance(updates_cfg, dict) else {}
     )
+    from ._agents_sync_config import parse_agents_sync_config
+
+    agents_sync_config = parse_agents_sync_config(
+        ace_cfg.get("agents_sync", {}) if isinstance(ace_cfg, dict) else {}
+    )
+    self._agents_sync_check_interval_seconds = agents_sync_config.check_interval_seconds
+    self._agents_sync_recompute_interval_seconds = (
+        agents_sync_config.recompute_interval_seconds
+    )
+    self._agents_sync_indicator_enabled = agents_sync_config.indicator
     self._agents_repro_output_dir = (
         str(ace_cfg.get("repro_output_dir", "")) if isinstance(ace_cfg, dict) else ""
     )

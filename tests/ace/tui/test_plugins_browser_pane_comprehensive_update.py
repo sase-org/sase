@@ -10,6 +10,7 @@ import pytest
 
 from sase.ace.comprehensive_update import (
     ComprehensiveSaseUpdateResult,
+    ComprehensiveUpdateResult,
     SaseUpdateResultStatus,
 )
 from sase.ace.testing import AcePage
@@ -19,6 +20,8 @@ from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmM
 from sase.ace.tui.modals.plugins_browser_comprehensive_update import (
     ComprehensiveUpdateActionsMixin,
     ComprehensiveUpdateRequest,
+    _agents_preview_section,
+    _comprehensive_update_summary,
     _ComprehensiveUpdatePreview,
     _plan_captured_providers,
     _provider_preview_section,
@@ -33,6 +36,7 @@ from sase.agent_clis.models import (
     AgentCliUpdatesReady,
     UpdateStrategy,
 )
+from sase.agents_sync.models import ProjectSyncStatus, SyncOutcome, SyncStatusSnapshot
 from sase.uv_tool.render import PlannedPackage
 from sase.updates.incoming_commits import (
     CommitSummary,
@@ -301,6 +305,80 @@ def test_comprehensive_provider_preview_marks_current_and_manual_rows() -> None:
     )
 
 
+def test_comprehensive_agents_preview_is_truthful_and_enabled_current_is_runnable() -> (
+    None
+):
+    preview = _ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest(()),
+        sase_preview=None,
+        sase_current=True,
+        agents_status=SyncStatusSnapshot(
+            100.0,
+            (
+                ProjectSyncStatus("current", "Current", "ready", 0, 0, 0),
+                ProjectSyncStatus(
+                    "pending",
+                    "Pending",
+                    "ready",
+                    ahead=1,
+                    behind=2,
+                    unexported_agents=3,
+                ),
+                ProjectSyncStatus(
+                    "broken",
+                    "Broken",
+                    "error",
+                    error="manifest invalid",
+                ),
+                ProjectSyncStatus(
+                    "disabled",
+                    "Disabled",
+                    "disabled",
+                    detail="project is disabled",
+                ),
+            ),
+        ),
+    )
+
+    section = _agents_preview_section(preview)
+
+    assert preview.agents_runnable is True
+    assert preview.runnable is True
+    assert section.title == "Agents repos"
+    assert section.counts == ("2 pending", "1 current", "1 skipped")
+    assert [
+        (component.name, component.detail, component.state)
+        for component in section.components
+    ] == [
+        ("Broken", "error: manifest invalid", "update"),
+        ("Current", "current", "current"),
+        ("Disabled", "project is disabled", "skipped"),
+        (
+            "Pending",
+            "behind 2, ahead 1, 3 unexported agents",
+            "update",
+        ),
+    ]
+
+
+def test_comprehensive_agents_preview_disabled_only_is_noop() -> None:
+    preview = _ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest(()),
+        sase_preview=None,
+        sase_current=True,
+        agents_status=SyncStatusSnapshot(
+            100.0,
+            (ProjectSyncStatus("off", "Off", "disabled"),),
+        ),
+    )
+
+    assert preview.agents_runnable is False
+    assert preview.runnable is False
+    assert _agents_preview_section(preview).summary == (
+        "All agents repositories in the inventory are disabled."
+    )
+
+
 def test_sase_blocker_does_not_suppress_runnable_provider_plan() -> None:
     provider_plan, dropped, error = _plan_captured_providers(
         ("claude",),
@@ -319,6 +397,50 @@ def test_sase_blocker_does_not_suppress_runnable_provider_plan() -> None:
     assert preview.sase_runnable is False
     assert preview.provider_runnable is True
     assert preview.runnable is True
+
+
+def test_comprehensive_preview_captures_no_network_agents_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+    snapshot = SyncStatusSnapshot(
+        100.0,
+        (ProjectSyncStatus("alpha", "Alpha", "ready", 0, 0, 0),),
+    )
+
+    def get_status(**kwargs: object) -> SyncStatusSnapshot:
+        calls.append(dict(kwargs))
+        return snapshot
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plugins_browser_comprehensive_update.get_agents_sync_status",
+        get_status,
+    )
+
+    class _PreviewHarness(ComprehensiveUpdateActionsMixin):
+        def __init__(self) -> None:
+            self._loading = False
+            self._comprehensive_update_plan_worker = None
+            self._agent_cli_statuses = ()
+            self._agent_cli_error = None
+            self._offline = False
+            self._uv_tool = None
+            self.worker: Any = None
+
+        def _sase_up_to_date(self) -> bool:
+            return True
+
+        def run_worker(self, callback: Any, **_kwargs: object) -> object:
+            self.worker = callback
+            return object()
+
+    harness = _PreviewHarness()
+    harness._start_comprehensive_update_preview(ComprehensiveUpdateRequest(()))
+    preview = harness.worker()
+
+    assert calls == [{"revalidate_only": True}]
+    assert preview.agents_status is snapshot
+    assert preview.agents_runnable is True
 
 
 class _Reporter:
@@ -361,6 +483,19 @@ class _ExecutionHarness(ComprehensiveUpdateActionsMixin):
             "already current",
         )
 
+    def _execute_agents_leg(
+        self, _preview: Any, _reporter: Any
+    ) -> tuple[tuple[SyncOutcome, ...], str | None]:
+        self.order.append("agents")
+        return (
+            SyncOutcome(
+                "alpha",
+                "Alpha",
+                pulled=True,
+                integrated=1,
+            ),
+        ), None
+
     def _on_comprehensive_update_complete(self, _completion: Any) -> None:
         pass
 
@@ -377,14 +512,108 @@ def test_comprehensive_task_claims_both_scopes_and_continues_after_provider_fail
     assert harness._submit_comprehensive_update_task(preview) is True
     assert harness.app.submitted is not None
     args, kwargs = harness.app.submitted
-    assert kwargs["exclusive_scopes"] == ("sase-update", "agent-cli-update")
+    assert kwargs["exclusive_scopes"] == (
+        "sase-update",
+        "agent-cli-update",
+        "agents-sync",
+    )
     assert kwargs["dedup_key"] == "comprehensive-update"
 
     task_result = args[3](_Reporter())
-    assert harness.order == ["providers", "sase"]
+    assert harness.order == ["providers", "sase", "agents"]
     assert task_result.success is False
     assert task_result.payload is not None
     assert task_result.payload.provider_error == "provider failed"
+    assert task_result.payload.agents_outcomes[0].project_key == "alpha"
+
+
+def test_comprehensive_summary_and_failures_include_agents_repos() -> None:
+    result = ComprehensiveUpdateResult(
+        sase=ComprehensiveSaseUpdateResult(
+            SaseUpdateResultStatus.ALREADY_CURRENT,
+            "already current",
+        ),
+        agents_outcomes=(
+            SyncOutcome("alpha", "Alpha", integrated=1),
+            SyncOutcome("beta", "Beta", error="push failed"),
+        ),
+    )
+
+    assert result.has_failures is True
+    assert result.has_successful_agents_change is True
+    assert result.fully_failed is False
+    assert _comprehensive_update_summary(result).endswith(
+        "Agents repos: 1 synchronized, 1 failed"
+    )
+
+
+def test_agents_leg_preserves_project_order_and_partial_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    returned = (
+        SyncOutcome("z", "Zulu", error="push failed"),
+        SyncOutcome("a", "Alpha", integrated=2),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution.sync_agents",
+        lambda: returned,
+    )
+    preview = _ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest(()),
+        sase_preview=None,
+        sase_current=True,
+        agents_status=SyncStatusSnapshot(
+            100.0,
+            (ProjectSyncStatus("a", "Alpha", "ready", 0, 0, 0),),
+        ),
+    )
+    harness = ComprehensiveUpdateActionsMixin.__new__(ComprehensiveUpdateActionsMixin)
+
+    outcomes, error = harness._execute_agents_leg(preview, _Reporter())
+
+    assert error is None
+    assert [outcome.project_key for outcome in outcomes] == ["a", "z"]
+    assert outcomes[0].integrated == 2
+    assert outcomes[1].error == "push failed"
+
+
+def test_comprehensive_completion_refreshes_both_shared_indicators() -> None:
+    class _App:
+        def __init__(self) -> None:
+            self.updates_refreshes = 0
+            self.agents_refreshes = 0
+
+        def _schedule_updates_indicator_revalidation(self) -> None:
+            self.updates_refreshes += 1
+
+        def _schedule_agents_sync_indicator_revalidation(self) -> None:
+            self.agents_refreshes += 1
+
+    class _Harness(ComprehensiveUpdateActionsMixin):
+        def __init__(self) -> None:
+            self.app = _App()
+            self._agent_cli_results: dict[str, object] = {}
+            self.is_mounted = False
+            self._loading = False
+            self.messages: list[str] = []
+
+        def _notify(self, message: str, **_kwargs: object) -> None:
+            self.messages.append(message)
+
+    result = ComprehensiveUpdateResult(
+        sase=ComprehensiveSaseUpdateResult(
+            SaseUpdateResultStatus.ALREADY_CURRENT,
+            "already current",
+        ),
+    )
+    harness = _Harness()
+
+    harness._on_comprehensive_update_complete(
+        SimpleNamespace(payload=result, error=None, message="done")
+    )
+
+    assert harness.app.updates_refreshes == 1
+    assert harness.app.agents_refreshes == 1
 
 
 async def test_config_center_handoff_confirms_only_captured_live_provider(
@@ -421,6 +650,7 @@ async def test_config_center_handoff_confirms_only_captured_live_provider(
         assert [section.title for section in sections] == [
             "SASE, core & plugins",
             "Agent CLIs",
+            "Agents repos",
         ]
         assert sections[1].commands == (
             "Claude Code: /home/dev/.local/bin/claude update",

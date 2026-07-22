@@ -10,11 +10,17 @@ from sase.agent_clis.models import (
     AgentCliStatus,
     AgentCliUpdatePlan,
 )
+from sase.agents_sync.models import ProjectSyncStatus
+from sase.ace.tui.agents_sync_format import (
+    agents_sync_status_detail,
+    agents_sync_status_needs_attention,
+)
 from sase.dev_update.models import DevUpdatePlan
 from sase.uv_tool.commands import build_upgrade_all
 from sase.version._git import GitUpstreamStatus, git_fetch_upstream_args
 
 from .plugin_action_confirm_modal import (
+    PluginActionComponentState,
     PluginActionPreviewComponent,
     PluginActionPreviewSection,
 )
@@ -260,6 +266,80 @@ def provider_preview_section(
         details=details,
         skipped=tuple(skipped),
         counts=tuple(counts),
+    )
+
+
+def agents_preview_section(
+    preview: ComprehensiveUpdatePreview,
+) -> PluginActionPreviewSection:
+    """Render the no-network agents-repository snapshot for confirmation."""
+    title = "Agents repos"
+    if preview.agents_error:
+        return PluginActionPreviewSection(
+            title=title,
+            summary="Agents-repository status could not be planned.",
+            components=(
+                PluginActionPreviewComponent(
+                    "Agents repositories",
+                    preview.agents_error,
+                    "skipped",
+                ),
+            ),
+            skipped=(preview.agents_error,),
+            counts=("1 error",),
+        )
+    snapshot = preview.agents_status
+    if snapshot is None or not snapshot.projects:
+        return PluginActionPreviewSection(
+            title=title,
+            summary="No agents repositories are present in the project inventory.",
+        )
+
+    statuses = tuple(sorted(snapshot.projects, key=lambda item: item.project_key))
+    components = tuple(_agents_status_component(status) for status in statuses)
+    enabled = tuple(status for status in statuses if status.state != "disabled")
+    pending = tuple(
+        status for status in enabled if agents_sync_status_needs_attention(status)
+    )
+    current = tuple(status for status in enabled if status not in pending)
+    skipped = tuple(
+        f"{status.project}: {agents_sync_status_detail(status)}"
+        for status in statuses
+        if status.state == "disabled"
+    )
+    counts = [
+        _count_label(len(pending), "pending", plural="pending"),
+        _count_label(len(current), "current", plural="current"),
+    ]
+    if skipped:
+        counts.append(_count_label(len(skipped), "skipped", plural="skipped"))
+    return PluginActionPreviewSection(
+        title=title,
+        summary=(
+            f"Synchronizes all {len(enabled)} enabled agents "
+            f"repositor{'y' if len(enabled) == 1 else 'ies'}."
+            if enabled
+            else "All agents repositories in the inventory are disabled."
+        ),
+        components=components,
+        skipped=skipped,
+        counts=tuple(counts),
+    )
+
+
+def _agents_status_component(
+    status: ProjectSyncStatus,
+) -> PluginActionPreviewComponent:
+    if status.state == "disabled":
+        state: PluginActionComponentState = "skipped"
+    elif agents_sync_status_needs_attention(status):
+        state = "update"
+    else:
+        state = "current"
+    return PluginActionPreviewComponent(
+        status.project,
+        agents_sync_status_detail(status),
+        state,
     )
 
 

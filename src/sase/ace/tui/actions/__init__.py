@@ -2,6 +2,7 @@
 
 from .agent_workflow import AgentWorkflowMixin
 from .agents import AgentMarkingMixin, AgentsMixin
+from .agents_sync import AgentsSyncActionsMixin
 from .axe import AxeMixin
 from .artifacts import ArtifactsMixin
 from .artifact_bugs import ArtifactBugsMixin
@@ -28,6 +29,7 @@ from .workspace import WorkspaceActionsMixin
 __all__ = [
     "AgentMarkingMixin",
     "AgentsMixin",
+    "AgentsSyncActionsMixin",
     "AgentWorkflowMixin",
     "AxeMixin",
     "ArtifactsMixin",

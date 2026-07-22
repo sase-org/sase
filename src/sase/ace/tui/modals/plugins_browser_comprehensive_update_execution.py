@@ -1,4 +1,4 @@
-"""Execution helpers for comprehensive SASE and agent-CLI updates."""
+"""Execution helpers for comprehensive SASE, CLI, and agents-repo updates."""
 
 from __future__ import annotations
 
@@ -19,6 +19,12 @@ from sase.agent_clis.models import (
     UpdateResultStatus,
 )
 from sase.agent_clis.runner import CommandResult, run_command
+from sase.agents_sync import sync_agents
+from sase.agents_sync.models import SyncOutcome
+from sase.ace.tui.agents_sync_format import (
+    agents_sync_outcome_line,
+    summarize_agents_sync_outcomes,
+)
 from sase.dev_update.journal import append_dev_update_journal
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
 from sase.main.update_types import CombinedUpdateResult
@@ -41,7 +47,7 @@ from .plugins_browser_sase_update_tasks import dev_update_reporter_runner
 
 
 class ComprehensiveUpdateExecutionMixin:
-    """Execute both legs of a previously confirmed comprehensive update."""
+    """Execute all legs of a previously confirmed comprehensive update."""
 
     if TYPE_CHECKING:
         _uv_tool: object | None
@@ -216,6 +222,30 @@ class ComprehensiveUpdateExecutionMixin:
             dev_result,
         )
 
+    def _execute_agents_leg(
+        self,
+        preview: ComprehensiveUpdatePreview,
+        reporter: TaskReporter,
+    ) -> tuple[tuple[SyncOutcome, ...], str | None]:
+        """Synchronize every enabled agents repo after the CLI and SASE legs."""
+        if not preview.agents_runnable:
+            return (), None
+        try:
+            reporter.phase("Synchronizing agents repositories")
+            outcomes = tuple(
+                sorted(sync_agents(), key=lambda outcome: outcome.project_key)
+            )
+        except Exception as exc:  # noqa: BLE001 - retain successful prior legs.
+            error = error_text(exc)
+            reporter.section("Agents repository results")
+            reporter.log(f"Agents repository sync failed: {error}", stream="result")
+            return (), error
+
+        reporter.section("Agents repository results")
+        for outcome in outcomes:
+            reporter.log(agents_sync_outcome_line(outcome), stream="result")
+        return outcomes, None
+
 
 def order_provider_results(
     results: Sequence[AgentCliUpdateResult],
@@ -255,4 +285,9 @@ def comprehensive_update_summary(result: ComprehensiveUpdateResult) -> str:
     provider_line = "Agent CLIs: " + (
         ", ".join(provider_parts) if provider_parts else "no captured work"
     )
-    return f"{sase_line}; {provider_line}"
+    agents_line = "Agents repos: " + summarize_agents_sync_outcomes(
+        result.agents_outcomes
+    )
+    if result.agents_error:
+        agents_line = f"Agents repos: failed — {result.agents_error}"
+    return f"{sase_line}; {provider_line}; {agents_line}"

@@ -18,6 +18,7 @@ EXPECTED_TOP_BAR_ORDER = [
     "tab-bar",
     "task-indicator",
     "updates-indicator",
+    "agents-sync-indicator",
     "llm-override-indicator",
     "alias-overrides-indicator",
     "stashed-prompts-indicator",

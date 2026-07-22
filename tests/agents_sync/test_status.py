@@ -114,6 +114,74 @@ def test_stale_or_corrupt_status_fetches_then_recovers(
     assert status._read_agents_sync_status_snapshot(path=cache) == snapshot
 
 
+@pytest.mark.parametrize("cache_contents", [None, "{broken"])
+def test_revalidate_only_never_fetches_with_missing_or_stale_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    cache_contents: str | None,
+) -> None:
+    target = _target(tmp_path)
+    cache = tmp_path / "status.json"
+    if cache_contents is None:
+        status._write_agents_sync_status_snapshot(
+            SyncStatusSnapshot(
+                1.0,
+                (
+                    ProjectSyncStatus(
+                        "proj",
+                        "Project",
+                        "ready",
+                        0,
+                        0,
+                        0,
+                        last_fetch_time=0.5,
+                    ),
+                ),
+            ),
+            path=cache,
+        )
+    else:
+        cache.write_text(cache_contents)
+    calls: list[tuple[str, bool]] = []
+
+    def runner(
+        _cwd: Path, args: list[str], *, network: bool = False, op: str = ""
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append((args[0], network))
+        assert args[0] != "fetch"
+        if args[:2] == ["rev-parse", "--verify"]:
+            return subprocess.CompletedProcess(args, 0, "upstream\n", "")
+        if args[0] == "rev-list":
+            return subprocess.CompletedProcess(args, 0, "1 2\n", "")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(
+        status, "resolve_sync_targets", lambda _projects: TargetSelection((target,), ())
+    )
+    monkeypatch.setattr(status, "require_machine_name", lambda: "athena")
+    monkeypatch.setattr(status, "count_unexported_local_agents", lambda *_a, **_k: 3)
+
+    snapshot = status.get_agents_sync_status(
+        now=1000.0,
+        ttl_seconds=10.0,
+        revalidate_only=True,
+        git_runner=runner,
+        path=cache,
+    )
+
+    assert calls == [("rev-parse", False), ("rev-list", False)]
+    assert (
+        snapshot.projects[0].ahead,
+        snapshot.projects[0].behind,
+        snapshot.projects[0].unexported_agents,
+    ) == (1, 2, 3)
+
+
+def test_status_rejects_conflicting_network_modes() -> None:
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        status.get_agents_sync_status(refresh=True, revalidate_only=True)
+
+
 def test_post_sync_rewrite_never_fetches(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -565,6 +565,30 @@
             }
           }
         },
+        "agents_sync": {
+          "type": "object",
+          "description": "Periodic ACE status checks and the top-bar indicator for enabled agents sidecar repositories",
+          "additionalProperties": false,
+          "properties": {
+            "check_interval_minutes": {
+              "type": "number",
+              "description": "Interval between local agents-repository status revalidations in a running ACE session",
+              "exclusiveMinimum": 0,
+              "default": 10
+            },
+            "recompute_interval_minutes": {
+              "type": "number",
+              "description": "Minimum ACE-session cadence between agents-repository status checks that fetch remote refs",
+              "exclusiveMinimum": 0,
+              "default": 30
+            },
+            "indicator": {
+              "type": "boolean",
+              "description": "Show the top-bar agents-repository synchronization indicator when enabled projects need attention",
+              "default": true
+            }
+          }
+        },
         "prompt_completion": {
           "type": "object",
           "description": "Live completion settings for the ACE prompt input",
