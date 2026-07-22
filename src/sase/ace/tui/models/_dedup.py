@@ -33,6 +33,13 @@ def _is_workspace_claim_workflow(workflow: str | None) -> bool:
     return any(workflow.startswith(f"{name}-") for name in get_workflow_names())
 
 
+def _have_distinct_artifact_suffixes(first: Agent, second: Agent) -> bool:
+    """Return whether both rows identify present, different artifact suffixes."""
+    return bool(
+        first.raw_suffix and second.raw_suffix and first.raw_suffix != second.raw_suffix
+    )
+
+
 def _merge_agent_fields(target: Agent, source: Agent) -> None:
     """Merge non-None fields from source agent into target agent.
 
@@ -370,76 +377,112 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
     return deduped_agents
 
 
-def dedup_by_pid(agents: list[Agent]) -> list[Agent]:
-    """Final safety net: enforce no duplicate PIDs among all agents.
+def _collapse_pid_duplicate(existing: Agent, agent: Agent) -> tuple[Agent, Agent]:
+    """Merge one duplicate pair and return ``(survivor, removed)``."""
+    if (
+        agent.agent_type == AgentType.RUNNING
+        and existing.agent_type == AgentType.WORKFLOW
+    ):
+        _merge_agent_fields(existing, agent)
+        return existing, agent
+    if (
+        existing.agent_type == AgentType.RUNNING
+        and agent.agent_type == AgentType.WORKFLOW
+    ):
+        _merge_agent_fields(agent, existing)
+        return agent, existing
+    _merge_agent_fields(existing, agent)
+    return existing, agent
 
-    When multiple agents share a PID, keep the one with the most specific
-    workflow type (WORKFLOW > RUNNING) and remove the rest. This catches any
-    VCS workspace duplicates that slipped through earlier dedup passes.
-    Operates on ALL agents (including hidden) to prevent duplicate PIDs
-    from appearing when hidden agents are toggled visible.
+
+def dedup_by_pid(agents: list[Agent]) -> list[Agent]:
+    """Final safety net: collapse duplicate projections that share a PID.
+
+    PID is only a candidate key: present, different artifact suffixes identify
+    distinct non-VCS runs or family phases and must both survive. Rows for the
+    same artifact (or legacy rows missing a suffix) retain the established
+    WORKFLOW > RUNNING preference. VCS workspace claims remain higher-priority
+    duplicates and are collapsed regardless of artifact suffix. The pass
+    operates on all agents, including hidden rows, so provider duplicates do
+    not appear when hidden agents are toggled visible.
     """
-    seen_pids: dict[int, Agent] = {}
+    vcs_by_pid: dict[int, Agent] = {}
+    first_non_vcs_by_pid: dict[int, Agent] = {}
+    missing_suffix_by_pid: dict[int, Agent] = {}
+    non_vcs_by_artifact: dict[tuple[int, str], Agent] = {}
     pid_remove_ids: set[int] = set()
+
+    def register_non_vcs(agent: Agent) -> None:
+        assert agent.pid is not None
+        first_non_vcs_by_pid.setdefault(agent.pid, agent)
+        if agent.raw_suffix:
+            non_vcs_by_artifact[(agent.pid, agent.raw_suffix)] = agent
+        else:
+            missing_suffix_by_pid[agent.pid] = agent
+
+    def replace_non_vcs(existing: Agent, agent: Agent) -> None:
+        assert agent.pid is not None
+        pid = agent.pid
+        if first_non_vcs_by_pid.get(pid) is existing:
+            first_non_vcs_by_pid[pid] = agent
+        if existing.raw_suffix:
+            key = (pid, existing.raw_suffix)
+            if non_vcs_by_artifact.get(key) is existing:
+                del non_vcs_by_artifact[key]
+        elif missing_suffix_by_pid.get(pid) is existing:
+            del missing_suffix_by_pid[pid]
+        if agent.raw_suffix:
+            non_vcs_by_artifact[(pid, agent.raw_suffix)] = agent
+        else:
+            missing_suffix_by_pid[pid] = agent
+
     for agent in agents:
         if agent.pid is None:
             continue
-        if agent.pid in seen_pids:
-            existing = seen_pids[agent.pid]
-            # Prefer WORKFLOW over RUNNING, and non-VCS over VCS workflows
-            existing_is_vcs = _is_workspace_claim_workflow(existing.workflow)
-            agent_is_vcs = _is_workspace_claim_workflow(agent.workflow)
-            if agent_is_vcs and not existing_is_vcs:
-                # New agent is VCS, existing is not — remove new
-                _merge_agent_fields(existing, agent)
+        pid = agent.pid
+        agent_is_vcs = _is_workspace_claim_workflow(agent.workflow)
+        if agent_is_vcs:
+            non_vcs = first_non_vcs_by_pid.get(pid)
+            if non_vcs is not None:
+                _merge_agent_fields(non_vcs, agent)
                 pid_remove_ids.add(id(agent))
-            elif existing_is_vcs and not agent_is_vcs:
-                # Existing is VCS, new is not — remove existing, keep new
-                _merge_agent_fields(agent, existing)
-                pid_remove_ids.add(id(existing))
-                seen_pids[agent.pid] = agent
-            elif (
-                agent.agent_type == AgentType.RUNNING
-                and existing.agent_type == AgentType.WORKFLOW
-            ):
-                # Both non-VCS: prefer WORKFLOW over RUNNING
-                _merge_agent_fields(existing, agent)
-                pid_remove_ids.add(id(agent))
-            elif (
-                existing.agent_type == AgentType.RUNNING
-                and agent.agent_type == AgentType.WORKFLOW
-            ):
-                _merge_agent_fields(agent, existing)
-                pid_remove_ids.add(id(existing))
-                seen_pids[agent.pid] = agent
-            elif (
-                agent.agent_type == AgentType.WORKFLOW
-                and existing.agent_type == AgentType.WORKFLOW
-                and agent.raw_suffix
-                and existing.raw_suffix
-                and agent.raw_suffix != existing.raw_suffix
-            ):
-                # Both WORKFLOWs with distinct artifact dirs — these are
-                # follow-up phases (plan→code) from the same runner process.
-                # Keep both; they represent different work, not duplicates.
-                pass
-            elif (
-                agent.agent_type == AgentType.RUNNING
-                and existing.agent_type == AgentType.RUNNING
-                and agent.raw_suffix
-                and existing.raw_suffix
-                and agent.raw_suffix != existing.raw_suffix
-            ):
-                # Both RUNNING agents with distinct timestamps — these are
-                # separate agents that share a PID due to OS PID recycling.
-                # Keep both.
-                pass
-            else:
-                # Same type, same or missing suffix — remove the newer one
-                _merge_agent_fields(existing, agent)
-                pid_remove_ids.add(id(agent))
+                continue
+            existing_vcs = vcs_by_pid.get(pid)
+            if existing_vcs is None:
+                vcs_by_pid[pid] = agent
+                continue
+            survivor, removed = _collapse_pid_duplicate(existing_vcs, agent)
+            pid_remove_ids.add(id(removed))
+            vcs_by_pid[pid] = survivor
+            continue
+
+        existing_vcs = vcs_by_pid.pop(pid, None)
+        if existing_vcs is not None:
+            _merge_agent_fields(agent, existing_vcs)
+            pid_remove_ids.add(id(existing_vcs))
+
+        existing: Agent | None
+        missing_suffix = missing_suffix_by_pid.get(pid)
+        if missing_suffix is not None:
+            existing = missing_suffix
+        elif agent.raw_suffix:
+            existing = non_vcs_by_artifact.get((pid, agent.raw_suffix))
         else:
-            seen_pids[agent.pid] = agent
+            existing = first_non_vcs_by_pid.get(pid)
+
+        if existing is None:
+            register_non_vcs(agent)
+            continue
+        if _have_distinct_artifact_suffixes(existing, agent):
+            # Suffix-indexed candidates should never reach this branch, but
+            # keep artifact identity ahead of the generic type preference.
+            register_non_vcs(agent)
+            continue
+
+        survivor, removed = _collapse_pid_duplicate(existing, agent)
+        pid_remove_ids.add(id(removed))
+        if survivor is agent:
+            replace_non_vcs(existing, agent)
 
     if pid_remove_ids:
         agents = [a for a in agents if id(a) not in pid_remove_ids]

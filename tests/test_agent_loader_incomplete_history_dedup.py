@@ -208,8 +208,8 @@ def test_incomplete_load_after_complete_history_dedups_cross_snapshot_same_pid()
     assert incoming_non_vcs.model == "cached-model"
 
 
-def test_incomplete_load_after_complete_history_reattaches_pid_dedup_children() -> None:
-    """Children of a removed same-PID parent stay attached to the survivor."""
+def test_incomplete_load_preserves_distinct_same_pid_artifact_children() -> None:
+    """Different-artifact same-PID roots retain their own attached children."""
     app = FakeLoadingApp()
     cached_suffix = "20260202120000"
     incoming_suffix = "20260202120100"
@@ -256,6 +256,7 @@ def test_incomplete_load_after_complete_history_reattaches_pid_dedup_children() 
         load_state=INCOMPLETE_INDEX_STATE,
     )
 
-    assert app._agents == [incoming_workflow, cached_child]
-    assert incoming_workflow.workspace_num == 11
-    assert cached_child.parent_timestamp == incoming_suffix
+    assert app._agents == [incoming_workflow, cached_running, cached_child]
+    assert incoming_workflow.workspace_num is None
+    assert cached_running.workspace_num == 11
+    assert cached_child.parent_timestamp == cached_suffix
