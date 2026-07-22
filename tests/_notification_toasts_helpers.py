@@ -66,7 +66,9 @@ class _FakeApp(AgentNotificationMixin):
         self._bell_rung += 1
 
     def _apply_notification_status_overrides(  # type: ignore[override]
-        self, unread: list[Notification]
+        self,
+        unread: list[Notification],
+        **_kwargs: object,
     ) -> set[str]:
         # Status overrides aren't exercised in these tests; callers can report
         # selected IDs as auto-dismissed to exercise polling suppression.

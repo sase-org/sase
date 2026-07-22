@@ -146,6 +146,58 @@ def request_notification_agents_refresh(
     _call_schedule_agents_refresh(app)
 
 
+def prepare_disappeared_plan_notification_refresh(
+    app: Any,
+    previous_notifications: list[Notification],
+    current_notifications: list[Notification],
+) -> tuple[tuple[Path, ...], bool]:
+    """Resolve disappeared plan-review rows to a bounded refresh request.
+
+    This helper may call ``Agent.get_artifacts_dir()``, which can inspect the
+    filesystem. Polling therefore invokes it on the same worker thread that
+    reads the notification snapshot and only applies the returned paths on the
+    Textual thread.
+
+    Returns ``(artifact_dirs, needs_broad_fallback)``. Duplicate notifications
+    for one artifact are coalesced, and unrelated notification removals are
+    ignored.
+    """
+    current_ids = {notification.id for notification in current_notifications}
+    artifact_dirs: set[Path] = set()
+    needs_broad_fallback = False
+    for notification in previous_notifications:
+        if (
+            notification.dismissed
+            or notification.id in current_ids
+            or notification.action not in {"PlanApproval", "EpicApproval"}
+        ):
+            continue
+        agent = _resolve_notification_agent(app, notification)
+        artifact_dir = _agent_artifact_dir(agent) if agent is not None else None
+        if artifact_dir is None:
+            needs_broad_fallback = True
+            continue
+        artifact_dirs.add(artifact_dir)
+    return tuple(sorted(artifact_dirs, key=str)), needs_broad_fallback
+
+
+def apply_disappeared_plan_notification_refresh(
+    app: Any,
+    artifact_dirs: tuple[Path, ...],
+    *,
+    needs_broad_fallback: bool,
+) -> None:
+    """Apply a worker-prepared plan-review disappearance refresh request."""
+    if artifact_dirs:
+        schedule_delta = getattr(app, "_schedule_agent_artifact_delta_refresh", None)
+        if callable(schedule_delta):
+            schedule_delta(artifact_dirs, source="notification")
+        else:
+            needs_broad_fallback = True
+    if needs_broad_fallback:
+        _call_schedule_agents_refresh(app)
+
+
 def refresh_notification_agent_or_request(
     app: Any,
     *,

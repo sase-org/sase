@@ -2,9 +2,44 @@
 
 from __future__ import annotations
 
-from typing import Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
-from ._notification_utils import unread_notification_buckets
+from ._notification_status_overrides import (
+    PreparedPlanNotificationReconciliation,
+    prepare_plan_notification_reconciliation,
+)
+from ._notification_utils import (
+    apply_disappeared_plan_notification_refresh,
+    prepare_disappeared_plan_notification_refresh,
+    unread_notification_buckets,
+)
+
+if TYPE_CHECKING:
+    from sase.notifications import Notification
+
+
+def _prepare_notification_reconciliation(
+    app: Any,
+    previous_notifications: list[Notification],
+    current_notifications: list[Notification],
+    actionable_notifications: list[Notification],
+) -> tuple[
+    PreparedPlanNotificationReconciliation,
+    tuple[Path, ...],
+    bool,
+]:
+    """Prepare response and disappearance transitions on a worker thread."""
+    prepared_plan_notifications = prepare_plan_notification_reconciliation(
+        app,
+        actionable_notifications,
+    )
+    artifact_dirs, needs_broad_fallback = prepare_disappeared_plan_notification_refresh(
+        app,
+        previous_notifications,
+        current_notifications,
+    )
+    return prepared_plan_notifications, artifact_dirs, needs_broad_fallback
 
 
 _TERMINAL_SILENT_ACTIONS = frozenset({"PlanApproval", "EpicApproval"})
@@ -30,11 +65,14 @@ class AgentNotificationPollingMixin:
 
         from ._toasts import format_batch_toasts
 
+        previous_snapshot = getattr(self, "_notification_snapshot_cache", None)
+        previous_notifications = list(
+            getattr(previous_snapshot, "notifications", []) or []
+        )
         snapshot = await asyncio.to_thread(
             self._read_notification_snapshot_from_provider,
             expire_due_snoozes=True,
         )
-        self._set_notification_snapshot_cache(snapshot)
         notifications = snapshot.notifications
         expired_snoozes = snapshot.expired_ids
         unread_priority, unread_errors, unread_rest, unread_muted = (
@@ -42,6 +80,23 @@ class AgentNotificationPollingMixin:
         )
 
         unread_active = unread_priority + unread_errors + unread_rest
+        (
+            prepared_plan_notifications,
+            disappeared_artifact_dirs,
+            needs_broad_fallback,
+        ) = await asyncio.to_thread(
+            _prepare_notification_reconciliation,
+            self,
+            previous_notifications,
+            notifications,
+            unread_active + unread_muted,
+        )
+        self._set_notification_snapshot_cache(snapshot)
+        apply_disappeared_plan_notification_refresh(
+            self,
+            disappeared_artifact_dirs,
+            needs_broad_fallback=needs_broad_fallback,
+        )
         current_ids = {n.id for n in unread_active}
         new_ids = current_ids - self._last_unread_ids  # type: ignore[attr-defined]
         new_notifications = [n for n in unread_active if n.id in new_ids]
@@ -58,7 +113,13 @@ class AgentNotificationPollingMixin:
 
         # Muting quiets the indicator; it should not break agent lifecycle state.
         auto_dismissed_ids = self._apply_notification_status_overrides(
-            unread_active + unread_muted
+            unread_active + unread_muted,
+            prepared_external_plan_responses=(
+                prepared_plan_notifications.external_responses
+            ),
+            prepared_neutral_plan_notification_ids=(
+                prepared_plan_notifications.neutral_notification_ids
+            ),
         )
         if auto_dismissed_ids:
             new_notifications = [

@@ -10,6 +10,10 @@ from typing import TYPE_CHECKING, Literal
 from sase.agent.status_buckets import (
     ACTIVE_PLAN_HANDOFF_STATUSES,
     APPROVED_PLAN_STATUSES,
+    EPIC_APPROVED_STATUS,
+    FEEDBACK_STATUS,
+    PENDING_PLAN_REVIEW_STATUS_SET,
+    PLAN_COMMITTED_STATUS,
     WORKING_PLAN_STATUSES,
 )
 
@@ -36,6 +40,26 @@ _QUESTION_OVERRIDE_PROGRESS_STATUSES = frozenset(
         "EPIC APPROVED",
         "PLAN COMMITTED",
     }
+)
+
+# Durable statuses/actions that prove a notification-installed pending review
+# override has been overtaken. Raw runner states deliberately stay out of this
+# set: before agent metadata lands, STARTING/RUNNING/WAITING are not evidence
+# that the review was resolved and must not make the pending label flicker.
+_PENDING_PLAN_OVERRIDE_PROGRESS_STATUSES = frozenset(
+    {
+        *ACTIVE_PLAN_HANDOFF_STATUSES,
+        EPIC_APPROVED_STATUS,
+        PLAN_COMMITTED_STATUS,
+        "EPIC CREATED",
+        "PLAN REJECTED",
+        FEEDBACK_STATUS,
+        "PLAN DONE",
+        "TALE DONE",
+    }
+)
+_PENDING_PLAN_OVERRIDE_PROGRESS_ACTIONS = frozenset(
+    {"approve", "tale", "epic", "commit"}
 )
 
 
@@ -147,6 +171,11 @@ def should_clear_loaded_agent_status_override(
     ``QUESTION`` on a historical artifact) would otherwise keep it.
     """
     if agent.status in DISMISSABLE_STATUSES:
+        return True
+    if override in PENDING_PLAN_REVIEW_STATUS_SET and (
+        agent.status in _PENDING_PLAN_OVERRIDE_PROGRESS_STATUSES
+        or agent.plan_action in _PENDING_PLAN_OVERRIDE_PROGRESS_ACTIONS
+    ):
         return True
     if override in APPROVED_PLAN_STATUSES and agent.status in WORKING_PLAN_STATUSES:
         return True

@@ -13,6 +13,7 @@ from sase.ace.tui.actions.agents._notification_navigation import (
 )
 from sase.ace.tui.actions.agents._notification_status_overrides import (
     AgentNotificationStatusMixin,
+    prepare_plan_notification_reconciliation,
 )
 from sase.ace.tui.actions.agents._notifications import AgentNotificationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -150,6 +151,39 @@ def test_neutral_plan_notification_sets_tiered_status_without_plan_file(
 
     assert auto_dismissed_ids == set()
     assert app._agent_status_overrides[parent.identity] == expected_status
+
+
+def test_worker_prepared_neutral_tier_avoids_ui_thread_bundle_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="oo",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 12, 9, 0, 0),
+        raw_suffix="20260512090000",
+        role_suffix=".plan",
+    )
+    app = _NotificationApp([parent])
+    notification = _notification(request_id="request-1")
+
+    def _unexpected_ui_resolution(_notification: Notification) -> None:
+        raise AssertionError("bundle resolution reached the UI-thread apply phase")
+
+    monkeypatch.setattr(
+        "sase.notification_gates.paths.resolve_notification_bundle",
+        _unexpected_ui_resolution,
+    )
+
+    dismissed_ids = app._apply_notification_status_overrides(
+        [notification],
+        prepared_external_plan_responses={},
+        prepared_neutral_plan_notification_ids=frozenset({notification.id}),
+    )
+
+    assert dismissed_ids == set()
+    assert app._agent_status_overrides[parent.identity] == "TALE"
 
 
 def test_find_agent_for_notification_matches_root_timestamp() -> None:
@@ -338,3 +372,178 @@ def test_external_plan_response_uses_canonical_action_status_and_persistence(
         "plan_approved": True,
         "plan_action": expected_action,
     }
+
+
+@pytest.mark.parametrize(
+    (
+        "notification_action",
+        "request_kind",
+        "selected_option_ids",
+        "expected_status",
+        "expected_action",
+    ),
+    [
+        (
+            "PlanApproval",
+            "plan",
+            ["approve", "commit"],
+            "TALE APPROVED",
+            "tale",
+        ),
+        (
+            "EpicApproval",
+            "epic_plan",
+            ["approve"],
+            "EPIC APPROVED",
+            "epic",
+        ),
+    ],
+)
+def test_external_v2_plan_response_uses_canonical_gate_translation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    notification_action: str,
+    request_kind: str,
+    selected_option_ids: list[str],
+    expected_status: str,
+    expected_action: str,
+) -> None:
+    from sase.notification_gates import paths
+
+    request_id = f"{request_kind}-request"
+    bundle_dir = tmp_path / request_kind / request_id
+    bundle_dir.mkdir(parents=True)
+    (bundle_dir / "request.json").write_text(
+        json.dumps({"kind": request_kind}),
+        encoding="utf-8",
+    )
+    option_results = [
+        {
+            "id": option_id,
+            "result": {
+                "action": "epic" if request_kind == "epic_plan" else "approve",
+                "commit_plan": option_id == "commit",
+                "run_coder": option_id != "commit",
+            },
+        }
+        for option_id in selected_option_ids
+    ]
+    (bundle_dir / "response.json").write_text(
+        json.dumps(
+            {
+                "selected_option_ids": selected_option_ids,
+                "option_results": option_results,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(paths, "INTERACTION_REQUESTS_DIR", tmp_path)
+    dismissed: list[str] = []
+    monkeypatch.setattr(
+        "sase.notifications.mark_dismissed",
+        lambda notification_id: dismissed.append(notification_id),
+    )
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="oo",
+        project_file="/tmp/test.sase",
+        status="TALE" if request_kind == "plan" else "EPIC",
+        start_time=datetime(2026, 5, 12, 9, 0, 0),
+        raw_suffix="20260512090000",
+        role_suffix=".plan",
+        artifacts_dir=str(artifacts_dir),
+    )
+    app = _ExternalPlanResponseApp([agent])
+    notification = _notification(
+        action=notification_action,
+        request_id=request_id,
+    )
+
+    prepared = prepare_plan_notification_reconciliation(
+        app,
+        [notification],
+    ).external_responses
+    dismissed_ids = app._apply_notification_status_overrides(
+        [notification],
+        prepared_external_plan_responses=prepared,
+    )
+
+    assert dismissed_ids == {notification.id}
+    assert dismissed == [notification.id]
+    assert prepared[notification.id].plan_action == expected_action
+    assert prepared[notification.id].status == expected_status
+    assert app._agent_status_overrides[agent.identity] == expected_status
+    assert not (artifacts_dir / "agent_meta.json").exists()
+
+
+def test_telegram_gate_resolution_dismisses_and_finalizes_pending_tale_override(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.actions.agents._loading_compute_finalize import (
+        _compute_status_override_plan,
+    )
+    from sase.ace.tui.models._loaders._meta_enrichment import enrich_agent_from_meta
+    from sase.notification_gates.executor import execute_gate_selection
+    from sase.notifications.store import load_notifications
+    from sase.plan_gate import create_plan_approval_gate
+    from tests.plan_validation_helpers import VALID_TALE_PLAN
+
+    artifacts_dir = gate_home / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"plan": True}) + "\n",
+        encoding="utf-8",
+    )
+    root_timestamp = "20260722090000"
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    monkeypatch.setenv("SASE_AGENT_CL_NAME", "telegram-plan")
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", root_timestamp)
+    monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", root_timestamp)
+    plan_path = gate_home / "telegram-tale.md"
+    plan_path.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    gate = create_plan_approval_gate(
+        plan_path,
+        "telegram-tale",
+        agent_name="telegram-plan.plan",
+    )
+    [pending_notification] = load_notifications()
+
+    execution = execute_gate_selection(
+        gate.bundle_path,
+        ("approve", "commit"),
+        source="telegram",
+    )
+
+    assert execution.response["source"] == "telegram"
+    assert load_notifications() == []
+    [handled_notification] = load_notifications(include_dismissed=True)
+    assert handled_notification.id == pending_notification.id
+    assert handled_notification.dismissed is True
+    assert json.loads((artifacts_dir / "agent_meta.json").read_text()) == {
+        "plan": True,
+        "plan_approved": True,
+        "plan_action": "tale",
+    }
+
+    loaded_agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="telegram-plan",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 22, 9, 0, 0),
+        raw_suffix=root_timestamp,
+        role_suffix=".plan",
+        artifacts_dir=str(artifacts_dir),
+    )
+    enrich_agent_from_meta(loaded_agent, str(artifacts_dir))
+    finalize_plan = _compute_status_override_plan(
+        [loaded_agent],
+        {loaded_agent.identity: "TALE"},
+    )
+
+    assert loaded_agent.status == "TALE APPROVED"
+    assert finalize_plan.overrides_to_apply == []
+    assert finalize_plan.cleared_identities == [loaded_agent.identity]
