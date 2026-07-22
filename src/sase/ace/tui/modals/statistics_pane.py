@@ -324,6 +324,25 @@ class StatisticsPane(StatisticsPanePresentationBase):
         self._project_filter = cycle[(index + 1) % len(cycle)]
         self._selection_changed(reload=True)
 
+    def action_scroll_down(self) -> None:
+        """Move the Statistics body down by half of its visible height."""
+        self._scroll_body(1)
+
+    def action_scroll_up(self) -> None:
+        """Move the Statistics body up by half of its visible height."""
+        self._scroll_body(-1)
+
+    def _scroll_body(self, direction: int) -> None:
+        """Scroll the mounted body immediately without loading or repainting."""
+        try:
+            if self.query_one("#statistics-custom-range", Input).has_focus:
+                return
+            scroll = self.query_one("#statistics-body-scroll", VerticalScroll)
+        except Exception:
+            return
+        distance = max(1, scroll.scrollable_content_region.height // 2)
+        scroll.scroll_relative(y=direction * distance, animate=False)
+
     def action_refresh(self) -> None:
         """Coalesce a manual refresh through the worker-backed load path."""
         self._schedule_load()

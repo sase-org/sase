@@ -675,6 +675,14 @@
                   "type": "string",
                   "description": "Cycle the global statistics project filter"
                 },
+                "scroll_down": {
+                  "type": "string",
+                  "description": "Scroll the statistics body down by half a page"
+                },
+                "scroll_up": {
+                  "type": "string",
+                  "description": "Scroll the statistics body up by half a page"
+                },
                 "refresh": {
                   "type": "string",
                   "description": "Refresh historical statistics"

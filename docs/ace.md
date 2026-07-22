@@ -2281,9 +2281,12 @@ ace:
       prev_view: "left_square_bracket"
       next_view: "right_square_bracket"
       cycle_range: "f11"
+      cycle_range_reverse: "shift+f11"
       custom_range: "c"
       cycle_group: "g"
       cycle_project_filter: "p"
+      scroll_down: "ctrl+d"
+      scroll_up: "ctrl+u"
       refresh: "f10"
       help: "f9"
 ```

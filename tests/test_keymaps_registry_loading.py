@@ -60,6 +60,8 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.statistics.custom_range == "c"
     assert reg.statistics.cycle_group == "g"
     assert reg.statistics.cycle_project_filter == "p"
+    assert reg.statistics.scroll_down == "ctrl+d"
+    assert reg.statistics.scroll_up == "ctrl+u"
     assert reg.statistics.refresh == "r"
     assert reg.statistics.help == "question_mark"
 
@@ -91,8 +93,10 @@ def test_statistics_pane_keys_can_be_overridden_independently() -> None:
                     "custom_range": "f8",
                     "cycle_group": "f7",
                     "cycle_project_filter": "f6",
-                    "refresh": "f5",
-                    "help": "f4",
+                    "scroll_down": "f5",
+                    "scroll_up": "f4",
+                    "refresh": "f3",
+                    "help": "f2",
                 }
             }
         }
@@ -105,8 +109,10 @@ def test_statistics_pane_keys_can_be_overridden_independently() -> None:
     assert reg.statistics.custom_range == "f8"
     assert reg.statistics.cycle_group == "f7"
     assert reg.statistics.cycle_project_filter == "f6"
-    assert reg.statistics.refresh == "f5"
-    assert reg.statistics.help == "f4"
+    assert reg.statistics.scroll_down == "f5"
+    assert reg.statistics.scroll_up == "f4"
+    assert reg.statistics.refresh == "f3"
+    assert reg.statistics.help == "f2"
 
 
 def test_duplicate_statistics_help_override_reverts_to_default(

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from textual.widgets import Static
+from textual.containers import VerticalScroll
+from textual.widgets import Input, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.keymaps import load_keymap_registry, statistics_help_bindings
@@ -36,8 +37,10 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
                     "custom_range": "f8",
                     "cycle_group": "f7",
                     "cycle_project_filter": "f6",
-                    "refresh": "f5",
-                    "help": "f4",
+                    "scroll_down": "f5",
+                    "scroll_up": "f4",
+                    "refresh": "f3",
+                    "help": "f2",
                 }
             }
         }
@@ -51,8 +54,10 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         ("f8", "Custom Range"),
         ("f7", "Group By"),
         ("f6", "Project Filter"),
-        ("f5", "Refresh"),
-        ("f4", "Help"),
+        ("f5", "Scroll Down"),
+        ("f4", "Scroll Up"),
+        ("f3", "Refresh"),
+        ("f2", "Help"),
     ]
 
     async with AcePage() as page:
@@ -60,7 +65,9 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         _, pane = await _open_statistics(page)
 
         hints = pane.query_one("#statistics-hints", Static).render().plain
-        assert hints == "f12 / f11 views   f8 custom range   f5 refresh   f4 help"
+        assert hints == (
+            "f12 / f11 views   f8 custom range   f5/f4 scroll   f3 refresh   f2 help"
+        )
         assert _scope_plain(pane, "range").startswith(" f10/f9  Range ")
         assert _scope_plain(pane, "group").startswith(" f7  Group ")
         assert _scope_plain(pane, "project").startswith(" f6  Project ")
@@ -75,6 +82,50 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
             )
         )
         assert len(calls) == 2
+
+        pane._set_view("runners")
+        scroll = pane.query_one("#statistics-body-scroll", VerticalScroll)
+        await page.wait_for(lambda _state: scroll.max_scroll_y > 0)
+        await page.press("f5")
+        await page.wait_for(lambda _state: scroll.scroll_y > 0)
+        moved = scroll.scroll_y
+        await page.press("f4")
+        await page.wait_for(lambda _state: scroll.scroll_y < moved)
+        assert pane._view == "runners"
+        assert len(calls) == 2
+
+
+async def test_default_half_page_scroll_does_not_reload_or_capture_range_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    _patch_center(monkeypatch, calls)
+
+    async with AcePage() as page:
+        _, pane = await _open_statistics(page)
+        pane._set_view("runners")
+        scroll = pane.query_one("#statistics-body-scroll", VerticalScroll)
+        await page.wait_for(lambda _state: scroll.max_scroll_y > 0)
+
+        await page.press("ctrl+d")
+        await page.wait_for(lambda _state: scroll.scroll_y > 0)
+        moved = scroll.scroll_y
+        await page.press("ctrl+u")
+        await page.wait_for(lambda _state: scroll.scroll_y < moved)
+        assert scroll.scroll_y == 0
+        assert pane._view == "runners"
+        assert len(calls) == 1
+
+        await page.press("c")
+        custom_input = pane.query_one("#statistics-custom-range", Input)
+        assert custom_input.has_focus
+        await page.pause()
+        before_input_key = scroll.scroll_y
+        await page.press("ctrl+d", "ctrl+u")
+        await page.pause()
+        assert scroll.scroll_y == before_input_key
+        assert custom_input.has_focus
+        assert len(calls) == 1
 
 
 async def test_statistics_help_opens_and_closes_from_configured_binding(
@@ -105,7 +156,16 @@ async def test_statistics_bindings_are_inactive_on_other_admin_center_tabs(
     calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
     _patch_center(monkeypatch, calls)
     registry = load_keymap_registry(
-        {"keymaps": {"statistics": {"cycle_range_reverse": "f12", "help": "f5"}}}
+        {
+            "keymaps": {
+                "statistics": {
+                    "cycle_range_reverse": "f12",
+                    "scroll_down": "f10",
+                    "scroll_up": "f9",
+                    "help": "f5",
+                }
+            }
+        }
     )
 
     async with AcePage() as page:
@@ -117,6 +177,8 @@ async def test_statistics_bindings_are_inactive_on_other_admin_center_tabs(
         assert not modal.query("#statistics")
 
         await page.press("f12")
+        await page.press("f10")
+        await page.press("f9")
         await page.press("f5")
         await page.pause()
 

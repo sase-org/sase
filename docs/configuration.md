@@ -376,9 +376,12 @@ ace:
       prev_view: "left_square_bracket" # active only while Statistics is focused
       next_view: "right_square_bracket"
       cycle_range: "t"
+      cycle_range_reverse: "T"
       custom_range: "c"
       cycle_group: "g"
       cycle_project_filter: "p"
+      scroll_down: "ctrl+d"
+      scroll_up: "ctrl+u"
       refresh: "r"
       help: "question_mark"
     app:
@@ -503,9 +506,12 @@ deprecated alias for `submit_primary`.
 | `prev_view`            | `left_square_bracket`  | Select the previous Statistics view.                                 |
 | `next_view`            | `right_square_bracket` | Select the next Statistics view.                                     |
 | `cycle_range`          | `t`                    | Cycle to the next statistics time range.                             |
+| `cycle_range_reverse`  | `T`                    | Cycle to the previous statistics time range.                         |
 | `custom_range`         | `c`                    | Enter a custom statistics time range.                                |
 | `cycle_group`          | `g`                    | Cycle grouping in the Projects or Runtime view.                      |
 | `cycle_project_filter` | `p`                    | Cycle all projects and those ranked by the latest unfiltered result. |
+| `scroll_down`          | `ctrl+d`               | Scroll the Statistics body down by half a page.                      |
+| `scroll_up`            | `ctrl+u`               | Scroll the Statistics body up by half a page.                        |
 | `refresh`              | `r`                    | Refresh from durable run and activity records.                       |
 | `help`                 | `question_mark`        | Open contextual Statistics help; the same key closes it.             |
 

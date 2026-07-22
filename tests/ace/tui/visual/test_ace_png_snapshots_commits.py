@@ -32,11 +32,15 @@ pytestmark = pytest.mark.visual
 
 @pytest.fixture(autouse=True)
 def _pin_rolling_default_query_time(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep fixed visual commits inside the bundled rolling 24-hour query."""
+    """Pin rolling-query and remote-fetch clocks for stable visual output."""
     reference = datetime(2026, 7, 7, 12, tzinfo=UTC)
     monkeypatch.setattr(
         "sase.ace.tui.widgets.artifacts.commits_filtering.normalize_reference_time",
         lambda: reference,
+    )
+    monkeypatch.setattr(
+        "sase.vcs_log.render._now_epoch",
+        reference.timestamp,
     )
 
 

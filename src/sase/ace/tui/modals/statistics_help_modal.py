@@ -160,6 +160,8 @@ class StatisticsHelpModal(ModalScreen[None]):
             return f"{current}; available in Runtime and Projects"
         if action == "cycle_project_filter":
             return self._project_label
+        if action in {"scroll_down", "scroll_up"}:
+            return "move the Statistics body by half of its visible height"
         if action == "refresh":
             return "reload now; auto-refreshes every 30 seconds while visible"
         if action == "help":

@@ -38,6 +38,18 @@ def test_statistics_facade_smoke_through_real_bindings(tmp_path: Path) -> None:
         json.dumps({"outcome": "completed", "finished_at": 160.0}),
         encoding="utf-8",
     )
+    stale = project / "artifacts" / "ace-run" / "20260710020000"
+    stale.mkdir(parents=True)
+    (stale / "agent_meta.json").write_text(
+        json.dumps({"name": "abandoned", "run_started_at": "-100"}),
+        encoding="utf-8",
+    )
+    never_started = project / "artifacts" / "ace-run" / "20260710030000"
+    never_started.mkdir(parents=True)
+    (never_started / "agent_meta.json").write_text(
+        json.dumps({"name": "never-started", "pid": 999_999}),
+        encoding="utf-8",
+    )
     (project / "skill_uses.jsonl").write_text(
         json.dumps(
             {
@@ -79,6 +91,7 @@ def test_statistics_facade_smoke_through_real_bindings(tmp_path: Path) -> None:
     assert runners.available is True
     assert runners.peak_runners == 1
     assert runners.current_limit == 8
+    assert runners.invalid_intervals_skipped == 1
     assert [row.runners for row in runners.distribution] == [0, 1]
     assert sum(row.seconds for row in runners.distribution) == pytest.approx(
         runners.end_ts - runners.start_ts

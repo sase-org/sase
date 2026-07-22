@@ -214,9 +214,12 @@ ace:
       prev_view: "["
       next_view: "]"
       cycle_range: "t"
+      cycle_range_reverse: "T"
       custom_range: "c"
       cycle_group: "g"
       cycle_project_filter: "p"
+      scroll_down: "ctrl+d"
+      scroll_up: "ctrl+u"
       refresh: "r"
       help: "question_mark"
 ```

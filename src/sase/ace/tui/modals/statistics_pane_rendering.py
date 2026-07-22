@@ -342,13 +342,26 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         hints.append(" views")
         for action, description, color in (
             ("custom_range", "custom range", _CYAN),
+            ("scroll_down", "scroll", _ACCENT),
             ("refresh", "refresh", _ACCENT),
             ("help", "help", _ACCENT),
         ):
             hints.append("   ")
-            hints.append(self._effective_key(action), style=f"bold {color}")
+            key = self._effective_key(action)
+            if action == "scroll_down":
+                key = self._effective_scroll_keys()
+            hints.append(key, style=f"bold {color}")
             hints.append(f" {description}")
         return hints
+
+    def _effective_scroll_keys(self) -> str:
+        """Combine the effective half-page keys without wasting footer width."""
+        down = self._effective_key("scroll_down")
+        up = self._effective_key("scroll_up")
+        prefix = "Ctrl+"
+        if down.startswith(prefix) and up.startswith(prefix):
+            return f"{down}/{up.removeprefix(prefix)}"
+        return f"{down}/{up}"
 
     def _effective_key(self, action: str) -> str:
         """Return the configured display key for one Statistics action."""
