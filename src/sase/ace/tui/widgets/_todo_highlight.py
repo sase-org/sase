@@ -28,7 +28,7 @@ else:
 
 
 _TODO_HEADER_RE = re.compile(r"(?<!\w)TODO(?!\w)(?:\([^()\n]+\))?:?")
-_TODO_MARKER_FOREGROUND = "#000000"
+_TODO_MARKER_FOREGROUND = "#00005F"
 _TODO_NOTE_FOREGROUND_WARMTH = 0.30
 
 

@@ -30,6 +30,23 @@ def _highlight_names(text_area: PromptTextArea) -> list[str]:
     return [name for row in text_area._highlights.values() for *_range, name in row]
 
 
+def _relative_luminance(color: Color) -> float:
+    channels = tuple(channel / 255 for channel in color.get_truecolor())
+    red, green, blue = (
+        channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+        for channel in channels
+    )
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+
+def _contrast_ratio(foreground: Color, background: Color) -> float:
+    lighter, darker = sorted(
+        (_relative_luminance(foreground), _relative_luminance(background)),
+        reverse=True,
+    )
+    return (lighter + 0.05) / (darker + 0.05)
+
+
 @pytest.mark.parametrize(
     ("text", "expected_headers"),
     [
@@ -139,8 +156,23 @@ def test_todo_palette_uses_running_gold_with_theme_aware_note(
     )
 
     assert chip_background.hex == RUNNING_COLOR
-    assert chip_foreground.hex == "#000000"
+    assert chip_foreground.hex == "#00005F"
     assert note_foreground.hex == expected_note
+
+
+def test_todo_marker_contrast_meets_aaa_threshold() -> None:
+    chip_foreground, chip_background, _note_foreground = todo_theme_colors(
+        None,
+        dark=True,
+    )
+
+    assert (
+        _contrast_ratio(
+            Color.parse(chip_foreground.hex),
+            Color.parse(chip_background.hex),
+        )
+        >= 7.0
+    )
 
 
 async def test_todo_overlay_uses_utf8_byte_columns_and_coexists_with_syntax() -> None:
@@ -224,7 +256,7 @@ async def test_todo_overlay_registers_theme_styles_and_updates_on_theme_change()
         )
         light_header = text_area._theme.syntax_styles["todo.header"]
         light_body = text_area._theme.syntax_styles["todo.body"]
-        assert light_header.color == Color.parse("#000000")
+        assert light_header.color == Color.parse("#00005F")
         assert light_header.bgcolor == Color.parse(RUNNING_COLOR)
         assert light_header.color == Color.parse(expected[0].hex)
         assert light_header.bgcolor == Color.parse(expected[1].hex)
@@ -263,7 +295,9 @@ def _background_at(text_area: PromptTextArea, cell: int) -> Color | None:
 
 
 @pytest.mark.parametrize("theme", ["textual-dark", "textual-light"])
-async def test_todo_header_final_cells_are_black_on_running_gold(theme: str) -> None:
+async def test_todo_header_final_cells_are_deep_navy_on_running_gold(
+    theme: str,
+) -> None:
     header = "TODO(owner):"
     app = _TodoRenderApp(f"{header} keep the marker legible")
     async with app.run_test(size=(50, 10)) as pilot:
@@ -278,7 +312,7 @@ async def test_todo_header_final_cells_are_black_on_running_gold(theme: str) -> 
         for cell in range(len(header)):
             style = _style_at(text_area, cell)
             assert style is not None
-            assert style.color == Color.parse("#000000")
+            assert style.color == Color.parse("#00005F")
             assert style.bgcolor == Color.parse(RUNNING_COLOR)
 
 

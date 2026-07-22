@@ -197,7 +197,7 @@ async def test_todo_title_capsule_keeps_running_gold_after_theme_switch() -> Non
         after = _rendered_todo_title_style(bar)
 
         assert "TODO 4" in _plain_title(bar)
-        assert after.color == Color.parse("#000000")
+        assert after.color == Color.parse("#00005F")
         assert after.bgcolor == Color.parse(RUNNING_COLOR)
         assert after.bold is True
         assert after == before
