@@ -31,6 +31,10 @@ repos:
 
     - name: research
       description: Durable SASE research reports and generated media.
+
+    - name: agents
+      description: Hidden sidecar that stores commit-associated sase agent data for this project.
+      disabled: true
 xprompts:
   # keep-sorted start
 

@@ -21,7 +21,11 @@ def test_directory_index_reads_names_only_and_invalidates_on_mtime(
     assert names_for_location("directory", str(directory)) == {"alpha"}
 
     (directory / "beta.md").write_text("beta body", encoding="utf-8")
-    os.utime(directory, None)
+    stat = directory.stat()
+    os.utime(
+        directory,
+        ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000),
+    )
     assert names_for_location("directory", str(directory)) == {"alpha", "beta"}
 
 

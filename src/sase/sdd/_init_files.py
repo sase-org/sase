@@ -19,6 +19,7 @@ SDD_SIDECAR_DIRECTORY_MAP_FILENAMES = {
     "plans": "plans-directory-map.png",
     "research": "research-directory-map.png",
 }
+AGENTS_SIDECAR_MANIFEST = '{\n  "schema_version": 1,\n  "agents": {}\n}\n'
 
 
 def _read_sdd_markdown(filename: str) -> str:
@@ -78,12 +79,27 @@ def expected_sdd_sidecar_files(
     """Return deterministic generated files for one sidecar root.
 
     The historical plans and research roles retain their illustrated guide
-    templates. Custom roles receive a small deterministic README so repo init
-    can seed arbitrary configured sidecars without inventing role-specific
-    directory layouts.
+    templates, while agents receives its privacy-forward bundle scaffold.
+    Custom roles receive a small deterministic README so repo init can seed
+    arbitrary configured sidecars without inventing role-specific layouts.
     """
 
     sidecar_root = Path(root)
+    if kind == "agents":
+        return (
+            SddExpectedTextFile(
+                path=sidecar_root / "README.md",
+                content=_read_sdd_markdown("sidecar-agents-README.md"),
+            ),
+            SddExpectedTextFile(
+                path=sidecar_root / "manifest.json",
+                content=AGENTS_SIDECAR_MANIFEST,
+            ),
+            SddExpectedTextFile(
+                path=sidecar_root / "agents" / ".gitkeep",
+                content="",
+            ),
+        )
     if kind not in SDD_SIDECAR_KINDS:
         return (
             SddExpectedTextFile(

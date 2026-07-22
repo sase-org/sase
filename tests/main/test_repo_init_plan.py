@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+from io import StringIO
 from pathlib import Path
 import subprocess
 
 import pytest
+from rich.console import Console
 
 from sase.main.init_registry import iter_init_command_specs
+from sase.main.init_preview import render_plan_diff
 from sase.main.repo_init_handler import (
     _configured_sidecar_specs,
     plan_repo_init,
@@ -56,7 +59,8 @@ def test_plan_providerless_project_includes_store_config_and_ignore_actions(
     assert config_action.new_content is not None
     assert "name: plans" in config_action.new_content
     assert "name: research" in config_action.new_content
-    assert "plans and research sidecars" in plan.summary
+    assert "name: agents" in config_action.new_content
+    assert "plans, research, and agents sidecars" in plan.summary
     assert any(action.path.name == ".gitignore" for action in plan.actions)
     assert any(
         action.path.is_relative_to(tmp_path / ".sase" / "sdd")
@@ -74,6 +78,17 @@ def test_plan_github_reports_every_configured_sidecar_without_writing(
         SidecarInitSpec(role="plans", description="Durable plans."),
         SidecarInitSpec(role="research", description="Durable research."),
         SidecarInitSpec(role="artifacts", description="Durable artifacts."),
+        SidecarInitSpec(
+            role="agents",
+            visibility="private",
+            description="Commit-associated agents.",
+        ),
+    )
+    state_root = tmp_path / "state"
+    monkeypatch.setenv("SASE_HOME", str(state_root))
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda _root: "gh_acme__widget",
     )
     monkeypatch.setattr(
         "sase.main.repo_init_handler._project_provider_sdd_policy",
@@ -90,10 +105,47 @@ def test_plan_github_reports_every_configured_sidecar_without_writing(
     assert any("plans sidecar repository" in detail for detail in details)
     assert any("research sidecar repository" in detail for detail in details)
     assert any("artifacts sidecar repository" in detail for detail in details)
+    agents_connection = next(
+        action
+        for action in plan.actions
+        if "agents sidecar repository" in action.detail
+    )
+    assert "configured private visibility" in agents_connection.detail
+    assert "machine-level hidden path" in agents_connection.detail
+    assert agents_connection.path == (
+        state_root / "projects" / "gh_acme__widget" / "repos" / "agents"
+    )
     assert any("plans sidecar README.md" in detail for detail in details)
     assert any("research sidecar README.md" in detail for detail in details)
     assert any("artifacts sidecar README.md" in detail for detail in details)
+    agents_actions = [
+        action
+        for action in plan.actions
+        if action.path.is_relative_to(agents_connection.path)
+    ]
+    assert {
+        action.path.relative_to(agents_connection.path).as_posix()
+        for action in agents_actions
+    } == {
+        ".",
+        "README.md",
+        "manifest.json",
+        "agents/.gitkeep",
+    }
+    assert all(
+        not action.path.is_relative_to(tmp_path / "sase" / "repos" / "agents")
+        for action in plan.actions
+    )
     assert not (tmp_path / "sase" / "repos").exists()
+    assert not state_root.exists()
+
+    output = StringIO()
+    render_plan_diff(Console(file=output, width=400, no_color=True), plan)
+    rendered = output.getvalue()
+    assert "configured private visibility" in rendered
+    assert str(agents_connection.path) in rendered
+    assert "manifest.json" in rendered
+    assert "agents/.gitkeep" in rendered
 
 
 def test_plan_does_not_materialize_recorded_lazy_sidecar_for_check(
@@ -156,6 +208,12 @@ def test_configured_sidecar_specs_preserve_pin_and_private_visibility(
                     "visibility": "private",
                     "description": "Durable artifacts.",
                 },
+                {
+                    "name": "agents",
+                    "repo": "acme/private-agents",
+                    "visibility": "private",
+                    "description": "Private commit-associated agents.",
+                },
             ]
         },
     }
@@ -171,11 +229,44 @@ def test_configured_sidecar_specs_preserve_pin_and_private_visibility(
     specs = _configured_sidecar_specs(tmp_path)
 
     artifacts = next(spec for spec in specs if spec.role == "artifacts")
-    assert all(spec.role != "agents" for spec in specs)
+    agents = next(spec for spec in specs if spec.role == "agents")
     assert artifacts.repo == "acme/shared-artifacts"
     assert artifacts.remote_url == "git@github.com:acme/shared-artifacts.git"
     assert artifacts.visibility == "private"
     assert artifacts.description == "Durable artifacts."
+    assert agents.repo == "acme/private-agents"
+    assert agents.remote_url == "git@github.com:acme/private-agents.git"
+    assert agents.visibility == "private"
+    assert agents.description == "Private commit-associated agents."
+
+
+def test_configured_sidecar_specs_suppress_disabled_agents(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mark_project(tmp_path)
+    config = {
+        "is_sase_managed": True,
+        "repos": {
+            "sidecar": [
+                {"name": "plans", "auto_clone": True},
+                {"name": "research"},
+                {"name": "agents", "disabled": True},
+            ]
+        },
+    }
+    monkeypatch.setattr(
+        "sase._linked_repo_config.resolution_config",
+        lambda *_args: config,
+    )
+    monkeypatch.setattr(
+        "sase._linked_repo_config.read_project_local_config",
+        lambda *_args: config,
+    )
+
+    specs = _configured_sidecar_specs(tmp_path)
+
+    assert {spec.role for spec in specs} == {"plans", "research"}
 
 
 def test_plan_non_project_reports_blocker(tmp_path: Path) -> None:

@@ -45,6 +45,17 @@ def _mark_managed_project(path: Path, config: str = "is_sase_managed: true\n") -
     config_path.write_text(config, encoding="utf-8")
 
 
+def _patch_agents_project_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda _root: "gh_acme__widget",
+    )
+
+
 def _preflight(
     role: str,
     *,
@@ -96,6 +107,8 @@ def test_repo_init_writes_managed_sidecar_config_local_store_and_gitignore(
         "      auto_clone: true\n"
         "    - name: research\n"
         "      description: Durable SASE research reports and generated media.\n"
+        "    - name: agents\n"
+        "      description: Hidden sidecar that stores commit-associated sase agent data for this project.\n"
     )
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == "/sase/repos/\n"
     assert (store_root / "README.md").is_file()
@@ -132,6 +145,7 @@ def test_bare_init_enable_management_also_writes_managed_sidecar_entries(
     assert "is_sase_managed: true" in config
     assert "name: plans" in config
     assert "name: research" in config
+    assert "name: agents" in config
     assert "Durable SASE research reports and generated media." in config
 
 
@@ -165,6 +179,7 @@ def test_repo_init_appends_plans_without_losing_disabled_research_comments(
     assert "name: research # shared" in text
     assert text.count("name: plans") == 1
     assert text.count("name: research") == 1
+    assert text.count("name: agents") == 1
     assert "Durable SASE research reports" not in text
 
 
@@ -181,6 +196,8 @@ def test_repo_init_preserves_existing_managed_sidecar_entries_verbatim(
         "      disabled: true\n"
         "    - name: research # opted out\n"
         "      disabled: true\n"
+        "    - name: agents # privacy opt-out\n"
+        "      disabled: true\n"
     )
     _mark_managed_project(tmp_path, config)
     root = tmp_path / ".sase" / "sdd"
@@ -196,6 +213,33 @@ def test_repo_init_preserves_existing_managed_sidecar_entries_verbatim(
     assert run_repo_init(_args(tmp_path)) == 0
 
     assert (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8") == config
+
+
+def test_repo_init_sidecar_config_update_is_idempotent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _mark_managed_project(tmp_path)
+    root = tmp_path / ".sase" / "sdd"
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "local",
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.materialize_sdd_store",
+        lambda *_args, **_kwargs: SddStore("local", root, root),
+    )
+
+    assert run_repo_init(_args(tmp_path)) == 0
+    first = (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8")
+    capsys.readouterr()
+
+    assert run_repo_init(_args(tmp_path)) == 0
+    second_output = capsys.readouterr().out
+    assert (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8") == first
+    assert "updated" not in second_output
+    assert first.count("name: agents") == 1
 
 
 def test_repo_init_commits_only_owned_project_wiring(
@@ -310,6 +354,174 @@ def test_missing_custom_private_sidecar_requires_fresh_confirmation(
         "acme/shared-artifacts on github.com? [y/N] "
     ]
     assert calls == [{"artifacts": True}]
+
+
+@pytest.mark.parametrize("visibility", ["public", "private"])
+def test_missing_agents_sidecar_requires_loud_role_specific_confirmation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    visibility: str,
+) -> None:
+    _mark_managed_project(tmp_path)
+    _patch_agents_project_key(tmp_path, monkeypatch)
+    specs = (
+        SidecarInitSpec(
+            role="agents",
+            repo="acme/widget--agents",
+            visibility=visibility,
+        ),
+    )
+    prompts: list[str] = []
+    calls: list[dict[str, bool] | None] = []
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: specs,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.preflight_sidecars",
+        lambda *_args: {
+            "agents": _preflight("agents", visibility=visibility),
+        },
+    )
+
+    def initialize(
+        _root: Path,
+        _workspace: int,
+        selected: tuple[SidecarInitSpec, ...],
+        *,
+        creation_authorized: dict[str, bool] | None = None,
+    ) -> _SidecarInitOutcome:
+        assert selected == specs
+        calls.append(creation_authorized)
+        return _outcome(tmp_path, selected)
+
+    monkeypatch.setattr("sase.sdd._sidecar_init.initialize_sidecars", initialize)
+    args = _args(tmp_path)
+    args._init_stdin = _Tty()
+    args._init_input_func = lambda prompt: prompts.append(prompt) or "yes"
+
+    assert run_repo_init(args) == 0
+    assert calls == [{"agents": True}]
+    prompt = prompts[0]
+    assert "PUBLISH SASE agent data" in prompt
+    assert "full chat transcripts (prompts and responses)" in prompt
+    assert "agent metadata, and commit associations" in prompt
+    assert f"Repository visibility: {visibility.upper()}." in prompt
+    assert "visibility: private" in prompt
+    assert "disabled: true" in prompt
+    assert f"Create {visibility} GitHub agents sidecar repository" in prompt
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        "",
+        "no",
+        pytest.param(EOFError(), id="eof"),
+        pytest.param(KeyboardInterrupt(), id="interrupt"),
+    ],
+)
+def test_declined_agents_sidecar_continues_other_sidecars(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    response: str | BaseException,
+) -> None:
+    _mark_managed_project(tmp_path)
+    _patch_agents_project_key(tmp_path, monkeypatch)
+    specs = (SidecarInitSpec(role="plans"), SidecarInitSpec(role="agents"))
+    calls: list[tuple[tuple[str, ...], dict[str, bool] | None]] = []
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: specs,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.preflight_sidecars",
+        lambda *_args: {
+            "plans": _preflight("plans", status="found"),
+            "agents": _preflight("agents"),
+        },
+    )
+
+    def initialize(
+        _root: Path,
+        _workspace: int,
+        selected: tuple[SidecarInitSpec, ...],
+        *,
+        creation_authorized: dict[str, bool] | None = None,
+    ) -> _SidecarInitOutcome:
+        calls.append((tuple(spec.role for spec in selected), creation_authorized))
+        return _outcome(tmp_path, selected)
+
+    def answer(_prompt: str) -> str:
+        if isinstance(response, BaseException):
+            raise response
+        return response
+
+    monkeypatch.setattr("sase.sdd._sidecar_init.initialize_sidecars", initialize)
+    args = _args(tmp_path)
+    args._init_stdin = _Tty()
+    args._init_input_func = answer
+
+    assert run_repo_init(args) == 0
+    assert calls == [(("plans",), {})]
+    stderr = capsys.readouterr().err
+    assert "continuing without the agents sidecar" in stderr
+
+
+def test_non_tty_refuses_only_agents_creation_and_explains_rerun(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _mark_managed_project(tmp_path)
+    _patch_agents_project_key(tmp_path, monkeypatch)
+    specs = (SidecarInitSpec(role="plans"), SidecarInitSpec(role="agents"))
+    calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: specs,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.preflight_sidecars",
+        lambda *_args: {
+            "plans": _preflight("plans", status="found"),
+            "agents": _preflight("agents"),
+        },
+    )
+
+    def initialize(
+        _root: Path,
+        _workspace: int,
+        selected: tuple[SidecarInitSpec, ...],
+        **_kwargs: object,
+    ) -> _SidecarInitOutcome:
+        calls.append(tuple(spec.role for spec in selected))
+        return _outcome(tmp_path, selected)
+
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.initialize_sidecars",
+        initialize,
+    )
+
+    assert run_repo_init(_args(tmp_path, yes=True)) == 0
+    assert calls == [("plans",)]
+    stderr = capsys.readouterr().err
+    assert "interactive y/yes confirmation is required" in stderr
+    assert "run `sase repo init` interactively" in stderr
+    assert "continuing without the agents sidecar" in stderr
 
 
 @pytest.mark.parametrize("answer", ["", "n", "no", "sure"])

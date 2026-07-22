@@ -10,8 +10,10 @@ import pytest
 
 from sase.sdd._sidecar_init import (
     SidecarInitSpec,
+    initialize_materialized_sidecars,
     initialize_sidecars,
     preflight_sidecars,
+    sidecar_clone_root,
 )
 from sase.sdd._init_files import (
     ensure_sdd_sidecar_initialized,
@@ -35,6 +37,10 @@ def _bare_remote(tmp_path: Path, name: str) -> Path:
 
 
 def _git_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.get_primary_workspace_dir",
+        lambda workspace, _workspace_num: workspace,
+    )
     for key, value in {
         "GIT_AUTHOR_EMAIL": "sase@example.test",
         "GIT_AUTHOR_NAME": "SASE Tests",
@@ -67,6 +73,39 @@ def test_sidecar_generated_files_are_deterministic_and_drift_tracked(
         assert plan_sdd_sidecar_init_actions(kind, root) == ()
 
 
+def test_agents_sidecar_generated_files_are_privacy_forward_and_idempotent(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "agents"
+
+    actions = plan_sdd_sidecar_init_actions("agents", root)
+
+    assert {action.path.relative_to(root).as_posix() for action in actions} == {
+        "README.md",
+        "manifest.json",
+        "agents/.gitkeep",
+    }
+    written = ensure_sdd_sidecar_initialized("agents", root)
+    assert set(written) == {action.path for action in actions}
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    assert "full agent chat transcripts" in readme
+    assert "prompts and responses" in readme
+    assert "agent metadata and commit associations" in readme
+    assert "`private`" in readme
+    assert "`disabled: true`" in readme
+    assert "`sase agent sync`" in readme
+    assert json.loads((root / "manifest.json").read_text(encoding="utf-8")) == {
+        "schema_version": 1,
+        "agents": {},
+    }
+    assert (root / "agents" / ".gitkeep").read_text(encoding="utf-8") == ""
+    assert plan_sdd_sidecar_init_actions("agents", root) == ()
+
+    (root / "manifest.json").write_text("{}\n", encoding="utf-8")
+    drift = plan_sdd_sidecar_init_actions("agents", root)
+    assert [action.path.name for action in drift] == ["manifest.json"]
+
+
 def test_custom_sidecar_generates_deterministic_generic_readme(tmp_path: Path) -> None:
     root = tmp_path / "artifacts"
 
@@ -89,6 +128,28 @@ def test_custom_sidecar_generates_deterministic_generic_readme(tmp_path: Path) -
         "This repository is managed as a SASE sidecar and is cloned below "
         "`sase/repos/artifacts` in project workspaces.\n"
     )
+
+
+def test_sidecar_clone_root_keeps_agents_machine_scoped(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "widget"
+    project.mkdir()
+    state_root = tmp_path / "state"
+    monkeypatch.setenv("SASE_HOME", str(state_root))
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda root: "gh_acme__widget" if root == str(project) else None,
+    )
+
+    assert sidecar_clone_root(project, "plans") == (
+        project / "sase" / "repos" / "plans"
+    )
+    assert sidecar_clone_root(project, "agents") == (
+        state_root / "projects" / "gh_acme__widget" / "repos" / "agents"
+    )
+    assert not state_root.exists()
 
 
 def test_custom_sidecar_preflight_passes_pin_visibility_and_description(
@@ -275,6 +336,100 @@ def test_split_init_creates_both_repos_before_writing_record(
         "beads/beads.db-wal",
     ]
     assert (clones["research"] / "README.md").is_file()
+
+
+def test_agents_init_uses_hidden_root_and_leaves_compatibility_store_two_slot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _git_env(monkeypatch)
+    project = tmp_path / "widget"
+    project.mkdir()
+    (project / ".git").mkdir()
+    remotes = {
+        role: _bare_remote(tmp_path, role) for role in ("plans", "research", "agents")
+    }
+    visible_clones = {
+        role: tmp_path / f"widget--{role}" for role in ("plans", "research")
+    }
+    state_root = tmp_path / "state"
+    captured: list[tuple[str, str, bool]] = []
+    monkeypatch.setenv("SASE_HOME", str(state_root))
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda _root: "gh_acme__widget",
+    )
+
+    def create_remote(
+        _primary: str,
+        _workspace: str,
+        options: dict[str, object],
+    ) -> dict[str, object]:
+        role = str(options["sdd_sidecar_suffix"])
+        captured.append(
+            (
+                role,
+                str(options["sdd_visibility"]),
+                options["sdd_creation_authorized"] is True,
+            )
+        )
+        return {
+            "schema_version": 1,
+            "storage": "separate_repo",
+            "provider": "github",
+            "host": "github.com",
+            "repo": f"acme/widget--{role}",
+            "remote_url": str(remotes[role]),
+            "discovery": "found",
+            "created": True,
+        }
+
+    monkeypatch.setattr("sase.workspace_provider.create_sdd_remote", create_remote)
+    monkeypatch.setattr(
+        "sase.linked_repos.sidecar_repo_clone_dir",
+        lambda _workspace, role: str(visible_clones[role]),
+    )
+    specs = (
+        SidecarInitSpec(role="plans"),
+        SidecarInitSpec(role="research"),
+        SidecarInitSpec(
+            role="agents",
+            visibility="private",
+            description="Private commit-associated agents.",
+        ),
+    )
+
+    outcome = initialize_sidecars(
+        project,
+        1,
+        specs,
+        creation_authorized={"plans": True, "research": True, "agents": True},
+    )
+
+    agents_root = state_root / "projects" / "gh_acme__widget" / "repos" / "agents"
+    assert captured == [
+        ("plans", "public", True),
+        ("research", "public", True),
+        ("agents", "private", True),
+    ]
+    assert outcome.roots == {**visible_clones, "agents": agents_root}
+    assert outcome.created == frozenset({"plans", "research", "agents"})
+    assert (agents_root / "README.md").is_file()
+    assert json.loads((agents_root / "manifest.json").read_text()) == {
+        "schema_version": 1,
+        "agents": {},
+    }
+    assert (agents_root / "agents" / ".gitkeep").is_file()
+    assert not (project / "sase" / "repos" / "agents").exists()
+
+    record = read_sdd_store_record(project)
+    assert record is not None and record.is_sidecar_storage
+    assert record.plans is not None and record.research is not None
+    persisted = json.loads((project / ".sase" / "sdd-store.json").read_text())
+    assert set(persisted["sidecars"]) == {"plans", "research"}
+
+    roots = initialize_materialized_sidecars(project, (specs[-1],))
+    assert roots == {"agents": agents_root}
 
 
 def test_split_init_normalizes_legacy_https_clone_and_record_in_place(

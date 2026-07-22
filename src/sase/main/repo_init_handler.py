@@ -9,7 +9,11 @@ from pathlib import Path
 import sys
 from typing import TYPE_CHECKING, Any, TextIO
 
-from sase._linked_repo_config import DEFAULT_RESEARCH_DESCRIPTION
+from sase._linked_repo_config import (
+    AGENTS_SIDECAR_ROLE,
+    DEFAULT_AGENTS_DESCRIPTION,
+    DEFAULT_RESEARCH_DESCRIPTION,
+)
 from sase.config import ConfigEditError, set_key
 from sase.content_layout import LayoutCollisionError, resolve_project_layout
 from sase.project_management import ProjectManagementStatus, project_management_status
@@ -103,7 +107,7 @@ def run_repo_init(args: argparse.Namespace) -> int:
             )
             return 1
         changed_project_paths.append(config_update.path)
-        roles = " and ".join(config_update.added_roles)
+        roles = _format_roles(config_update.added_roles)
         print(
             f"{_COMMAND_LABEL}: updated {config_update.path} with repos.sidecar {roles}"
         )
@@ -198,8 +202,13 @@ def plan_repo_init(args: argparse.Namespace) -> InitPlan:
 
     policy = _project_provider_sdd_policy(project_root)
     if policy == "separate_repo" or _has_materialized_sidecar_store(project_root):
+        from sase.sdd.store import SddMaterializationError
+
         specs = _configured_sidecar_specs(project_root)
-        actions.extend(_plan_sidecar_actions(project_root, specs))
+        try:
+            actions.extend(_plan_sidecar_actions(project_root, specs))
+        except SddMaterializationError as exc:
+            blockers.append(str(exc))
     else:
         legacy_actions, legacy_warnings = _plan_legacy_store_actions(project_root)
         actions.extend(legacy_actions)
@@ -239,49 +248,67 @@ def _run_configured_sidecars(args: argparse.Namespace, project_root: Path) -> in
                 "result. Update the provider plugin and rerun `sase repo init`."
             )
 
-    missing = [
-        preflight
-        for preflight in preflights.values()
+    selected_roles = {spec.role for spec in specs}
+    missing = {
+        role: preflight
+        for role, preflight in preflights.items()
         if preflight.status == "not_found"
-    ]
+    }
     stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
     if missing and getattr(args, "onboarding", False) and not stdin.isatty():
-        for preflight in missing:
+        deferred_non_agents = False
+        for role, preflight in missing.items():
             print(
                 f"warning: {preflight.provider} sidecar repository "
                 f"{preflight.repo} is missing; run `sase repo init` "
                 "interactively to create it",
                 file=sys.stderr,
             )
-        return 0
+            if role == AGENTS_SIDECAR_ROLE:
+                selected_roles.discard(role)
+            else:
+                deferred_non_agents = True
+        if deferred_non_agents:
+            return 0
 
     for role, preflight in preflights.items():
         if preflight.status == "not_found":
-            if not _confirm_sidecar_creation(args, preflight):
+            if role not in selected_roles:
+                continue
+            if not _confirm_sidecar_creation(args, role, preflight):
+                if role == AGENTS_SIDECAR_ROLE:
+                    selected_roles.discard(role)
+                    continue
                 return 1
             authorizations[role] = True
+
+    selected_specs = tuple(spec for spec in specs if spec.role in selected_roles)
+    if not selected_specs:
+        return 0
 
     outcome = initialize_sidecars(
         project_root,
         1,
-        specs,
+        selected_specs,
         creation_authorized=authorizations,
     )
-    for spec in specs:
+    for spec in selected_specs:
         print(outcome.roots[spec.role] / "README.md")
     return 0
 
 
 def _run_materialized_sidecars(project_root: Path) -> int:
-    from sase.sdd._sidecar_init import initialize_materialized_sidecars
-    from sase.linked_repos import sidecar_repo_clone_dir
+    from sase.sdd._sidecar_init import (
+        initialize_materialized_sidecars,
+        sidecar_clone_root,
+    )
     from sase.sdd.store import SddMaterializationError
 
     specs = _configured_sidecar_specs(project_root)
     recorded_roles = _materialized_compatibility_roles(project_root)
     materialized: list[SidecarInitSpec] = []
     for spec in specs:
-        root = Path(sidecar_repo_clone_dir(project_root, spec.role))
+        root = sidecar_clone_root(project_root, spec.role)
         if (root / ".git").is_dir():
             materialized.append(spec)
         elif spec.role not in recorded_roles:
@@ -297,8 +324,12 @@ def _run_materialized_sidecars(project_root: Path) -> int:
 
 def _confirm_sidecar_creation(
     args: argparse.Namespace,
+    role: str,
     preflight: SddSidecarPreflight,
 ) -> bool:
+    if role == AGENTS_SIDECAR_ROLE:
+        return _confirm_agents_sidecar_creation(args, preflight)
+
     stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
     resource = f"{preflight.provider} sidecar repository"
     if not stdin.isatty():
@@ -328,6 +359,60 @@ def _confirm_sidecar_creation(
         return True
     print(
         f"{resource} creation cancelled; repository initialization is incomplete",
+        file=sys.stderr,
+    )
+    return False
+
+
+def _confirm_agents_sidecar_creation(
+    args: argparse.Namespace,
+    preflight: SddSidecarPreflight,
+) -> bool:
+    stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
+    resource = f"{preflight.provider} agents sidecar repository"
+    if not stdin.isatty():
+        print(
+            f"warning: {resource} creation refused: interactive y/yes "
+            "confirmation is required; run `sase repo init` interactively "
+            "to create it; continuing without the agents sidecar",
+            file=sys.stderr,
+        )
+        return False
+
+    input_func = getattr(args, "_init_input_func", None) or input
+    visibility = preflight.visibility.strip() or "public"
+    prompt = (
+        "The agents sidecar will PUBLISH SASE agent data for this project "
+        "across machines: full chat transcripts (prompts and responses), "
+        "agent metadata, and commit associations for every SASE agent that "
+        "creates a commit here.\n"
+        f"Repository visibility: {visibility.upper()}.\n"
+        "Set repos.sidecar[agents].visibility: private in sase/sase.yml for "
+        "a private repository, or disabled: true to opt out.\n\n"
+        f"Create {visibility} {preflight.provider} agents sidecar repository "
+        f"{preflight.repo} on {preflight.host}? [y/N] "
+    )
+    try:
+        answer = input_func(prompt)
+    except EOFError:
+        print(
+            f"warning: {resource} creation refused: no confirmation was "
+            "received; rerun `sase repo init` interactively to create it; "
+            "continuing without the agents sidecar",
+            file=sys.stderr,
+        )
+        return False
+    except KeyboardInterrupt:
+        print(
+            f"\nwarning: {resource} creation refused; rerun `sase repo init` "
+            "interactively to create it; continuing without the agents sidecar",
+            file=sys.stderr,
+        )
+        return False
+    if answer.strip().lower() in {"y", "yes"}:
+        return True
+    print(
+        f"warning: {resource} creation declined; continuing without the agents sidecar",
         file=sys.stderr,
     )
     return False
@@ -370,21 +455,27 @@ def _plan_sidecar_actions(
     project_root: Path,
     specs: tuple[SidecarInitSpec, ...],
 ) -> list[InitAction]:
-    from sase.linked_repos import sidecar_repo_clone_dir
+    from sase.sdd._sidecar_init import sidecar_clone_root
     from sase.sdd.files import plan_sdd_sidecar_init_actions
 
     recorded_roles = _materialized_compatibility_roles(project_root)
     actions: list[InitAction] = []
     for spec in specs:
-        root = Path(sidecar_repo_clone_dir(project_root, spec.role))
+        root = sidecar_clone_root(project_root, spec.role)
         clone_exists = (root / ".git").is_dir()
         needs_connection = not clone_exists and spec.role not in recorded_roles
         if needs_connection:
+            detail = f"create or connect the provider {spec.role} sidecar repository"
+            if spec.role == AGENTS_SIDECAR_ROLE:
+                detail += (
+                    f" with configured {spec.visibility} visibility at the "
+                    "machine-level hidden path"
+                )
             actions.append(
                 InitAction(
                     path=root,
                     operation="create",
-                    detail=f"create or connect the provider {spec.role} sidecar repository",
+                    detail=detail,
                 )
             )
         if clone_exists or needs_connection:
@@ -406,7 +497,6 @@ def _plan_sidecar_actions(
 
 def _configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]:
     from sase._linked_repo_config import (
-        HIDDEN_SIDECAR_ROLES,
         _DEFAULT_LINKED_REPO_MARKER,
         _SIDECAR_REMOTE_URL_KEY,
         _SIDECAR_REPO_REF_KEY,
@@ -437,7 +527,7 @@ def _configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]
         if entry.get("disabled") is True:
             continue
         role = _entry_text(entry, _SIDECAR_ROLE_KEY) or _entry_text(entry, "name")
-        if not role or role in HIDDEN_SIDECAR_ROLES:
+        if not role:
             continue
         raw_repo = _entry_text(entry, "repo")
         repo: str | None = None
@@ -518,6 +608,12 @@ def _explicit_sidecar_config_update(config_path: Path) -> _ConfigUpdate:
                     ("description", DEFAULT_RESEARCH_DESCRIPTION),
                 )
             ),
+            AGENTS_SIDECAR_ROLE: CommentedMap(
+                (
+                    ("name", AGENTS_SIDECAR_ROLE),
+                    ("description", DEFAULT_AGENTS_DESCRIPTION),
+                )
+            ),
         }
         added_roles = tuple(role for role in entries if role not in existing_roles)
         if not added_roles:
@@ -566,9 +662,15 @@ def _explicit_sidecar_config_update(config_path: Path) -> _ConfigUpdate:
 
 
 def _sidecar_config_action_detail(roles: tuple[str, ...]) -> str:
-    joined = " and ".join(roles)
+    joined = _format_roles(roles)
     suffix = "sidecar" if len(roles) == 1 else "sidecars"
     return f"declare the managed {joined} {suffix}"
+
+
+def _format_roles(roles: tuple[str, ...]) -> str:
+    if len(roles) < 3:
+        return " and ".join(roles)
+    return f"{', '.join(roles[:-1])}, and {roles[-1]}"
 
 
 def _repo_project_management(
@@ -650,7 +752,7 @@ def _summarize_repo_actions(actions: list[InitAction]) -> str:
     if any(action.path.name == "README.md" for action in actions):
         parts.append("refresh sidecar guide files")
     if any(action.path.name == "sase.yml" for action in actions):
-        parts.append("declare the plans and research sidecars")
+        parts.append("declare the plans, research, and agents sidecars")
     if any(action.path.name == ".gitignore" for action in actions):
         parts.append("update repository ignore rules")
     if not parts:

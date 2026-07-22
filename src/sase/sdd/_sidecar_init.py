@@ -60,6 +60,32 @@ class _SidecarInitOutcome:
     roots: dict[str, Path]
 
 
+def sidecar_clone_root(workspace_dir: str | Path, role: str) -> Path:
+    """Resolve the storage root for one configured sidecar role."""
+
+    from sase._linked_repo_config import AGENTS_SIDECAR_ROLE
+    from sase.linked_repos import hidden_sidecar_clone_dir, sidecar_repo_clone_dir
+
+    workspace = Path(workspace_dir).expanduser()
+    if role != AGENTS_SIDECAR_ROLE:
+        return Path(sidecar_repo_clone_dir(workspace, role))
+
+    from sase.bead.project_name import infer_project_name_from_cwd
+
+    project_key = infer_project_name_from_cwd(str(workspace))
+    if not project_key:
+        raise SddMaterializationError(
+            "could not resolve the owning SASE project key for the agents "
+            f"sidecar from {workspace}"
+        )
+    try:
+        return Path(hidden_sidecar_clone_dir(project_key, role))
+    except ValueError as exc:
+        raise SddMaterializationError(
+            f"could not resolve the agents sidecar clone path: {exc}"
+        ) from exc
+
+
 def preflight_sidecars(
     workspace_dir: str | Path,
     workspace_num: int,
@@ -119,6 +145,9 @@ def initialize_sidecars(
         get_primary_workspace_dir(str(workspace), workspace_num)
     ).expanduser()
     authorizations = creation_authorized or {}
+    roots = {
+        spec.role: sidecar_clone_root(workspace, spec.role) for spec in sidecar_specs
+    }
 
     with materialization_lock(primary):
         existing = read_sdd_store_record(primary)
@@ -146,12 +175,6 @@ def initialize_sidecars(
             if result.created:
                 created.add(spec.role)
 
-        from sase.linked_repos import sidecar_repo_clone_dir
-
-        roots = {
-            spec.role: Path(sidecar_repo_clone_dir(workspace, spec.role))
-            for spec in sidecar_specs
-        }
         for spec in sidecar_specs:
             root = roots[spec.role]
             sidecar = sidecars[spec.role]
@@ -189,12 +212,9 @@ def initialize_materialized_sidecars(
     of a project whose sidecars were established through another provider).
     """
 
-    from sase.linked_repos import sidecar_repo_clone_dir
-
     workspace = Path(workspace_dir).expanduser()
     roots = {
-        spec.role: Path(sidecar_repo_clone_dir(workspace, spec.role))
-        for spec in sidecar_specs
+        spec.role: sidecar_clone_root(workspace, spec.role) for spec in sidecar_specs
     }
     for role, root in roots.items():
         if not (root / ".git").is_dir():
@@ -410,4 +430,5 @@ __all__ = [
     "initialize_materialized_sidecars",
     "initialize_sidecars",
     "preflight_sidecars",
+    "sidecar_clone_root",
 ]
