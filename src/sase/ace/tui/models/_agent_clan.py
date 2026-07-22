@@ -176,12 +176,31 @@ def agent_summary_status_counts(
     unread_ids: Collection[tuple[AgentType, str, str | None]],
 ) -> _AgentSummaryStatusCounts:
     """Project containers into concrete-agent status counts for summaries."""
-    total = stopped = running = waiting = failed = unread = done = 0
     projected = _dedupe_summary_projections(
         projection
         for agent in agents
         for projection in _summary_projections(agent, unread_ids)
     )
+    return _status_counts_for_projections(projected)
+
+
+def agent_hole_status_counts(
+    agents: Iterable[Agent],
+    unread_ids: Collection[tuple[AgentType, str, str | None]],
+) -> _AgentSummaryStatusCounts:
+    """Project containers into deduplicated agent-hole status counts."""
+    projected = _dedupe_summary_projections(
+        projection
+        for agent in agents
+        for projection in _hole_summary_projections(agent, unread_ids)
+    )
+    return _status_counts_for_projections(projected)
+
+
+def _status_counts_for_projections(
+    projected: Iterable[_ProjectedSummaryAgent],
+) -> _AgentSummaryStatusCounts:
+    total = stopped = running = waiting = failed = unread = done = 0
     for projection in projected:
         projected_agent = projection.status.agent
         bucket = projection.status.bucket
@@ -214,22 +233,6 @@ def agent_summary_status_counts(
     )
 
 
-def agent_hole_count(agents: Iterable[Agent]) -> int:
-    """Count standalone agents and sequential families as agent holes.
-
-    Clan containers are rootless presentation rows, so their loaded direct
-    members supply the holes. Sequential-family and workflow descendants do
-    not add holes. Legacy parallel-family aggregates remain compatible with
-    the clan projection: loaded parallel members replace the aggregate root,
-    while an unloaded aggregate still contributes one hole.
-    """
-    seen: set[tuple[AgentType, str, str | None]] = set()
-    for agent in agents:
-        for hole in _agent_hole_units(agent):
-            seen.add(hole.identity)
-    return len(seen)
-
-
 def agent_status_projections(
     agents: Iterable[Agent],
 ) -> tuple[ConcreteAgentStatus, ...]:
@@ -240,16 +243,46 @@ def agent_status_projections(
     return tuple(projection.status for projection in projected)
 
 
-def _agent_hole_units(agent: Agent) -> tuple[Agent, ...]:
+def _hole_summary_projections(
+    agent: Agent,
+    unread_ids: Collection[tuple[AgentType, str, str | None]],
+    *,
+    projected_from_container: bool = False,
+) -> tuple[_ProjectedSummaryAgent, ...]:
     if agent.is_clan_container:
         return tuple(
-            hole for member in clan_members(agent) for hole in _agent_hole_units(member)
+            projection
+            for member in clan_members(agent)
+            for projection in _hole_summary_projections(
+                member,
+                unread_ids,
+                projected_from_container=True,
+            )
         )
     if agent.agent_family_parallel:
         members = clan_members(agent)
         if members:
-            return members
-    return (agent,)
+            return tuple(
+                _ProjectedSummaryAgent(
+                    status=ConcreteAgentStatus(
+                        agent=member,
+                        bucket=status_bucket_for_values(member.status),
+                    ),
+                    projected_from_container=True,
+                    is_unread=member.identity in unread_ids,
+                )
+                for member in members
+            )
+    return (
+        _ProjectedSummaryAgent(
+            status=ConcreteAgentStatus(
+                agent=agent,
+                bucket=status_bucket_for_values(agent.status),
+            ),
+            projected_from_container=projected_from_container,
+            is_unread=agent.identity in unread_ids,
+        ),
+    )
 
 
 def _summary_projections(
@@ -342,14 +375,14 @@ def _dedupe_summary_projections(
                     existing.projected_from_container
                     or projection.projected_from_container
                 ),
-                is_unread=True,
+                is_unread=existing.is_unread or projection.is_unread,
             )
     return tuple(ordered)
 
 
 __all__ = [
     "ClanStatusCounts",
-    "agent_hole_count",
+    "agent_hole_status_counts",
     "agent_status_projections",
     "agent_summary_status_counts",
     "aggregate_clan_status",

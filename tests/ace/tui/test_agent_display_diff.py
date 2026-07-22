@@ -342,7 +342,9 @@ def test_same_position_row_change_patches_without_panel_rebuild(
     assert app._agent_detail_debouncer.is_pending
 
 
-def test_row_patch_preserves_family_hole_panel_total(monkeypatch: Any) -> None:
+def test_row_patch_refreshes_family_hole_panel_title_without_rebuild(
+    monkeypatch: Any,
+) -> None:
     planner = _agent(
         "build--plan",
         tribe="apple",
@@ -373,12 +375,13 @@ def test_row_patch_preserves_family_hole_panel_total(monkeypatch: Any) -> None:
     app = _DisplayDiffApp([planner, coder, standalone], monkeypatch)
     widget = app._widgets["#agent-list-panel"]
 
-    assert Text.from_markup(widget.border_title).plain == "@apple · 2 [R1 D2]"
+    assert Text.from_markup(widget.border_title).plain == "@apple · 2 [R1 D1]"
 
+    app._unread_completed_agent_ids.add(standalone.identity)
     standalone.live_file_change_hint = True
     assert app._try_patch_agent_row(standalone) is True
 
-    assert Text.from_markup(widget.border_title).plain == "@apple · 2 [R1 D2]"
+    assert Text.from_markup(widget.border_title).plain == "@apple · 2 [R1 U1]"
     assert app.full_rebuilds == 0
     assert "row_patch" in _display_costs(app)
 

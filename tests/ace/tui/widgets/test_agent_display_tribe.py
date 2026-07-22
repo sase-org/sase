@@ -115,7 +115,7 @@ def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -
     ).plain
 
     assert pulse.startswith(
-        "TRIBE\nName: ▲ @epic\nStatus: FAILED [R1 W1 F1]\n"
+        "TRIBE\nName: ▲ @epic\nStatus: FAILED [R1 F1]\n"
         "Composition: 1 family · 2 holes · 1 nested\n"
         "Runtime: 1h\nFold: 1/4\n"
     )

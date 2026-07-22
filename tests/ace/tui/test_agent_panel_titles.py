@@ -378,7 +378,7 @@ def test_panel_title_renders_multi_digit_numeric_selection_hint() -> None:
     )
 
 
-def test_panel_counts_use_holes_while_statuses_remain_concrete() -> None:
+def test_panel_counts_use_holes_for_total_and_statuses() -> None:
     standalone = _agent(
         name="standalone",
         suffix="standalone",
@@ -410,5 +410,5 @@ def test_panel_counts_use_holes_while_statuses_remain_concrete() -> None:
     counts = agent_panel_counts(agents, set())
 
     assert counts.hole_count == 4
-    assert (counts.running, counts.waiting, counts.read) == (2, 1, 3)
-    assert sum(value for _name, value in counts.metric_items()) == 6
+    assert (counts.running, counts.waiting, counts.read) == (2, 1, 1)
+    assert sum(value for _name, value in counts.metric_items()) == 4

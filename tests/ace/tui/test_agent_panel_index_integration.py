@@ -386,8 +386,8 @@ def test_info_panel_mixed_family_and_clan_uses_hole_headline() -> None:
 
     assert info_panel.position == (1, 3)
     # Four holes: standalone, family, and two direct clan members. The status
-    # buckets still contain all six concrete agents.
-    assert info_panel.counts == (0, 0, 0, 2, 1, 0, 3, 4)
+    # buckets classify those same four owners.
+    assert info_panel.counts == (0, 0, 0, 2, 1, 0, 1, 4)
 
 
 def test_info_panel_hole_headline_ignores_grouping_and_fold_presentation() -> None:

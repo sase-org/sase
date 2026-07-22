@@ -700,13 +700,13 @@ folds are remembered and override the configured initial state. Identity colors 
 name, leaving selection, fold, and status chrome in its semantic palette. Each panel title can also show compact scoped
 metrics in the form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R` is running, `W` is waiting to start, `F`
 is failed, `U` is unread terminal work, and `D` is done/read terminal work. Zero-count metrics are omitted. The status
-metrics remain concrete, so a sequential family's members can make their sum larger than the hole total. The selected
-whole-panel `TRIBE` composition reports the same total explicitly as `N hole` or `N holes`, while its nested count
-preserves the concrete-member distinction. On the selected whole panel, the title marker, total, brackets, and metric
-letters use the focus accent; each numeric metric count retains its semantic status color. Panel heights are sized to
-their content and separated by a one-row gap. When the panels fit, the first panel grows to absorb leftover vertical
-space while later panels stay pinned to their natural height; when the panels overflow, space is weighted by each
-panel's rendered row count.
+metrics use the same holes as the adjacent total and classify a sequential family once from its normalized owner status.
+The selected whole-panel `TRIBE` header uses that same hole projection, while its nested count and per-family/per-clan
+member summaries preserve the concrete-member distinction. On the selected whole panel, the title marker, total,
+brackets, and metric letters use the focus accent; each numeric metric count retains its semantic status color. Panel
+heights are sized to their content and separated by a one-row gap. When the panels fit, the first panel grows to absorb
+leftover vertical space while later panels stay pinned to their natural height; when the panels overflow, space is
+weighted by each panel's rendered row count.
 
 Use `J` / `K` to move across panels (forward / reverse) and enter the first or last selectable row in the destination;
 collapsed grouping banners count as rows. Whole-panel focus is available only in the split layout. Lowercase `h` walks
@@ -907,15 +907,16 @@ at the limit, and red above it; a nonzero queue count is violet.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with numeric counts in place of the
-letters and zero-count metrics omitted. These buckets count concrete agents, so expanded family members can make their
-sum larger than the leading hole total. `stopped` counts agents paused for plan approval, questions, or workflow
-human-input steps; `starting` counts just-launched agents that have not yet surfaced as visible rows; `running` excludes
-waiting, failed, and stopped rows; `waiting` is the blocked/queued subset; `failed` is terminal failed work; `unread`
-counts terminal rows that still need acknowledgement; and `done` is completed visible work that has already been
-acknowledged. The position/navigation denominator is a third count: rendered selectable roots, where a clan container is
-one row and a hidden `STARTING` hole is excluded. These three cardinalities are intentionally independent. During
-startup the header renders `Agents: …` until the first agent scan has loaded, avoiding a misleading zero-agent count.
-Each TUI launch starts in by-project grouping; cycling only changes the current session.
+letters and zero-count metrics omitted. These buckets classify the same holes as the leading total, using a sequential
+family's normalized owner status instead of counting historical members separately. `stopped` counts holes paused for
+plan approval, questions, or workflow human-input steps; `starting` counts just-launched holes that have not yet
+surfaced as visible rows; `running` excludes waiting, failed, and stopped holes; `waiting` is the blocked/queued subset;
+`failed` is terminal failed work; `unread` counts terminal holes that still need acknowledgement; and `done` is
+completed visible work that has already been acknowledged. Nested family/clan member summaries remain concrete. The
+position/navigation denominator is a separate count: rendered selectable roots, where a clan container is one row and a
+hidden `STARTING` hole is excluded. During startup the header renders `Agents: …` until the first agent scan has loaded,
+avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping; cycling only changes the current
+session.
 
 **Waiting** holds agents that are blocked but progressing on their own — `WAITING` with a time wait (`%wait(time=5m)`,
 `%wait(time=1430)`), a non-empty `waiting_for` dependency, or a runner-slot gate. Runner-slot rows add a dim Running

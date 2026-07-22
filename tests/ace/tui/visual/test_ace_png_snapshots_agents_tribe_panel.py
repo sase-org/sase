@@ -205,7 +205,7 @@ async def test_tribe_panel_four_level_png_snapshots(
         epic_index = page.app._panel_group.panel_keys.index("epic")
         epic_panel = list(page.app.query("AgentList"))[epic_index]
         assert Text.from_markup(epic_panel.border_title).plain == (
-            "▲ @epic · 2 [R1 W1 F1]"
+            "▲ @epic · 2 [R1 F1]"
         )
 
         await page.press("J")

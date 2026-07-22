@@ -269,7 +269,7 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
     )
 
 
-def test_panel_title_uses_family_hole_with_concrete_statuses_in_all_layouts() -> None:
+def test_panel_title_uses_family_owner_status_in_all_layouts() -> None:
     planner = _agent(
         name="build--plan",
         tribe="apple",
@@ -301,7 +301,7 @@ def test_panel_title_uses_family_hole_with_concrete_statuses_in_all_layouts() ->
     app._refresh_panel_widgets(jump_hints=None)
 
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "@apple · 2 [R1 D2]"
+        "@apple · 2 [R1 D1]"
     )
 
     app._collapsed_panel_keys = {"apple"}
@@ -310,12 +310,12 @@ def test_panel_title_uses_family_hole_with_concrete_statuses_in_all_layouts() ->
         app._agent_panel_index().slice_for("apple").agents,
         merge_tribe_panels=False,
     )
-    assert collapsed_title.plain == ("▸ @apple · 2 [R1 D2]")
+    assert collapsed_title.plain == ("▸ @apple · 2 [R1 D1]")
 
     merged = _FakeApp(agents, merge_tribe_panels=True)
     merged._refresh_panel_widgets(jump_hints=None)
     assert _title_text(merged._panel_widgets["agent-list-panel"]).plain == (
-        "All agents · 2 [R1 D2]"
+        "All agents · 2 [R1 D1]"
     )
 
 
