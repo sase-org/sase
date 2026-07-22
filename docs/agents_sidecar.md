@@ -13,9 +13,11 @@ restricted. Set `disabled: true` to opt out entirely. Synchronization never crea
 explicit consent requested by repo initialization.
 
 Every participating machine needs a configured `machine_name`. The machine hood is part of each durable agent name, such
-as `athena.worker`, so independently created names remain distinct. A machine is authoritative for bundles in its own
-hood: pulled copies from the same machine are not imported over local artifacts, and a later local export replaces the
-transport copy when its commits or portable metadata change.
+as `athena.worker`, so independently created names remain distinct. Run `sase config init` to select or create the
+machine identity; see [machine_name and machine overlays](configuration.md#machine_name) for how the identity is stored
+and layered. A machine is authoritative for bundles in its own hood: pulled copies from the same machine are not
+imported over local artifacts, and a later local export replaces the transport copy when its commits or portable
+metadata change.
 
 ## Portable bundle layout
 
