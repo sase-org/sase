@@ -61,8 +61,8 @@ class ConfigPane(Vertical):
     can_focus = False
 
     BINDINGS = [
-        ("j", "cursor_down", "Down"),
-        ("k", "cursor_up", "Up"),
+        ("j", "cycle_cursor_down", "Down"),
+        ("k", "cycle_cursor_up", "Up"),
         ("down", "cursor_down", "Down"),
         ("up", "cursor_up", "Up"),
         ("h", "collapse_tree", "Collapse"),
@@ -344,6 +344,30 @@ class ConfigPane(Vertical):
 
     def action_cursor_up(self) -> None:
         self._tree_action("action_cursor_up")
+
+    def action_cycle_cursor_down(self) -> None:
+        try:
+            tree = self.query_one("#config-tree", Tree)
+        except Exception:
+            return
+        if tree.cursor_line == tree.last_line:
+            first_node = tree.get_node_at_line(0)
+            if first_node is not None:
+                self._move_cursor(tree, first_node)
+            return
+        tree.action_cursor_down()
+
+    def action_cycle_cursor_up(self) -> None:
+        try:
+            tree = self.query_one("#config-tree", Tree)
+        except Exception:
+            return
+        if tree.cursor_line == 0:
+            last_node = tree.get_node_at_line(tree.last_line)
+            if last_node is not None:
+                self._move_cursor(tree, last_node)
+            return
+        tree.action_cursor_up()
 
     def _tree_action(self, name: str) -> None:
         try:

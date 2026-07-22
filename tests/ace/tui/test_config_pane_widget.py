@@ -307,6 +307,74 @@ def test_config_pane_binds_ctrl_d_and_ctrl_u_to_detail_scroll() -> None:
     assert "g: migrate" not in ConfigPane(auto_load=False)._hints()
 
 
+def test_config_pane_splits_cycling_j_k_from_clamped_arrow_keys() -> None:
+    assert _binding_action("j") == "cycle_cursor_down"
+    assert _binding_action("k") == "cycle_cursor_up"
+    assert _binding_action("down") == "cursor_down"
+    assert _binding_action("up") == "cursor_up"
+
+
+async def test_config_pane_j_k_wrap_visible_tree_and_arrows_clamp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch)
+    async with AcePage() as page:
+        pane = await _open_config_pane(page)
+        tree = pane.query_one("#config-tree", Tree)
+        tree.focus()
+
+        pane.action_scroll_to_bottom()
+        await page.wait_for(lambda _s: tree.cursor_line == tree.last_line)
+        last_path = pane._selected_path
+        await page.press("j")
+        await page.wait_for(lambda _s: tree.cursor_line == 0)
+        first_path = pane._selected_path
+        assert tree.cursor_node is not None
+        assert tree.cursor_node.data == first_path
+
+        await page.press("k")
+        await page.wait_for(lambda _s: tree.cursor_line == tree.last_line)
+        assert pane._selected_path == last_path
+        assert tree.cursor_node is not None
+        assert tree.cursor_node.data == last_path
+
+        await page.press("down")
+        await page.pause()
+        assert tree.cursor_line == tree.last_line
+        assert pane._selected_path == last_path
+
+        pane.action_scroll_to_top()
+        await page.wait_for(lambda _s: tree.cursor_line == 0)
+        assert pane._selected_path == first_path
+        await page.press("up")
+        await page.pause()
+        assert tree.cursor_line == 0
+        assert pane._selected_path == first_path
+
+
+async def test_config_pane_j_k_cycle_single_visible_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch)
+    async with AcePage() as page:
+        pane = await _open_config_pane(page)
+        pane.action_focus_filter()
+        await page.pause()
+        await page.press("t", "i", "m", "e", "z", "o", "n", "e")
+        await page.wait_for(lambda _s: set(pane._node_by_path) == {"timezone"})
+        pane.focus_default()
+        tree = pane.query_one("#config-tree", Tree)
+        await page.wait_for(lambda _s: tree.cursor_line == tree.last_line == 0)
+
+        await page.press("j", "k")
+        await page.pause()
+
+        assert tree.cursor_line == 0
+        assert tree.cursor_node is not None
+        assert tree.cursor_node.data == "timezone"
+        assert pane._selected_path == "timezone"
+
+
 async def test_config_pane_g_and_G_jump_tree_cursor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
