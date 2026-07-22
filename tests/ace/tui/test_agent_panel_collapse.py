@@ -55,6 +55,7 @@ class _StubApp(
             merge_tribe_panels=merged,
         )
         self._collapsed_panel_keys: set[str | None] = set()
+        self._expanded_panel_keys: set[str | None] = set()
         self._panel_isolation_revert = None
         self._expanded_panel_focus = False
         self._panel_selection_memory: dict[
@@ -174,6 +175,13 @@ def _multi_panel_agents() -> list[Agent]:
         _agent(name="raw-first", project="zeta", tribe="alpha"),
         _agent(name="render-first", project="alpha", tribe="alpha"),
         _agent(name="beta", project="beta", tribe="beta"),
+    ]
+
+
+def _four_panel_agents() -> list[Agent]:
+    return [
+        *_multi_panel_agents(),
+        _agent(name="gamma", project="gamma", tribe="gamma"),
     ]
 
 
@@ -322,7 +330,7 @@ def test_h_selects_grouping_banner_in_sole_named_panel() -> None:
     assert app._panel_selection_memory["research"] == ("banner", banner)
 
 
-def test_panel_collapse_guards_merged_and_repeated_actions() -> None:
+def test_panel_collapse_guards_merged_and_all_collapsed_actions() -> None:
     merged = _StubApp(_multi_panel_agents(), merged=True)
     merged.action_hooks_or_collapse()
     assert merged._collapsed_panel_keys == set()
@@ -331,12 +339,127 @@ def test_panel_collapse_guards_merged_and_repeated_actions() -> None:
     split = _StubApp(_multi_panel_agents(), focused_key="alpha")
     split.action_hooks_or_collapse()
     split.action_hooks_or_collapse()
+    split._collapsed_panel_keys.update({None, "beta"})
+    split._sync_panel_group()
     split.action_hooks_or_collapse()
     assert split.refresh_calls == [False, True]
     assert split.notifications == ["Panel is already collapsed"]
     split.action_expand_or_layout()
     split.action_expand_or_layout()
     assert split.refresh_calls == [False, True, True, False]
+
+
+def test_h_from_collapsed_panel_jumps_to_last_expanded_panel() -> None:
+    app = _StubApp(_four_panel_agents(), focused_key="gamma")
+    app._collapsed_panel_keys.update({"beta", "gamma"})
+    app._expanded_panel_keys.add("alpha")
+    app._sync_panel_group()
+    app.current_idx = 4
+    app.current_attempt_number = 7
+    app._current_group_key = ("stale",)
+    app._panel_selection_memory["alpha"] = ("agent", 2)
+    app._entry_jump_agents_forward_anchor_stack = [("agent", 0, None)]
+
+    assert app._panel_group.panel_keys == [None, "alpha", "beta", "gamma"]
+    assert app._resolve_last_expanded_panel_target() == (1, "alpha")
+
+    app.action_hooks_or_collapse()
+
+    focus = app._resolve_focused_panel()
+    assert focus is not None
+    assert focus.panel_key == "alpha"
+    assert focus.collapsed is False
+    assert app._expanded_panel_focus is True
+    assert app.current_idx == 2
+    assert app.current_attempt_number is None
+    assert app._current_group_key is None
+    assert app._collapsed_panel_keys == {"beta", "gamma"}
+    assert app._expanded_panel_keys == {"alpha"}
+    assert app.panel_fold_changes == []
+    assert app.refresh_calls == [False]
+    assert app.footer_refresh_calls == 1
+    assert app.notifications == []
+    assert app._entry_jump_agents_anchor_stack == [("panel", "gamma")]
+    assert app._entry_jump_agents_forward_anchor_stack == []
+
+    assert app._restore_agents_jump_anchor() is True
+    restored = app._resolve_focused_panel()
+    assert restored is not None
+    assert restored.panel_key == "gamma"
+    assert restored.collapsed is True
+
+    app.action_hooks_or_collapse()
+    app.action_expand_or_layout()
+
+    assert app._resolve_focused_panel() is None
+    assert app._panel_group.focused_key == "alpha"
+    assert app.current_idx == 2
+    assert app.refresh_calls == [False, False, False]
+    assert app.footer_refresh_calls == 2
+    assert app.panel_fold_changes == []
+
+
+def test_h_from_collapsed_panel_accepts_default_as_expanded_destination() -> None:
+    app = _StubApp(_four_panel_agents(), focused_key="gamma")
+    app._collapsed_panel_keys.update({"alpha", "beta", "gamma"})
+    app._expanded_panel_keys.add(None)
+    app._sync_panel_group()
+
+    assert app._resolve_last_expanded_panel_target() == (0, None)
+
+    app.action_hooks_or_collapse()
+
+    focus = app._resolve_focused_panel()
+    assert focus is not None
+    assert focus.panel_key is None
+    assert focus.collapsed is False
+    assert app.current_idx == 0
+    assert app._collapsed_panel_keys == {"alpha", "beta", "gamma"}
+    assert app._expanded_panel_keys == {None}
+    assert app.panel_fold_changes == []
+    assert app.refresh_calls == [False]
+    assert app.footer_refresh_calls == 1
+
+
+def test_h_from_collapsed_panel_with_no_expanded_target_is_a_pure_noop() -> None:
+    app = _StubApp(_four_panel_agents(), focused_key="gamma")
+    app._collapsed_panel_keys.update({None, "alpha", "beta", "gamma"})
+    app._sync_panel_group()
+    app._entry_jump_agents_anchor_stack = [("agent", 0, None)]
+    app._entry_jump_agents_forward_anchor_stack = [("agent", 2, "alpha")]
+    before = (
+        app._panel_group.focused_idx,
+        app._panel_group.focused_key,
+        app.current_idx,
+        app.current_attempt_number,
+        app._current_group_key,
+        set(app._collapsed_panel_keys),
+        set(app._expanded_panel_keys),
+        list(app._entry_jump_agents_anchor_stack),
+        list(app._entry_jump_agents_forward_anchor_stack),
+    )
+
+    assert app._resolve_last_expanded_panel_target() is None
+
+    app.action_hooks_or_collapse()
+
+    after = (
+        app._panel_group.focused_idx,
+        app._panel_group.focused_key,
+        app.current_idx,
+        app.current_attempt_number,
+        app._current_group_key,
+        set(app._collapsed_panel_keys),
+        set(app._expanded_panel_keys),
+        list(app._entry_jump_agents_anchor_stack),
+        list(app._entry_jump_agents_forward_anchor_stack),
+    )
+    assert after == before
+    assert app.notifications == ["Panel is already collapsed"]
+    assert app.refresh_calls == []
+    assert app.affected_refreshes == []
+    assert app.footer_refresh_calls == 0
+    assert app.panel_fold_changes == []
 
 
 def test_capital_z_expands_selected_panel_and_collapses_every_other_panel() -> None:

@@ -334,6 +334,8 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert footer._last_layout_inputs is not None
         footer_bindings, _mode_label = footer._last_layout_inputs
         assert ("x", "kill/dismiss panel") in footer_bindings
+        assert ("l", "expand panel") in footer_bindings
+        assert ("h", "last expanded panel") in footer_bindings
 
         ace_png_visual.assert_page_png(
             page,
@@ -435,6 +437,14 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert snapshot is not None
         assert snapshot.label == "⌂ @default"
         assert "Name: ⌂ @default" in prompt.content.plain
+
+        await page.press("h")
+        await page.wait_for(lambda _screen: page.app._panel_group.focused_key == "keep")
+        focus = page.app._resolve_focused_panel()
+        assert focus is not None
+        assert focus.panel_key == "keep"
+        assert focus.collapsed is False
+        assert page.app._expanded_panel_focus is True
 
 
 async def test_agents_overflowing_panel_uses_full_height_png_snapshot(

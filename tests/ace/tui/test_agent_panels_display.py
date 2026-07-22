@@ -168,6 +168,9 @@ class _InteractiveFakeApp(
     AgentPanelNavigationMixin,
     _FakeApp,
 ):
+    def _refresh_agent_footer_bindings_only(self) -> None:
+        return
+
     def _refresh_agent_focus_detail(self, **_kwargs: Any) -> None:
         return
 

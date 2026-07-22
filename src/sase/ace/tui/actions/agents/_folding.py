@@ -64,7 +64,7 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_hooks_or_collapse(self) -> None:
-        """Navigate left on Agents, or collapse the contextual fold elsewhere."""
+        """Navigate/collapse/jump on Agents, or collapse elsewhere."""
         if self.current_tab == "agents":
             self._collapse_fold()
         elif self.current_tab == "axe":
@@ -82,9 +82,11 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
             panel_focus = resolve_panel() if callable(resolve_panel) else None
             if panel_focus is not None:
                 if panel_focus.collapsed:
-                    # Keep the existing lowercase-h saturated notification and
-                    # avoid mutating inner state hidden by a collapsed panel.
-                    self._collapse_fold()
+                    # Uppercase H keeps its saturated terminal behavior even
+                    # though lowercase h can now leave a collapsed panel.
+                    self.notify(  # type: ignore[attr-defined]
+                        "Panel is already collapsed", timeout=1.5
+                    )
                     return
                 panel_house_target = self._resolve_focused_panel_house_collapse_target()
                 if panel_house_target is not None and self._collapse_agent_house_folds(

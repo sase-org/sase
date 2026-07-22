@@ -335,14 +335,16 @@ In the split layout, a tribe panel is also a selectable container. Repeated lowe
 → family → clan → tribe ladder and selects the whole expanded panel after the structural parent chain is exhausted; `h`
 on the selected panel collapses it when another panel remains visible. Press `l` to expand a collapsed panel while
 keeping container focus, then `l` again to return to the row ACE remembered for that panel. Uppercase `L` instead
-expands the panel and enters its first selectable row. While an expanded whole panel is selected, `j` / `k` cycle across
-panels without descending, and `l` or `Esc` returns to the remembered row. `J` / `K` always move to the first / last
-selectable row of the next / previous panel. Whole-panel focus is unavailable in the merged layout. Apostrophe jump can
-select any split-panel title, including a lone expanded panel, but a lone panel cannot be collapsed. With whole-panel
-focus active, uppercase `Z` isolates the selected panel by keeping it expanded and collapsing every sibling without
-changing its remembered row. When isolation changes the layout, ACE remembers the prior collapsed-panel set for the
-session: `↺` title markers and the `Z restore panels` footer hint show that the next `Z`, from any whole-panel focus,
-will restore it. A separate sibling-panel or layout mutation invalidates that one-step restore.
+expands the panel and enters its first selectable row. Lowercase `h` on a collapsed panel selects the visually
+bottom-most expanded panel without changing panel folds; `Ctrl+O` returns to the collapsed origin. If every live panel
+is collapsed, `h` retains the existing already-collapsed warning. While an expanded whole panel is selected, `j` / `k`
+cycle across panels without descending, and `l` or `Esc` returns to the remembered row. `J` / `K` always move to the
+first / last selectable row of the next / previous panel. Whole-panel focus is unavailable in the merged layout.
+Apostrophe jump can select any split-panel title, including a lone expanded panel, but a lone panel cannot be collapsed.
+With whole-panel focus active, uppercase `Z` isolates the selected panel by keeping it expanded and collapsing every
+sibling without changing its remembered row. When isolation changes the layout, ACE remembers the prior collapsed-panel
+set for the session: `↺` title markers and the `Z restore panels` footer hint show that the next `Z`, from any
+whole-panel focus, will restore it. A separate sibling-panel or layout mutation invalidates that one-step restore.
 
 Uppercase `H` on a selected expanded panel walks a panel-wide collapse ladder without changing the remembered row: it
 first fully collapses every open canonical workflow/family house in that panel, including houses hidden by grouping

@@ -6,11 +6,12 @@ from typing import TYPE_CHECKING
 
 from ._fold_scope import focused_panel_fold_registry
 from ._navigation_order import rendered_panel_slice
+from ._panel_fold_intent import effective_panel_collapses
 from ._panel_types import TabName
 
 if TYPE_CHECKING:
     from ...models import Agent
-    from ...models.agent_panels import AgentPanelGroup
+    from ...models.agent_panels import AgentPanelGroup, PanelKey
 
 
 class AgentPanelNavigationMixin:
@@ -23,6 +24,22 @@ class AgentPanelNavigationMixin:
     _current_group_key: tuple[str, ...] | None
     _agent_panels_grouped: bool
     _agents: list[Agent]
+
+    def _resolve_last_expanded_panel_target(
+        self,
+    ) -> tuple[int, PanelKey] | None:
+        """Return the bottom-most live expanded split-panel target."""
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None or getattr(self, "_agent_panels_grouped", False):
+            return None
+
+        panel_keys = panel_group.panel_keys
+        collapsed_keys = effective_panel_collapses(self, panel_keys)
+        target: tuple[int, PanelKey] | None = None
+        for panel_idx, panel_key in enumerate(panel_keys):
+            if panel_key not in collapsed_keys:
+                target = (panel_idx, panel_key)
+        return target
 
     def _first_agent_idx_for_focused_group(
         self, group_key: tuple[str, ...]
@@ -71,33 +88,32 @@ class AgentPanelNavigationMixin:
         if callable(remember):
             remember(stop)
 
-    def _change_whole_panel_focus(self, *, forward: bool) -> bool:
-        """Move selected-panel focus without descending into either panel."""
-        resolve_panel = getattr(self, "_resolve_focused_panel", None)
-        focus = resolve_panel() if callable(resolve_panel) else None
-        if focus is None:
+    def _focus_whole_panel_target(
+        self,
+        target: tuple[int, PanelKey],
+    ) -> bool:
+        """Focus one stable panel target without descending into its rows."""
+        panel_idx, panel_key = target
+        panel_keys = self._panel_group.panel_keys
+        if (
+            not (0 <= panel_idx < len(panel_keys))
+            or panel_keys[panel_idx] != panel_key
+            or panel_idx == self._panel_group.focused_idx
+        ):
             return False
-        if len(self._panel_group.panel_keys) <= 1:
-            return True
 
         old_focused_idx = self._panel_group.focused_idx
         save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
         if callable(save_jump_anchor):
             save_jump_anchor()
-        changed = (
-            self._panel_group.focus_next()
-            if forward
-            else self._panel_group.focus_prev()
-        )
-        if not changed:
-            return True
 
+        self._panel_group.focused_idx = panel_idx
         self._expanded_panel_focus = True
         self._current_group_key = None  # type: ignore[attr-defined]
         self.current_attempt_number = None  # type: ignore[attr-defined]
-        focused_key = self._panel_group.focused_key
-        remembered = getattr(self, "_panel_selection_memory", {}).get(focused_key)
-        global_indices, _agents = rendered_panel_slice(self, focused_key)
+
+        remembered = getattr(self, "_panel_selection_memory", {}).get(panel_key)
+        global_indices, _agents = rendered_panel_slice(self, panel_key)
         if (
             remembered is not None
             and remembered[0] == "agent"
@@ -114,6 +130,32 @@ class AgentPanelNavigationMixin:
                 old_focused_idx=old_focused_idx,
                 render_detail_immediate=False,
             )
+        return True
+
+    def _focus_last_expanded_panel(self) -> bool:
+        """Select the bottom-most expanded panel, if one is currently live."""
+        target = self._resolve_last_expanded_panel_target()
+        return target is not None and self._focus_whole_panel_target(target)
+
+    def _change_whole_panel_focus(self, *, forward: bool) -> bool:
+        """Move selected-panel focus without descending into either panel."""
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        focus = resolve_panel() if callable(resolve_panel) else None
+        if focus is None:
+            return False
+        if len(self._panel_group.panel_keys) <= 1:
+            return True
+
+        panel_keys = self._panel_group.panel_keys
+        current_idx = self._panel_group.focused_idx
+        target_idx = (
+            (current_idx + 1) % len(panel_keys)
+            if forward
+            else (current_idx - 1) % len(panel_keys)
+        )
+        changed = self._focus_whole_panel_target((target_idx, panel_keys[target_idx]))
+        if not changed:
+            return True
         # Whole-panel focus is reactive state outside ``current_idx``. Its
         # remembered row may be the same across a hop, so the ordinary index
         # watcher is not a reliable paint-sample terminator for lower-case

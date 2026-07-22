@@ -26,7 +26,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding(
         "h",
         "hooks_or_collapse",
-        "Parent Container / Collapse Panel/Fold",
+        "Parent / Collapse or Jump Panel/Fold",
         show=False,
     ),
     Binding(

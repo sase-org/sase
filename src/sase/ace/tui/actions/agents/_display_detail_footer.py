@@ -105,6 +105,14 @@ class AgentFooterDisplayMixin:
             panel_focus = resolve_panel() if callable(resolve_panel) else None
             panel_focused = panel_focus is not None
             panel_collapsed = bool(panel_focus is not None and panel_focus.collapsed)
+            resolve_last_expanded = getattr(
+                self, "_resolve_last_expanded_panel_target", None
+            )
+            panel_collapse_jump_available = bool(
+                panel_collapsed
+                and callable(resolve_last_expanded)
+                and resolve_last_expanded() is not None
+            )
             isolation_revert = getattr(self, "_panel_isolation_revert_record", None)
             panel_restore_armed = bool(
                 panel_focused
@@ -167,6 +175,7 @@ class AgentFooterDisplayMixin:
                 attempt_pinned=self.current_attempt_number is not None,
                 panel_focused=panel_focused,
                 panel_collapsed=panel_collapsed,
+                panel_collapse_jump_available=panel_collapse_jump_available,
                 panel_restore_armed=panel_restore_armed,
                 left_navigation_kind=left_navigation_kind,
                 house_collapse_available=house_collapse_available,

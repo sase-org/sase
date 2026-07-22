@@ -213,7 +213,8 @@ ace:
       sync: "Y"
       refresh: "y"
       # Fold / collapse (Agents: h navigates member → family → clan → tribe,
-      # except that it collapses an explicitly selected panel. H compacts
+      # collapses an explicitly selected expanded panel, and jumps from a
+      # collapsed panel to the last expanded panel when one exists. H compacts
       # Tools; on row focus it fully collapses houses in the next group, then
       # clan/group folds. On whole-panel focus it collapses every open house in
       # that panel, the last expanded top-level group per press, then the panel.

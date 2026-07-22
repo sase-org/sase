@@ -112,6 +112,14 @@ def test_footer_selected_panel_advertises_next_collapse_ladder_step() -> None:
             panel_collapsed=True,
         )
     )
+    collapsed_with_jump = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            panel_collapsed=True,
+            panel_collapse_jump_available=True,
+        )
+    )
 
     assert ("H", "collapse houses") in houses
     assert ("H", "collapse group") in group
@@ -120,6 +128,8 @@ def test_footer_selected_panel_advertises_next_collapse_ladder_step() -> None:
     assert ("Z", "only panel") in houses
     assert ("Z", "only panel") in collapsed
     assert not any(key == "H" for key, _label in collapsed)
+    assert ("h", "last expanded panel") not in collapsed
+    assert ("h", "last expanded panel") in collapsed_with_jump
 
 
 def test_footer_armed_panel_isolation_advertises_restore_action() -> None:

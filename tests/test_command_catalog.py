@@ -217,10 +217,12 @@ def test_h_commands_describe_navigation_and_contextual_collapsing() -> None:
     upper = by_id["app.hooks_or_collapse_all"]
 
     assert lower.label == (
-        "Navigate to parent container or tribe / collapse selected panel or fold"
+        "Navigate to parent container or tribe / collapse selected panel, "
+        "jump to last expanded panel, or collapse fold"
     )
     assert lower.key_sequence == ("h",)
     assert lower.key_display == "h"
+    assert "last expanded panel" in lower.aliases
     assert upper.label == (
         "Collapse Agents houses, groups, then selected panel / compact tools "
         "detail / collapse all folds on other tabs"

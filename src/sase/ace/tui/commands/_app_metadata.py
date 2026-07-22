@@ -257,10 +257,11 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     # Folding
     (
         "hooks_or_collapse",
-        "Navigate to parent container or tribe / collapse selected panel or fold",
+        "Navigate to parent container or tribe / collapse selected panel, "
+        "jump to last expanded panel, or collapse fold",
         "Folding",
         ALL_TABS,
-        (),
+        ("last expanded panel",),
     ),
     (
         "hooks_or_collapse_all",

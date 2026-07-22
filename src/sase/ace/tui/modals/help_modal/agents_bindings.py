@@ -141,6 +141,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Collapse selected panel",
                 ),
                 (
+                    d(a.hooks_or_collapse),
+                    "From collapsed panel: select last expanded panel",
+                ),
+                (
                     d(a.expand_all_folds),
                     "Select visible folds by number",
                 ),

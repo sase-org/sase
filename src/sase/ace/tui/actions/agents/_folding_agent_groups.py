@@ -302,9 +302,13 @@ class AgentGroupFoldingMixin(AgentStructuralFoldingMixin):
             panel_focus = resolve_panel() if callable(resolve_panel) else None
             if panel_focus is not None:
                 if panel_focus.collapsed:
-                    self.notify(  # type: ignore[attr-defined]
-                        "Panel is already collapsed", timeout=1.5
+                    focus_last_expanded = getattr(
+                        self, "_focus_last_expanded_panel", None
                     )
+                    if not (callable(focus_last_expanded) and focus_last_expanded()):
+                        self.notify(  # type: ignore[attr-defined]
+                            "Panel is already collapsed", timeout=1.5
+                        )
                 else:
                     self._collapse_focused_panel()
                 return

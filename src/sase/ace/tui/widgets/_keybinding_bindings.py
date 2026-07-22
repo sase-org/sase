@@ -96,6 +96,7 @@ class KeybindingBindingsMixin:
         attempt_pinned: bool = False,
         panel_focused: bool = False,
         panel_collapsed: bool = False,
+        panel_collapse_jump_available: bool = False,
         panel_restore_armed: bool = False,
         left_navigation_kind: str | None = None,
         house_collapse_available: bool = False,
@@ -177,6 +178,13 @@ class KeybindingBindingsMixin:
             bindings.append(("0-9", "member"))
             if panel_collapsed:
                 bindings.append((self._kd("expand_or_layout"), "expand panel"))
+                if panel_collapse_jump_available:
+                    bindings.append(
+                        (
+                            self._kd("hooks_or_collapse"),
+                            "last expanded panel",
+                        )
+                    )
             else:
                 bindings.append((self._kd("hooks_or_collapse"), "collapse panel"))
                 bindings.append((self._kd("expand_or_layout"), "enter panel"))

@@ -699,8 +699,10 @@ selected panel has a `❖` title and shows a fold-aware `TRIBE` summary in the m
 `k` cycle whole panels without descending; `l` or `Esc` returns to the remembered row. A second `h` collapses the
 selected panel when another panel remains visible. On a collapsed panel, the first `l` expands it while keeping
 whole-panel focus and the second returns to the remembered row; uppercase `L` expands it and enters its first selectable
-row. Apostrophe jump hints include every split-panel title, even a lone expanded panel, as well as collapsed titles, and
-support the normal `Ctrl+O` jump back.
+row. Lowercase `h` on a collapsed panel selects the visually bottom-most expanded panel without changing any panel
+folds, and `Ctrl+O` returns to the collapsed origin. When every live panel is collapsed, `h` remains a no-op and shows
+the existing `Panel is already collapsed` warning. Apostrophe jump hints include every split-panel title, even a lone
+expanded panel, as well as collapsed titles, and support the normal `Ctrl+O` jump back.
 
 Lowercase `l` only advances a real fold owned by the selected row or its immediate workflow/family owner, so a visible
 hidden leaf under an already fully expanded workflow is a no-op. Uppercase `H` is the structural mutation key. In the
@@ -775,13 +777,13 @@ independent folding layers can therefore be visible at once:
 | Structural row    | Clan members, family members, and workflow descendants   | `H` fully collapses scoped houses, then clan; `l` expands |
 | Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` or `L` expands     |
 
-| Key | Action                                                                                                                        |
-| --- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel              |
-| `h` | Collapse one structural level; when none remains, select a panel that supports whole-panel focus; on panel focus, collapse it |
-| `L` | Expand a collapsed focused panel and enter its first selectable row                                                           |
-| `H` | Collapse row-scoped houses/clan/group, or selected-panel houses/top-level groups/panel; compact expanded Tools detail         |
-| `Z` | On whole-panel focus, isolate that panel or restore the pre-isolation layout; otherwise zoom the active detail panel          |
+| Key | Action                                                                                                                 |
+| --- | ---------------------------------------------------------------------------------------------------------------------- |
+| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel       |
+| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists |
+| `L` | Expand a collapsed focused panel and enter its first selectable row                                                    |
+| `H` | Collapse row-scoped houses/clan/group, or selected-panel houses/top-level groups/panel; compact expanded Tools detail  |
+| `Z` | On whole-panel focus, isolate that panel or restore the pre-isolation layout; otherwise zoom the active detail panel   |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain visible headings but are skipped by
 row navigation. When a collapsed banner is focused, `l` expands only that banner and moves focus to the next visible

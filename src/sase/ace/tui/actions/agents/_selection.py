@@ -173,6 +173,10 @@ class AgentSelectionMixin:
             refresh_display = getattr(self, "_refresh_agents_display", None)
             if callable(refresh_display):
                 refresh_display(list_changed=False)
+        if not render_detail_immediate:
+            refresh_footer = getattr(self, "_refresh_agent_footer_bindings_only", None)
+            if callable(refresh_footer):
+                refresh_footer()
         refresh_detail = getattr(self, "_refresh_agent_focus_detail", None)
         if callable(refresh_detail):
             if render_detail_immediate:
