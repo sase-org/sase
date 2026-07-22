@@ -198,15 +198,17 @@ add a newly discovered provider to that invocation. Safe commands run sequential
 unknown-provenance installs remain visible with manual guidance. The pane-wide `u` remains SASE/core/plugins-only, and
 pane-wide `A` remains the deliberate action for the current agent-CLI inventory.
 
-Every mutation **previews first**. The confirmation groups components into labeled sections with update/current/skipped
-status glyphs, counts, and home-shortened exact commands; long previews scroll with `Ctrl+D` / `Ctrl+U`. Plugin and core
-actions show the underlying `uv` or editable-checkout plan and load incoming commits by repository without blocking the
-modal. `A` previews every exact agent-CLI command and every skip with its reason and docs URL; on the Agent CLIs sub-tab
-it uses the marked subset, otherwise it targets every safely updatable installed CLI. Agent-CLI commands execute
-sequentially as one tracked task and refresh the browser without restarting ACE; new agent launches naturally use the
-updated binaries. Installable plugins use `I` / `Space` marks, while updatable agent CLIs use `Space`; `Esc` clears
-marks in the active sub-tab before closing. All slow work runs off the event loop. Core/plugin code changes retain the
-existing automatic ACE/axe restart behavior. The context-sensitive keymaps are:
+Every mutation **previews first**, and long confirmation panes scroll with `Ctrl+D` / `Ctrl+U`. Plugin and core actions
+show the exact `uv` command or editable-checkout plan. When commit previews are enabled and a comparable range is
+available, confirmations for core and installed-plugin **updates** load incoming commits by repository in the
+background; install, uninstall, and mode-switch confirmations do not claim a commit range. The global `,U` comprehensive
+confirmation groups SASE and Agent CLI work into labeled sections with update/current/skipped glyphs, counts, and
+commands (home paths display as `~/`). `A` previews every exact agent-CLI command and every skip with its reason and
+docs URL; on the Agent CLIs sub-tab it uses the marked subset, otherwise it targets every safely updatable installed
+CLI. Agent-CLI commands execute sequentially as one tracked task and refresh the browser without restarting ACE; new
+agent launches naturally use the updated binaries. Installable plugins use `I` / `Space` marks, while updatable agent
+CLIs use `Space`; `Esc` clears marks in the active sub-tab before closing. All slow work runs off the event loop.
+Core/plugin code changes retain the existing automatic ACE/axe restart behavior. The context-sensitive keymaps are:
 
 | Key                 | Action                                                                                                      |
 | ------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -480,22 +482,26 @@ ACE reads this TUI setting from the user-level `~/.config/sase/sase.yml` (and us
 
 #### `ace.updates`
 
-| Field                                   | Type   | Default | Description                                                                                                             |
-| --------------------------------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `startup_toast`                         | bool   | `true`  | Show the startup toast when cached status reports SASE, plugin, or supported agent-CLI updates.                         |
-| `startup_toast_max_commits`             | int    | `20`    | Maximum total incoming commit subjects shown across all repositories in the startup toast.                              |
-| `post_update_toast`                     | bool   | `true`  | Show a one-shot combined result after an update changes SASE code and restarts ACE.                                     |
-| `post_update_toast_diffstat`            | bool   | `true`  | Show per-repository applied file and line-change statistics when available.                                             |
-| `post_update_toast_commits`             | bool   | `true`  | Show applied commits grouped by repository when available.                                                              |
-| `post_update_toast_max_commits`         | int    | `5`     | Maximum applied commit subjects shown per repository; `0` keeps totals but hides subjects.                              |
-| `indicator`                             | bool   | `true`  | Show the segmented SASE and agent-CLI badge when cached status reports available updates.                               |
-| `incoming_commits.enabled`              | bool   | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.                                          |
-| `incoming_commits.max_per_repo`         | int    | `7`     | Maximum incoming commit subjects to show per repository in Updates-tab details.                                         |
-| `incoming_commits.confirm_max_per_repo` | int    | `250`   | Maximum subjects fetched per repository in update confirmations; larger ranges show an explicit `+N more` marker.       |
-| `check_interval_minutes`                | number | `10`    | Interval between local cached-snapshot revalidation attempts in a running ACE session.                                  |
-| `check_ttl_minutes`                     | number | `10`    | Minimum age before a startup update check recomputes cached status; overrides the legacy hours setting.                 |
-| `check_ttl_hours`                       | number | unset   | Deprecated startup cache TTL accepted for compatibility; prefer `check_ttl_minutes`.                                    |
-| `recompute_interval_minutes`            | number | `60`    | Minimum snapshot age before a full SASE/plugin/agent-CLI network recompute; intervening checks only revalidate locally. |
+| Field                                   | Type   | Default | Description                                                                                                                       |
+| --------------------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `startup_toast`                         | bool   | `true`  | Show the startup toast when cached status reports SASE, plugin, or supported agent-CLI updates.                                   |
+| `startup_toast_max_commits`             | int    | `20`    | Maximum total incoming commit subjects shown across all repositories in the startup toast.                                        |
+| `post_update_toast`                     | bool   | `true`  | Show a one-shot combined result after an update changes SASE code and restarts ACE.                                               |
+| `post_update_toast_diffstat`            | bool   | `true`  | Show per-repository applied file and line-change statistics when available.                                                       |
+| `post_update_toast_commits`             | bool   | `true`  | Show applied commits grouped by repository when available.                                                                        |
+| `post_update_toast_max_commits`         | int    | `5`     | Maximum applied commit subjects shown per repository; `0` keeps totals but hides subjects.                                        |
+| `indicator`                             | bool   | `true`  | Show the segmented SASE and agent-CLI badge when cached status reports available updates.                                         |
+| `incoming_commits.enabled`              | bool   | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.                                                    |
+| `incoming_commits.max_per_repo`         | int    | `7`     | Maximum incoming commit subjects to show per repository in Updates-tab details.                                                   |
+| `incoming_commits.confirm_max_per_repo` | int    | `250`   | Maximum subjects fetched per repository in update confirmations; larger ranges show an explicit `+N more` marker.                 |
+| `check_interval_minutes`                | number | `10`    | Interval between local cached-snapshot revalidation attempts in a running ACE session.                                            |
+| `check_ttl_minutes`                     | number | `10`    | Minimum age before a startup update check recomputes cached status; this bundled default always wins over the legacy hours key.   |
+| `check_ttl_hours`                       | number | unset   | Deprecated and schema-valid, but currently has no effect in a normal merged config because `check_ttl_minutes` is always present. |
+| `recompute_interval_minutes`            | number | `60`    | Minimum snapshot age before a full SASE/plugin/agent-CLI network recompute; intervening checks only revalidate locally.           |
+
+Set `check_ttl_minutes` to change the startup cache TTL. Although `check_ttl_hours` remains accepted for compatibility,
+ACE resolves the merged `check_ttl_minutes` value first; the bundled 10-minute default therefore prevents an hours-only
+override from taking effect.
 
 #### `ace.keymaps`
 

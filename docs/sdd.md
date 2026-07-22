@@ -286,12 +286,13 @@ valid example. Add `-e/--explain` to print tier-specific authoring guidance befo
 guidance is included as an `explanation` field. `-q/--quiet` suppresses a successful human summary, but an explicitly
 requested explanation is still printed.
 
-If `tier` is missing or unsupported, validation fails with an actionable hint and omits the explanation because no
-authored schema can be selected. The command currently uses the tale schema for the remaining diagnostics and the JSON
-`tier` value in that case, while still reporting the tier error; JSON stays on stdout and the tier hint is written to
-stderr. Otherwise `-j/--json` returns `schema_version`, `ok`, the authored `tier`, `path`, the complete diagnostics
-list, and the expected schema. Exit status is 0 for valid plans, 1 for validation failures, and 2 for command-usage
-errors.
+If `tier` is missing or is not `tale` or `epic`, validation fails with an actionable hint and omits the explanation
+because no authored schema can be selected. To keep reporting the other problems in the file, the implementation uses
+the tale schema as a diagnostic fallback. Consequently, JSON reports `"tier": "tale"` and the expected tale schema in
+this error case; that value does **not** mean SASE inferred a tale. The tier diagnostic still fails the command. JSON
+stays on stdout while the tier hint is written to stderr. Otherwise `-j/--json` returns `schema_version`, `ok`, the
+authored `tier`, `path`, the complete diagnostics list, and the expected schema. Exit status is 0 for valid plans, 1 for
+validation failures, and 2 for command-usage errors.
 
 ### Committed Plan Validation Cutover
 
