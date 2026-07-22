@@ -148,8 +148,8 @@ async def test_todo_overlay_registers_theme_styles_and_updates_on_theme_change()
         dark_body = text_area._theme.syntax_styles["todo.body"]
         assert dark_header.bold is True
         assert dark_header.bgcolor is not None
-        assert dark_body.bgcolor is not None
-        assert dark_body.bgcolor != dark_header.bgcolor
+        assert dark_body.italic is True
+        assert dark_body.bgcolor is None
 
         text_area._theme.syntax_styles["todo.header"] = Style(color="red")
         app.theme = "textual-light"
@@ -165,6 +165,9 @@ async def test_todo_overlay_registers_theme_styles_and_updates_on_theme_change()
         light_body = text_area._theme.syntax_styles["todo.body"]
         assert light_header.color == Color.parse(expected[0].hex)
         assert light_header.bgcolor == Color.parse(expected[1].hex)
+        assert light_body.color == Color.parse(expected[2].hex)
+        assert light_body.italic is True
+        assert light_body.bgcolor is None
         assert light_body != dark_body
 
 

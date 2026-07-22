@@ -2452,10 +2452,11 @@ the text exceeds one line. The native cursor cell is color-coded by prompt Vim m
 and VISUAL or V-LINE uses magenta.
 
 Uppercase `TODO` at identifier boundaries is a visual draft annotation. ACE gives `TODO`, `TODO:`, and `TODO(owner):`
-headers a theme-aware warning badge and softly warms the remainder of that line, including inside Markdown code regions.
-Lowercase `todo` and identifiers such as `TODOS`, `TODO2`, and `preTODO` remain ordinary text. When annotations exist,
-the prompt border shows a `TODO N` capsule counting every match across the full prompt stack, including compact inactive
-panes and markers outside the active viewport. The capsule disappears immediately when the last marker is edited away.
+headers a soft theme-aware amber chip and renders the rest of the line as a quiet, warm italic note, including inside
+Markdown code regions. Lowercase `todo` and identifiers such as `TODOS`, `TODO2`, and `preTODO` remain ordinary text.
+When annotations exist, the prompt border shows a matching `TODO N` count pill for every match across the full prompt
+stack, including compact inactive panes and markers outside the active viewport. The pill disappears immediately when
+the last marker is edited away.
 
 TODO treatment is presentation only: it does not move the cursor during history or stash restoration, and ACE stashes,
 opens in `$EDITOR`, submits, and launches the literal prompt text unchanged. Colors follow the active dark or light

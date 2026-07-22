@@ -6,7 +6,6 @@ from typing import Any
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Static
-from textual.color import Color
 
 from sase.ace.tui.widgets._prompt_input_bar_actions import (
     PromptInputBarActionsMixin,
@@ -186,18 +185,20 @@ class PromptInputBar(
         try:
             theme = self.app.current_theme
         except Exception:
-            badge_background = Color.parse("#ffcc00")
-            badge_foreground = badge_background.get_contrast_text(alpha=1.0)
+            chip_foreground, chip_background, _note_foreground = todo_theme_colors(
+                None,
+                None,
+                None,
+                dark=True,
+            )
         else:
-            badge_foreground, badge_background, _body_fg, _body_bg = todo_theme_colors(
+            chip_foreground, chip_background, _note_foreground = todo_theme_colors(
                 theme.background,
                 theme.foreground,
                 theme.warning,
                 dark=theme.dark,
             )
-        return (
-            f"[bold {badge_foreground.hex} on {badge_background.hex}] TODO {count} [/]"
-        )
+        return f"[bold {chip_foreground.hex} on {chip_background.hex}] TODO {count} [/]"
 
     def _sync_todo_counts_from_stack(self) -> None:
         """Refresh count state from the in-memory stack during construction/rebuild."""

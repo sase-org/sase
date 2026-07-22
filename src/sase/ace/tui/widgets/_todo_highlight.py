@@ -27,8 +27,10 @@ else:
 
 
 _TODO_HEADER_RE = re.compile(r"(?<!\w)TODO(?!\w)(?:\([^()\n]+\))?:?")
-_TODO_BODY_BACKGROUND_BLEND = 0.14
-_TODO_BODY_FOREGROUND_BLEND = 0.35
+_TODO_CHIP_TINT_DARK = 0.20
+_TODO_CHIP_TINT_LIGHT = 0.28
+_TODO_CHIP_FOREGROUND_WARMTH = 0.30
+_TODO_NOTE_FOREGROUND_WARMTH = 0.30
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,18 +95,21 @@ def todo_theme_colors(
     warning: str | None,
     *,
     dark: bool,
-) -> tuple[Color, Color, Color, Color]:
-    """Return badge foreground/background and quiet body foreground/background."""
+) -> tuple[Color, Color, Color]:
+    """Return soft-chip foreground/background and quiet note foreground."""
     canvas = Color.parse(background or ("#000000" if dark else "#ffffff"))
     text = Color.parse(foreground or ("#ffffff" if dark else "#000000"))
-    badge_background = Color.parse(warning or ("#ffcc00" if dark else "#996300"))
-    badge_foreground = badge_background.get_contrast_text(alpha=1.0)
-    body_foreground = badge_background.blend(text, _TODO_BODY_FOREGROUND_BLEND)
-    body_background = canvas.blend(
-        badge_background,
-        _TODO_BODY_BACKGROUND_BLEND,
+    warning_color = Color.parse(warning or ("#ffcc00" if dark else "#996300"))
+    chip_background = canvas.blend(
+        warning_color,
+        _TODO_CHIP_TINT_DARK if dark else _TODO_CHIP_TINT_LIGHT,
     )
-    return badge_foreground, badge_background, body_foreground, body_background
+    chip_foreground = chip_background.get_contrast_text(alpha=1.0).blend(
+        warning_color,
+        _TODO_CHIP_FOREGROUND_WARMTH,
+    )
+    note_foreground = text.blend(warning_color, _TODO_NOTE_FOREGROUND_WARMTH)
+    return chip_foreground, chip_background, note_foreground
 
 
 class TodoHighlightMixin(_MixinBase):
@@ -164,7 +169,7 @@ class TodoHighlightMixin(_MixinBase):
                 )
 
     def _render_line(self, y: int) -> Strip:
-        """Restore selection chrome that persistent TODO backgrounds would hide."""
+        """Restore selection chrome that the TODO marker chip would hide."""
         strip = super()._render_line(y)
         try:
             return self._restore_todo_selection(strip, y)
@@ -269,7 +274,7 @@ class TodoHighlightMixin(_MixinBase):
         base = self._resolve_todo_base_theme(active_name)
         syntax_styles = dict(base.syntax_styles)
         app_theme = self.app.current_theme
-        badge_fg, badge_bg, body_fg, body_bg = todo_theme_colors(
+        chip_fg, chip_bg, note_fg = todo_theme_colors(
             app_theme.background,
             app_theme.foreground,
             app_theme.warning,
@@ -278,13 +283,13 @@ class TodoHighlightMixin(_MixinBase):
         syntax_styles.update(
             {
                 "todo.header": Style(
-                    color=badge_fg.hex,
-                    bgcolor=badge_bg.hex,
+                    color=chip_fg.hex,
+                    bgcolor=chip_bg.hex,
                     bold=True,
                 ),
                 "todo.body": Style(
-                    color=body_fg.hex,
-                    bgcolor=body_bg.hex,
+                    color=note_fg.hex,
+                    italic=True,
                 ),
             }
         )
