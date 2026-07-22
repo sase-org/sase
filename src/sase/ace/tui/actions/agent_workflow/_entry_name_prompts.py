@@ -62,7 +62,15 @@ def prepare_kill_and_edit_prompt(
     aliases, templates, and already-forced directives cannot drift between
     the single- and multi-pane workflows.
     """
-    from sase.plan_chain import agent_family_base
+    from sase.plan_chain import AGENT_FAMILY_SEPARATOR, agent_family_base
 
-    replacement_name = agent_family_base(agent_name) or agent_name
+    # Only canonical ``--`` family phases normalize to their family base. A
+    # clan member lives in a ``<clan>.<suffix>`` hood, and its dotted suffix is
+    # NOT a family phase: ``agent_family_base`` would misread it as one (e.g.
+    # ``sase-8k.2`` -> ``sase-8k``), forcing reuse of the bare clan name and
+    # crashing ``rewrite_prompt_clan_member_name``. Preserving the full clan
+    # member name lets forced reuse target the actual agent.
+    replacement_name = agent_name
+    if agent_name and AGENT_FAMILY_SEPARATOR in agent_name:
+        replacement_name = agent_family_base(agent_name) or agent_name
     return force_name_reuse_in_prompt(raw_prompt, replacement_name=replacement_name)

@@ -241,6 +241,16 @@ def test_force_name_reuse_ignores_fenced_and_disabled_name_directives() -> None:
             "sase-8a.3--plan",
             "%id:!sase-8a.3\n%auto\nDo work",
         ),
+        (
+            "%id(2, clan=sase-8k, bead=sase-8k.2)\nDo work",
+            "sase-8k.2",
+            "%id(!2, clan=sase-8k, bead=sase-8k.2)\nDo work",
+        ),
+        (
+            "%id(2, clan=sase-8k, bead=sase-8k.2)\nDo work",
+            "sase-8k.2--plan",
+            "%id(!2, clan=sase-8k, bead=sase-8k.2)\nDo work",
+        ),
         ("Do work", None, "Do work"),
     ],
 )
@@ -434,6 +444,24 @@ def test_kill_and_edit_family_phase_forces_base_name_reuse() -> None:
 
     assert app.launched == (
         "%id:!sase-8a.3\n%auto\nDo work",
+        "/tmp/proj/proj.sase",
+        "branch",
+        False,
+    )
+
+
+def test_kill_and_edit_clan_member_preserves_hood() -> None:
+    app = _App(
+        _Agent(
+            "%id(2, clan=sase-8k, bead=sase-8k.2)\nDo work",
+            agent_name="sase-8k.2",
+        )
+    )
+
+    app._kill_and_edit_agent()
+
+    assert app.launched == (
+        "%id(!2, clan=sase-8k, bead=sase-8k.2)\nDo work",
         "/tmp/proj/proj.sase",
         "branch",
         False,
