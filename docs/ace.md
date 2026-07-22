@@ -778,13 +778,13 @@ independent folding layers can therefore be visible at once:
 | Structural row    | Clan members, family members, and workflow descendants   | `H` fully collapses scoped houses, then clan; `l` expands |
 | Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` or `L` expands     |
 
-| Key | Action                                                                                                                 |
-| --- | ---------------------------------------------------------------------------------------------------------------------- |
-| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel       |
-| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists |
-| `L` | Expand a collapsed focused panel and enter its first selectable row                                                    |
+| Key | Action                                                                                                                      |
+| --- | --------------------------------------------------------------------------------------------------------------------------- |
+| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel            |
+| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists      |
+| `L` | Expand a collapsed focused panel and enter its first selectable row                                                         |
 | `H` | Collapse row-scoped houses/clan/group, or selected-panel houses/clans/top-level groups/panel; compact expanded Tools detail |
-| `Z` | On whole-panel focus, isolate that panel or restore the pre-isolation layout; otherwise zoom the active detail panel   |
+| `Z` | On whole-panel focus, isolate that panel or restore the pre-isolation layout; otherwise zoom the active detail panel        |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain visible headings but are skipped by
 row navigation. When a collapsed banner is focused, `l` expands only that banner and moves focus to the next visible
