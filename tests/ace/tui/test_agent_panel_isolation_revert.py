@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models.agent_panels import PanelIsolationRevert
-from tests.ace.tui.test_agent_panel_collapse import (
-    _StubApp,
-    _agent,
-    _multi_panel_agents,
+from tests.ace.tui._agent_panel_collapse_helpers import (
+    AgentPanelCollapseApp,
+    make_agent,
+    make_multi_panel_agents,
 )
 
 
 def test_isolate_then_restore_round_trips_an_arbitrary_layout() -> None:
-    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app.current_idx = 2
     app._collapsed_panel_keys.update({None, "alpha"})
     app._sync_panel_group()
@@ -49,7 +49,7 @@ def test_isolate_then_restore_round_trips_an_arbitrary_layout() -> None:
 
 
 def test_idempotent_isolation_does_not_arm_restore() -> None:
-    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app._collapsed_panel_keys.update({None, "beta"})
     app._sync_panel_group()
     app._expanded_panel_focus = True
@@ -64,7 +64,7 @@ def test_idempotent_isolation_does_not_arm_restore() -> None:
 
 
 def test_target_panel_changes_keep_restore_but_other_panel_change_disarms() -> None:
-    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app._expanded_panel_focus = True
     app.action_zoom_panel()
     armed = app._panel_isolation_revert
@@ -88,7 +88,7 @@ def test_target_panel_changes_keep_restore_but_other_panel_change_disarms() -> N
 
 
 def test_numeric_panel_fold_funnel_disarms_non_target_change() -> None:
-    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app._expanded_panel_focus = True
     app.action_zoom_panel()
     assert app._panel_isolation_revert is not None
@@ -102,7 +102,7 @@ def test_numeric_panel_fold_funnel_disarms_non_target_change() -> None:
 
 
 def test_merged_layout_toggle_disarms_restore() -> None:
-    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app._expanded_panel_focus = True
     app.action_zoom_panel()
     assert app._panel_isolation_revert is not None
@@ -115,7 +115,7 @@ def test_merged_layout_toggle_disarms_restore() -> None:
 
 
 def test_vanished_target_expires_restore_when_markers_are_computed() -> None:
-    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app._expanded_panel_focus = True
     app.action_zoom_panel()
     assert app._panel_isolation_revert is not None
@@ -129,7 +129,7 @@ def test_vanished_target_expires_restore_when_markers_are_computed() -> None:
 
 
 def test_restore_preserves_vanished_intent_and_leaves_new_panels_expanded() -> None:
-    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app._collapsed_panel_keys.add("beta")
     app._sync_panel_group()
     app._expanded_panel_focus = True
@@ -137,7 +137,7 @@ def test_restore_preserves_vanished_intent_and_leaves_new_panels_expanded() -> N
     assert app._panel_isolation_revert is not None
 
     app._agents = [agent for agent in app._agents if agent.tribe != "beta"]
-    app._agents.append(_agent(name="gamma", project="gamma", tribe="gamma"))
+    app._agents.append(make_agent(name="gamma", project="gamma", tribe="gamma"))
     app._invalidate_agent_panel_cache()
     app._sync_panel_group()
     assert "gamma" not in app._collapsed_panel_keys
@@ -150,7 +150,7 @@ def test_restore_preserves_vanished_intent_and_leaves_new_panels_expanded() -> N
 
 
 def test_restore_with_no_remaining_diff_disarms_and_reports_zero() -> None:
-    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key="alpha")
     app._collapsed_panel_keys.update({None, "beta"})
     app._sync_panel_group()
     app._expanded_panel_focus = True
