@@ -1640,9 +1640,11 @@ question, HITL, axe error, ChangeSpec sync, agent update) so the message preview
 "N new notification(s)" line. Severity is also picked per type: plans, questions, and HITL render as warnings; axe
 errors (and sync failures) render as errors; everything else renders as information.
 
-Initial tale and epic plan reviews are visually delivered as warning toasts and priority inbox rows without ringing the
-terminal. Questions, other audible notification classes, and explicit snooze-expiry reminders retain their existing bell
-behavior; snoozing a plan review therefore still produces the requested reminder bell when it expires.
+A genuinely new tale or epic plan review rings the terminal once on arrival and remains visually prominent as a warning
+toast and priority inbox row. Already-answered plan reviews discovered during polling and the post-approval coder or
+epic handoff stay silent. Questions, other audible notification classes, and explicit snooze-expiry reminders retain
+their existing bell behavior; snoozing a plan review therefore still produces the requested reminder bell when it
+expires.
 
 When more than 3 notifications arrive in the same poll tick, per-notification toasts are consolidated into one grouped
 toast per severity bucket (e.g., `2 warnings: 1 plan, 1 question`). Ordering is urgency-first: errors, then warnings,

@@ -33,9 +33,7 @@ class TestPollingDelta:
         assert app._bell_rung == 0
 
     @pytest.mark.parametrize("action", ["PlanApproval", "EpicApproval"])
-    def test_single_new_plan_review_warns_without_terminal_bell(
-        self, action: str
-    ) -> None:
+    def test_single_new_plan_review_warns_and_rings(self, action: str) -> None:
         app = _FakeApp()
         new_notif = _make(
             action=action,
@@ -46,7 +44,7 @@ class TestPollingDelta:
         with _patch_snapshot([new_notif]):
             saw_new = asyncio.run(app._poll_agent_completions())
         assert saw_new is True
-        assert app._bell_rung == 0
+        assert app._bell_rung == 1
         assert app._indicator_priority == 1
         assert app._indicator_rest == 0
         assert app.notify.call_count == 1
@@ -102,7 +100,7 @@ class TestPollingDelta:
         ]
         assert app._bell_rung == 1
 
-    def test_plan_and_epic_only_batch_is_terminal_silent(self) -> None:
+    def test_plan_and_epic_only_batch_rings_once(self) -> None:
         app = _FakeApp()
         tale = _make(action="PlanApproval", notes=["Tale ready"])
         epic = _make(action="EpicApproval", notes=["Epic ready"])
@@ -116,7 +114,7 @@ class TestPollingDelta:
             "Tale ready",
             "Epic ready",
         ]
-        assert app._bell_rung == 0
+        assert app._bell_rung == 1
 
     def test_single_regular_notification_still_rings(self) -> None:
         app = _FakeApp()

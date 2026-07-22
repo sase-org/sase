@@ -42,9 +42,6 @@ def _prepare_notification_reconciliation(
     return prepared_plan_notifications, artifact_dirs, needs_broad_fallback
 
 
-_TERMINAL_SILENT_ACTIONS = frozenset({"PlanApproval", "EpicApproval"})
-
-
 class AgentNotificationPollingMixin:
     """Poll notification state and update notification indicators."""
 
@@ -128,16 +125,11 @@ class AgentNotificationPollingMixin:
                 if notification.id not in auto_dismissed_ids
             ]
 
-        # Muted arrivals do not toast or ring. Plan reviews remain visible and
-        # actionable without an unsolicited terminal bell on initial arrival.
-        # Snooze expirations independently ring once per batch because read and
-        # snoozed rows do not re-enter unread.
-        terminal_audible_notifications = [
-            notification
-            for notification in new_notifications
-            if notification.action not in _TERMINAL_SILENT_ACTIONS
-        ]
-        should_ring_bell = bool(terminal_audible_notifications or expired_snoozes)
+        # Muted arrivals do not toast or ring. Already-handled plan reviews have
+        # been filtered out of new_notifications by reconciliation. Snooze
+        # expirations independently ring once per batch because read and snoozed
+        # rows do not re-enter unread.
+        should_ring_bell = bool(new_notifications or expired_snoozes)
         if new_notifications:
             for message, severity in format_batch_toasts(new_notifications):
                 self.notify(  # type: ignore[attr-defined]

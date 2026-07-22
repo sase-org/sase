@@ -94,10 +94,11 @@ Silent notifications never contribute to the indicator (see [Silent Notification
 
 ### Visual and Audible Delivery
 
-New unmuted notifications remain visually prominent through the top-bar indicator and action-specific toasts. Initial
-`PlanApproval` and `EpicApproval` delivery is terminal-silent: tale and epic reviews still create priority inbox rows,
-warning toasts, and the producer's desktop notification, but do not write a BEL character to the terminal. Questions,
-launch/custom/HITL gates, errors, agent completions, and ordinary notifications retain their arrival bell.
+New unmuted notifications remain visually prominent through the top-bar indicator and action-specific toasts. A
+genuinely new `PlanApproval` or `EpicApproval` rings once on arrival, alongside its priority inbox row, warning toast,
+and the producer's desktop notification. Already-handled plan reviews discovered during polling and the intermediate
+post-approval handoff remain silent. Questions, launch/custom/HITL gates, errors, agent completions, and ordinary
+notifications retain their arrival bell.
 
 Snooze expiry is an explicit reminder chosen by the user and remains audible for every notification class, including a
 snoozed tale or epic review.
