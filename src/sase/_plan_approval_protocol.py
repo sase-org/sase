@@ -73,7 +73,7 @@ class PlanApprovalValidationError(PlanApprovalActionError):
             for diagnostic in validation.diagnostics
             if diagnostic.is_error
         )
-        command = f"sase plan validate {shlex.quote(str(plan_path))} --tier {tier}"
+        command = f"sase plan validate {shlex.quote(str(plan_path))} --explain"
         message = f"plan failed {tier} validation"
         if details:
             message += f": {details}"

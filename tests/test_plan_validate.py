@@ -12,6 +12,11 @@ import pytest
 
 from sase.main import plan_command_handler
 from sase.main.parser import create_parser
+from sase.main.plan_explain import (
+    EPIC_PLAN_EXPLANATION,
+    INVALID_PLAN_TIER_HINT,
+    TALE_PLAN_EXPLANATION,
+)
 from sase.main.plan_validate_handler import handle_plan_validate_command
 from sase.sdd.plan_validate import (
     PlanDiagnosticSeverity,
@@ -207,24 +212,47 @@ def test_facade_rejects_unknown_wire_schema_version(
         validate_plan(VALID_TALE, "tale")
 
 
-def test_parser_requires_explicit_tier(capsys: pytest.CaptureFixture[str]) -> None:
-    with pytest.raises(SystemExit) as excinfo:
-        _parse(["plan", "validate", "plan.md"])
-
-    assert excinfo.value.code == 2
-    assert "--tier" in capsys.readouterr().err
-
-
-def test_parser_accepts_all_validate_options() -> None:
-    args = _parse(
-        ["plan", "validate", "plan.md", "--json", "--quiet", "--tier", "epic"]
-    )
+def test_parser_auto_detects_tier_and_rejects_removed_tier(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = _parse(["plan", "validate", "plan.md"])
 
     assert args.plan_subcommand == "validate"
     assert args.plan_file == "plan.md"
+    assert args.tier is None
+
+    with pytest.raises(SystemExit) as excinfo:
+        _parse(["plan", "validate", "plan.md", "-t", "tale"])
+
+    assert excinfo.value.code == 2
+    assert "unrecognized arguments: -t tale" in capsys.readouterr().err
+
+
+def test_parser_accepts_all_validate_options() -> None:
+    args = _parse(["plan", "validate", "plan.md", "--explain", "--json", "--quiet"])
+
+    assert args.plan_subcommand == "validate"
+    assert args.plan_file == "plan.md"
+    assert args.explain is True
     assert args.json is True
     assert args.quiet is True
-    assert args.tier == "epic"
+
+    short_args = _parse(["plan", "validate", "plan.md", "-e"])
+    assert short_args.explain is True
+
+
+def test_validate_help_describes_authored_tier_and_sorted_options(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        _parse(["plan", "validate", "--help"])
+
+    assert excinfo.value.code == 0
+    help_text = capsys.readouterr().out
+    assert "selected by its `tier:` property" in help_text
+    assert "--tier" not in help_text
+    assert help_text.index("--explain") < help_text.index("--json")
+    assert help_text.index("--json") < help_text.index("--quiet")
 
 
 def test_plan_command_dispatches_validate() -> None:
@@ -250,15 +278,20 @@ def test_valid_human_output_and_quiet_mode(
     plan = tmp_path / "tale.md"
     plan.write_text(VALID_TALE, encoding="utf-8")
 
-    assert _invoke([str(plan), "-t", "tale"]) == 0
+    assert _invoke([str(plan)]) == 0
     captured = capsys.readouterr()
     assert "Validation passed" in captured.out
     assert "valid tale plan" in captured.out
     assert captured.err == ""
 
-    assert _invoke([str(plan), "-t", "tale", "--quiet"]) == 0
+    assert _invoke([str(plan), "--quiet"]) == 0
     captured = capsys.readouterr()
     assert captured.out == ""
+    assert captured.err == ""
+
+    assert _invoke([str(plan), "--explain", "--quiet"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == f"{TALE_PLAN_EXPLANATION}\n"
     assert captured.err == ""
 
 
@@ -268,11 +301,61 @@ def test_valid_epic_and_json_quiet_mode(
     plan = tmp_path / "epic.md"
     plan.write_text(VALID_EPIC, encoding="utf-8")
 
-    assert _invoke([str(plan), "-t", "epic", "--json", "--quiet"]) == 0
+    assert _invoke([str(plan), "--json", "--quiet"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
     assert payload["tier"] == "epic"
     assert payload["diagnostics"] == []
+
+
+@pytest.mark.parametrize(
+    ("content", "explanation", "valid"),
+    [
+        (VALID_TALE, TALE_PLAN_EXPLANATION, True),
+        (VALID_TALE, TALE_PLAN_EXPLANATION, False),
+        (VALID_EPIC, EPIC_PLAN_EXPLANATION, True),
+        (VALID_EPIC, EPIC_PLAN_EXPLANATION, False),
+    ],
+)
+def test_explain_precedes_human_results_for_both_tiers_on_success_and_failure(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    content: str,
+    explanation: str,
+    valid: bool,
+) -> None:
+    plan = tmp_path / "plan.md"
+    if not valid:
+        content = content.replace(
+            "title: Strict plan validation",
+            "title: [not, text]",
+        )
+    plan.write_text(content, encoding="utf-8")
+
+    assert _invoke([str(plan), "--explain"]) == (0 if valid else 1)
+    captured = capsys.readouterr()
+    rendered = captured.out if valid else captured.err
+    assert rendered.startswith(f"{explanation}\n\n")
+    assert rendered.index("Validation passed" if valid else "Validation failed") > len(
+        explanation
+    )
+
+
+def test_json_explain_adds_explanation_without_changing_base_envelope(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plan = tmp_path / "epic.md"
+    plan.write_text(VALID_EPIC, encoding="utf-8")
+
+    assert _invoke([str(plan), "--json", "--explain"]) == 0
+    explained = json.loads(capsys.readouterr().out)
+    assert explained["explanation"] == EPIC_PLAN_EXPLANATION
+
+    assert _invoke([str(plan), "--json"]) == 0
+    base = json.loads(capsys.readouterr().out)
+    assert "explanation" not in base
+    assert set(explained) == {*base, "explanation"}
 
 
 def test_epic_failure_renders_size_parent_schema_and_minimal_example(
@@ -284,7 +367,7 @@ def test_epic_failure_renders_size_parent_schema_and_minimal_example(
         encoding="utf-8",
     )
 
-    assert _invoke([str(plan), "-t", "epic", "--json"]) == 1
+    assert _invoke([str(plan), "--json"]) == 1
     payload = json.loads(capsys.readouterr().out)
     fields = {field["name"]: field for field in payload["expected_schema"]["fields"]}
     assert fields["phases[].size"]["type"] == "small | medium | large"
@@ -298,13 +381,19 @@ def test_epic_failure_renders_size_parent_schema_and_minimal_example(
 def test_failure_human_output_is_location_bearing_and_self_teaching(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    plan = tmp_path / "mismatch.md"
-    plan.write_text(VALID_EPIC, encoding="utf-8")
+    plan = tmp_path / "invalid.md"
+    plan.write_text(
+        VALID_TALE.replace(
+            "title: Strict plan validation",
+            "title: [not, text]",
+        ),
+        encoding="utf-8",
+    )
 
-    assert _invoke([str(plan), "-t", "tale"]) == 1
+    assert _invoke([str(plan)]) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert f"{plan}:2: error [tier-mismatch]" in captured.err
+    assert f"{plan}:3: error [type-mismatch]" in captured.err
     assert "Expected tale frontmatter schema" in captured.err
     assert "Minimal valid tale plan" in captured.err
     assert "title: Ship the requested capability" in captured.err
@@ -315,10 +404,16 @@ def test_failure_human_output_is_location_bearing_and_self_teaching(
 def test_failure_json_envelope_has_core_parity(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    plan = tmp_path / "mismatch.md"
-    plan.write_text(VALID_EPIC, encoding="utf-8")
+    plan = tmp_path / "invalid.md"
+    plan.write_text(
+        VALID_TALE.replace(
+            "title: Strict plan validation",
+            "title: [not, text]",
+        ),
+        encoding="utf-8",
+    )
 
-    assert _invoke([str(plan), "-t", "tale", "--json"]) == 1
+    assert _invoke([str(plan), "--json"]) == 1
     captured = capsys.readouterr()
     assert captured.err == ""
     payload = json.loads(captured.out)
@@ -333,18 +428,14 @@ def test_failure_json_envelope_has_core_parity(
     assert payload["schema_version"] == 2
     assert payload["ok"] is False
     assert payload["path"] == str(plan)
-    mismatch = next(
+    title_error = next(
         diagnostic
         for diagnostic in payload["diagnostics"]
-        if diagnostic["code"] == "tier-mismatch"
+        if diagnostic["field_path"] == "title"
     )
-    assert mismatch == {
-        "severity": "error",
-        "code": "tier-mismatch",
-        "field_path": "tier",
-        "message": "authored tier `epic` does not match requested tier `tale`",
-        "line": 2,
-    }
+    assert title_error["severity"] == "error"
+    assert title_error["code"] == "type-mismatch"
+    assert title_error["line"] == 3
     assert payload["expected_schema"]["fields"][0]["type"] == "tale | epic"
     assert "field_type" not in payload["expected_schema"]["fields"][0]
     assert payload["expected_schema"]["example"].startswith("---\ntier: tale")
@@ -382,7 +473,7 @@ def test_cli_rejects_missing_blank_and_wrong_typed_titles(
         encoding="utf-8",
     )
 
-    assert _invoke([str(plan), "-t", tier, "--json"]) == 1
+    assert _invoke([str(plan), "--json"]) == 1
     payload = json.loads(capsys.readouterr().out)
     title_diagnostics = [
         diagnostic
@@ -417,7 +508,7 @@ def test_cli_rejects_missing_blank_and_wrong_typed_titles(
             1,
         ),
         (
-            "tale",
+            "epic",
             """---
 tier: epic
 goal: '   '
@@ -428,7 +519,7 @@ tyop: value
 ---
 body
 """,
-            {"unknown-key", "tier-mismatch", "value-empty", "model-invalid"},
+            {"unknown-key", "value-empty", "model-invalid"},
             1,
         ),
         (
@@ -535,7 +626,7 @@ def test_cli_passes_through_every_core_diagnostic_family(
     plan = tmp_path / "diagnostics.md"
     plan.write_text(content, encoding="utf-8")
 
-    assert _invoke([str(plan), "-t", tier]) == expected_exit
+    assert _invoke([str(plan)]) == expected_exit
     captured = capsys.readouterr()
     rendered = captured.out + captured.err
     for code in expected_codes:
@@ -550,12 +641,48 @@ def test_missing_and_non_utf8_files_are_validation_failures(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     missing = tmp_path / "missing.md"
-    assert _invoke([str(missing), "-t", "tale", "--json"]) == 1
-    missing_payload = json.loads(capsys.readouterr().out)
+    assert _invoke([str(missing), "--json"]) == 1
+    captured = capsys.readouterr()
+    missing_payload = json.loads(captured.out)
     assert missing_payload["diagnostics"][0]["code"] == "file-unreadable"
+    assert INVALID_PLAN_TIER_HINT not in captured.err
 
     invalid = tmp_path / "invalid.md"
     invalid.write_bytes(b"first line\n\xff")
-    assert _invoke([str(invalid), "-t", "tale"]) == 1
+    assert _invoke([str(invalid)]) == 1
     captured = capsys.readouterr()
     assert f"{invalid}:2: error [utf8-invalid]" in captured.err
+    assert INVALID_PLAN_TIER_HINT not in captured.err
+
+
+@pytest.mark.parametrize(
+    ("tier_line", "expected_code"),
+    [
+        ("", "required-missing"),
+        ("tier: story\n", "tier-invalid"),
+    ],
+)
+def test_missing_or_invalid_authored_tier_has_actionable_hint_and_no_explanation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    tier_line: str,
+    expected_code: str,
+) -> None:
+    plan = tmp_path / "invalid-tier.md"
+    plan.write_text(
+        f"---\n{tier_line}title: Invalid tier\ngoal: Add a valid tier\n---\nbody\n",
+        encoding="utf-8",
+    )
+
+    assert _invoke([str(plan), "--explain"]) == 1
+    captured = capsys.readouterr()
+    assert f"[{expected_code}]" in captured.err
+    assert INVALID_PLAN_TIER_HINT in captured.err
+    assert TALE_PLAN_EXPLANATION not in captured.err
+    assert EPIC_PLAN_EXPLANATION not in captured.err
+
+    assert _invoke([str(plan), "--json", "--explain"]) == 1
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert "explanation" not in payload
+    assert INVALID_PLAN_TIER_HINT in captured.err

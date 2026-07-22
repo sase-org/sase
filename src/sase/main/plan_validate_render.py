@@ -24,9 +24,10 @@ def validation_json_payload(
     tier: str,
     path: str,
     schema: tuple[PlanFrontmatterFieldSpec, ...],
+    explanation: str | None = None,
 ) -> dict[str, object]:
     """Build the stable machine-readable validation envelope."""
-    return {
+    payload: dict[str, object] = {
         "schema_version": validation.schema_version,
         "ok": validation.ok,
         "tier": tier,
@@ -46,6 +47,9 @@ def validation_json_payload(
             "example": _minimal_plan_example(schema),
         },
     }
+    if explanation is not None:
+        payload["explanation"] = explanation
+    return payload
 
 
 def render_validation_human(
@@ -55,13 +59,24 @@ def render_validation_human(
     path: str,
     schema: tuple[PlanFrontmatterFieldSpec, ...],
     console: Console,
+    explanation: str | None = None,
+    show_success_summary: bool = True,
+    tier_hint: str | None = None,
 ) -> None:
     """Render location-bearing diagnostics, schema guidance, and a summary."""
+    if explanation is not None:
+        console.print(explanation, markup=False, soft_wrap=True)
+        if validation.diagnostics or not validation.ok or show_success_summary:
+            console.print()
+
     for diagnostic in validation.diagnostics:
         console.print(_diagnostic_text(path, diagnostic), soft_wrap=True)
 
+    if tier_hint is not None:
+        console.print(tier_hint, style="yellow", soft_wrap=True)
+
     if not validation.ok:
-        if validation.diagnostics:
+        if validation.diagnostics or tier_hint is not None:
             console.print()
         console.print(_schema_table(schema, tier=tier))
         console.print(f"[bold]Minimal valid {tier} plan[/bold]")
@@ -79,14 +94,14 @@ def render_validation_human(
         diagnostic.severity is PlanDiagnosticSeverity.WARNING
         for diagnostic in validation.diagnostics
     )
-    if validation.ok:
+    if validation.ok and show_success_summary:
         summary = Text("Validation passed", style="green")
         summary.append(
             f": {path} is a valid {tier} plan "
             f"({warning_count} {_plural(warning_count, 'warning')})."
         )
         console.print(summary)
-    else:
+    elif not validation.ok:
         console.print(
             f"[red]Validation failed[/red]: {error_count} "
             f"{_plural(error_count, 'error')}, {warning_count} "

@@ -28,7 +28,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plan reject abcdef12\n"
             "  sase plan propose sase_plan_feature.md\n"
             "  sase plan search auth --format json\n"
-            "  sase plan validate sase_plan_feature.md --tier tale"
+            "  sase plan validate sase_plan_feature.md --explain"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -355,19 +355,19 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
 
     validate_parser = plan_subparsers.add_parser(
         "validate",
-        help="Validate one plan file against an explicit tier schema",
+        help="Validate one plan file using its authored tier",
         description=(
             "Strictly validate exactly one Markdown plan file against the "
-            "tale or epic frontmatter schema. The command is hermetic: it "
-            "does not require an active project or agent run. All discovered "
-            "problems are reported in one pass; failures include the expected "
-            "schema and a minimal valid example."
+            "frontmatter schema selected by its `tier:` property. The command "
+            "is hermetic: it does not require an active project or agent run. "
+            "All discovered problems are reported in one pass; failures "
+            "include the expected schema and a minimal valid example."
         ),
         epilog=(
             "examples:\n"
-            "  sase plan validate sase_plan_feature.md --tier tale\n"
-            "  sase plan validate epic.md -t epic --json\n"
-            "  sase plan validate plan.md -t tale --quiet"
+            "  sase plan validate sase_plan_feature.md --explain\n"
+            "  sase plan validate epic.md --json\n"
+            "  sase plan validate plan.md --quiet"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -375,6 +375,12 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "plan_file",
         metavar="PLAN_FILE",
         help="Path to the plan Markdown file",
+    )
+    validate_parser.add_argument(
+        "-e",
+        "--explain",
+        action="store_true",
+        help="Print tier-specific schema guidance before validation results",
     )
     validate_parser.add_argument(
         "-j",
@@ -387,13 +393,6 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "--quiet",
         action="store_true",
         help="Print nothing for a valid plan in human output mode",
-    )
-    validate_parser.add_argument(
-        "-t",
-        "--tier",
-        choices=("tale", "epic"),
-        required=True,
-        help="Required plan-file tier schema: tale or epic",
     )
 
 
