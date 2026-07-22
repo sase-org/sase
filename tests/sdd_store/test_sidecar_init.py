@@ -102,8 +102,13 @@ def test_agents_sidecar_generated_files_are_privacy_forward_and_idempotent(
     assert plan_sdd_sidecar_init_actions("agents", root) == ()
 
     (root / "manifest.json").write_text("{}\n", encoding="utf-8")
-    drift = plan_sdd_sidecar_init_actions("agents", root)
-    assert [action.path.name for action in drift] == ["manifest.json"]
+    assert plan_sdd_sidecar_init_actions("agents", root) == ()
+
+    (root / "agents" / ".gitkeep").unlink()
+    populated = root / "agents" / "athena.worker"
+    populated.mkdir()
+    (populated / "meta.json").write_text("{}\n", encoding="utf-8")
+    assert plan_sdd_sidecar_init_actions("agents", root) == ()
 
 
 def test_custom_sidecar_generates_deterministic_generic_readme(tmp_path: Path) -> None:

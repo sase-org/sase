@@ -1,0 +1,266 @@
+from __future__ import annotations
+
+import fcntl
+import json
+import os
+from pathlib import Path
+import subprocess
+
+import pytest
+
+from sase.agents_sync import git_sync
+from sase.agents_sync.git import _noninteractive_git_env, run_git
+from sase.agents_sync.models import (
+    AgentsManifest,
+    ExportCounts,
+    IntegrationCounts,
+    ProjectTarget,
+    SyncOutcome,
+    TargetSelection,
+)
+
+
+def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+    )
+
+
+def _setup_repo(tmp_path: Path) -> tuple[Path, Path, Path]:
+    remote = tmp_path / "remote.git"
+    remote.mkdir()
+    _git(remote, "init", "--bare")
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    _git(seed, "init")
+    _git(seed, "config", "user.name", "Tests")
+    _git(seed, "config", "user.email", "tests@example.test")
+    (seed / "manifest.json").write_text(
+        json.dumps({"schema_version": 1, "agents": {}}, indent=2) + "\n"
+    )
+    (seed / "agents").mkdir()
+    (seed / "agents" / ".gitkeep").write_text("")
+    (seed / "conflict.txt").write_text("base\n")
+    _git(seed, "add", ".")
+    _git(seed, "commit", "-m", "seed")
+    _git(seed, "remote", "add", "origin", str(remote))
+    _git(seed, "push", "-u", "origin", "HEAD")
+    sidecar = tmp_path / "sidecar"
+    _git(tmp_path, "clone", str(remote), str(sidecar))
+    return remote, seed, sidecar
+
+
+def _target(tmp_path: Path, remote: Path, sidecar: Path) -> ProjectTarget:
+    primary = tmp_path / "primary"
+    primary.mkdir(parents=True)
+    return ProjectTarget(
+        "proj",
+        "Project",
+        primary,
+        (primary.resolve(),),
+        sidecar,
+        str(remote),
+    )
+
+
+def _patch_payload_pass(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    calls: list[int] = []
+    monkeypatch.setattr(
+        git_sync,
+        "integrate_foreign_bundles",
+        lambda *_args, **_kwargs: IntegrationCounts(),
+    )
+
+    def export(_target, repo, manifest, _machine, **_kwargs):
+        calls.append(1)
+        bundle = repo / "agents" / "athena.worker"
+        bundle.mkdir(parents=True, exist_ok=True)
+        (bundle / "chat.md").write_text("chat\n")
+        return manifest, ExportCounts(exported=1)
+
+    monkeypatch.setattr(git_sync, "export_local_bundles", export)
+    return calls
+
+
+def test_full_sync_transaction_commits_and_pushes_only_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote, _seed, sidecar = _setup_repo(tmp_path)
+    target = _target(tmp_path, remote, sidecar)
+    _patch_payload_pass(monkeypatch)
+
+    outcome = git_sync._sync_project(target, "athena", git_runner=run_git)
+
+    assert outcome.error is None
+    assert outcome.pulled and outcome.committed and outcome.pushed
+    assert outcome.exported == 1
+    verify = tmp_path / "verify"
+    _git(tmp_path, "clone", str(remote), str(verify))
+    assert (verify / "agents" / "athena.worker" / "chat.md").read_text() == "chat\n"
+    assert _git(verify, "log", "-1", "--format=%s").stdout.strip() == (
+        "chore(agents): sync from athena"
+    )
+
+
+def test_non_fast_forward_recomputes_and_retries_push_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote, _seed, sidecar = _setup_repo(tmp_path)
+    target = _target(tmp_path, remote, sidecar)
+    export_calls = _patch_payload_pass(monkeypatch)
+    intruder = tmp_path / "intruder"
+    _git(tmp_path, "clone", str(remote), str(intruder))
+    _git(intruder, "config", "user.name", "Intruder")
+    _git(intruder, "config", "user.email", "intruder@example.test")
+    push_calls = 0
+
+    def rejecting_runner(
+        cwd: Path, args: list[str], *, network: bool = False, op: str = ""
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal push_calls
+        if args == ["push"]:
+            push_calls += 1
+            if push_calls == 1:
+                (intruder / "remote.txt").write_text("remote\n")
+                _git(intruder, "add", "remote.txt")
+                _git(intruder, "commit", "-m", "remote race")
+                _git(intruder, "push")
+        return run_git(cwd, args, network=network, op=op)
+
+    outcome = git_sync._sync_project(target, "athena", git_runner=rejecting_runner)
+
+    assert outcome.error is None
+    assert outcome.push_attempts == 2
+    assert outcome.pushed
+    assert push_calls == 2
+    assert len(export_calls) == 2
+    assert not (sidecar / ".git" / "rebase-merge").exists()
+    assert not (sidecar / ".git" / "rebase-apply").exists()
+
+
+def test_bounded_lock_contention_is_a_benign_skip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote, _seed, sidecar = _setup_repo(tmp_path)
+    target = _target(tmp_path, remote, sidecar)
+    _patch_payload_pass(monkeypatch)
+    lock_path = sidecar / ".git" / "sase-agents-sync.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        outcome = git_sync._sync_project(
+            target,
+            "athena",
+            git_runner=run_git,
+            lock_timeout_seconds=0,
+        )
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+    assert outcome.error is None
+    assert outcome.skip_reason == "agents sync lock is busy"
+
+
+def test_missing_configured_remote_is_not_created(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.git"
+    target = _target(tmp_path, missing, tmp_path / "sidecar")
+
+    outcome = git_sync._sync_project(target, "athena", git_runner=run_git)
+
+    assert outcome.error is not None
+    assert "could not clone" in outcome.error
+    assert not missing.exists()
+
+
+def test_pull_rebase_conflict_is_aborted_cleanly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote, _seed, sidecar = _setup_repo(tmp_path)
+    target = _target(tmp_path, remote, sidecar)
+    _git(sidecar, "config", "user.name", "Local")
+    _git(sidecar, "config", "user.email", "local@example.test")
+    (sidecar / "conflict.txt").write_text("local\n")
+    _git(sidecar, "add", "conflict.txt")
+    _git(sidecar, "commit", "-m", "local ahead")
+
+    intruder = tmp_path / "conflict-intruder"
+    _git(tmp_path, "clone", str(remote), str(intruder))
+    _git(intruder, "config", "user.name", "Remote")
+    _git(intruder, "config", "user.email", "remote@example.test")
+    (intruder / "conflict.txt").write_text("remote\n")
+    _git(intruder, "add", "conflict.txt")
+    _git(intruder, "commit", "-m", "remote ahead")
+    _git(intruder, "push")
+    monkeypatch.setattr(
+        git_sync,
+        "integrate_foreign_bundles",
+        lambda *_args, **_kwargs: pytest.fail("integration must not run"),
+    )
+
+    outcome = git_sync._sync_project(target, "athena", git_runner=run_git)
+
+    assert outcome.error is not None
+    assert "pull --rebase failed" in outcome.error
+    assert _git(sidecar, "log", "-1", "--format=%s").stdout.strip() == "local ahead"
+    assert (sidecar / "conflict.txt").read_text() == "local\n"
+    assert not (sidecar / ".git" / "rebase-merge").exists()
+    assert not (sidecar / ".git" / "rebase-apply").exists()
+
+
+def test_all_project_sync_isolates_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = _target(tmp_path / "one", tmp_path / "one.git", tmp_path / "one-sidecar")
+    second = _target(tmp_path / "two", tmp_path / "two.git", tmp_path / "two-sidecar")
+    first = ProjectTarget(
+        "one",
+        "One",
+        first.primary_checkout,
+        first.primary_roots,
+        first.sidecar_path,
+        first.remote_url,
+    )
+    second = ProjectTarget(
+        "two",
+        "Two",
+        second.primary_checkout,
+        second.primary_roots,
+        second.sidecar_path,
+        second.remote_url,
+    )
+    monkeypatch.setattr(
+        git_sync,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((first, second), ()),
+    )
+    monkeypatch.setattr(git_sync, "require_machine_name", lambda: "athena")
+    monkeypatch.setattr(
+        git_sync,
+        "_sync_project",
+        lambda target, *_args, **_kwargs: (
+            (_ for _ in ()).throw(RuntimeError("broken"))
+            if target.project_key == "one"
+            else SyncOutcome("two", "Two", pulled=True)
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.status.rewrite_agents_sync_status_after_sync",
+        lambda _projects: None,
+    )
+
+    outcomes = git_sync.sync_agents()
+
+    assert [outcome.project_key for outcome in outcomes] == ["one", "two"]
+    assert outcomes[0].error == "agents sync failed: broken"
+    assert outcomes[1].pulled is True
+
+
+def test_network_git_environment_is_noninteractive() -> None:
+    original = {"PATH": "/bin", "GIT_TERMINAL_PROMPT": "1"}
+
+    env = _noninteractive_git_env(original)
+
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+    assert "BatchMode=yes" in env["GIT_SSH_COMMAND"]
+    assert original["GIT_TERMINAL_PROMPT"] == "1"

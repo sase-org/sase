@@ -29,6 +29,11 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         handle_agents_show(args)
         sys.exit(0)
 
+    if sub == "sync":
+        from sase.agents.cli_sync import handle_agents_sync
+
+        sys.exit(handle_agents_sync(args))
+
     if sub == "tribe":
         from sase.agents.cli_tribe import handle_agents_tribe
 
@@ -63,5 +68,5 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         handle_agents_names(args)
         sys.exit(0)
 
-    print("Usage: sase agent {archive,artifacts,index,kill,list,names,show,tribe}")
+    print("Usage: sase agent {archive,artifacts,index,kill,list,names,show,sync,tribe}")
     sys.exit(1)

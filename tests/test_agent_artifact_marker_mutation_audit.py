@@ -34,6 +34,10 @@ from tests._agent_artifact_marker_audit_helpers import (
 )
 
 _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
+    "src/sase/agents_sync/bundles.py:_create_imported_artifact": Review(
+        mutation_calls=("os.replace", "rmtree", "unlink"),
+        lifecycle_calls=(_UPDATE_INDEX,),
+    ),
     (
         "src/sase/ace/tui/actions/agents/_directive_persistence.py:_patch_agent_meta"
     ): Review(

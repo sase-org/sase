@@ -69,6 +69,7 @@ from sase.agent.names._migration import (
     run_historical_auto_name_migration,
 )
 from sase.agent.names._registry import (
+    claim_imported_registered_name,
     claim_registered_name,
     convert_registered_agent_to_family,
     delete_registered_name,

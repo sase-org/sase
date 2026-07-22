@@ -134,6 +134,20 @@ def plan_sdd_sidecar_init_actions(
         root,
         description=description,
     ):
+        if kind == "agents" and expected.path.name == "manifest.json":
+            # The sync engine owns this file after the initial scaffold. Repo
+            # init must never replace a populated (or diagnostically corrupt)
+            # manifest with an empty one on a later idempotent pass.
+            if expected.path.exists():
+                continue
+        if kind == "agents" and expected.path.name == ".gitkeep":
+            agents_dir = expected.path.parent
+            try:
+                populated = agents_dir.is_dir() and any(agents_dir.iterdir())
+            except OSError:
+                populated = True
+            if populated and not expected.path.exists():
+                continue
         operation = (
             planned_text_operation(expected.path, expected.content)
             if isinstance(expected, SddExpectedTextFile)

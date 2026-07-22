@@ -100,6 +100,9 @@ There is intentionally no bundled `machine_name` default. Existing installations
 optional machine identity unset until initialization, while features that require a machine hood report the actionable
 `sase config init` instruction.
 
+Machine hoods also provide stable ownership for the hidden agents sidecar. See
+[Completed Agent Synchronization](agents_sidecar.md) for privacy controls, bundle contents, sync commands, and recovery.
+
 ## SASE Admin Center (interactive editor)
 
 Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The first press always starts on its lightweight home

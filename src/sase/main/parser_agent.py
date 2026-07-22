@@ -7,7 +7,11 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'agent' subcommand parser."""
     agents_parser = subparsers.add_parser(
         "agent",
-        help="Inspect, show, and kill running agents across all projects",
+        description=(
+            "Inspect and manage agents across projects. Running bare `sase agent` "
+            "delegates to `sase agent list`."
+        ),
+        help="List, inspect, synchronize, and manage agents across projects",
     )
     agents_sub = agents_parser.add_subparsers(
         dest="agent_subcommand", help="Agent subcommands"
@@ -61,6 +65,37 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         "--name",
         required=True,
         help="Name of the agent to show",
+    )
+
+    # sase agent sync
+    sync_parser = agents_sub.add_parser(
+        "sync",
+        help="Synchronize completed commit-associated agents through sidecars",
+    )
+    sync_parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        help="Read sync status without importing, exporting, committing, or pushing",
+    )
+    sync_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit stable machine-readable JSON instead of a colored table",
+    )
+    sync_parser.add_argument(
+        "-p",
+        "--project",
+        action="append",
+        default=[],
+        help="Limit to a project name or alias (repeatable)",
+    )
+    sync_parser.add_argument(
+        "-r",
+        "--refresh",
+        action="store_true",
+        help="With --check, force network fetches before recomputing status",
     )
 
     # sase agent tribe {list,set,unset}

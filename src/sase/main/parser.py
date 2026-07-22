@@ -1,10 +1,11 @@
 """Argument parser creation for the SASE CLI tool."""
 
 import argparse
+from collections.abc import Iterable
 import os
 import sys
 from dataclasses import dataclass
-from typing import Any, TextIO
+from typing import Any, overload, TextIO, TypeVar
 
 from rich.console import Console
 from rich.text import Text
@@ -57,6 +58,45 @@ from sase.main.parser_vcs import register_vcs_parser
 from sase.main.parser_version import register_version_parser
 from sase.main.parser_workspace import register_workspace_parser
 from sase.main.parser_xprompt import register_xprompt_parser
+
+
+_NamespaceT = TypeVar("_NamespaceT")
+
+
+class _SaseArgumentParser(argparse.ArgumentParser):
+    """Root parser with cross-option validation that argparse cannot express."""
+
+    @overload
+    def parse_args(
+        self,
+        args: Iterable[str] | None = ...,
+        namespace: None = ...,
+    ) -> argparse.Namespace: ...
+
+    @overload
+    def parse_args(
+        self,
+        args: Iterable[str] | None,
+        namespace: _NamespaceT,
+    ) -> _NamespaceT: ...
+
+    @overload
+    def parse_args(self, *, namespace: _NamespaceT) -> _NamespaceT: ...
+
+    def parse_args(
+        self,
+        args: Iterable[str] | None = None,
+        namespace: Any = None,
+    ) -> Any:
+        parsed = super().parse_args(args, namespace)
+        if (
+            getattr(parsed, "command", None) == "agent"
+            and getattr(parsed, "agent_subcommand", None) == "sync"
+            and getattr(parsed, "refresh", False)
+            and not getattr(parsed, "check", False)
+        ):
+            self.error("sase agent sync --refresh requires --check")
+        return parsed
 
 
 @dataclass(frozen=True)
@@ -382,7 +422,7 @@ def default_list_delegation_notice(args: argparse.Namespace) -> str | None:
 
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser with subcommands."""
-    parser = argparse.ArgumentParser(
+    parser = _SaseArgumentParser(
         add_help=False,
         description="SASE - Structured Agentic Software Engineering",
         prog="sase",

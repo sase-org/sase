@@ -1,0 +1,142 @@
+"""CLI rendering for ``sase agent sync`` mutation and status checks."""
+
+from __future__ import annotations
+
+import argparse
+from datetime import UTC, datetime
+import json
+import sys
+from collections.abc import Sequence
+
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
+
+from sase.agents_sync.git_sync import sync_agents
+from sase.agents_sync.models import ProjectSyncStatus, SyncOutcome
+from sase.agents_sync.status import get_agents_sync_status
+
+
+def handle_agents_sync(args: argparse.Namespace) -> int:
+    """Run the selected sync mode, render it, and return a truthful exit code."""
+
+    projects = tuple(getattr(args, "project", ()) or ())
+    as_json = bool(getattr(args, "json", False))
+    if bool(getattr(args, "check", False)):
+        snapshot = get_agents_sync_status(
+            projects,
+            refresh=bool(getattr(args, "refresh", False)),
+        )
+        if as_json:
+            json.dump(
+                {
+                    "schema_version": snapshot.schema_version,
+                    "mode": "check",
+                    "checked_at": snapshot.checked_at,
+                    "projects": [status.to_json_dict() for status in snapshot.projects],
+                },
+                sys.stdout,
+                indent=2,
+                sort_keys=True,
+            )
+            sys.stdout.write("\n")
+        else:
+            _render_status(snapshot.projects)
+        return int(
+            any(
+                status.state in {"configuration_error", "error"}
+                for status in snapshot.projects
+            )
+        )
+
+    outcomes = sync_agents(projects)
+    if as_json:
+        json.dump(
+            {
+                "schema_version": 1,
+                "mode": "sync",
+                "projects": [outcome.to_json_dict() for outcome in outcomes],
+            },
+            sys.stdout,
+            indent=2,
+            sort_keys=True,
+        )
+        sys.stdout.write("\n")
+    else:
+        _render_outcomes(outcomes)
+    return int(any(outcome.error is not None for outcome in outcomes))
+
+
+def _render_outcomes(outcomes: tuple[SyncOutcome, ...]) -> None:
+    table = Table(title="Agent Sync", header_style="bold cyan")
+    table.add_column("PROJECT", style="bold")
+    table.add_column("PULLED", justify="center")
+    table.add_column("IMPORTED", justify="right")
+    table.add_column("EXPORTED", justify="right")
+    table.add_column("COMMIT", justify="center")
+    table.add_column("PUSH", justify="center")
+    table.add_column("RESULT")
+    for outcome in outcomes:
+        result: Text
+        if outcome.error:
+            result = Text(outcome.error, style="red")
+        elif outcome.skip_reason:
+            result = Text(outcome.skip_reason, style="yellow")
+        else:
+            result = Text("synchronized", style="green")
+        table.add_row(
+            outcome.project,
+            _yes_no(outcome.pulled),
+            str(outcome.integrated + outcome.refreshed),
+            str(outcome.exported + outcome.export_refreshed),
+            _yes_no(outcome.committed),
+            _yes_no(outcome.pushed),
+            result,
+        )
+    Console().print(table)
+
+
+def _render_status(statuses: Sequence[ProjectSyncStatus]) -> None:
+    table = Table(title="Agent Sync Status", header_style="bold cyan")
+    table.add_column("PROJECT", style="bold")
+    table.add_column("STATE")
+    table.add_column("BEHIND", justify="right")
+    table.add_column("AHEAD", justify="right")
+    table.add_column("UNEXPORTED", justify="right")
+    table.add_column("LAST FETCH")
+    table.add_column("DETAIL")
+    for status in statuses:
+        style = (
+            "red"
+            if status.state in {"configuration_error", "error"}
+            else "yellow"
+            if status.state != "ready"
+            else "green"
+        )
+        table.add_row(
+            status.project,
+            Text(status.state, style=style),
+            _number(status.behind),
+            _number(status.ahead),
+            _number(status.unexported_agents),
+            _timestamp(status.last_fetch_time),
+            status.error or status.detail or "-",
+        )
+    Console().print(table)
+
+
+def _yes_no(value: bool) -> Text:
+    return Text("yes" if value else "no", style="green" if value else "dim")
+
+
+def _number(value: int | None) -> str:
+    return "-" if value is None else str(value)
+
+
+def _timestamp(value: float | None) -> str:
+    if value is None:
+        return "-"
+    return datetime.fromtimestamp(value, tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
+
+
+__all__ = ["handle_agents_sync"]

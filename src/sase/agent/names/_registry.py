@@ -150,6 +150,53 @@ def claim_registered_name(
         _save_entries(entries)
 
 
+def claim_imported_registered_name(
+    name: str,
+    source_machine: str,
+    claiming_dir: str | Path,
+    *,
+    digest: str,
+) -> None:
+    """Claim an exact foreign machine-qualified imported agent name.
+
+    Imported names deliberately bypass local qualification: a previously
+    unknown hood such as ``zeus.worker`` must remain exactly that spelling,
+    rather than becoming ``<local>.zeus.worker``. The source machine must
+    match the durable prefix, and only the same imported owner may refresh its
+    digest.
+    """
+
+    from sase.agents_sync.io import validate_machine, validate_qualified_name
+
+    source_machine = validate_machine(source_machine)
+    name = validate_qualified_name(name, source_machine)
+    artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
+    with _registry_mutation_lock():
+        entries = dict(load_name_registry()["entries"])
+        existing = entries.get(name)
+        if isinstance(existing, dict):
+            same_import = (
+                existing.get("reservation_kind") == "imported"
+                and existing.get("imported_from_machine") == source_machine
+                and _entry_belongs_to_artifact(existing, artifact_dir)
+            )
+            if not same_import:
+                from sase.agent.names._common import NameCollisionError
+
+                raise NameCollisionError(
+                    f"imported agent name '{name}' is already reserved"
+                )
+        entry = _owner_from_artifact_name(
+            artifact_dir,
+            name,
+            reservation_kind="imported",
+        )
+        entry["imported_from_machine"] = source_machine
+        entry["imported_digest"] = digest
+        entries[name] = entry
+        _save_entries(entries)
+
+
 def reserve_registered_name(name: str, claiming_dir: str | Path) -> None:
     """Reserve *name* for a not-yet-started agent artifacts directory.
 
