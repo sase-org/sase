@@ -231,16 +231,17 @@ handoff.
 
 ### Plan Frontmatter Schema and Validation
 
-Run `sase plan validate PLAN_FILE -t tale|epic` while authoring a plan. The tier is explicit and required, and the
-authored top-level `tier` must match it. Validation is hermetic: the command accepts any readable UTF-8 path and does
-not require `SASE_AGENT`, `SASE_ARTIFACTS_DIR`, or a registered project context. It reports all problems in one pass
-with stable diagnostic codes, field paths, and best-effort line numbers.
+Run `sase plan validate PLAN_FILE` while authoring a plan. The command selects the schema from the plan's required
+top-level `tier: tale` or `tier: epic` property; the former `-t/--tier` option has been removed. Validation is hermetic:
+the command accepts any readable UTF-8 path and does not require `SASE_AGENT`, `SASE_ARTIFACTS_DIR`, or a registered
+project context. It reports all problems in one pass with stable diagnostic codes, field paths, and best-effort line
+numbers.
 
 Every tale and epic requires these authored fields:
 
 | Field   | Required | Rule                                                               |
 | ------- | -------- | ------------------------------------------------------------------ |
-| `tier`  | yes      | `tale` or `epic`, matching `-t/--tier`                             |
+| `tier`  | yes      | `tale` or `epic`; selects the validation schema                    |
 | `title` | yes      | Non-empty human-readable plan title                                |
 | `goal`  | yes      | Non-empty description of the outcome the plan is intended to reach |
 | `model` | no       | Non-empty model value using the same syntax as `%model`            |
@@ -281,9 +282,16 @@ Implement the validated workflow.
 
 Epic-only fields on a tale produce warnings because they are inert when a human downgrades an epic-authored plan. All
 other schema violations are errors. Human failures always include the authoritative expected-schema table and a minimal
-valid example. `-j/--json` returns `schema_version`, `ok`, `tier`, `path`, the complete diagnostics list, and the
-expected schema; `-q/--quiet` suppresses successful human output. Exit status is 0 for valid plans, 1 for validation
-failures, and 2 for command-usage errors.
+valid example. Add `-e/--explain` to print tier-specific authoring guidance before the result; in JSON mode the same
+guidance is included as an `explanation` field. `-q/--quiet` suppresses a successful human summary, but an explicitly
+requested explanation is still printed.
+
+If `tier` is missing or unsupported, validation fails with an actionable hint and omits the explanation because no
+authored schema can be selected. The command currently uses the tale schema for the remaining diagnostics and the JSON
+`tier` value in that case, while still reporting the tier error; JSON stays on stdout and the tier hint is written to
+stderr. Otherwise `-j/--json` returns `schema_version`, `ok`, the authored `tier`, `path`, the complete diagnostics
+list, and the expected schema. Exit status is 0 for valid plans, 1 for validation failures, and 2 for command-usage
+errors.
 
 ### Committed Plan Validation Cutover
 
@@ -310,7 +318,7 @@ command group:
 | `sase plan links repair`   | Preview canonical link migration; add `-w/--write` to update unambiguous pairs                 |
 | `sase plan links validate` | Validate links; `-j/--json`, `-q/--quiet`, `-s/--strict`, and `-W/--show-warnings` tune output |
 | `sase plan search`         | Search or browse tale, epic, prompt, and research artifacts                                    |
-| `sase plan validate`       | Validate one plan path with required `-t/--tier`; supports `-j/--json` and `-q/--quiet`        |
+| `sase plan validate`       | Validate by authored tier; `-e/--explain`, `-j/--json`, and `-q/--quiet` tune output           |
 | `sase bead work PLAN_FILE` | Validate, archive, link, and launch an epic plan; `-n/--dry-run` previews without mutation     |
 
 The link subcommands accept `-p/--path`, which may point at an SDD root or a project root. Bare `sase plan links`

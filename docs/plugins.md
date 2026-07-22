@@ -49,7 +49,9 @@ The recommended way to add a plugin to an existing managed install is the
 **Updates** tab, highlight the plugin, and press `i` to install. To install several plugins from ACE, mark installable
 rows with `I` / `Space`, then press `i` once; ACE previews one combined `uv` operation before changing the environment.
 For a single-plugin install preview that offers both index and git sources, press `g` in the confirmation modal to
-switch variants before confirming. The equivalent CLI for one plugin is `sase plugin install github`.
+switch variants before confirming. Confirmation previews group components and exact commands into labeled sections, load
+incoming commit subjects by repository, and use `Ctrl+D` / `Ctrl+U` when the preview overflows. The equivalent CLI for
+one plugin is `sase plugin install github`.
 
 ## Plugin Catalog (`sase plugin list` / `sase plugin show`)
 

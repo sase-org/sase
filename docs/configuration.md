@@ -86,10 +86,11 @@ will go, and whether it validates:
 
 - **Browse / inspect** (read-only): a source rail lists each config layer with loaded/missing/invalid/read-only badges;
   the field tree is generated from the schema (`/` filters, `:` jumps to a dotted path, `m` shows only modified fields,
-  `r` refreshes); the detail pane shows the type, default, effective value, and the full provenance stack with the
-  winning layer marked. Structured values (object maps and arrays of objects, such as `ace.lumberjack` or
-  [`repos`](#repos)) render as a multi-line, syntax-highlighted YAML block instead of a one-line JSON blob, while
-  scalars and short flat lists keep their compact inline form.
+  `r` refreshes). In the tree, `j` / `k` move through visible rows and wrap at the ends, while Down / Up use clamped
+  navigation; the detail pane shows the type, default, effective value, and the full provenance stack with the winning
+  layer marked. Structured values (object maps and arrays of objects, such as `ace.lumberjack` or [`repos`](#repos))
+  render as a multi-line, syntax-highlighted YAML block instead of a one-line JSON blob, while scalars and short flat
+  lists keep their compact inline form.
 - **Edit** (`↵` or `e` on a field): a typed editor is generated from the schema — a toggle for booleans, an option cycle
   for enums, validated inputs for numbers and strings, a line editor for string lists, and a raw-YAML escape hatch for
   complex shapes. Pick the write **scope** (`ctrl+t` cycles user base / overlays / a selected local file; `ctrl+n`
@@ -197,13 +198,15 @@ add a newly discovered provider to that invocation. Safe commands run sequential
 unknown-provenance installs remain visible with manual guidance. The pane-wide `u` remains SASE/core/plugins-only, and
 pane-wide `A` remains the deliberate action for the current agent-CLI inventory.
 
-Every mutation **previews first**. Plugin and core actions show the underlying `uv` or editable-checkout plan. `A`
-previews every exact agent-CLI command and every skip with its reason and docs URL; on the Agent CLIs sub-tab it uses
-the marked subset, otherwise it targets every safely updatable installed CLI. Agent-CLI commands execute sequentially as
-one tracked task and refresh the browser without restarting ACE; new agent launches naturally use the updated binaries.
-Installable plugins use `I` / `Space` marks, while updatable agent CLIs use `Space`; `Esc` clears marks in the active
-sub-tab before closing. All slow work runs off the event loop. Core/plugin code changes retain the existing automatic
-ACE/axe restart behavior. The context-sensitive keymaps are:
+Every mutation **previews first**. The confirmation groups components into labeled sections with update/current/skipped
+status glyphs, counts, and home-shortened exact commands; long previews scroll with `Ctrl+D` / `Ctrl+U`. Plugin and core
+actions show the underlying `uv` or editable-checkout plan and load incoming commits by repository without blocking the
+modal. `A` previews every exact agent-CLI command and every skip with its reason and docs URL; on the Agent CLIs sub-tab
+it uses the marked subset, otherwise it targets every safely updatable installed CLI. Agent-CLI commands execute
+sequentially as one tracked task and refresh the browser without restarting ACE; new agent launches naturally use the
+updated binaries. Installable plugins use `I` / `Space` marks, while updatable agent CLIs use `Space`; `Esc` clears
+marks in the active sub-tab before closing. All slow work runs off the event loop. Core/plugin code changes retain the
+existing automatic ACE/axe restart behavior. The context-sensitive keymaps are:
 
 | Key                 | Action                                                                                                      |
 | ------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -364,7 +367,11 @@ ace:
       initially_expanded: false
   updates:
     startup_toast: true # show SASE/plugin/agent-CLI updates on startup
+    startup_toast_max_commits: 20 # total incoming subjects across repositories
     post_update_toast: true # confirm the version transition after self-update restart
+    post_update_toast_diffstat: true # show applied file and line counts
+    post_update_toast_commits: true # show applied commits grouped by repository
+    post_update_toast_max_commits: 5 # applied subjects shown per repository
     indicator: true # show the segmented SASE + agent-CLI update badge
     incoming_commits:
       enabled: true # show incoming commit subjects in the Updates tab
@@ -476,13 +483,18 @@ ACE reads this TUI setting from the user-level `~/.config/sase/sase.yml` (and us
 | Field                                   | Type   | Default | Description                                                                                                             |
 | --------------------------------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `startup_toast`                         | bool   | `true`  | Show the startup toast when cached status reports SASE, plugin, or supported agent-CLI updates.                         |
+| `startup_toast_max_commits`             | int    | `20`    | Maximum total incoming commit subjects shown across all repositories in the startup toast.                              |
 | `post_update_toast`                     | bool   | `true`  | Show a one-shot combined result after an update changes SASE code and restarts ACE.                                     |
+| `post_update_toast_diffstat`            | bool   | `true`  | Show per-repository applied file and line-change statistics when available.                                             |
+| `post_update_toast_commits`             | bool   | `true`  | Show applied commits grouped by repository when available.                                                              |
+| `post_update_toast_max_commits`         | int    | `5`     | Maximum applied commit subjects shown per repository; `0` keeps totals but hides subjects.                              |
 | `indicator`                             | bool   | `true`  | Show the segmented SASE and agent-CLI badge when cached status reports available updates.                               |
 | `incoming_commits.enabled`              | bool   | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.                                          |
 | `incoming_commits.max_per_repo`         | int    | `7`     | Maximum incoming commit subjects to show per repository in Updates-tab details.                                         |
 | `incoming_commits.confirm_max_per_repo` | int    | `250`   | Maximum subjects fetched per repository in update confirmations; larger ranges show an explicit `+N more` marker.       |
 | `check_interval_minutes`                | number | `10`    | Interval between local cached-snapshot revalidation attempts in a running ACE session.                                  |
-| `check_ttl_minutes`                     | number | `10`    | Minimum age before a startup update check recomputes cached status.                                                     |
+| `check_ttl_minutes`                     | number | `10`    | Minimum age before a startup update check recomputes cached status; overrides the legacy hours setting.                 |
+| `check_ttl_hours`                       | number | unset   | Deprecated startup cache TTL accepted for compatibility; prefer `check_ttl_minutes`.                                    |
 | `recompute_interval_minutes`            | number | `60`    | Minimum snapshot age before a full SASE/plugin/agent-CLI network recompute; intervening checks only revalidate locally. |
 
 #### `ace.keymaps`
@@ -2642,13 +2654,14 @@ registered privileged gate action. The query form, `sase notify list -q`, also m
 
 With no subcommand, `sase plan` defaults to the `sase plan list` dashboard.
 
-| Form                            | Flags                                                                                                                         | Description                                                           |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `sase plan approve [selector]`  | `-k/--kind`, `-m/--model`, `-p/--prompt`                                                                                      | Approve one pending proposal by notification ID or unique ID prefix.  |
-| `sase plan` / `sase plan list`  | `-j/--json`, `-n/--limit`, `-s/--status`, `-t/--tier`                                                                         | List pending proposals, approvals, and inferred rejected rows.        |
-| `sase plan propose <plan_file>` | -                                                                                                                             | Submit a Markdown plan file for approval from the `/sase_plan` skill. |
-| `sase plan reject [selector]`   | -                                                                                                                             | Reject one pending proposal by notification ID or unique ID prefix.   |
-| `sase plan search [query]`      | `-f/--format`, `-k/--kind`, `-s/--status`, `-o/--source`, `-r/--sort`, `-A/--since`, `-B/--until`, `-n/--limit`, `-c/--color` | Search SDD and machine-local Markdown plans.                          |
+| Form                             | Flags                                                                                                                         | Description                                                             |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `sase plan approve [selector]`   | `-k/--kind`, `-m/--model`, `-p/--prompt`                                                                                      | Approve one pending proposal by notification ID or unique ID prefix.    |
+| `sase plan` / `sase plan list`   | `-j/--json`, `-n/--limit`, `-s/--status`, `-t/--tier`                                                                         | List pending proposals, approvals, and inferred rejected rows.          |
+| `sase plan propose <plan_file>`  | -                                                                                                                             | Submit a Markdown plan file for approval from the `/sase_plan` skill.   |
+| `sase plan reject [selector]`    | -                                                                                                                             | Reject one pending proposal by notification ID or unique ID prefix.     |
+| `sase plan search [query]`       | `-f/--format`, `-k/--kind`, `-s/--status`, `-o/--source`, `-r/--sort`, `-A/--since`, `-B/--until`, `-n/--limit`, `-c/--color` | Search SDD and machine-local Markdown plans.                            |
+| `sase plan validate <plan_file>` | `-e/--explain`, `-j/--json`, `-q/--quiet`                                                                                     | Validate using the plan's authored `tier: tale` or `tier: epic` schema. |
 
 `sase plan list` prints a Rich dashboard by default and emits a stable JSON projection with `summary`, `proposed`,
 `approved`, and `rejected` keys when `-j/--json` is set. Repeat `-s/--status` with `approved`, `proposed`, or `rejected`
@@ -2676,6 +2689,11 @@ accepts `compact`, `full`, `json`, or `markdown`; `--kind` is repeatable and fil
 `repo`, or `local`; `--sort` selects `relevance`, `recent`, or `title` (defaulting to relevance with a query and recent
 without one); `--since`/`--until` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or relative durations such as `14d`; and
 `--limit 0` prints all matches.
+
+`sase plan validate <plan_file>` infers the validation schema from the authored `tier`; it no longer accepts
+`-t/--tier`. `--explain` prints tier-specific authoring guidance before human results or adds it to the JSON envelope,
+while `--quiet` suppresses only the successful human summary. See
+[Plan Frontmatter Schema and Validation](sdd.md#plan-frontmatter-schema-and-validation) for diagnostics and exit codes.
 
 ### `sase artifact`
 

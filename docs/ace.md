@@ -137,6 +137,18 @@ Quote the whole token to search for a literal leading minus (`"-repo:plans"`); q
 negation active (`-"generated rollout"`). Matching remains case-insensitive, and repository/project aliases work for
 both inclusion and exclusion.
 
+### Commit Detail and Linked Plans
+
+Press `Enter` on a Commits entry to open its full message and syntax-highlighted diff. The modal uses `j` / `k` for line
+scrolling, `Ctrl+D` / `Ctrl+U` for half pages, `g` / `G` for the ends, `y` to copy the full SHA, and `Esc` or `q` to
+close. When the current result contains multiple commits, `Ctrl+N` / `Ctrl+P` move through them with wraparound.
+
+Press `p` in the commit modal to load the final terminal `SASE_PLAN` tag from that commit and render the referenced
+local UTF-8 Markdown plan; press `p` again to return to the cached diff. Relative references are tried against the
+commit repository, known project workspaces, and their plans stores without materializing a missing store. A missing,
+invalid, unavailable, non-file, or unreadable reference produces a precise toast and leaves the commit visible. Moving
+to another commit always returns the modal to commit mode.
+
 ### Epic phase sizes across plan surfaces
 
 ACE uses the literal scope labels `small`, `medium`, and `large`, with blue, gold, and rose chips whose text remains the
@@ -1864,19 +1876,19 @@ active (the agent is still running or awaiting input) and completed (the agent h
 
 ### Active Statuses
 
-| Status             | Color        | Description                                                         |
-| ------------------ | ------------ | ------------------------------------------------------------------- |
-| **RUNNING**        | Gold         | Agent subprocess is executing                                       |
-| **WAITING**        | Light blue   | Agent is queued, waiting for another agent to succeed (`%wait`)     |
-| **WAITING INPUT**  | Amber/orange | Workflow is paused at a human-in-the-loop (HITL) step               |
-| **TALE**           | Pink/magenta | An authored tale is waiting for user review                         |
-| **EPIC**           | Orchid       | An authored epic is waiting for user review                         |
-| **PLAN**           | Pink/magenta | A legacy or unreadable-tier plan is waiting for user review         |
-| **PLAN APPROVED**  | Cyan         | Plan was approved; follow-up agent has been spawned                 |
-| **EPIC APPROVED**  | Cyan         | Plan was approved as an epic; `--epic` follow-up is running         |
-| **PLAN COMMITTED** | Cyan         | Plan was approved with auto-commit; `--commit` follow-up is running |
-| **QUESTION**       | Amber        | Agent is asking the user a question (via `/sase_questions`)         |
-| **RETRYING**       | Orange       | Agent hit a retryable error and is in a countdown before retrying   |
+| Status             | Color        | Description                                                           |
+| ------------------ | ------------ | --------------------------------------------------------------------- |
+| **RUNNING**        | Gold         | Agent subprocess is executing                                         |
+| **WAITING**        | Light blue   | Agent is queued on `%wait`; an amber `?` marks a missing named target |
+| **WAITING INPUT**  | Amber/orange | Workflow is paused at a human-in-the-loop (HITL) step                 |
+| **TALE**           | Pink/magenta | An authored tale is waiting for user review                           |
+| **EPIC**           | Orchid       | An authored epic is waiting for user review                           |
+| **PLAN**           | Pink/magenta | A legacy or unreadable-tier plan is waiting for user review           |
+| **PLAN APPROVED**  | Cyan         | Plan was approved; follow-up agent has been spawned                   |
+| **EPIC APPROVED**  | Cyan         | Plan was approved as an epic; `--epic` follow-up is running           |
+| **PLAN COMMITTED** | Cyan         | Plan was approved with auto-commit; `--commit` follow-up is running   |
+| **QUESTION**       | Amber        | Agent is asking the user a question (via `/sase_questions`)           |
+| **RETRYING**       | Orange       | Agent hit a retryable error and is in a countdown before retrying     |
 
 `QUESTION` status survives notification dismissal. While an agent is waiting for an answer it writes a
 `pending_question.json` marker into its run directory and temporarily yields its root runner slot. The marker remains
@@ -2063,9 +2075,11 @@ a pinned attempt view resets the cursor.
 - **Wait state**: For an agent gated by `%wait`, a duration wait, or an absolute-time wait, the detail view shows a
   `Wait:` line. It lists the dependency names recorded on the waiting agent, adds per-name status badges for currently
   known agents, clan containers, or family containers, and marks unknown names with `?` so typos and stale references
-  are obvious. Timed waits add compact duration, target time, and countdown text when available. The final runner-slot
-  stage shows the live running count and cap or explicit threshold, plus position among waiters currently eligible at
-  that count. Ineligible waits are labeled directly, and `runners=0` is labeled as a drain barrier.
+  are obvious. A WAITING list row also shows one amber `?` when any named dependency is missing; bead-only, timed, and
+  runner-only waits do not receive that marker. Timed waits add compact duration, target time, and countdown text when
+  available. The final runner-slot stage shows the live running count and cap or explicit threshold, plus position among
+  waiters currently eligible at that count. Ineligible waits are labeled directly, and `runners=0` is labeled as a drain
+  barrier.
 - **OUTPUT VARIABLES**: Small string values written by the selected agent family with `sase var set KEY=VALUE`. A single
   contributing agent renders as a flat sorted key/value list; multiple family members render with compact role labels so
   root, planner, coder, tester, and follow-up values stay attributable. Multi-line values are indented, and the section
@@ -2406,8 +2420,10 @@ See [`docs/configuration.md`](configuration.md) for the full `ace.keymaps` confi
 
 ## Prompt Input Widget
 
-The prompt input is a multiline TextArea widget that supports two editing modes: INSERT and NORMAL. The widget provides
-markdown syntax highlighting for prompt content (headings, bold, italic, code blocks, lists, etc.).
+The prompt input is a multiline TextArea widget with vim-style INSERT, NORMAL, VISUAL, and V-LINE modes. The widget
+provides markdown syntax highlighting for prompt content (headings, bold, italic, code blocks, lists, etc.). A dash that
+starts an indented or unindented `- ` bullet is additionally bolded with a theme-aware accent, including inside fenced
+code; this presentation does not change the prompt text.
 
 When loaded prompt text contains literal top-level `---` multi-agent separators, ACE renders the text as a prompt stack:
 one pane per agent segment. YAML frontmatter at the start stays prompt-level metadata, and `---` lines inside fenced
@@ -2761,6 +2777,12 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 | `cae` | Change entire buffer (copies to clipboard)                                                   |
 | `yae` | Yank entire buffer (copies to clipboard)                                                     |
 
+Vim-surround commands are also available in NORMAL mode: `ys{motion}{delimiter}` wraps a motion or text object,
+`yss{delimiter}` wraps the current line, `ds{delimiter}` removes the nearest matching surround, and `cs{old}{new}`
+replaces it. Quotes and backticks pair with themselves; either side of `()`, `[]`, `{}`, or `<>` selects the matching
+pair, with `b` aliasing parentheses and `B` aliasing braces. Other single characters pair with themselves. Counts extend
+a `ys` motion or select an outer matching surround for `ds` / `cs`, and successful edits are repeatable with `.`.
+
 #### Text Objects
 
 Text objects compose with `d`, `c`, and `y`.
@@ -2839,13 +2861,18 @@ visual `c` repeats the replacement text typed before `Escape`.
 | --------- | ------------------------------------------------------------ |
 | `d` / `x` | Delete selection and copy it to the internal register        |
 | `c` / `s` | Change selection and enter INSERT mode                       |
+| `S{char}` | Surround the exact selection with a delimiter pair           |
 | `y`       | Yank selection to the internal register and system clipboard |
 | `p`       | Replace selection with the internal register                 |
 | `>` / `<` | Indent / dedent selected lines by two spaces                 |
 | `u` / `U` | Lowercase / uppercase the selection                          |
 | `~`       | Toggle case in the selection                                 |
 
-V-LINE operators always apply to whole selected lines regardless of the cursor column.
+Visual `S` uses the same delimiter pairs as NORMAL-mode surround, preserves the exact selection boundaries (including
+multi-line and V-LINE separators), and leaves the unnamed register unchanged. The edit is one undo step and `.` repeats
+the saved charwise length or V-LINE row count from the current cursor; a count before `.` scales that saved shape.
+`Escape` or `Ctrl+X` cancels a pending delimiter without replacing the previous dot-repeat action. Lowercase `s` keeps
+its change-selection behavior. V-LINE operators always apply to whole selected lines regardless of the cursor column.
 
 ## Prompt History Modal
 
@@ -2934,6 +2961,11 @@ Automatic checks publish one composite snapshot after first paint. Ten-minute se
 SASE/plugin rows and provider names already known outdated; full discovery waits for the longer configured recompute
 cadence, and provider registry lookups retain their own cache. The top bar renders purple/amber SASE and cyan `CLI`
 segments with separate counts.
+
+Update confirmations use structured component sections with exact commands, status/count summaries, and grouped incoming
+commits; `Ctrl+D` / `Ctrl+U` scroll long previews. After a changed core/plugin update restarts ACE, the one-shot result
+toast can show applied commits grouped by repository as well as file/line statistics. Configure those sections with
+`ace.updates.post_update_toast_commits`, `post_update_toast_max_commits`, and `post_update_toast_diffstat`.
 
 Global `,U` captures the agent-CLI candidates from the latest completed automatic result, revalidates exactly those
 names, and previews one comprehensive tracked update; the Updates-pane load cannot broaden the captured set. Manual-only
