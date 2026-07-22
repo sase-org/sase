@@ -71,6 +71,78 @@ def test_work_stale_owner_round_trip_wipes_and_rewrites(
     assert set(wiped) == {*phase_ids, epic_id, f"{epic_id}.land"}
 
 
+def test_work_interrupted_phase_family_is_wiped_before_retry(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A completed plan and dead code member do not block deterministic retry."""
+    from types import SimpleNamespace
+
+    from sase.agent.names import AgentNameWipeResult
+
+    epic_id, phase_ids = seed_diamond(project_dir)
+    family_name = phase_ids[0]
+    plan_name = f"{family_name}--plan"
+    code_name = f"{family_name}--code"
+    wiped: list[str] = []
+    launched: list[str] = []
+
+    monkeypatch.setattr(
+        "sase.agent.names.find_agent_family",
+        lambda name: (
+            SimpleNamespace(
+                members=(
+                    SimpleNamespace(name=plan_name, outcome="completed"),
+                    SimpleNamespace(name=code_name, outcome=None),
+                )
+            )
+            if name == family_name
+            else None
+        ),
+    )
+
+    def fake_wipe(name: str) -> AgentNameWipeResult:
+        assert not launched
+        wiped.append(name)
+        if name == family_name:
+            return AgentNameWipeResult(
+                target_name=name,
+                found=True,
+                skipped_container_kind="family",
+            )
+        if name in {plan_name, code_name}:
+            return AgentNameWipeResult(
+                target_name=name,
+                found=True,
+                registry_names_removed=(name,),
+            )
+        return AgentNameWipeResult(target_name=name, found=False)
+
+    monkeypatch.setattr("sase.agent.names.wipe_agent_name_for_reuse", fake_wipe)
+    monkeypatch.setattr(
+        "sase.agent.names.rebuild_name_registry", lambda: {"entries": {}}
+    )
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None, segment_extra_env=None: (
+            launched.append(query) or FakeLaunchResult()
+        ),
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+    assert len(launched) == 1
+    assert "%id(!" not in launched[0]
+    assert wiped[:3] == [family_name, code_name, plan_name]
+    assert set(wiped) == {
+        *phase_ids,
+        epic_id,
+        f"{epic_id}.land",
+        plan_name,
+        code_name,
+    }
+
+
 def test_work_retry_allows_legacy_epic_clan_container_skip(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

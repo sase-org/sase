@@ -18,6 +18,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_home, sase_projects_dir, sase_subdir
 
 
@@ -246,25 +247,34 @@ def _scan_artifacts() -> list[_ArtifactRecord]:
         for workflow_dir in _safe_iterdir(artifacts_root):
             if not workflow_dir.is_dir():
                 continue
-            for artifact_dir in _safe_iterdir(workflow_dir):
-                if not artifact_dir.is_dir():
-                    continue
-                meta = _read_json_object(artifact_dir / "agent_meta.json")
-                done = _read_json_object(artifact_dir / "done.json")
-                if meta is None and done is None:
-                    continue
-                records.append(
-                    _ArtifactRecord(
-                        path=artifact_dir.resolve(strict=False),
-                        suffix=artifact_dir.name,
-                        project_name=project_dir.name,
-                        names=_payload_names(meta) | _payload_names(done),
-                        relation_refs=_payload_relation_refs(meta)
-                        | _payload_relation_refs(done),
-                        outgoing_suffixes=_payload_outgoing_suffixes(meta)
-                        | _payload_outgoing_suffixes(done),
+            try:
+                for artifact_dir in iter_agent_artifact_dirs(
+                    project_dir.name,
+                    workflow_dir.name,
+                    projects_root=projects_dir,
+                ):
+                    if not artifact_dir.is_dir():
+                        continue
+                    meta = _read_json_object(artifact_dir / "agent_meta.json")
+                    done = _read_json_object(artifact_dir / "done.json")
+                    if meta is None and done is None:
+                        continue
+                    records.append(
+                        _ArtifactRecord(
+                            path=artifact_dir.resolve(strict=False),
+                            suffix=artifact_dir.name,
+                            project_name=project_dir.name,
+                            names=_payload_names(meta) | _payload_names(done),
+                            relation_refs=_payload_relation_refs(meta)
+                            | _payload_relation_refs(done),
+                            outgoing_suffixes=_payload_outgoing_suffixes(meta)
+                            | _payload_outgoing_suffixes(done),
+                        )
                     )
-                )
+            except (OSError, RuntimeError, ValueError):
+                # Unreadable or malformed unrelated artifact trees must not
+                # prevent cleanup of owners already discovered elsewhere.
+                continue
     return records
 
 

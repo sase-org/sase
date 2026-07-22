@@ -28,9 +28,15 @@ def _artifact(
     *,
     project: str = "proj",
     done: bool = False,
+    day_sharded: bool = False,
     meta: dict[str, object] | None = None,
 ) -> Path:
-    path = home / ".sase" / "projects" / project / "artifacts" / "ace-run" / suffix
+    workflow_dir = home / ".sase" / "projects" / project / "artifacts" / "ace-run"
+    path = (
+        workflow_dir / suffix[:6] / suffix[6:8] / suffix
+        if day_sharded
+        else workflow_dir / suffix
+    )
     path.mkdir(parents=True, exist_ok=True)
     payload = {"name": name, "workflow_name": name, **(meta or {})}
     (path / "agent_meta.json").write_text(json.dumps(payload), encoding="utf-8")
@@ -260,6 +266,66 @@ def test_wipe_retry_chain_and_bundle_descendants(tmp_path: Path) -> None:
         assert {str(root), str(retry)} <= set(result.artifact_dirs_removed)
         assert str(bundle_path) in result.bundle_paths_removed
         assert {"foo", "foo.retry", "foo.bundle"}.isdisjoint(get_reserved_agent_names())
+
+
+def test_wipe_family_member_finds_day_sharded_handoff_and_bundle(
+    tmp_path: Path,
+) -> None:
+    family_name = "epic.phase"
+    plan_name = f"{family_name}--plan"
+    code_name = f"{family_name}--code"
+    family_meta = {
+        "agent_family": family_name,
+        "agent_family_parallel": False,
+    }
+    plan = _artifact(
+        tmp_path,
+        "20260722120000",
+        plan_name,
+        done=True,
+        day_sharded=True,
+        meta=family_meta,
+    )
+    code = _artifact(
+        tmp_path,
+        "20260722120100",
+        code_name,
+        day_sharded=True,
+        meta={**family_meta, "parent_timestamp": plan.name},
+    )
+    bundle_path = _bundle(
+        tmp_path,
+        "20260722120200",
+        f"{family_name}--review",
+        parent_timestamp=code.name,
+        **family_meta,
+    )
+    unrelated = _artifact(
+        tmp_path,
+        "20260722120300",
+        "unrelated",
+        day_sharded=True,
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        assert {family_name, plan_name, code_name} <= get_reserved_agent_names()
+        with patch(
+            "sase.agent.names._wipe._release_artifact_workspace"
+        ) as release_workspace:
+            result = wipe_agent_name_for_reuse(plan_name)
+
+        assert {str(plan), str(code)} <= set(result.artifact_dirs_removed)
+        assert str(bundle_path) in result.bundle_paths_removed
+        assert {call.args[0] for call in release_workspace.call_args_list} == {
+            plan,
+            code,
+        }
+        assert unrelated.exists()
+        assert family_name not in get_reserved_agent_names()
+        assert plan_name not in get_reserved_agent_names()
+        assert code_name not in get_reserved_agent_names()
+        assert "unrelated" in get_reserved_agent_names()
 
 
 @pytest.mark.parametrize(
