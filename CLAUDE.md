@@ -64,7 +64,7 @@ An agent hood is a group of agents that are all named with the same `<name>.` pr
 considered part of the `foo` agent hood.
 
 **Agent Hole**  
-An agent hole is a term that describes either an agent family or single agent that does not belong to a family. Agent
+An agent hole is a term that describes either an agent family or a single agent that does not belong to a family. Agent
 holes never have a name that ends with `--<suffix>` since that suffix is reserved for family members. We think of an
 agent hole like an agent's house (i.e. where they live). When agent's are single, they live in their own hole. When a
 new member joins their family, that member moves into the same hole. At that point, the hole and the family share a name
