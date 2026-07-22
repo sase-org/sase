@@ -23,6 +23,7 @@ _SUCCESS_GLYPH = "✓"
 _TOAST_TIMEOUT_SECONDS = 10.0
 _DIFFSTAT_RED = "#D75F5F"
 _NAME_COLUMN_MAX = 28
+_COMMIT_SUBJECT_MAX = 58
 
 
 class PostUpdateToastMixin:
@@ -59,6 +60,8 @@ class PostUpdateToastMixin:
                 _format_post_update_toast_message(
                     receipt,
                     show_diffstat=config.post_update_toast_diffstat,
+                    show_commits=config.post_update_toast_commits,
+                    max_commits_per_repo=config.post_update_toast_max_commits,
                 ),
                 title=_format_post_update_toast_title(receipt),
                 severity=severity,
@@ -101,16 +104,62 @@ def _format_post_update_toast_message(
     receipt: UpdateToastReceipt,
     *,
     show_diffstat: bool = True,
+    show_commits: bool = True,
+    max_commits_per_repo: int = 5,
 ) -> str:
     accent = center_tab_accent("updates") or "#AF87FF"
+    commits = (
+        _commit_group_lines(receipt, max_per_repo=max_commits_per_repo)
+        if show_commits
+        else ""
+    )
     if not show_diffstat or not _receipt_has_diffstat(receipt):
-        message = _format_legacy_post_update_toast_message(receipt, accent)
+        summary = _format_legacy_post_update_toast_message(
+            receipt,
+            accent,
+            show_commits=bool(commits),
+        )
     else:
-        message = _format_diffstat_post_update_toast_message(receipt, accent)
+        summary = _format_diffstat_post_update_toast_message(
+            receipt,
+            accent,
+            show_commits=bool(commits),
+        )
     provider_lines = _provider_result_lines(receipt)
-    if not provider_lines:
-        return message
-    return "\n\n".join(part for part in (message, provider_lines) if part)
+    return "\n\n".join(part for part in (summary, commits, provider_lines) if part)
+
+
+def _commit_group_lines(
+    receipt: UpdateToastReceipt,
+    *,
+    max_per_repo: int,
+) -> str:
+    if not receipt.commit_groups:
+        return ""
+    capped_max = max(0, max_per_repo)
+    groups: list[str] = []
+    for group in receipt.commit_groups:
+        total = group.commits.total
+        noun = "commit" if total == 1 else "commits"
+        lines = [f"[bold cyan]↑ {escape(group.label)}[/] [cyan]— {total} {noun}[/]"]
+        shown = group.commits.commits[:capped_max]
+        for commit in shown:
+            subject = _truncate_commit_subject(commit.subject)
+            lines.append(f"  [dim]{escape(commit.short_sha)}[/]  {escape(subject)}")
+        extra = max(0, total - len(shown))
+        if extra > 0:
+            lines.append(f"  [dim]+{extra} more…[/]")
+        groups.append("\n".join(lines))
+    if receipt.commit_group_overflow > 0:
+        noun = "repository" if receipt.commit_group_overflow == 1 else "repositories"
+        groups.append(f"[dim]…and {receipt.commit_group_overflow} more {noun}[/]")
+    return "\n\n".join(groups)
+
+
+def _truncate_commit_subject(subject: str) -> str:
+    if len(subject) <= _COMMIT_SUBJECT_MAX:
+        return subject
+    return f"{subject[: _COMMIT_SUBJECT_MAX - 1]}…"
 
 
 def _provider_result_lines(receipt: UpdateToastReceipt) -> str:
@@ -148,6 +197,8 @@ def _provider_result_lines(receipt: UpdateToastReceipt) -> str:
 def _format_legacy_post_update_toast_message(
     receipt: UpdateToastReceipt,
     accent: str,
+    *,
+    show_commits: bool = False,
 ) -> str:
     lines: list[str] = []
     if receipt.primary is not None:
@@ -156,7 +207,7 @@ def _format_legacy_post_update_toast_message(
         lines.append(_plugin_line(plugin))
     if receipt.plugin_overflow > 0:
         lines.append(f"…and {receipt.plugin_overflow} more")
-    tail = _tail_line(receipt)
+    tail = _tail_line(receipt, show_commits=show_commits)
     if tail:
         if lines:
             lines.append("")
@@ -167,6 +218,8 @@ def _format_legacy_post_update_toast_message(
 def _format_diffstat_post_update_toast_message(
     receipt: UpdateToastReceipt,
     accent: str,
+    *,
+    show_commits: bool = False,
 ) -> str:
     transitions: list[tuple[UpdateVersionTransition, bool]] = []
     if receipt.primary is not None:
@@ -226,7 +279,11 @@ def _format_diffstat_post_update_toast_message(
                 transition_prefix_width,
             )
         )
-    tail = _tail_line(receipt, show_diffstat=True)
+    tail = _tail_line(
+        receipt,
+        show_diffstat=True,
+        show_commits=show_commits,
+    )
     if tail:
         if lines:
             lines.append("")
@@ -255,8 +312,18 @@ def _plugin_line(transition: UpdateVersionTransition) -> str:
     return f"• {name}  [dim]{old} →[/] [green]{new}[/]"
 
 
-def _tail_line(receipt: UpdateToastReceipt, *, show_diffstat: bool = False) -> str:
+def _tail_line(
+    receipt: UpdateToastReceipt,
+    *,
+    show_diffstat: bool = False,
+    show_commits: bool = False,
+) -> str:
     parts: list[str] = []
+    if show_commits:
+        commit_count = sum(group.commits.total for group in receipt.commit_groups)
+        if commit_count > 0:
+            noun = "commit" if commit_count == 1 else "commits"
+            parts.append(f"{commit_count:,} {noun}")
     if show_diffstat:
         files_changed = _total_files_changed(receipt)
         if files_changed > 0:

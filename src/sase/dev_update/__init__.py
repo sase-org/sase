@@ -14,6 +14,8 @@ from sase.dev_update.models import (
     DevUpdatePlan,
     DevUpdateResult,
     DevUpdateRootPlan,
+    RepoCommit,
+    RepoCommitLog,
     RepoDiffStat,
 )
 from sase.dev_update.plan import plan_dev_update
@@ -29,6 +31,8 @@ __all__ = [
     "DevUpdatePlan",
     "DevUpdateResult",
     "DevUpdateRootPlan",
+    "RepoCommit",
+    "RepoCommitLog",
     "RepoDiffStat",
     "detect_dev_latest",
     "append_dev_update_journal",

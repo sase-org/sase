@@ -13,11 +13,12 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.actions import update_toast
 from sase.ace.tui.actions.post_update_toast import PostUpdateToastMixin
 from sase.ace.update_receipt import (
+    RepoCommitGroup,
     UpdateToastReceipt,
     UpdateVersionTransition,
     write_pending_update_toast,
 )
-from sase.dev_update.models import RepoDiffStat
+from sase.dev_update.models import RepoCommit, RepoCommitLog, RepoDiffStat
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -72,6 +73,26 @@ def _diffstat_receipt() -> UpdateToastReceipt:
             deletions=11,
         ),
         dependency_count=2,
+        commit_groups=(
+            RepoCommitGroup(
+                label="sase",
+                commits=RepoCommitLog(
+                    total=3,
+                    commits=(
+                        RepoCommit("def456a", "feat: show applied commits by repo"),
+                        RepoCommit("abc123d", "fix: preserve provider receipts"),
+                    ),
+                ),
+            ),
+            RepoCommitGroup(
+                label="sase-core",
+                commits=RepoCommitLog(
+                    total=1,
+                    commits=(RepoCommit("987fedc", "perf: streamline git parsing"),),
+                ),
+            ),
+        ),
+        commit_group_overflow=1,
     )
 
 
@@ -126,7 +147,7 @@ async def test_post_update_toast_diffstat_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """The dev post-update toast shows aligned per-repo churn."""
+    """The dev post-update toast shows churn and applied commits by repo."""
     patch_startup_loaders(monkeypatch)
     receipt_file = tmp_path / "pending_update_toast.json"
     monkeypatch.setattr(update_receipt, "_PENDING_UPDATE_TOAST_FILE", receipt_file)

@@ -48,6 +48,7 @@ _TOAST_TIMEOUT_SECONDS = 12.0
 _DEFAULT_CHECK_TTL_MINUTES = DEFAULT_UPDATE_STATUS_TTL_SECONDS / 60.0
 _DEFAULT_CHECK_TTL_HOURS = DEFAULT_UPDATE_STATUS_TTL_SECONDS / 3600.0
 _DEFAULT_STARTUP_TOAST_MAX_COMMITS = 20
+_DEFAULT_POST_UPDATE_TOAST_MAX_COMMITS = 5
 _STARTUP_TOAST_DEADLINE_SECONDS = 8.0
 _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS = 600.0
 _AUTOMATIC_UPDATE_CHECK_TIMER_NAME = "automatic-update-check"
@@ -65,6 +66,8 @@ class _UpdateToastConfig:
     startup_toast: bool = True
     post_update_toast: bool = True
     post_update_toast_diffstat: bool = True
+    post_update_toast_commits: bool = True
+    post_update_toast_max_commits: int = _DEFAULT_POST_UPDATE_TOAST_MAX_COMMITS
     indicator: bool = True
     check_ttl_seconds: float = DEFAULT_UPDATE_STATUS_TTL_SECONDS
     recompute_interval_seconds: float = _DEFAULT_RECOMPUTE_INTERVAL_SECONDS
@@ -367,6 +370,14 @@ def _load_update_toast_config() -> _UpdateToastConfig:
         post_update_toast_diffstat=_coerce_bool(
             updates.get("post_update_toast_diffstat"),
             default=True,
+        ),
+        post_update_toast_commits=_coerce_bool(
+            updates.get("post_update_toast_commits"),
+            default=True,
+        ),
+        post_update_toast_max_commits=_coerce_nonnegative_int(
+            updates.get("post_update_toast_max_commits"),
+            default=_DEFAULT_POST_UPDATE_TOAST_MAX_COMMITS,
         ),
         indicator=_coerce_bool(updates.get("indicator"), default=True),
         check_ttl_seconds=_resolve_check_ttl_seconds(updates),

@@ -19,6 +19,7 @@ from sase.ace._update_receipt_builders import build_update_receipt
 from sase.ace._update_receipt_codec import receipt_from_json, receipt_to_json
 from sase.ace._update_receipt_models import (
     ProviderUpdateReceiptResult,
+    RepoCommitGroup,
     UpdateToastReceipt,
     UpdateVersionTransition,
 )
@@ -109,6 +110,7 @@ def _safe_unlink(path: Path) -> None:
 __all__ = [
     "UpdateToastReceipt",
     "UpdateVersionTransition",
+    "RepoCommitGroup",
     "build_update_receipt",
     "read_and_clear_pending_update_toast",
     "write_pending_update_toast",

@@ -15,6 +15,8 @@ from sase.dev_update.models import (
     DevUpdatePackagePlan,
     DevUpdatePlan,
     DevUpdateRootPlan,
+    RepoCommit,
+    RepoCommitLog,
     RepoDiffStat,
 )
 from sase.version._models import VersionPackageRecord
@@ -239,6 +241,17 @@ def test_execute_dev_update_fetches_preflights_merges_and_reconciles() -> None:
             ),
             None,
         ),
+        (
+            (
+                "git",
+                "-C",
+                "/repo",
+                "rev-list",
+                "--count",
+                "abc123..abc123",
+            ),
+            None,
+        ),
         (("uv", "tool", "install", "sase"), Path("/repo")),
     ]
 
@@ -284,10 +297,12 @@ def test_execute_dev_update_preflights_all_roots_before_merging() -> None:
         "merge",
         "rev-parse",
         "diff",
+        "rev-list",
         "rev-parse",
         "merge",
         "rev-parse",
         "diff",
+        "rev-list",
     ]
 
 
@@ -320,6 +335,79 @@ def test_execute_dev_update_attaches_numstat_diffstat() -> None:
         insertions=5,
         deletions=2,
     )
+
+
+def test_execute_dev_update_attaches_capped_commit_log_from_merge_range(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.dev_update.execute.DEV_UPDATE_COMMIT_LOG_CAPTURE_LIMIT",
+        2,
+    )
+    runner = SequenceRunner(
+        sequences={
+            ("git", "-C", "/repo", "rev-parse", "HEAD"): [
+                DevCommandResult(0, stdout="abc123\n"),
+                DevCommandResult(0, stdout="def456\n"),
+            ],
+        },
+        responses={
+            (
+                "git",
+                "-C",
+                "/repo",
+                "rev-list",
+                "--count",
+                "abc123..def456",
+            ): DevCommandResult(0, stdout="3\n"),
+            (
+                "git",
+                "-C",
+                "/repo",
+                "log",
+                "-n2",
+                "--format=%h%x1f%s%x1e",
+                "abc123..def456",
+            ): DevCommandResult(
+                0,
+                stdout=(
+                    "def456\x1ffeat: add commit receipt\x1e\n"
+                    "cafe123\x1ffix: preserve providers\x1e\n"
+                ),
+            ),
+        },
+    )
+
+    result = execute_dev_update(_plan(), run=runner)
+
+    assert result.outcomes[0].commits == RepoCommitLog(
+        total=3,
+        commits=(
+            RepoCommit("def456", "feat: add commit receipt"),
+            RepoCommit("cafe123", "fix: preserve providers"),
+        ),
+    )
+    assert result.outcomes[0].commits.extra == 1
+
+
+def test_execute_dev_update_commit_count_failure_leaves_log_absent() -> None:
+    runner = FakeRunner(
+        {
+            (
+                "git",
+                "-C",
+                "/repo",
+                "rev-list",
+                "--count",
+                "abc123..abc123",
+            ): DevCommandResult(1, stderr="bad revision"),
+        }
+    )
+
+    result = execute_dev_update(_plan(), run=runner)
+
+    assert result.changed is True
+    assert result.outcomes[0].commits is None
 
 
 def test_execute_dev_update_diff_failure_leaves_stats_absent() -> None:
@@ -361,7 +449,9 @@ def test_execute_dev_update_head_failure_leaves_stats_absent() -> None:
     assert result.changed is True
     assert result.outcomes[0].status == "updated"
     assert result.outcomes[0].diffstat is None
+    assert result.outcomes[0].commits is None
     assert not any(call[0][3:5] == ("diff", "--numstat") for call in runner.calls)
+    assert not any(call[0][3:5] == ("rev-list", "--count") for call in runner.calls)
 
 
 def test_execute_dev_update_dirty_preflight_aborts_before_merge() -> None:

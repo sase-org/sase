@@ -5,10 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from sase.dev_update.models import RepoDiffStat
+from sase.dev_update.models import RepoCommitLog, RepoDiffStat
 
-FORMAT_VERSION = 2
+FORMAT_VERSION = 3
 LEGACY_FORMAT_VERSION = 1
+MAX_COMMIT_GROUPS = 5
 MAX_PLUGIN_LINES = 3
 MAX_PROVIDER_LINES = 8
 
@@ -47,6 +48,14 @@ class ProviderUpdateReceiptResult:
 
 
 @dataclass(frozen=True)
+class RepoCommitGroup:
+    """Applied commits grouped under the repository label shown in the toast."""
+
+    label: str
+    commits: RepoCommitLog
+
+
+@dataclass(frozen=True)
 class UpdateToastReceipt:
     """Serializable receipt consumed once by the restarted ACE process."""
 
@@ -57,6 +66,8 @@ class UpdateToastReceipt:
     plugin_overflow: int = 0
     plugin_overflow_diffstat: RepoDiffStat | None = None
     dependency_count: int = 0
+    commit_groups: tuple[RepoCommitGroup, ...] = ()
+    commit_group_overflow: int = 0
     provider_results: tuple[ProviderUpdateReceiptResult, ...] = ()
     provider_overflow: int = 0
     format: int = FORMAT_VERSION

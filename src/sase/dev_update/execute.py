@@ -17,6 +17,8 @@ from sase.dev_update.models import (
     DevUpdatePlan,
     DevUpdateResult,
     DevUpdateRootPlan,
+    RepoCommit,
+    RepoCommitLog,
     RepoDiffStat,
 )
 from sase.git_lock_retry import run_with_git_lock_retry
@@ -24,6 +26,11 @@ from sase.version._git import GitUpstreamStatus, fetch_git_upstream, merge_git_f
 from sase.workspace_provider.utils import non_interactive_git_env
 
 DEV_UPDATE_COMMAND_TIMEOUT_SECONDS = 300.0
+DEV_UPDATE_COMMIT_LOG_CAPTURE_LIMIT = 20
+
+_COMMIT_LOG_UNIT_SEP = "\x1f"
+_COMMIT_LOG_RECORD_SEP = "\x1e"
+_COMMIT_LOG_FORMAT = "%h%x1f%s%x1e"
 
 
 def execute_dev_update(
@@ -51,7 +58,7 @@ def execute_dev_update(
     if preflight_failure is not None:
         return _failed_result(plan, preflight_failure, commands, changed=False)
 
-    merge_failure, merged_any, root_diffstats = _merge_actionable_roots(
+    merge_failure, merged_any, root_diffstats, root_commits = _merge_actionable_roots(
         plan.actionable_roots, run, commands
     )
     if merge_failure is not None:
@@ -65,7 +72,7 @@ def execute_dev_update(
 
     return DevUpdateResult(
         changed=True,
-        outcomes=_success_outcomes(plan, root_diffstats),
+        outcomes=_success_outcomes(plan, root_diffstats, root_commits),
         commands=tuple(commands),
     )
 
@@ -185,15 +192,22 @@ def _merge_actionable_roots(
     roots: tuple[DevUpdateRootPlan, ...],
     run: DevCommandRunner,
     commands: list[DevExecutedCommand],
-) -> tuple[str | None, bool, dict[str, RepoDiffStat | None]]:
+) -> tuple[
+    str | None,
+    bool,
+    dict[str, RepoDiffStat | None],
+    dict[str, RepoCommitLog | None],
+]:
     merged_any = False
     root_diffstats: dict[str, RepoDiffStat | None] = {}
+    root_commits: dict[str, RepoCommitLog | None] = {}
     for root in roots:
         if root.upstream is None:
             return (
                 f"{root.git_root}: checkout has no upstream",
                 merged_any,
                 root_diffstats,
+                root_commits,
             )
         old_head = _best_effort_head(root.git_root, run, commands)
         try:
@@ -203,7 +217,7 @@ def _merge_actionable_roots(
                 run_git_fn=_git_text_runner(run, commands, label="git merge --ff-only"),
             )
         except _GitCommandFailure as exc:
-            return str(exc), merged_any, root_diffstats
+            return str(exc), merged_any, root_diffstats, root_commits
         merged_any = True
         new_head = _best_effort_head(root.git_root, run, commands)
         root_diffstats[root.git_root] = _best_effort_diffstat(
@@ -213,7 +227,15 @@ def _merge_actionable_roots(
             run,
             commands,
         )
-    return None, merged_any, root_diffstats
+        root_commits[root.git_root] = _best_effort_commit_log(
+            root.git_root,
+            old_head,
+            new_head,
+            run,
+            commands,
+            limit=DEV_UPDATE_COMMIT_LOG_CAPTURE_LIMIT,
+        )
+    return None, merged_any, root_diffstats, root_commits
 
 
 def _run_reconcile_steps(
@@ -462,9 +484,76 @@ def _best_effort_diffstat(
     return parse_git_numstat(result.stdout)
 
 
+def _best_effort_commit_log(
+    git_root: str,
+    old_head: str | None,
+    new_head: str | None,
+    run: DevCommandRunner,
+    commands: list[DevExecutedCommand],
+    *,
+    limit: int,
+) -> RepoCommitLog | None:
+    if old_head is None or new_head is None:
+        return None
+    rev_range = f"{old_head}..{new_head}"
+    count_result = _run(
+        run,
+        ("git", "-C", git_root, "rev-list", "--count", rev_range),
+        cwd=None,
+        label="git rev-list --count",
+        commands=commands,
+    )
+    if count_result.returncode != 0:
+        return None
+    try:
+        total = int(count_result.stdout.strip() or "0")
+    except ValueError:
+        return None
+    if total < 0:
+        return None
+
+    commits: tuple[RepoCommit, ...] = ()
+    capped_limit = max(0, limit)
+    if total > 0 and capped_limit > 0:
+        log_result = _run(
+            run,
+            (
+                "git",
+                "-C",
+                git_root,
+                "log",
+                f"-n{capped_limit}",
+                f"--format={_COMMIT_LOG_FORMAT}",
+                rev_range,
+            ),
+            cwd=None,
+            label="git log applied commits",
+            commands=commands,
+        )
+        if log_result.returncode != 0:
+            return None
+        commits = _parse_commit_log(log_result.stdout)[:capped_limit]
+    return RepoCommitLog(total=total, commits=commits)
+
+
+def _parse_commit_log(text: str) -> tuple[RepoCommit, ...]:
+    commits: list[RepoCommit] = []
+    for raw_record in text.split(_COMMIT_LOG_RECORD_SEP):
+        record = raw_record.strip("\r\n")
+        if not record or _COMMIT_LOG_UNIT_SEP not in record:
+            continue
+        short_sha, subject = record.split(_COMMIT_LOG_UNIT_SEP, 1)
+        short_sha = short_sha.strip()
+        subject = subject.strip()
+        if short_sha and subject:
+            commits.append(RepoCommit(short_sha=short_sha, subject=subject))
+    return tuple(commits)
+
+
 def _success_outcomes(
     plan: DevUpdatePlan,
     root_diffstats: dict[str, RepoDiffStat | None],
+    root_commits: dict[str, RepoCommitLog | None],
 ) -> tuple[DevUpdateOutcome, ...]:
     outcomes = [
         DevUpdateOutcome(
@@ -475,6 +564,7 @@ def _success_outcomes(
             new_version=pkg.latest_version,
             git_root=pkg.git_root,
             diffstat=root_diffstats.get(pkg.git_root) if pkg.git_root else None,
+            commits=root_commits.get(pkg.git_root) if pkg.git_root else None,
         )
         for pkg in plan.actionable
     ]

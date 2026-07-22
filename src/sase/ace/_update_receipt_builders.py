@@ -7,10 +7,12 @@ from collections.abc import Iterable
 from dataclasses import replace
 
 from sase.ace._update_receipt_models import (
+    MAX_COMMIT_GROUPS,
     MAX_PLUGIN_LINES,
     MAX_PROVIDER_LINES,
     ProviderUpdateReceiptResult,
     ProviderReceiptStatus,
+    RepoCommitGroup,
     ReceiptKind,
     UpdateToastReceipt,
     UpdateVersionTransition,
@@ -126,6 +128,7 @@ def _build_dev_receipt(
             and outcome.record.role != "plugin"
         )
     )
+    commit_groups, commit_group_overflow = _commit_groups_from_dev_outcomes(updated)
     if primary is None and not plugins and dependency_count == 0:
         return None
     return UpdateToastReceipt(
@@ -136,6 +139,8 @@ def _build_dev_receipt(
         plugin_overflow=plugin_overflow,
         plugin_overflow_diffstat=plugin_overflow_diffstat,
         dependency_count=dependency_count,
+        commit_groups=commit_groups,
+        commit_group_overflow=commit_group_overflow,
     )
 
 
@@ -189,6 +194,7 @@ def _build_combined_receipt(
             and outcome.record.role != "plugin"
         )
     ) + sum(1 for outcome in managed_updated if outcome.role == "dependency")
+    commit_groups, commit_group_overflow = _commit_groups_from_dev_outcomes(dev_updated)
     if primary is None and not plugins and dependency_count == 0:
         return None
     return UpdateToastReceipt(
@@ -203,6 +209,8 @@ def _build_combined_receipt(
         plugin_overflow=overflow,
         plugin_overflow_diffstat=overflow_diffstat,
         dependency_count=dependency_count,
+        commit_groups=commit_groups,
+        commit_group_overflow=commit_group_overflow,
     )
 
 
@@ -325,6 +333,44 @@ def _transition_from_dev_outcome(outcome: DevUpdateOutcome) -> UpdateVersionTran
         new=outcome.new_version,
         diffstat=outcome.diffstat,
     )
+
+
+def _commit_groups_from_dev_outcomes(
+    updated_outcomes: Iterable[DevUpdateOutcome],
+) -> tuple[tuple[RepoCommitGroup, ...], int]:
+    representatives: list[DevUpdateOutcome] = []
+    seen_roots: set[str] = set()
+    for outcome in updated_outcomes:
+        commits = outcome.commits
+        git_root = outcome.git_root
+        if (
+            commits is None
+            or commits.total <= 0
+            or git_root is None
+            or git_root in seen_roots
+        ):
+            continue
+        seen_roots.add(git_root)
+        representatives.append(outcome)
+
+    representatives.sort(key=_commit_group_sort_key)
+    groups = tuple(
+        RepoCommitGroup(label=outcome.record.name, commits=outcome.commits)
+        for outcome in representatives
+        if outcome.commits is not None
+    )
+    capped = groups[:MAX_COMMIT_GROUPS]
+    return capped, max(0, len(groups) - len(capped))
+
+
+def _commit_group_sort_key(outcome: DevUpdateOutcome) -> int:
+    if normalize_distribution_name(outcome.record.name) == _PRIMARY_DIST_KEY:
+        return 0
+    if outcome.record.role == "core":
+        return 1
+    if outcome.record.role == "plugin":
+        return 2
+    return 3
 
 
 def _build_plugin_install_receipt(

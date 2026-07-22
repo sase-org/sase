@@ -92,6 +92,8 @@ ace:
     startup_toast_max_commits: 20
     post_update_toast: true
     post_update_toast_diffstat: true
+    post_update_toast_commits: true
+    post_update_toast_max_commits: 5
     indicator: true
     check_interval_minutes: 10
     check_ttl_minutes: 10

@@ -8,20 +8,27 @@ from unittest.mock import patch
 
 from sase.ace.update_receipt import (
     _ProviderUpdateReceiptResult,
+    RepoCommitGroup,
     UpdateToastReceipt,
     UpdateVersionTransition,
     build_update_receipt,
     read_and_clear_pending_update_toast,
     write_pending_update_toast,
 )
+from sase.ace._update_receipt_codec import receipt_from_json
 from sase.ace.comprehensive_update import (
     ComprehensiveSaseUpdateResult,
     ComprehensiveUpdateResult,
     SaseUpdateResultStatus,
 )
 from sase.agent_clis.models import AgentCliUpdateResult, UpdateResultStatus
-from sase.dev_update.models import DevUpdateOutcome, DevUpdateResult
-from sase.dev_update.models import RepoDiffStat
+from sase.dev_update.models import (
+    DevUpdateOutcome,
+    DevUpdateResult,
+    RepoCommit,
+    RepoCommitLog,
+    RepoDiffStat,
+)
 from sase.main.update_types import CombinedUpdateResult
 from sase.plugins.operations import (
     InstallOutcome,
@@ -99,6 +106,32 @@ def test_pending_update_toast_round_trips_optional_diffstats(
             deletions=0,
         ),
         dependency_count=2,
+    )
+    receipt_file = tmp_path / "pending.json"
+
+    with patch("sase.ace.update_receipt._PENDING_UPDATE_TOAST_FILE", receipt_file):
+        assert write_pending_update_toast(receipt) is True
+        assert read_and_clear_pending_update_toast(now=101.0) == receipt
+
+
+def test_pending_update_toast_round_trips_commit_groups(tmp_path: Path) -> None:
+    receipt = UpdateToastReceipt(
+        kind="dev",
+        created_at=100.0,
+        primary=UpdateVersionTransition("sase", "0.5.0", "0.6.0"),
+        commit_groups=(
+            RepoCommitGroup(
+                label="sase",
+                commits=RepoCommitLog(
+                    total=3,
+                    commits=(
+                        RepoCommit("abc1234", "feat: grouped commit toast"),
+                        RepoCommit("def5678", "fix: preserve provider results"),
+                    ),
+                ),
+            ),
+        ),
+        commit_group_overflow=2,
     )
     receipt_file = tmp_path / "pending.json"
 
@@ -248,6 +281,76 @@ def test_legacy_pending_update_toast_without_diffstats_decodes(
     assert receipt.primary.diffstat is None
     assert receipt.plugins[0].diffstat is None
     assert receipt.plugin_overflow_diffstat is None
+
+
+def test_format_two_receipt_still_decodes_provider_results(tmp_path: Path) -> None:
+    receipt_file = tmp_path / "pending.json"
+    receipt_file.write_text(
+        json.dumps(
+            {
+                "format": 2,
+                "created_at": 100.0,
+                "kind": "dev",
+                "primary": {"name": "sase", "old": "0.5.0", "new": "0.6.0"},
+                "plugins": [],
+                "plugin_overflow": 0,
+                "dependency_count": 0,
+                "provider_results": [
+                    {
+                        "name": "codex",
+                        "display_name": "Codex CLI",
+                        "status": "updated",
+                        "old_version": "1.0.0",
+                        "new_version": "1.1.0",
+                    }
+                ],
+                "provider_overflow": 0,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with patch("sase.ace.update_receipt._PENDING_UPDATE_TOAST_FILE", receipt_file):
+        receipt = read_and_clear_pending_update_toast(now=101.0)
+
+    assert receipt is not None
+    assert receipt.commit_groups == ()
+    assert receipt.provider_results == (
+        _ProviderUpdateReceiptResult(
+            name="codex",
+            display_name="Codex CLI",
+            status="updated",
+            old_version="1.0.0",
+            new_version="1.1.0",
+        ),
+    )
+
+
+def test_malformed_commit_group_rejects_receipt() -> None:
+    assert (
+        receipt_from_json(
+            {
+                "format": 3,
+                "created_at": 100.0,
+                "kind": "dev",
+                "primary": {"name": "sase", "old": "0.5.0", "new": "0.6.0"},
+                "plugins": [],
+                "plugin_overflow": 0,
+                "dependency_count": 0,
+                "commit_groups": [
+                    {
+                        "label": "sase",
+                        "total": 1,
+                        "commits": [{"short_sha": "abc1234", "subject": ""}],
+                    }
+                ],
+                "commit_group_overflow": 0,
+                "provider_results": [],
+                "provider_overflow": 0,
+            }
+        )
+        is None
+    )
 
 
 def test_missing_pending_update_toast_returns_none(tmp_path: Path) -> None:
@@ -418,6 +521,43 @@ def test_build_combined_core_only_receipt_is_managed_dependency_transition() -> 
     )
 
 
+def test_build_combined_receipt_carries_dev_commit_groups() -> None:
+    result = CombinedUpdateResult(
+        dev_result=DevUpdateResult(
+            changed=True,
+            outcomes=(
+                DevUpdateOutcome(
+                    record=_record("sase", role="host"),
+                    status="updated",
+                    reason="behind upstream by 1 commit(s)",
+                    old_version="0.5.0",
+                    new_version="0.6.0",
+                    git_root="/repo/sase",
+                    commits=RepoCommitLog(
+                        total=1,
+                        commits=(RepoCommit("abc1234", "feat: applied commits"),),
+                    ),
+                ),
+            ),
+        ),
+        managed_summary=UpdateSummary(outcomes=()),
+        elapsed=0.2,
+    )
+
+    receipt = build_update_receipt(result, created_at=123.0)
+
+    assert receipt is not None
+    assert receipt.commit_groups == (
+        RepoCommitGroup(
+            label="sase",
+            commits=RepoCommitLog(
+                total=1,
+                commits=(RepoCommit("abc1234", "feat: applied commits"),),
+            ),
+        ),
+    )
+
+
 def test_build_plugin_install_receipt_uses_added_package_version() -> None:
     plan = InstallReady(
         spec=ResolvedSpec(
@@ -557,6 +697,52 @@ def test_build_dev_update_receipt_uses_git_versions() -> None:
             ),
         ),
     )
+
+
+def test_build_dev_receipt_orders_dedupes_and_caps_commit_groups() -> None:
+    def outcome(
+        name: str,
+        role: str,
+        git_root: str,
+        short_sha: str,
+    ) -> DevUpdateOutcome:
+        return DevUpdateOutcome(
+            record=_record(name, role=role),
+            status="updated",
+            reason="behind upstream by 1 commit(s)",
+            old_version="0.1.0",
+            new_version="0.2.0",
+            git_root=git_root,
+            commits=RepoCommitLog(
+                total=1,
+                commits=(RepoCommit(short_sha, f"update {name}"),),
+            ),
+        )
+
+    result = DevUpdateResult(
+        changed=True,
+        outcomes=(
+            outcome("sase-helper", "host", "/repo/rest", "0000001"),
+            outcome("sase-plugin-a", "plugin", "/repo/a", "aaaaaaa"),
+            outcome("sase-plugin-a-shadow", "plugin", "/repo/a", "aaaaaaa"),
+            outcome("sase-core-rs", "core", "/repo/core", "ccccccc"),
+            outcome("sase", "host", "/repo/sase", "sssssss"),
+            outcome("sase-plugin-b", "plugin", "/repo/b", "bbbbbbb"),
+            outcome("sase-plugin-c", "plugin", "/repo/c", "ddddddd"),
+        ),
+    )
+
+    receipt = build_update_receipt(result, created_at=123.0)
+
+    assert receipt is not None
+    assert [group.label for group in receipt.commit_groups] == [
+        "sase",
+        "sase-core-rs",
+        "sase-plugin-a",
+        "sase-plugin-b",
+        "sase-plugin-c",
+    ]
+    assert receipt.commit_group_overflow == 1
 
 
 def test_build_dev_update_receipt_aggregates_hidden_plugin_diffstats() -> None:

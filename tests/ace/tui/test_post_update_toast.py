@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from textual.markup import escape
 
 from sase.ace import update_receipt
 from sase.ace.testing import AcePage
@@ -15,11 +16,12 @@ from sase.ace.tui.actions import post_update_toast, update_toast
 from sase.ace.tui.actions.post_update_toast import PostUpdateToastMixin
 from sase.ace.update_receipt import (
     _ProviderUpdateReceiptResult,
+    RepoCommitGroup,
     UpdateToastReceipt,
     UpdateVersionTransition,
     write_pending_update_toast,
 )
-from sase.dev_update.models import RepoDiffStat
+from sase.dev_update.models import RepoCommit, RepoCommitLog, RepoDiffStat
 from sase.updates import OutdatedComponent, UpdateStatus
 from tests.ace.tui.visual._ace_png_snapshot_helpers import patch_startup_loaders
 
@@ -72,6 +74,35 @@ def _single_repo_dev_receipt() -> UpdateToastReceipt:
             "0.6.1+43.g937278ecb",
             diffstat=RepoDiffStat(files_changed=8, insertions=171, deletions=26),
         ),
+    )
+
+
+def _commit_receipt() -> UpdateToastReceipt:
+    long_subject = "[fix] " + "x" * 80
+    return UpdateToastReceipt(
+        kind="dev",
+        created_at=time.time(),
+        primary=UpdateVersionTransition("sase", "0.5.0", "0.6.0"),
+        commit_groups=(
+            RepoCommitGroup(
+                label="sase[dev]",
+                commits=RepoCommitLog(
+                    total=3,
+                    commits=(
+                        RepoCommit("abc[123", long_subject),
+                        RepoCommit("def4567", "feat: another commit"),
+                    ),
+                ),
+            ),
+            RepoCommitGroup(
+                label="sase-core",
+                commits=RepoCommitLog(
+                    total=2,
+                    commits=(RepoCommit("7654321", "perf: faster parser"),),
+                ),
+            ),
+        ),
+        commit_group_overflow=2,
     )
 
 
@@ -152,6 +183,39 @@ def test_post_update_toast_formats_diffstats() -> None:
         "\n\n[dim]16 files changed · +2 dependencies · "
         "Reloaded into the new version.[/]"
     ) in message
+
+
+def test_post_update_toast_formats_grouped_commits_safely() -> None:
+    receipt = _commit_receipt()
+
+    message = post_update_toast._format_post_update_toast_message(
+        receipt,
+        max_commits_per_repo=1,
+    )
+
+    assert f"[bold cyan]↑ {escape('sase[dev]')}[/]" in message
+    assert f"[dim]{escape('abc[123')}[/]" in message
+    truncated = post_update_toast._truncate_commit_subject(
+        receipt.commit_groups[0].commits.commits[0].subject
+    )
+    assert escape(truncated) in message
+    assert len(truncated) == post_update_toast._COMMIT_SUBJECT_MAX
+    assert "  [dim]+2 more…[/]" in message
+    assert "  [dim]+1 more…[/]" in message
+    assert "[dim]…and 2 more repositories[/]" in message
+    assert "[dim]5 commits · Reloaded into the new version.[/]" in message
+
+
+def test_post_update_toast_commit_gate_omits_section_and_tail_count() -> None:
+    message = post_update_toast._format_post_update_toast_message(
+        _commit_receipt(),
+        show_commits=False,
+    )
+
+    assert "↑" not in message
+    assert "abc" not in message
+    assert "5 commits" not in message
+    assert "Reloaded into the new version." in message
 
 
 def test_post_update_toast_renders_provider_partial_failure_and_manual_guidance() -> (

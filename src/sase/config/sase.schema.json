@@ -494,6 +494,17 @@
               "description": "Show per-repository file and line-change stats in the post-update confirmation toast when available",
               "default": true
             },
+            "post_update_toast_commits": {
+              "type": "boolean",
+              "description": "Show applied commits grouped by repository in the post-update confirmation toast when available",
+              "default": true
+            },
+            "post_update_toast_max_commits": {
+              "type": "integer",
+              "description": "Maximum applied commit subjects to show per repository in the post-update confirmation toast",
+              "minimum": 0,
+              "default": 5
+            },
             "indicator": {
               "type": "boolean",
               "description": "Show a segmented top-bar badge while SASE core, installed plugins, or supported agent CLIs have updates available",

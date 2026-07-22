@@ -49,6 +49,26 @@ class RepoDiffStat:
 
 
 @dataclass(frozen=True)
+class RepoCommit:
+    """One commit applied to a repository during a dev update."""
+
+    short_sha: str
+    subject: str
+
+
+@dataclass(frozen=True)
+class RepoCommitLog:
+    """A capped applied-commit log plus its authoritative total count."""
+
+    total: int
+    commits: tuple[RepoCommit, ...]
+
+    @property
+    def extra(self) -> int:
+        return max(0, self.total - len(self.commits))
+
+
+@dataclass(frozen=True)
 class DevLatest:
     """Latest-dev information for one editable package."""
 
@@ -167,6 +187,7 @@ class DevUpdateOutcome:
     new_version: str | None
     git_root: str | None = None
     diffstat: RepoDiffStat | None = None
+    commits: RepoCommitLog | None = None
 
 
 @dataclass(frozen=True)

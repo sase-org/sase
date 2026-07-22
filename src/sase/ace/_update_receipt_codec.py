@@ -7,15 +7,17 @@ from typing import Any
 from sase.ace._update_receipt_models import (
     FORMAT_VERSION,
     LEGACY_FORMAT_VERSION,
+    MAX_COMMIT_GROUPS,
     MAX_PROVIDER_LINES,
     ProviderUpdateReceiptResult,
     ProviderReceiptStatus,
     ReceiptKind,
+    RepoCommitGroup,
     UpdateToastReceipt,
     UpdateVersionTransition,
 )
 from sase.agent_clis.models import UpdateResultStatus
-from sase.dev_update.models import RepoDiffStat
+from sase.dev_update.models import RepoCommit, RepoCommitLog, RepoDiffStat
 
 
 def receipt_to_json(receipt: UpdateToastReceipt) -> dict[str, Any]:
@@ -28,10 +30,25 @@ def receipt_to_json(receipt: UpdateToastReceipt) -> dict[str, Any]:
         "plugin_overflow": receipt.plugin_overflow,
         "plugin_overflow_diffstat": _diffstat_to_json(receipt.plugin_overflow_diffstat),
         "dependency_count": receipt.dependency_count,
+        "commit_groups": [
+            _commit_group_to_json(group) for group in receipt.commit_groups
+        ],
+        "commit_group_overflow": receipt.commit_group_overflow,
         "provider_results": [
             _provider_result_to_json(result) for result in receipt.provider_results
         ],
         "provider_overflow": receipt.provider_overflow,
+    }
+
+
+def _commit_group_to_json(group: RepoCommitGroup) -> dict[str, object]:
+    return {
+        "label": group.label,
+        "total": group.commits.total,
+        "commits": [
+            {"short_sha": commit.short_sha, "subject": commit.subject}
+            for commit in group.commits.commits
+        ],
     }
 
 
@@ -75,7 +92,7 @@ def receipt_from_json(payload: object) -> UpdateToastReceipt | None:
     if (
         isinstance(format_version, bool)
         or not isinstance(format_version, int)
-        or format_version not in {LEGACY_FORMAT_VERSION, FORMAT_VERSION}
+        or not LEGACY_FORMAT_VERSION <= format_version <= FORMAT_VERSION
     ):
         return None
     created_at = _float_value(payload.get("created_at"))
@@ -107,9 +124,29 @@ def receipt_from_json(payload: object) -> UpdateToastReceipt | None:
     plugin_overflow_diffstat = _diffstat_from_json(
         payload.get("plugin_overflow_diffstat")
     )
+    commit_groups: tuple[RepoCommitGroup, ...] = ()
+    commit_group_overflow = 0
+    if "commit_groups" in payload:
+        groups_payload = payload.get("commit_groups")
+        if (
+            not isinstance(groups_payload, list)
+            or len(groups_payload) > MAX_COMMIT_GROUPS
+        ):
+            return None
+        decoded_groups: list[RepoCommitGroup] = []
+        for item in groups_payload:
+            group = _commit_group_from_json(item)
+            if group is None:
+                return None
+            decoded_groups.append(group)
+        decoded_commit_overflow = _nonnegative_int(payload.get("commit_group_overflow"))
+        if decoded_commit_overflow is None:
+            return None
+        commit_groups = tuple(decoded_groups)
+        commit_group_overflow = decoded_commit_overflow
     provider_results: tuple[ProviderUpdateReceiptResult, ...] = ()
     provider_overflow = 0
-    if format_version == FORMAT_VERSION:
+    if format_version >= 2:
         provider_payload = payload.get("provider_results")
         if (
             not isinstance(provider_payload, list)
@@ -135,9 +172,45 @@ def receipt_from_json(payload: object) -> UpdateToastReceipt | None:
         plugin_overflow=plugin_overflow,
         plugin_overflow_diffstat=plugin_overflow_diffstat,
         dependency_count=dependency_count,
+        commit_groups=commit_groups,
+        commit_group_overflow=commit_group_overflow,
         provider_results=provider_results,
         provider_overflow=provider_overflow,
         format=format_version,
+    )
+
+
+def _commit_group_from_json(payload: object) -> RepoCommitGroup | None:
+    if not isinstance(payload, dict):
+        return None
+    label = payload.get("label")
+    total = _nonnegative_int(payload.get("total"))
+    commits_payload = payload.get("commits")
+    if (
+        not isinstance(label, str)
+        or not label
+        or total is None
+        or not isinstance(commits_payload, list)
+        or len(commits_payload) > total
+    ):
+        return None
+    commits: list[RepoCommit] = []
+    for item in commits_payload:
+        if not isinstance(item, dict):
+            return None
+        short_sha = item.get("short_sha")
+        subject = item.get("subject")
+        if (
+            not isinstance(short_sha, str)
+            or not short_sha
+            or not isinstance(subject, str)
+            or not subject
+        ):
+            return None
+        commits.append(RepoCommit(short_sha=short_sha, subject=subject))
+    return RepoCommitGroup(
+        label=label,
+        commits=RepoCommitLog(total=total, commits=tuple(commits)),
     )
 
 
