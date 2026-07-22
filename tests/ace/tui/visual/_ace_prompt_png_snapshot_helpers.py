@@ -94,6 +94,16 @@ CODEBLOCK_HIGHLIGHT_STACK = (
     "```"
 )
 
+BULLET_HIGHLIGHT_SOLO = (
+    "Release checklist for the prompt polish:\n"
+    "- Draft the changelog and tag the #gh:sase milestone\n"
+    "- Re-run the {% if flaky %}visual{% endif %} snapshots\n"
+    "    - Confirm the committed gold renders match\n"
+    "    - Capture the before and after screenshots\n"
+    "- Keep inline dashes - like this - plainly uncolored\n"
+    "Then hand off to the release owner."
+)
+
 TODO_RESTORED_PROMPT = (
     "# Release readiness draft\n"
     "\n"

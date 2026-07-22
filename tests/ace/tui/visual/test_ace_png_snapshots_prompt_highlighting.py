@@ -14,6 +14,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import (
+    BULLET_HIGHLIGHT_SOLO,
     CODEBLOCK_HIGHLIGHT_SOLO,
     CODEBLOCK_HIGHLIGHT_STACK,
     SEARCH_PROMPT,
@@ -90,6 +91,41 @@ async def test_prompt_todo_stack_png_snapshot(
             "prompt_todo_stack_120x40",
             title="ACE prompt TODO annotations — inactive pane count",
         )
+
+
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "prompt_bullet_highlight_solo_dark_120x40",
+            "ACE prompt input — bullet-dash highlighting, dark theme",
+        ),
+        (
+            "textual-light",
+            "prompt_bullet_highlight_solo_light_120x40",
+            "ACE prompt input — bullet-dash highlighting, light theme",
+        ),
+    ],
+)
+async def test_prompt_bullet_highlight_solo_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        page.app.theme = theme
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+        await mount_prompt_bar(page, BULLET_HIGHLIGHT_SOLO)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 
 
 async def test_prompt_search_highlight_png_snapshot(
