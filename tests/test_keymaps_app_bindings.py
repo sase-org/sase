@@ -199,7 +199,7 @@ def test_h_binding_metadata_describes_navigation_and_contextual_collapse() -> No
     fallback_by_action = {binding.action: binding for binding in DEFAULT_BINDINGS}
 
     lower = "Parent / Collapse or Jump Panel/Fold"
-    upper = "Collapse Houses/Groups/Panel / Compact Tools / All"
+    upper = "Collapse Houses/Clans/Groups/Panel / Compact Tools / All"
     zoom = "Zoom Detail / Only/Restore Panels"
     assert runtime_by_action["hooks_or_collapse"].description == lower
     assert fallback_by_action["hooks_or_collapse"].description == lower

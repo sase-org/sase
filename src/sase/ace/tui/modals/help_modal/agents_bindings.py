@@ -154,7 +154,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.hooks_or_collapse_all),
-                    "Then clan/group; selected panel groups/panel",
+                    "Then clan/group; panel clans/groups/panel",
                 ),
                 (
                     d(a.hooks_or_collapse_all),

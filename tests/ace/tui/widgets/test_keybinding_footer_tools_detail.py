@@ -88,6 +88,17 @@ def test_footer_selected_panel_advertises_next_collapse_ladder_step() -> None:
             panel_focused=True,
             panel_collapsed=False,
             house_collapse_available=True,
+            clan_collapse_available=True,
+            group_collapse_available=True,
+        )
+    )
+    clans = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            panel_collapsed=False,
+            clan_collapse_available=True,
+            group_collapse_available=True,
         )
     )
     group = _labels(
@@ -122,6 +133,8 @@ def test_footer_selected_panel_advertises_next_collapse_ladder_step() -> None:
     )
 
     assert ("H", "collapse houses") in houses
+    assert ("H", "collapse clans") in clans
+    assert ("H", "collapse group") not in clans
     assert ("H", "collapse group") in group
     assert ("h", "collapse panel") in terminal
     assert not any(key == "H" for key, _label in terminal)
@@ -175,6 +188,23 @@ def test_footer_panel_isolation_uses_custom_zoom_action_key() -> None:
     assert ("<f3>", "collapse houses") in bindings
 
 
+def test_footer_selected_panel_clan_rung_uses_custom_collapse_action_key() -> None:
+    footer = KeybindingFooter()
+    footer.set_keymap_registry(
+        load_keymap_registry({"keymaps": {"app": {"hooks_or_collapse_all": "f3"}}})
+    )
+
+    bindings = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            clan_collapse_available=True,
+        )
+    )
+
+    assert ("<f3>", "collapse clans") in bindings
+
+
 def test_footer_left_navigation_and_collapse_target_labels() -> None:
     footer = KeybindingFooter()
 
@@ -224,7 +254,17 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
         footer._compute_agent_bindings(
             None,
             house_collapse_available=True,
+            clan_collapse_available=True,
             structural_collapse_kind="clan",
+            group_collapse_available=True,
+        )
+    )
+    panel_clan_collapse = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            clan_collapse_available=True,
+            structural_collapse_kind="family",
             group_collapse_available=True,
         )
     )
@@ -247,6 +287,9 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     assert ("H", "collapse houses") in house_collapse
     assert ("H", "collapse clan") not in house_collapse
     assert ("H", "collapse group") not in house_collapse
+    assert ("H", "collapse clans") in panel_clan_collapse
+    assert ("H", "collapse family") not in panel_clan_collapse
+    assert ("H", "collapse group") not in panel_clan_collapse
     assert ("H", "collapse group") in group_collapse
 
 

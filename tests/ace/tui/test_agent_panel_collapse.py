@@ -16,12 +16,13 @@ from sase.ace.tui.actions.navigation._entry_jump_agents import (
     EntryJumpAgentHistoryMixin,
 )
 from sase.ace.tui.actions.navigation._entry_jump_mode import EntryJumpModeMixin
+from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_panel_index import build_agent_panel_index
 from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
-from sase.ace.tui.models.fold_state import FoldStateManager
+from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
 
 
 class _StubApp(
@@ -544,13 +545,36 @@ def test_capital_z_can_leave_no_tribe_panel_as_selected_survivor() -> None:
     ]
 
 
-def test_capital_h_walks_selected_panel_groups_then_collapses_panel() -> None:
-    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
-    app.current_idx = 2
-    remembered = ("agent", 2)
+def test_capital_h_walks_selected_panel_clans_groups_then_collapses_panel() -> None:
+    agents = _multi_panel_agents()
+    clan_member = agents[1]
+    clan_member.agent_clan = "toobig-g"
+    clan_member.agent_clan_generation = "generation"
+    agents = project_clan_tree(agents)
+    clan = next(agent for agent in agents if agent.is_clan_container)
+    clan_key = agent_fold_key(clan)
+    assert clan_key is not None
+    render_first = next(agent for agent in agents if agent.agent_name == "render-first")
+    app = _StubApp(agents, focused_key="alpha")
+    app._fold_manager.expand(clan_key)
+    app.current_idx = agents.index(render_first)
+    remembered = ("agent", app.current_idx)
     app._panel_selection_memory["alpha"] = remembered
     app._expanded_panel_focus = True
     registry = app._group_fold_registry.for_panel("alpha")
+
+    clan_target = app._resolve_focused_panel_clan_collapse_target()
+    assert clan_target is not None
+    assert clan_target.fold_keys == (clan_key,)
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
+    assert registry.snapshot() == frozenset()
+    assert app._resolve_focused_panel() is not None
+    assert app.current_idx == agents.index(render_first)
+    assert app._panel_selection_memory["alpha"] == remembered
+    assert app.refilter_kwargs == [{"refresh_content_index": False}]
 
     target = app._resolve_focused_panel_group_collapse_target()
     assert target is not None
@@ -562,11 +586,14 @@ def test_capital_h_walks_selected_panel_groups_then_collapses_panel() -> None:
     assert registry.is_collapsed(("zeta",))
     assert not registry.is_collapsed(("alpha",))
     assert app._resolve_focused_panel() is not None
-    assert app.current_idx == 2
+    assert app.current_idx == agents.index(render_first)
     assert app._panel_selection_memory["alpha"] == remembered
     assert app._panel_isolation_revert is None
     assert app.panel_fold_changes == []
-    assert app.refilter_kwargs == [{"refresh_content_index": False}]
+    assert app.refilter_kwargs == [
+        {"refresh_content_index": False},
+        {"refresh_content_index": False},
+    ]
     assert app.group_fold_changes == [("alpha", ("zeta",), True)]
 
     app.action_hooks_or_collapse_all()

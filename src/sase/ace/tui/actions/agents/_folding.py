@@ -93,6 +93,12 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                     panel_house_target
                 ):
                     return
+                panel_clan_target = self._resolve_focused_panel_clan_collapse_target()
+                if (
+                    panel_clan_target is not None
+                    and self._collapse_focused_panel_clan_folds(panel_clan_target)
+                ):
+                    return
                 panel_group_target = self._resolve_focused_panel_group_collapse_target()
                 if (
                     panel_group_target is not None

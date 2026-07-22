@@ -139,6 +139,18 @@ class AgentFooterDisplayMixin:
             if not tools_visible and callable(resolve_house_collapse):
                 house_collapse_available = resolve_house_collapse() is not None
 
+            clan_collapse_available = False
+            resolve_clan_collapse = getattr(
+                self, "_resolve_focused_panel_clan_collapse_target", None
+            )
+            if (
+                not tools_visible
+                and panel_focused
+                and not house_collapse_available
+                and callable(resolve_clan_collapse)
+            ):
+                clan_collapse_available = resolve_clan_collapse() is not None
+
             structural_collapse_kind: str | None = None
             resolve_structural_collapse = getattr(
                 self, "_resolve_agent_structural_collapse_target", None
@@ -163,6 +175,7 @@ class AgentFooterDisplayMixin:
             if (
                 not tools_visible
                 and not house_collapse_available
+                and not clan_collapse_available
                 and structural_collapse_kind is None
                 and callable(resolve_group_collapse)
             ):
@@ -179,6 +192,7 @@ class AgentFooterDisplayMixin:
                 panel_restore_armed=panel_restore_armed,
                 left_navigation_kind=left_navigation_kind,
                 house_collapse_available=house_collapse_available,
+                clan_collapse_available=clan_collapse_available,
                 structural_collapse_kind=structural_collapse_kind,
                 group_collapse_available=group_collapse_available,
                 focused_panel_key=(

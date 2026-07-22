@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from ._fold_scope import focused_panel_fold_registry, panel_fold_registry
-from ._folding_agent_tree import AgentStructuralFoldingMixin
+from ._folding_clans import AgentPanelClanFoldingMixin
 from ._folding_houses import (
     AgentHouseCollapseTarget,
     AgentPanelHouseCollapseTarget,
@@ -33,7 +33,7 @@ class _AgentPanelGroupCollapseTarget:
     group_key: GroupKey
 
 
-class AgentGroupFoldingMixin(AgentStructuralFoldingMixin):
+class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
     """Manage Agents-tab grouping-banner fold state."""
 
     _agents: list[Agent]
