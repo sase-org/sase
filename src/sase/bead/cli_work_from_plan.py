@@ -2,18 +2,33 @@
 
 from __future__ import annotations
 
-import shlex
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from rich.console import Console
 
+from sase.bead.cli_work_from_plan_helpers import (
+    build_work_plan as _build_work_plan,
+    error_with_resume as _error_with_resume,
+    is_plan_file_target,
+    linked_bead_id_if_present as _linked_bead_id_if_present,
+    neutral_gate_destination_name as _neutral_gate_destination_name,
+    ordered_agent_names as _ordered_agent_names,
+    preview_waves as _preview_waves,
+    require_linked_epic as _require_linked_epic,
+    require_matching_plan_identity as _require_matching_plan_identity,
+    require_parent_override_matches_linked as _require_parent_override_matches_linked,
+    same_path as _same_path,
+)
 from sase.bead.cli_work_from_plan_render import (
     render_created_beads as _render_created_beads,
     render_final as _render_final,
     render_parent_preview as _render_parent_preview,
     render_plan_preview as _render_plan_preview,
     render_validation_failure as _render_validation_failure,
+)
+from sase.bead.cli_work_from_plan_resume import (
+    resume_linked_epic as _resume_linked_epic_impl,
 )
 from sase.bead.cli_work_from_plan_store import (
     commit_plan_file as _commit_plan_file,
@@ -29,18 +44,8 @@ from sase.bead.cli_work_from_plan_types import (
     PlanFileWorkError,
     PlanFileWorkResult as _PlanFileWorkResult,
 )
-from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.project import BeadProject
 from sase.sdd.store import SddStore
-
-if TYPE_CHECKING:
-    from sase.bead.work import EpicWorkPlan
-
-
-def is_plan_file_target(target: str) -> bool:
-    """Return whether *target* selects plan-file rather than bead-ID mode."""
-    path = Path(target).expanduser()
-    return target.endswith(".md") or "/" in target or "\\" in target or path.is_file()
 
 
 def work_from_plan_file(
@@ -392,115 +397,6 @@ def _work_from_plan_file_locked(
     return result
 
 
-def _linked_bead_id_if_present(plan_path: Path) -> str | None:
-    if not plan_path.is_file():
-        return None
-    from sase.sdd.frontmatter import parse_frontmatter
-
-    frontmatter, _body, _had_frontmatter = parse_frontmatter(
-        plan_path.read_text(encoding="utf-8")
-    )
-    raw = frontmatter.get("bead_id")
-    if raw in (None, ""):
-        return None
-    return str(raw)
-
-
-def _neutral_gate_destination_name(source_path: Path) -> str | None:
-    """Return the durable proposal name for a neutral gate plan resource."""
-    from sase.plan_gate import original_plan_file_for_resource
-
-    original = original_plan_file_for_resource(source_path)
-    return original.name if original is not None else None
-
-
-def _same_path(left: Path, right: Path) -> bool:
-    return left.resolve(strict=False) == right.resolve(strict=False)
-
-
-def _require_matching_plan_identity(
-    source_path: Path,
-    *,
-    source_title: str,
-    archived_path: Path,
-    no_push: bool,
-) -> None:
-    """Reject a preserved archive entry belonging to a different plan."""
-    from sase.sdd.plan_tiers import normalize_plan_tier, parse_plan_frontmatter
-
-    try:
-        content = archived_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        raise _error_with_resume(
-            f"could not read existing archived plan {archived_path}: {exc}",
-            archived_path,
-            no_push=no_push,
-        ) from exc
-    frontmatter, error = parse_plan_frontmatter(content)
-    archived_tier = (
-        normalize_plan_tier(frontmatter.get("tier")) if error is None else None
-    )
-    raw_title = frontmatter.get("title") if error is None else None
-    archived_title = raw_title.strip() if isinstance(raw_title, str) else None
-    if archived_tier == "epic" and archived_title == source_title.strip():
-        return
-
-    resume = _error_with_resume(
-        (
-            f"epic plan archive collision: source {source_path} "
-            f"(tier epic, title {source_title!r}) maps to existing {archived_path} "
-            f"(tier {archived_tier or 'unknown'}, title {archived_title!r}); "
-            "the existing archive belongs to a different plan"
-        ),
-        archived_path,
-        no_push=no_push,
-    )
-    raise resume
-
-
-def _require_linked_epic(
-    location: Any,
-    epic_id: str,
-    plan_path: Path,
-) -> Issue:
-    if not location.beads_dir.is_dir():
-        raise PlanFileWorkError(
-            _stale_link_message(epic_id, plan_path),
-        )
-    try:
-        with BeadProject(
-            location.root,
-            beads_dirname=location.beads_dirname,
-        ) as project:
-            issue = project.show(epic_id)
-    except (FileNotFoundError, KeyError) as exc:
-        raise PlanFileWorkError(_stale_link_message(epic_id, plan_path)) from exc
-    if issue.issue_type is not IssueType.PLAN or issue.tier is not BeadTier.EPIC:
-        raise PlanFileWorkError(
-            f"plan {plan_path} links bead_id {epic_id}, but that bead is not an "
-            "epic plan bead; remove the stale bead_id or restore the correct bead"
-        )
-    return issue
-
-
-def _require_parent_override_matches_linked(
-    issue: Issue,
-    parent_id: str | None,
-    *,
-    parent_override: str | None,
-    plan_path: Path,
-) -> None:
-    """Reject a create-time parent override when a linked epic already exists."""
-    if parent_override is None or issue.parent_id == parent_id:
-        return
-    actual = issue.parent_id or "top-level"
-    requested = parent_id or "top-level"
-    raise PlanFileWorkError(
-        f"plan {plan_path} already links epic {issue.id} under {actual}; "
-        f"--parent requested {requested}, but existing beads cannot be reparented"
-    )
-
-
 def _resume_linked_epic(
     location: Any,
     *,
@@ -513,99 +409,20 @@ def _resume_linked_epic(
     render: bool,
     waves: tuple[tuple[str, ...], ...],
 ) -> _PlanFileWorkResult:
-    from sase.bead.cli_work_handler import BeadWorkError, launch_epic_bead_work
-
-    try:
-        with BeadProject(
-            location.root,
-            beads_dirname=location.beads_dirname,
-        ) as project:
-            try:
-                issue = project.show(epic_id)
-            except KeyError as exc:
-                raise PlanFileWorkError(
-                    _stale_link_message(epic_id, archived_path)
-                ) from exc
-            if (
-                issue.issue_type is not IssueType.PLAN
-                or issue.tier is not BeadTier.EPIC
-            ):
-                raise PlanFileWorkError(
-                    f"plan {archived_path} links bead_id {epic_id}, but that bead "
-                    "is not an epic plan bead; remove the stale bead_id or restore "
-                    "the correct bead"
-                )
-            phases = project.get_epic_children(epic_id)
-            work_plan = _build_work_plan(project, epic_id)
-            launched_names = _ordered_agent_names(work_plan)
-            if render:
-                Console().print(f"[cyan]↻[/cyan] Epic bead       resuming {epic_id}")
-                _render_created_beads(issue, phases, work_plan, archived_path)
-
-            def publish_resumed_graph(
-                active_project: BeadProject,
-                active_epic_id: str,
-            ) -> None:
-                _checkpoint_and_publish_graph(
-                    store=store,
-                    project=active_project,
-                    epic_id=active_epic_id,
-                    no_push=no_push,
-                    render=render,
-                )
-
-            launched = launch_epic_bead_work(
-                project,
-                epic_id,
-                dry_run=False,
-                yes=yes,
-                no_push=no_push,
-                defer_push=True,
-                before_agent_launch=publish_resumed_graph,
-            )
-    except PlanFileWorkError:
-        raise
-    except BeadWorkError as exc:
-        detail = str(exc)
-        if exc.graph_published and not exc.agents_spawned:
-            try:
-                _publish_epic_rollback(store)
-            except Exception as rollback_exc:
-                detail += f"; rollback publication also failed: {rollback_exc}"
-        elif exc.graph_published and exc.agents_spawned:
-            _push_store_after_launch(store, no_push=no_push)
-        raise _error_with_resume(
-            detail,
-            archived_path,
-            no_push=no_push and not exc.retry_requires_push,
-        ) from exc
-    except Exception as exc:
-        _push_store_after_launch(store, no_push=no_push)
-        raise _error_with_resume(str(exc), archived_path, no_push=no_push) from exc
-
-    if launched:
-        _push_store_after_launch(store, no_push=no_push)
-    result = _PlanFileWorkResult(
-        archived_plan_path=archived_path,
-        authored_phase_ids=authored_phase_ids,
-        dry_run=False,
+    return _resume_linked_epic_impl(
+        location,
+        store=store,
+        archived_path=archived_path,
         epic_id=epic_id,
-        parent_id=issue.parent_id,
-        phase_bead_ids=tuple(phase.id for phase in phases),
-        launched_agent_names=launched_names if launched else (),
-        launched=launched,
-        resumed=True,
+        authored_phase_ids=authored_phase_ids,
+        yes=yes,
+        no_push=no_push,
+        render=render,
         waves=waves,
+        checkpoint_and_publish_graph=_checkpoint_and_publish_graph,
+        publish_epic_rollback=_publish_epic_rollback,
+        push_store_after_launch=_push_store_after_launch,
     )
-    if render:
-        _render_final(result)
-    return result
-
-
-def _build_work_plan(project: BeadProject, epic_id: str) -> EpicWorkPlan:
-    from sase.bead.work import build_epic_work_plan_from_beads_dir
-
-    return build_epic_work_plan_from_beads_dir(project.beads_dir, epic_id)
 
 
 def _checkpoint_and_publish_graph(
@@ -645,57 +462,6 @@ def _checkpoint_and_publish_graph(
     if render:
         destination = "remote" if published else "shared authoritative store"
         Console().print(f"[green]✓[/green] Graph published {epic_id} · {destination}")
-
-
-def _ordered_agent_names(plan: EpicWorkPlan) -> tuple[str, ...]:
-    return tuple(
-        [assignment.agent_name for wave in plan.waves for assignment in wave]
-        + [plan.land_agent_name]
-    )
-
-
-def _preview_waves(plan: Any) -> tuple[tuple[str, ...], ...]:
-    remaining = {phase.id: set(phase.depends_on) for phase in plan.phases}
-    order = [phase.id for phase in plan.phases]
-    completed: set[str] = set()
-    waves: list[tuple[str, ...]] = []
-    while remaining:
-        wave = tuple(
-            phase_id
-            for phase_id in order
-            if phase_id in remaining and remaining[phase_id] <= completed
-        )
-        if not wave:
-            # Strict validation rejects cycles. Keep this defensive boundary
-            # actionable if the Rust wire contract ever regresses.
-            raise PlanFileWorkError("validated epic plan contains a dependency cycle")
-        waves.append(wave)
-        completed.update(wave)
-        for phase_id in wave:
-            del remaining[phase_id]
-    return tuple(waves)
-
-
-def _error_with_resume(
-    message: str,
-    archived_path: Path,
-    *,
-    no_push: bool,
-    parent_override: str | None = None,
-) -> PlanFileWorkError:
-    command = f"sase bead work {shlex.quote(str(archived_path))} --yes"
-    if no_push:
-        command += " --no-push"
-    if parent_override is not None:
-        command += f" --parent {shlex.quote(parent_override)}"
-    return PlanFileWorkError(message, resume_command=command)
-
-
-def _stale_link_message(epic_id: str, plan_path: Path) -> str:
-    return (
-        f"plan {plan_path} links bead_id {epic_id}, but that bead is missing; "
-        "remove the stale bead_id or restore the bead store"
-    )
 
 
 __all__ = [
