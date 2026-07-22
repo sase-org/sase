@@ -27,6 +27,7 @@ class _Harness(AxeMixin):
         self._load_calls = 0
         self._axe_worker = cast(Worker[Any], object())
         self._axe_worker_operation: AxeWorkerOperation | None = operation
+        self._axe_config_restart_saved_path: str | None = None
         self._transition_state = {
             "starting": False,
             "restarting": operation == "restart",
@@ -138,3 +139,21 @@ def test_failed_restart_completion_clears_transient_state() -> None:
         "stopping": False,
     }
     assert app.timers == []
+
+
+def test_config_restart_failure_keeps_saved_write_truthful() -> None:
+    app = _Harness([False], operation="restart")
+    app._axe_config_restart_saved_path = "/tmp/sase.yml"
+
+    app._on_axe_worker_done(
+        _worker((False, "Failed to restart axe")),
+        WorkerState.SUCCESS,
+    )
+
+    assert app.notifications == [
+        (
+            "Config saved to /tmp/sase.yml, but AXE restart failed: Failed to restart axe",
+            "error",
+        )
+    ]
+    assert app._load_calls == 1

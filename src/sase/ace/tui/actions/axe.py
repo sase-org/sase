@@ -22,6 +22,7 @@ from ..bgcmd import BackgroundCommandInfo, clear_slot_output
 from ..exit_action import AceExitAction
 from .axe_bgcmd import AxeBgCmdMixin
 from .axe_chop_run import AxeChopRunMixin
+from .axe_config_actions import AxeConfigActionsMixin
 from .axe_display import AxeDisplayMixin
 
 if TYPE_CHECKING:
@@ -41,7 +42,7 @@ AxeWorkerOperation = Literal["start", "stop", "restart"]
 _POST_AXE_WORKER_STATUS_REPOLL_DELAYS = (0.25, 0.75, 1.5, 3.0)
 
 
-class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
+class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
     """Mixin providing axe daemon control and display methods."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
@@ -62,6 +63,7 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
     _keymap_registry: KeymapRegistry
     _axe_worker: Worker[Any] | None
     _axe_worker_operation: AxeWorkerOperation | None
+    _axe_config_restart_saved_path: str | None
 
     # Background command state
     _axe_current_view: AxeViewType
@@ -361,6 +363,8 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
     def _on_axe_worker_done(self, worker: Worker[Any], state: WorkerState) -> None:
         """Handle axe start/stop worker completion."""
         operation = self._axe_worker_operation
+        saved_path = getattr(self, "_axe_config_restart_saved_path", None)
+        self._axe_config_restart_saved_path = None
         self._axe_worker = None
         self._axe_worker_operation = None
         worker_succeeded = False
@@ -369,12 +373,27 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
             success, message = worker.result
             worker_succeeded = success
             if not success:
+                if saved_path:
+                    message = (
+                        f"Config saved to {saved_path}, but AXE restart failed: "
+                        f"{message}"
+                    )
                 self.notify(message, severity="error")  # type: ignore[attr-defined]
+            elif saved_path:
+                self.notify(f"Config saved to {saved_path}; AXE restarted")  # type: ignore[attr-defined]
         elif state == WorkerState.ERROR:
             error_msg = str(worker.error) if worker.error else "Unknown error"
-            self.notify(f"Axe operation failed: {error_msg}", severity="error")  # type: ignore[attr-defined]
+            message = f"Axe operation failed: {error_msg}"
+            if saved_path:
+                message = (
+                    f"Config saved to {saved_path}, but AXE restart failed: {error_msg}"
+                )
+            self.notify(message, severity="error")  # type: ignore[attr-defined]
 
-        self._load_axe_status()
+        if saved_path:
+            self._schedule_axe_async_refresh()
+        else:
+            self._load_axe_status()
         self._clear_axe_transition_flags()
         if (
             worker_succeeded

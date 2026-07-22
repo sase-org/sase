@@ -66,6 +66,10 @@ class _FakeAxeEditApp(AgentPanelDetailMixin, AxeChopRunMixin):
         self.notifications: list[tuple[str, str]] = []
         self.suspend_recorder = _SuspendRecorder()
         self.derive_calls = 0
+        self.config_edit_calls = 0
+
+    def _open_selected_axe_entry_editor(self) -> None:
+        self.config_edit_calls += 1
 
     def _derive_axe_view_from_selection(self) -> None:
         self.derive_calls += 1
@@ -111,7 +115,7 @@ def _write_log(run_id: str, content: str = "output\n") -> Path:
     return path
 
 
-def test_edit_spec_on_axe_chop_opens_newest_run_log(tmp_path: Path) -> None:
+def test_edit_panel_on_axe_chop_opens_newest_run_log(tmp_path: Path) -> None:
     app = _FakeAxeEditApp(_make_runs("new", "old"))
 
     with (
@@ -121,7 +125,7 @@ def test_edit_spec_on_axe_chop_opens_newest_run_log(tmp_path: Path) -> None:
     ):
         newest_log = _write_log("new")
         _write_log("old")
-        app.action_edit_spec()
+        app.action_edit_panel()
 
     mock_run.assert_called_once_with(["test-editor", str(newest_log)], check=False)
     assert app.suspend_recorder.entered_count == 1
@@ -129,7 +133,15 @@ def test_edit_spec_on_axe_chop_opens_newest_run_log(tmp_path: Path) -> None:
     assert app.notifications == []
 
 
-def test_edit_spec_on_axe_chop_opens_offset_selected_run_log(
+def test_edit_spec_on_axe_dispatches_to_config_editor() -> None:
+    app = _FakeAxeEditApp(_make_runs("new"))
+
+    app.action_edit_spec()
+
+    assert app.config_edit_calls == 1
+
+
+def test_edit_panel_on_axe_chop_opens_offset_selected_run_log(
     tmp_path: Path,
 ) -> None:
     app = _FakeAxeEditApp(_make_runs("new", "old"))
@@ -142,14 +154,14 @@ def test_edit_spec_on_axe_chop_opens_offset_selected_run_log(
     ):
         _write_log("new")
         old_log = _write_log("old")
-        app.action_edit_spec()
+        app.action_edit_panel()
 
     mock_run.assert_called_once_with(["test-editor", str(old_log)], check=False)
     assert app.suspend_recorder.entered_count == 1
     assert app.notifications == []
 
 
-def test_edit_spec_on_axe_non_chop_row_warns_without_crashing(
+def test_edit_panel_on_axe_non_chop_row_warns_without_crashing(
     tmp_path: Path,
 ) -> None:
     app = _FakeAxeEditApp(_make_runs("new"))
@@ -159,33 +171,33 @@ def test_edit_spec_on_axe_non_chop_row_warns_without_crashing(
         _patched_axe_state(tmp_path),
         patch("sase.ace.tui.actions.axe_chop_run.subprocess.run") as mock_run,
     ):
-        app.action_edit_spec()
+        app.action_edit_panel()
 
     mock_run.assert_not_called()
     assert app.notifications == [("No chop output selected", "warning")]
 
 
-def test_edit_spec_on_axe_chop_with_no_runs_warns(tmp_path: Path) -> None:
+def test_edit_panel_on_axe_chop_with_no_runs_warns(tmp_path: Path) -> None:
     app = _FakeAxeEditApp(_make_runs())
 
     with (
         _patched_axe_state(tmp_path),
         patch("sase.ace.tui.actions.axe_chop_run.subprocess.run") as mock_run,
     ):
-        app.action_edit_spec()
+        app.action_edit_panel()
 
     mock_run.assert_not_called()
     assert app.notifications == [("No runs recorded for chop 'fast'", "warning")]
 
 
-def test_edit_spec_on_axe_missing_log_warns(tmp_path: Path) -> None:
+def test_edit_panel_on_axe_missing_log_warns(tmp_path: Path) -> None:
     app = _FakeAxeEditApp(_make_runs("new"))
 
     with (
         _patched_axe_state(tmp_path),
         patch("sase.ace.tui.actions.axe_chop_run.subprocess.run") as mock_run,
     ):
-        app.action_edit_spec()
+        app.action_edit_panel()
 
     mock_run.assert_not_called()
     assert app.notifications == [("No output log found for chop 'fast'", "warning")]

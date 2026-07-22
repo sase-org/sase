@@ -335,6 +335,10 @@ class AceApp(
             )
         ):
             return False
+        if action == "add_axe_item":
+            return self.current_tab == "axe"
+        if action == "open_artifact_files" and self.current_tab != "agents":
+            return False
         from .actions.artifact_bugs import BUG_ARTIFACT_ACTIONS
         from .actions.artifacts import (
             COMMITS_ARTIFACT_ACTIONS,

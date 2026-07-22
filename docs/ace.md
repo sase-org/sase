@@ -1152,7 +1152,7 @@ The Axe sidebar renders three row types so the operational tree reads at a glanc
   `[·]` running/error/idle marker, the lumberjack name, and an optional compact `Nc / Ne` cycles/errors chip at the end.
 - **Chop** rows are child rows indented under their parent with a `  └─` tree connector, a per-run status icon (`✓`
   success, `!` failure/timeout, `?` missing script, `●` running, `*` agent-launched, `·` no runs), and the chop name in
-  a dim-gold child hue.
+  a dim-gold child hue. Disabled chops remain visible with a quiet `disabled` chip but cannot be run manually.
 - **Background command** rows (run via `!!`) live below the lumberjack tree, separated by a dim divider line when both
   groups are present, and use a distinct command/slot badge so they cannot be mistaken for scheduled AXE work.
 
@@ -1194,13 +1194,21 @@ numerical identity.
 
 ### Commands
 
-| Key | Action                                                                                    |
-| --- | ----------------------------------------------------------------------------------------- |
-| `+` | Run agent                                                                                 |
-| `r` | Run selected chop manually, or re-run the focused completed background command (`!!`) row |
-| `x` | Start / stop axe (or kill the focused background command)                                 |
-| `X` | Clear output                                                                              |
-| `/` | Edit the current Axe query                                                                |
+| Key | Action                                                                                               |
+| --- | ---------------------------------------------------------------------------------------------------- |
+| `a` | Add a lumberjack, or add a chop under the selected lumberjack                                        |
+| `e` | Edit the selected lumberjack or chop configuration                                                   |
+| `E` | Open the selected recorded chop output in `$EDITOR`                                                  |
+| `+` | Run agent                                                                                            |
+| `r` | Run an enabled selected chop manually, or re-run the focused completed background command (`!!`) row |
+| `x` | Start / stop axe (or kill the focused background command)                                            |
+| `X` | Clear output                                                                                         |
+| `/` | Edit the current Axe query                                                                           |
+
+The `a` flow discovers installed `sase_chop_*` executables and also accepts a custom executable. Both add and edit show
+an exact effective before/after preview and a source-file diff before writing. Editing a generated chop row edits its
+immutable base chop and warns that every generated instance is affected. When AXE is running, the editor offers restart
+or save-only behavior; save-only leaves the current daemon configuration active until the next restart.
 
 ### Leader Mode (`,` prefix)
 

@@ -7,7 +7,7 @@ that the render layer paints from.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.axe.state import (
     AxeMetrics,
@@ -114,6 +114,7 @@ class AxeDisplayLoadersMixin:
     _axe_items: list[AxeItem]
     _axe_last_idx: int
     _axe_last_item_key: AxeItemKey | None
+    _axe_pending_selection: Any
     _axe_fold_manager: FoldStateManager
     # Caches populated by the async collector so navigation paints without I/O.
     _axe_lumberjack_statuses: dict[str, LumberjackStatus | None]
@@ -302,7 +303,20 @@ class AxeDisplayLoadersMixin:
             description = existing.description if existing is not None else ""
 
             def _read_chop() -> ChopSnapshot:
-                return collect_chop_snapshot(lj_name, chop_name, description)
+                if existing is None:
+                    return collect_chop_snapshot(lj_name, chop_name, description)
+                return collect_chop_snapshot(
+                    lj_name,
+                    chop_name,
+                    description,
+                    enabled=existing.enabled,
+                    script=existing.script,
+                    resolved_path=existing.resolved_path,
+                    config_status=existing.config_status,
+                    generated=existing.generated,
+                    base_chop_name=existing.base_chop_name,
+                    target_key=existing.target_key,
+                )
 
             snap = await asyncio.to_thread(_read_chop)
             # Re-read current caches/tab after the await. Selection may have
@@ -559,6 +573,16 @@ class AxeDisplayLoadersMixin:
             selected_key = self._axe_last_item_key
             prior_visual_row = self._axe_last_idx
 
+        pending = getattr(self, "_axe_pending_selection", None)
+        pending_target: AxeItemKey | None = None
+        if pending is not None:
+            if not on_axe_tab or selected_key != pending.guard_key:
+                self._axe_pending_selection = None
+            else:
+                pending_target = pending.target_key
+                if pending_target[0] == "chop":
+                    self._axe_fold_manager.expand(f"lumberjack:{pending_target[1]}")
+
         items: list[AxeItem] = []
 
         # Top-level lumberjacks, each followed by its configured chops
@@ -591,6 +615,12 @@ class AxeDisplayLoadersMixin:
             prior_visual_row=prior_visual_row,
             identity_fn=_axe_item_key,
         )
+
+        if pending_target is not None:
+            pending_idx = find_axe_item_idx(items, pending_target)
+            self._axe_pending_selection = None
+            if pending_idx is not None:
+                restored_idx = pending_idx
 
         if on_axe_tab:
             self.current_idx = restored_idx

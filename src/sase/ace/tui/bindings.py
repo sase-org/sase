@@ -53,6 +53,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("slash", "edit_query", "Edit Query", show=False),
     Binding("question_mark", "search_reverse", "Search Reverse", show=False),
     Binding("e", "edit_spec", "Edit Spec", show=False),
+    Binding("a", "add_axe_item", "Add AXE Item", show=False),
     Binding("ctrl+d", "scroll_detail_down", "Scroll Down", show=False),
     Binding("ctrl+u", "scroll_detail_up", "Scroll Up", show=False),
     Binding("ctrl+f", "scroll_prompt_down", "Scroll Prompt Down", show=False),
@@ -201,7 +202,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # File cycling (agents tab)
     Binding("ctrl+n", "next_agent_file", "Next File", show=False),
     Binding("ctrl+p", "prev_agent_file", "Prev File", show=False),
-    Binding("E", "edit_panel", "Edit Panel", show=False),
+    Binding("E", "edit_panel", "Edit Panel / Chop Output", show=False),
     # Jump to PR from agent (agents tab)
     Binding("enter", "jump_to_agent_changespec", "Go to PR", show=False),
     Binding("V", "show_agent_run_log", "Agent Run Log", show=False),

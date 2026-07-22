@@ -109,6 +109,8 @@ class AxeEntryEditorSeed:
     raw_values_by_scope: Mapping[str, Mapping[str, Any]] | None = None
     key_prefix: tuple[str, ...] = ()
     generated_warning: str | None = None
+    new_entry: bool = False
+    initial_touched: tuple[str, ...] = ()
     running: bool = False
     status: str | None = None
 
@@ -199,7 +201,11 @@ class AxeEntryEditorModal(
         self._loaded_editor_name: str | None = None
         self._init_config_transaction(
             metadata=ConfigTransactionMetadata(
-                title=f"Edit AXE {seed.identity.kind}",
+                title=(
+                    f"Add AXE {seed.identity.kind}"
+                    if seed.new_entry
+                    else f"Edit AXE {seed.identity.kind}"
+                ),
                 identity=(
                     seed.identity.lumberjack,
                     *((seed.identity.chop,) if seed.identity.chop else ()),
@@ -256,7 +262,11 @@ class AxeEntryEditorModal(
             initially_included=_INITIAL_BY_KIND[seed.identity.kind],
         )
         allowed = {*basics, *advanced}
-        return replace(form, fields=tuple(f for f in form.fields if f.name in allowed))
+        form = replace(form, fields=tuple(f for f in form.fields if f.name in allowed))
+        for name in seed.initial_touched:
+            if name in allowed:
+                form = form.set_value(name, form.field(name).draft_value)
+        return form
 
     # -- Textual composition/rendering --------------------------------
 
@@ -373,7 +383,8 @@ class AxeEntryEditorModal(
     def _title_text(self) -> Text:
         identity = self._seed.identity
         text = Text()
-        text.append(f"Edit AXE {identity.kind}  ", style="bold #D7A85B")
+        verb = "Add" if self._seed.new_entry else "Edit"
+        text.append(f"{verb} AXE {identity.kind}  ", style="bold #D7A85B")
         text.append(identity.label, style="bold #F0C674")
         return text
 

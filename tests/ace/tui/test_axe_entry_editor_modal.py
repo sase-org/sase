@@ -122,6 +122,23 @@ def test_bundled_lumberjack_and_chop_friendly_field_order() -> None:
     )
 
 
+def test_new_seed_intentionally_touches_only_declared_initial_fields() -> None:
+    modal = AxeEntryEditorModal(
+        AxeEntryEditorSeed(
+            identity=AxeEntryIdentity("chop", "checks", "new"),
+            schema=_CHOP_SCHEMA,
+            writable_scopes=(AxeWritableScope("user"),),
+            effective_values={"script": "sase_chop_new", "enabled": True},
+            new_entry=True,
+            initial_touched=("script",),
+        )
+    )
+    assert [operation.key_path for operation in modal._form.operations()] == [
+        ("script",)
+    ]
+    assert modal._title_text().plain.startswith("Add AXE chop")
+
+
 def test_scope_change_refreshes_target_contribution_without_touching_draft() -> None:
     seed = _seed()
     seed = replace(

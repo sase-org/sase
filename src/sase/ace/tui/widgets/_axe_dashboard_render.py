@@ -209,6 +209,12 @@ def render_wide_chop_table(text: Text, chops: list["ChopSnapshot"]) -> None:
         if len(name) > 18:
             name = name[:15] + "..."
         text.append(f"{name:<20}", style=CHOP_NAME_STYLE)
+        if not chop.enabled:
+            text.append(f"{'disabled':<14}", style="dim #AFAF87")
+            text.append(f"{'—':<14}", style="dim")
+            text.append(f"{'—':>10}", style="dim")
+            text.append("\n")
+            continue
         if chop.runs:
             latest = chop.runs[0].entry
             status_label, status_style = chop_status_label(latest.status)
@@ -249,9 +255,13 @@ def render_compact_chop_list(text: Text, chops: list["ChopSnapshot"]) -> None:
     for chop in chops:
         text.append("  ")
         text.append(chop.chop_name, style=CHOP_NAME_STYLE)
+        if not chop.enabled:
+            text.append("  disabled", style="dim #AFAF87")
         text.append("\n")
         text.append("    ")
-        if chop.runs:
+        if not chop.enabled:
+            text.append("not runnable", style="dim")
+        elif chop.runs:
             latest = chop.runs[0].entry
             status_label, status_style = chop_status_label(latest.status)
             text.append(status_label, style=status_style)

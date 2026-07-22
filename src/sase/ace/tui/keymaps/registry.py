@@ -29,7 +29,10 @@ _RETIRED_APP_KEYS: frozenset[str] = frozenset({"show_help"})
 # is disjoint: metadata search is Agents-only, while query editing excludes
 # Agents. Preserve duplicate validation for every other app-action pairing.
 _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
-    {frozenset({"edit_query", "search_forward"})}
+    {
+        frozenset({"edit_query", "search_forward"}),
+        frozenset({"add_axe_item", "open_artifact_files"}),
+    }
 )
 
 

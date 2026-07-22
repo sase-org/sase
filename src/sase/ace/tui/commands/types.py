@@ -221,6 +221,8 @@ class CommandContext:
     selected_axe_slot_done: bool = False
     selected_axe_slot_running: bool = False
     selected_axe_chop_run_total: int = 0
+    selected_axe_chop_enabled: bool = True
+    selected_axe_chop_running: bool = False
 
 
 CommandAvailability = Callable[["CommandSpec", CommandContext], bool]

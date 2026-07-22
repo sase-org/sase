@@ -50,6 +50,8 @@ class KeybindingBindingsMixin:
         chop_run_total: int = 0,
         chop_selected: bool = False,
         chop_selected_running: bool = False,
+        chop_selected_enabled: bool = True,
+        config_row_selected: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute entry-dependent bindings for Axe tab.
 
@@ -60,7 +62,8 @@ class KeybindingBindingsMixin:
         background command, ``run chop`` on an idle chop row, or ``running``
         on a chop whose newest run is still active (the backend refuses an
         overlapping launch, so the affordance reflects that).
-        ``e`` is available on a chop row once that chop has recorded output.
+        ``e`` edits lumberjack/base-chop configuration. ``E`` opens recorded
+        chop output and is shown only when that output exists.
         Ctrl+N / Ctrl+P surface only on chop rows with at least two recorded
         runs, since with zero or one run the keys cannot do anything useful.
         """
@@ -72,11 +75,13 @@ class KeybindingBindingsMixin:
         bindings.append((self._kd("kill_agent"), label))
         if selected_slot_done:
             bindings.append((self._kd("run_workflow"), "re-run"))
-        elif chop_selected:
+        elif chop_selected and chop_selected_enabled:
             label = "running" if chop_selected_running else "run chop"
             bindings.append((self._kd("run_workflow"), label))
+        if config_row_selected:
+            bindings.append((self._kd("edit_spec"), "edit config"))
         if chop_selected and chop_run_total >= 1:
-            bindings.append((self._kd("edit_spec"), "edit output"))
+            bindings.append((self._kd("edit_panel"), "edit output"))
         if axe_current_view == "axe" and chop_run_total >= 2:
             bindings.append(
                 (

@@ -311,6 +311,10 @@ class BgCmdList(OptionList):
 
         label_style = _CHOP_NAME_SELECTED_STYLE if is_selected else _CHOP_NAME_STYLE
         text.append(chop_name, style=label_style)
+        if snapshot is not None and not snapshot.enabled:
+            text.append("  disabled", style="dim #AFAF87")
+        elif snapshot is not None and snapshot.generated:
+            text.append("  instance", style="dim #B87333")
 
         return Option(text, id=f"chop-{lumberjack_name}-{chop_name}")
 

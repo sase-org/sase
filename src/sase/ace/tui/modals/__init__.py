@@ -16,6 +16,17 @@ from .axe_entry_editor_modal import (
     AxeWritableScope,
     axe_entry_schema,
 )
+from .axe_add_modals import (
+    AxeAddChooserModal,
+    AxeAddKind,
+    AxeLumberjackPickerModal,
+    AxeNewEntryDraft,
+    AxeNewEntryIdentityModal,
+    AxeScriptChoice,
+    AxeScriptPickerModal,
+    stable_chop_name,
+    validate_axe_new_entry_identity,
+)
 from .config_transaction import (
     ConfigTransactionApplyResult,
     ConfigTransactionConflict,
@@ -200,6 +211,15 @@ __all__ = [
     "AxeEntryMutationRequest",
     "AxeWritableScope",
     "axe_entry_schema",
+    "AxeAddChooserModal",
+    "AxeAddKind",
+    "AxeLumberjackPickerModal",
+    "AxeNewEntryDraft",
+    "AxeNewEntryIdentityModal",
+    "AxeScriptChoice",
+    "AxeScriptPickerModal",
+    "stable_chop_name",
+    "validate_axe_new_entry_identity",
     "ConfigTransactionApplyResult",
     "ConfigTransactionConflict",
     "ConfigTransactionMetadata",

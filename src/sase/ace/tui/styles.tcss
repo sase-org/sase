@@ -3207,6 +3207,87 @@ PropertyPickerModal.-generic #property-picker-footer {
     text-align: center;
 }
 
+PropertyPickerModal.-generic #axe-add-guidance,
+PropertyPickerModal.-generic #axe-parent-guidance,
+PropertyPickerModal.-generic #axe-script-guidance {
+    height: auto;
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+PropertyPickerModal.-generic #axe-add-list,
+PropertyPickerModal.-generic #axe-parent-list,
+PropertyPickerModal.-generic #axe-script-list {
+    height: auto;
+    max-height: 12;
+    scrollbar-gutter: stable;
+}
+
+PropertyPickerModal.-generic #axe-add-detail,
+PropertyPickerModal.-generic #axe-add-footer,
+PropertyPickerModal.-generic #axe-parent-detail,
+PropertyPickerModal.-generic #axe-parent-footer,
+PropertyPickerModal.-generic #axe-script-detail,
+PropertyPickerModal.-generic #axe-script-footer {
+    height: auto;
+    color: $text-muted;
+    border-top: solid #B87333;
+    margin-top: 1;
+    padding-top: 1;
+}
+
+PropertyPickerModal.-generic #axe-add-footer,
+PropertyPickerModal.-generic #axe-parent-footer,
+PropertyPickerModal.-generic #axe-script-footer {
+    text-align: center;
+}
+
+AxeNewEntryIdentityModal {
+    align: center middle;
+}
+
+AxeNewEntryIdentityModal > #axe-identity-container {
+    width: 72;
+    height: auto;
+    border: thick #D7A85B;
+    background: $surface;
+    padding: 1 2;
+}
+
+AxeNewEntryIdentityModal #axe-identity-title {
+    height: 1;
+    text-align: center;
+    text-style: bold;
+    color: #F0C674;
+    margin-bottom: 1;
+}
+
+AxeNewEntryIdentityModal #axe-identity-context,
+AxeNewEntryIdentityModal .axe-identity-label,
+AxeNewEntryIdentityModal #axe-identity-hints {
+    height: 1;
+    color: $text-muted;
+}
+
+AxeNewEntryIdentityModal #axe-identity-fields {
+    height: auto;
+}
+
+AxeNewEntryIdentityModal #axe-identity-validation {
+    height: 1;
+    color: #87D787;
+    margin-top: 1;
+}
+
+AxeNewEntryIdentityModal #axe-identity-validation.error {
+    color: #FF5F5F;
+}
+
+AxeNewEntryIdentityModal #axe-identity-hints {
+    text-align: center;
+    margin-top: 1;
+}
+
 /* Structured input / xprompts sub-form modals for the frontmatter panel */
 XPromptWriteConflictModal {
     align: center middle;

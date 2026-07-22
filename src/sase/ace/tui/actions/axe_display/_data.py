@@ -7,6 +7,7 @@ import types
 from typing import Literal
 
 from sase.axe import config as axe_config
+from sase.axe.chop_script_runner import discover_chop_script
 from sase.axe.state import (
     AxeMetrics,
     AxeStatus,
@@ -78,6 +79,18 @@ class ChopSnapshot:
     chop_name: str
     description: str
     runs: list[ChopRunSnapshot]
+    enabled: bool = True
+    script: str = ""
+    resolved_path: str | None = None
+    config_status: Literal["configured", "disabled", "missing"] = "configured"
+    generated: bool = False
+    base_chop_name: str | None = None
+    target_key: str | None = None
+
+    @property
+    def base_identity(self) -> tuple[str, str]:
+        """Return the immutable config identity edited for this runtime row."""
+        return (self.lumberjack_name, self.base_chop_name or self.chop_name)
 
 
 @dataclasses.dataclass
@@ -151,7 +164,17 @@ def get_axe_process_module() -> types.ModuleType:
 
 
 def collect_chop_snapshot(
-    lumberjack_name: str, chop_name: str, description: str = ""
+    lumberjack_name: str,
+    chop_name: str,
+    description: str = "",
+    *,
+    enabled: bool = True,
+    script: str = "",
+    resolved_path: str | None = None,
+    config_status: Literal["configured", "disabled", "missing"] = "configured",
+    generated: bool = False,
+    base_chop_name: str | None = None,
+    target_key: str | None = None,
 ) -> ChopSnapshot:
     """Read a chop's bounded run history from disk into a snapshot.
 
@@ -173,6 +196,13 @@ def collect_chop_snapshot(
         chop_name=chop_name,
         description=description,
         runs=runs,
+        enabled=enabled,
+        script=script,
+        resolved_path=resolved_path,
+        config_status=config_status,
+        generated=generated,
+        base_chop_name=base_chop_name,
+        target_key=target_key,
     )
 
 
@@ -237,12 +267,36 @@ def collect_axe_status_data() -> AxeCollectedData:
         # Iterate the configured chops (not the run-directory listing) so
         # newly-added chops with no recorded runs still appear in the UI
         # tree as empty entries rather than missing entries.
-        chops_cfg = [chop for chop in config.lumberjacks[name].chops if chop.enabled]
+        chops_cfg = list(config.lumberjacks[name].chops)
         chop_names: list[str] = []
         chops_for_jack: list[ChopSnapshot] = []
         for chop_cfg in chops_cfg:
+            script = chop_cfg.script_name
+            resolved = (
+                discover_chop_script(
+                    script, list(getattr(config, "chop_script_dirs", ()))
+                )
+                if chop_cfg.enabled
+                else None
+            )
+            config_status: Literal["configured", "disabled", "missing"] = (
+                "disabled"
+                if not chop_cfg.enabled
+                else "configured"
+                if resolved is not None
+                else "missing"
+            )
             snap = collect_chop_snapshot(
-                name, chop_cfg.name, description=chop_cfg.description
+                name,
+                chop_cfg.name,
+                description=chop_cfg.description,
+                enabled=chop_cfg.enabled,
+                script=script,
+                resolved_path=str(resolved) if resolved is not None else None,
+                config_status=config_status,
+                generated=chop_cfg.parent_name is not None,
+                base_chop_name=chop_cfg.parent_name,
+                target_key=chop_cfg.target_key or None,
             )
             chop_names.append(chop_cfg.name)
             chop_snapshots[(name, chop_cfg.name)] = snap

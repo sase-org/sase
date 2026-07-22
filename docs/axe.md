@@ -702,6 +702,9 @@ The Axe tab in the ACE TUI provides live monitoring of the daemon:
 
 - A lumberjack tree sidebar (lumberjack rows + their chops as children + background-command rows)
 - A lumberjack overview, per-chop detail view, and run-history pager (see [AXE Tab Views](#axe-tab-views))
+- Keyboard-first config management: `a` adds lumberjacks/chops, `e` previews and edits the selected exact config entry,
+  and `E` opens recorded chop output. Disabled chops remain visible but are not manually runnable; editing a generated
+  row safely targets its base chop and identifies the all-instances effect.
 - Start/stop the orchestrator (`x` key or `!x`) and runner counts
 - Footer shows a segmented `AXE` badge followed by daemon status: RUNNING, STOPPED, STARTING, STOPPING, or RESTARTING
 

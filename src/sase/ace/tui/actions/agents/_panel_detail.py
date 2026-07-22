@@ -49,7 +49,7 @@ class AgentPanelDetailMixin:
         if self.current_tab == "agents":
             self._open_agent_chat()
         elif self.current_tab == "axe":
-            self._open_selected_chop_output()  # type: ignore[attr-defined]
+            self._open_selected_axe_entry_editor()  # type: ignore[attr-defined]
         else:
             # Call parent implementation for ChangeSpecs
             super().action_edit_spec()  # type: ignore[misc]
@@ -284,6 +284,9 @@ class AgentPanelDetailMixin:
         import subprocess
         import tempfile
 
+        if self.current_tab == "axe":
+            self._open_selected_chop_output()  # type: ignore[attr-defined]
+            return
         if self.current_tab != "agents":
             return
 

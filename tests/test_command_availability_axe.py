@@ -26,9 +26,10 @@ def test_axe_run_workflow_only_on_done_bgcmd_row() -> None:
     assert is_command_available(spec, bgcmd_done)
 
 
-def test_axe_edit_spec_only_on_chop_row_with_recorded_run() -> None:
+def test_axe_config_edit_and_output_edit_have_distinct_availability() -> None:
     catalog = _catalog_by_id()
-    spec = catalog["app.edit_spec"]
+    config_edit = catalog["app.edit_spec"]
+    output_edit = catalog["app.edit_panel"]
     lumberjack_ctx = CommandContext(tab="axe", axe_item=LumberjackItem(name="hooks"))
     bgcmd_ctx = CommandContext(tab="axe", axe_item=BgCmdItem(slot=1))
     chop_without_runs = CommandContext(
@@ -41,10 +42,36 @@ def test_axe_edit_spec_only_on_chop_row_with_recorded_run() -> None:
         axe_item=ChopItem(lumberjack_name="hooks", chop_name="fast"),
         selected_axe_chop_run_total=1,
     )
-    assert not is_command_available(spec, lumberjack_ctx)
-    assert not is_command_available(spec, bgcmd_ctx)
-    assert not is_command_available(spec, chop_without_runs)
-    assert is_command_available(spec, chop_with_runs)
+    assert is_command_available(config_edit, lumberjack_ctx)
+    assert not is_command_available(config_edit, bgcmd_ctx)
+    assert is_command_available(config_edit, chop_without_runs)
+    assert is_command_available(config_edit, chop_with_runs)
+    assert not is_command_available(output_edit, lumberjack_ctx)
+    assert not is_command_available(output_edit, bgcmd_ctx)
+    assert not is_command_available(output_edit, chop_without_runs)
+    assert is_command_available(output_edit, chop_with_runs)
+
+
+def test_axe_run_workflow_excludes_disabled_and_running_chops() -> None:
+    spec = _catalog_by_id()["app.run_workflow"]
+    chop = ChopItem(lumberjack_name="hooks", chop_name="fast")
+    assert is_command_available(
+        spec,
+        CommandContext(
+            tab="axe",
+            axe_item=chop,
+            selected_axe_chop_enabled=True,
+            selected_axe_chop_running=False,
+        ),
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="axe", axe_item=chop, selected_axe_chop_enabled=False),
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="axe", axe_item=chop, selected_axe_chop_running=True),
+    )
 
 
 def test_axe_kill_agent_always_meaningful() -> None:

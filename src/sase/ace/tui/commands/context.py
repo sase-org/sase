@@ -185,6 +185,21 @@ def _selected_axe_chop_run_total(app: AceApp, item) -> int:  # type: ignore[no-u
     return len(getattr(snap, "runs", []) or [])
 
 
+def _selected_axe_chop_state(app: AceApp, item) -> tuple[bool, bool]:  # type: ignore[no-untyped-def]
+    """Return cached ``(enabled, running)`` state for a selected chop."""
+    if not isinstance(item, ChopItem):
+        return (False, False)
+    snapshots = getattr(app, "_axe_chop_snapshots", {})
+    snap = snapshots.get((item.lumberjack_name, item.chop_name))
+    if snap is None:
+        return (True, False)
+    runs = getattr(snap, "runs", []) or []
+    running = bool(
+        runs and getattr(runs[0].entry, "status", None) in {"running", "launched"}
+    )
+    return (bool(getattr(snap, "enabled", True)), running)
+
+
 def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-untyped-def]
     """Build a :class:`CommandContext` snapshot from the live ``AceApp``.
 
@@ -224,9 +239,11 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     if tab == "axe":
         done, running = _selected_axe_slot_states(app, axe_item)
         chop_run_total = _selected_axe_chop_run_total(app, axe_item)
+        chop_enabled, chop_running = _selected_axe_chop_state(app, axe_item)
     else:
         done, running = (False, False)
         chop_run_total = 0
+        chop_enabled, chop_running = (False, False)
 
     return CommandContext(
         tab=tab,
@@ -252,6 +269,8 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         selected_axe_slot_done=done and isinstance(axe_item, BgCmdItem),
         selected_axe_slot_running=running and isinstance(axe_item, BgCmdItem),
         selected_axe_chop_run_total=chop_run_total,
+        selected_axe_chop_enabled=chop_enabled,
+        selected_axe_chop_running=chop_running,
     )
 
 

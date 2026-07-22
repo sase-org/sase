@@ -116,6 +116,28 @@ class AxeDashboard(Static):
             full_cycles=0,
         )
 
+    def update_empty_axe_display(
+        self,
+        *,
+        is_running: bool,
+        status: AxeStatus | None,
+        full_cycles: int,
+        countdown: int,
+        add_key: str,
+        degraded_status: "AxeStatusDegradation | None" = None,
+    ) -> None:
+        """Show daemon status plus a configured-key zero-lumberjack prompt."""
+        status_section = self.query_one("#axe-status-section", _AxeStatusSection)
+        output_section = self.query_one("#axe-output-section", _AxeOutputSection)
+        status_section.update_display(
+            status,
+            is_running,
+            full_cycles,
+            countdown,
+            degraded_status,
+        )
+        output_section.update_empty_axe(add_key)
+
     def update_bgcmd_display(
         self,
         info: "BackgroundCommandInfo | None",

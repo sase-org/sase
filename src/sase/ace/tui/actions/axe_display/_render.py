@@ -7,13 +7,20 @@ and footer-state indicators from the in-memory caches populated by
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from ...bgcmd import get_slot_info, is_slot_running
-from ...widgets.bgcmd_list import BgCmdItem
+from ...widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem
 from ._loaders import AxeDisplayLoadersMixin
+
+if TYPE_CHECKING:
+    from ...keymaps import KeymapRegistry
 
 
 class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
     """Mixin providing the axe display rendering and state-setter methods."""
+
+    _keymap_registry: KeymapRegistry
 
     def _axe_step_chop_run(self, *, direction: int) -> None:
         """Cycle the displayed run for the selected chop.
@@ -149,13 +156,16 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     full_cycles = 0
                     if self._axe_metrics:
                         full_cycles = self._axe_metrics.full_cycles_run
-                    axe_dashboard.update_display(
+                    from ...keymaps import key_display_name
+
+                    axe_dashboard.update_empty_axe_display(
                         is_running=self.axe_running,
                         status=self._axe_status,
-                        output=self._axe_output,
                         full_cycles=full_cycles,
                         countdown=self._countdown_remaining,
-                        lumberjack_summaries=[],
+                        add_key=key_display_name(
+                            self._keymap_registry.app.add_axe_item
+                        ),
                         degraded_status=self._axe_degraded_status,
                     )
             else:
@@ -206,9 +216,11 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                 chop_run_total = 0
                 chop_selected = self._axe_chop_selection is not None
                 chop_selected_running = False
+                chop_selected_enabled = True
                 if self._axe_chop_selection is not None:
                     chop_snap = self._axe_chop_snapshots.get(self._axe_chop_selection)
                     if chop_snap is not None:
+                        chop_selected_enabled = chop_snap.enabled
                         chop_run_total = len(chop_snap.runs)
                         if chop_snap.runs:
                             chop_selected_running = chop_snap.runs[0].entry.status in {
@@ -221,6 +233,14 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     chop_run_total=chop_run_total,
                     chop_selected=chop_selected,
                     chop_selected_running=chop_selected_running,
+                    chop_selected_enabled=chop_selected_enabled,
+                    config_row_selected=(
+                        0 <= self.current_idx < len(self._axe_items)
+                        and isinstance(
+                            self._axe_items[self.current_idx],
+                            (LumberjackItem, ChopItem),
+                        )
+                    ),
                 )
 
             # Always update the side-panel list. Pass cached statuses and

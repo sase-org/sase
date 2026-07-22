@@ -10,6 +10,7 @@ from sase.ace.tui.actions.axe_display._loaders import AxeItemKey
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models.fold_state import FoldStateManager
 from sase.ace.tui.actions.axe_display._loaders import _axe_item_key
+from sase.ace.tui.actions.axe_config_actions import _PendingAxeSelection
 from sase.ace.tui.widgets.bgcmd_list import AxeItem, ChopItem
 
 
@@ -26,6 +27,7 @@ class FakeAxeSelectionApp(AxeMixin, BasicNavigationMixin, AxeDisplayMixin):
         self._axe_items: list[AxeItem] = []
         self._axe_last_idx = 0
         self._axe_last_item_key: AxeItemKey | None = None
+        self._axe_pending_selection: _PendingAxeSelection | None = None
         self._axe_current_view: Any = "axe"
         self._axe_fold_manager = FoldStateManager()
         self.refresh_count = 0
@@ -160,3 +162,58 @@ def test_switch_to_axe_view_moves_highlight_to_matching_row() -> None:
     assert app._axe_last_idx == 2
     assert app._axe_last_item_key == ("bgcmd", 7)
     assert app.refresh_count == 1
+
+
+def test_pending_write_selection_expands_parent_and_selects_target() -> None:
+    app = FakeAxeSelectionApp()
+    app._axe_lumberjack_names = ["hooks"]
+    app._axe_lumberjack_chop_names = {"hooks": ["old"]}
+    app._build_axe_items()
+    app.current_idx = 0
+    app._axe_fold_manager.collapse("lumberjack:hooks")
+    app._axe_pending_selection = _PendingAxeSelection(
+        target_key=("chop", "hooks", "new"),
+        guard_key=("lumberjack", "hooks"),
+    )
+    app._axe_lumberjack_chop_names = {"hooks": ["old", "new"]}
+
+    app._build_axe_items()
+
+    assert app._axe_last_item_key == ("chop", "hooks", "new")
+    assert app.current_idx == 2
+    assert app._axe_pending_selection is None
+
+
+def test_pending_write_selection_is_dropped_after_newer_navigation() -> None:
+    app = FakeAxeSelectionApp()
+    app._axe_lumberjack_names = ["checks", "hooks"]
+    app._axe_lumberjack_chop_names = {"hooks": ["new"]}
+    app._build_axe_items()
+    app.current_idx = 1  # hooks
+    app._axe_pending_selection = _PendingAxeSelection(
+        target_key=("chop", "hooks", "new"),
+        guard_key=("lumberjack", "hooks"),
+    )
+    app.current_idx = 0  # newer navigation to checks
+
+    app._build_axe_items()
+
+    assert app._axe_last_item_key == ("lumberjack", "checks")
+    assert app._axe_pending_selection is None
+
+
+def test_pending_write_selection_is_dropped_off_tab() -> None:
+    app = FakeAxeSelectionApp()
+    app._axe_lumberjack_names = ["hooks"]
+    app._build_axe_items()
+    app._axe_pending_selection = _PendingAxeSelection(
+        target_key=("lumberjack", "new"),
+        guard_key=("lumberjack", "hooks"),
+    )
+    app.current_tab = "agents"
+    app.current_idx = 17
+
+    app._build_axe_items()
+
+    assert app.current_idx == 17
+    assert app._axe_pending_selection is None

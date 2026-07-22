@@ -64,6 +64,15 @@ class AxeOutputSection(Static):
         text = render_axe_output(source_id, output, source_type)
         self.update(text)
 
+    def update_empty_axe(self, add_key: str) -> None:
+        """Render the zero-lumberjack call to action from cached key metadata."""
+        text = Text("No lumberjacks configured.\n\n", style="dim italic")
+        text.append("  ")
+        text.append(add_key, style="bold reverse #FFD700")
+        text.append("  Add a lumberjack or chop to AXE.", style="#D7AF87")
+        text.append("\n\nBackground commands remain available with !!.", style="dim")
+        self.update(text)
+
     def update_lumberjack_overview(
         self,
         snapshot: "LumberjackSnapshot",

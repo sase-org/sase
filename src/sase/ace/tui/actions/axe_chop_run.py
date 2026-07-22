@@ -61,6 +61,15 @@ class AxeChopRunMixin:
         item = items[self.current_idx]
         if not isinstance(item, ChopItem):
             return
+        snapshot = getattr(self, "_axe_chop_snapshots", {}).get(
+            (item.lumberjack_name, item.chop_name)
+        )
+        if snapshot is not None and not snapshot.enabled:
+            self.notify(  # type: ignore[attr-defined]
+                f"Chop '{item.chop_name}' is disabled; edit its config to enable it",
+                severity="warning",
+            )
+            return
         self._launch_chop_run(item.lumberjack_name, item.chop_name)
 
     def _launch_chop_run(self, lumberjack_name: str, chop_name: str) -> None:

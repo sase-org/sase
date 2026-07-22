@@ -205,6 +205,7 @@ ace:
       jump_to_entry_forward: "ctrl+shift+o"
       jump_to_all_entries: "grave_accent"
       edit_spec: "e"
+      add_axe_item: "a"
       rename_cl: "n"
       # ChangeSpec edits
       edit_hooks: "f"

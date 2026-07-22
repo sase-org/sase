@@ -8,6 +8,7 @@ from sase.ace.tui.commands._tabs import (
     AGENTS_AXE,
     AGENTS_ONLY,
     ALL_TABS,
+    AXE_ONLY,
     CL_AGENTS,
     CL_AXE,
     CL_ONLY,
@@ -232,7 +233,20 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ),
     ),
     ("view_files", "View PR files", "PR Actions", CL_ONLY, ()),
-    ("edit_spec", "Edit spec / chat / chop output", "PR Actions", ALL_TABS, ()),
+    (
+        "edit_spec",
+        "Edit spec / chat / AXE config",
+        "PR Actions",
+        ALL_TABS,
+        ("edit lumberjack", "edit chop config"),
+    ),
+    (
+        "add_axe_item",
+        "Add AXE lumberjack or chop",
+        "Axe",
+        AXE_ONLY,
+        ("new lumberjack", "new chop", "add chop"),
+    ),
     ("rename_cl", "Rename PR / agent", "PR Actions", CL_AGENTS, ()),
     # ChangeSpec edits
     (
@@ -368,7 +382,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AGENTS_ONLY,
         ("zoom", "only panel", "restore panels"),
     ),
-    ("edit_panel", "Edit panel file", "Agents", AGENTS_ONLY, ()),
+    (
+        "edit_panel",
+        "Edit panel file / chop output",
+        "Display",
+        AGENTS_AXE,
+        ("recorded chop output", "open chop log"),
+    ),
     (
         "open_artifact_files",
         "Open agent artifact files",

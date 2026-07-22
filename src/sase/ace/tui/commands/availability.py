@@ -16,7 +16,8 @@ footer logic and the help modal's tab buckets:
   + mark count, ``edit_spec``/``edit_hooks`` reuse the footer's
   done-vs-running rules, ``run_workflow`` exposes retry-edit only with a
   focused agent, ``toggle_attempt_view`` requires history, and so on.
-- Axe-tab predicates: ``edit_spec`` requires a chop with recorded output,
+- Axe-tab predicates: ``edit_spec`` requires an editable AXE config row,
+  ``edit_panel`` requires a chop with recorded output,
   ``run_workflow`` (re-run) requires a done bgcmd row, ``kill_agent`` is
   always meaningful (label changes between start/stop/kill), and the parent
   row blocks bgcmd-only commands.
@@ -472,6 +473,14 @@ def _is_chop(item: AxeItem | None) -> bool:
     return isinstance(item, ChopItem)
 
 
+def _is_lumberjack(item: AxeItem | None) -> bool:
+    if item is None:
+        return False
+    from sase.ace.tui.widgets.bgcmd_list import LumberjackItem
+
+    return isinstance(item, LumberjackItem)
+
+
 def _axe_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     item = ctx.axe_item
 
@@ -484,11 +493,23 @@ def _axe_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return True
 
     if spec.id == "app.edit_spec":
+        return _is_lumberjack(item) or _is_chop(item)
+
+    if spec.id == "app.edit_panel":
         return _is_chop(item) and ctx.selected_axe_chop_run_total > 0
+
+    if spec.id == "app.add_axe_item":
+        return True
 
     # Re-run is only available on a done bgcmd row.
     if spec.id == "app.run_workflow":
-        return _is_bgcmd(item) and ctx.selected_axe_slot_done
+        if _is_bgcmd(item):
+            return ctx.selected_axe_slot_done
+        return (
+            _is_chop(item)
+            and ctx.selected_axe_chop_enabled
+            and not ctx.selected_axe_chop_running
+        )
 
     # Copy-mode axe commands need a focused row.
     if spec.id.startswith("copy.axe."):

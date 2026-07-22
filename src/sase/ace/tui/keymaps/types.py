@@ -70,6 +70,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("search_reverse", "Search Reverse", False),
     ("open_saved_query_picker", "Saved Queries", False),
     ("edit_spec", "Edit Spec", False),
+    ("add_axe_item", "Add AXE Item", False),
     ("scroll_detail_down", "Scroll Down", False),
     ("scroll_detail_up", "Scroll Up", False),
     ("scroll_prompt_down", "Scroll Prompt Down", False),
@@ -392,6 +393,7 @@ class AppKeymaps:
     jump_to_entry_forward: str
     jump_to_all_entries: str
     edit_spec: str
+    add_axe_item: str
     rename_cl: str
     # ChangeSpec edits
     edit_hooks: str

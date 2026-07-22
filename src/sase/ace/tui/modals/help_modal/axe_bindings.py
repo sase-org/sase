@@ -54,8 +54,10 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.restore_prompt_stash), "Restore stashed prompt"),
                 (d(a.show_agent_run_log), "Agent run log"),
                 (d(a.open_agent_cleanup_panel), "Clear output"),
+                (d(a.add_axe_item), "Add lumberjack or chop"),
                 (d(a.run_workflow), "Run chop, or re-run done bgcmd"),
-                (d(a.edit_spec), "Edit chop output"),
+                (d(a.edit_spec), "Edit lumberjack or chop config"),
+                (d(a.edit_panel), "Edit recorded chop output"),
             ],
         ),
         (
