@@ -45,7 +45,7 @@ def test_agent_info_panel_loading_clears() -> None:
     panel = AgentInfoPanel()
     panel._position = 2
     panel._total = 5
-    panel._visible_agent_count = 5
+    panel._agent_hole_count = 5
     panel._loading = False
     plain = _collect_text(panel)
     assert plain.startswith("5")

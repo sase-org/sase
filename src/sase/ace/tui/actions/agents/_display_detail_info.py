@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from ...models._agent_clan import agent_summary_status_counts
+from ...models._agent_clan import agent_hole_count, agent_summary_status_counts
 from ...models.agent_groups import GroupingMode
 from ...models.agent_runner_slots import RunnerCapacitySnapshot
 from ...util.trace import tui_trace
@@ -38,7 +38,7 @@ class AgentInfoDisplayMixin:
             self._update_agents_info_panel_impl()
 
     def _agent_info_metrics(self) -> tuple[int, int, int, int, int, int, int, int]:
-        """Return cached effective-agent status counts for the info panel."""
+        """Return cached concrete statuses and agent-hole headline count."""
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
         unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
@@ -59,6 +59,7 @@ class AgentInfoDisplayMixin:
             unread_ids,
         )
         starting_count = len(hidden_starting_agents)
+        hole_total = agent_hole_count(visible_top_level_agents) + starting_count
         metrics = (
             projected.unread,
             projected.stopped,
@@ -66,7 +67,7 @@ class AgentInfoDisplayMixin:
             projected.waiting,
             projected.failed,
             projected.done,
-            projected.total + starting_count,
+            hole_total,
             starting_count,
         )
         self._agent_info_metrics_cache = (cache_key, metrics)
@@ -113,8 +114,8 @@ class AgentInfoDisplayMixin:
             return
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
         # ``selectable_total`` drives position semantics (rendered/selectable
-        # top-level rows), while ``visible_agent_count`` is the effective-agent
-        # headline total that also includes hidden top-level STARTING rows.
+        # top-level roots), while ``agent_hole_count`` is the independent
+        # headline total that also includes hidden top-level STARTING holes.
         selectable_total = panel_index.non_child_total
         position = (
             panel_index.non_child_position(self.current_idx) if self._agents else 0
@@ -126,7 +127,7 @@ class AgentInfoDisplayMixin:
             waiting_count,
             failed_count,
             read_count,
-            visible_agent_count,
+            agent_hole_count,
             starting_count,
         ) = self._agent_info_metrics()
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
@@ -162,7 +163,7 @@ class AgentInfoDisplayMixin:
                 waiting=waiting_count,
                 failed=failed_count,
                 read=read_count,
-                visible_agent_count=visible_agent_count,
+                agent_hole_count=agent_hole_count,
                 starting=starting_count,
                 neighbor_count=neighbor_count,
                 countdown=self._countdown_remaining,
@@ -193,7 +194,7 @@ class AgentInfoDisplayMixin:
             waiting_count,
             failed_count,
             read_count,
-            visible_agent_count,
+            agent_hole_count,
             starting=starting_count,
         )
         agent_info_panel.update_countdown(

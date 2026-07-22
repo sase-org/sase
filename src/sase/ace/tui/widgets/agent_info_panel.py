@@ -25,7 +25,7 @@ class AgentInfoPanel(Static):
         self._waiting_count = 0
         self._failed_count = 0
         self._read_count = 0
-        self._visible_agent_count = 0
+        self._agent_hole_count = 0
         self._runner_limit = 0
         self._runner_slots_in_use = 0
         self._runner_queue_count = 0
@@ -77,7 +77,7 @@ class AgentInfoPanel(Static):
         *,
         starting: int = 0,
     ) -> None:
-        """Update the visible top-level agent metric strip.
+        """Compatibility adapter for the headline and concrete metric strip.
 
         Args:
             unread: Visible unread completed agent count.
@@ -87,7 +87,7 @@ class AgentInfoPanel(Static):
             waiting: Visible waiting agent count.
             failed: Visible failed agent count.
             read: Visible completed agent count that has already been read.
-            total: Visible top-level agent count.
+            total: Agent-hole count rendered as the leading headline value.
         """
         self._unread_count = unread
         self._asking_count = asking
@@ -96,7 +96,7 @@ class AgentInfoPanel(Static):
         self._waiting_count = waiting
         self._failed_count = failed
         self._read_count = read
-        self._visible_agent_count = total
+        self._agent_hole_count = total
         self._update_display()
 
     def update_countdown(self, countdown: int, interval: int) -> None:
@@ -165,7 +165,7 @@ class AgentInfoPanel(Static):
         waiting: int,
         failed: int,
         read: int,
-        visible_agent_count: int,
+        agent_hole_count: int,
         starting: int,
         neighbor_count: int = 0,
         countdown: int,
@@ -194,7 +194,7 @@ class AgentInfoPanel(Static):
             waiting,
             failed,
             read,
-            visible_agent_count,
+            agent_hole_count,
             runner_limit,
             runner_slots_in_use,
             runner_queue_count,
@@ -213,7 +213,7 @@ class AgentInfoPanel(Static):
             self._waiting_count,
             self._failed_count,
             self._read_count,
-            self._visible_agent_count,
+            self._agent_hole_count,
             self._runner_limit,
             self._runner_slots_in_use,
             self._runner_queue_count,
@@ -235,7 +235,7 @@ class AgentInfoPanel(Static):
             self._waiting_count,
             self._failed_count,
             self._read_count,
-            self._visible_agent_count,
+            self._agent_hole_count,
             self._runner_limit,
             self._runner_slots_in_use,
             self._runner_queue_count,
@@ -352,7 +352,7 @@ class AgentInfoPanel(Static):
             text.append(": ", style="bold #87D7FF")
             text.append("…", style="dim italic")
             return text
-        text.append(f"{self._visible_agent_count}", style=self._TOTAL_COUNT_STYLE)
+        text.append(f"{self._agent_hole_count}", style=self._TOTAL_COUNT_STYLE)
         self._append_runner_capacity(text)
         self._append_metric_strip(text)
         self._append_neighbor_badge(text)

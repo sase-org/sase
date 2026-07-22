@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
@@ -20,6 +21,10 @@ def _agent(
     status: str = "RUNNING",
     parent_timestamp: str | None = None,
     agent_family_parallel: bool = False,
+    agent_family: str | None = None,
+    agent_family_role: str | None = None,
+    plan_chain_root: bool = False,
+    clan: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -32,6 +37,11 @@ def _agent(
         raw_suffix=suffix,
         parent_timestamp=parent_timestamp,
         agent_family_parallel=agent_family_parallel,
+        agent_family=agent_family,
+        agent_family_role=agent_family_role,
+        plan_chain_root=plan_chain_root,
+        agent_clan=clan,
+        agent_clan_generation="gen-1" if clan else None,
     )
 
 
@@ -57,6 +67,27 @@ def _parallel_family(
     ]
     root.runtime_children.extend(members)
     return root, members
+
+
+def _sequential_family(*, suffix: str, clan: str | None = None) -> tuple[Agent, Agent]:
+    root = _agent(
+        suffix=suffix,
+        status="PLAN APPROVED",
+        agent_family=suffix,
+        agent_family_role="root",
+        plan_chain_root=True,
+        clan=clan,
+    )
+    member = _agent(
+        suffix=f"{suffix}-code",
+        parent_timestamp=suffix,
+        agent_family=suffix,
+        agent_family_role="code",
+        clan=clan,
+    )
+    root.followup_agents.append(member)
+    root.runtime_children.append(member)
+    return root, member
 
 
 class _Bare(AgentDisplayMixin):
@@ -322,10 +353,55 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     # Position uses the selectable (rendered) top-level total, which excludes
     # the hidden STARTING row.
     assert info_panel.position == (0, 6)
-    # The count-strip total is the inclusive headline total: six rendered
-    # top-level rows plus the one hidden top-level STARTING row (still one in
-    # the ``starting`` bucket).
+    # The hole headline includes six rendered standalone holes plus the one
+    # hidden top-level STARTING hole (still one in the ``starting`` bucket).
     assert info_panel.counts == (1, 1, 1, 1, 1, 2, 0, 7)
+
+
+def test_info_panel_mixed_family_and_clan_uses_hole_headline() -> None:
+    standalone = _agent(suffix="standalone", status="DONE")
+    family_root, family_member = _sequential_family(suffix="family")
+    clan_family_root, clan_family_member = _sequential_family(
+        suffix="clan-family",
+        clan="research",
+    )
+    clan_standalone = _agent(
+        suffix="clan-standalone",
+        status="WAITING",
+        clan="research",
+    )
+    rows = project_clan_tree(
+        [
+            standalone,
+            family_root,
+            family_member,
+            clan_family_root,
+            clan_family_member,
+            clan_standalone,
+        ]
+    )
+    bare = _Bare(rows)
+
+    info_panel = _run_info_panel(bare)
+
+    assert info_panel.position == (1, 3)
+    # Four holes: standalone, family, and two direct clan members. The status
+    # buckets still contain all six concrete agents.
+    assert info_panel.counts == (0, 0, 0, 2, 1, 0, 3, 4)
+
+
+def test_info_panel_hole_headline_ignores_grouping_and_fold_presentation() -> None:
+    family_root, family_member = _sequential_family(suffix="family")
+    bare = _Bare([family_root, family_member])
+
+    initial = _run_info_panel(bare)
+    bare._grouping_mode = GroupingMode.BY_STATUS
+    bare._group_fold_registry.collapse(("Running",))
+    grouped_and_folded = _run_info_panel(bare)
+
+    assert initial.counts is not None
+    assert grouped_and_folded.counts is not None
+    assert initial.counts[-1] == grouped_and_folded.counts[-1] == 1
 
 
 def test_info_panel_total_counts_lone_hidden_starting_agent() -> None:
@@ -402,7 +478,7 @@ def test_info_panel_projects_parallel_family_member_statuses() -> None:
     assert info_panel.position == (1, 5)
     # Family STARTING contributes to running, terminal members split by their
     # own unread identities, and each family's members replace its root in the
-    # headline total. The serial child is excluded from both projections.
+    # headline hole total. The serial child is excluded from both projections.
     assert info_panel.counts == (1, 0, 0, 7, 7, 0, 1, 16)
 
 

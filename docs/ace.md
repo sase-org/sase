@@ -698,11 +698,12 @@ reserved panel, and explicit panel folds are remembered and override the configu
 only to the icon and `@tribe` name, leaving selection, fold, and status chrome in its semantic palette. Each panel title
 can also show compact scoped metrics in the form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R` is running,
 `W` is waiting to start, `F` is failed, `U` is unread terminal work, and `D` is done/read terminal work. Zero-count
-metrics are omitted. On the selected whole panel, the title marker, total, brackets, and metric letters use the focus
-accent; each numeric metric count retains its semantic status color. Panel heights are sized to their content and
-separated by a one-row gap. When the panels fit, the first panel grows to absorb leftover vertical space while later
-panels stay pinned to their natural height; when the panels overflow, space is weighted by each panel's rendered row
-count.
+metrics are omitted. The panel-title total retains the same concrete-agent semantics as its adjacent status metrics; it
+is separate from the global agent-hole headline described below. On the selected whole panel, the title marker, total,
+brackets, and metric letters use the focus accent; each numeric metric count retains its semantic status color. Panel
+heights are sized to their content and separated by a one-row gap. When the panels fit, the first panel grows to absorb
+leftover vertical space while later panels stay pinned to their natural height; when the panels overflow, space is
+weighted by each panel's rendered row count.
 
 Use `J` / `K` to move across panels (forward / reverse) and enter the first or last selectable row in the destination;
 collapsed grouping banners count as rows. Whole-panel focus is available only in the split layout. Lowercase `h` walks
@@ -886,24 +887,31 @@ per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the
 visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
-session mode is always visible after the cycle toast fades. After the first scan, the header starts with the top-level
-agent total `N`, followed by an always-visible capacity chip in the form `[R/L · Q queued]`: `R` is the global number of
-slot-participating user agents currently holding runner slots, `L` is the current effective `max_running_agents` limit
-(temporary override first, configured value second), and `Q` counts live waiters governed by that effective cap. Slot
-participants are top-level user agents—including every clan member launched independently—plus parallel family members.
-Serial family follow-ups, workflow Python/bash steps, and axe ChangeSpec runners do not participate. Waits with an
-explicit `%wait(runners=N)` threshold are intentionally excluded from `Q`. Occupancy is green below the limit, gold at
-the limit, and red above it; a nonzero queue count is violet.
+session mode is always visible after the cycle toast fades. After the first scan, the header starts with the visible
+agent-hole total `N`. One standalone agent or one sequential family is one hole, regardless of whether the family is
+folded. A rootless clan container contributes no hole itself; each direct clan member contributes one, and a direct
+member that is a sequential family still contributes only one. A hidden top-level `STARTING` agent contributes one hole
+even though it is not selectable yet. Grouping mode, tribe ownership, and fold state do not change this projection.
+
+The hole total is followed by an always-visible capacity chip in the form `[R/L · Q queued]`: `R` is the global number
+of slot-participating user agents currently holding runner slots, `L` is the current effective `max_running_agents`
+limit (temporary override first, configured value second), and `Q` counts live waiters governed by that effective cap.
+Slot participants are top-level user agents—including every clan member launched independently—plus parallel family
+members. Serial family follow-ups, workflow Python/bash steps, and axe ChangeSpec runners do not participate. Waits with
+an explicit `%wait(runners=N)` threshold are intentionally excluded from `Q`. Occupancy is green below the limit, gold
+at the limit, and red above it; a nonzero queue count is violet.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with numeric counts in place of the
-letters and zero-count metrics omitted. The leading `N` includes agents still in the `STARTING` bucket. `stopped` counts
-agents paused for plan approval, questions, or workflow human-input steps; `starting` counts just-launched agents that
-have not yet surfaced as visible rows; `running` excludes waiting, failed, and stopped rows; `waiting` is the
-blocked/queued subset; `failed` is terminal failed work; `unread` counts terminal rows that still need acknowledgement;
-and `done` is completed visible work that has already been acknowledged. During startup the header renders `Agents: …`
-until the first agent scan has loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project
-grouping; cycling only changes the current session.
+letters and zero-count metrics omitted. These buckets count concrete agents, so expanded family members can make their
+sum larger than the leading hole total. `stopped` counts agents paused for plan approval, questions, or workflow
+human-input steps; `starting` counts just-launched agents that have not yet surfaced as visible rows; `running` excludes
+waiting, failed, and stopped rows; `waiting` is the blocked/queued subset; `failed` is terminal failed work; `unread`
+counts terminal rows that still need acknowledgement; and `done` is completed visible work that has already been
+acknowledged. The position/navigation denominator is a third count: rendered selectable roots, where a clan container is
+one row and a hidden `STARTING` hole is excluded. These three cardinalities are intentionally independent. During
+startup the header renders `Agents: …` until the first agent scan has loaded, avoiding a misleading zero-agent count.
+Each TUI launch starts in by-project grouping; cycling only changes the current session.
 
 **Waiting** holds agents that are blocked but progressing on their own — `WAITING` with a time wait (`%wait(time=5m)`,
 `%wait(time=1430)`), a non-empty `waiting_for` dependency, or a runner-slot gate. Runner-slot rows add a dim Running

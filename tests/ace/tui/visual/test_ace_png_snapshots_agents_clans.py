@@ -47,6 +47,9 @@ async def test_clan_tree_fold_levels_png_snapshots(
         assert_page_svg_styled_text_contains(page, "[R1 W1 D1]")
         assert_page_svg_contains(page, "@epic")
         assert_page_svg_contains(page, "@review")
+        # The clan has three direct holes (family, workflow, standalone), and
+        # the status buckets retain the loaded concrete family member.
+        assert page.app._agent_info_metrics() == (0, 0, 1, 1, 0, 1, 3, 0)
         ace_png_visual.assert_page_png(
             page,
             "agents_clan_tree_collapsed_120x40",

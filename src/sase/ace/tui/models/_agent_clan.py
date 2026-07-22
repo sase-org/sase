@@ -214,6 +214,22 @@ def agent_summary_status_counts(
     )
 
 
+def agent_hole_count(agents: Iterable[Agent]) -> int:
+    """Count standalone agents and sequential families as agent holes.
+
+    Clan containers are rootless presentation rows, so their loaded direct
+    members supply the holes. Sequential-family and workflow descendants do
+    not add holes. Legacy parallel-family aggregates remain compatible with
+    the clan projection: loaded parallel members replace the aggregate root,
+    while an unloaded aggregate still contributes one hole.
+    """
+    seen: set[tuple[AgentType, str, str | None]] = set()
+    for agent in agents:
+        for hole in _agent_hole_units(agent):
+            seen.add(hole.identity)
+    return len(seen)
+
+
 def agent_status_projections(
     agents: Iterable[Agent],
 ) -> tuple[ConcreteAgentStatus, ...]:
@@ -222,6 +238,18 @@ def agent_status_projections(
         projection for agent in agents for projection in _summary_projections(agent, ())
     )
     return tuple(projection.status for projection in projected)
+
+
+def _agent_hole_units(agent: Agent) -> tuple[Agent, ...]:
+    if agent.is_clan_container:
+        return tuple(
+            hole for member in clan_members(agent) for hole in _agent_hole_units(member)
+        )
+    if agent.agent_family_parallel:
+        members = clan_members(agent)
+        if members:
+            return members
+    return (agent,)
 
 
 def _summary_projections(
@@ -321,6 +349,7 @@ def _dedupe_summary_projections(
 
 __all__ = [
     "ClanStatusCounts",
+    "agent_hole_count",
     "agent_status_projections",
     "agent_summary_status_counts",
     "aggregate_clan_status",

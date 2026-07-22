@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sase.ace.tui.models._agent_clan import agent_summary_status_counts
+from sase.ace.tui.models._agent_clan import (
+    agent_hole_count,
+    agent_summary_status_counts,
+)
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 
@@ -18,6 +21,7 @@ def _agent(
     role: str,
     parent_timestamp: str | None = None,
     clan: str | None = None,
+    parallel: bool = False,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -34,6 +38,7 @@ def _agent(
         plan_chain_root=role == "plan",
         agent_clan=clan,
         agent_clan_generation="gen-1" if clan else None,
+        agent_family_parallel=parallel,
     )
 
 
@@ -49,6 +54,83 @@ def _active_family(*, clan: str | None = None) -> tuple[Agent, Agent]:
     planner.followup_agents = [coder]
     planner.runtime_children = [coder]
     return planner, coder
+
+
+def test_agent_holes_count_each_standalone_agent() -> None:
+    agents = (
+        _agent("alpha", "RUNNING", role="solo"),
+        _agent("beta", "DONE", role="solo"),
+    )
+
+    assert agent_hole_count(agents) == 2
+
+
+def test_agent_holes_keep_sequential_family_as_one_hole() -> None:
+    planner, _coder = _active_family()
+
+    assert agent_hole_count((planner,)) == 1
+    assert agent_summary_status_counts((planner,), ()).total == 2
+
+
+def test_agent_holes_count_clan_direct_members_without_family_descendants() -> None:
+    planner, coder = _active_family(clan="research")
+    standalone = _agent("research-audit", "WAITING", role="solo", clan="research")
+    container = project_clan_tree([planner, coder, standalone])[0]
+
+    assert agent_hole_count((container,)) == 2
+    assert agent_summary_status_counts((container,), ()).total == 3
+
+
+def test_agent_holes_dedupe_stable_identities_across_clans_and_panels() -> None:
+    first = _agent("shared", "RUNNING", role="solo", clan="first")
+    second = _agent("shared", "DONE", role="solo", clan="second")
+    panel_duplicate = _agent("shared", "WAITING", role="solo")
+    first_container = project_clan_tree([first])[0]
+    second_container = project_clan_tree([second])[0]
+
+    assert agent_hole_count((first_container, second_container, panel_duplicate)) == 1
+
+
+def test_agent_holes_preserve_legacy_parallel_family_projection() -> None:
+    root = _agent("parallel", "WAITING", role="root", parallel=True)
+    members = [
+        _agent(
+            f"parallel-{index}",
+            "RUNNING",
+            role="member",
+            parent_timestamp=root.raw_suffix,
+            parallel=True,
+        )
+        for index in range(3)
+    ]
+    root.runtime_children.extend(members)
+    unloaded = _agent("unloaded", "WAITING", role="root", parallel=True)
+
+    assert agent_hole_count((root,)) == 3
+    assert agent_summary_status_counts((root,), ()).total == 3
+    assert agent_hole_count((unloaded,)) == 1
+
+
+def test_agent_hole_screenshot_cardinality_is_31_for_56_concrete_agents() -> None:
+    family_root = _agent("large--plan", "DONE", role="plan")
+    family_members = [
+        _agent(
+            f"large--member-{index}",
+            "DONE",
+            role=f"member-{index}",
+            parent_timestamp=family_root.raw_suffix,
+        )
+        for index in range(25)
+    ]
+    family_root.followup_agents.extend(family_members)
+    family_root.runtime_children.extend(family_members)
+    standalones = [
+        _agent(f"standalone-{index}", "DONE", role="solo") for index in range(30)
+    ]
+    top_level = (family_root, *standalones)
+
+    assert agent_hole_count(top_level) == 31
+    assert agent_summary_status_counts(top_level, ()).total == 56
 
 
 def test_family_container_projects_members_and_settled_statuses() -> None:
