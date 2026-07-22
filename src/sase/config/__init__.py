@@ -33,6 +33,7 @@ from sase.config.runner_limit_override import (
 )
 from sase.config.edit import (
     AppliedResult,
+    ConfigEditConflict,
     ConfigEditError,
     ConfigEditOp,
     ConfigEffectivePreview,
@@ -60,6 +61,7 @@ from sase.config.inventory import (
     inventory_with_new_overlay,
     load_config_schema,
     overlay_layer_input,
+    serialize_config_layer,
 )
 from sase.config.targets import (
     apply_chezmoi,
@@ -79,6 +81,7 @@ __all__ = [
     "ConfigContribution",
     "ConfigDiagnostic",
     "ConfigEditError",
+    "ConfigEditConflict",
     "ConfigEditOp",
     "ConfigEffectivePreview",
     "ConfigField",
@@ -118,6 +121,7 @@ __all__ = [
     "overlay_layer_input",
     "plan_config_edit",
     "resolve_write_path",
+    "serialize_config_layer",
     "require_machine_name",
     "set_key",
     "set_runner_limit_override",

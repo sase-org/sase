@@ -117,6 +117,11 @@ def _serialize_layer(layer: ConfigLayer) -> dict[str, Any]:
     }
 
 
+def serialize_config_layer(layer: ConfigLayer) -> dict[str, Any]:
+    """Serialize one discovered layer for a Rust config-domain request."""
+    return _serialize_layer(layer)
+
+
 def _serialize_local_path(path: str | Path, *, name: str) -> dict[str, Any]:
     """Load an explicitly-selected local ``sase.yml`` into a wire layer."""
     target = Path(path)

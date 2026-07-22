@@ -21,6 +21,7 @@ import yaml
 from sase.config.core import ConfigLayer
 from sase.config.edit import (
     AppliedResult,
+    ConfigEditConflict,
     ConfigEditError,
     ConfigEditOp,
     apply_config_edit,
@@ -483,6 +484,133 @@ def test_apply_config_edit_without_target_raises() -> None:
     assert plan.target_path is None
     with pytest.raises(ConfigEditError):
         apply_config_edit(plan)
+
+
+def test_plan_exact_key_path_does_not_split_dotted_mapping_key(tmp_path: Path) -> None:
+    target = tmp_path / "sase.yml"
+    target.write_text("", encoding="utf-8")
+    inventory = _inventory(
+        [_layer("user", path=str(target), strategy="replace", data={})],
+        schema={"type": "object"},
+    )
+    plan = plan_config_edit(
+        inventory,
+        None,
+        "user",
+        ConfigEditOp.set_value(5),
+        key_path=("axe", "lumberjacks", "checks.main", "interval"),
+        use_chezmoi=False,
+    )
+    assert plan.write_plan.key_path == (
+        "axe",
+        "lumberjacks",
+        "checks.main",
+        "interval",
+    )
+    assert yaml.safe_load(plan.new_text)["axe"]["lumberjacks"]["checks.main"] == {
+        "interval": 5
+    }
+
+
+def test_apply_config_edit_rejects_stale_existing_target(tmp_path: Path) -> None:
+    inventory, target = _user_file_inventory(
+        tmp_path,
+        "timezone: US/Pacific\n",
+        {"timezone": "America/New_York"},
+    )
+    plan = plan_config_edit(
+        inventory,
+        "timezone",
+        "user",
+        ConfigEditOp.set_value("UTC"),
+        use_chezmoi=False,
+    )
+    target.write_text("timezone: Europe/London\n", encoding="utf-8")
+    with (
+        patch("sase.config._edit_plan.clear_config_cache") as clear_cache,
+        pytest.raises(ConfigEditConflict),
+    ):
+        apply_config_edit(plan)
+    assert target.read_text(encoding="utf-8") == "timezone: Europe/London\n"
+    clear_cache.assert_not_called()
+
+
+def test_apply_config_edit_rejects_stale_absent_target(tmp_path: Path) -> None:
+    target = tmp_path / "new" / "sase.yml"
+    inventory = _inventory(
+        [
+            _layer("default", data={"timezone": "America/New_York"}),
+            _layer(
+                "user",
+                path=str(target),
+                strategy="replace",
+                data={},
+                exists=False,
+            ),
+        ]
+    )
+    plan = plan_config_edit(
+        inventory,
+        "timezone",
+        "user",
+        ConfigEditOp.set_value("UTC"),
+        use_chezmoi=False,
+    )
+    target.parent.mkdir(parents=True)
+    target.write_text("timezone: Asia/Tokyo\n", encoding="utf-8")
+    with pytest.raises(ConfigEditConflict):
+        apply_config_edit(plan)
+    assert target.read_text(encoding="utf-8") == "timezone: Asia/Tokyo\n"
+
+
+def test_apply_config_edit_preserves_mode_and_clears_cache_after_replace(
+    tmp_path: Path,
+) -> None:
+    inventory, target = _user_file_inventory(
+        tmp_path,
+        "timezone: US/Pacific\n",
+        {"timezone": "America/New_York"},
+    )
+    target.chmod(0o640)
+    plan = plan_config_edit(
+        inventory,
+        "timezone",
+        "user",
+        ConfigEditOp.set_value("UTC"),
+        use_chezmoi=False,
+    )
+    with patch("sase.config._edit_plan.clear_config_cache") as clear_cache:
+        apply_config_edit(plan)
+        assert target.read_text(encoding="utf-8") == plan.new_text
+        clear_cache.assert_called_once_with()
+    assert target.stat().st_mode & 0o777 == 0o640
+
+
+def test_apply_config_edit_replace_failure_keeps_original_and_cleans_temp(
+    tmp_path: Path,
+) -> None:
+    original = "timezone: US/Pacific\n"
+    inventory, target = _user_file_inventory(
+        tmp_path,
+        original,
+        {"timezone": "America/New_York"},
+    )
+    plan = plan_config_edit(
+        inventory,
+        "timezone",
+        "user",
+        ConfigEditOp.set_value("UTC"),
+        use_chezmoi=False,
+    )
+    with (
+        patch("sase.config._edit_plan.os.replace", side_effect=OSError("boom")),
+        patch("sase.config._edit_plan.clear_config_cache") as clear_cache,
+        pytest.raises(OSError, match="boom"),
+    ):
+        apply_config_edit(plan)
+    assert target.read_text(encoding="utf-8") == original
+    assert list(tmp_path.glob(f".{target.name}.*.tmp")) == []
+    clear_cache.assert_not_called()
 
 
 # --- Chezmoi remapping & targets ------------------------------------------

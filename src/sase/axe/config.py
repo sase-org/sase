@@ -13,13 +13,11 @@ from typing import Any
 
 from sase.config import load_merged_config
 from sase.config.core import ConfigLayer, current_config_token, load_config_layers
-from sase.core.axe_chop_facade import validate_axe_config
+from sase.config.inventory import serialize_config_layer
 
 from ._config_layers import (
-    build_axe_config_provenance,
+    compose_axe_layers,
     compose_keyed_axe_layers as _compose_keyed_axe_layers,
-    has_map_form_chops,
-    map_form_chop_layers,
 )
 from ._config_targets import (
     parse_lumberjacks,
@@ -36,97 +34,102 @@ from ._config_types import (
     ChopConfig,
     LumberjackConfig,
 )
+from .config_backend import AxeConfigComposition
 
 _keyed_config_cache_lock = threading.RLock()
 _keyed_config_cache_token: tuple[Any, ...] | None = None
-_keyed_config_cache_value: tuple[dict[str, Any], dict[str, str]] | None = None
+_keyed_config_cache_value: AxeConfigComposition | None = None
 
 
 def _parse_lumberjacks(
     raw: dict[str, Any],
     *,
     provenance: dict[str, str] | None = None,
+    exact_chop_provenance: dict[tuple[str, str], dict[str, str]] | None = None,
 ) -> dict[str, LumberjackConfig]:
     """Parse lumberjacks while retaining the patchable project-row hook."""
     return parse_lumberjacks(
         raw,
         provenance=provenance,
+        exact_chop_provenance=exact_chop_provenance,
         project_target_rows=_project_target_rows,
     )
 
 
-def _axe_config_provenance(
-    layers: list[ConfigLayer] | None = None,
-) -> dict[str, str]:
-    """Build dotted-path provenance for the effective ``axe:`` section."""
-    return build_axe_config_provenance(
-        load_config_layers() if layers is None else layers
-    )
-
-
-def _effective_axe_config_data(
-    data: dict[str, Any],
-) -> tuple[dict[str, Any], dict[str, str]]:
-    """Apply keyed chop composition when any source layer uses map form."""
+def _effective_axe_composition(data: dict[str, Any]) -> AxeConfigComposition:
+    """Compose every runtime layer stack through the Rust AXE authority."""
     global _keyed_config_cache_token, _keyed_config_cache_value
-    if not has_map_form_chops(data):
-        return data, {}
 
-    token = (
-        *current_config_token(),
-        json.dumps(data.get("axe"), sort_keys=True, separators=(",", ":")),
-    )
+    # `load_merged_config` is an established test/injection patch surface.
+    # When replaced, treat its supplied document as a synthetic layer while
+    # still routing composition through Rust.
+    if getattr(load_config_layers, "__module__", "") != "sase.config.core":
+        layers = load_config_layers()
+    elif getattr(load_merged_config, "__module__", "") != "sase.config.core":
+        layers = [
+            ConfigLayer(
+                name="merged",
+                path=None,
+                exists=True,
+                list_strategy="replace",
+                data=data,
+            )
+        ]
+    else:
+        layers = load_config_layers()
+    layer_inputs = [serialize_config_layer(layer) for layer in layers]
+    token = (*current_config_token(), json.dumps(layer_inputs, sort_keys=True))
     with _keyed_config_cache_lock:
         if _keyed_config_cache_token == token and _keyed_config_cache_value is not None:
             return _keyed_config_cache_value
 
-    layers = load_config_layers()
-    if not map_form_chop_layers(layers):
-        return data, _axe_config_provenance(layers)
-    composed, provenance, diagnostics = _compose_keyed_axe_layers(layers)
-    if diagnostics:
-        raise AxeConfigError(diagnostics)
+    composition = compose_axe_layers(layers)
     with _keyed_config_cache_lock:
         _keyed_config_cache_token = token
-        _keyed_config_cache_value = (composed, provenance)
-    return composed, provenance
-
-
-def _validate_effective_axe_config(
-    data: dict[str, Any],
-    *,
-    provenance: dict[str, str] | None = None,
-) -> None:
-    request: dict[str, Any]
-    if "axe" in data:
-        request = {"axe": data["axe"]}
-    else:
-        request = {}
-    diagnostics = validate_axe_config(request, provenance=provenance)
-    if not diagnostics:
-        return
-    if provenance is None:
-        # Provenance discovery performs file/plugin IO, so only pay for it on
-        # the error path when callers did not already compose keyed layers.
-        diagnostics = validate_axe_config(
-            request,
-            provenance=_axe_config_provenance(),
-        )
-    raise AxeConfigError([_AxeConfigDiagnostic.from_wire(item) for item in diagnostics])
+        _keyed_config_cache_value = composition
+    return composition
 
 
 def load_axe_config() -> AxeConfig:
     """Load and fail-closed validate the effective axe configuration."""
-    data, provenance = _effective_axe_config_data(load_merged_config())
-    _validate_effective_axe_config(data, provenance=provenance or None)
+    composition = _effective_axe_composition(load_merged_config())
+    if composition.diagnostics:
+        raise AxeConfigError(
+            [
+                _AxeConfigDiagnostic(
+                    code=item.code,
+                    message=item.message,
+                    path=item.path,
+                    layer=item.layer,
+                    severity=item.severity,
+                )
+                for item in composition.diagnostics
+            ]
+        )
+    data = composition.effective_config
+    provenance = composition.legacy_provenance()
 
     axe_data = data.get("axe")
     if not isinstance(axe_data, dict):
         return AxeConfig()
 
     raw_lumberjacks = axe_data.get("lumberjacks")
+    exact_chop_provenance = {
+        (entry.selector.lumberjack, entry.selector.chop): composition.chop_provenance(
+            entry.selector.lumberjack,
+            entry.selector.chop,
+        )
+        for entry in composition.entries
+        if entry.selector.kind == "chop"
+        and entry.selector.chop is not None
+        and not entry.generated
+    }
     lumberjacks = (
-        _parse_lumberjacks(raw_lumberjacks, provenance=provenance)
+        _parse_lumberjacks(
+            raw_lumberjacks,
+            provenance=provenance,
+            exact_chop_provenance=exact_chop_provenance,
+        )
         if isinstance(raw_lumberjacks, dict)
         else {}
     )

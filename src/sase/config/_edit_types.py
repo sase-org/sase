@@ -12,6 +12,10 @@ class ConfigEditError(RuntimeError):
     """Raised when a config edit cannot be planned or applied."""
 
 
+class ConfigEditConflict(ConfigEditError):
+    """Raised when the target changed after an edit was previewed."""
+
+
 @dataclass(frozen=True)
 class ConfigEditOp:
     """A set/unset operation on a field."""
@@ -96,6 +100,9 @@ class EditPlanResult:
     current_text: str
     new_text: str
     text_diff: str
+    target_existed: bool = False
+    target_bytes: bytes | None = None
+    target_token: str = "absent"
 
     @property
     def is_valid(self) -> bool:

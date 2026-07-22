@@ -11,6 +11,7 @@ from sase.config._edit_plan import apply_config_edit
 from sase.config._edit_plan import plan_config_edit as plan_config_edit_impl
 from sase.config._edit_types import (
     AppliedResult,
+    ConfigEditConflict,
     ConfigEditError,
     ConfigEditOp,
     ConfigEffectivePreview,
@@ -24,10 +25,11 @@ from sase.config.inventory import ConfigInventory
 
 def plan_config_edit(
     inventory: ConfigInventory,
-    path: str,
+    path: str | None,
     target: str,
     op: ConfigEditOp,
     *,
+    key_path: tuple[str, ...] | list[str] | None = None,
     use_chezmoi: bool | None = None,
 ) -> EditPlanResult:
     """Plan a config edit while preserving this module's patch surface."""
@@ -37,6 +39,7 @@ def plan_config_edit(
         path,
         target,
         op,
+        key_path=key_path,
         use_chezmoi=effective_use_chezmoi,
     )
 
@@ -44,6 +47,7 @@ def plan_config_edit(
 __all__ = [
     "AppliedResult",
     "ConfigEditError",
+    "ConfigEditConflict",
     "ConfigEditOp",
     "ConfigEffectivePreview",
     "ConfigWritePlan",

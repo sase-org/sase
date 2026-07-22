@@ -19,6 +19,20 @@ from .process import (
 from .chop_script_context import ChopScriptContext
 from .chop_script_runner import discover_chop_script, list_chop_scripts, run_chop_script
 from .config import AxeConfig, LumberjackConfig, load_axe_config
+from .config_backend import (
+    AxeConfigComposition,
+    AxeEntryPreview,
+    AxeEntrySelector,
+    AxeFieldOperation,
+    AxeFieldProvenance,
+    AxeInventoryEntry,
+    AxeMutationPlan,
+    AxeRawContribution,
+    apply_axe_entry_edit,
+    build_axe_config_inventory,
+    compose_axe_config,
+    plan_axe_entry_edit,
+)
 from .runner_pool import RunnerPool, SharedRunnerPool
 from .state import (
     AxeMetrics,
@@ -44,8 +58,20 @@ __all__ = [
     "Orchestrator",
     # Config
     "AxeConfig",
+    "AxeConfigComposition",
+    "AxeEntryPreview",
+    "AxeEntrySelector",
+    "AxeFieldOperation",
+    "AxeFieldProvenance",
+    "AxeInventoryEntry",
+    "AxeMutationPlan",
+    "AxeRawContribution",
     "LumberjackConfig",
+    "apply_axe_entry_edit",
+    "build_axe_config_inventory",
+    "compose_axe_config",
     "load_axe_config",
+    "plan_axe_entry_edit",
     # Process control
     "get_axe_pid",
     "get_axe_status",

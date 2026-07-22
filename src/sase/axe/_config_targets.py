@@ -342,10 +342,12 @@ def parse_lumberjacks(
     raw: dict[str, Any],
     *,
     provenance: dict[str, str] | None = None,
+    exact_chop_provenance: dict[tuple[str, str], dict[str, str]] | None = None,
     project_target_rows: ProjectTargetRowsLoader = project_target_rows,
 ) -> dict[str, LumberjackConfig]:
     """Turn a core-validated ``lumberjacks:`` mapping into dataclasses."""
     provenance = provenance or {}
+    exact_chop_provenance = exact_chop_provenance or {}
     result: dict[str, LumberjackConfig] = {}
     for name, cfg in raw.items():
         if not isinstance(cfg, dict):
@@ -385,7 +387,10 @@ def parse_lumberjacks(
             )
 
         for chop_name, entry, path in entries:
-            entry_provenance = _chop_provenance(provenance, path=path)
+            entry_provenance = exact_chop_provenance.get(
+                (name, chop_name),
+                _chop_provenance(provenance, path=path),
+            )
             if not bool(entry.get("enabled", True)):
                 chops.append(
                     _chop_from_raw(
