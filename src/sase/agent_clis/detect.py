@@ -181,9 +181,13 @@ def _detect_install_method(
         package
         and npm is not None
         and (
-            package in npm.installed_packages
-            or _path_under(executable, npm.root)
+            _path_under(executable, npm.root)
             or _path_under(executable, npm.prefix)
+            or (
+                package in npm.installed_packages
+                and npm.root is None
+                and npm.prefix is None
+            )
         )
     ):
         return InstallMethod.NPM

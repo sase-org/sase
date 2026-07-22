@@ -33,6 +33,44 @@ def test_npm_evidence_beats_self_update_strategy() -> None:
     )
 
     method = _detect_install_method(
+        "/prefix/bin/tool",
+        manager="npm",
+        package="tool-package",
+        self_update_argv=("update",),
+        npm=npm,
+    )
+
+    assert method is InstallMethod.NPM
+
+
+def test_orphaned_npm_package_does_not_mask_self_managed_install() -> None:
+    npm = _NpmEnvironment(
+        root="/prefix/lib/node_modules",
+        prefix="/prefix",
+        installed_packages=frozenset({"tool-package"}),
+        root_writable=True,
+    )
+
+    method = _detect_install_method(
+        "/other/tool",
+        manager="npm",
+        package="tool-package",
+        self_update_argv=("update",),
+        npm=npm,
+    )
+
+    assert method is InstallMethod.SELF_MANAGED
+
+
+def test_listed_npm_package_is_evidence_when_tree_location_is_unknown() -> None:
+    npm = _NpmEnvironment(
+        root=None,
+        prefix=None,
+        installed_packages=frozenset({"tool-package"}),
+        root_writable=None,
+    )
+
+    method = _detect_install_method(
         "/other/tool",
         manager="npm",
         package="tool-package",
@@ -113,6 +151,55 @@ def test_detection_honors_provider_path_override_and_parses_version(
     assert status.executable == str(executable)
     assert status.installed_version == "3.4.5"
     assert status.install_method is InstallMethod.SELF_MANAGED
+
+
+def test_detection_ignores_orphaned_npm_package_for_native_executable(
+    tmp_path: Path,
+) -> None:
+    native_bin = tmp_path / "native" / "bin"
+    native_bin.mkdir(parents=True)
+    executable = native_bin / "claude"
+    executable.write_text("", encoding="utf-8")
+    executable.chmod(0o755)
+    npm_prefix = tmp_path / "npm"
+    npm_root = npm_prefix / "lib" / "node_modules"
+    providers = {
+        "claude": {
+            "autodetect_cli_name": "claude",
+            "install": {
+                "manager": "npm",
+                "package": "@anthropic-ai/claude-code",
+                "self_update_argv": ["update"],
+            },
+        }
+    }
+
+    def run(argv: tuple[str, ...], **_kwargs: object) -> CommandResult:
+        if argv[1:3] == ("root", "-g"):
+            return _result(argv, f"{npm_root}\n")
+        if argv[1:3] == ("prefix", "-g"):
+            return _result(argv, f"{npm_prefix}\n")
+        if argv[:4] == ("npm", "ls", "-g", "--json"):
+            return _result(
+                argv,
+                json.dumps(
+                    {
+                        "dependencies": {
+                            "@anthropic-ai/claude-code": {"version": "1.0.0"}
+                        }
+                    }
+                ),
+            )
+        return _result(argv, "Claude Code v2.0.0")
+
+    statuses = detect_agent_cli_statuses(
+        providers,
+        env={"PATH": str(native_bin)},
+        run_fn=run,
+    )
+
+    assert statuses[0].executable == str(executable)
+    assert statuses[0].install_method is InstallMethod.SELF_MANAGED
 
 
 def test_not_installed_provider_does_not_probe_npm() -> None:

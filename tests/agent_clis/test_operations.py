@@ -172,6 +172,22 @@ def test_npm_beats_declared_self_update_in_plan() -> None:
     )
 
 
+def test_self_managed_claude_plans_native_update_command() -> None:
+    status = _status(
+        "claude",
+        method=InstallMethod.SELF_MANAGED,
+        executable="/bin/claude",
+        package="@anthropic-ai/claude-code",
+        self_update=("update",),
+    )
+
+    plan = plan_agent_cli_updates(["claude"], status_fn=_planner(status))
+
+    assert isinstance(plan, AgentCliUpdatesReady)
+    assert plan.entries[0].strategy is UpdateStrategy.SELF_UPDATE
+    assert plan.entries[0].argv == ("/bin/claude", "update")
+
+
 def test_unknown_name_is_typed_and_does_not_execute() -> None:
     plan = plan_agent_cli_updates(
         ["codez"],
