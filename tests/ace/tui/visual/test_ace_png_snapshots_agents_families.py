@@ -7,9 +7,11 @@ from datetime import datetime
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
     family_and_lone_planner_agents,
     parallel_family_agents,
+    parent_navigation_family_agents,
     renamed_generic_family_agents,
     waiting_family_child_agents,
 )
@@ -52,6 +54,43 @@ async def test_waiting_family_child_row_png_snapshot(
             page,
             "agents_waiting_family_child_120x40",
             title="ACE agents waiting family child",
+        )
+
+
+async def test_python_step_parent_family_footer_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 22, 6, 30, 0))
+    patch_startup_loaders(monkeypatch, agents=parent_navigation_family_agents())
+
+    async with AcePage(
+        query='"visual-house-navigation"', changespecs=changespecs()
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await page.press("l", "l")
+        await page.expect_state("agent_count", 5)
+        for _ in range(5):
+            if page.app._agents[page.app.current_idx].cl_name == "setup":
+                break
+            await page.press("j")
+        else:
+            raise AssertionError("hidden Python setup row was not selectable")
+        await wait_for_visual_idle(page)
+
+        footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
+        assert footer._last_layout_inputs is not None
+        bindings, _mode_label = footer._last_layout_inputs
+        assert ("h", "parent family") in bindings
+        assert_page_svg_contains(page, "setup")
+        assert_page_svg_contains(page, "parent family")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_python_step_parent_family_120x40",
+            title="ACE Python workflow step parent navigation",
         )
 
 

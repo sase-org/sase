@@ -139,7 +139,7 @@ def make_agent(
 
 
 def make_loader_shaped_aliased_plan_family() -> tuple[
-    list[Agent], Agent, Agent, Agent, Agent
+    list[Agent], Agent, Agent, Agent, dict[str, Agent]
 ]:
     """Build the workflow/family suffix shape emitted by the real loader."""
     root = make_agent(
@@ -153,27 +153,8 @@ def make_loader_shaped_aliased_plan_family() -> tuple[
     root.agent_family = "he"
     root.agent_family_role = "root"
 
-    main = make_agent(
-        cl_name="main",
-        agent_name="he--plan",
-        raw_suffix=root.raw_suffix,
-        agent_type=AgentType.WORKFLOW,
-        status="DONE",
-    )
-    main.parent_timestamp = root.raw_suffix
-    main.parent_workflow = "ace-run"
-    main.step_type = "agent"
-
-    script = make_agent(
-        cl_name="resolve",
-        raw_suffix=root.raw_suffix,
-        agent_type=AgentType.WORKFLOW,
-        status="DONE",
-    )
-    script.parent_timestamp = root.raw_suffix
-    script.parent_workflow = "ace-run"
-    script.step_type = "bash"
-    script.is_hidden_step = True
+    steps = _make_loader_shaped_workflow_steps(root, workflow="ace-run")
+    main = steps["agent"]
 
     coder = make_agent(
         cl_name="he",
@@ -186,9 +167,88 @@ def make_loader_shaped_aliased_plan_family() -> tuple[
     coder.agent_family_role = "code"
 
     root.followup_agents.append(coder)
-    root.runtime_children.extend([main, coder, script])
-    agents = [root, main, coder, script]
-    return agents, root, main, coder, script
+    root.runtime_children.extend([coder, *steps.values()])
+    agents = [root, main, coder, *(step for step in steps.values() if step is not main)]
+    return agents, root, main, coder, steps
+
+
+def make_standalone_workflow_house(
+    *,
+    clan: str | None = None,
+    tribe: str | None = None,
+) -> tuple[list[Agent], Agent, dict[str, Agent]]:
+    """Build an ordinary workflow house with every supported child shape."""
+    root = make_agent(
+        cl_name="house",
+        raw_suffix="workflow-house",
+        agent_type=AgentType.WORKFLOW,
+        tribe=tribe,
+    )
+    root.workflow = "house-workflow"
+    if clan is not None:
+        root.agent_clan = clan
+        root.agent_clan_generation = "generation"
+    steps = _make_loader_shaped_workflow_steps(root, workflow="house-workflow")
+    root.runtime_children.extend(steps.values())
+    rows = [root, *steps.values()]
+    return (project_clan_tree(rows) if clan is not None else rows), root, steps
+
+
+def _make_loader_shaped_workflow_steps(
+    root: Agent,
+    *,
+    workflow: str,
+) -> dict[str, Agent]:
+    """Return aliased agent/script, parallel, embedded, and legacy steps."""
+
+    def step(
+        name: str,
+        step_type: str | None,
+        *,
+        hidden: bool = False,
+        pre_prompt: bool = False,
+        parent_step_index: int | None = None,
+        embedded_workflow_name: str | None = None,
+    ) -> Agent:
+        row = make_agent(
+            cl_name=name,
+            agent_name="he--plan" if name == "main" else None,
+            raw_suffix=root.raw_suffix,
+            agent_type=AgentType.WORKFLOW,
+            status="DONE",
+        )
+        row.parent_timestamp = root.raw_suffix
+        row.parent_workflow = workflow
+        row.step_name = name
+        row.step_type = step_type
+        row.is_hidden_step = hidden
+        row.is_pre_prompt_step = pre_prompt
+        row.parent_step_index = parent_step_index
+        row.embedded_workflow_name = embedded_workflow_name
+        return row
+
+    return {
+        "agent": step("main", "agent"),
+        "bash": step("prepare", "bash"),
+        "python": step("setup", "python"),
+        "pre_prompt": step(
+            "resolve",
+            "python",
+            hidden=True,
+            pre_prompt=True,
+            embedded_workflow_name="git",
+        ),
+        "parallel": step("diff", "bash", parent_step_index=2),
+        "embedded": step(
+            "checkout",
+            "python",
+            parent_step_index=3,
+            embedded_workflow_name="git",
+        ),
+        # Historical marker payloads can omit step_type while retaining the
+        # workflow-parent linkage. They remain presentation-tree children.
+        "compatibility": step("legacy", None),
+    }
 
 
 def make_sequential_family(

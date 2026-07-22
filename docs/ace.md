@@ -692,14 +692,20 @@ panels stay pinned to their natural height; when the panels overflow, space is w
 count.
 
 Use `J` / `K` to move across panels (forward / reverse) and enter the first or last selectable row in the destination;
-collapsed grouping banners count as rows. Whole-panel focus is available only in the split layout. When at least two
-tribe panels are visible, close structural clan, family, or workflow folds and press `h` to select the entire expanded
-panel without losing its remembered row. A selected panel has a `❖` title and shows a fold-aware `TRIBE` summary in the
-metadata pane. While it is selected, `j` / `k` cycle whole panels without descending; `l` or `Esc` returns to the
-remembered row. A second `h` collapses the selected panel; panel collapse also requires at least two panels. On a
-collapsed panel, the first `l` expands it while keeping whole-panel focus and the second returns to the remembered row;
-uppercase `L` expands it and enters its first selectable row. Apostrophe jump hints include every split-panel title,
-even a lone expanded panel, as well as collapsed titles, and support the normal `Ctrl+O` jump back.
+collapsed grouping banners count as rows. Whole-panel focus is available only in the split layout. Lowercase `h` walks
+from any agent or workflow-step row to its validated immediate workflow, family, clan, and finally tribe parent without
+changing structural or grouping folds. It also selects a lone split panel after the structural chain is exhausted. A
+selected panel has a `❖` title and shows a fold-aware `TRIBE` summary in the metadata pane. While it is selected, `j` /
+`k` cycle whole panels without descending; `l` or `Esc` returns to the remembered row. A second `h` collapses the
+selected panel when another panel remains visible. On a collapsed panel, the first `l` expands it while keeping
+whole-panel focus and the second returns to the remembered row; uppercase `L` expands it and enters its first selectable
+row. Apostrophe jump hints include every split-panel title, even a lone expanded panel, as well as collapsed titles, and
+support the normal `Ctrl+O` jump back.
+
+Lowercase `l` only advances a real fold owned by the selected row or its immediate workflow/family owner, so a visible
+hidden leaf under an already fully expanded workflow is a no-op. Uppercase `H` is the structural mutation key: it
+collapses the selected workflow/family/clan context before grouping collapse, or isolates/restores panels while a whole
+panel is selected.
 
 With a whole panel selected, uppercase `H` keeps that panel expanded and collapses every sibling panel. If that changes
 the layout, ACE remembers the prior collapsed-panel set for one session-local restore. Panels whose state would change

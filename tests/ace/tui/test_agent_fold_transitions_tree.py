@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
@@ -11,6 +13,7 @@ from ._agent_fold_transition_helpers import (
     make_agent,
     make_loader_shaped_aliased_plan_family,
     make_sequential_family,
+    make_standalone_workflow_house,
 )
 
 
@@ -45,7 +48,7 @@ def test_capital_h_collapses_family_then_clan_before_group_fold() -> None:
 
 
 def test_capital_h_collapses_aliased_plan_family_before_group_fold() -> None:
-    agents, root, _main, coder, _script = make_loader_shaped_aliased_plan_family()
+    agents, root, _main, coder, _steps = make_loader_shaped_aliased_plan_family()
     app = StubFoldApp(agents, current_idx=agents.index(coder))
     family_key = agent_fold_key(root)
     assert family_key is not None
@@ -56,6 +59,45 @@ def test_capital_h_collapses_aliased_plan_family_before_group_fold() -> None:
     assert app.current_idx == agents.index(root)
     assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
     assert app._group_fold_registry.snapshot() == ()
+
+
+@pytest.mark.parametrize("step_kind", ["agent", "bash", "python"])
+def test_capital_h_collapses_workflow_step_owner_before_group(
+    step_kind: str,
+) -> None:
+    agents, root, steps = make_standalone_workflow_house()
+    selected = steps[step_kind]
+    app = StubFoldApp(agents, current_idx=agents.index(selected))
+    workflow_key = agent_fold_key(root)
+    assert workflow_key is not None
+    app._fold_manager.expand(workflow_key)
+
+    app.action_hooks_or_collapse_all()
+
+    assert app.current_idx == agents.index(root)
+    assert app._fold_manager.get(workflow_key) is FoldLevel.COLLAPSED
+    assert app._group_fold_registry.snapshot() == ()
+
+
+def test_l_expands_child_owner_but_saturated_hidden_leaf_is_noop() -> None:
+    agents, root, steps = make_standalone_workflow_house()
+    workflow_key = agent_fold_key(root)
+    assert workflow_key is not None
+    app = StubFoldApp(agents, current_idx=agents.index(steps["bash"]))
+    app._fold_manager.expand(workflow_key)
+
+    app.action_expand_or_layout()
+
+    assert app.current_idx == agents.index(steps["bash"])
+    assert app._fold_manager.get(workflow_key) is FoldLevel.FULLY_EXPANDED
+    assert app.refilter_calls == 1
+
+    app.current_idx = agents.index(steps["pre_prompt"])
+    app.action_expand_or_layout()
+
+    assert app.current_idx == agents.index(steps["pre_prompt"])
+    assert app._fold_manager.get(workflow_key) is FoldLevel.FULLY_EXPANDED
+    assert app.refilter_calls == 1
 
 
 def test_l_expands_running_parent_with_family_child() -> None:

@@ -142,10 +142,12 @@ orchid `<name>` after its rolled-up status counts; its `@tribe` labels follow th
 ends with its bare azure container `<name>`, while its concrete member rows retain their exact `--<suffix>` names. Plain
 agent annotations and a lone plan proposer with only its display-only planner child remain gold. Press `l` once on a
 collapsed clan to reveal its direct members. The clan's outer fold is binary, so move to a family or workflow row and
-press `l` there to reveal that row's descendants; `h` collapses the focused structural owner one level. Selecting the
-clan row shows an aggregate `CLAN` header and a navigable summary of every section represented across its members. In
-the Agents list, direct members sort by status priority — Failed, Stopped, Running/Starting, Waiting, Done — and then by
-launch recency within a bucket. The metadata roster uses chronological launch order instead, keeping its
+press `l` there to reveal that row's descendants. Lowercase `h` moves from any agent, Bash, Python, parallel, embedded,
+or compatibility workflow step to its validated immediate workflow, family, clan, or tribe parent without changing fold
+state. Uppercase `H` collapses the focused workflow, family, or clan before falling back to grouping collapse. Selecting
+the clan row shows an aggregate `CLAN` header and a navigable summary of every section represented across its members.
+In the Agents list, direct members sort by status priority — Failed, Stopped, Running/Starting, Waiting, Done — and then
+by launch recency within a bucket. The metadata roster uses chronological launch order instead, keeping its
 number-to-member mapping stable while statuses change. The runtime is the union of member run intervals, with human-wait
 windows excluded, so concurrent members are not double-counted.
 
@@ -328,18 +330,18 @@ assignment joins the same panel, and clearing any user-managed tribe returns the
 
 ### Tribe panel focus and folding
 
-In the split layout, a tribe panel is also a selectable container. When at least two panels are visible, close any
-structural clan, family, or workflow folds and press `h` to select the whole expanded panel; press `h` again to collapse
-it. Press `l` to expand a collapsed panel while keeping container focus, then `l` again to return to the row ACE
-remembered for that panel. Uppercase `L` instead expands the panel and enters its first selectable row. While an
-expanded whole panel is selected, `j` / `k` cycle across panels without descending, and `l` or `Esc` returns to the
-remembered row. `J` / `K` always move to the first / last selectable row of the next / previous panel. Whole-panel focus
-is unavailable in the merged layout. Apostrophe jump can select any split-panel title, including a lone expanded panel,
-but a lone panel cannot be collapsed. With whole-panel focus active, uppercase `H` isolates the selected panel by
-keeping it expanded and collapsing every sibling without changing its remembered row. When isolation changes the layout,
-ACE remembers the prior collapsed-panel set for the session: `↺` title markers and the `H restore panels` footer hint
-show that the next `H`, from any whole-panel focus, will restore it. A separate sibling-panel or layout mutation
-invalidates that one-step restore.
+In the split layout, a tribe panel is also a selectable container. Repeated lowercase `h` follows the validated workflow
+→ family → clan → tribe ladder and selects the whole expanded panel after the structural parent chain is exhausted; `h`
+on the selected panel collapses it when another panel remains visible. Press `l` to expand a collapsed panel while
+keeping container focus, then `l` again to return to the row ACE remembered for that panel. Uppercase `L` instead
+expands the panel and enters its first selectable row. While an expanded whole panel is selected, `j` / `k` cycle across
+panels without descending, and `l` or `Esc` returns to the remembered row. `J` / `K` always move to the first / last
+selectable row of the next / previous panel. Whole-panel focus is unavailable in the merged layout. Apostrophe jump can
+select any split-panel title, including a lone expanded panel, but a lone panel cannot be collapsed. With whole-panel
+focus active, uppercase `H` isolates the selected panel by keeping it expanded and collapsing every sibling without
+changing its remembered row. When isolation changes the layout, ACE remembers the prior collapsed-panel set for the
+session: `↺` title markers and the `H restore panels` footer hint show that the next `H`, from any whole-panel focus,
+will restore it. A separate sibling-panel or layout mutation invalidates that one-step restore.
 
 Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four `zz` metadata detail levels are:
 

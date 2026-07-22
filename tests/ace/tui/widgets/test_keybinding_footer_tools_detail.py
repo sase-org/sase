@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+import pytest
+
+from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from sase.ace.tui.widgets.tools_panel import ToolDetailLevel
+from tests.ace.tui._agent_fold_transition_helpers import (
+    StubFoldApp,
+    make_loader_shaped_aliased_plan_family,
+    make_standalone_workflow_house,
+)
 
 
 def _labels(bindings: list[tuple[str, str]]) -> set[tuple[str, str]]:
@@ -110,6 +118,9 @@ def test_footer_armed_panel_isolation_advertises_restore_action() -> None:
 def test_footer_left_navigation_and_collapse_target_labels() -> None:
     footer = KeybindingFooter()
 
+    workflow = _labels(
+        footer._compute_agent_bindings(None, left_navigation_kind="workflow")
+    )
     family = _labels(
         footer._compute_agent_bindings(None, left_navigation_kind="family")
     )
@@ -153,6 +164,7 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
         footer._compute_agent_bindings(None, group_collapse_available=True)
     )
 
+    assert ("h", "parent workflow") in workflow
     assert ("h", "parent family") in family
     assert ("h", "parent clan") in clan
     assert ("h", "parent tribe") in tribe
@@ -164,3 +176,64 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     assert ("H", "collapse family") in family_collapse
     assert ("H", "collapse clan") in clan_collapse
     assert ("H", "collapse group") in group_collapse
+
+
+@pytest.mark.parametrize("step_kind", ["bash", "python", "pre_prompt"])
+def test_footer_labels_aliased_family_workflow_steps_from_shared_resolver(
+    step_kind: str,
+) -> None:
+    agents, _root, _main, _coder, steps = make_loader_shaped_aliased_plan_family()
+    app = StubFoldApp(agents, current_idx=agents.index(steps[step_kind]))
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None
+
+    bindings = _labels(
+        KeybindingFooter()._compute_agent_bindings(
+            None,
+            left_navigation_kind=target.kind,
+        )
+    )
+
+    assert ("h", "parent family") in bindings
+
+
+def test_footer_omits_parent_for_invalid_ancestry() -> None:
+    agents, root, steps = make_standalone_workflow_house()
+    selected = steps["python"]
+    selected.tree_parent_key = root.raw_suffix
+    selected.tree_depth = 7
+    app = StubFoldApp(agents, current_idx=agents.index(selected))
+    target = app._resolve_agent_left_navigation_target()
+
+    bindings = _labels(
+        KeybindingFooter()._compute_agent_bindings(
+            None,
+            left_navigation_kind=None if target is None else target.kind,
+        )
+    )
+
+    assert not any(label.startswith("parent ") for _key, label in bindings)
+
+
+def test_footer_saturated_hidden_leaf_keeps_parent_and_capital_h_targets() -> None:
+    agents, root, steps = make_standalone_workflow_house()
+    app = StubFoldApp(agents, current_idx=agents.index(steps["pre_prompt"]))
+    assert root.raw_suffix is not None
+    app._fold_manager.expand(root.raw_suffix)
+    app._fold_manager.expand(root.raw_suffix)
+    assert app._fold_manager.get(root.raw_suffix) is FoldLevel.FULLY_EXPANDED
+    left = app._resolve_agent_left_navigation_target()
+    collapse = app._resolve_agent_structural_collapse_target()
+    assert left is not None
+    assert collapse is not None
+
+    bindings = _labels(
+        KeybindingFooter()._compute_agent_bindings(
+            None,
+            left_navigation_kind=left.kind,
+            structural_collapse_kind=collapse.kind,
+        )
+    )
+
+    assert ("h", "parent workflow") in bindings
+    assert ("H", "collapse workflow") in bindings

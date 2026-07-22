@@ -147,15 +147,12 @@ def test_agents_help_describes_h_navigation_and_capital_h_collapsing() -> None:
         for key, label in bindings
     }
 
-    assert (
-        "H",
-        "Collapse workflow/family/clan/group / only panel ⇄ restore panels / "
-        "compact Tools",
-    ) in agent_pairs
-    assert (
-        "l / h",
-        "Expand/enter panel · parent family/clan/tribe or collapse panel",
-    ) in agent_pairs
+    assert ("l", "Expand real fold / enter panel") in agent_pairs
+    assert ("h", "Up: workflow/family/clan/tribe") in agent_pairs
+    assert ("h", "Collapse selected panel") in agent_pairs
+    assert ("H", "Collapse workflow/family/clan") in agent_pairs
+    assert ("H", "Collapse group / isolate panel") in agent_pairs
+    assert ("H", "Restore panels / compact Tools") in agent_pairs
 
 
 def test_agents_help_lists_neighbor_navigation() -> None:

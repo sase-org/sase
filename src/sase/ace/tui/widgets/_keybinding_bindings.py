@@ -181,7 +181,10 @@ class KeybindingBindingsMixin:
                 bindings.append((self._kd("expand_or_layout"), "enter panel"))
                 bindings.append(("Esc", "enter panel"))
 
-        if left_navigation_kind in {"family", "clan", "tribe"} and not panel_focused:
+        if (
+            left_navigation_kind in {"workflow", "family", "clan", "tribe"}
+            and not panel_focused
+        ):
             bindings.append(
                 (
                     self._kd("hooks_or_collapse"),

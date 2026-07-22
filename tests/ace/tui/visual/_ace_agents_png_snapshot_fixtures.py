@@ -86,6 +86,78 @@ def waiting_family_child_agents() -> list[Agent]:
     return [parent, child]
 
 
+def parent_navigation_family_agents() -> list[Agent]:
+    """Return a loader-shaped plan family with a hidden Python pre-step."""
+    started = datetime(2026, 7, 22, 6, 0, 0)
+    stopped = datetime(2026, 7, 22, 6, 10, 0)
+    root = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="visual-house-navigation",
+        project_file="/workspace/sase/visual_project.sase",
+        status="PLAN APPROVED",
+        start_time=started,
+        stop_time=stopped,
+        raw_suffix="20260722060000",
+        agent_name="visual-nav",
+        agent_family="visual-nav",
+        agent_family_role="root",
+        plan_chain_root=True,
+        workflow="ace-run",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+
+    def workflow_step(
+        name: str,
+        step_type: str,
+        step_index: int,
+        *,
+        hidden: bool = False,
+        pre_prompt: bool = False,
+    ) -> Agent:
+        return Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name=name,
+            project_file=root.project_file,
+            status="DONE",
+            start_time=started,
+            stop_time=stopped,
+            raw_suffix=root.raw_suffix,
+            parent_workflow="ace-run",
+            parent_timestamp=root.raw_suffix,
+            step_name=name,
+            step_type=step_type,
+            step_index=step_index,
+            total_steps=4,
+            is_hidden_step=hidden,
+            is_pre_prompt_step=pre_prompt,
+            embedded_workflow_name="git" if pre_prompt else None,
+        )
+
+    main = workflow_step("main", "agent", 0)
+    main.agent_name = "visual-nav--plan"
+    prepare = workflow_step("prepare", "bash", 1)
+    setup = workflow_step("setup", "python", 2, hidden=True, pre_prompt=True)
+    coder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-house-navigation-code",
+        project_file=root.project_file,
+        status="DONE",
+        start_time=datetime(2026, 7, 22, 6, 11, 0),
+        stop_time=datetime(2026, 7, 22, 6, 20, 0),
+        raw_suffix="20260722061100",
+        parent_timestamp=root.raw_suffix,
+        agent_name="visual-nav--code",
+        agent_family="visual-nav",
+        agent_family_role="code",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    root.followup_agents.append(coder)
+    root.runtime_children.extend([main, coder])
+    return [root, main, coder, prepare, setup]
+
+
 def parallel_family_agents() -> list[Agent]:
     root = Agent(
         agent_type=AgentType.RUNNING,

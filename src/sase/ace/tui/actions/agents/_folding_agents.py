@@ -25,7 +25,7 @@ _FOCUSED_PANEL = object()
 class _AgentLeftNavigationTarget:
     """Validated immediate target for an Agents-tab ``h`` navigation."""
 
-    kind: Literal["family", "clan", "tribe"]
+    kind: Literal["workflow", "family", "clan", "tribe"]
     index: int | None = None
     agent: Agent | None = None
 
@@ -129,9 +129,9 @@ class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
         """Resolve the selected row/banner's validated immediate parent.
 
         The resolver stays entirely within the loaded Agents projection.  It
-        accepts concrete agent -> sequential family, direct member -> clan, and
-        sequential family -> clan edges. A row or grouping banner reaches its
-        tribe panel only after proving that it has no structural parent.
+        accepts every validated workflow/family child -> owner edge plus direct
+        member/family -> clan edges. A row or grouping banner reaches its tribe
+        panel only after proving that it has no structural parent.
         """
         if self.current_tab != "agents" or not (
             0 <= self.current_idx < len(self._agents)
@@ -151,30 +151,45 @@ class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
         if selected is None:
             return None
 
-        from ...models._agent_tree import (
-            agent_fold_key,
-            agent_parent_fold_key,
-            tree_parent_lookup,
-        )
-        from ...models.agent_family_members import is_sequential_family_container
+        from ...models._agent_tree import agent_fold_key, agent_parent_fold_key
 
         parent_key = agent_parent_fold_key(selected)
         if parent_key is None:
             if (
                 selected.is_child_row
                 or selected.is_hidden_step
+                or selected.step_type is not None
+                or selected.is_pre_prompt_step
                 or selected.tree_parent_key is not None
                 or selected.tree_depth != 0
-                or not (
-                    selected.is_agent_entry
-                    or selected.is_clan_container
-                    or is_sequential_family_container(selected)
-                )
             ):
+                return None
+            selected_positions = sum(
+                1 for candidate in self._agents if candidate is selected
+            )
+            own_key = agent_fold_key(selected)
+            owner_matches = sum(
+                1
+                for candidate in self._agents
+                if not candidate.is_child_row and agent_fold_key(candidate) == own_key
+            )
+            if selected_positions != 1 or (own_key is not None and owner_matches != 1):
                 return None
             if self._can_select_focused_tribe_panel():
                 return _AgentLeftNavigationTarget("tribe")
             return None
+
+        return self._validated_agent_parent_target(selected, parent_key)
+
+    def _validated_agent_parent_target(
+        self,
+        selected: Agent,
+        parent_key: str,
+    ) -> _AgentLeftNavigationTarget | None:
+        """Validate and classify one canonical rendered-tree parent edge."""
+        from ...models._agent_tree import agent_fold_key, tree_parent_lookup
+        from ...models.agent_family_members import is_sequential_family_container
+
         parent = tree_parent_lookup(self._agents).get(parent_key)
         if parent is None or parent is selected:
             return None
@@ -199,38 +214,48 @@ class AgentTreeFoldingMixin(AgentPanelFoldingMixin):
             return None
         parent_index = parent_positions[0]
 
-        if is_sequential_family_container(selected):
+        # An explicit presentation edge is authoritative and must agree with
+        # both persisted ancestry and rendered indentation. Loader-shaped
+        # non-clan children may instead carry only parent_timestamp and retain
+        # the legacy zero depth; a nonzero fallback depth must still be exact.
+        if (
+            selected.tree_parent_key is not None
+            and selected.parent_timestamp is not None
+            and selected.parent_timestamp != parent_key
+        ):
+            return None
+        if selected.tree_parent_key is not None:
             if (
-                not parent.is_clan_container
-                or selected.tree_parent_key != parent_key
-                or selected.tree_depth != 1
+                selected.tree_parent_key != parent_key
+                or selected.tree_depth != parent.tree_depth + 1
+                or (
+                    parent.is_clan_container
+                    and (selected.is_child_row or selected.parent_timestamp is not None)
+                )
+                or (
+                    not parent.is_clan_container
+                    and (
+                        not selected.is_child_row
+                        or selected.parent_timestamp != parent_key
+                    )
+                )
             ):
                 return None
-            return _AgentLeftNavigationTarget("clan", parent_index, parent)
-
-        if (
-            selected.is_clan_container
-            or not selected.is_agent_entry
-            or selected.is_hidden_step
+        elif (
+            parent.is_clan_container
+            or not selected.is_child_row
+            or selected.parent_timestamp != parent_key
+            or selected.tree_depth not in {0, parent.tree_depth + 1}
         ):
             return None
 
         if parent.is_clan_container:
-            if (
-                selected.tree_parent_key != parent_key
-                or selected.tree_depth != parent.tree_depth + 1
-            ):
-                return None
-            return _AgentLeftNavigationTarget("clan", parent_index, parent)
-
-        if not selected.is_child_row or not is_sequential_family_container(parent):
-            return None
-        if (
-            selected.tree_parent_key is not None
-            and selected.tree_depth != parent.tree_depth + 1
-        ):
-            return None
-        return _AgentLeftNavigationTarget("family", parent_index, parent)
+            kind: Literal["workflow", "family", "clan"] = "clan"
+        elif is_sequential_family_container(parent):
+            kind = "family"
+        else:
+            kind = "workflow"
+        return _AgentLeftNavigationTarget(kind, parent_index, parent)
 
     def _navigate_agent_left(self) -> bool:
         """Move to the validated structural parent or containing tribe panel."""

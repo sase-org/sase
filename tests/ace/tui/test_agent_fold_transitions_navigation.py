@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_groups import GroupingMode
@@ -11,6 +13,17 @@ from ._agent_fold_transition_helpers import (
     make_agent,
     make_loader_shaped_aliased_plan_family,
     make_sequential_family,
+    make_standalone_workflow_house,
+)
+
+WORKFLOW_STEP_KINDS = (
+    "agent",
+    "bash",
+    "python",
+    "pre_prompt",
+    "parallel",
+    "embedded",
+    "compatibility",
 )
 
 
@@ -103,7 +116,7 @@ def test_h_parent_ladder_is_grouping_mode_independent() -> None:
 
 
 def test_h_loader_aliased_plan_family_reaches_root_and_sole_default_panel() -> None:
-    agents, root, main, coder, script = make_loader_shaped_aliased_plan_family()
+    agents, root, main, coder, _steps = make_loader_shaped_aliased_plan_family()
     app = StubFoldApp(agents, current_idx=agents.index(coder))
     app._grouping_mode = GroupingMode.BY_STATUS
     tree_folds_before = app._fold_manager.snapshot()
@@ -139,13 +152,39 @@ def test_h_loader_aliased_plan_family_reaches_root_and_sole_default_panel() -> N
         app._expanded_panel_keys,
     ) == panel_folds_before
 
-    app._expanded_panel_focus = False
-    app.current_idx = agents.index(script)
-    assert app._resolve_agent_left_navigation_target() is None
+
+@pytest.mark.parametrize("step_kind", WORKFLOW_STEP_KINDS)
+def test_h_loader_aliased_plan_family_accepts_every_workflow_step_kind(
+    step_kind: str,
+) -> None:
+    agents, root, _main, _coder, steps = make_loader_shaped_aliased_plan_family()
+    selected = steps[step_kind]
+    app = StubFoldApp(agents, current_idx=agents.index(selected))
+    app._grouping_mode = GroupingMode.BY_STATUS
+    tree_folds_before = app._fold_manager.snapshot()
+    group_folds_before = app._group_fold_registry.snapshot()
+    panel_folds_before = (
+        set(app._collapsed_panel_keys),
+        set(app._expanded_panel_keys),
+    )
+
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None and target.kind == "family"
+    app.action_hooks_or_collapse()
+
+    assert app._agents[app.current_idx] is root
+    assert app.acknowledged == [root]
+    assert app.armed_departures == [selected]
+    assert app._fold_manager.snapshot() == tree_folds_before
+    assert app._group_fold_registry.snapshot() == group_folds_before
+    assert (
+        app._collapsed_panel_keys,
+        app._expanded_panel_keys,
+    ) == panel_folds_before
 
 
 def test_h_loader_aliased_plan_family_keeps_duplicate_owner_rejection() -> None:
-    agents, root, _main, coder, _script = make_loader_shaped_aliased_plan_family()
+    agents, root, _main, coder, _steps = make_loader_shaped_aliased_plan_family()
     duplicate = make_agent(raw_suffix="20260720120000")
     agents.append(duplicate)
     app = StubFoldApp(agents, current_idx=agents.index(coder))
@@ -179,37 +218,59 @@ def test_h_standalone_family_member_then_top_level_family_selects_tribe() -> Non
     assert app._group_fold_registry.snapshot() == ()
 
 
-def test_h_accepts_only_real_agent_family_children() -> None:
-    family = make_agent(raw_suffix="family", agent_type=AgentType.WORKFLOW)
-    family.plan_chain_root = True
-    family.agent_family = "family"
-    continuation = make_agent(raw_suffix="continuation")
-    continuation.parent_timestamp = family.raw_suffix
-    continuation.agent_family = "family"
-    continuation.agent_family_role = "code"
-    family.followup_agents.append(continuation)
-    family.runtime_children.append(continuation)
+@pytest.mark.parametrize("step_kind", WORKFLOW_STEP_KINDS)
+def test_h_standalone_workflow_steps_navigate_to_workflow_owner(
+    step_kind: str,
+) -> None:
+    agents, root, steps = make_standalone_workflow_house()
+    selected = steps[step_kind]
+    app = StubFoldApp(agents, current_idx=agents.index(selected))
 
-    agent_step = make_agent(raw_suffix="agent-step", agent_type=AgentType.WORKFLOW)
-    agent_step.parent_timestamp = family.raw_suffix
-    agent_step.parent_workflow = "workflow"
-    agent_step.step_type = "agent"
-    bash_step = make_agent(raw_suffix="bash-step", agent_type=AgentType.WORKFLOW)
-    bash_step.parent_timestamp = family.raw_suffix
-    bash_step.parent_workflow = "workflow"
-    bash_step.step_type = "bash"
-    bash_step.is_hidden_step = True
-    agents = [family, agent_step, continuation, bash_step]
-
-    app = StubFoldApp(agents, current_idx=agents.index(agent_step))
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None and target.kind == "workflow"
     app.action_hooks_or_collapse()
-    assert app.current_idx == agents.index(family)
 
-    app = StubFoldApp(agents, current_idx=agents.index(bash_step))
+    assert app._agents[app.current_idx] is root
+    assert app._panel_selection_memory[None] == ("agent", agents.index(root))
+
+
+def test_h_clan_workflow_step_walks_workflow_clan_tribe_one_level_at_a_time() -> None:
+    projected, root, steps = make_standalone_workflow_house(
+        clan="research",
+        tribe="research",
+    )
+    projected.append(make_agent(raw_suffix="ops", tribe="ops"))
+    clan = projected[0]
+    selected = steps["python"]
+    app = StubFoldApp(projected, current_idx=projected.index(selected))
+    app._panel_group.focused_idx = app._panel_group.panel_keys.index("research")
+
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None and target.kind == "workflow"
     app.action_hooks_or_collapse()
-    assert app.current_idx == agents.index(bash_step)
-    assert app._current_group_key is None
-    assert app._group_fold_registry.snapshot() == ()
+    assert app._agents[app.current_idx] is root
+
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None and target.kind == "clan"
+    app.action_hooks_or_collapse()
+    assert app._agents[app.current_idx] is clan
+
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None and target.kind == "tribe"
+    app.action_hooks_or_collapse()
+    assert app._expanded_panel_focus is True
+
+
+def test_h_workflow_step_jump_history_restores_exact_script_row() -> None:
+    agents, root, steps = make_standalone_workflow_house()
+    selected = steps["python"]
+    app = StubFoldApp(agents, current_idx=agents.index(selected))
+
+    app.action_hooks_or_collapse()
+
+    assert app._agents[app.current_idx] is root
+    assert app._restore_agents_jump_anchor() is True
+    assert app._agents[app.current_idx] is selected
 
 
 def test_h_direct_clan_member_navigates_to_clan_then_tribe() -> None:
@@ -270,6 +331,46 @@ def test_h_rejects_stale_ambiguous_and_self_referential_parent_edges() -> None:
     assert self_ref._resolve_agent_left_navigation_target() is None
     self_ref.action_hooks_or_collapse()
     assert self_ref._expanded_panel_focus is False
+
+
+def test_h_rejects_cycles_and_inconsistent_tree_depth() -> None:
+    agents, _root, steps = make_standalone_workflow_house()
+    inconsistent = steps["python"]
+    inconsistent.tree_depth = 3
+    bad_depth = StubFoldApp(agents, current_idx=agents.index(inconsistent))
+    assert bad_depth._resolve_agent_left_navigation_target() is None
+
+    first = make_agent(raw_suffix="first", agent_type=AgentType.WORKFLOW)
+    second = make_agent(raw_suffix="second", agent_type=AgentType.WORKFLOW)
+    first.parent_timestamp = second.raw_suffix
+    first.parent_workflow = "cycle"
+    second.parent_timestamp = first.raw_suffix
+    second.parent_workflow = "cycle"
+    cycle = StubFoldApp([first, second])
+    assert cycle._resolve_agent_left_navigation_target() is None
+
+
+def test_h_rejects_conflicting_explicit_and_persisted_parent_keys() -> None:
+    agents, root, steps = make_standalone_workflow_house()
+    selected = steps["bash"]
+    selected.tree_parent_key = root.raw_suffix
+    selected.tree_depth = 1
+    selected.parent_timestamp = "different-owner"
+    app = StubFoldApp(agents, current_idx=agents.index(selected))
+
+    assert app._resolve_agent_left_navigation_target() is None
+
+
+def test_h_rejects_orphan_script_and_duplicate_top_level_owner() -> None:
+    orphan = make_agent(raw_suffix="orphan", agent_type=AgentType.WORKFLOW)
+    orphan.step_type = "bash"
+    orphan_app = StubFoldApp([orphan])
+    assert orphan_app._resolve_agent_left_navigation_target() is None
+
+    first = make_agent(raw_suffix="duplicate")
+    second = make_agent(raw_suffix="duplicate")
+    duplicate_app = StubFoldApp([first, second])
+    assert duplicate_app._resolve_agent_left_navigation_target() is None
 
 
 def test_h_grouping_banner_selects_tribe_and_selected_panel_has_no_parent() -> None:

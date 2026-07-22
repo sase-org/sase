@@ -126,8 +126,16 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             "Panel / Group / Clan / Workflow Folding",
             [
                 (
-                    f"{d(a.expand_or_layout)} / {d(a.hooks_or_collapse)}",
-                    "Expand/enter panel · parent family/clan/tribe or collapse panel",
+                    d(a.expand_or_layout),
+                    "Expand real fold / enter panel",
+                ),
+                (
+                    d(a.hooks_or_collapse),
+                    "Up: workflow/family/clan/tribe",
+                ),
+                (
+                    d(a.hooks_or_collapse),
+                    "Collapse selected panel",
                 ),
                 (
                     d(a.expand_all_folds),
@@ -135,8 +143,15 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.hooks_or_collapse_all),
-                    "Collapse workflow/family/clan/group / only panel ⇄ "
-                    "restore panels / compact Tools",
+                    "Collapse workflow/family/clan",
+                ),
+                (
+                    d(a.hooks_or_collapse_all),
+                    "Collapse group / isolate panel",
+                ),
+                (
+                    d(a.hooks_or_collapse_all),
+                    "Restore panels / compact Tools",
                 ),
             ],
         ),
