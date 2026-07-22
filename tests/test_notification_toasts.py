@@ -11,11 +11,55 @@ from tests._notification_toasts_helpers import _make
 
 
 class TestFormatNotificationToast:
-    def test_plan_approval_with_agent_name_and_plan_file(self) -> None:
+    def test_plan_approval_uses_original_plan_file_basename(self) -> None:
         n = _make(
             action="PlanApproval",
-            notes=["Plan ready for review: sase_plan_foo.md"],
+            notes=["Plan ready for review: plan.md"],
+            action_data={
+                "agent_name": "sase-n.4",
+                "original_plan_file": (
+                    "~/.sase/plans/202607/agent_group_clan_collapse_precedence.md"
+                ),
+            },
+            files=["/path/to/gate-bundle/plan.md"],
+        )
+        msg, sev = _format_notification_toast(n)
+        assert msg == (
+            "Plan ready for @sase-n.4: agent_group_clan_collapse_precedence.md"
+        )
+        assert sev == "warning"
+        assert "plan.md" not in msg
+
+    def test_epic_approval_uses_original_plan_file_basename(self) -> None:
+        n = _make(
+            action="EpicApproval",
+            action_data={
+                "agent_name": "sase-n.5",
+                "original_plan_file": "~/.sase/plans/202607/epic_rollout.md",
+            },
+            files=["/path/to/gate-bundle/plan.md"],
+        )
+        msg, sev = _format_notification_toast(n)
+        assert msg == "Plan ready for @sase-n.5: epic_rollout.md"
+        assert sev == "warning"
+
+    def test_legacy_plan_approval_uses_first_file_basename(self) -> None:
+        n = _make(
+            action="PlanApproval",
             action_data={"agent_name": "sase-n.4"},
+            files=["/path/to/sase_plan_foo.md"],
+        )
+        msg, sev = _format_notification_toast(n)
+        assert msg == "Plan ready for @sase-n.4: sase_plan_foo.md"
+        assert sev == "warning"
+
+    def test_blank_original_plan_file_uses_first_file_basename(self) -> None:
+        n = _make(
+            action="PlanApproval",
+            action_data={
+                "agent_name": "sase-n.4",
+                "original_plan_file": "   ",
+            },
             files=["/path/to/sase_plan_foo.md"],
         )
         msg, sev = _format_notification_toast(n)

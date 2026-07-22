@@ -65,7 +65,8 @@ def _format_notification_toast(n: Notification) -> tuple[str, Severity]:
 
     if action in {"PlanApproval", "EpicApproval"}:
         agent_name = n.action_data.get("agent_name")
-        plan_file = next(iter(n.files), None)
+        original_plan_file = n.action_data.get("original_plan_file", "").strip()
+        plan_file = original_plan_file or next(iter(n.files), "")
         plan_name = ""
         if plan_file:
             plan_name = plan_file.rsplit("/", 1)[-1]
