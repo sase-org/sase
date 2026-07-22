@@ -125,17 +125,9 @@ async def test_epic_clan_panel_png_snapshots(
 
         assert_page_svg_contains(page, "CLAN")
         assert_page_svg_contains(page, "sase-6n")
+        assert_page_svg_contains(page, ".phase-runtime")
         assert_page_svg_contains(page, "Title:")
         assert_page_svg_contains(page, "Rich clan summaries")
-        assert_page_svg_contains(page, "Goal:")
-        assert_page_svg_contains(page, "Share launch context")
-        assert_page_svg_contains(page, "Path:")
-        assert_page_svg_contains(page, "epic_clan_summary.md")
-        assert_page_svg_contains(page, "Render Rich markup safely")
-        assert_page_svg_contains(page, "medium")
-        assert_page_svg_contains(page, "after runtime")
-        assert_page_svg_contains(page, "claude/sonnet")
-        assert_page_svg_contains(page, "Keep shared PLAN-lane wrapping")
         assert_page_svg_contains(page, "3 agents")
         ace_png_visual.assert_page_png(
             page,
@@ -196,6 +188,7 @@ async def test_swarm_clan_panel_png_snapshots(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "CLAN")
+        assert_page_svg_contains(page, ".family")
         assert_page_svg_contains(page, "RESEARCH PROMPT:")
         assert_page_svg_contains(page, "across every fold level?")
         assert_page_svg_contains(page, "3 agents")

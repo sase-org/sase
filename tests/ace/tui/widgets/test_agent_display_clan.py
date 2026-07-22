@@ -97,19 +97,22 @@ def test_clan_summary_renders_rich_markup_at_every_fold_level() -> None:
     )
     container = project_clan_tree([member])[0]
 
-    for fold_level in (
-        FoldLevel.COLLAPSED,
-        FoldLevel.EXPANDED,
-        FoldLevel.FULLY_EXPANDED,
+    for fold_level, fold_label in (
+        (FoldLevel.COLLAPSED, "Fold: 1/3"),
+        (FoldLevel.EXPANDED, "Fold: 2/3"),
+        (FoldLevel.FULLY_EXPANDED, "Fold: 3/3"),
     ):
         detail = build_clan_detail_text(container, fold_level=fold_level)
         plain = detail.plain
 
         assert (
-            "Members: 1 agent\n\n"
-            "RESEARCH PROMPT:\n"
-            "Trace the summary from launch to panel.\n\n"
-            "Fold: "
+            plain.index(fold_label)
+            < plain.index("CLAN MEMBERS")
+            < plain.index(" 0  .one")
+            < plain.index("RESEARCH PROMPT:")
+        )
+        assert (
+            "RESEARCH PROMPT:\nTrace the summary from launch to panel.\n\n"
         ) in plain
         assert style_at(detail, plain.index("RESEARCH PROMPT:")) == ("bold #ffd75f")
 
@@ -125,7 +128,13 @@ def test_clan_summary_invalid_markup_falls_back_to_raw_text() -> None:
 
     detail = build_clan_detail_text(container).plain
 
-    assert "Members: 1 agent\n\n[bold]Research[/italic]\n\nFold: 1/3" in detail
+    assert (
+        detail.index("Fold: 1/3")
+        < detail.index("CLAN MEMBERS")
+        < detail.index(" 0  .one")
+        < detail.index("[bold]Research[/italic]")
+    )
+    assert "[bold]Research[/italic]\n\n" in detail
 
 
 def test_family_header_recolors_only_real_container_name() -> None:

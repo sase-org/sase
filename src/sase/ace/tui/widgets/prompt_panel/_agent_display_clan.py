@@ -175,15 +175,6 @@ def build_clan_detail_text(
         )
     text.append(" · ".join(member_parts) + "\n", style="#D7D7FF")
 
-    if agent.clan_summary:
-        text.append("\n")
-        try:
-            summary = Text.from_markup(agent.clan_summary)
-        except MarkupError:
-            summary = Text(agent.clan_summary)
-        text.append_text(summary)
-        text.append("\n\n")
-
     append_fold_header_line(text, level=fold_level, scale=CLAN_FOLD_SCALE)
 
     roster_entries = clan_roster_entries(
@@ -204,6 +195,15 @@ def build_clan_detail_text(
     )
     if member_jump_map_publisher is not None:
         member_jump_map_publisher(jump_map)
+
+    if agent.clan_summary:
+        text.append("\n")
+        try:
+            summary = Text.from_markup(agent.clan_summary)
+        except MarkupError:
+            summary = Text(agent.clan_summary)
+        text.append_text(summary)
+        text.append("\n\n")
 
     errors = snapshot.in_memory.errors
     if errors:
