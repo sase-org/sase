@@ -3,27 +3,33 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping, MutableMapping, MutableSequence
-from dataclasses import dataclass
 from pathlib import Path
 import sys
-from typing import TYPE_CHECKING, Any, TextIO
+from typing import TYPE_CHECKING
 
-from sase._linked_repo_config import (
-    AGENTS_SIDECAR_ROLE,
-    DEFAULT_AGENTS_DESCRIPTION,
-    DEFAULT_RESEARCH_DESCRIPTION,
+from ._repo_init_config import (
+    ConfigUpdate as _ConfigUpdate,
+    configured_sidecar_specs as _configured_sidecar_specs_impl,
+    explicit_sidecar_config_update as _explicit_sidecar_config_update_impl,
+    format_roles as _format_roles_impl,
+    materialized_compatibility_roles as _materialized_compatibility_roles_impl,
+    project_provider_sdd_policy as _project_provider_sdd_policy_impl,
+    repo_project_management as _repo_project_management_impl,
+    sidecar_config_action_detail as _sidecar_config_action_detail_impl,
 )
-from sase.config import ConfigEditError, set_key
-from sase.content_layout import LayoutCollisionError, resolve_project_layout
-from sase.project_management import ProjectManagementStatus, project_management_status
-
+from ._repo_init_sidecars import (
+    plan_legacy_store_actions as _plan_legacy_store_actions_impl,
+    plan_sidecar_actions as _plan_sidecar_actions_impl,
+    run_configured_sidecars as _run_configured_sidecars_impl,
+    run_legacy_store_init as _run_legacy_store_init_impl,
+    run_materialized_sidecars as _run_materialized_sidecars_impl,
+)
 from .init_plan import InitAction, InitPlan
 from .init_project_scope import is_project_directory
 
 if TYPE_CHECKING:
+    from sase.project_management import ProjectManagementStatus
     from sase.sdd._sidecar_init import SidecarInitSpec
-    from sase.workspace_provider import SddSidecarPreflight
 
 _NON_PROJECT_REPO_MESSAGE = "sase repo init: not a project directory (no VCS found); skipping repository initialization"
 _UNMANAGED_REPO_MESSAGE = (
@@ -32,18 +38,9 @@ _UNMANAGED_REPO_MESSAGE = (
 )
 _COMMAND_LABEL = "repo init"
 
-
-@dataclass(frozen=True)
-class _ConfigUpdate:
-    path: Path
-    current_text: str
-    updated_text: str
-    error: str | None = None
-    added_roles: tuple[str, ...] = ()
-
-    @property
-    def changed(self) -> bool:
-        return self.error is None and self.updated_text != self.current_text
+# Keep the former private helper names available from this module. Besides making
+# the move less disruptive, these forwarding seams let tests replace provider and
+# sidecar discovery without reaching into the implementation modules.
 
 
 def handle_repo_init_command(args: argparse.Namespace) -> None:
@@ -230,496 +227,66 @@ def plan_repo_init(args: argparse.Namespace) -> InitPlan:
 
 
 def _run_configured_sidecars(args: argparse.Namespace, project_root: Path) -> int:
-    from sase.sdd._sidecar_init import initialize_sidecars, preflight_sidecars
-    from sase.sdd.store import SddMaterializationError
-
     specs = _configured_sidecar_specs(project_root)
-    authorizations: dict[str, bool] = {}
-    preflights = preflight_sidecars(project_root, 1, specs)
-    for preflight in preflights.values():
-        if preflight.status == "unavailable":
-            detail = preflight.message or (
-                f"could not verify {preflight.provider} sidecar repository {preflight.repo}"
-            )
-            raise SddMaterializationError(detail)
-        if preflight.status not in {"found", "not_found"}:
-            raise SddMaterializationError(
-                "The workspace provider returned an invalid sidecar preflight "
-                "result. Update the provider plugin and rerun `sase repo init`."
-            )
-
-    selected_roles = {spec.role for spec in specs}
-    missing = {
-        role: preflight
-        for role, preflight in preflights.items()
-        if preflight.status == "not_found"
-    }
-    stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
-    if missing and getattr(args, "onboarding", False) and not stdin.isatty():
-        deferred_non_agents = False
-        for role, preflight in missing.items():
-            print(
-                f"warning: {preflight.provider} sidecar repository "
-                f"{preflight.repo} is missing; run `sase repo init` "
-                "interactively to create it",
-                file=sys.stderr,
-            )
-            if role == AGENTS_SIDECAR_ROLE:
-                selected_roles.discard(role)
-            else:
-                deferred_non_agents = True
-        if deferred_non_agents:
-            return 0
-
-    for role, preflight in preflights.items():
-        if preflight.status == "not_found":
-            if role not in selected_roles:
-                continue
-            if not _confirm_sidecar_creation(args, role, preflight):
-                if role == AGENTS_SIDECAR_ROLE:
-                    selected_roles.discard(role)
-                    continue
-                return 1
-            authorizations[role] = True
-
-    selected_specs = tuple(spec for spec in specs if spec.role in selected_roles)
-    if not selected_specs:
-        return 0
-
-    outcome = initialize_sidecars(
-        project_root,
-        1,
-        selected_specs,
-        creation_authorized=authorizations,
-    )
-    for spec in selected_specs:
-        print(outcome.roots[spec.role] / "README.md")
-    return 0
+    return _run_configured_sidecars_impl(args, project_root, specs)
 
 
 def _run_materialized_sidecars(project_root: Path) -> int:
-    from sase.sdd._sidecar_init import (
-        initialize_materialized_sidecars,
-        sidecar_clone_root,
-    )
-    from sase.sdd.store import SddMaterializationError
-
     specs = _configured_sidecar_specs(project_root)
     recorded_roles = _materialized_compatibility_roles(project_root)
-    materialized: list[SidecarInitSpec] = []
-    for spec in specs:
-        root = sidecar_clone_root(project_root, spec.role)
-        if (root / ".git").is_dir():
-            materialized.append(spec)
-        elif spec.role not in recorded_roles:
-            raise SddMaterializationError(
-                f"configured {spec.role} sidecar is not materialized at {root}; "
-                "rerun `sase repo init` with the repository's workspace provider"
-            )
-    roots = initialize_materialized_sidecars(project_root, materialized)
-    for spec in materialized:
-        print(roots[spec.role] / "README.md")
-    return 0
-
-
-def _confirm_sidecar_creation(
-    args: argparse.Namespace,
-    role: str,
-    preflight: SddSidecarPreflight,
-) -> bool:
-    if role == AGENTS_SIDECAR_ROLE:
-        return _confirm_agents_sidecar_creation(args, preflight)
-
-    stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
-    resource = f"{preflight.provider} sidecar repository"
-    if not stdin.isatty():
-        print(
-            f"error: {resource} creation cancelled: interactive y/yes confirmation is required",
-            file=sys.stderr,
-        )
-        return False
-
-    input_func = getattr(args, "_init_input_func", None) or input
-    prompt = (
-        f"Create {preflight.visibility} {preflight.provider} sidecar repository "
-        f"{preflight.repo} on {preflight.host}? [y/N] "
+    return _run_materialized_sidecars_impl(
+        project_root,
+        specs,
+        recorded_roles,
     )
-    try:
-        answer = input_func(prompt)
-    except EOFError:
-        print(
-            f"error: {resource} creation cancelled: no confirmation was received",
-            file=sys.stderr,
-        )
-        return False
-    except KeyboardInterrupt:
-        print(f"\nerror: {resource} creation cancelled", file=sys.stderr)
-        return False
-    if answer.strip().lower() in {"y", "yes"}:
-        return True
-    print(
-        f"{resource} creation cancelled; repository initialization is incomplete",
-        file=sys.stderr,
-    )
-    return False
-
-
-def _confirm_agents_sidecar_creation(
-    args: argparse.Namespace,
-    preflight: SddSidecarPreflight,
-) -> bool:
-    stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
-    resource = f"{preflight.provider} agents sidecar repository"
-    if not stdin.isatty():
-        print(
-            f"warning: {resource} creation refused: interactive y/yes "
-            "confirmation is required; run `sase repo init` interactively "
-            "to create it; continuing without the agents sidecar",
-            file=sys.stderr,
-        )
-        return False
-
-    input_func = getattr(args, "_init_input_func", None) or input
-    visibility = preflight.visibility.strip() or "public"
-    prompt = (
-        "The agents sidecar will PUBLISH SASE agent data for this project "
-        "across machines: full chat transcripts (prompts and responses), "
-        "agent metadata, and commit associations for every SASE agent that "
-        "creates a commit here.\n"
-        f"Repository visibility: {visibility.upper()}.\n"
-        "Set repos.sidecar[agents].visibility: private in sase/sase.yml for "
-        "a private repository, or disabled: true to opt out.\n\n"
-        f"Create {visibility} {preflight.provider} agents sidecar repository "
-        f"{preflight.repo} on {preflight.host}? [y/N] "
-    )
-    try:
-        answer = input_func(prompt)
-    except EOFError:
-        print(
-            f"warning: {resource} creation refused: no confirmation was "
-            "received; rerun `sase repo init` interactively to create it; "
-            "continuing without the agents sidecar",
-            file=sys.stderr,
-        )
-        return False
-    except KeyboardInterrupt:
-        print(
-            f"\nwarning: {resource} creation refused; rerun `sase repo init` "
-            "interactively to create it; continuing without the agents sidecar",
-            file=sys.stderr,
-        )
-        return False
-    if answer.strip().lower() in {"y", "yes"}:
-        return True
-    print(
-        f"warning: {resource} creation declined; continuing without the agents sidecar",
-        file=sys.stderr,
-    )
-    return False
 
 
 def _run_legacy_store_init(project_root: Path) -> int:
-    from sase.sdd.files import ensure_sdd_initialized, expected_sdd_readme
-    from sase.sdd.store import materialize_sdd_store
-
-    store = materialize_sdd_store(
-        project_root,
-        1,
-        sdd_creation_authorized=False,
-    )
-    ensure_sdd_initialized(store.sdd_dir)
-    print(expected_sdd_readme(str(store.sdd_dir)).path)
-    return 0
+    return _run_legacy_store_init_impl(project_root)
 
 
 def _plan_legacy_store_actions(
     project_root: Path,
 ) -> tuple[list[InitAction], list[str]]:
-    from sase.sdd.files import plan_sdd_init_actions
-    from sase.sdd.store import resolve_sdd_dir
-
-    sdd_root = Path(resolve_sdd_dir(project_root, 1))
-    actions = [
-        InitAction(
-            path=action.path,
-            operation=action.operation,
-            detail=action.detail,
-            new_content=action.new_content,
-        )
-        for action in plan_sdd_init_actions(str(sdd_root))
-    ]
-    return actions, []
+    return _plan_legacy_store_actions_impl(project_root)
 
 
 def _plan_sidecar_actions(
     project_root: Path,
     specs: tuple[SidecarInitSpec, ...],
 ) -> list[InitAction]:
-    from sase.sdd._sidecar_init import sidecar_clone_root
-    from sase.sdd.files import plan_sdd_sidecar_init_actions
-
     recorded_roles = _materialized_compatibility_roles(project_root)
-    actions: list[InitAction] = []
-    for spec in specs:
-        root = sidecar_clone_root(project_root, spec.role)
-        clone_exists = (root / ".git").is_dir()
-        needs_connection = not clone_exists and spec.role not in recorded_roles
-        if needs_connection:
-            detail = f"create or connect the provider {spec.role} sidecar repository"
-            if spec.role == AGENTS_SIDECAR_ROLE:
-                detail += (
-                    f" with configured {spec.visibility} visibility at the "
-                    "machine-level hidden path"
-                )
-            actions.append(
-                InitAction(
-                    path=root,
-                    operation="create",
-                    detail=detail,
-                )
-            )
-        if clone_exists or needs_connection:
-            actions.extend(
-                InitAction(
-                    path=action.path,
-                    operation=action.operation,
-                    detail=action.detail,
-                    new_content=action.new_content,
-                )
-                for action in plan_sdd_sidecar_init_actions(
-                    spec.role,
-                    root,
-                    description=spec.description,
-                )
-            )
-    return actions
+    return _plan_sidecar_actions_impl(
+        project_root,
+        specs,
+        recorded_roles,
+    )
 
 
 def _configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]:
-    from sase._linked_repo_config import (
-        _DEFAULT_LINKED_REPO_MARKER,
-        _SIDECAR_REMOTE_URL_KEY,
-        _SIDECAR_REPO_REF_KEY,
-        _SIDECAR_ROLE_KEY,
-        full_github_repo_name,
-        inject_default_linked_repos,
-        merged_sidecar_entries_from_config,
-        read_project_local_config,
-        resolution_config,
-    )
-    from sase.sdd._sidecar_init import SidecarInitSpec
-
-    primary = project_root.expanduser().resolve(strict=False)
-    config = resolution_config(str(primary), None)
-    entries = merged_sidecar_entries_from_config(
-        config,
-        primary_workspace_dir=str(primary),
-    )
-    entries = inject_default_linked_repos(
-        entries,
-        primary_workspace_dir=str(primary),
-        local_config=read_project_local_config(str(primary)),
-        config=config,
-    )
-
-    specs: list[SidecarInitSpec] = []
-    for entry in entries:
-        if entry.get("disabled") is True:
-            continue
-        role = _entry_text(entry, _SIDECAR_ROLE_KEY) or _entry_text(entry, "name")
-        if not role:
-            continue
-        raw_repo = _entry_text(entry, "repo")
-        repo: str | None = None
-        if raw_repo:
-            repo = full_github_repo_name(primary, raw_repo, config=config) or raw_repo
-        elif entry.get(_DEFAULT_LINKED_REPO_MARKER) is not True:
-            resolved_repo = _entry_text(entry, _SIDECAR_REPO_REF_KEY)
-            if "/" in resolved_repo:
-                repo = resolved_repo
-        visibility = _entry_text(entry, "visibility") or "public"
-        specs.append(
-            SidecarInitSpec(
-                role=role,
-                repo=repo,
-                remote_url=_entry_text(entry, _SIDECAR_REMOTE_URL_KEY) or None,
-                visibility=visibility,
-                description=_entry_text(entry, "description") or None,
-            )
-        )
-    return tuple(specs)
-
-
-def _entry_text(entry: Mapping[str, Any], key: str) -> str:
-    value = entry.get(key)
-    return value.strip() if isinstance(value, str) else ""
+    return _configured_sidecar_specs_impl(project_root)
 
 
 def _explicit_sidecar_config_update(config_path: Path) -> _ConfigUpdate:
-    try:
-        current_text = (
-            config_path.read_text(encoding="utf-8") if config_path.exists() else ""
-        )
-    except OSError as exc:
-        return _ConfigUpdate(
-            config_path, "", "", f"{config_path}: failed to read file: {exc}"
-        )
-
-    try:
-        from ruamel.yaml.comments import CommentedMap, CommentedSeq
-
-        from sase.config._edit_yaml_io import dump_yaml, make_yaml
-
-        handler = make_yaml()
-        data = handler.load(current_text) if current_text.strip() else CommentedMap()
-        if not isinstance(data, MutableMapping):
-            return _ConfigUpdate(
-                config_path,
-                current_text,
-                current_text,
-                f"{config_path}: expected a YAML mapping at the top level",
-            )
-        repos = data.get("repos")
-        if repos is not None and not isinstance(repos, MutableMapping):
-            return _ConfigUpdate(
-                config_path,
-                current_text,
-                current_text,
-                f"{config_path}: repos must be a YAML mapping",
-            )
-        sidecars = repos.get("sidecar") if isinstance(repos, MutableMapping) else None
-        if sidecars is not None and not isinstance(sidecars, MutableSequence):
-            return _ConfigUpdate(
-                config_path,
-                current_text,
-                current_text,
-                f"{config_path}: repos.sidecar must be a YAML list",
-            )
-        existing_roles = {
-            _entry_text(entry, "name")
-            for entry in sidecars or ()
-            if isinstance(entry, Mapping)
-        }
-        entries = {
-            "plans": CommentedMap((("name", "plans"), ("auto_clone", True))),
-            "research": CommentedMap(
-                (
-                    ("name", "research"),
-                    ("description", DEFAULT_RESEARCH_DESCRIPTION),
-                )
-            ),
-            AGENTS_SIDECAR_ROLE: CommentedMap(
-                (
-                    ("name", AGENTS_SIDECAR_ROLE),
-                    ("description", DEFAULT_AGENTS_DESCRIPTION),
-                )
-            ),
-        }
-        added_roles = tuple(role for role in entries if role not in existing_roles)
-        if not added_roles:
-            return _ConfigUpdate(config_path, current_text, current_text)
-
-        new_entries = CommentedSeq(entries[role] for role in added_roles)
-        if sidecars is None:
-            updated_text = set_key(
-                current_text,
-                ("repos", "sidecar"),
-                new_entries,
-            )
-        else:
-            sidecars.extend(new_entries)
-            updated_text = dump_yaml(handler, data)
-    except (ConfigEditError, OSError, ValueError) as exc:
-        return _ConfigUpdate(
-            config_path,
-            current_text,
-            current_text,
-            f"{config_path}: failed to update repos.sidecar: {exc}",
-        )
-    if updated_text != current_text:
-        from sase.content_layout import resolve_project_config_write_path
-
-        project_root = (
-            config_path.parent.parent
-            if config_path.parent.name == "sase"
-            else config_path.parent
-        )
-        write_path = resolve_project_config_write_path(project_root)
-        if config_path != write_path:
-            return _ConfigUpdate(
-                config_path,
-                current_text,
-                current_text,
-                f"move legacy project config {config_path} to {write_path} "
-                "before running a config-writing init command",
-            )
-    return _ConfigUpdate(
-        config_path,
-        current_text,
-        updated_text,
-        added_roles=added_roles,
-    )
+    return _explicit_sidecar_config_update_impl(config_path)
 
 
 def _sidecar_config_action_detail(roles: tuple[str, ...]) -> str:
-    joined = _format_roles(roles)
-    suffix = "sidecar" if len(roles) == 1 else "sidecars"
-    return f"declare the managed {joined} {suffix}"
+    return _sidecar_config_action_detail_impl(roles)
 
 
 def _format_roles(roles: tuple[str, ...]) -> str:
-    if len(roles) < 3:
-        return " and ".join(roles)
-    return f"{', '.join(roles[:-1])}, and {roles[-1]}"
+    return _format_roles_impl(roles)
 
 
 def _repo_project_management(
     path: str | Path | None,
 ) -> tuple[Path, ProjectManagementStatus]:
-    project_root = _resolve_project_root(path)
-    compatible = resolve_project_layout(project_root).config
-    try:
-        config_path = compatible.resolve_read("project config") or compatible.write_path
-    except LayoutCollisionError as exc:
-        return project_root, ProjectManagementStatus(
-            compatible.write_path,
-            False,
-            str(exc),
-        )
-    return project_root, project_management_status(config_path)
-
-
-def _resolve_project_root(path: str | Path | None) -> Path:
-    candidate = Path.cwd() if path is None else Path(path).expanduser()
-    candidate = candidate.resolve(strict=False)
-    if candidate.name == "sase.yml":
-        candidate = (
-            candidate.parent.parent
-            if candidate.parent.name == "sase"
-            else candidate.parent
-        )
-    if candidate.name == "sdd" and candidate.parent.name == ".sase":
-        candidate = candidate.parent.parent
-    if candidate.is_file():
-        candidate = candidate.parent
-    for root in (candidate, *candidate.parents):
-        if (root / ".git").exists():
-            return root
-    return candidate
+    return _repo_project_management_impl(path)
 
 
 def _project_provider_sdd_policy(project_root: Path) -> str | None:
-    try:
-        from sase.vcs_provider import detect_vcs
-        from sase.workspace_provider import get_sdd_storage_policy_by_vcs
-
-        vcs_name = detect_vcs(str(project_root))
-        if vcs_name is None:
-            return None
-        policy = get_sdd_storage_policy_by_vcs(vcs_name)
-    except Exception:
-        return None
-    return policy if policy in {"in_tree", "local", "separate_repo"} else None
+    return _project_provider_sdd_policy_impl(project_root)
 
 
 def _has_materialized_sidecar_store(project_root: Path) -> bool:
@@ -727,19 +294,7 @@ def _has_materialized_sidecar_store(project_root: Path) -> bool:
 
 
 def _materialized_compatibility_roles(project_root: Path) -> frozenset[str]:
-    try:
-        from sase.sdd._paths import get_primary_workspace_dir
-        from sase.sdd.store import read_sdd_store_record
-
-        primary = Path(get_primary_workspace_dir(str(project_root), 1))
-        record = read_sdd_store_record(primary)
-    except (OSError, RuntimeError, ValueError):
-        return frozenset()
-    if record is None or not record.is_sidecar_storage:
-        return frozenset()
-    return frozenset(
-        role for role in ("plans", "research") if record.sidecar_for_kind(role)
-    )
+    return _materialized_compatibility_roles_impl(project_root)
 
 
 def _summarize_repo_actions(actions: list[InitAction]) -> str:
