@@ -2411,6 +2411,16 @@ Text automatically wraps at the terminal width, breaking at spaces (never mid-wo
 the text exceeds one line. The native cursor cell is color-coded by prompt Vim mode: INSERT uses cyan, NORMAL uses gold,
 and VISUAL or V-LINE uses magenta.
 
+Uppercase `TODO` at identifier boundaries is a visual draft annotation. ACE gives `TODO`, `TODO:`, and `TODO(owner):`
+headers a theme-aware warning badge and softly warms the remainder of that line, including inside Markdown code regions.
+Lowercase `todo` and identifiers such as `TODOS`, `TODO2`, and `preTODO` remain ordinary text. When annotations exist,
+the prompt border shows a `TODO N` capsule counting every match across the full prompt stack, including compact inactive
+panes and markers outside the active viewport. The capsule disappears immediately when the last marker is edited away.
+
+TODO treatment is presentation only: it does not move the cursor during history or stash restoration, and ACE stashes,
+opens in `$EDITOR`, submits, and launches the literal prompt text unchanged. Colors follow the active dark or light
+theme; search matches, selections, yank feedback, and the cursor retain their higher-priority treatments.
+
 ### Prompt Stacks
 
 Prompt stacks are the ACE editing surface for literal `---` multi-agent prompts. Loading multi-agent prompt text from

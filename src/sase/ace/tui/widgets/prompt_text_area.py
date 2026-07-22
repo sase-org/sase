@@ -24,6 +24,7 @@ from sase.ace.tui.widgets._prompt_jump import PromptJumpMixin
 from sase.ace.tui.widgets._prompt_preview import PromptPreviewMixin
 from sase.ace.tui.widgets._prompt_format import PromptFormatMixin
 from sase.ace.tui.widgets._search_highlight import SearchHighlightMixin
+from sase.ace.tui.widgets._todo_highlight import TodoHighlightMixin
 from sase.ace.tui.widgets._snippets import SnippetExpansionMixin
 from sase.ace.tui.widgets._vcs_mru_cycling import (
     VcsMruCyclingMixin,
@@ -68,8 +69,9 @@ class PromptTextArea(
     PromptTextAreaActionsMixin,
     JinjaDiagnosticsMixin,
     YankHighlightMixin,
-    AltSyntaxHighlightMixin,
     SearchHighlightMixin,
+    TodoHighlightMixin,
+    AltSyntaxHighlightMixin,
     XPromptSyntaxHighlightMixin,
     PromptSearchMixin,
     PromptFormatMixin,

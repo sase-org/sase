@@ -6,6 +6,7 @@ from typing import Any
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Static
+from textual.color import Color
 
 from sase.ace.tui.widgets._prompt_input_bar_actions import (
     PromptInputBarActionsMixin,
@@ -46,6 +47,11 @@ from sase.ace.tui.widgets._prompt_input_bar_search import (
 )
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_stack import PromptStackState
+from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.ace.tui.widgets._todo_highlight import (
+    todo_annotation_count,
+    todo_theme_colors,
+)
 from sase.xprompt.models import InputArg
 
 __all__ = ["PromptInputBar", "StashedPromptPane"]
@@ -129,6 +135,8 @@ class PromptInputBar(
             self._stack = PromptStackState.from_text(initial_xprompt_markdown)
         else:
             self._stack = self._state_from_text(initial_value)
+        self._todo_counts_by_item_id: dict[str, int] = {}
+        self._sync_todo_counts_from_stack()
 
     @property
     def _base_title(self) -> str:
@@ -162,10 +170,63 @@ class PromptInputBar(
             # Border titles parse Rich markup; escape literal mode brackets.
             mode_suffix = mode_suffix.replace("[", "\\[")
             title = f"{title} {mode_suffix}"
+        todo_chip = self._todo_chip_markup()
+        if todo_chip:
+            title = f"{title}  {todo_chip}"
         chip = self._active_jinja_chip_markup()
         if chip:
             title = f"{title}  {chip}"
         self.border_title = title
+
+    def _todo_chip_markup(self) -> str:
+        """Return a theme-aware whole-stack TODO count capsule."""
+        count = sum(self._todo_counts_by_item_id.values())
+        if count <= 0:
+            return ""
+        try:
+            theme = self.app.current_theme
+        except Exception:
+            badge_background = Color.parse("#ffcc00")
+            badge_foreground = badge_background.get_contrast_text(alpha=1.0)
+        else:
+            badge_foreground, badge_background, _body_fg, _body_bg = todo_theme_colors(
+                theme.background,
+                theme.foreground,
+                theme.warning,
+                dark=theme.dark,
+            )
+        return (
+            f"[bold {badge_foreground.hex} on {badge_background.hex}] TODO {count} [/]"
+        )
+
+    def _sync_todo_counts_from_stack(self) -> None:
+        """Refresh count state from the in-memory stack during construction/rebuild."""
+        self._todo_counts_by_item_id = {
+            item.item_id: todo_annotation_count(item.text) for item in self._stack.items
+        }
+
+    def _sync_todo_counts_from_mounted_panes(self) -> None:
+        """Aggregate each mounted pane's cached annotation count."""
+        counts: dict[str, int] = {}
+        for item in self._stack.items:
+            try:
+                text_area = self.query_one(f"#{self._pane_id(item)}", PromptTextArea)
+            except Exception:
+                counts[item.item_id] = self._todo_counts_by_item_id.get(item.item_id, 0)
+                continue
+            counts[item.item_id] = text_area.todo_annotation_count
+        self._todo_counts_by_item_id = counts
+
+    def _update_todo_count_for_text_area(self, text_area: object) -> None:
+        """Update only the edited pane's cached stack count."""
+        if not isinstance(text_area, PromptTextArea):
+            return
+        item = next(
+            (item for item in self._stack.items if self._pane_id(item) == text_area.id),
+            None,
+        )
+        if item is not None:
+            self._todo_counts_by_item_id[item.item_id] = text_area.todo_annotation_count
 
     def _active_jinja_chip_markup(self) -> str:
         """Return the active pane's Jinja2 status chip markup."""
@@ -246,6 +307,8 @@ class PromptInputBar(
     def on_mount(self) -> None:
         """Focus the active pane on mount and position its cursor at end."""
         text_area = self.active_text_area()
+        self.watch(self.app, "theme", self._app_theme_changed, init=False)
+        self._sync_todo_counts_from_mounted_panes()
         text_area.focus()
         self._cursor_to_end(text_area)
 
@@ -261,3 +324,8 @@ class PromptInputBar(
         self._apply_active_classes()
         self.auto_show_frontmatter_panel()
         self._schedule_height_update()
+
+    def _app_theme_changed(self) -> None:
+        """Recompose theme-derived title chrome after an app theme switch."""
+        if self.is_mounted:
+            self._refresh_title(self._title_mode_suffix)

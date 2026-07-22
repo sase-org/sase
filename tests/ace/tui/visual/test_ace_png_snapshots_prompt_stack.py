@@ -111,6 +111,30 @@ _CODEBLOCK_HIGHLIGHT_STACK = (
     "done\n"
     "```"
 )
+_TODO_RESTORED_PROMPT = (
+    "# Release readiness draft\n"
+    "\n"
+    "TODO(release): confirm the rollback owner before the handoff\n"
+    + "\n".join(
+        f"Review note {index:02d}: preserve this restored drafting context."
+        for index in range(1, 25)
+    )
+    + "\n\n"
+    "## Remaining work\n"
+    "- [ ] TODO: verify the migration against a clean workspace\n"
+    "- [ ] TODO(ops): capture the final dashboard screenshot\n"
+    "Keep `TODO: literal commands count too` beside the exact command.\n"
+    "Lowercase todo stays ordinary, then write the final summary here."
+)
+_TODO_HIGHLIGHT_STACK = (
+    "# Restored deployment checklist\n"
+    "TODO(owner): confirm the inactive pane still counts\n"
+    "Keep `TODO: literal validation` visible in the restored draft\n"
+    "---\n"
+    "# Active release note\n"
+    "TODO: finish the customer-facing summary\n"
+    "The cursor stays at the end while the title reports all three annotations."
+)
 
 _VISUAL_SKILL_ENTRIES = [
     XPromptAssistEntry(
@@ -212,6 +236,69 @@ async def test_prompt_stack_active_upper_png_snapshot(
             page,
             "prompt_stack_active_upper_120x40",
             title="ACE prompt stack — active upper pane",
+        )
+
+
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "prompt_todo_restored_dark_120x40",
+            "ACE restored prompt TODO annotations — dark theme",
+        ),
+        (
+            "textual-light",
+            "prompt_todo_restored_light_120x40",
+            "ACE restored prompt TODO annotations — light theme",
+        ),
+    ],
+)
+async def test_prompt_todo_restored_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        page.app.theme = theme
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+        bar = await _mount_prompt_bar(page, _TODO_RESTORED_PROMPT)
+
+        assert "TODO 4" in str(bar.border_title)
+        assert bar.active_text_area().cursor_location[0] == 32
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
+
+
+async def test_prompt_todo_stack_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+        bar = await _mount_prompt_bar(page, _TODO_HIGHLIGHT_STACK)
+
+        assert "TODO 3" in str(bar.border_title)
+        assert bar._stack.selected_index == 1
+        assert (
+            bar.query_one(".prompt-pane.inactive", PromptTextArea).todo_annotation_count
+            == 2
+        )
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_todo_stack_120x40",
+            title="ACE prompt TODO annotations — inactive pane count",
         )
 
 

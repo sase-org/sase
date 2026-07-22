@@ -98,6 +98,9 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         def _clear_active_completion_state(self) -> None: ...
         def _frontmatter_panel_reserved_rows(self) -> int: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
+        def _sync_todo_counts_from_mounted_panes(self) -> None: ...
+        def _sync_todo_counts_from_stack(self) -> None: ...
+        def _update_todo_count_for_text_area(self, text_area: object) -> None: ...
         def _resolve_pane_target(
             self, target_text_area: object, pane_id: str
         ) -> PromptTextArea | None: ...
@@ -181,6 +184,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         drops them into the new pane ready to type.
         """
         self._generation += 1
+        self._sync_todo_counts_from_stack()
         self._refresh_title()
         try:
             container = self.query_one("#prompt-stack", Vertical)
@@ -203,6 +207,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         text_area._warm_history_word_completion_cache()
         text_area._on_prompt_completion_context_changed()
         self._apply_active_classes()
+        self._sync_todo_counts_from_mounted_panes()
         self._refresh_title()
         if enter_mode == "normal":
             text_area._enter_normal_mode()
@@ -467,6 +472,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         text_area.show_line_numbers = text_area.document.line_count > 1
         text_area._on_prompt_completion_context_changed()
         self._sync_state_from_widgets()
+        self._update_todo_count_for_text_area(text_area)
         self._refresh_title(self._title_mode_suffix)
         self._schedule_height_update()
 

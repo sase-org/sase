@@ -150,9 +150,9 @@ async def test_xprompt_overlay_coexists_with_jinja_alt_and_search() -> None:
         assert "alt.separator" in names
         assert "alt.branch_name" in names
 
-        # Overlay build order keeps search above xprompt and alt uppermost.
+        # Overlay build order keeps persistent xprompt/alt syntax below search.
         assert names.index("xprompt.directive") < names.index("search.current")
-        assert names.index("search.current") < names.index("alt.delimiter")
+        assert names.index("alt.delimiter") < names.index("search.current")
 
         styles = ta._theme.syntax_styles
         for family in ("xprompt.", "jinja.", "search.", "alt."):
