@@ -76,6 +76,11 @@ class VimNormalStateMixin(_MixinBase):
 
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
 
+        def _normalize_normal_open_below_replay_text(
+            self,
+            insert_text: str,
+        ) -> str: ...
+
         def _execute_charwise_operator(
             self,
             start: tuple[int, int],
@@ -332,6 +337,10 @@ class VimNormalStateMixin(_MixinBase):
             for char in replay_keys:
                 self._handle_normal_mode_key(Key(char, char))
             if insert_text is not None and self._vim_mode == "insert":
+                if keys[0] == "o":
+                    insert_text = self._normalize_normal_open_below_replay_text(
+                        insert_text
+                    )
                 payload = (
                     insert_text * effective_count
                     if repeats_insert_text

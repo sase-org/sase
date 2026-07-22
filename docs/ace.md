@@ -2789,7 +2789,7 @@ Text objects compose with `d`, `c`, and `y`.
 | `a`        | Append after cursor; inserted text is repeatable with `.`                                 |
 | `A`        | Append at end of line; inserted text is repeatable with `.`                               |
 | `I`        | Insert at line start; inserted text is repeatable with `.`                                |
-| `o`        | Open line below; inserted text is repeatable with `.`                                     |
+| `o`        | Open below; prompt hyphen bullets auto-continue, and inserted text repeats with `.`       |
 | `O`        | Open line above; inserted text is repeatable with `.`                                     |
 | `[<Space>` | Insert blank line(s) above current line without leaving NORMAL mode                       |
 | `]<Space>` | Insert blank line(s) below current line without leaving NORMAL mode                       |
@@ -2809,6 +2809,9 @@ Text objects compose with `d`, `c`, and `y`.
 | `Ctrl+]`   | Jump to the xprompt/workflow/skill definition or file under the cursor                    |
 | `/` / `?`  | Search forward / backward in the current prompt pane                                      |
 | `n` / `N`  | Repeat the last confirmed search in its original / opposite direction                     |
+
+In prompt panes, lowercase `o` continues the containing hyphen bullet at the same indentation, including when the cursor
+is on a physical continuation line produced by Prettier wrapping. Non-bullet lines retain ordinary open-below behavior.
 
 For `Ctrl+]`, ACE opens the target directly in `$EDITOR` when there is only one available action. Inside tmux, or for
 loadable Markdown xprompt definitions, it can show a small chooser for editor, tmux-pane, or load-into-prompt actions.

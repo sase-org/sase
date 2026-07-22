@@ -14,6 +14,10 @@ from sase.ace.tui.widgets._paired_text_editing import (
     plan_pair_delete_left,
     plan_pair_delete_right,
 )
+from sase.ace.tui.widgets._prompt_bullet_editing import (
+    normalize_prompt_bullet_replay_text,
+    prompt_bullet_sibling_prefix,
+)
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
 if TYPE_CHECKING:
@@ -101,6 +105,19 @@ class PromptTextAreaActionsMixin(_MixinBase):
                 return parent
             parent = parent.parent
         return None
+
+    def _normal_open_below_insert_text(self, row: int) -> str:
+        """Auto-continue a containing prompt hyphen bullet for ``o``."""
+        prefix = prompt_bullet_sibling_prefix(self.document.lines, row)
+        return f"\n{prefix}" if prefix is not None else "\n"
+
+    def _normalize_normal_open_below_replay_text(self, insert_text: str) -> str:
+        """Avoid replaying a typed marker after structural prompt bullet text."""
+        row = self.cursor_location[0]
+        return normalize_prompt_bullet_replay_text(
+            self.document.get_line(row),
+            insert_text,
+        )
 
     def _notify_host_text_undo(self, before_text: str, after_text: str) -> None:
         """Tell the parent bar a NORMAL-mode undo changed this pane's text.
