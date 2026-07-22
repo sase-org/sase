@@ -59,14 +59,14 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
     "src/sase/llm_provider/codex.py:_codex_subprocess_env": DirOpReview(
         exemption="Shadow CODEX_HOME cache, not an agent artifact directory.",
     ),
-    "src/sase/linked_repos.py:_remove_path": DirOpReview(
+    "src/sase/_linked_repo_workspaces.py:_remove_path": DirOpReview(
         exemption=(
             "Removes only host-scoped repository paths under sase/repos or "
             "deferred-delete entries under .sase/trash, not agent artifact "
             "directories."
         ),
     ),
-    "src/sase/linked_repos.py:clear_workspace_repos": DirOpReview(
+    "src/sase/_linked_repo_workspaces.py:clear_workspace_repos": DirOpReview(
         exemption=(
             "Moves the launch-scoped sase/repos tree into .sase/trash for "
             "detached deletion; neither path is an agent artifact directory."
