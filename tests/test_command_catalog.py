@@ -224,8 +224,8 @@ def test_h_commands_describe_navigation_and_contextual_collapsing() -> None:
     assert lower.key_display == "h"
     assert "last expanded panel" in lower.aliases
     assert upper.label == (
-        "Collapse Agents houses, clans, groups, then selected panel / compact tools "
-        "detail / collapse all folds on other tabs"
+        "Collapse Agents group/panel houses, clans, groups, then selected panel / "
+        "compact tools detail / collapse all folds on other tabs"
     )
     assert upper.key_sequence == ("H",)
     assert upper.key_display == "H"

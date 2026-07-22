@@ -1,4 +1,4 @@
-"""Selected-panel clan fold target resolution and transitions."""
+"""Panel- and group-scoped clan fold target resolution and transitions."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from ._navigation_order import rendered_panel_slice
 
 if TYPE_CHECKING:
     from ...models import Agent
+    from ...models.agent_group_fold import GroupKey
     from ...models.agent_panels import PanelKey
     from ...models.fold_state import FoldStateManager
 
@@ -20,6 +21,16 @@ class _AgentPanelClanCollapseTarget:
 
     panel_key: PanelKey
     fold_keys: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _AgentGroupClanCollapseTarget:
+    """Validated open clan folds owned by one panel/group scope."""
+
+    panel_key: PanelKey
+    group_key: GroupKey
+    fold_keys: tuple[str, ...]
+    reanchor_index: int | None = None
 
 
 def _is_canonical_clan_owner(
@@ -46,19 +57,20 @@ def _is_canonical_clan_owner(
     )
 
 
-def _resolve_panel_clan_collapse_target(
+def _open_canonical_clan_keys(
     owner: Any,
-    panel_key: PanelKey,
-) -> _AgentPanelClanCollapseTarget | None:
-    """Resolve every open canonical clan fold in one panel's stable order."""
+    *,
+    panel_agents: list[Agent],
+    global_indices: list[int],
+    candidate_indices: tuple[int, ...],
+) -> tuple[tuple[str, ...], dict[str, int]]:
+    """Return validated open clan keys and their global owner indices."""
     from ...models._agent_tree import agent_fold_key
     from ...models.fold_state import FoldLevel
 
-    _global_indices, panel_agents = rendered_panel_slice(owner, panel_key)
-
     # FoldStateManager is global across panels. Validate every candidate key
     # against the complete cached projection, including rows filtered out of
-    # the current render, so an alias cannot turn a panel-local action global.
+    # the current render, so a panel/group-local action cannot cross scopes.
     loaded_agents = getattr(owner, "_agents_with_children", None) or getattr(
         owner, "_agents", panel_agents
     )
@@ -69,8 +81,12 @@ def _resolve_panel_clan_collapse_target(
             owners_by_key.setdefault(candidate_key, []).append(candidate)
 
     open_keys: list[str] = []
+    owner_global_index: dict[str, int] = {}
     seen: set[str] = set()
-    for candidate in panel_agents:
+    for local_index in candidate_indices:
+        if not (0 <= local_index < len(panel_agents)):
+            continue
+        candidate = panel_agents[local_index]
         fold_key = agent_fold_key(candidate)
         if fold_key is None or fold_key in seen:
             continue
@@ -83,15 +99,89 @@ def _resolve_panel_clan_collapse_target(
             continue
         if owner._fold_manager.get(fold_key) == FoldLevel.COLLAPSED:
             continue
+        if not (0 <= local_index < len(global_indices)):
+            continue
         open_keys.append(fold_key)
+        owner_global_index[fold_key] = global_indices[local_index]
+
+    return tuple(open_keys), owner_global_index
+
+
+def _resolve_panel_clan_collapse_target(
+    owner: Any,
+    panel_key: PanelKey,
+) -> _AgentPanelClanCollapseTarget | None:
+    """Resolve every open canonical clan fold in one panel's stable order."""
+    global_indices, panel_agents = rendered_panel_slice(owner, panel_key)
+    open_keys, _owner_global_index = _open_canonical_clan_keys(
+        owner,
+        panel_agents=panel_agents,
+        global_indices=global_indices,
+        candidate_indices=tuple(range(len(panel_agents))),
+    )
 
     if not open_keys:
         return None
-    return _AgentPanelClanCollapseTarget(panel_key, tuple(open_keys))
+    return _AgentPanelClanCollapseTarget(panel_key, open_keys)
+
+
+def _resolve_group_clan_collapse_target(
+    owner: Any,
+    group_key: GroupKey,
+) -> _AgentGroupClanCollapseTarget | None:
+    """Resolve every open canonical clan in one focused-panel group."""
+    from ...models._agent_tree import agent_parent_fold_key
+    from ...models.agent_groups import build_agent_tree
+    from ...models.group_fold import GroupFoldRegistry
+
+    global_indices, panel_agents, _registry = owner._focused_panel_fold_context()
+    target_group = next(
+        (
+            entry.group
+            for entry in build_agent_tree(
+                panel_agents,
+                fold_registry=GroupFoldRegistry(),
+                mode=owner._active_grouping_mode(),
+            )
+            if entry.kind == "group"
+            and entry.group is not None
+            and entry.group.group_key == group_key
+        ),
+        None,
+    )
+    if target_group is None:
+        return None
+
+    open_keys, owner_global_index = _open_canonical_clan_keys(
+        owner,
+        panel_agents=panel_agents,
+        global_indices=global_indices,
+        candidate_indices=target_group.agent_indices,
+    )
+    if not open_keys:
+        return None
+
+    reanchor_index: int | None = None
+    if getattr(owner, "_current_group_key", None) is None:
+        selected = owner._get_selected_agent()
+        selected_parent_key = (
+            agent_parent_fold_key(selected) if selected is not None else None
+        )
+        if selected_parent_key in owner_global_index:
+            reanchor_index = owner_global_index[selected_parent_key]
+
+    panel_group = getattr(owner, "_panel_group", None)
+    panel_key = panel_group.focused_key if panel_group is not None else None
+    return _AgentGroupClanCollapseTarget(
+        panel_key=panel_key,
+        group_key=group_key,
+        fold_keys=open_keys,
+        reanchor_index=reanchor_index,
+    )
 
 
 class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
-    """Add selected-panel clan folding to the Agents structural ladder."""
+    """Add scoped clan folding to the Agents structural ladder."""
 
     _fold_manager: FoldStateManager
 
@@ -108,6 +198,39 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
         if panel_focus is None or panel_focus.collapsed:
             return None
         return _resolve_panel_clan_collapse_target(self, panel_focus.panel_key)
+
+    def _resolve_agent_clan_collapse_target(
+        self,
+    ) -> _AgentGroupClanCollapseTarget | None:
+        """Resolve the group-wide clan step that precedes structural ``H``."""
+        resolve_group = getattr(self, "_resolve_group_collapse_target", None)
+        group_key = resolve_group() if callable(resolve_group) else None
+        if group_key is None:
+            return None
+        return _resolve_group_clan_collapse_target(self, group_key)
+
+    def _collapse_agent_clan_folds(
+        self,
+        target: _AgentGroupClanCollapseTarget | None = None,
+    ) -> bool:
+        """Drive every validated open clan in one grouping scope closed."""
+        if target is None:
+            target = self._resolve_agent_clan_collapse_target()
+        if target is None:
+            return False
+
+        if target.reanchor_index is not None:
+            self.current_idx = target.reanchor_index  # type: ignore[attr-defined]
+        if not self._fold_manager.collapse_fully_all(list(target.fold_keys)):
+            return False
+        self._refilter_agents(  # type: ignore[attr-defined]
+            refresh_content_index=False
+        )
+        if target.reanchor_index is not None:
+            remember = getattr(self, "_remember_focused_panel_selection", None)
+            if callable(remember):
+                remember()
+        return True
 
     def _collapse_focused_panel_clan_folds(
         self,

@@ -113,7 +113,11 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
             house_target = self._resolve_agent_house_collapse_target()
             if house_target is not None:
                 self._collapse_agent_house_folds(house_target)
-            elif not self._collapse_agent_structural_fold():
+                return
+            clan_target = self._resolve_agent_clan_collapse_target()
+            if clan_target is not None and self._collapse_agent_clan_folds(clan_target):
+                return
+            if not self._collapse_agent_structural_fold():
                 self._collapse_group_fold()
         elif self.current_tab == "axe":
             self._collapse_all_axe_folds()

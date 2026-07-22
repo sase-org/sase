@@ -231,6 +231,9 @@ def test_footer_refresh_uses_navigation_and_collapse_resolver_capabilities() -> 
     app._resolve_agent_house_collapse_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
         fold_keys=("house",)
     )
+    app._resolve_agent_clan_collapse_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
+        fold_keys=("group-clan",)
+    )
     app._resolve_agent_structural_collapse_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
         kind="clan"
     )
@@ -243,7 +246,30 @@ def test_footer_refresh_uses_navigation_and_collapse_resolver_capabilities() -> 
     call = app.footer_widget.agent_binding_calls[-1]
     assert call["left_navigation_kind"] == "family"
     assert call["house_collapse_available"] is True
+    assert call["clan_collapse_available"] is False
     assert call["structural_collapse_kind"] is None
+    assert call["group_collapse_available"] is False
+
+    app._resolve_agent_house_collapse_target = lambda: None  # type: ignore[attr-defined]
+    app._apply_agent_footer_update(
+        _DetailWidget(), app.footer_widget, app._get_selected_agent()
+    )
+
+    call = app.footer_widget.agent_binding_calls[-1]
+    assert call["house_collapse_available"] is False
+    assert call["clan_collapse_available"] is True
+    assert call["structural_collapse_kind"] is None
+    assert call["group_collapse_available"] is False
+
+    app._resolve_agent_clan_collapse_target = lambda: None  # type: ignore[attr-defined]
+    app._apply_agent_footer_update(
+        _DetailWidget(), app.footer_widget, app._get_selected_agent()
+    )
+
+    call = app.footer_widget.agent_binding_calls[-1]
+    assert call["house_collapse_available"] is False
+    assert call["clan_collapse_available"] is False
+    assert call["structural_collapse_kind"] == "clan"
     assert call["group_collapse_available"] is False
 
 
