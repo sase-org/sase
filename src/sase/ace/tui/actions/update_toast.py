@@ -3,87 +3,45 @@
 from __future__ import annotations
 
 import logging
-import math
-import time
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast
 
-from textual.markup import escape
-
 from sase.config.core import load_merged_config
 from sase.updates import (
-    CommitSourceSpec,
-    CommitSummary,
-    DEFAULT_UPDATE_STATUS_TTL_SECONDS,
-    IncomingCommits,
-    ProviderUpdateCandidate,
     UpdateStatus,
-    allocate_commit_budget,
-    component_commit_spec,
     fetch_incoming_commits,
     get_cached_update_status,
     revalidate_update_status,
     update_status_snapshot_is_fresh,
 )
 
-from ..modals.config_center_modal import (
-    center_tab_accent,
+from ._update_toast_config import (
+    _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS as _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS,
+    UpdateToastConfig as _UpdateToastConfig,
+    parse_update_toast_config,
+    resolve_check_interval_seconds as resolve_check_interval_seconds,
+)
+from ._update_toast_message import (
+    _UPDATE_GLYPH as _UPDATE_GLYPH,
+    format_update_toast_message as _format_update_toast_message,
+)
+from ._update_toast_sections import (
+    ToastRepoSection as _ToastRepoSection,
+    build_startup_toast_sections as _build_startup_toast_sections_impl,
+    build_toast_commit_sections as _build_toast_commit_sections,
+    header_only_sections as _header_only_sections,
 )
 
 if TYPE_CHECKING:
     from textual.timer import Timer
 
-    from sase.updates import OutdatedComponent
-
 log = logging.getLogger(__name__)
 
-_UPDATE_GLYPH = "↑"
 _TOAST_TITLE = f"{_UPDATE_GLYPH} Updates available"
-_AGENT_CLI_ACCENT = "#00D7FF"
 _TOAST_TIMEOUT_SECONDS = 12.0
-# Fallbacks used only when a TTL key is present but unparsable; both resolve to
-# the 10-minute default so a garbage override never silently re-enables a day.
-_DEFAULT_CHECK_TTL_MINUTES = DEFAULT_UPDATE_STATUS_TTL_SECONDS / 60.0
-_DEFAULT_CHECK_TTL_HOURS = DEFAULT_UPDATE_STATUS_TTL_SECONDS / 3600.0
-_DEFAULT_STARTUP_TOAST_MAX_COMMITS = 20
-_DEFAULT_POST_UPDATE_TOAST_MAX_COMMITS = 5
-_STARTUP_TOAST_DEADLINE_SECONDS = 8.0
-_AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS = 600.0
 _AUTOMATIC_UPDATE_CHECK_TIMER_NAME = "automatic-update-check"
-_DEFAULT_RECOMPUTE_INTERVAL_MINUTES = 60.0
-_DEFAULT_RECOMPUTE_INTERVAL_SECONDS = _DEFAULT_RECOMPUTE_INTERVAL_MINUTES * 60.0
-_COMMIT_SUBJECT_WIDTH = 58
-
-FetchIncomingCommitsFn = Callable[..., IncomingCommits]
-
-
-@dataclass(frozen=True)
-class _UpdateToastConfig:
-    """Config values controlling automatic update checks and update toasts."""
-
-    startup_toast: bool = True
-    post_update_toast: bool = True
-    post_update_toast_diffstat: bool = True
-    post_update_toast_commits: bool = True
-    post_update_toast_max_commits: int = _DEFAULT_POST_UPDATE_TOAST_MAX_COMMITS
-    indicator: bool = True
-    check_ttl_seconds: float = DEFAULT_UPDATE_STATUS_TTL_SECONDS
-    recompute_interval_seconds: float = _DEFAULT_RECOMPUTE_INTERVAL_SECONDS
-    incoming_commits_enabled: bool = True
-    startup_toast_max_commits: int = _DEFAULT_STARTUP_TOAST_MAX_COMMITS
-
-
-@dataclass(frozen=True)
-class _ToastRepoSection:
-    """One repository section in the automatic update toast."""
-
-    label: str
-    installed_version: str
-    latest_version: str
-    commits: tuple[CommitSummary, ...] = ()
-    total: int = 0
 
 
 @dataclass(frozen=True)
@@ -243,7 +201,7 @@ class UpdateToastMixin:
     ) -> None:
         """Apply automatic update status to all UI surfaces."""
         # This UI-thread assignment is the only authority used by the global
-        # comprehensive-update shortcut.  Failed/in-flight checks never reach
+        # comprehensive-update shortcut. Failed/in-flight checks never reach
         # this method, and a successful empty result intentionally replaces a
         # prior non-empty projection.
         self._automatic_update_provider_names = tuple(
@@ -357,80 +315,7 @@ class UpdateToastMixin:
 
 def _load_update_toast_config() -> _UpdateToastConfig:
     """Load automatic update-check config from merged SASE config."""
-    data = load_merged_config()
-    ace = data.get("ace")
-    if not isinstance(ace, dict):
-        return _UpdateToastConfig()
-    updates = ace.get("updates")
-    if not isinstance(updates, dict):
-        return _UpdateToastConfig()
-    return _UpdateToastConfig(
-        startup_toast=_coerce_bool(updates.get("startup_toast"), default=True),
-        post_update_toast=_coerce_bool(updates.get("post_update_toast"), default=True),
-        post_update_toast_diffstat=_coerce_bool(
-            updates.get("post_update_toast_diffstat"),
-            default=True,
-        ),
-        post_update_toast_commits=_coerce_bool(
-            updates.get("post_update_toast_commits"),
-            default=True,
-        ),
-        post_update_toast_max_commits=_coerce_nonnegative_int(
-            updates.get("post_update_toast_max_commits"),
-            default=_DEFAULT_POST_UPDATE_TOAST_MAX_COMMITS,
-        ),
-        indicator=_coerce_bool(updates.get("indicator"), default=True),
-        check_ttl_seconds=_resolve_check_ttl_seconds(updates),
-        recompute_interval_seconds=_resolve_recompute_interval_seconds(updates),
-        incoming_commits_enabled=_incoming_commits_enabled(updates),
-        startup_toast_max_commits=_coerce_nonnegative_int(
-            updates.get("startup_toast_max_commits"),
-            default=_DEFAULT_STARTUP_TOAST_MAX_COMMITS,
-        ),
-    )
-
-
-def _resolve_check_ttl_seconds(updates: dict[str, Any]) -> float:
-    """Resolve the automatic-check cache TTL from the updates config.
-
-    ``check_ttl_minutes`` is the primary knob; ``check_ttl_hours`` is retained
-    only for backward compatibility and consulted when minutes is absent. The
-    value is carried internally as seconds so the worker never re-derives units.
-    """
-    minutes = updates.get("check_ttl_minutes")
-    if minutes is not None:
-        return (
-            _coerce_positive_float(minutes, default=_DEFAULT_CHECK_TTL_MINUTES) * 60.0
-        )
-    hours = updates.get("check_ttl_hours")
-    if hours is not None:
-        return _coerce_positive_float(hours, default=_DEFAULT_CHECK_TTL_HOURS) * 3600.0
-    return DEFAULT_UPDATE_STATUS_TTL_SECONDS
-
-
-def resolve_check_interval_seconds(updates: dict[str, Any]) -> float:
-    """Resolve the positive, finite ACE session check interval in seconds."""
-    default_minutes = _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS / 60.0
-    minutes = _coerce_strict_positive_finite_float(
-        updates.get("check_interval_minutes"),
-        default=default_minutes,
-    )
-    seconds = minutes * 60.0
-    if not math.isfinite(seconds) or seconds <= 0:
-        return _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS
-    return seconds
-
-
-def _resolve_recompute_interval_seconds(updates: dict[str, Any]) -> float:
-    """Resolve the cadence for periodic full network recomputes."""
-    minutes = _coerce_strict_positive_finite_float(
-        updates.get("recompute_interval_minutes"),
-        default=_DEFAULT_RECOMPUTE_INTERVAL_MINUTES,
-    )
-    seconds = minutes * 60.0
-    if not math.isfinite(seconds) or seconds <= 0:
-        return _DEFAULT_RECOMPUTE_INTERVAL_SECONDS
-    return seconds
+    return parse_update_toast_config(load_merged_config())
 
 
 def _get_automatic_update_status(
@@ -457,242 +342,16 @@ def _get_automatic_update_status(
     return get_cached_update_status(ttl_seconds=0.0)
 
 
-def _incoming_commits_enabled(updates: dict[str, Any]) -> bool:
-    incoming = updates.get("incoming_commits")
-    if not isinstance(incoming, dict):
-        return True
-    return _coerce_bool(incoming.get("enabled"), default=True)
-
-
 def _build_startup_toast_sections(
     status: UpdateStatus,
     config: _UpdateToastConfig,
 ) -> tuple[_ToastRepoSection, ...]:
-    if not config.incoming_commits_enabled or config.startup_toast_max_commits <= 0:
-        return _header_only_sections(status.components)
-    return _build_toast_commit_sections(
-        status.components,
+    """Build commit-preview sections using the facade's patchable fetch hook."""
+    return _build_startup_toast_sections_impl(
+        status,
+        config,
         fetch_fn=_fetch_incoming_commits,
-        max_total=config.startup_toast_max_commits,
-        offline=False,
-        deadline=time.monotonic() + _STARTUP_TOAST_DEADLINE_SECONDS,
     )
-
-
-def _build_toast_commit_sections(
-    components: Sequence[OutdatedComponent],
-    *,
-    fetch_fn: FetchIncomingCommitsFn,
-    max_total: int,
-    offline: bool,
-    deadline: float,
-) -> tuple[_ToastRepoSection, ...]:
-    """Fetch, fairly truncate, and align incoming commits to update components."""
-    if max_total <= 0:
-        return _header_only_sections(components)
-    incoming_by_index: dict[int, IncomingCommits] = {}
-    targets: list[tuple[int, CommitSourceSpec]] = []
-    for index, component in enumerate(components):
-        spec = component_commit_spec(component)
-        if spec is not None:
-            targets.append((index, spec))
-    targets.sort(key=lambda item: (1 if item[1].source == "github" else 0, item[0]))
-    for index, spec in targets:
-        if time.monotonic() >= deadline:
-            break
-        try:
-            incoming_by_index[index] = fetch_fn(
-                spec,
-                limit=max_total,
-                offline=offline,
-            )
-        except Exception:  # noqa: BLE001 - update hints must never break ACE.
-            log.debug(
-                "Failed to fetch incoming commits for automatic update toast",
-                exc_info=True,
-            )
-    totals = [
-        _fetchable_total(incoming_by_index.get(index))
-        for index, _component in enumerate(components)
-    ]
-    allocations = allocate_commit_budget(totals, max_total)
-    sections: list[_ToastRepoSection] = []
-    for index, component in enumerate(components):
-        incoming = incoming_by_index.get(index)
-        total = totals[index]
-        allocated = allocations[index]
-        commits = incoming.commits[:allocated] if incoming is not None else ()
-        sections.append(
-            _ToastRepoSection(
-                label=component.display_name,
-                installed_version=component.installed_version or "unknown",
-                latest_version=component.latest_version or "unknown",
-                commits=tuple(commits),
-                total=total,
-            )
-        )
-    return tuple(sections)
-
-
-def _fetchable_total(incoming: IncomingCommits | None) -> int:
-    if incoming is None or incoming.source == "unavailable":
-        return 0
-    return max(0, incoming.total)
-
-
-def _header_only_sections(
-    components: Sequence[OutdatedComponent],
-) -> tuple[_ToastRepoSection, ...]:
-    return tuple(
-        _ToastRepoSection(
-            label=component.display_name,
-            installed_version=component.installed_version or "unknown",
-            latest_version=component.latest_version or "unknown",
-        )
-        for component in components
-    )
-
-
-def _format_update_toast_message(
-    status: UpdateStatus,
-    sections: Sequence[_ToastRepoSection] | None = None,
-) -> str:
-    """Build the Rich/Textual markup body for the update toast."""
-    accent = center_tab_accent("updates") or "#AF87FF"
-    count = status.count
-    noun = "update" if count == 1 else "updates"
-    repo_sections = (
-        tuple(sections)
-        if sections is not None
-        else _header_only_sections(status.components)
-    )
-    domain_counts: list[str] = []
-    if status.component_count:
-        component_noun = "update" if status.component_count == 1 else "updates"
-        domain_counts.append(
-            f"{status.component_count} SASE/core/plugin {component_noun}"
-        )
-    if status.agent_cli_count:
-        provider_noun = "update" if status.agent_cli_count == 1 else "updates"
-        domain_counts.append(f"{status.agent_cli_count} agent CLI {provider_noun}")
-    summary = " · ".join(domain_counts)
-    lines = [f"[bold {accent}]{count} {noun}[/] available · {summary}"]
-    if repo_sections or status.provider_candidates:
-        lines.append("")
-    for index, section in enumerate(repo_sections):
-        if index:
-            lines.append("")
-        lines.extend(_repo_section_lines(section, accent))
-    if repo_sections and status.provider_candidates:
-        lines.append("")
-    for candidate in status.provider_candidates:
-        lines.append(_provider_candidate_line(candidate))
-    if repo_sections or status.provider_candidates:
-        lines.append("")
-    lines.append(_shortcut_line(accent))
-    return "\n".join(lines)
-
-
-def _repo_section_lines(section: _ToastRepoSection, accent: str) -> list[str]:
-    lines = [
-        (
-            f"[bold {accent}]{_UPDATE_GLYPH} {escape(section.label)}[/]  "
-            f"[dim]{escape(section.installed_version)} → "
-            f"{escape(section.latest_version)}[/]"
-        )
-    ]
-    for commit in section.commits:
-        lines.append(_commit_line(commit))
-    extra = max(0, section.total - len(section.commits))
-    if extra > 0:
-        lines.append(f"  [dim]+{extra} more…[/]")
-    return lines
-
-
-def _commit_line(commit: CommitSummary) -> str:
-    subject = _ellipsize(commit.subject.strip(), _COMMIT_SUBJECT_WIDTH)
-    sha = escape(commit.short_sha.strip())
-    if not subject:
-        return f"  [dim]{sha}[/]"
-    return f"  [dim]{sha}[/]  {escape(subject)}"
-
-
-def _provider_candidate_line(candidate: ProviderUpdateCandidate) -> str:
-    manual = "  [yellow]manual[/]" if candidate.manual_only else ""
-    return (
-        f"[bold {_AGENT_CLI_ACCENT}]{_UPDATE_GLYPH} CLI "
-        f"{escape(candidate.display_name)}[/]  "
-        f"[dim]{escape(candidate.installed_version)} → "
-        f"{escape(candidate.latest_version)}[/]{manual}"
-    )
-
-
-def _shortcut_line(accent: str) -> str:
-    return (
-        f"Press [bold {accent}],U[/] to update the eligible set across "
-        "SASE/core/plugins & agent CLIs"
-    )
-
-
-def _coerce_bool(value: object, *, default: bool) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        normalized = value.strip().casefold()
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-        if normalized in {"0", "false", "no", "off", "none", "disabled"}:
-            return False
-    return default
-
-
-def _coerce_nonnegative_int(value: object, *, default: int) -> int:
-    if isinstance(value, bool):
-        return default
-    if isinstance(value, int):
-        return value if value >= 0 else default
-    if isinstance(value, float) and value.is_integer():
-        parsed = int(value)
-        return parsed if parsed >= 0 else default
-    if isinstance(value, str):
-        try:
-            parsed = int(value)
-        except ValueError:
-            return default
-        return parsed if parsed >= 0 else default
-    return default
-
-
-def _coerce_positive_float(value: object, *, default: float) -> float:
-    if isinstance(value, bool):
-        return default
-    if isinstance(value, (int, float)):
-        return float(value) if value >= 0 else default
-    if isinstance(value, str):
-        try:
-            parsed = float(value)
-        except ValueError:
-            return default
-        return parsed if parsed >= 0 else default
-    return default
-
-
-def _coerce_strict_positive_finite_float(value: object, *, default: float) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return default
-    try:
-        parsed = float(value)
-    except OverflowError:
-        return default
-    return parsed if math.isfinite(parsed) and parsed > 0 else default
-
-
-def _ellipsize(value: str, width: int) -> str:
-    if width <= 0 or len(value) <= width:
-        return value
-    if width == 1:
-        return "…"
-    return f"{value[: width - 1]}…"
 
 
 _fetch_incoming_commits = fetch_incoming_commits
