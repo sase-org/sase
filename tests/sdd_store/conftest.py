@@ -30,31 +30,6 @@ def _clear_store_record_cache() -> None:
     workspace_registry.get_all_workflow_metadata.cache_clear()
 
 
-@pytest.fixture(autouse=True)
-def _pin_primary_workspace_to_tmp(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pin primary-workspace resolution to the test's own ``tmp_path`` tree.
-
-    ``get_primary_workspace_dir`` normally resolves the primary checkout by
-    reading the project spec under ``~/.sase`` and walking parent directories
-    for a ``.sase/checkout.json`` marker. Under ``just check`` the pytest tmp
-    tree lives *inside* a managed workspace, so that upward walk escapes tmp,
-    resolves to the real primary checkout, and ``initialize_sidecars`` writes
-    ``sdd-store.json`` there -- clobbering the developer's real SDD store with
-    fabricated fixture metadata. Neutralizing both ambient lookups forces
-    ``get_primary_workspace_dir`` to fall back to the workspace dir it was
-    handed, keeping every store write inside the test sandbox.
-    """
-
-    monkeypatch.setattr(
-        "sase.sdd._paths.resolve_primary_from_project",
-        lambda *_args, **_kwargs: None,
-    )
-    monkeypatch.setattr(
-        "sase.sdd._paths._resolve_primary_from_marker",
-        lambda *_args, **_kwargs: None,
-    )
-
-
 @pytest.fixture
 def provider_patch(monkeypatch: pytest.MonkeyPatch):
     def apply(detected_vcs: str | None) -> None:
