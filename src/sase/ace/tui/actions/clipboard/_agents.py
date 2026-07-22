@@ -43,12 +43,8 @@ class ClipboardAgentsMixin(ClipboardBase):
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        family_name = agent.family_reference_name()
-        if agent.is_family_root_entry and family_name:
-            name_value = family_name
-            label = "Agent Name"
-        elif agent.agent_name:
-            name_value = agent.agent_name
+        if agent.presented_agent_name:
+            name_value = agent.presented_agent_name
             label = "Agent Name"
         else:
             name_value = agent.display_name

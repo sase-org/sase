@@ -293,21 +293,33 @@ class RenameMixin:
             )
             from sase.agent.names import NameCollisionError, claim_agent_name
             from sase.agent.launch_validation import (
+                AgentNameForeignMachineError,
                 AgentNameSyntaxError,
                 validate_user_agent_name,
+            )
+            from sase.core.machine_hood_facade import (
+                MachineHoodIdentity,
+                qualify_local_agent_name,
             )
 
             try:
                 validate_user_agent_name(new_name)
                 claim_agent_name(new_name, artifacts_dir, explicit=True)
-            except (AgentNameSyntaxError, NameCollisionError) as exc:
+            except (
+                AgentNameForeignMachineError,
+                AgentNameSyntaxError,
+                NameCollisionError,
+            ) as exc:
                 self.notify(str(exc), severity="error")  # type: ignore[attr-defined]
                 return
+
+            machine_identity = MachineHoodIdentity.current()
+            durable_name = qualify_local_agent_name(new_name, machine_identity)
 
             spec = AgentDirectivePersistenceSpec(
                 artifacts_dir=artifacts_dir,
                 prompt_mutator=lambda prompt: set_prompt_name(prompt, new_name),
-                meta_patch=AgentMetaPatch(set_values={"name": new_name}),
+                meta_patch=AgentMetaPatch(set_values={"name": durable_name}),
             )
 
             def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
@@ -359,7 +371,14 @@ class RenameMixin:
             ):
                 for a in candidates:
                     if a.identity == agent_identity:
-                        a.agent_name = new_name
+                        a.agent_name = durable_name
+                        refresh_name = getattr(
+                            a,
+                            "refresh_presented_agent_name",
+                            None,
+                        )
+                        if callable(refresh_name):
+                            refresh_name(machine_identity)
 
             self.notify(f"Agent named: {new_name}")  # type: ignore[attr-defined]
             refilter = getattr(self, "_refilter_agents", None)
@@ -372,6 +391,9 @@ class RenameMixin:
                 self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
         self.push_screen(  # type: ignore[attr-defined]
-            AgentNameModal(current_name=agent.agent_name),
+            AgentNameModal(
+                current_name=getattr(agent, "presented_agent_name", None)
+                or agent.agent_name
+            ),
             handle_name_result,
         )

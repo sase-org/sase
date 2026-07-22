@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
+from sase.ace.tui.models.agent_groups._keys import status_grouping_signature
 from sase.ace.tui.models.agent_groups import build_agent_tree
 from sase.ace.tui.models.agent_hoods import (
     AgentNeighborIndex,
@@ -13,6 +16,7 @@ from sase.ace.tui.models.agent_hoods import (
     agent_hood,
     is_agent_descendant,
 )
+from sase.core.machine_hood_facade import MachineHoodIdentity
 
 
 def _agent(
@@ -68,6 +72,66 @@ def test_agent_hood_matches_case_insensitively() -> None:
     assert agent_hood(_agent("Foo.plan")) == "foo"
     assert agent_hood(_agent("foo.Code")) == "foo"
     assert agent_hood(_agent("Foo.Bar.baz")) == "foo.bar"
+
+
+def test_machine_hood_is_removed_before_local_kinship_indexing() -> None:
+    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    local = _agent("athena.foo.plan")
+    legacy = _agent("foo.code")
+    foreign = _agent("zeus.foo.plan")
+    for agent in (local, legacy, foreign):
+        agent.refresh_presented_agent_name(identity)
+
+    assert local.agent_name == "athena.foo.plan"
+    assert local.presented_agent_name == "foo.plan"
+    assert local.presented_identity_name == "foo.plan"
+    assert agent_hood(local) == "foo"
+    assert agent_hood(legacy) == "foo"
+    assert foreign.presented_agent_name == "zeus.foo.plan"
+    assert agent_hood(foreign) == "zeus.foo"
+
+    index = AgentNeighborIndex.from_visible_rows(
+        [
+            AgentNeighborRow(0, 0, local),
+            AgentNeighborRow(1, 0, legacy),
+            AgentNeighborRow(2, 0, foreign),
+        ]
+    )
+    assert index.neighbors_for(0) == (1,)
+    assert index.neighbors_for(1) == (0,)
+    assert index.neighbors_for(2) == ()
+    assert status_grouping_signature(local)[1:3] == ("foo", "foo.plan")
+
+
+def test_agent_row_construction_does_not_read_machine_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_current(_cls: type[MachineHoodIdentity]) -> MachineHoodIdentity:
+        raise AssertionError("row construction must not resolve machine config")
+
+    monkeypatch.setattr(
+        MachineHoodIdentity,
+        "current",
+        classmethod(fail_current),
+    )
+
+    agent = _agent("athena.foo")
+
+    assert agent.presented_agent_name == "athena.foo"
+    assert agent.presented_identity_name == "athena.foo"
+
+
+def test_family_display_and_kinship_identity_are_normalized_independently() -> None:
+    family = _agent("athena.foo--plan")
+    family.agent_family = "athena.foo"
+    family.agent_family_role = "root"
+    family.plan_chain_root = True
+    family.refresh_presented_agent_name(
+        MachineHoodIdentity("athena", ("athena", "zeus"))
+    )
+
+    assert family.presented_agent_name == "foo"
+    assert family.presented_identity_name == "foo--plan"
 
 
 def test_neighbors_share_the_same_immediate_hood() -> None:

@@ -351,3 +351,34 @@ def test_plan_family_promotion_is_idempotent_and_plan_suffix_wins(
 
     assert first == second == "foo--plan"
     assert json.loads(meta_path.read_text(encoding="utf-8"))["role_suffix"] == "--plan"
+
+
+def test_family_promotion_qualifies_legacy_parent_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.get_machine_name",
+        lambda: "athena",
+    )
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.discover_machine_names",
+        lambda: ("athena",),
+    )
+    artifact_dir = tmp_path / "artifact"
+    artifact_dir.mkdir()
+    meta_path = artifact_dir / "agent_meta.json"
+    meta_path.write_text(
+        json.dumps({"name": "foo", "role_suffix": "--plan"}),
+        encoding="utf-8",
+    )
+
+    first = promote_agent_to_family(artifact_dir, "foo")
+    second = promote_agent_to_family(artifact_dir, "athena.foo")
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+
+    assert first == second == "athena.foo--plan"
+    assert meta["name"] == "athena.foo--plan"
+    assert meta["workflow_name"] == "athena.foo"
+    assert meta["agent_family"] == "athena.foo"

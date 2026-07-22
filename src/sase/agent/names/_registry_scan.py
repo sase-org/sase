@@ -145,11 +145,33 @@ def _add_owner_names(
     names: set[str],
     owner: dict[str, Any],
 ) -> None:
+    from sase.core.machine_hood_facade import (
+        MachineHoodIdentity,
+        qualify_local_agent_name,
+        strip_local_agent_name,
+    )
+
+    identity = MachineHoodIdentity.current()
     for name in names:
         _add_owner_name(entries, name, owner, reservation_kind="claimed")
         prefix = extract_auto_name_prefix(name)
-        if prefix is not None and prefix not in names:
-            _add_owner_name(entries, prefix, owner, reservation_kind="auto_prefix")
+        if prefix is None:
+            continue
+        # A rebuild preserves the spelling already stored in the artifact.
+        # Qualified artifacts therefore derive qualified auto-prefix entries,
+        # while legacy bare artifacts remain bare instead of being migrated.
+        stored_prefix = (
+            qualify_local_agent_name(prefix, identity)
+            if strip_local_agent_name(name, identity) != name
+            else prefix
+        )
+        if stored_prefix not in names:
+            _add_owner_name(
+                entries,
+                stored_prefix,
+                owner,
+                reservation_kind="auto_prefix",
+            )
 
 
 def _clan_from_payload(payload: dict[str, Any] | None) -> tuple[str, str] | None:

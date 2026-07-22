@@ -48,8 +48,8 @@ def _agent_filter_label(agent: Agent) -> str:
         parts.append(project_name)
         if agent.project_display_name and agent.project_display_name != project_name:
             parts.append(agent.project_display_name)
-    if agent.agent_name:
-        parts.append(f"@{agent.agent_name}")
+    if agent.presented_agent_name:
+        parts.append(f"@{agent.presented_agent_name}")
     return " ".join(part for part in parts if part)
 
 

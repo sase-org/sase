@@ -213,6 +213,20 @@ def extract_directives_and_write_meta(
             }
         )
 
+    from sase.core.agent_tribe import parse_tribe_reference
+    from sase.core.machine_hood_facade import (
+        MachineHoodIdentity,
+        qualify_local_agent_name,
+    )
+
+    machine_identity = MachineHoodIdentity.current()
+    wait_names = [
+        name
+        if parse_tribe_reference(name) is not None
+        else qualify_local_agent_name(name, machine_identity)
+        for name in wait_names
+    ]
+
     auto_dismiss = os.environ.get("SASE_AGENT_AUTO_DISMISS")
     name_request = prepare_agent_name_request(
         directives=directives,

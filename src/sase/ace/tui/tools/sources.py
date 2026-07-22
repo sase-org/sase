@@ -277,7 +277,7 @@ def _source_label(agent: Agent, *, root: Agent) -> str:
             return agent.agent_name[
                 len(root.agent_name) + len(AGENT_FAMILY_SEPARATOR) :
             ]
-        return agent.agent_name
+        return agent.presented_agent_name or agent.agent_name
 
     return agent.display_name
 

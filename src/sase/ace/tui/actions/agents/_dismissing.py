@@ -124,7 +124,10 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
         desc_parts = [f"Count: {count} agent{s}"]
         for agent in dismissable:
             name = agent.display_name
-            suffix = f" @{agent.agent_name}" if agent.agent_name else ""
+            prompt_name = getattr(agent, "presented_agent_name", None) or getattr(
+                agent, "agent_name", None
+            )
+            suffix = f" @{prompt_name}" if prompt_name else ""
             desc_parts.append(f"  {name}{suffix}")
         agent_description = "\n".join(desc_parts)
 

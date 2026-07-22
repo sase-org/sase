@@ -42,6 +42,17 @@ def _write_bundle(base: Path, filename: str, data: dict[str, object]) -> Path:
     return path
 
 
+def _configure_machine(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.get_machine_name",
+        lambda: "athena",
+    )
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.discover_machine_names",
+        lambda: ("athena", "zeus"),
+    )
+
+
 def _make_sharded_agent(
     base: Path,
     project: str,
@@ -80,6 +91,43 @@ def test_registry_rebuild_collects_active_agent(tmp_path: Path) -> None:
         data = rebuild_name_registry()
         assert "foo" in data["entries"]
         assert lookup_registered_name("foo")["state"] == "active"
+
+
+def test_configured_claim_uses_durable_machine_hood(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    artifact_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/run1"
+    artifact_dir.mkdir(parents=True)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        claim_registered_name("foo", artifact_dir)
+        assert get_reserved_agent_names() == {"athena.foo"}
+        assert lookup_registered_name("foo") is not None
+        assert lookup_registered_name("athena.foo") is not None
+
+
+def test_legacy_and_qualified_claims_collide_in_both_directions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    first = tmp_path / ".sase/projects/proj/artifacts/ace-run/run1"
+    second = tmp_path / ".sase/projects/proj/artifacts/ace-run/run2"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        _make_agent(tmp_path, "proj", "legacy", "foo")
+        rebuild_name_registry()
+        with pytest.raises(NameCollisionError):
+            claim_registered_name("athena.foo", second)
+
+        delete_registered_name("foo")
+        claim_registered_name("athena.bar", first)
+        with pytest.raises(NameCollisionError):
+            claim_registered_name("bar", second)
 
 
 def test_registry_rebuild_collects_clan_container(tmp_path: Path) -> None:
@@ -173,6 +221,20 @@ def test_registry_rebuild_collects_numeric_auto_prefix(tmp_path: Path) -> None:
         reserved = get_reserved_agent_names()
         assert {"1", "1.plan"} <= reserved
         assert lookup_registered_name("1")["reservation_kind"] == "auto_prefix"
+
+
+def test_configured_registry_rebuild_preserves_qualified_auto_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    _make_agent(tmp_path, "proj", "run1", "athena.1.plan")
+    with patch.object(Path, "home", return_value=tmp_path):
+        data = rebuild_name_registry()
+
+    assert {"athena.1", "athena.1.plan"} <= set(data["entries"])
+    assert "1" not in data["entries"]
+    assert data["entries"]["athena.1"]["reservation_kind"] == "auto_prefix"
 
 
 def test_registry_rebuild_stays_under_sase_home(monkeypatch, tmp_path: Path) -> None:

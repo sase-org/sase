@@ -54,7 +54,9 @@ def _resolve_agent_name() -> str | None:
     """Resolve the current SASE agent name, if one is available."""
     env_name = _sanitize_tag_value(os.environ.get("SASE_AGENT_NAME"))
     if env_name:
-        return env_name
+        from sase.core.machine_hood_facade import qualify_local_agent_name
+
+        return qualify_local_agent_name(env_name)
 
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not artifacts_dir:
@@ -67,11 +69,21 @@ def _resolve_agent_name() -> str | None:
         return None
     if not isinstance(meta, dict):
         return None
-    return _sanitize_tag_value(meta.get("name"))
+    meta_name = _sanitize_tag_value(meta.get("name"))
+    if meta_name:
+        from sase.core.machine_hood_facade import qualify_local_agent_name
+
+        return qualify_local_agent_name(meta_name)
+    return None
 
 
 def _resolve_machine_name() -> str | None:
     """Resolve the current host name for commit provenance."""
+    from sase.config import get_machine_name
+
+    configured_name = _sanitize_tag_value(get_machine_name())
+    if configured_name:
+        return configured_name
     try:
         machine_name = _sanitize_tag_value(socket.gethostname())
     except OSError:

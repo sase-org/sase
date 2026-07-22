@@ -119,8 +119,8 @@ def compact_role_label(agent: Agent) -> str:
     family_role = agent.agent_family_role
     if family_role:
         return _FAMILY_ROLE_LABELS.get(family_role, family_role)
-    if agent.agent_name:
-        return f"@{agent.agent_name}"
+    if agent.presented_agent_name:
+        return f"@{agent.presented_agent_name}"
     if agent.step_name:
         return agent.step_name
     return agent.display_name

@@ -40,11 +40,11 @@ def _grouping_name(agent: Agent) -> str:
     if agent.is_clan_container:
         return ""
     if agent.agent_family:
-        return agent.agent_family
+        return agent.presented_family_reference_name() or agent.agent_family
 
-    if agent.agent_name:
-        family_base = _agent_family_base_from_row(agent, agent.agent_name)
-        return family_base or agent.agent_name
+    if agent.presented_agent_name:
+        family_base = _agent_family_base_from_row(agent, agent.presented_agent_name)
+        return family_base or agent.presented_agent_name
 
     name = agent.display_name or ""
     family_base = _agent_family_base_from_row(agent, name)

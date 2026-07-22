@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.agent.names import (
     find_agent_family,
     find_named_agent,
@@ -16,6 +18,17 @@ from tests._agent_names_fixtures import DEAD_PID as _DEAD_PID
 from tests._agent_names_fixtures import make_agent as _make_agent
 
 
+def _configure_machine(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.get_machine_name",
+        lambda: "athena",
+    )
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.discover_machine_names",
+        lambda: ("athena", "zeus"),
+    )
+
+
 class TestFindNamedAgent:
     def test_finds_done_agent(self, tmp_path: Path) -> None:
         _make_agent(tmp_path, "proj", "run1", "foo", done=True, outcome="success")
@@ -24,6 +37,40 @@ class TestFindNamedAgent:
         assert result is not None
         assert result.is_done
         assert result.outcome == "success"
+
+    def test_local_bare_and_qualified_selectors_share_exact_first_lookup(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _configure_machine(monkeypatch)
+        legacy = _make_agent(tmp_path, "proj", "run1", "foo", done=True)
+        qualified = _make_agent(
+            tmp_path,
+            "proj",
+            "run2",
+            "athena.foo",
+            done=True,
+        )
+        foreign = _make_agent(
+            tmp_path,
+            "proj",
+            "run3",
+            "zeus.foo",
+            done=True,
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            bare_result = find_named_agent("foo")
+            qualified_result = find_named_agent("athena.foo")
+            foreign_result = find_named_agent("zeus.foo")
+
+        assert bare_result is not None
+        assert bare_result.artifacts_dir == str(legacy)
+        assert qualified_result is not None
+        assert qualified_result.artifacts_dir == str(qualified)
+        assert foreign_result is not None
+        assert foreign_result.artifacts_dir == str(foreign)
 
     def test_returns_none_when_not_found(self, tmp_path: Path) -> None:
         _make_agent(tmp_path, "proj", "run1", "foo")
@@ -225,6 +272,43 @@ def test_find_agent_family_includes_sequential_descendants(tmp_path: Path) -> No
         "foo--0",
         "foo--review",
         "foo--land",
+    ]
+
+
+def test_family_lookup_combines_legacy_and_qualified_local_relations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    _make_agent(
+        tmp_path,
+        "proj",
+        "20260701010101",
+        "foo--0",
+        workflow_name="foo",
+        agent_family="foo",
+        role_suffix="--0",
+        done=True,
+    )
+    _make_agent(
+        tmp_path,
+        "proj",
+        "20260701010202",
+        "athena.foo--code",
+        workflow_name="athena.foo",
+        agent_family="athena.foo",
+        role_suffix="--code",
+        parent_timestamp="20260701010101",
+        done=True,
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        family = find_agent_family("foo")
+
+    assert family is not None
+    assert [member.name for member in family.members] == [
+        "foo--0",
+        "athena.foo--code",
     ]
 
 

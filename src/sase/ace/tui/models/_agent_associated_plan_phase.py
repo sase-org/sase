@@ -64,7 +64,9 @@ def resolve_phase_plan_enrichment(
             parent_reference,
         )
     else:
-        bead_id = phase_bead_id or derive_agent_bead_id_from_name(agent.agent_name)
+        bead_id = phase_bead_id or derive_agent_bead_id_from_name(
+            agent.presented_agent_name or agent.agent_name
+        )
         if parent_association is None and bead_id is not None:
             parent_association = resolve_parent_association(
                 agent,
@@ -331,7 +333,9 @@ def _phase_index(epic_bead_id: str | None, phase_bead_id: str) -> int | None:
 
 def _derived_phase_bead_id(agent: Agent) -> str | None:
     """Recover only a structurally trustworthy child ID from a phase name."""
-    candidate = derive_agent_bead_id_from_name(agent.agent_name)
+    candidate = derive_agent_bead_id_from_name(
+        agent.presented_agent_name or agent.agent_name
+    )
     if candidate is None:
         return None
     if agent.epic_bead_id:

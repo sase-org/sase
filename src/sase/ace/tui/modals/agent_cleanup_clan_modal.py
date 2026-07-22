@@ -549,7 +549,7 @@ class AgentCleanupClanModal(
 
     @staticmethod
     def _relative_member_label(member: Agent, clan_name: str) -> str:
-        name = member.agent_name or member.step_name or member.display_name
+        name = member.presented_agent_name or member.step_name or member.display_name
         prefix = f"{clan_name}."
         return name[len(clan_name) :] if name.startswith(prefix) else name
 

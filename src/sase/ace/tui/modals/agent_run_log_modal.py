@@ -256,8 +256,8 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             text.append(f"[{agent.display_type}] ", style="dim")
             text.append(f"{agent.start_time_compact} ", style="dim")
             text.append("DISMISSED", style="dim italic")
-            if agent.agent_name:
-                text.append(f" {agent.agent_name}", style="dim")
+            if agent.presented_agent_name:
+                text.append(f" {agent.presented_agent_name}", style="dim")
         else:
             text.append(f"[{agent.display_type}] ", style="bold #87D7FF")
             text.append(f"{agent.start_time_compact} ", style="dim")
@@ -267,8 +267,8 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
                 "FAILED": "bold red",
             }.get(agent.status, "dim")
             text.append(agent.status, style=status_style)
-            if agent.agent_name:
-                text.append(f" {agent.agent_name}", style="#AF87D7")
+            if agent.presented_agent_name:
+                text.append(f" {agent.presented_agent_name}", style="#AF87D7")
 
         return text
 
@@ -421,9 +421,9 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             text.append("Workspace: ", style="bold #87D7FF")
             text.append(f"#{agent.workspace_num}\n")
 
-        if agent.agent_name:
+        if agent.presented_agent_name:
             text.append("Name: ", style="bold #87D7FF")
-            text.append(f"{agent.agent_name}\n")
+            text.append(f"{agent.presented_agent_name}\n")
 
         if agent.workflow:
             text.append("Workflow: ", style="bold #87D7FF")

@@ -24,7 +24,7 @@ def ordered_clan_members(agent: Agent) -> tuple[Agent, ...]:
                     if member.start_time is not None
                     else ""
                 ),
-                member.agent_name or member.display_name,
+                member.presented_agent_name or member.display_name,
             ),
         )
     )
@@ -57,7 +57,7 @@ def family_rows(member: Agent, children: tuple[Agent, ...]) -> tuple[Agent, ...]
 
 
 def _row_name(agent: Agent) -> str:
-    return agent.agent_name or agent.step_name or agent.display_name
+    return agent.presented_agent_name or agent.step_name or agent.display_name
 
 
 def _hood_suffix(agent: Agent, clan_name: str) -> str:
@@ -70,7 +70,7 @@ def _hood_suffix(agent: Agent, clan_name: str) -> str:
 
 
 def _family_suffix(member: Agent, clan_name: str) -> str:
-    family_name = member.agent_family or _row_name(member)
+    family_name = _presented_family_name(member)
     prefix = f"{clan_name}."
     if family_name.startswith(prefix):
         return family_name[len(clan_name) :]
@@ -83,10 +83,15 @@ def _nested_family_suffix(
     clan_name: str,
 ) -> str:
     name = _row_name(member)
-    family_name = family.agent_family or _row_name(family)
+    family_name = _presented_family_name(family)
     if name.startswith(family_name) and len(name) > len(family_name):
         return name[len(family_name) :]
     return _hood_suffix(member, clan_name)
+
+
+def _presented_family_name(agent: Agent) -> str:
+    """Derive a family container from raw relations and presented identity."""
+    return agent.presented_family_reference_name() or _row_name(agent)
 
 
 def _member_kind(member: Agent) -> str:
@@ -154,7 +159,7 @@ def clan_roster_entries(
     digests: tuple[ClanMemberDigest, ...],
 ) -> tuple[MemberRosterEntry, ...]:
     """Adapt deterministic clan rows into shared roster entries."""
-    clan_name = agent.agent_clan or agent.display_name
+    clan_name = agent.presented_agent_name or agent.display_name
     digest_by_identity = {digest.identity: digest for digest in digests}
     entries: list[MemberRosterEntry] = []
     for member in members:

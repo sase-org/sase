@@ -44,7 +44,7 @@ def enrich_agent_from_meta_wire(
 
     if meta is None:
         refresh_agent_plan_path(agent)
-        agent.refresh_presented_agent_name()
+        agent.refresh_raw_presented_agent_name()
         return
 
     agent.runner_slot_yielded = pending_question is not None
@@ -239,4 +239,4 @@ def enrich_agent_from_meta_wire(
         if plan_status is not None:
             agent.status = plan_status
 
-    agent.refresh_presented_agent_name()
+    agent.refresh_raw_presented_agent_name()

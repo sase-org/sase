@@ -485,6 +485,7 @@ def finalize_loop(
         prompt=state.current_prompt,
         response=response_content,
         workflow="ace-run",
+        agent=done_agent_name,
         timestamp=ctx.timestamp,
         extra_sections=extra,
         branch_or_workspace=ctx.cl_name,

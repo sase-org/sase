@@ -80,9 +80,9 @@ def format_agent_label(
 
     text.append(agent.display_name, style="bold")
 
-    if agent.agent_name:
+    if agent.presented_agent_name:
         text.append("  ")
-        text.append(f"@{agent.agent_name}", style="#87D7FF")
+        text.append(f"@{agent.presented_agent_name}", style="#87D7FF")
 
     text.append("  ")
     text.append(agent.start_time_compact, style="dim")
@@ -156,9 +156,9 @@ def build_metadata_preview(agent: Agent, children: list[Agent]) -> Text:
         meta.append(f"  {'Provider':<{label_width}}", style="bold")
         meta.append(f"{agent.llm_provider}\n", style="dim")
 
-    if agent.agent_name:
+    if agent.presented_agent_name:
         meta.append(f"  {'Agent':<{label_width}}", style="bold")
-        meta.append(f"@{agent.agent_name}\n", style="#87D7FF")
+        meta.append(f"@{agent.presented_agent_name}\n", style="#87D7FF")
 
     if agent.workflow and not agent.appears_as_agent:
         meta.append(f"  {'Workflow':<{label_width}}", style="bold")

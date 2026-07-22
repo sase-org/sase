@@ -20,6 +20,7 @@ from sase.ace.tui.agent_completion import (
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
+from sase.core.machine_hood_facade import MachineHoodIdentity
 
 
 class _FakeAgentList:
@@ -184,6 +185,75 @@ def test_filter_agent_completion_candidates_uses_name_prefix(tmp_path: Path) -> 
         candidate.name
         for candidate in filter_agent_completion_candidates(candidates, "co")
     ] == ["coder"]
+
+
+def test_completion_inserts_bare_local_names_and_searches_raw_alias(
+    tmp_path: Path,
+) -> None:
+    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    local = _agent(tmp_path, agent_name="athena.foo.plan")
+    legacy = _agent(
+        tmp_path,
+        agent_name="bar.plan",
+        raw_suffix="260624_120011",
+    )
+    foreign = _agent(
+        tmp_path,
+        agent_name="zeus.foo.plan",
+        raw_suffix="260624_120012",
+    )
+    for agent in (local, legacy, foreign):
+        agent.refresh_presented_agent_name(identity)
+
+    candidates = build_agent_completion_candidates([local, legacy, foreign])
+
+    assert [candidate.name for candidate in candidates] == [
+        "foo.plan",
+        "bar.plan",
+        "zeus.foo.plan",
+    ]
+    assert [
+        candidate.name
+        for candidate in filter_agent_completion_candidates(candidates, "athena.foo")
+    ] == ["foo.plan"]
+
+
+def test_clan_tree_merges_legacy_and_qualified_local_metadata(
+    tmp_path: Path,
+) -> None:
+    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    legacy = _agent(
+        tmp_path,
+        agent_name="research.legacy",
+        agent_clan="research",
+        agent_clan_generation="generation",
+        raw_suffix="260624_120010",
+    )
+    qualified = _agent(
+        tmp_path,
+        agent_name="athena.research.new",
+        agent_clan="athena.research",
+        agent_clan_generation="generation",
+        raw_suffix="260624_120011",
+    )
+    foreign = _agent(
+        tmp_path,
+        agent_name="zeus.research.remote",
+        agent_clan="zeus.research",
+        agent_clan_generation="generation",
+        raw_suffix="260624_120012",
+    )
+    for agent in (legacy, qualified, foreign):
+        agent.refresh_presented_agent_name(identity)
+
+    projected = project_clan_tree([legacy, qualified, foreign])
+    containers = [agent for agent in projected if agent.is_clan_container]
+
+    assert [container.agent_clan for container in containers] == [
+        "research",
+        "zeus.research",
+    ]
+    assert [len(container.runtime_children) for container in containers] == [2, 1]
 
 
 def test_build_agent_completion_candidates_derives_ordered_groups(

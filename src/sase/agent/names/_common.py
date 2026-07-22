@@ -34,11 +34,17 @@ DISMISSED_NAME_PREFIX_RE = re.compile(r"^(\d{6})\.")
 
 def extract_auto_name_prefix(*values: object) -> str | None:
     """Return the longest auto-name prefix before the first ``.`` in any value."""
+    from sase.core.machine_hood_facade import (
+        MachineHoodIdentity,
+        strip_local_agent_name,
+    )
+
+    identity = MachineHoodIdentity.current()
     best: str | None = None
     for v in values:
         if not isinstance(v, str):
             continue
-        m = _AUTO_NAME_PREFIX_RE.match(v)
+        m = _AUTO_NAME_PREFIX_RE.match(strip_local_agent_name(v, identity))
         if m is None:
             continue
         candidate = m.group(1)

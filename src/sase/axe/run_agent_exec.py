@@ -69,6 +69,7 @@ def _resolve_workflow_project(ctx: AgentExecContext) -> str | None:
 def _publish_predicted_chat_path(ctx: AgentExecContext) -> None:
     chat_basename = generate_chat_filename(
         workflow="ace-run",
+        agent=ctx.agent_name,
         branch_or_workspace=ctx.cl_name,
         timestamp=ctx.timestamp,
     )

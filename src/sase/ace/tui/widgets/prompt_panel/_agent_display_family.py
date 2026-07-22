@@ -91,7 +91,7 @@ def _family_roster_entries(
     now: datetime | None = None,
 ) -> tuple[MemberRosterEntry, ...]:
     """Adapt a family chain into shared numbered roster entries."""
-    family_name = agent.agent_family or agent.family_reference_name() or ""
+    family_name = agent.presented_agent_name or ""
     members = family_member_rows(agent)
     buckets = family_member_status_buckets(members)
     entries: list[MemberRosterEntry] = []
@@ -187,7 +187,7 @@ def reply_tail_preview(
 
 
 def _family_member_label(member: Agent, family_name: str) -> str:
-    name = member.agent_name or member.step_name or member.display_name
+    name = member.presented_agent_name or member.step_name or member.display_name
     if family_name and name.startswith(family_name) and len(name) > len(family_name):
         return name[len(family_name) :]
     if member.role_suffix:

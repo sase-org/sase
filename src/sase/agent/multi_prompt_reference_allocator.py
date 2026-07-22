@@ -14,6 +14,7 @@ from sase.agent.multi_prompt_reference_resume import (
     has_non_resume_xprompt_reference,
 )
 from sase.core.agent_tribe import parse_tribe_reference
+from sase.core.machine_hood_facade import MachineHoodIdentity
 
 if TYPE_CHECKING:
     from sase.agent.names import AgentNameNamespaceReservationIndex
@@ -36,6 +37,7 @@ class PlannedNameAllocator:
     """Allocate parent-side names and resolve template references."""
 
     def __init__(self) -> None:
+        self._machine_identity = MachineHoodIdentity.current()
         self._template_reserved: set[str] | None = None
         self._template_index: AgentNameNamespaceReservationIndex | None = None
         self._template_latest: dict[str, str] = {}
@@ -73,7 +75,12 @@ class PlannedNameAllocator:
                     template_group=template_group,
                 )
                 return name, name
-            return explicit_name, None
+            from sase.core.machine_hood_facade import qualify_local_agent_name
+
+            return (
+                qualify_local_agent_name(explicit_name, self._machine_identity),
+                None,
+            )
 
         from sase.agent.names import (
             resume_agent_name_template,
@@ -147,7 +154,9 @@ class PlannedNameAllocator:
             existing_token = self._template_group_tokens.get(group.key)
             if existing_token is not None:
                 candidates = _template_candidates(
-                    templates_with_namespaces, existing_token
+                    templates_with_namespaces,
+                    existing_token,
+                    self._machine_identity,
                 )
                 candidate_names = [name for name, _ in candidates]
                 namespaces = [namespace for _, namespace in candidates]
@@ -170,7 +179,11 @@ class PlannedNameAllocator:
                 index.update_names(candidate_names)
 
             for token in iter_agent_name_template_tokens():
-                candidates = _template_candidates(templates_with_namespaces, token)
+                candidates = _template_candidates(
+                    templates_with_namespaces,
+                    token,
+                    self._machine_identity,
+                )
                 candidate_names = [name for name, _ in candidates]
                 namespaces = [namespace for _, namespace in candidates]
                 if not self._template_candidates_available(candidates, group):
@@ -354,8 +367,10 @@ class PlannedNameAllocator:
         """Mark a planned reservation as owned by a spawned child."""
         if name is None or artifacts_dir is None:
             return
+        from sase.core.machine_hood_facade import qualify_local_agent_name
+
         reservation = _PlannedNameReservation(
-            name=name,
+            name=qualify_local_agent_name(name, self._machine_identity),
             artifacts_dir=str(Path(artifacts_dir).expanduser().resolve(strict=False)),
         )
         if reservation in self._planned_reservations:
@@ -395,7 +410,9 @@ class PlannedNameAllocator:
             return True
 
         from sase.agent.names import NameCollisionError, reserve_registered_name
+        from sase.core.machine_hood_facade import qualify_local_agent_name
 
+        name = qualify_local_agent_name(name, self._machine_identity)
         artifacts_path = Path(artifacts_dir).expanduser().resolve(strict=False)
         try:
             reserve_registered_name(name, artifacts_path)
@@ -486,7 +503,6 @@ class PlannedNameAllocator:
             agent_name_template_namespace_template,
             get_reserved_agent_names,
             iter_agent_name_template_tokens,
-            render_agent_name_template,
         )
 
         group = _normalize_template_group(template_group, template)
@@ -499,10 +515,11 @@ class PlannedNameAllocator:
 
             existing_token = self._template_group_tokens.get(group.key)
             if existing_token is not None:
-                candidate = render_agent_name_template(template, existing_token)
-                namespace = render_agent_name_template(
+                candidate, namespace = _durable_template_candidate(
+                    template,
                     namespace_template,
                     existing_token,
+                    self._machine_identity,
                 )
                 if self._template_candidate_available(
                     candidate, namespace, group
@@ -518,8 +535,12 @@ class PlannedNameAllocator:
                 index.add_name(candidate)
 
             for token in iter_agent_name_template_tokens():
-                candidate = render_agent_name_template(template, token)
-                namespace = render_agent_name_template(namespace_template, token)
+                candidate, namespace = _durable_template_candidate(
+                    template,
+                    namespace_template,
+                    token,
+                    self._machine_identity,
+                )
                 if not self._template_candidate_available(candidate, namespace, group):
                     continue
                 if not self._reserve_planned_template_names(
@@ -640,16 +661,38 @@ def _unquote_backtick_arg(arg: str) -> str:
 def _template_candidates(
     templates_with_namespaces: Sequence[tuple[str, str]],
     token: str,
+    identity: MachineHoodIdentity,
 ) -> list[tuple[str, str]]:
-    from sase.agent.names import render_agent_name_template
-
     return [
-        (
-            render_agent_name_template(template, token),
-            render_agent_name_template(namespace_template, token),
+        _durable_template_candidate(
+            template,
+            namespace_template,
+            token,
+            identity,
         )
         for template, namespace_template in templates_with_namespaces
     ]
+
+
+def _durable_template_candidate(
+    template: str,
+    namespace_template: str,
+    token: str,
+    identity: MachineHoodIdentity,
+) -> tuple[str, str]:
+    from sase.agent.names import render_agent_name_template
+    from sase.core.machine_hood_facade import qualify_local_agent_name
+
+    return (
+        qualify_local_agent_name(
+            render_agent_name_template(template, token),
+            identity,
+        ),
+        qualify_local_agent_name(
+            render_agent_name_template(namespace_template, token),
+            identity,
+        ),
+    )
 
 
 def _normalize_template_group(

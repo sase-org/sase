@@ -45,7 +45,13 @@ def resolve_family_attach_plan(
     }
 
     binding = _candidates.resolve_binding()
-    result = dict(binding(request))
+    from sase.core.machine_hood_facade import local_agent_name_lookup_candidates
+
+    result: dict[str, Any] = {"kind": "absent"}
+    for parent_candidate in local_agent_name_lookup_candidates(directive.parent):
+        result = dict(binding({**request, "parent_name": parent_candidate}))
+        if result.get("kind") != "absent":
+            break
     kind = result.get("kind")
     if kind not in {"resolved", "running"}:
         raise _types.FamilyAttachError(
@@ -70,12 +76,15 @@ def resolve_family_attach_plan(
                 "resolved parent metadata is no longer available."
             )
 
-    parent_name = parent["name"]
-    parent_base = (
+    parent_name = str(parent["name"])
+    raw_parent_base = (
         parent_sibling.family_base
         if parent_sibling is not None
         else _candidates.family_base(parent_record, parent_name)
     )
+    from sase.core.machine_hood_facade import qualify_local_agent_name
+
+    parent_base = qualify_local_agent_name(raw_parent_base)
     role_suffix = _resolve_role_suffix(
         directive.suffix,
         parent_base,
@@ -98,7 +107,7 @@ def resolve_family_attach_plan(
                 "plan": getattr(parent_meta, "plan", False),
             }
         )
-    parent_needs_rename = parent_name == parent_base
+    parent_needs_rename = parent_name == raw_parent_base
     parent_family_member_name = (
         f"{parent_base}{parent_family_role_suffix}"
         if parent_needs_rename
@@ -155,6 +164,8 @@ def resolve_family_attach_plan(
                 getattr(parent_record.agent_meta, "parent_timestamp", None)
                 or parent_record.timestamp
             )
+    if parent_agent_clan:
+        parent_agent_clan = qualify_local_agent_name(parent_agent_clan)
 
     return _types.FamilyAttachLaunchPlan(
         parent_arg=directive.parent,
@@ -254,7 +265,10 @@ def _ensure_family_name_available(
     known_names.update(
         _candidates.known_agent_names_from_siblings(pending_family_parents or [])
     )
-    if agent_name in known_names:
+    from sase.core.machine_hood_facade import canonical_local_agent_name_key
+
+    known_keys = {canonical_local_agent_name_key(name) for name in known_names}
+    if canonical_local_agent_name_key(agent_name) in known_keys:
         raise _types.FamilyAttachError(
             f"Agent {member_kind} '{agent_name}' already exists. "
             f"Use %i(@, family={directive.parent}) to allocate the next free suffix."

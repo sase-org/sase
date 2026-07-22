@@ -10,6 +10,7 @@ from sase.plan_chain import AGENT_FAMILY_SEPARATOR
 
 __all__ = [
     "AgentNameLaunchCollisionError",
+    "AgentNameForeignMachineError",
     "AgentNameSyntaxError",
     "INTERNAL_AGENT_NAME_BYPASS_ENV",
     "AgentNameReuseConfirmationRequiredError",
@@ -100,6 +101,20 @@ class AgentNameSyntaxError(_LaunchNameValidationError):
         )
 
 
+class AgentNameForeignMachineError(_LaunchNameValidationError):
+    """Raised when a launch names another configured machine's agent."""
+
+    def __init__(self, name: str, foreign_machine: str, local_machine: str) -> None:
+        self.name = name
+        self.foreign_machine = foreign_machine
+        self.local_machine = local_machine
+        super().__init__(
+            f"Agent name '{name}' belongs to known machine '{foreign_machine}' "
+            f"and cannot be launched on local machine '{local_machine}'. "
+            "Use a bare name or the local machine-qualified spelling."
+        )
+
+
 class _AgentNameDirectiveSyntaxError(_LaunchNameValidationError):
     """Raised when a ``%id``/``%i`` directive has invalid arguments."""
 
@@ -112,6 +127,19 @@ def validate_user_agent_name(name: str) -> None:
     """
     if AGENT_FAMILY_SEPARATOR in name:
         raise AgentNameSyntaxError(name)
+    from sase.core.machine_hood_facade import (
+        MachineHoodIdentity,
+        known_foreign_machine,
+    )
+
+    identity = MachineHoodIdentity.current()
+    foreign_machine = known_foreign_machine(name, identity)
+    if foreign_machine is not None and identity.machine_name is not None:
+        raise AgentNameForeignMachineError(
+            name,
+            foreign_machine,
+            identity.machine_name,
+        )
 
 
 def internal_agent_name_bypass_enabled(
@@ -173,6 +201,12 @@ def validate_launch_name_requests(
         lowest_name_suggestion,
     )
 
+    from sase.core.machine_hood_facade import (
+        MachineHoodIdentity,
+        canonical_local_agent_name_key,
+    )
+
+    identity = MachineHoodIdentity.current()
     seen: set[str] = set()
     # Load the reserved-name set once per launch instead of per explicit name.
     # ``is_name_reserved`` reloads the registry (and re-runs O(entries) stale-owner
@@ -182,6 +216,9 @@ def validate_launch_name_requests(
     reserved_names: set[str] | None = None
     clan_names: set[str] | None = None
     family_names: set[str] | None = None
+    reserved_keys: set[str] | None = None
+    clan_keys: set[str] | None = None
+    family_keys: set[str] | None = None
     with agent_name_allocation_lock():
         for request in requests:
             if request.name_template:
@@ -191,24 +228,51 @@ def validate_launch_name_requests(
                     reserved_names = get_reserved_agent_names()
                     clan_names = get_reserved_clan_names()
                     family_names = get_reserved_family_names()
-                if clan_names is not None and request.name in clan_names:
+                    reserved_keys = {
+                        canonical_local_agent_name_key(name, identity)
+                        for name in reserved_names
+                    }
+                    clan_keys = {
+                        canonical_local_agent_name_key(name, identity)
+                        for name in clan_names
+                    }
+                    family_keys = {
+                        canonical_local_agent_name_key(name, identity)
+                        for name in family_names
+                    }
+                request_key = canonical_local_agent_name_key(request.name, identity)
+                if clan_keys is not None and request_key in clan_keys:
                     raise _AgentNameClanCollisionError(request.name)
-                if family_names is not None and request.name in family_names:
+                if family_keys is not None and request_key in family_keys:
                     raise _AgentNameFamilyCollisionError(request.name)
                 continue
             if reserved_names is None:
                 reserved_names = get_reserved_agent_names()
                 clan_names = get_reserved_clan_names()
                 family_names = get_reserved_family_names()
-            if request.name in seen or request.name in reserved_names:
-                if clan_names is not None and request.name in clan_names:
+                reserved_keys = {
+                    canonical_local_agent_name_key(name, identity)
+                    for name in reserved_names
+                }
+                clan_keys = {
+                    canonical_local_agent_name_key(name, identity)
+                    for name in clan_names
+                }
+                family_keys = {
+                    canonical_local_agent_name_key(name, identity)
+                    for name in family_names
+                }
+            request_key = canonical_local_agent_name_key(request.name, identity)
+            assert reserved_keys is not None
+            if request_key in seen or request_key in reserved_keys:
+                if clan_keys is not None and request_key in clan_keys:
                     raise _AgentNameClanCollisionError(request.name)
-                if family_names is not None and request.name in family_names:
+                if family_keys is not None and request_key in family_keys:
                     raise _AgentNameFamilyCollisionError(request.name)
                 raise AgentNameLaunchCollisionError(
                     request.name, lowest_name_suggestion(request.name)
                 )
-            seen.add(request.name)
+            seen.add(request_key)
 
 
 def preflight_launch_name_requests(

@@ -237,6 +237,7 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
     def _search_text(self, agent: Agent) -> str:
         parts = [
             agent.display_name,
+            agent.presented_agent_name or "",
             agent.agent_name or "",
             agent.cl_name,
             agent.status,
@@ -296,8 +297,8 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
         text = Text()
         text.append("[x] " if selected else "[ ] ", style="cyan" if selected else "dim")
         text.append(agent.display_name, style="bold" if selected else "")
-        if agent.agent_name:
-            text.append(f" @{agent.agent_name}", style="cyan")
+        if agent.presented_agent_name:
+            text.append(f" @{agent.presented_agent_name}", style="cyan")
         effective_tribe = self._effective_tribe(agent)
         if effective_tribe:
             text.append(f"  @{effective_tribe}", style="magenta")

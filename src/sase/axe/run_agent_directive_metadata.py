@@ -231,7 +231,30 @@ def build_agent_meta(
             agent_name=agent_name,
             clan_membership_plan=clan_membership_plan,
         )
+    _qualify_agent_identity_metadata(agent_meta)
     return agent_meta
+
+
+def _qualify_agent_identity_metadata(agent_meta: dict[str, Any]) -> None:
+    """Normalize newly written identity and relationship fields once."""
+    from sase.core.machine_hood_facade import (
+        MachineHoodIdentity,
+        qualify_local_agent_name,
+    )
+
+    identity = MachineHoodIdentity.current()
+    for key in ("name", "workflow_name", "agent_family", "agent_clan"):
+        value = agent_meta.get(key)
+        if isinstance(value, str) and value:
+            agent_meta[key] = qualify_local_agent_name(value, identity)
+    wait_for = agent_meta.get("wait_for")
+    if isinstance(wait_for, list):
+        agent_meta["wait_for"] = [
+            value
+            if not isinstance(value, str) or value.startswith("@")
+            else qualify_local_agent_name(value, identity)
+            for value in wait_for
+        ]
 
 
 def _add_family_metadata(

@@ -76,8 +76,15 @@ def promote_agent_to_family(
     JSON. Repeated calls are idempotent.
     """
     from sase.agent.names import agent_name_allocation_lock
+    from sase.core.machine_hood_facade import (
+        MachineHoodIdentity,
+        canonical_local_agent_name_key,
+        qualify_local_agent_name,
+    )
 
     artifact_path = Path(artifacts_dir).expanduser().resolve(strict=False)
+    identity = MachineHoodIdentity.current()
+    durable_base = qualify_local_agent_name(base_name, identity)
     meta_path = artifact_path / "agent_meta.json"
     if wait_for_meta_seconds > 0:
         # A just-spawned parent publishes its metadata while holding this same
@@ -97,9 +104,13 @@ def promote_agent_to_family(
             )
 
         existing_family = meta.get(AGENT_FAMILY_FIELD)
-        family_prefix = f"{base_name}{AGENT_FAMILY_SEPARATOR}"
-        if current_name.startswith(family_prefix):
-            if existing_family != base_name:
+        family_prefix = f"{durable_base}{AGENT_FAMILY_SEPARATOR}"
+        legacy_family_prefix = f"{base_name}{AGENT_FAMILY_SEPARATOR}"
+        if current_name.startswith((family_prefix, legacy_family_prefix)):
+            if not isinstance(existing_family, str) or (
+                canonical_local_agent_name_key(existing_family, identity)
+                != canonical_local_agent_name_key(durable_base, identity)
+            ):
                 raise FamilyAttachError(
                     f"Cannot create agent family '{base_name}': parent "
                     f"'{current_name}' belongs to a different family."
@@ -107,14 +118,16 @@ def promote_agent_to_family(
             from sase.agent.names import convert_registered_agent_to_family
 
             convert_registered_agent_to_family(
-                base_name,
+                durable_base,
                 current_name,
                 artifact_path,
             )
             _refresh_artifact_index(artifact_path)
             return current_name
 
-        if current_name != base_name:
+        if canonical_local_agent_name_key(
+            current_name, identity
+        ) != canonical_local_agent_name_key(durable_base, identity):
             raise FamilyAttachError(
                 f"Cannot create agent family '{base_name}': resolved parent "
                 f"is named '{current_name}'."
@@ -131,12 +144,12 @@ def promote_agent_to_family(
                 f"Cannot create agent family '{base_name}': invalid original "
                 f"member suffix '{suffix}'."
             )
-        member_name = f"{base_name}{suffix}"
+        member_name = f"{durable_base}{suffix}"
         promoted = dict(meta)
         promoted["name"] = member_name
-        promoted["workflow_name"] = base_name
+        promoted["workflow_name"] = durable_base
         promoted["role_suffix"] = suffix
-        promoted[AGENT_FAMILY_FIELD] = base_name
+        promoted[AGENT_FAMILY_FIELD] = durable_base
         promoted[AGENT_FAMILY_ROLE_FIELD] = "root"
         if suffix == _PLAN_ROOT_SUFFIX:
             promoted[PLAN_CHAIN_ROOT_FIELD] = True
@@ -148,7 +161,7 @@ def promote_agent_to_family(
             from sase.agent.names import convert_registered_agent_to_family
 
             convert_registered_agent_to_family(
-                base_name,
+                durable_base,
                 member_name,
                 artifact_path,
             )

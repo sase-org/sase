@@ -31,9 +31,7 @@ class _ClanCompletionGroup:
 
 def agent_prompt_name(agent: Agent) -> str | None:
     """Return the prompt-referenceable name for an agent row."""
-    if agent.is_family_root_entry:
-        return agent.family_reference_name()
-    return agent.agent_name
+    return agent.presented_agent_name or agent.agent_name
 
 
 def build_agent_completion_candidates(
@@ -116,9 +114,12 @@ def _candidate_matches_prefix(
     candidate: AgentCompletionCandidate,
     partial_lower: str,
 ) -> bool:
+    values = (candidate.name, *candidate.search_aliases)
     if candidate.kind != "tribe" or partial_lower.startswith("@"):
-        return candidate.name.lower().startswith(partial_lower)
-    return candidate.name.removeprefix("@").lower().startswith(partial_lower)
+        return any(value.lower().startswith(partial_lower) for value in values)
+    return any(
+        value.removeprefix("@").lower().startswith(partial_lower) for value in values
+    )
 
 
 def visible_clan_completion_groups(
@@ -129,7 +130,7 @@ def visible_clan_completion_groups(
     for index, agent in enumerate(all_agents):
         if not agent.agent_clan:
             continue
-        key = (agent.agent_clan, agent.agent_clan_generation)
+        key = (_presented_clan_name(agent), agent.agent_clan_generation)
         rows_by_key.setdefault(key, []).append((index, agent))
 
     groups_by_name: dict[str, list[_ClanCompletionGroup]] = {}
@@ -160,6 +161,11 @@ def visible_clan_completion_groups(
 def _clan_group_recency_key(group: _ClanCompletionGroup) -> tuple[str, str]:
     row_recency = max((_agent_recency_key(row) for row in group.members), default="")
     return (group.generation or row_recency, row_recency)
+
+
+def _presented_clan_name(agent: Agent) -> str:
+    """Derive a clan's presentation from already-normalized row identity."""
+    return agent.presented_clan_reference_name() or ""
 
 
 def _agent_recency_key(agent: Agent) -> str:
@@ -220,6 +226,13 @@ def _build_clan_completion_candidates(
                 member_count=len(group.members),
                 aggregate_status=status,
                 member_names=_member_names(group.members),
+                search_aliases=tuple(
+                    dict.fromkeys(
+                        raw
+                        for member in group.members
+                        if (raw := member.agent_clan) and raw != group.name
+                    )
+                ),
             )
         )
     return candidates
@@ -237,7 +250,7 @@ def _build_family_completion_candidates(
     for agent in all_agents:
         if not agent.is_family_root_entry or agent.is_clan_container:
             continue
-        name = agent.family_reference_name()
+        name = agent_prompt_name(agent)
         if not name or name in seen_names:
             continue
         members = _dedupe_real_member_rows(concrete_family_member_rows(agent))
@@ -299,7 +312,7 @@ def _build_tribe_completion_candidates(
 
     for agent in all_agents:
         if agent.agent_clan:
-            key = (agent.agent_clan, agent.agent_clan_generation)
+            key = (_presented_clan_name(agent), agent.agent_clan_generation)
             group = clan_group_by_key.get(key)
             if group is None or key in encountered_clans:
                 continue
@@ -359,7 +372,7 @@ def _aggregate_completion_status(rows: Sequence[Agent]) -> str:
 def _member_names(rows: Sequence[Agent]) -> tuple[str, ...]:
     names: list[str] = []
     for row in rows:
-        name = row.agent_name or row.presented_agent_name or row.display_name
+        name = row.presented_agent_name or row.agent_name or row.display_name
         if name and name not in names:
             names.append(name)
     return tuple(names)
@@ -380,7 +393,7 @@ def _candidate_from_agent(
     canonical_snippet = prompt_snippet(raw_prompt, humanize=False)
     return AgentCompletionCandidate(
         name=name,
-        label=agent.agent_name or agent.display_name or agent.cl_name or name,
+        label=_completion_label(agent, name),
         status=agent.status,
         kind=kind,
         member_count=member_count,
@@ -397,12 +410,30 @@ def _candidate_from_agent(
         search_aliases=tuple(
             alias
             for alias in (
+                agent.agent_name if agent.agent_name != name else None,
+                agent.agent_family if agent.agent_family != name else None,
                 canonical_snippet,
                 raw_vcs_tag_for_prompt(raw_prompt),
             )
             if alias
         ),
     )
+
+
+def _completion_label(agent: Agent, fallback: str) -> str:
+    """Return the concrete row label while keeping the local hood hidden."""
+    presented = agent.presented_agent_name
+    raw_name = agent.agent_name
+    raw_family = agent.agent_family
+    if (
+        agent.is_family_root_entry
+        and presented
+        and raw_name
+        and raw_family
+        and raw_name.startswith(raw_family)
+    ):
+        return presented + raw_name[len(raw_family) :]
+    return presented or agent.display_name or agent.cl_name or fallback
 
 
 def _model_label(agent: Agent) -> str | None:

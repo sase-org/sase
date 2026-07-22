@@ -137,6 +137,44 @@ def test_single_prompt_launch_result_carries_explicit_name(
     assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "foo"
 
 
+def test_configured_single_prompt_publishes_qualified_planned_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_no_workspace_metadata(monkeypatch)
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.get_machine_name",
+        lambda: "athena",
+    )
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.discover_machine_names",
+        lambda: ("athena",),
+    )
+    from sase.agent.launcher import launch_agents_from_cwd
+
+    spawn = _make_spawn_capture()
+    with (
+        patch(
+            "sase.main.utils.ensure_project_file_and_get_workspace_num",
+            return_value=(None, None, None),
+        ),
+        patch("sase.history.prompt.add_or_update_prompt"),
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["260501_120000"],
+        ),
+        patch("sase.agent.names.get_reserved_agent_names", return_value=set()),
+        patch("sase.agent.launcher.spawn_agent_subprocess", spawn),
+        patch("sase.running_field.get_first_available_axe_workspace"),
+        patch("sase.running_field.get_workspace_directory_for_num"),
+    ):
+        results = launch_agents_from_cwd("%id:foo\ndo work")
+
+    assert results[0].agent_name == "athena.foo"
+    assert (
+        spawn.call_args.kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "athena.foo"
+    )
+
+
 def test_single_prompt_launch_result_carries_wait_derived_name(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

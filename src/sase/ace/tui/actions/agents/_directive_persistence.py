@@ -136,7 +136,7 @@ def wait_meta_patch_for_token(
     set_values: dict[str, object] = {}
     remove_keys = ["wait_for", "wait_for_beads", "wait_duration", "wait_until"]
     if wait_names:
-        set_values["wait_for"] = list(wait_names)
+        set_values["wait_for"] = list(_durable_wait_names(wait_names))
     if wait_beads:
         set_values["wait_for_beads"] = list(wait_beads)
     if time_token:
@@ -170,12 +170,26 @@ def waiting_marker_patch_for_token(
         if wait_duration is None:
             wait_until = parse_absolute_time(time_token)
     return _WaitingMarkerPatch(
-        waiting_for=wait_names,
+        waiting_for=_durable_wait_names(wait_names),
         wait_for_beads=wait_beads,
         wait_duration=wait_duration,
         wait_until=wait_until,
         update_wait_runners=update_wait_runners,
         wait_runners=wait_runners,
+    )
+
+
+def _durable_wait_names(wait_names: tuple[str, ...]) -> tuple[str, ...]:
+    """Qualify agent dependencies while leaving tribe references unchanged."""
+    from sase.core.machine_hood_facade import (
+        MachineHoodIdentity,
+        qualify_local_agent_name,
+    )
+
+    identity = MachineHoodIdentity.current()
+    return tuple(
+        name if name.startswith("@") else qualify_local_agent_name(name, identity)
+        for name in wait_names
     )
 
 

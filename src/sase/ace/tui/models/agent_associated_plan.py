@@ -101,7 +101,9 @@ def resolve_agent_plan_enrichment(
             resolve_plan_reference=_resolve_cached_reference,
         )
     if initial_role == "ambiguous":
-        bead_id = derive_agent_bead_id_from_name(agent.agent_name)
+        bead_id = derive_agent_bead_id_from_name(
+            agent.presented_agent_name or agent.agent_name
+        )
         if bead_id is not None:
             association = _cached_bead_plan_association(
                 agent,
@@ -212,13 +214,14 @@ def _initial_agent_plan_role(agent: Agent) -> _InitialAgentPlanRole:
     if agent.phase_bead_id or agent.agent_family_role == "phase":
         return "phase"
 
-    derived_bead_id = derive_agent_bead_id_from_name(agent.agent_name)
+    presented_name = agent.presented_agent_name or agent.agent_name
+    derived_bead_id = derive_agent_bead_id_from_name(presented_name)
     if agent.epic_bead_id:
         if derived_bead_id == agent.epic_bead_id:
             return "land"
         return "author"
 
-    if agent.agent_name and agent.agent_name.endswith(".land"):
+    if presented_name and presented_name.endswith(".land"):
         return "land"
     if derived_bead_id is not None:
         # Child phase IDs append a numeric component. A nested epic ID can
@@ -355,5 +358,7 @@ def _agent_bead_id(agent: Agent) -> str | None:
     return (
         agent.phase_bead_id
         or agent.epic_bead_id
-        or derive_agent_bead_id_from_name(agent.agent_name)
+        or derive_agent_bead_id_from_name(
+            agent.presented_agent_name or agent.agent_name
+        )
     )

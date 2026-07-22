@@ -19,7 +19,9 @@ type AgentIdentity = tuple["AgentType", str, str | None]
 
 def agent_name_key(agent: Agent) -> str | None:
     """Return a case-folded valid dotted agent name key."""
-    name = agent.agent_name
+    if agent.is_clan_container:
+        return None
+    name = agent.presented_identity_name
     if not name:
         return None
     parts = name.split(".")

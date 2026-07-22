@@ -445,7 +445,7 @@ def append_legacy_parallel_members_section(text: Text, agent: Agent) -> None:
 
     for member in members:
         role = member.agent_family_role or "member"
-        name = member.agent_name or _UNASSIGNED_AGENT_NAME_DISPLAY
+        name = member.presented_agent_name or _UNASSIGNED_AGENT_NAME_DISPLAY
         bucket = status_bucket_for_values(member.status)
         glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
         status_style = _LEGACY_MEMBER_STATUS_STYLES[bucket]

@@ -190,6 +190,15 @@ class AgentState:
         compare=False,
     )
 
+    # Precomputed identity used for hood/neighbor relationships. Unlike
+    # ``presented_agent_name``, this retains a concrete family member suffix;
+    # only the owning machine hood is removed during snapshot normalization.
+    presented_identity_name: str | None = field(
+        default=None,
+        init=False,
+        compare=False,
+    )
+
     # Names this agent is waiting for (from %wait directives)
     waiting_for: list[str] = field(default_factory=list)
 

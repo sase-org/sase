@@ -40,11 +40,18 @@ def _agent_key_for_output_variables(
         )
 
         if is_agent_name_template(agent_name_template):
-            return agent_name_template_base(agent_name_template)
+            key = agent_name_template_base(agent_name_template)
+            from sase.core.machine_hood_facade import strip_local_agent_name
+
+            return strip_local_agent_name(key)
     if agent_name:
-        return agent_name
+        from sase.core.machine_hood_facade import strip_local_agent_name
+
+        return strip_local_agent_name(agent_name)
     if agent_name_template:
-        return agent_name_template
+        from sase.core.machine_hood_facade import strip_local_agent_name
+
+        return strip_local_agent_name(agent_name_template)
     raise _AgentOutputVariableNamespaceError(
         "Cannot expose output variables without an agent name"
     )
@@ -252,14 +259,21 @@ def _resolve_submitted_plan_wait(wait_name: str) -> tuple[str, str] | None:
             ),
             outcome=record.done.outcome if record.done is not None else None,
         )
-        if plan_artifact is None or plan_artifact.planner_row_name != target:
+        from sase.core.machine_hood_facade import canonical_local_agent_name_key
+
+        if plan_artifact is None or (
+            canonical_local_agent_name_key(plan_artifact.planner_row_name)
+            != canonical_local_agent_name_key(target)
+        ):
             continue
         if record.timestamp > best_timestamp:
             best_timestamp = record.timestamp
             best_dir = record.artifact_dir
     if best_dir is None:
         return None
-    return best_dir, target
+    from sase.core.machine_hood_facade import strip_local_agent_name
+
+    return best_dir, strip_local_agent_name(target)
 
 
 def _plan_meta_from_wire(meta: Any) -> dict[str, Any]:

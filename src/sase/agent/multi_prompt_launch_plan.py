@@ -236,6 +236,11 @@ def prepare_clan_launches(
                 raise DirectiveError(
                     f"Clan member segment {index + 1} has no plannable agent name"
                 )
+            from sase.core.machine_hood_facade import qualify_local_agent_name
+
+            planned_name = qualify_local_agent_name(planned_name)
+            if env_name is not None:
+                env_name = qualify_local_agent_name(env_name)
             planned_names_by_slot[key] = planned_name
             planned_env_names_by_slot[key] = env_name
 
@@ -262,7 +267,13 @@ def prepare_clan_launches(
         resolve_agent_name_template_reference,
     )
     from sase.artifacts import convert_timestamp_to_artifacts_format
+    from sase.core.machine_hood_facade import (
+        MachineHoodIdentity,
+        known_foreign_machine,
+        qualify_local_agent_name,
+    )
 
+    machine_identity = MachineHoodIdentity.current()
     resolved_clans_by_raw: dict[str, str] = {}
     for raw_clan, member_indexes in members_by_raw_clan.items():
         resolved_clan = raw_clan
@@ -309,7 +320,17 @@ def prepare_clan_launches(
                         f"Cannot resolve %clan template '{raw_clan}' from any "
                         "member name in this launch"
                     ) from None
-        resolved_clans_by_raw[raw_clan] = resolved_clan
+        foreign_machine = known_foreign_machine(resolved_clan, machine_identity)
+        if foreign_machine is not None and machine_identity.machine_name is not None:
+            raise DirectiveError(
+                f"Clan '{resolved_clan}' belongs to known machine "
+                f"'{foreign_machine}' and cannot be launched on local machine "
+                f"'{machine_identity.machine_name}'."
+            )
+        resolved_clans_by_raw[raw_clan] = qualify_local_agent_name(
+            resolved_clan,
+            machine_identity,
+        )
 
     members_by_resolved_clan: dict[str, list[int]] = {}
     for raw_clan, member_indexes in members_by_raw_clan.items():

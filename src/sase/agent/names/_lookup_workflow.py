@@ -33,8 +33,13 @@ def is_workflow_complete(name: str) -> bool | None:
     if not projects_dir.exists():
         return None
 
-    # (artifact_dir, agent_meta dict)
-    workflow_agents: list[tuple[Path, dict[str, Any]]] = []
+    from sase.core.machine_hood_facade import local_agent_name_lookup_candidates
+
+    candidates = local_agent_name_lookup_candidates(name)
+    candidate_names = set(candidates)
+    workflow_agents_by_name: dict[str, list[tuple[Path, dict[str, Any]]]] = {
+        candidate: [] for candidate in candidates
+    }
     for artifact_dir in iter_ace_run_artifact_dirs():
         meta_path = artifact_dir / "agent_meta.json"
         if not meta_path.exists():
@@ -49,13 +54,23 @@ def is_workflow_complete(name: str) -> bool | None:
         if not isinstance(data, dict):
             continue
 
-        if data.get("workflow_name") != name:
+        workflow_name = data.get("workflow_name")
+        if not isinstance(workflow_name, str) or workflow_name not in candidate_names:
             continue
 
-        workflow_agents.append((artifact_dir, data))
+        workflow_agents_by_name[workflow_name].append((artifact_dir, data))
 
-    if not workflow_agents:
-        return None
+    for candidate in candidates:
+        workflow_agents = workflow_agents_by_name[candidate]
+        if workflow_agents:
+            return _workflow_agents_complete(workflow_agents)
+    return None
+
+
+def _workflow_agents_complete(
+    workflow_agents: list[tuple[Path, dict[str, Any]]],
+) -> bool | None:
+    """Evaluate one exact workflow identity from an already-loaded batch."""
 
     # Find the root agent (no parent_timestamp).
     root: tuple[Path, dict[str, Any]] | None = None

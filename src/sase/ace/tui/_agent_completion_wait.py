@@ -58,8 +58,16 @@ def collect_agent_wait_status_maps(
     all_agents = list(agents)
     buckets: dict[str, str] = {}
     for agent in all_agents:
+        # Synthetic clan rows carry the presented clan name for rendering, but
+        # their status must come from the real member aggregate below.
+        if agent.is_clan_container:
+            continue
         bucket = status_bucket_for_values(agent.status)
-        for name in (agent_prompt_name(agent), agent.agent_name):
+        for name in (
+            agent_prompt_name(agent),
+            agent.presented_agent_name,
+            agent.agent_name,
+        ):
             if not name or not name.strip():
                 continue
             buckets[name] = _preferred_wait_dependency_bucket(
@@ -91,7 +99,7 @@ def collect_agent_wait_status_maps(
 
 def _clan_wait_member_label(clan_name: str, member: Agent) -> str:
     """Return one clan member's short in-hood wait-display label."""
-    name = member.agent_name or member.presented_agent_name or member.display_name
+    name = member.presented_agent_name or member.agent_name or member.display_name
     prefix = f"{clan_name}."
     if name.startswith(prefix):
         return name[len(clan_name) :]

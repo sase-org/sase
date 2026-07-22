@@ -108,12 +108,13 @@ def clan_member_status_priority(
 
 def clan_members(agent: Agent) -> tuple[Agent, ...]:
     """Return already-loaded members belonging to ``agent``'s clan container."""
+    clan_reference = agent.presented_clan_reference_name()
     if agent.is_clan_container:
         return tuple(
             child
             for child in agent.runtime_children
             if not child.is_clan_container
-            and child.agent_clan == agent.agent_clan
+            and child.presented_clan_reference_name() == clan_reference
             and child.agent_clan_generation == agent.agent_clan_generation
         )
     clan = agent.agent_clan
@@ -123,7 +124,7 @@ def clan_members(agent: Agent) -> tuple[Agent, ...]:
             for child in agent.runtime_children
             if child is not agent
             and not child.is_clan_container
-            and child.agent_clan == clan
+            and child.presented_clan_reference_name() == clan_reference
             and child.agent_clan_generation == agent.agent_clan_generation
         )
     # Legacy archives project parallel-family metadata into a clan at the wire

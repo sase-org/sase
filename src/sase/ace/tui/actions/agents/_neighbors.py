@@ -336,7 +336,7 @@ class AgentNeighborMixin:
 
         self.push_screen(  # type: ignore[attr-defined]
             AgentNeighborModal(
-                selected.agent_name or selected.display_name,
+                selected.presented_agent_name or selected.display_name,
                 choices,
             ),
             _on_neighbor_selected,
@@ -522,7 +522,7 @@ class AgentNeighborMixin:
             agent = target.agent
             choices.append(
                 AgentNeighborChoice(
-                    agent_name=agent.agent_name or agent.display_name,
+                    agent_name=agent.presented_agent_name or agent.display_name,
                     display_name=agent.display_name,
                     status=agent.status,
                     panel_label=self._agent_neighbor_panel_label(target),
@@ -563,7 +563,7 @@ class AgentNeighborMixin:
         ):
             choices.append(
                 AgentNeighborChoice(
-                    agent_name=agent.agent_name or agent.display_name,
+                    agent_name=agent.presented_agent_name or agent.display_name,
                     display_name=agent.display_name,
                     status=agent.status,
                     panel_label=(
@@ -601,7 +601,7 @@ class AgentNeighborMixin:
                 agent = target.agent
                 choices.append(
                     AgentNeighborChoice(
-                        agent_name=agent.agent_name or agent.display_name,
+                        agent_name=agent.presented_agent_name or agent.display_name,
                         display_name=agent.display_name,
                         status=agent.status,
                         panel_label=self._agent_neighbor_panel_label(target),
@@ -625,14 +625,14 @@ class AgentNeighborMixin:
         """Return active dismissed descendants of ``selected`` sorted by name."""
         from ...models.agent_hoods import agent_name_key, is_agent_descendant
 
-        selected_name = selected.agent_name
+        selected_name = selected.presented_identity_name
         if selected_name is None:
             return ()
 
         descendants = [
             agent
             for agent in self._active_dismissed_agent_objects()
-            if is_agent_descendant(agent.agent_name, selected_name)
+            if is_agent_descendant(agent.presented_identity_name, selected_name)
         ]
         return tuple(
             sorted(
@@ -646,7 +646,7 @@ class AgentNeighborMixin:
 
     def _agent_neighbor_display_hoods(self, agent: Agent) -> dict[str, str]:
         """Map selected-agent hood keys to labels preserving displayed case."""
-        parts = (agent.agent_name or "").split(".")
+        parts = (agent.presented_identity_name or "").split(".")
         return {
             ".".join(parts[:depth]).casefold(): ".".join(parts[:depth])
             for depth in range(1, len(parts) + 1)

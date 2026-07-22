@@ -48,6 +48,44 @@ def test_runtime_tags_use_sase_agent_name(
         }
 
 
+def test_runtime_tags_prefer_configured_machine_and_qualify_legacy_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-alpha")
+    monkeypatch.setattr("sase.config.get_machine_name", lambda: "athena")
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.get_machine_name",
+        lambda: "athena",
+    )
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.discover_machine_names",
+        lambda: ("athena",),
+    )
+
+    with patch(_HOSTNAME_TARGET, return_value="host-fallback"):
+        assert _resolve_runtime_commit_tags() == {
+            "AGENT": "athena.agent-alpha",
+            "MACHINE": "athena",
+        }
+
+
+def test_runtime_tags_do_not_double_qualify_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_NAME", "athena.agent-alpha")
+    monkeypatch.setattr("sase.config.get_machine_name", lambda: "athena")
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.get_machine_name",
+        lambda: "athena",
+    )
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.discover_machine_names",
+        lambda: ("athena",),
+    )
+
+    assert _resolve_runtime_commit_tags()["AGENT"] == "athena.agent-alpha"
+
+
 def test_runtime_tags_fall_back_to_agent_meta(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

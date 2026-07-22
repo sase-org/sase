@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from sase.core.machine_hood_facade import MachineHoodIdentity, strip_local_agent_name
 from sase.core.paths import shorten_path
 from sase.core.time import local_now
 from sase.plan_chain import (
@@ -55,7 +56,7 @@ class Agent(AgentState):
     """Represents a single running agent."""
 
     def __post_init__(self) -> None:
-        self.refresh_presented_agent_name()
+        self.refresh_raw_presented_agent_name()
 
     @property
     def is_family_root_entry(self) -> bool:
@@ -97,12 +98,67 @@ class Agent(AgentState):
             )
         return None
 
-    def refresh_presented_agent_name(self) -> None:
-        """Refresh the precomputed Agents-tab name presentation."""
+    def presented_clan_reference_name(self) -> str | None:
+        """Return the local-display clan identity without external reads."""
+        raw_clan = self.agent_clan
+        if not raw_clan:
+            return None
+        if self.is_clan_container:
+            return self.presented_agent_name or raw_clan
+        raw_name = self.agent_name or ""
+        presented_name = self.presented_agent_name or raw_name
+        prefix = f"{raw_clan}."
+        if raw_name.startswith(prefix):
+            suffix = raw_name[len(raw_clan) :]
+            if suffix and presented_name.endswith(suffix):
+                return presented_name[: -len(suffix)]
+        return raw_clan
+
+    def presented_family_reference_name(self) -> str | None:
+        """Return the local-display family identity without external reads."""
+        raw_family = self.agent_family
+        if not raw_family:
+            return self.presented_agent_name or self.family_reference_name()
+        raw_name = self.agent_name or ""
+        presented_name = self.presented_agent_name or raw_name
+        if raw_name.startswith(raw_family):
+            suffix = raw_name[len(raw_family) :]
+            if suffix and presented_name.endswith(suffix):
+                return presented_name[: -len(suffix)]
+        if self.is_family_root_entry and presented_name:
+            return presented_name
+        return raw_family
+
+    def refresh_raw_presented_agent_name(self) -> None:
+        """Refresh the presentation source without config or selector I/O."""
+        self.presented_identity_name = self.agent_name
         if self.is_family_root_entry:
             self.presented_agent_name = self.family_reference_name()
+        elif self.is_clan_container and self.agent_clan:
+            self.presented_agent_name = self.agent_clan
         else:
             self.presented_agent_name = self.agent_name
+
+    def refresh_presented_agent_name(
+        self,
+        identity: MachineHoodIdentity | None = None,
+    ) -> None:
+        """Refresh the final local presentation from one identity snapshot."""
+        snapshot = identity or MachineHoodIdentity.current()
+        self.refresh_raw_presented_agent_name()
+        if self.presented_agent_name:
+            self.presented_agent_name = strip_local_agent_name(
+                self.presented_agent_name,
+                snapshot,
+            )
+        if self.presented_identity_name:
+            self.presented_identity_name = strip_local_agent_name(
+                self.presented_identity_name,
+                snapshot,
+            )
+        self.waiting_for = [
+            strip_local_agent_name(name, snapshot) for name in self.waiting_for
+        ]
 
     @property
     def effective_workspace_num(self) -> int | None:
@@ -155,7 +211,7 @@ class Agent(AgentState):
         instead of the ChangeSpec name, since that's what the user cares about.
         """
         if self.is_clan_container and self.agent_clan:
-            return self.agent_clan
+            return self.presented_agent_name or self.agent_clan
         if (
             self.agent_type == AgentType.WORKFLOW
             and not self.appears_as_agent

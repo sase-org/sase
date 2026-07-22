@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from sase.axe.run_agent_directive_metadata import (
+    AgentMetadataInputs,
     EPIC_WORK_ENV_METADATA_NAMES,
     consume_epic_clan_summary_script_from_env,
     epic_work_environment_from_metadata,
@@ -67,3 +70,67 @@ def test_epic_clan_summary_script_is_consumed_without_metadata_round_trip(
         )
         == {}
     )
+
+
+def test_child_identity_persists_and_publishes_one_local_machine_hood(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.get_machine_name",
+        lambda: "athena",
+    )
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.discover_machine_names",
+        lambda: ("athena", "zeus"),
+    )
+    monkeypatch.delenv("SASE_AGENT_PLANNED_NAME", raising=False)
+    monkeypatch.delenv("SASE_REPEAT_NAME", raising=False)
+
+    from sase.axe.run_agent_directive_identity import (
+        prepare_agent_name_request,
+        resolve_agent_identity,
+    )
+    from sase.xprompt.directives import extract_prompt_directives
+
+    _prompt, directives = extract_prompt_directives("%id:foo\nDo work")
+    request = prepare_agent_name_request(
+        directives=directives,
+        family_attach_plan=None,
+        fork_reference_prompt="",
+        wait_names=[],
+        auto_dismiss=None,
+    )
+    artifacts_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/20260722120000"
+    artifacts_dir.mkdir(parents=True)
+    inputs = AgentMetadataInputs(
+        workspace_dir="/workspace",
+        output_path=None,
+        bead_id=None,
+        wait_names=[],
+        wait_identity_deps=[],
+        wait_beads=[],
+        model=None,
+        llm_provider=None,
+        reasoning_effort=None,
+        model_alias_overrides={},
+        vcs_provider=None,
+        auto_dismiss=None,
+        preserved={},
+        epic_work={},
+        cl_name=None,
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        identity = resolve_agent_identity(
+            request,
+            directives=directives,
+            family_attach_plan=None,
+            clan_membership_plan=None,
+            artifacts_dir=str(artifacts_dir),
+            metadata_inputs=inputs,
+        )
+
+    assert identity.name == "athena.foo"
+    assert identity.meta["name"] == "athena.foo"
+    assert os.environ["SASE_AGENT_NAME"] == "athena.foo"

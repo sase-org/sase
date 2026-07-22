@@ -358,7 +358,9 @@ class ArtifactRestorationMixin:
         if agent.vcs_provider:
             data["vcs_provider"] = agent.vcs_provider
         if agent.agent_name:
-            data["name"] = agent.agent_name
+            from sase.core.machine_hood_facade import qualify_local_agent_name
+
+            data["name"] = qualify_local_agent_name(agent.agent_name)
         if agent.auto_approve_plan_action:
             data["auto_approve_plan_action"] = agent.auto_approve_plan_action
         elif agent.approve:
@@ -386,13 +388,20 @@ class ArtifactRestorationMixin:
         if agent.workspace_dir:
             data["workspace_dir"] = agent.workspace_dir
         if agent.agent_name:
-            data["name"] = agent.agent_name
+            from sase.core.machine_hood_facade import qualify_local_agent_name
+
+            data["name"] = qualify_local_agent_name(agent.agent_name)
         if agent.tribe:
             data["tribe"] = agent.tribe
         if agent.output_variables:
             data["output_variables"] = dict(agent.output_variables)
         if agent.waiting_for:
-            data["wait_for"] = agent.waiting_for
+            from sase.core.machine_hood_facade import qualify_local_agent_name
+
+            data["wait_for"] = [
+                name if name.startswith("@") else qualify_local_agent_name(name)
+                for name in agent.waiting_for
+            ]
         if agent.waiting_for_beads:
             data["wait_for_beads"] = agent.waiting_for_beads
         if agent.wait_duration is not None:

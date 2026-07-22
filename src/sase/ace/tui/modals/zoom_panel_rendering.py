@@ -42,7 +42,7 @@ ACTIVE_STATUSES = frozenset(
 def agent_label(agent: Agent | None) -> str:
     if agent is None:
         return "agent missing"
-    name = agent.agent_name or agent.display_name
+    name = agent.presented_agent_name or agent.display_name
     return name[:72] + "..." if len(name) > 75 else name
 
 

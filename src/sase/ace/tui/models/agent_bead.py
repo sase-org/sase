@@ -95,7 +95,9 @@ _BEAD_DISPLAY_CACHE = _BeadDisplayCache(max_entries=_CACHE_MAX_ENTRIES)
 
 def _derive_agent_bead_id(agent: Agent) -> str | None:
     """Infer a bead id from an agent name written by ``sase bead work``."""
-    return derive_agent_bead_id_from_name(agent.agent_name)
+    return derive_agent_bead_id_from_name(
+        agent.presented_agent_name or agent.agent_name
+    )
 
 
 def cached_bead_display(agent: Agent) -> str | None | object:
@@ -147,7 +149,7 @@ def resolve_bead_display(
         return None
 
     display = format_agent_bead_display_for_name(
-        agent.agent_name,
+        agent.presented_agent_name or agent.agent_name,
         include_description=True,
         require_existing=True,
         project_name=_agent_project_name(agent),

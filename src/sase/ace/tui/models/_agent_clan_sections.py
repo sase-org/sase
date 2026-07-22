@@ -475,7 +475,7 @@ def _member_sort_key(row: Agent) -> tuple[bool, str, str]:
 
 
 def _row_name(row: Agent) -> str:
-    return row.agent_name or row.step_name or row.display_name
+    return row.presented_agent_name or row.step_name or row.display_name
 
 
 def _clan_relative_label(row: Agent, clan_name: str) -> str:

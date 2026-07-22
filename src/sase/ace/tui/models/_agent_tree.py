@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 
 from sase.core.agent_clan_context import (
-    clan_context_key,
     effective_clan_attributes,
 )
 
@@ -169,11 +168,17 @@ def _clan_for_row(
     parent_by_suffix: dict[str, Agent],
 ) -> tuple[str, str | None] | None:
     if agent.agent_clan:
-        return (agent.agent_clan, agent.agent_clan_generation)
+        return (
+            agent.presented_clan_reference_name() or agent.agent_clan,
+            agent.agent_clan_generation,
+        )
     if agent.parent_timestamp:
         parent = parent_by_suffix.get(agent.parent_timestamp)
         if parent is not None and parent.agent_clan:
-            return (parent.agent_clan, parent.agent_clan_generation)
+            return (
+                parent.presented_clan_reference_name() or parent.agent_clan,
+                parent.agent_clan_generation,
+            )
     return None
 
 
@@ -206,17 +211,13 @@ def _container_for_clan(
     explicit_clan_summary = any(row.clan_summary for row in rows)
     resolved_clan_tribe: str | None = None
     resolved_clan_summary: str | None = None
-    clan_key = clan_context_key(clan_name, generation)
     context = next(
         (
             row.clan_context
             for row in rows
             if row.clan_context is not None
-            and clan_context_key(
-                row.clan_context.agent_clan,
-                row.clan_context.agent_clan_generation,
-            )
-            == clan_key
+            and row.presented_clan_reference_name() == clan_name
+            and row.clan_context.agent_clan_generation == generation
         ),
         None,
     )
@@ -230,7 +231,7 @@ def _container_for_clan(
 
         member_wires = [
             ClanTribeMemberWire(
-                agent_clan=row.agent_clan or clan_name,
+                agent_clan=clan_name,
                 agent_clan_generation=row.agent_clan_generation,
                 clan_tribe=row.clan_tribe,
                 clan_summary=row.clan_summary,
@@ -342,9 +343,10 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
     artifact relationships; only the presentation-only tree fields mutate.
     """
     prior_runtime_orders = {
-        (agent.agent_clan, agent.agent_clan_generation): [
-            child.identity for child in agent.runtime_children
-        ]
+        (
+            agent.presented_clan_reference_name() or agent.agent_clan,
+            agent.agent_clan_generation,
+        ): [child.identity for child in agent.runtime_children]
         for agent in agents
         if agent.is_clan_container and agent.agent_clan
     }

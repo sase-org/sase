@@ -228,7 +228,16 @@ def get_live_agent_name_subset(expected_names: set[str]) -> dict[str, str]:
     metadata file names one of those agents and stops once every expected name
     has been found.
     """
-    remaining = set(expected_names)
+    from sase.core.machine_hood_facade import (
+        MachineHoodIdentity,
+        canonical_local_agent_name_key,
+    )
+
+    identity = MachineHoodIdentity.current()
+    expected_by_key = {
+        canonical_local_agent_name_key(name, identity): name for name in expected_names
+    }
+    remaining = set(expected_by_key)
     if not remaining:
         return {}
 
@@ -258,18 +267,20 @@ def get_live_agent_name_subset(expected_names: set[str]) -> dict[str, str]:
             continue
 
         names = {
-            value
+            canonical_local_agent_name_key(value, identity): value
             for value in (data.get("name"), data.get("workflow_name"))
-            if isinstance(value, str) and value in remaining
+            if isinstance(value, str)
+            and canonical_local_agent_name_key(value, identity) in remaining
         }
         if not names:
             continue
         if not is_process_alive(data, artifact_dir):
             continue
 
-        for name in names:
-            name_map.setdefault(name, str(artifact_dir))
-            remaining.discard(name)
+        for name_key in names:
+            expected_name = expected_by_key[name_key]
+            name_map.setdefault(expected_name, str(artifact_dir))
+            remaining.discard(name_key)
         if not remaining:
             return name_map
 
@@ -300,7 +311,14 @@ def get_active_child_names(base: str) -> set[str]:
         return set()
 
     dismissed_suffixes = _load_dismissed_suffixes()
-    pattern = re.compile(rf"^{re.escape(base)}\.\d+$")
+    from sase.core.machine_hood_facade import (
+        MachineHoodIdentity,
+        strip_local_agent_name,
+    )
+
+    identity = MachineHoodIdentity.current()
+    local_base = strip_local_agent_name(base, identity)
+    pattern = re.compile(rf"^{re.escape(local_base)}\.\d+$")
     names: set[str] = set()
     for artifact_dir in _iter_ace_run_artifact_dirs():
         if artifact_dir.name in dismissed_suffixes:
@@ -320,15 +338,18 @@ def get_active_child_names(base: str) -> set[str]:
             continue
 
         name = data.get("name")
-        if not isinstance(name, str) or not pattern.match(name):
+        local_name = (
+            strip_local_agent_name(name, identity) if isinstance(name, str) else None
+        )
+        if local_name is None or not pattern.match(local_name):
             continue
 
         done_path = artifact_dir / "done.json"
         if done_path.exists():
-            names.add(name)
+            names.add(local_name)
             continue
 
         if is_process_alive(data, artifact_dir):
-            names.add(name)
+            names.add(local_name)
 
     return names

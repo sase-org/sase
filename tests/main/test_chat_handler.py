@@ -200,6 +200,30 @@ def test_list_json_shape_and_key_order(
     assert row["response_snippet"] == "Implemented"
 
 
+def test_list_projects_only_local_machine_hood(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.get_machine_name",
+        lambda: "athena",
+    )
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.discover_machine_names",
+        lambda: ("athena", "zeus"),
+    )
+    infos = [
+        _info(agent="athena.alpha"),
+        _info(agent="zeus.beta", basename="foreign"),
+    ]
+
+    with patch("sase.chat.cli_list.list_chat_transcripts", return_value=infos):
+        handle_chat_list(_list_args(json=True))
+
+    rows = json.loads(capsys.readouterr().out)
+    assert [row["agent"] for row in rows] == ["alpha", "zeus.beta"]
+
+
 def test_list_limit(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

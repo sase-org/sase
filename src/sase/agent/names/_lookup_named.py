@@ -59,17 +59,33 @@ def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None
     Returns:
         A NamedAgent if found, or None.
     """
+    from sase.core.machine_hood_facade import local_agent_name_lookup_candidates
+
+    return _find_named_agent_candidates(
+        local_agent_name_lookup_candidates(name),
+        only_done=only_done,
+    )
+
+
+def _find_named_agent_candidates(
+    names: tuple[str, ...],
+    *,
+    only_done: bool = False,
+) -> NamedAgent | None:
+    """Find exact-first durable spellings from one artifact snapshot."""
     projects_dir = projects_root()
     if not projects_dir.exists():
-        # Fall through to dismissed-bundle fallback below.
-        return _find_named_dismissed_bundle(name)
+        for name in names:
+            if (bundle := _find_named_dismissed_bundle(name)) is not None:
+                return bundle
+        return None
 
     from sase.core.agent_scan_facade import scan_agent_artifacts
 
     snapshot = scan_agent_artifacts(projects_dir, ace_run_scan_options())
 
-    best_match: NamedAgent | None = None
-    best_priority: tuple[int, str] = (0, "")
+    candidate_rank = {name: rank for rank, name in enumerate(names)}
+    best_by_name: dict[str, tuple[tuple[int, int, str], NamedAgent]] = {}
 
     for record in snapshot.records:
         if record.workflow_dir_name != "ace-run":
@@ -78,9 +94,22 @@ def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None
         if meta is None:
             continue
 
-        exact = meta.name == name
-        workflow = meta.workflow_name == name
-        if not exact and not workflow:
+        exact_name = meta.name if meta.name in candidate_rank else None
+        workflow_name = (
+            meta.workflow_name if meta.workflow_name in candidate_rank else None
+        )
+        matched_name: str | None
+        exact: bool
+        if exact_name is not None and (
+            workflow_name is None
+            or candidate_rank[exact_name] <= candidate_rank[workflow_name]
+        ):
+            matched_name = exact_name
+            exact = True
+        else:
+            matched_name = workflow_name
+            exact = False
+        if matched_name is None:
             continue
 
         artifact_dir = Path(record.artifact_dir)
@@ -90,7 +119,7 @@ def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None
             is_done = True
             if record.done is not None:
                 outcome = record.done.outcome
-        elif is_dismissed_prefixed(name):
+        elif is_dismissed_prefixed(matched_name):
             # Dismissal removes done.json but preserves the prefixed
             # agent_meta.json. Treat such artifacts as historical so
             # `%w:260428.foo` and `#fork:260428.foo` still resolve.
@@ -98,42 +127,41 @@ def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None
             outcome = "dismissed"
 
         agent = NamedAgent(
-            name=name,
+            name=matched_name,
             artifacts_dir=str(artifact_dir),
             is_done=is_done,
             outcome=outcome,
         )
 
-        # Running agents take priority — return immediately,
-        # but only if the process is actually alive. Parent-phase
+        # Running agents take priority, but only if the process is actually
+        # alive. Parent-phase
         # artifacts (e.g. .plan) share the agent name yet never
         # write done.json; without a liveness check we'd return
         # them as "running" and block wait resolution forever.
         # For workflow matches, only return the root agent
         # (no parent_timestamp) to avoid matching intermediate steps.
         if not is_done:
-            if not only_done and is_process_alive(_meta_dict(record), artifact_dir):
-                if exact or not meta.parent_timestamp:
-                    return agent
-            continue
+            if only_done or not is_process_alive(_meta_dict(record), artifact_dir):
+                continue
+            if not exact and meta.parent_timestamp:
+                continue
+            priority = (2, 1 if exact else 0, record.timestamp)
+        else:
+            priority = (1, 1 if exact else 0, record.timestamp)
 
-        # Done agent — prefer exact matches over workflow matches,
-        # and most recent timestamp within each category.
-        priority = (1 if exact else 0, record.timestamp)
-        if priority > best_priority:
-            best_match = agent
-            best_priority = priority
+        current = best_by_name.get(matched_name)
+        if current is None or priority > current[0]:
+            best_by_name[matched_name] = (priority, agent)
 
-    if best_match is None:
-        # Fall back to dismissed bundles. After dismissal the artifact
-        # directory may be partially or fully gone, but the bundle still
-        # carries the prefixed agent_name and cl_name for historical
-        # reference.
-        bundle_match = _find_named_dismissed_bundle(name)
-        if bundle_match is not None:
-            return bundle_match
-
-    return best_match
+    for name in names:
+        best = best_by_name.get(name)
+        if best is not None:
+            return best[1]
+        # After dismissal the artifact directory may be partially or fully
+        # gone, but the bundle still carries the durable identity.
+        if (bundle := _find_named_dismissed_bundle(name)) is not None:
+            return bundle
+    return None
 
 
 def _find_named_dismissed_bundle(name: str) -> NamedAgent | None:

@@ -13,6 +13,7 @@ import pytest
 from sase.ace.tui.actions.task_actions import TrackedTaskCompletion, TrackedTaskResult
 from sase.ace.tui.task_queue import TaskInfo
 from sase.agent.launch_validation import (
+    AgentNameForeignMachineError,
     AgentNameLaunchCollisionError,
     AgentNameReuseConfirmationRequiredError,
     AgentNameSyntaxError,
@@ -145,6 +146,24 @@ def test_user_agent_names_cannot_contain_reserved_family_separator() -> None:
     validate_user_agent_name("foo-bar")
     with pytest.raises(AgentNameSyntaxError, match="cannot contain '--'"):
         validate_user_agent_name("foo--bar")
+
+
+def test_known_foreign_machine_name_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.get_machine_name",
+        lambda: "athena",
+    )
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.discover_machine_names",
+        lambda: ("athena", "zeus"),
+    )
+
+    validate_user_agent_name("foo")
+    validate_user_agent_name("athena.foo")
+    with pytest.raises(AgentNameForeignMachineError, match="known machine 'zeus'"):
+        validate_user_agent_name("zeus.foo")
 
 
 def test_name_directive_allows_hyphenated_name_before_launch() -> None:
