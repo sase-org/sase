@@ -10,6 +10,7 @@ from rich.style import Style
 from textual.app import App, ComposeResult
 from textual.widgets.text_area import Selection
 
+from sase.ace.tui.models.agent_status import RUNNING_COLOR
 from sase.ace.tui.widgets import _todo_highlight
 from sase.ace.tui.widgets._jinja_highlight import (
     _MAX_OVERLAY_BYTES,
@@ -97,6 +98,28 @@ def test_todo_document_cache_reuses_and_invalidates() -> None:
         assert scan.call_count == 2
 
 
+@pytest.mark.parametrize(
+    ("foreground", "dark", "expected_note"),
+    [
+        ("#ffffff", True, "#FFF3B2"),
+        ("#111111", False, "#584C0B"),
+    ],
+)
+def test_todo_palette_uses_running_gold_with_theme_aware_note(
+    foreground: str,
+    dark: bool,
+    expected_note: str,
+) -> None:
+    chip_foreground, chip_background, note_foreground = todo_theme_colors(
+        foreground,
+        dark=dark,
+    )
+
+    assert chip_background.hex == RUNNING_COLOR
+    assert chip_foreground.hex == "#000000"
+    assert note_foreground.hex == expected_note
+
+
 async def test_todo_overlay_uses_utf8_byte_columns_and_coexists_with_syntax() -> None:
     app = CompletionTestApp()
     async with app.run_test():
@@ -156,13 +179,13 @@ async def test_todo_overlay_registers_theme_styles_and_updates_on_theme_change()
         await pilot.pause()
 
         expected = todo_theme_colors(
-            app.current_theme.background,
             app.current_theme.foreground,
-            app.current_theme.warning,
             dark=app.current_theme.dark,
         )
         light_header = text_area._theme.syntax_styles["todo.header"]
         light_body = text_area._theme.syntax_styles["todo.body"]
+        assert light_header.color == Color.parse("#000000")
+        assert light_header.bgcolor == Color.parse(RUNNING_COLOR)
         assert light_header.color == Color.parse(expected[0].hex)
         assert light_header.bgcolor == Color.parse(expected[1].hex)
         assert light_body.color == Color.parse(expected[2].hex)

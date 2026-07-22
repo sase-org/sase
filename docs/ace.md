@@ -2457,15 +2457,17 @@ the text exceeds one line. The native cursor cell is color-coded by prompt Vim m
 and VISUAL or V-LINE uses magenta.
 
 Uppercase `TODO` at identifier boundaries is a visual draft annotation. ACE gives `TODO`, `TODO:`, and `TODO(owner):`
-headers a soft theme-aware amber chip and renders the rest of the line as a quiet, warm italic note, including inside
-Markdown code regions. Lowercase `todo` and identifiers such as `TODOS`, `TODO2`, and `preTODO` remain ordinary text.
-When annotations exist, the prompt border shows a matching `TODO N` count pill for every match across the full prompt
-stack, including compact inactive panes and markers outside the active viewport. The pill disappears immediately when
-the last marker is edited away.
+headers the exact `#FFD700` gold used by the Agents-tab `RUNNING` status with high-contrast dark text, and renders the
+rest of the line as a quiet, theme-aware warm italic note, including inside Markdown code regions. Lowercase `todo` and
+identifiers such as `TODOS`, `TODO2`, and `preTODO` remain ordinary text. When annotations exist, the prompt border
+shows a matching gold-and-dark-text `TODO N` count pill for every match across the full prompt stack, including compact
+inactive panes and markers outside the active viewport. The pill disappears immediately when the last marker is edited
+away.
 
 TODO treatment is presentation only: it does not move the cursor during history or stash restoration, and ACE stashes,
-opens in `$EDITOR`, submits, and launches the literal prompt text unchanged. Colors follow the active dark or light
-theme; search matches, selections, yank feedback, and the cursor retain their higher-priority treatments.
+opens in `$EDITOR`, submits, and launches the literal prompt text unchanged. The body-note color follows the active dark
+or light theme, while the shared gold header and count pill remain fixed; search matches, selections, yank feedback, and
+the cursor retain their higher-priority treatments.
 
 ### Prompt Stacks
 

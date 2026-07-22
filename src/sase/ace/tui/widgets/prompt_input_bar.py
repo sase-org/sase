@@ -178,7 +178,7 @@ class PromptInputBar(
         self.border_title = title
 
     def _todo_chip_markup(self) -> str:
-        """Return a theme-aware whole-stack TODO count capsule."""
+        """Return the running-gold whole-stack TODO count capsule."""
         count = sum(self._todo_counts_by_item_id.values())
         if count <= 0:
             return ""
@@ -187,15 +187,11 @@ class PromptInputBar(
         except Exception:
             chip_foreground, chip_background, _note_foreground = todo_theme_colors(
                 None,
-                None,
-                None,
                 dark=True,
             )
         else:
             chip_foreground, chip_background, _note_foreground = todo_theme_colors(
-                theme.background,
                 theme.foreground,
-                theme.warning,
                 dark=theme.dark,
             )
         return f"[bold {chip_foreground.hex} on {chip_background.hex}] TODO {count} [/]"

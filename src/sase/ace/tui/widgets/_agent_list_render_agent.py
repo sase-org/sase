@@ -33,7 +33,12 @@ from ..models.agent import (
     wait_display_agent,
     wait_remaining_seconds,
 )
-from ..models.agent_status import STOPPED_COLOR, STOPPED_GLYPH, STOPPED_STATUS
+from ..models.agent_status import (
+    RUNNING_COLOR,
+    STOPPED_COLOR,
+    STOPPED_GLYPH,
+    STOPPED_STATUS,
+)
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_panels import normalize_panel_key
 from ._agent_list_helpers import (
@@ -226,7 +231,7 @@ def format_agent_option(
     if agent.status == "STARTING":
         text.append(display_status, style="bold #87D7FF")  # Sky blue
     elif agent.status == "RUNNING":
-        text.append(display_status, style="bold #FFD700")  # Gold
+        text.append(display_status, style=f"bold {RUNNING_COLOR}")
     elif agent.status in ("DONE", "PLAN DONE", "TALE DONE"):
         text.append(display_status, style="bold #5FD75F")  # Green
     elif agent.status == "PLAN REJECTED":

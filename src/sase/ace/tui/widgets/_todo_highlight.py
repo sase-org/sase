@@ -14,6 +14,7 @@ from textual.color import Color
 from textual.strip import Strip
 from textual.widgets._text_area import TextAreaTheme
 
+from sase.ace.tui.models.agent_status import RUNNING_COLOR
 from sase.ace.tui.widgets._jinja_highlight import (
     _JINJA_THEME_NAME,
     _MAX_OVERLAY_BYTES,
@@ -27,9 +28,6 @@ else:
 
 
 _TODO_HEADER_RE = re.compile(r"(?<!\w)TODO(?!\w)(?:\([^()\n]+\))?:?")
-_TODO_CHIP_TINT_DARK = 0.20
-_TODO_CHIP_TINT_LIGHT = 0.28
-_TODO_CHIP_FOREGROUND_WARMTH = 0.30
 _TODO_NOTE_FOREGROUND_WARMTH = 0.30
 
 
@@ -90,25 +88,15 @@ def _scan_todo_annotation_spans(text: str) -> tuple[_TodoAnnotationSpan, ...]:
 
 
 def todo_theme_colors(
-    background: str | None,
     foreground: str | None,
-    warning: str | None,
     *,
     dark: bool,
 ) -> tuple[Color, Color, Color]:
-    """Return soft-chip foreground/background and quiet note foreground."""
-    canvas = Color.parse(background or ("#000000" if dark else "#ffffff"))
+    """Return running-gold chip colors and a theme-aware note foreground."""
     text = Color.parse(foreground or ("#ffffff" if dark else "#000000"))
-    warning_color = Color.parse(warning or ("#ffcc00" if dark else "#996300"))
-    chip_background = canvas.blend(
-        warning_color,
-        _TODO_CHIP_TINT_DARK if dark else _TODO_CHIP_TINT_LIGHT,
-    )
-    chip_foreground = chip_background.get_contrast_text(alpha=1.0).blend(
-        warning_color,
-        _TODO_CHIP_FOREGROUND_WARMTH,
-    )
-    note_foreground = text.blend(warning_color, _TODO_NOTE_FOREGROUND_WARMTH)
+    chip_background = Color.parse(RUNNING_COLOR)
+    chip_foreground = chip_background.get_contrast_text(alpha=1.0)
+    note_foreground = text.blend(chip_background, _TODO_NOTE_FOREGROUND_WARMTH)
     return chip_foreground, chip_background, note_foreground
 
 
@@ -275,9 +263,7 @@ class TodoHighlightMixin(_MixinBase):
         syntax_styles = dict(base.syntax_styles)
         app_theme = self.app.current_theme
         chip_fg, chip_bg, note_fg = todo_theme_colors(
-            app_theme.background,
             app_theme.foreground,
-            app_theme.warning,
             dark=app_theme.dark,
         )
         syntax_styles.update(

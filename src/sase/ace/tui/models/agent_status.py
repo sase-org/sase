@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from sase.agent.status_buckets import status_bucket_for_values
 
+# Shared semantic colors for agent-status presentation.
+RUNNING_COLOR = "#FFD700"
 STOPPED_STATUS = "STOPPED"
 STOPPED_COLOR = "#8787AF"
 # U+2298 (circled division slash) renders as a missing-glyph box in the

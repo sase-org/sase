@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from rich.text import Text
 
+from sase.ace.tui.models.agent_status import RUNNING_COLOR
 from sase.ace.tui.models._agent_parallel_family import ParallelFamilyStatusCounts
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.widgets._agent_list_rendering import (
@@ -42,6 +43,18 @@ def test_cached_format_agent_option_invalidates_on_field_change() -> None:
     parts_after = cached_format_agent_option(cache, a, 0, is_selected=False, now=None)
     # Different cache key -> different cached entry -> different Text instance.
     assert parts_before[0] is not parts_after[0]
+
+
+def test_running_status_uses_shared_running_color() -> None:
+    rendered, _, _ = format_agent_option(
+        _agent(status="RUNNING"),
+        0,
+        is_selected=False,
+    )
+
+    assert _style_at(rendered, rendered.plain.index("RUNNING")) == (
+        f"bold {RUNNING_COLOR}"
+    )
 
 
 def test_cached_format_agent_option_invalidates_on_unread_change() -> None:

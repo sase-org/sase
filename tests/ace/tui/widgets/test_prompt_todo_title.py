@@ -160,7 +160,7 @@ async def test_todo_title_keeps_binding_mode_agent_and_jinja_adornments(
         assert "jinja ✓" in title
 
 
-async def test_todo_title_capsule_restyles_after_theme_switch() -> None:
+async def test_todo_title_capsule_keeps_running_gold_after_theme_switch() -> None:
     app = _PromptBarApp("TODO: theme")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -183,4 +183,5 @@ async def test_todo_title_capsule_restyles_after_theme_switch() -> None:
         after = str(bar.border_title)
 
         assert "TODO 1" in _plain_title(bar)
-        assert after != before
+        assert "bold #000000 on #FFD700" in after
+        assert after == before
