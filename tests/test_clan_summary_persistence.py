@@ -32,6 +32,10 @@ from sase.axe.run_agent_directives import (
     extract_directives_and_write_meta,
 )
 from sase.axe.run_agent_markers import persist_refreshed_clan_summary
+from sase.bead.work import (
+    SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV,
+    SASE_EPIC_CLAN_TRIBE_ENV,
+)
 from tests._agent_names_extract_fixtures import run_extract
 from tests.plan_validation_helpers import VALID_EPIC_PLAN
 
@@ -210,6 +214,101 @@ def test_only_script_backed_declaration_carries_post_preparation_inputs(
         prompt="Do ordinary work",
     )
     assert outside["info"].clan_summary_resolution is None
+
+
+def test_nominated_epic_joiner_persists_summary_and_refresh_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    _write_script(
+        workspace_dir / "make_summary",
+        """import json
+import os
+print(json.dumps({
+    "name": os.environ["SASE_CLAN_NAME"],
+    "generation": os.environ["SASE_CLAN_GENERATION"],
+    "tribe": os.environ["SASE_CLAN_TRIBE"],
+    "host_script": os.environ.get("SASE_EPIC_CLAN_SUMMARY_SCRIPT"),
+}))""",
+    )
+    monkeypatch.setenv(SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV, "./make_summary")
+    monkeypatch.setenv(SASE_EPIC_CLAN_TRIBE_ENV, "epic")
+
+    info, meta = _extract_clan_info_and_meta(
+        tmp_path,
+        "",
+        monkeypatch,
+        clan_name="race-epic",
+        declared=False,
+    )
+
+    request = info.clan_summary_resolution
+    assert request is not None
+    assert request.script == "./make_summary"
+    assert request.clan_name == "race-epic"
+    assert request.clan_generation == "g1"
+    assert request.clan_tribe == "epic"
+    assert meta["clan_tribe"] == "epic"
+    assert json.loads(str(meta["clan_summary"])) == {
+        "name": "race-epic",
+        "generation": "g1",
+        "tribe": "epic",
+        "host_script": None,
+    }
+    assert SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV not in os.environ
+    assert SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV not in meta
+
+
+def test_declared_summary_script_precedes_epic_joiner_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    _write_script(workspace_dir / "explicit_summary", "print('explicit')")
+    _write_script(workspace_dir / "fallback_summary", "print('fallback')")
+    monkeypatch.setenv(SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV, "./fallback_summary")
+
+    info, meta = _extract_clan_info_and_meta(
+        tmp_path,
+        "tribe=epic, summary_script=./explicit_summary",
+        monkeypatch,
+    )
+
+    assert meta["clan_summary"] == "explicit"
+    assert info.clan_summary_resolution is not None
+    assert info.clan_summary_resolution.script == "./explicit_summary"
+    assert SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV not in os.environ
+
+
+def test_missing_nominated_epic_joiner_script_never_blocks_launch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv(
+        SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV,
+        "definitely_missing_epic_summary_script",
+    )
+    monkeypatch.setenv(SASE_EPIC_CLAN_TRIBE_ENV, "epic")
+
+    with caplog.at_level("WARNING", logger="sase.axe.clan_summary_script"):
+        info, meta = _extract_clan_info_and_meta(
+            tmp_path,
+            "",
+            monkeypatch,
+            clan_name="race-epic",
+            declared=False,
+        )
+
+    assert "clan_summary" not in meta
+    assert "was not found" in caplog.text
+    assert info.clan_summary_resolution is not None
+    assert (
+        info.clan_summary_resolution.script == "definitely_missing_epic_summary_script"
+    )
 
 
 @pytest.mark.parametrize("bare_name", [False, True], ids=["relative-path", "path"])

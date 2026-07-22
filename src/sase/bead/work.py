@@ -34,6 +34,7 @@ SASE_EPIC_PLAN_REF_ENV = "SASE_EPIC_PLAN_REF"
 SASE_EPIC_PLAN_SNAPSHOT_ENV = "SASE_EPIC_PLAN_SNAPSHOT"
 SASE_EPIC_BEAD_ID_ENV = "SASE_EPIC_BEAD_ID"
 SASE_EPIC_CLAN_TRIBE_ENV = "SASE_EPIC_CLAN_TRIBE"
+SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV = "SASE_EPIC_CLAN_SUMMARY_SCRIPT"
 SASE_PHASE_BEAD_ID_ENV = "SASE_PHASE_BEAD_ID"
 EPIC_CLAN_TRIBE = "epic"
 EPIC_CLAN_SUMMARY_SCRIPT = "sase_clan_summary_epic"
@@ -445,15 +446,16 @@ def epic_work_segment_env(
     envs: list[dict[str, str]] = []
     for wave in plan.waves:
         for assignment in wave:
-            envs.append(
-                _bead_env(
-                    assignment.bead_id,
-                    epic_id=plan.epic_id,
-                    plan_ref=plan_ref,
-                    plan_snapshot=plan_snapshot,
-                    phase_bead_id=assignment.bead_id,
-                )
+            env = _bead_env(
+                assignment.bead_id,
+                epic_id=plan.epic_id,
+                plan_ref=plan_ref,
+                plan_snapshot=plan_snapshot,
+                phase_bead_id=assignment.bead_id,
             )
+            if not envs:
+                env[SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV] = EPIC_CLAN_SUMMARY_SCRIPT
+            envs.append(env)
     envs.append(
         _bead_env(
             plan.epic_id,

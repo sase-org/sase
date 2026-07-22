@@ -11,15 +11,17 @@ from sase.axe.run_agent_directive_identity import (
 )
 from sase.axe.run_agent_directive_metadata import (
     AgentMetadataInputs,
+    consume_epic_clan_summary_script_from_env,
     epic_work_metadata_from_env,
     preserved_agent_metadata,
 )
 from sase.axe.run_agent_markers import write_agent_meta
+from sase.bead.work import SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV
 
 
 @dataclass(frozen=True)
 class ClanSummaryResolutionRequest:
-    """Stable inputs for a declaring member's post-preparation summary run."""
+    """Stable inputs for a member's post-preparation clan-summary run."""
 
     script: str
     clan_name: str
@@ -69,6 +71,8 @@ def extract_directives_and_write_meta(
     """
     launch_environment = dict(os.environ)
     preserved_metadata = preserved_agent_metadata(artifacts_dir)
+    epic_clan_summary_script = consume_epic_clan_summary_script_from_env()
+    launch_environment.pop(SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV, None)
     epic_work_metadata = epic_work_metadata_from_env()
 
     from sase.llm_provider.registry import (
@@ -302,26 +306,38 @@ def extract_directives_and_write_meta(
     agent_meta = identity.meta
     clan_summary_resolution: ClanSummaryResolutionRequest | None = None
 
-    if clan_membership_plan and directives.clan_declared:
+    if clan_membership_plan and (directives.clan_declared or epic_clan_summary_script):
         from sase.axe.clan_summary_script import (
             normalize_clan_summary,
             resolve_clan_summary_script,
         )
 
-        clan_summary = normalize_clan_summary(directives.clan_summary or "")
-        if directives.clan_summary_script:
+        clan_summary = (
+            normalize_clan_summary(directives.clan_summary or "")
+            if directives.clan_declared
+            else None
+        )
+        summary_script = directives.clan_summary_script
+        if not directives.clan_declared and epic_clan_summary_script:
+            summary_script = epic_clan_summary_script
+        if summary_script:
+            clan_tribe = directives.clan_tribe
+            if not directives.clan_declared and clan_tribe is None:
+                epic_clan_tribe = epic_work_metadata.get("clan_tribe")
+                if isinstance(epic_clan_tribe, str) and epic_clan_tribe:
+                    clan_tribe = epic_clan_tribe
             clan_summary_resolution = ClanSummaryResolutionRequest(
-                script=directives.clan_summary_script,
+                script=summary_script,
                 clan_name=clan_membership_plan.clan_name,
                 clan_generation=clan_membership_plan.generation,
-                clan_tribe=directives.clan_tribe,
+                clan_tribe=clan_tribe,
             )
             clan_summary = resolve_clan_summary_script(
-                directives.clan_summary_script,
+                summary_script,
                 workspace_dir=workspace_dir,
                 clan_name=clan_membership_plan.clan_name,
                 clan_generation=clan_membership_plan.generation,
-                clan_tribe=directives.clan_tribe,
+                clan_tribe=clan_tribe,
                 agent_log_path=output_path,
                 artifacts_dir=artifacts_dir,
                 environment=launch_environment,

@@ -10,6 +10,7 @@ from typing import Any, TYPE_CHECKING
 
 from sase.bead.work import (
     SASE_EPIC_BEAD_ID_ENV,
+    SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV,
     SASE_EPIC_CLAN_TRIBE_ENV,
     SASE_EPIC_PLAN_REF_ENV,
     SASE_EPIC_PLAN_SNAPSHOT_ENV,
@@ -123,6 +124,12 @@ def epic_work_metadata_from_env() -> dict[str, Any]:
         metadata["sdd_plan_path"] = metadata["epic_plan_ref"]
         metadata["plan_committed"] = True
     return metadata
+
+
+def consume_epic_clan_summary_script_from_env() -> str | None:
+    """Consume the host-only summary script nominated for this epic member."""
+    value = os.environ.pop(SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV, "").strip()
+    return value or None
 
 
 def epic_work_environment_from_metadata(

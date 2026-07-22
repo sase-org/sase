@@ -6,10 +6,12 @@ import sqlite3
 
 from sase.bead.work import (
     ChangeSpecLaunchContext,
+    EPIC_CLAN_SUMMARY_SCRIPT,
     EpicWorkPlan,
     _PhaseAssignment as PhaseAssignment,
     SASE_BEAD_ID_ENV,
     SASE_EPIC_BEAD_ID_ENV,
+    SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV,
     SASE_EPIC_CLAN_TRIBE_ENV,
     SASE_EPIC_PLAN_REF_ENV,
     SASE_EPIC_PLAN_SNAPSHOT_ENV,
@@ -200,6 +202,7 @@ class TestRenderEdgeCases:
             {
                 SASE_BEAD_ID_ENV: "p1",
                 SASE_EPIC_BEAD_ID_ENV: "e1",
+                SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV: EPIC_CLAN_SUMMARY_SCRIPT,
                 SASE_EPIC_CLAN_TRIBE_ENV: "epic",
                 SASE_EPIC_PLAN_REF_ENV: plan_ref,
                 SASE_PHASE_BEAD_ID_ENV: "p1",
@@ -250,8 +253,10 @@ class TestRenderEdgeCases:
 
         assert phase_env[SASE_PHASE_BEAD_ID_ENV] == "sase-7z.5.1.1"
         assert phase_env[SASE_EPIC_BEAD_ID_ENV] == "sase-7z.5.1"
+        assert phase_env[SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV] == EPIC_CLAN_SUMMARY_SCRIPT
         assert land_env[SASE_EPIC_BEAD_ID_ENV] == "sase-7z.5.1"
         assert SASE_PHASE_BEAD_ID_ENV not in land_env
+        assert SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV not in land_env
 
     def test_epic_work_segment_env_exports_snapshot_to_every_segment(
         self,
@@ -268,3 +273,5 @@ class TestRenderEdgeCases:
         )
 
         assert all(env[SASE_EPIC_PLAN_SNAPSHOT_ENV] == snapshot for env in envs)
+        assert envs[0][SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV] == EPIC_CLAN_SUMMARY_SCRIPT
+        assert all(SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV not in env for env in envs[1:])

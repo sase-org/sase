@@ -57,8 +57,7 @@ def resolve_clan_summary_script(
     """Run *script* once and return its bounded summary, or ``None``.
 
     Every discovery and execution failure is downgraded to a warning so a
-    decorative clan summary can never prevent the declaring agent from
-    launching.
+    decorative clan summary can never prevent the clan member from launching.
     """
     subprocess_env = _summary_subprocess_env(
         environment=environment,

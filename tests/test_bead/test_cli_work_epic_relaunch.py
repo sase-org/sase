@@ -9,7 +9,12 @@ import pytest
 
 from sase.bead import cli as bead_cli
 from sase.bead.project import BeadProject
-from sase.bead.work import SASE_BEAD_ID_ENV, SASE_EPIC_CLAN_TRIBE_ENV
+from sase.bead.work import (
+    EPIC_CLAN_SUMMARY_SCRIPT,
+    SASE_BEAD_ID_ENV,
+    SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV,
+    SASE_EPIC_CLAN_TRIBE_ENV,
+)
 
 from .cli_work_helpers import (
     FakeLaunchResult,
@@ -121,6 +126,8 @@ def test_work_retry_allows_legacy_epic_clan_container_skip(
         assert f"%id({suffix}, clan={epic_id}, bead={phase_id})" in query
     assert f"%id(land, clan={epic_id}, bead={epic_id})" in query
     assert all(env[SASE_EPIC_CLAN_TRIBE_ENV] == "epic" for env in segment_env)
+    assert segment_env[0][SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV] == EPIC_CLAN_SUMMARY_SCRIPT
+    assert all(SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV not in env for env in segment_env[1:])
     assert [env[SASE_BEAD_ID_ENV] for env in segment_env] == [
         *phase_ids[1:],
         epic_id,
@@ -179,3 +186,10 @@ def test_work_relaunch_after_failure_joins_existing_epic_clan(
     assert f"%id(land, clan={epic_id}, bead={epic_id})" in retry_query
     for segment_env in (first_segment_env, retry_segment_env):
         assert all(env[SASE_EPIC_CLAN_TRIBE_ENV] == "epic" for env in segment_env)
+        assert (
+            segment_env[0][SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV]
+            == EPIC_CLAN_SUMMARY_SCRIPT
+        )
+        assert all(
+            SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV not in env for env in segment_env[1:]
+        )

@@ -13,8 +13,10 @@ from sase.bead.model import Status
 from sase.bead.project import BeadProject
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.bead.work import (
+    EPIC_CLAN_SUMMARY_SCRIPT,
     SASE_BEAD_ID_ENV,
     SASE_EPIC_BEAD_ID_ENV,
+    SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV,
     SASE_EPIC_CLAN_TRIBE_ENV,
     SASE_EPIC_PLAN_REF_ENV,
     SASE_EPIC_PLAN_SNAPSHOT_ENV,
@@ -143,8 +145,13 @@ def test_work_launches_and_passes_rendered_multi_prompt(
                 SASE_EPIC_PLAN_REF_ENV: plan_ref,
                 SASE_PHASE_BEAD_ID_ENV: phase_id,
                 INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
+                **(
+                    {SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV: EPIC_CLAN_SUMMARY_SCRIPT}
+                    if index == 0
+                    else {}
+                ),
             }
-            for phase_id in phase_ids
+            for index, phase_id in enumerate(phase_ids)
         ]
         + [
             {

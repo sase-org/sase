@@ -8,9 +8,11 @@ import pytest
 
 from sase.axe.run_agent_directive_metadata import (
     EPIC_WORK_ENV_METADATA_NAMES,
+    consume_epic_clan_summary_script_from_env,
     epic_work_environment_from_metadata,
     epic_work_metadata_from_env,
 )
+from sase.bead.work import SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV
 
 
 def test_epic_work_environment_mapping_consumes_and_reconstructs(
@@ -50,3 +52,18 @@ def test_epic_work_environment_reconstruction_uses_only_nonempty_strings() -> No
         "SASE_EPIC_PLAN_REF": "plans/epic.md",
         "SASE_EPIC_PLAN_SNAPSHOT": "/state/epic.md",
     }
+
+
+def test_epic_clan_summary_script_is_consumed_without_metadata_round_trip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV, "  make_summary  ")
+
+    assert consume_epic_clan_summary_script_from_env() == "make_summary"
+    assert SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV not in os.environ
+    assert (
+        epic_work_environment_from_metadata(
+            {"epic_clan_summary_script": "make_summary"}
+        )
+        == {}
+    )
