@@ -13,8 +13,10 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
+from sase.agent.names import _registry_mutations
+from sase.agent.names._registry_mutations import RegistryMutationOperations
 from sase.agent.names._registry_entries import (
     dotted_namespace_prefixes as _dotted_namespace_prefixes,
     entry_belongs_to_artifact as _entry_belongs_to_artifact,
@@ -33,7 +35,6 @@ from sase.core.machine_hood_facade import (
     MachineHoodIdentity,
     canonical_local_agent_name_key,
     local_agent_name_lookup_candidates,
-    qualify_local_agent_name,
     strip_local_agent_name,
 )
 
@@ -126,28 +127,12 @@ def claim_registered_name(
     name: str, claiming_dir: str | Path, *, replace_existing: bool = False
 ) -> None:
     """Best-effort upsert of a claimed name into the registry."""
-    with _registry_mutation_lock():
-        identity = MachineHoodIdentity.current()
-        name = qualify_local_agent_name(name, identity)
-        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
-        entries = dict(load_name_registry()["entries"])
-        storage_name, existing = _equivalent_entry(entries, name, identity)
-        if isinstance(existing, dict) and existing.get("container_kind"):
-            _raise_container_name_collision(name, existing)
-        if isinstance(existing, dict) and not replace_existing:
-            if _entry_has_other_owner(existing, artifact_dir):
-                from sase.agent.names._common import NameCollisionError
-
-                visible_name = strip_local_agent_name(name, identity)
-                suggestion = lowest_name_suggestion(visible_name)
-                raise NameCollisionError(
-                    f"agent name '{visible_name}' is already taken; try '{suggestion}'"
-                )
-        entry = _owner_from_artifact_name(
-            artifact_dir, storage_name, reservation_kind="claimed"
-        )
-        entries[storage_name] = entry
-        _save_entries(entries)
+    _registry_mutations.claim_registered_name(
+        _mutation_operations(),
+        name,
+        claiming_dir,
+        replace_existing=replace_existing,
+    )
 
 
 def claim_imported_registered_name(
@@ -166,35 +151,13 @@ def claim_imported_registered_name(
     digest.
     """
 
-    from sase.agents_sync.io import validate_machine, validate_qualified_name
-
-    source_machine = validate_machine(source_machine)
-    name = validate_qualified_name(name, source_machine)
-    artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
-    with _registry_mutation_lock():
-        entries = dict(load_name_registry()["entries"])
-        existing = entries.get(name)
-        if isinstance(existing, dict):
-            same_import = (
-                existing.get("reservation_kind") == "imported"
-                and existing.get("imported_from_machine") == source_machine
-                and _entry_belongs_to_artifact(existing, artifact_dir)
-            )
-            if not same_import:
-                from sase.agent.names._common import NameCollisionError
-
-                raise NameCollisionError(
-                    f"imported agent name '{name}' is already reserved"
-                )
-        entry = _owner_from_artifact_name(
-            artifact_dir,
-            name,
-            reservation_kind="imported",
-        )
-        entry["imported_from_machine"] = source_machine
-        entry["imported_digest"] = digest
-        entries[name] = entry
-        _save_entries(entries)
+    _registry_mutations.claim_imported_registered_name(
+        _mutation_operations(),
+        name,
+        source_machine,
+        claiming_dir,
+        digest=digest,
+    )
 
 
 def reserve_registered_name(name: str, claiming_dir: str | Path) -> None:
@@ -205,29 +168,9 @@ def reserve_registered_name(name: str, claiming_dir: str | Path) -> None:
     roll them back if the child process never starts. The child runner's later
     regular claim is idempotent because it uses the same artifacts owner.
     """
-    with _registry_mutation_lock():
-        identity = MachineHoodIdentity.current()
-        name = qualify_local_agent_name(name, identity)
-        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
-        entries = dict(load_name_registry()["entries"])
-        storage_name, existing = _equivalent_entry(entries, name, identity)
-        if isinstance(existing, dict) and existing.get("container_kind"):
-            _raise_container_name_collision(name, existing)
-        if isinstance(existing, dict) and _entry_has_other_owner(
-            existing, artifact_dir
-        ):
-            from sase.agent.names._common import NameCollisionError
-
-            visible_name = strip_local_agent_name(name, identity)
-            suggestion = lowest_name_suggestion(visible_name)
-            raise NameCollisionError(
-                f"agent name '{visible_name}' is already taken; try '{suggestion}'"
-            )
-        entry = _owner_from_artifact_name(
-            artifact_dir, storage_name, reservation_kind="planned"
-        )
-        entries[storage_name] = entry
-        _save_entries(entries)
+    _registry_mutations.reserve_registered_name(
+        _mutation_operations(), name, claiming_dir
+    )
 
 
 def reserve_registered_clan_name(
@@ -243,45 +186,13 @@ def reserve_registered_clan_name(
     reservation happen under the same allocation lock so concurrent clan
     declarations cannot both succeed.
     """
-    with _registry_mutation_lock():
-        identity = MachineHoodIdentity.current()
-        name = qualify_local_agent_name(name, identity)
-        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
-        entries = dict(load_name_registry()["entries"])
-        storage_name, existing = _equivalent_entry(entries, name, identity)
-        if isinstance(existing, dict):
-            if existing.get("container_kind") == "clan":
-                if create_only:
-                    from sase.agent.names._common import NameCollisionError
-
-                    visible_name = strip_local_agent_name(name, identity)
-                    raise NameCollisionError(
-                        f"clan '{visible_name}' already exists; join it with "
-                        f"%id(<id>, clan={visible_name})"
-                    )
-                existing_generation = existing.get("clan_generation")
-                return (
-                    existing_generation
-                    if isinstance(existing_generation, str) and existing_generation
-                    else generation
-                )
-            from sase.agent.names._common import NameCollisionError
-
-            visible_name = strip_local_agent_name(name, identity)
-            raise NameCollisionError(
-                f"clan name '{visible_name}' is already reserved by an agent; "
-                "choose a different clan name"
-            )
-        entry = _owner_from_artifact_name(
-            artifact_dir,
-            storage_name,
-            reservation_kind="planned_clan",
-        )
-        entry["container_kind"] = "clan"
-        entry["clan_generation"] = generation
-        entries[storage_name] = entry
-        _save_entries(entries)
-        return generation
+    return _registry_mutations.reserve_registered_clan_name(
+        _mutation_operations(),
+        name,
+        generation,
+        claiming_dir,
+        create_only=create_only,
+    )
 
 
 def claim_registered_clan_name(
@@ -290,36 +201,9 @@ def claim_registered_clan_name(
     claiming_dir: str | Path,
 ) -> None:
     """Persist a clan container after one of its members publishes metadata."""
-    with _registry_mutation_lock():
-        identity = MachineHoodIdentity.current()
-        name = qualify_local_agent_name(name, identity)
-        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
-        entries = dict(load_name_registry()["entries"])
-        storage_name, existing = _equivalent_entry(entries, name, identity)
-        if isinstance(existing, dict):
-            if existing.get("container_kind") != "clan":
-                from sase.agent.names._common import NameCollisionError
-
-                visible_name = strip_local_agent_name(name, identity)
-                raise NameCollisionError(
-                    f"clan name '{visible_name}' is already reserved by an agent; "
-                    "choose a different clan name"
-                )
-            if existing.get(
-                "reservation_kind"
-            ) != "planned_clan" and not _entry_belongs_to_artifact(
-                existing, artifact_dir
-            ):
-                return
-        entry = _owner_from_artifact_name(
-            artifact_dir,
-            storage_name,
-            reservation_kind="clan",
-        )
-        entry["container_kind"] = "clan"
-        entry["clan_generation"] = generation
-        entries[storage_name] = entry
-        _save_entries(entries)
+    _registry_mutations.claim_registered_clan_name(
+        _mutation_operations(), name, generation, claiming_dir
+    )
 
 
 def convert_registered_agent_to_family(
@@ -328,45 +212,9 @@ def convert_registered_agent_to_family(
     claiming_dir: str | Path,
 ) -> None:
     """Convert one agent claim into a family container plus member claim."""
-    with _registry_mutation_lock():
-        identity = MachineHoodIdentity.current()
-        name = qualify_local_agent_name(name, identity)
-        member_name = qualify_local_agent_name(member_name, identity)
-        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
-        entries = dict(load_name_registry()["entries"])
-        family_storage_name, existing = _equivalent_entry(entries, name, identity)
-        if isinstance(existing, dict):
-            container_kind = existing.get("container_kind")
-            if container_kind == "clan":
-                _raise_container_name_collision(name, existing)
-            if container_kind not in {None, "family"}:
-                _raise_container_name_collision(name, existing)
-            if container_kind is None and _entry_has_other_owner(
-                existing, artifact_dir
-            ):
-                _raise_name_collision(name)
-
-        member_storage_name, member_existing = _equivalent_entry(
-            entries, member_name, identity
-        )
-        if isinstance(member_existing, dict) and _entry_has_other_owner(
-            member_existing, artifact_dir
-        ):
-            _raise_name_collision(member_name)
-
-        family_entry = _owner_from_artifact_name(
-            artifact_dir,
-            family_storage_name,
-            reservation_kind="family",
-        )
-        family_entry["container_kind"] = "family"
-        entries[family_storage_name] = family_entry
-        entries[member_storage_name] = _owner_from_artifact_name(
-            artifact_dir,
-            member_storage_name,
-            reservation_kind="claimed",
-        )
-        _save_entries(entries)
+    _registry_mutations.convert_registered_agent_to_family(
+        _mutation_operations(), name, member_name, claiming_dir
+    )
 
 
 def release_planned_registered_clan_name(
@@ -375,22 +223,9 @@ def release_planned_registered_clan_name(
     claiming_dir: str | Path,
 ) -> None:
     """Release a clan reservation when no member in its batch spawned."""
-    with _registry_mutation_lock():
-        identity = MachineHoodIdentity.current()
-        name = qualify_local_agent_name(name, identity)
-        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
-        entries = dict(load_name_registry()["entries"])
-        storage_name, existing = _equivalent_entry(entries, name, identity)
-        if not isinstance(existing, dict):
-            return
-        if existing.get("reservation_kind") != "planned_clan":
-            return
-        if existing.get("clan_generation") != generation:
-            return
-        if not _entry_belongs_to_artifact(existing, artifact_dir):
-            return
-        entries.pop(storage_name, None)
-        _save_entries(entries)
+    _registry_mutations.release_planned_registered_clan_name(
+        _mutation_operations(), name, generation, claiming_dir
+    )
 
 
 def reserve_registered_template_name(
@@ -401,8 +236,11 @@ def reserve_registered_template_name(
     allowed_existing_names: Collection[str] = (),
 ) -> None:
     """Reserve a template-allocated *name* after checking *namespace*."""
-    reserve_registered_template_names(
-        [(name, namespace, claiming_dir)],
+    _registry_mutations.reserve_registered_template_name(
+        _mutation_operations(),
+        name,
+        namespace,
+        claiming_dir,
         allowed_existing_names=allowed_existing_names,
     )
 
@@ -419,111 +257,40 @@ def reserve_registered_template_names(
     descendant of it. ``allowed_existing_names`` lets one parent-side template
     group add later siblings beneath namespaces it already reserved.
     """
-    if not reservations:
-        return
-
-    identity = MachineHoodIdentity.current()
-    materialized_reservations = [
-        (
-            qualify_local_agent_name(name, identity),
-            qualify_local_agent_name(namespace, identity),
-            claiming_dir,
-        )
-        for name, namespace, claiming_dir in reservations
-    ]
-    names = [name for name, _, _ in materialized_reservations]
-    name_keys = [canonical_local_agent_name_key(name, identity) for name in names]
-    if len(set(name_keys)) != len(name_keys):
-        from sase.agent.names._common import NameCollisionError
-
-        raise NameCollisionError(
-            "template allocation group rendered duplicate concrete names"
-        )
-
-    allowed = {
-        canonical_local_agent_name_key(name, identity)
-        for name in allowed_existing_names
-    }
-    with _registry_mutation_lock():
-        entries = dict(load_name_registry()["entries"])
-        # Build the occupied-namespace set once from the existing entries so each
-        # reservation is a set-membership check instead of a full scan. A batch
-        # is checked against the pre-batch entries, so same-batch siblings may
-        # still share a namespace.
-        occupied_namespaces = {
-            prefix
-            for existing_name, existing_entry in entries.items()
-            if not (
-                isinstance(existing_entry, dict)
-                and existing_entry.get("container_kind") == "clan"
-            )
-            if canonical_local_agent_name_key(existing_name, identity) not in allowed
-            for prefix in _dotted_namespace_prefixes(
-                canonical_local_agent_name_key(existing_name, identity)
-            )
-        }
-        materialized = [
-            (
-                name,
-                namespace,
-                Path(claiming_dir).expanduser().resolve(strict=False),
-            )
-            for name, namespace, claiming_dir in materialized_reservations
-        ]
-        for name, namespace, artifact_dir in materialized:
-            _storage_name, existing = _equivalent_entry(entries, name, identity)
-            if isinstance(existing, dict) and _entry_has_other_owner(
-                existing, artifact_dir
-            ):
-                _raise_name_collision(name)
-            if (
-                canonical_local_agent_name_key(namespace, identity)
-                in occupied_namespaces
-            ):
-                _raise_name_collision(name)
-
-        for name, namespace, artifact_dir in materialized:
-            storage_name, _existing = _equivalent_entry(entries, name, identity)
-            entry = _owner_from_artifact_name(
-                artifact_dir,
-                storage_name,
-                reservation_kind="planned",
-                template_namespace=namespace,
-            )
-            entries[storage_name] = entry
-        _save_entries(entries)
+    _registry_mutations.reserve_registered_template_names(
+        _mutation_operations(),
+        reservations,
+        allowed_existing_names=allowed_existing_names,
+    )
 
 
 def release_planned_registered_name(name: str, claiming_dir: str | Path) -> None:
     """Remove a still-planned reservation for *name* owned by *claiming_dir*."""
-    with _registry_mutation_lock():
-        identity = MachineHoodIdentity.current()
-        name = qualify_local_agent_name(name, identity)
-        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
-        entries = dict(load_name_registry()["entries"])
-        storage_name, existing = _equivalent_entry(entries, name, identity)
-        if not isinstance(existing, dict):
-            return
-        if existing.get("reservation_kind") != "planned":
-            return
-        if not _entry_belongs_to_artifact(existing, artifact_dir):
-            return
-        entries.pop(storage_name, None)
-        _save_entries(entries)
+    _registry_mutations.release_planned_registered_name(
+        _mutation_operations(), name, claiming_dir
+    )
 
 
 def delete_registered_name(name: str) -> None:
     """Remove *name* from the registry."""
-    with _registry_mutation_lock():
-        identity = MachineHoodIdentity.current()
-        entries = load_name_registry()["entries"]
-        candidates = local_agent_name_lookup_candidates(name, identity)
-        if not any(candidate in entries for candidate in candidates):
-            return
-        entries = dict(entries)
-        for candidate in candidates:
-            entries.pop(candidate, None)
-        _save_entries(entries)
+    _registry_mutations.delete_registered_name(_mutation_operations(), name)
+
+
+def _mutation_operations() -> RegistryMutationOperations:
+    """Bind mutation dependencies through this compatibility facade."""
+    return RegistryMutationOperations(
+        lock=_registry_mutation_lock,
+        load=load_name_registry,
+        save_entries=_save_entries,
+        owner_from_artifact_name=_owner_from_artifact_name,
+        entry_belongs_to_artifact=_entry_belongs_to_artifact,
+        entry_has_other_owner=_entry_has_other_owner,
+        dotted_namespace_prefixes=_dotted_namespace_prefixes,
+        equivalent_entry=_equivalent_entry,
+        raise_name_collision=_raise_name_collision,
+        raise_container_name_collision=_raise_container_name_collision,
+        lowest_name_suggestion=lowest_name_suggestion,
+    )
 
 
 def _equivalent_entry(
@@ -539,7 +306,7 @@ def _equivalent_entry(
     return durable_name, None
 
 
-def _raise_name_collision(name: str) -> None:
+def _raise_name_collision(name: str) -> NoReturn:
     from sase.agent.names._common import NameCollisionError
 
     visible_name = strip_local_agent_name(name)
@@ -549,7 +316,7 @@ def _raise_name_collision(name: str) -> None:
     )
 
 
-def _raise_container_name_collision(name: str, entry: dict[str, Any]) -> None:
+def _raise_container_name_collision(name: str, entry: dict[str, Any]) -> NoReturn:
     from sase.agent.names._common import NameCollisionError
 
     name = strip_local_agent_name(name)
