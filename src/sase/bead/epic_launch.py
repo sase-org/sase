@@ -41,7 +41,7 @@ class _DetachedEpicLaunch:
 
 def build_epic_launch_argv(plan_file: str | Path) -> list[str]:
     """Build the canonical approved-epic launch command."""
-    return ["sase", "bead", "work", str(plan_file), "--yes"]
+    return ["sase", "bead", "work", str(plan_file), "--yes-to-all"]
 
 
 def parse_epic_launch_output(output: str) -> _EpicLaunchOutput:

@@ -68,6 +68,8 @@ class _WipePlan:
 
 def wipe_agent_name_for_reuse(
     owner_or_name: str | Mapping[str, Any],
+    *,
+    allow_stale_container: bool = False,
 ) -> AgentNameWipeResult:
     """Remove the previous owner of an agent name before forced reuse.
 
@@ -77,6 +79,8 @@ def wipe_agent_name_for_reuse(
     name lookup cannot rediscover the old agent. Clan and family container
     reservations are never wiped because their owner paths belong to members and
     the reservations are re-derived from those members during registry rebuilds.
+    ``allow_stale_container`` is reserved for callers that have already proved a
+    container has no concrete members and need to remove its orphaned owner data.
     """
     owner: Mapping[str, Any] | None
     if isinstance(owner_or_name, str):
@@ -90,7 +94,7 @@ def wipe_agent_name_for_reuse(
         return AgentNameWipeResult(target_name=target_name, found=False)
 
     container_kind = owner.get("container_kind")
-    if isinstance(container_kind, str) and container_kind:
+    if isinstance(container_kind, str) and container_kind and not allow_stale_container:
         return AgentNameWipeResult(
             target_name=target_name,
             found=True,

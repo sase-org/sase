@@ -54,6 +54,7 @@ def work_from_plan_file(
     dry_run: bool,
     yes: bool,
     no_push: bool,
+    yes_to_all: bool = False,
     parent: str | None = None,
     render: bool = True,
 ) -> _PlanFileWorkResult:
@@ -189,6 +190,7 @@ def work_from_plan_file(
             parent_id=parent_id,
             parent=parent,
             yes=yes,
+            yes_to_all=yes_to_all,
             no_push=no_push,
             render=render,
         )
@@ -207,6 +209,7 @@ def _work_from_plan_file_locked(
     parent_id: str | None,
     parent: str | None,
     yes: bool,
+    yes_to_all: bool,
     no_push: bool,
     render: bool,
 ) -> _PlanFileWorkResult:
@@ -286,6 +289,7 @@ def _work_from_plan_file_locked(
             epic_id=existing_epic_id,
             authored_phase_ids=phase_ids,
             yes=yes,
+            yes_to_all=yes_to_all,
             no_push=no_push,
             render=render,
             waves=waves,
@@ -338,6 +342,7 @@ def _work_from_plan_file_locked(
             dry_run=False,
             yes=yes,
             no_push=no_push,
+            yes_to_all=yes_to_all,
             defer_push=True,
             before_agent_launch=publish_created_graph,
         )
@@ -405,6 +410,7 @@ def _resume_linked_epic(
     epic_id: str,
     authored_phase_ids: tuple[str, ...],
     yes: bool,
+    yes_to_all: bool,
     no_push: bool,
     render: bool,
     waves: tuple[tuple[str, ...], ...],
@@ -416,6 +422,7 @@ def _resume_linked_epic(
         epic_id=epic_id,
         authored_phase_ids=authored_phase_ids,
         yes=yes,
+        yes_to_all=yes_to_all,
         no_push=no_push,
         render=render,
         waves=waves,

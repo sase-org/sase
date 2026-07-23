@@ -25,7 +25,7 @@ def test_build_and_parse_epic_launch_contract() -> None:
         "bead",
         "work",
         "/tmp/epic plan.md",
-        "--yes",
+        "--yes-to-all",
     ]
     parsed = parse_epic_launch_output(
         "✓ Archived        /plans/202607/epic plan.md (committed)\n"

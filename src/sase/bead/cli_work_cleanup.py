@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
 
 from sase.bead.cli_common import auto_commit_bead_store
 
@@ -97,17 +98,168 @@ class ForcedReuseCleanupError(RuntimeError):
     """Raised when forced bead-work name reuse cleanup cannot be completed."""
 
 
-def warn_force_reuse_collisions(collisions: dict[str, str]) -> None:
-    """Warn (for ``--dry-run``) which live agents a real launch would replace."""
-    if not collisions:
-        return
-    print(
-        "\nWarning: these live agents would be force-reused (terminated) "
-        "on a live launch:",
-        file=sys.stderr,
+@dataclass(frozen=True)
+class CleanupTarget:
+    """One existing owner or reservation affected by forced name reuse."""
+
+    name: str
+    action: Literal["KILL", "REMOVE", "RELEASE"]
+    current_state: str
+    detail: str
+
+
+@dataclass(frozen=True)
+class CleanupPreview:
+    """Read-only preview of destructive forced-reuse cleanup."""
+
+    targets: tuple[CleanupTarget, ...]
+
+    @property
+    def has_destructive_targets(self) -> bool:
+        return bool(self.targets)
+
+
+def preview_bead_work_force_reuse(
+    query: str,
+    *,
+    expected_names: set[str],
+    extra_cleanup_names: frozenset[str] = frozenset(),
+) -> CleanupPreview:
+    """Describe every owner or stale reservation a live cleanup will affect."""
+    from sase.agent.launch_validation import force_reuse_owner_names
+    from sase.agent.names import (
+        find_agent_clan,
+        find_agent_family,
+        find_named_agent,
+        get_live_agent_name_subset,
+        lookup_registered_name,
     )
-    for name, path in sorted(collisions.items()):
-        print(f"  {name} (already running at {path})", file=sys.stderr)
+
+    directive_names = force_reuse_owner_names(query.split("\n---\n"))
+    if set(directive_names) != set(expected_names):
+        raise ForcedReuseCleanupError(
+            "rendered bead-work prompt force-reuse names "
+            f"{sorted(directive_names)} do not match the planned agent names "
+            f"{sorted(expected_names)}; aborting forced reuse preview"
+        )
+
+    target_names = [*directive_names]
+    target_names.extend(
+        name for name in sorted(extra_cleanup_names) if name not in directive_names
+    )
+    live_names = get_live_agent_name_subset(set(target_names))
+    targets: list[CleanupTarget] = []
+
+    for name in target_names:
+        owner = lookup_registered_name(name)
+        if owner is None:
+            continue
+        container_kind = owner.get("container_kind")
+        if container_kind == "family":
+            family = find_agent_family(name)
+            members = (
+                tuple(
+                    member
+                    for member in family.members
+                    if isinstance(member.name, str)
+                    and member.name
+                    and member.name != name
+                )
+                if family is not None
+                else ()
+            )
+            if not members:
+                targets.append(
+                    CleanupTarget(
+                        name=name,
+                        action="RELEASE",
+                        current_state="stale",
+                        detail="orphaned family reservation",
+                    )
+                )
+                continue
+            member_names = {member.name for member in members}
+            member_live_names = get_live_agent_name_subset(member_names)
+            for member in members:
+                if not isinstance(member.name, str) or not member.name:
+                    continue
+                if member.name in member_live_names:
+                    targets.append(
+                        CleanupTarget(
+                            name=member.name,
+                            action="KILL",
+                            current_state="running",
+                            detail=f"at {member_live_names[member.name]}",
+                        )
+                    )
+                    continue
+                targets.append(
+                    CleanupTarget(
+                        name=member.name,
+                        action="REMOVE",
+                        current_state=member.outcome or "interrupted",
+                        detail=f"at {member.artifacts_dir}",
+                    )
+                )
+            continue
+        if container_kind == "clan":
+            clan = find_agent_clan(name)
+            if clan is None or not clan.members:
+                targets.append(
+                    CleanupTarget(
+                        name=name,
+                        action="RELEASE",
+                        current_state="stale",
+                        detail="orphaned clan reservation",
+                    )
+                )
+            # A populated legacy epic clan is intentionally kept and joined.
+            # Populated unexpected clans remain a hard cleanup error, but are
+            # not themselves destructive targets.
+            continue
+
+        agent = find_named_agent(name)
+        if name in live_names:
+            targets.append(
+                CleanupTarget(
+                    name=name,
+                    action="KILL",
+                    current_state="running",
+                    detail=f"at {live_names[name]}",
+                )
+            )
+            continue
+        if agent is not None:
+            targets.append(
+                CleanupTarget(
+                    name=name,
+                    action="REMOVE",
+                    current_state=agent.outcome or "completed",
+                    detail=f"at {agent.artifacts_dir}",
+                )
+            )
+            continue
+
+        state = owner.get("state")
+        current_state = (
+            state
+            if isinstance(state, str) and state not in {"active", "done"}
+            else "completed"
+            if state == "done"
+            else "interrupted"
+        )
+        path = owner.get("artifacts_dir") or owner.get("bundle_path")
+        detail = f"at {path}" if isinstance(path, str) and path else "stored owner"
+        targets.append(
+            CleanupTarget(
+                name=name,
+                action="REMOVE",
+                current_state=current_state,
+                detail=detail,
+            )
+        )
+
+    return CleanupPreview(targets=tuple(targets))
 
 
 def prepare_bead_work_force_reuse(
@@ -178,8 +330,20 @@ def _wipe_force_reuse_owner(name: str, *, allow_container_skip: bool) -> None:
         if result.skipped_container_kind == "family":
             _wipe_force_reuse_family(name)
             return
-        if result.skipped_container_kind == "clan" and allow_container_skip:
-            return
+        if result.skipped_container_kind == "clan":
+            from sase.agent.names import find_agent_clan
+
+            try:
+                clan = find_agent_clan(name)
+            except Exception as exc:  # noqa: BLE001
+                raise ForcedReuseCleanupError(
+                    f"forced reuse cleanup could not resolve agent clan '{name}': {exc}"
+                ) from exc
+            if clan is None or not clan.members:
+                _release_stale_container(name, container_kind="clan")
+                return
+            if allow_container_skip:
+                return
         raise ForcedReuseCleanupError(
             f"agent name '{name}' is reserved by a "
             f"{result.skipped_container_kind} container and cannot be "
@@ -217,10 +381,8 @@ def _wipe_force_reuse_family(name: str) -> None:
         else set()
     )
     if not member_names:
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup could not resolve any concrete members for "
-            f"agent family '{name}'"
-        )
+        _release_stale_container(name, container_kind="family")
+        return
 
     for member_name in member_names:
         try:
@@ -265,4 +427,53 @@ def _wipe_force_reuse_family(name: str) -> None:
         raise ForcedReuseCleanupError(
             f"forced reuse cleanup left agent family '{name}' reservations "
             f"after rebuild: {', '.join(residual_names)}"
+        )
+
+
+def _release_stale_container(
+    name: str,
+    *,
+    container_kind: Literal["family", "clan"],
+) -> None:
+    """Remove an orphaned container's residual owner and verify its release."""
+    from sase.agent.names import (
+        is_name_reserved,
+        rebuild_name_registry,
+        wipe_agent_name_for_reuse,
+    )
+
+    try:
+        result = wipe_agent_name_for_reuse(name, allow_stale_container=True)
+    except Exception as exc:  # noqa: BLE001
+        raise ForcedReuseCleanupError(
+            f"forced reuse cleanup for stale {container_kind} reservation "
+            f"'{name}' failed: {exc}"
+        ) from exc
+    if result.errors:
+        raise ForcedReuseCleanupError(
+            f"forced reuse cleanup for stale {container_kind} reservation "
+            f"'{name}' reported errors: " + "; ".join(result.errors)
+        )
+    if result.skipped_container_kind:
+        raise ForcedReuseCleanupError(
+            f"forced reuse cleanup could not release stale {container_kind} "
+            f"reservation '{name}'"
+        )
+
+    try:
+        registry = rebuild_name_registry()
+    except Exception as exc:  # noqa: BLE001
+        raise ForcedReuseCleanupError(
+            f"forced reuse cleanup for stale {container_kind} reservation "
+            f"'{name}' could not rebuild the name registry: {exc}"
+        ) from exc
+    if not isinstance(registry.get("entries"), dict):
+        raise ForcedReuseCleanupError(
+            f"forced reuse cleanup for stale {container_kind} reservation "
+            f"'{name}' received an invalid name registry after rebuild"
+        )
+    if is_name_reserved(name):
+        raise ForcedReuseCleanupError(
+            f"forced reuse cleanup left stale {container_kind} reservation "
+            f"'{name}' reserved after rebuild"
         )

@@ -237,7 +237,8 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase bead work ./epic_plan.md --parent sase-64.2 --yes\n"
             "  sase bead work ./epic_plan.md --parent top-level --yes\n"
             "  sase bead work ./epic_plan.md --yes\n"
-            "  sase bead work ./epic_plan.md --json --yes"
+            "  sase bead work ./epic_plan.md --yes-to-all\n"
+            "  sase bead work ./epic_plan.md --json"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -276,7 +277,13 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         "-y",
         "--yes",
         action="store_true",
-        help="Skip the launch confirmation prompt",
+        help="Skip only the launch confirmation prompt",
+    )
+    bead_work_parser.add_argument(
+        "-Y",
+        "--yes-to-all",
+        action="store_true",
+        help="Skip both destructive-cleanup and launch confirmation prompts",
     )
 
     # sase bead update

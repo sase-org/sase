@@ -63,7 +63,7 @@ def test_work_retry_allows_terminal_same_name_attempt(
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
 
-    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+    bead_cli.handle_bead_work(make_args(epic_id, yes_to_all=True))
 
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in captured["query"]
 
@@ -89,7 +89,7 @@ def test_work_retry_force_reuses_live_phase_owner_and_launches(
         ),
     )
 
-    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+    bead_cli.handle_bead_work(make_args(epic_id, yes_to_all=True))
 
     # The live phase-name owner is force-reused instead of blocking launch.
     assert phase_ids[0] in wiped
@@ -124,7 +124,7 @@ def test_work_force_reuses_live_land_owner_and_launches(
         ),
     )
 
-    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+    bead_cli.handle_bead_work(make_args(epic_id, yes_to_all=True))
 
     # The ``<epic_id>.land`` owner is force-reused, not refused.
     assert f"{epic_id}.land" in wiped
@@ -152,7 +152,7 @@ def test_work_force_reuses_legacy_land_owner_and_launches(
         ),
     )
 
-    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+    bead_cli.handle_bead_work(make_args(epic_id, yes_to_all=True))
 
     # The legacy ``<epic_id>`` owner is an extra cleanup target even though
     # it is not rendered as a force-reuse %id directive in the new prompt.
@@ -184,7 +184,8 @@ def test_work_dry_run_warns_force_reuse_without_mutating(
     bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
 
     captured = capsys.readouterr()
-    assert "would be force-reused" in captured.err
+    assert "Cleaning up existing agents before relaunching epic" in captured.err
+    assert "KILL" in captured.err
     assert phase_ids[0] in captured.err
     assert "Multi-prompt (dry run)" in captured.out
     assert launch_calls == []
@@ -248,7 +249,7 @@ def test_work_force_reuses_workflow_name_only_owner(
         ),
     )
 
-    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+    bead_cli.handle_bead_work(make_args(epic_id, yes_to_all=True))
 
     assert len(launch_calls) == 1
     assert "%id(!" not in launch_calls[0]

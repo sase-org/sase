@@ -45,6 +45,7 @@ def resume_linked_epic(
     epic_id: str,
     authored_phase_ids: tuple[str, ...],
     yes: bool,
+    yes_to_all: bool,
     no_push: bool,
     render: bool,
     waves: tuple[tuple[str, ...], ...],
@@ -99,6 +100,7 @@ def resume_linked_epic(
                 dry_run=False,
                 yes=yes,
                 no_push=no_push,
+                yes_to_all=True,
                 defer_push=True,
                 before_agent_launch=publish_resumed_graph,
             )

@@ -44,6 +44,14 @@ def test_work_expected_name_container_conflict_aborts_before_mutation(
         return AgentNameWipeResult(target_name=name, found=False)
 
     monkeypatch.setattr("sase.agent.names.wipe_agent_name_for_reuse", fake_wipe)
+    monkeypatch.setattr(
+        "sase.agent.names.find_agent_clan",
+        lambda name: (
+            type("Clan", (), {"members": (object(),)})()
+            if name == conflict_name
+            else None
+        ),
+    )
     launched: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
@@ -57,7 +65,7 @@ def test_work_expected_name_container_conflict_aborts_before_mutation(
     )
 
     with pytest.raises(SystemExit) as excinfo:
-        bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+        bead_cli.handle_bead_work(make_args(epic_id, yes_to_all=True))
     assert excinfo.value.code == 1
 
     err = capsys.readouterr().err
@@ -78,7 +86,6 @@ def test_work_expected_name_container_conflict_aborts_before_mutation(
 @pytest.mark.parametrize(
     "failure_mode",
     [
-        pytest.param("unresolvable", id="unresolvable-family"),
         pytest.param("member-errors", id="member-wipe-errors"),
         pytest.param("residual-family", id="residual-family-reservation"),
     ],
@@ -106,7 +113,7 @@ def test_work_family_cleanup_failure_aborts_before_mutation(
                     SimpleNamespace(name=code_name, outcome=None),
                 )
             )
-            if name == family_name and failure_mode != "unresolvable"
+            if name == family_name
             else None
         ),
     )
@@ -152,7 +159,7 @@ def test_work_family_cleanup_failure_aborts_before_mutation(
     )
 
     with pytest.raises(SystemExit) as excinfo:
-        bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+        bead_cli.handle_bead_work(make_args(epic_id, yes_to_all=True))
     assert excinfo.value.code == 1
     assert launched == []
     with BeadProject(project_dir) as proj:
@@ -207,7 +214,7 @@ def test_work_force_reuse_cleanup_failure_aborts_before_mutation(
     )
 
     with pytest.raises(SystemExit) as excinfo:
-        bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+        bead_cli.handle_bead_work(make_args(epic_id, yes_to_all=True))
     assert excinfo.value.code == 1
 
     err = capsys.readouterr().err

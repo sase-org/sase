@@ -172,6 +172,12 @@ def test_work_retry_allows_legacy_epic_clan_container_skip(
         "sase.agent.names.get_reserved_clan_names",
         lambda: {epic_id},
     )
+    monkeypatch.setattr(
+        "sase.agent.names.find_agent_clan",
+        lambda name: (
+            type("Clan", (), {"members": (object(),)})() if name == epic_id else None
+        ),
+    )
     launched: list[tuple[str, Any]] = []
 
     def fake_launch(

@@ -89,7 +89,7 @@ def test_tracked_epic_launch_streams_and_backfills_metadata(tmp_path: Path) -> N
         agent_project_file=str(tmp_path / "demo.sase"),
     )
     reporter.run.assert_called_once_with(
-        ["sase", "bead", "work", str(plan), "--yes"],
+        ["sase", "bead", "work", str(plan), "--yes-to-all"],
         cwd=workspace,
     )
 
@@ -213,7 +213,8 @@ def test_tracked_epic_launch_reports_workspace_resolution_failure(
         SimpleNamespace(success=False, payload=None),
     )
     app.notify.assert_called_once_with(
-        f"See the Tasks tab for output. Resume with: sase bead work {plan} --yes",
+        f"See the Tasks tab for output. Resume with: "
+        f"sase bead work {plan} --yes-to-all",
         title="Epic launch failed",
         severity="error",
         timeout=15,

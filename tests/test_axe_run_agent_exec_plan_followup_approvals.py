@@ -46,7 +46,7 @@ def test_epic_fallback_streams_canonical_bead_work_command(tmp_path) -> None:
         )
 
     popen.assert_called_once_with(
-        ["sase", "bead", "work", plan_file, "--yes"],
+        ["sase", "bead", "work", plan_file, "--yes-to-all"],
         cwd=str(tmp_path),
         stdout=accept_mod.subprocess.PIPE,
         stderr=accept_mod.subprocess.STDOUT,

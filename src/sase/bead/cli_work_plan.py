@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from sase.bead.cli_work_cleanup import CleanupPreview
     from sase.bead.work import EpicWorkPlan
 
 
@@ -58,6 +60,42 @@ def print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> Non
         print(f"  Land waits on: {', '.join(plan.land_waits_on)}")
 
 
-def confirm_launch() -> bool:
-    answer = input("Launch these agents? [y/N] ").strip().lower()
+def render_cleanup_preview(epic_id: str, preview: CleanupPreview) -> None:
+    """Print an itemized destructive-cleanup preview to stderr."""
+    if not preview.has_destructive_targets:
+        return
+    print(
+        f"\nCleaning up existing agents before relaunching epic {epic_id}:",
+        file=sys.stderr,
+    )
+    action_order = {"KILL": 0, "REMOVE": 1, "RELEASE": 2}
+    for target in sorted(
+        preview.targets,
+        key=lambda item: (action_order[item.action], item.name),
+    ):
+        print(
+            f"  {target.action:<7} ({target.current_state}) "
+            f"{target.name}  {target.detail}",
+            file=sys.stderr,
+        )
+
+
+def _confirm(prompt: str) -> bool | None:
+    """Return ``None`` when confirmation cannot be requested interactively."""
+    if not sys.stdin.isatty():
+        return None
+    try:
+        answer = input(prompt).strip().lower()
+    except EOFError:
+        return False
     return answer in ("y", "yes")
+
+
+def confirm_cleanup() -> bool | None:
+    """Confirm destructive teardown, or return ``None`` for non-TTY stdin."""
+    return _confirm("Proceed with dismissing/killing these agents? [y/N] ")
+
+
+def confirm_launch() -> bool | None:
+    """Confirm launch, or return ``None`` for non-TTY stdin."""
+    return _confirm("Launch these agents? [y/N] ")

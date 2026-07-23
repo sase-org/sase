@@ -395,6 +395,7 @@ def _launch_scoped_epic(project: str, epic_id: str) -> bool:
             dry_run=False,
             yes=True,
             no_push=False,
+            yes_to_all=True,
         )
 
 

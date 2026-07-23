@@ -62,13 +62,16 @@ def make_args(
     *,
     dry_run: bool = False,
     yes: bool = False,
+    yes_to_all: bool = False,
     no_push: bool = False,
+    json_output: bool = False,
 ) -> Any:
     return argparse.Namespace(
         target=epic_id,
         dry_run=dry_run,
-        json=False,
+        json=json_output,
         yes=yes,
+        yes_to_all=yes_to_all,
         no_push=no_push,
     )
 

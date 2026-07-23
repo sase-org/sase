@@ -16,10 +16,11 @@ from typing import TYPE_CHECKING, Any
 
 from sase.bead.cli_common import get_project
 from sase.bead.cli_work_cleanup import (
+    CleanupPreview,
     ForcedReuseCleanupError,
     prepare_bead_work_force_reuse,
+    preview_bead_work_force_reuse,
     rollback_work_launch,
-    warn_force_reuse_collisions,
 )
 from sase.bead.cli_work_commit import commit_successful_work_launch
 from sase.bead.cli_work_context import (
@@ -28,11 +29,12 @@ from sase.bead.cli_work_context import (
 )
 from sase.bead.cli_work_launch import launch_bead_work_agents
 from sase.bead.cli_work_plan import (
+    confirm_cleanup,
     confirm_launch,
     expected_agent_names,
-    find_live_name_collisions,
     legacy_epic_cleanup_names,
     print_work_plan_summary,
+    render_cleanup_preview,
 )
 from sase.bead.model import BeadTier, IssueType
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
@@ -251,6 +253,7 @@ def handle_bead_work(args: argparse.Namespace) -> None:
     yes = bool(getattr(args, "yes", False))
     no_push = bool(getattr(args, "no_push", False))
     json_output = bool(getattr(args, "json", False))
+    yes_to_all = bool(getattr(args, "yes_to_all", False)) or json_output
     parent = getattr(args, "parent", None)
     target = str(getattr(args, "target", getattr(args, "id", "")))
 
@@ -272,7 +275,8 @@ def handle_bead_work(args: argparse.Namespace) -> None:
                 result = work_from_plan_file(
                     target,
                     dry_run=dry_run,
-                    yes=yes or json_output,
+                    yes=yes,
+                    yes_to_all=yes_to_all,
                     no_push=no_push,
                     parent=parent,
                     render=not json_output,
@@ -358,8 +362,9 @@ def handle_bead_work(args: argparse.Namespace) -> None:
                         proj,
                         target,
                         dry_run=dry_run,
-                        yes=yes or json_output,
+                        yes=yes,
                         no_push=no_push,
+                        yes_to_all=yes_to_all,
                         timer=timer,
                     )
             except BeadWorkError as exc:
@@ -411,6 +416,7 @@ def launch_epic_bead_work(
     dry_run: bool,
     yes: bool,
     no_push: bool,
+    yes_to_all: bool = False,
     defer_push: bool = False,
     before_agent_launch: Callable[[BeadProject, str], None] | None = None,
     timer: LaunchTimingRecorder | None = None,
@@ -430,6 +436,7 @@ def launch_epic_bead_work(
                 dry_run=dry_run,
                 yes=yes,
                 no_push=no_push,
+                yes_to_all=yes_to_all,
                 defer_push=defer_push,
                 before_agent_launch=before_agent_launch,
                 timer=owned_timer,
@@ -492,15 +499,45 @@ def launch_epic_bead_work(
         print(f"Epic {epic_id} is already ready; retrying remaining non-closed phases.")
     print_work_plan_summary(epic_id, issue.title, plan)
 
+    preview: CleanupPreview
+    try:
+        preview = preview_bead_work_force_reuse(
+            query,
+            expected_names=expected_agent_names(plan),
+            extra_cleanup_names=legacy_epic_cleanup_names(plan),
+        )
+    except ForcedReuseCleanupError as e:
+        raise BeadWorkError(str(e)) from e
+
     if dry_run:
-        warn_force_reuse_collisions(find_live_name_collisions(plan))
+        render_cleanup_preview(epic_id, preview)
         print("\n--- Multi-prompt (dry run) ---")
         print(query)
         return False
 
-    if not yes and not confirm_launch():
-        print("Aborted.")
-        return False
+    if preview.has_destructive_targets:
+        render_cleanup_preview(epic_id, preview)
+        if not yes_to_all:
+            cleanup_confirmation = confirm_cleanup()
+            if cleanup_confirmation is None:
+                raise BeadWorkError(
+                    "refusing destructive agent cleanup with non-interactive "
+                    "stdin; re-run with --yes-to-all to proceed non-interactively"
+                )
+            if not cleanup_confirmation:
+                print("Aborted.")
+                return False
+
+    if not (yes or yes_to_all):
+        launch_confirmation = confirm_launch()
+        if launch_confirmation is None:
+            raise BeadWorkError(
+                "refusing agent launch with non-interactive stdin; re-run with "
+                "--yes (or --yes-to-all) to proceed non-interactively"
+            )
+        if not launch_confirmation:
+            print("Aborted.")
+            return False
 
     with timer.stage("force_reuse_cleanup"):
         try:
