@@ -17,9 +17,11 @@ from sase.ace.tui.agent_completion import (
     status_style,
     visible_agent_completion_agents,
 )
+from sase.ace.tui.models import filter_agents_by_fold_state
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models._agent_tree import project_clan_tree
+from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
+from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
 from sase.core.machine_hood_facade import MachineHoodIdentity
 
 
@@ -412,6 +414,164 @@ def test_visible_agent_completion_agents_uses_visible_order_fallback(
     app = _FallbackOrderApp([first, second], None)
 
     assert visible_agent_completion_agents(app) == [second, first]
+
+
+def test_visible_agent_completion_agents_adds_collapsed_clan_lanes(
+    tmp_path: Path,
+) -> None:
+    standalone = _agent(
+        tmp_path,
+        agent_name="crew.solo",
+        raw_suffix="260624_120050",
+        cl_name="",
+        agent_clan="crew",
+        agent_clan_generation="generation",
+    )
+    family = _agent(
+        tmp_path,
+        agent_name="crew.family--plan",
+        raw_suffix="260624_120051",
+        cl_name="",
+        agent_clan="crew",
+        agent_clan_generation="generation",
+        agent_family="crew.family",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    family_member = _agent(
+        tmp_path,
+        agent_name="crew.family--code",
+        raw_suffix="260624_120052",
+        cl_name="",
+        agent_family="crew.family",
+        agent_family_role="code",
+        parent_timestamp=family.raw_suffix,
+    )
+    family.followup_agents.append(family_member)
+    unrelated = _agent(
+        tmp_path,
+        agent_name="unrelated",
+        raw_suffix="260624_120053",
+        cl_name="",
+    )
+    complete = project_clan_tree([standalone, family, family_member, unrelated])
+    fold_manager = FoldStateManager()
+    rendered, _fold_counts = filter_agents_by_fold_state(complete, fold_manager)
+    clan = next(agent for agent in complete if agent.is_clan_container)
+    clan_fold_key = agent_fold_key(clan)
+    assert clan_fold_key is not None
+    assert family.raw_suffix is not None
+    app = _CompletionApp(rendered, None)
+    app._agents_with_children = complete
+    app._fold_manager = fold_manager
+
+    roster = visible_agent_completion_agents(app)
+
+    assert roster == [clan, standalone, family, unrelated]
+    assert fold_manager.get(clan_fold_key) is FoldLevel.COLLAPSED
+    assert fold_manager.get(family.raw_suffix) is FoldLevel.COLLAPSED
+    candidates = build_agent_completion_candidates(roster)
+    clan_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate.kind == "clan" and candidate.name == "crew"
+    ]
+    assert len(clan_candidates) == 1
+    assert (
+        next(
+            candidate for candidate in candidates if candidate.name == "crew.solo"
+        ).kind
+        == "agent"
+    )
+    family_candidate = next(
+        candidate for candidate in candidates if candidate.name == "crew.family"
+    )
+    assert family_candidate.kind == "family"
+    assert family_candidate.member_count == 2
+    assert all(candidate.name != "crew.family--code" for candidate in candidates)
+
+
+def test_visible_agent_completion_agents_deduplicates_expanded_clan(
+    tmp_path: Path,
+) -> None:
+    first = _agent(
+        tmp_path,
+        agent_name="crew.first",
+        raw_suffix="260624_120060",
+        cl_name="",
+        agent_clan="crew",
+        agent_clan_generation="generation",
+    )
+    second = _agent(
+        tmp_path,
+        agent_name="crew.second",
+        raw_suffix="260624_120061",
+        cl_name="",
+        agent_clan="crew",
+        agent_clan_generation="generation",
+    )
+    complete = project_clan_tree([first, second])
+    clan = next(agent for agent in complete if agent.is_clan_container)
+    clan_fold_key = agent_fold_key(clan)
+    assert clan_fold_key is not None
+    fold_manager = FoldStateManager()
+    fold_manager.expand(clan_fold_key)
+    rendered, _fold_counts = filter_agents_by_fold_state(complete, fold_manager)
+    app = _CompletionApp(rendered, {0: [*rendered, first]})
+    app._agents_with_children = complete
+    app._fold_manager = fold_manager
+
+    roster = visible_agent_completion_agents(app)
+
+    assert roster == rendered
+    assert len({agent.identity for agent in roster}) == len(roster)
+
+
+def test_visible_agent_completion_agents_preserves_non_clan_visibility(
+    tmp_path: Path,
+) -> None:
+    visible = _agent(
+        tmp_path,
+        agent_name="eligible.visible",
+        raw_suffix="260624_120070",
+        agent_clan="crew",
+        agent_clan_generation="generation",
+    )
+    filtered = _agent(
+        tmp_path,
+        agent_name="outside.filtered",
+        raw_suffix="260624_120071",
+        agent_clan="other",
+        agent_clan_generation="generation",
+    )
+    starting = _agent(
+        tmp_path,
+        agent_name="eligible.starting",
+        raw_suffix="260624_120072",
+        status="STARTING",
+        agent_clan="crew",
+        agent_clan_generation="generation",
+    )
+    dismissed = _agent(
+        tmp_path,
+        agent_name="eligible.dismissed",
+        raw_suffix="260624_120073",
+        agent_clan="crew",
+        agent_clan_generation="generation",
+    )
+    complete = project_clan_tree([visible, filtered, starting, dismissed])
+    clan = next(
+        agent
+        for agent in complete
+        if agent.is_clan_container and agent.agent_clan == "crew"
+    )
+    app = _CompletionApp([clan], None)
+    app._agents_with_children = complete
+    app._fold_manager = FoldStateManager()
+    app._agent_search_query = "name:eligible"
+    app._dismissed_agents = {dismissed.identity}
+
+    assert visible_agent_completion_agents(app) == [clan, visible]
 
 
 def test_status_style_returns_rich_parseable_styles() -> None:
