@@ -10,7 +10,7 @@ from sase.ace.tui.actions.axe_display._loaders import AxeItemKey
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models.fold_state import FoldStateManager
 from sase.ace.tui.actions.axe_display._loaders import _axe_item_key
-from sase.ace.tui.actions.axe_config_actions import _PendingAxeSelection
+from sase.ace.tui.actions.axe_config_actions._mixin import _PendingAxeSelection
 from sase.ace.tui.widgets.bgcmd_list import AxeItem, ChopItem
 
 

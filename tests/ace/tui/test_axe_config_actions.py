@@ -7,13 +7,13 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import patch
 
-from sase.ace.tui.actions.axe_config_actions import (
-    AxeConfigActionsMixin,
-    _AxeAppliedConfigOutcome,
-    _AxeConfigActionInventory,
-    _axe_base_chop_identities,
+from sase.ace.tui.actions.axe_config_actions import AxeConfigActionsMixin
+from sase.ace.tui.actions.axe_config_actions._backend import (
+    AxeAppliedConfigOutcome,
+    AxeConfigActionInventory,
     _build_axe_editor_seed,
     _plan_axe_editor_request,
+    axe_base_chop_identities,
 )
 from sase.ace.tui.modals import (
     AxeEntryIdentity,
@@ -146,7 +146,7 @@ def test_edit_seed_maps_exact_scopes_contributions_and_provenance(
     tmp_path: Path,
 ) -> None:
     composition = _composition(tmp_path / "sase.yml")
-    inventory = _AxeConfigActionInventory(
+    inventory = AxeConfigActionInventory(
         composition,
         load_config_schema(),
         _empty_chop_inventory(),
@@ -170,11 +170,11 @@ def test_edit_seed_maps_exact_scopes_contributions_and_provenance(
     }
     assert seed.status == "disabled"
     assert seed.identity.generated_instance == "lint.rule[project=sase]"
-    assert _axe_base_chop_identities(composition) == {("checks.main", "lint.rule")}
+    assert axe_base_chop_identities(composition) == {("checks.main", "lint.rule")}
 
 
 def test_new_entry_seed_marks_only_intentional_initial_values(tmp_path: Path) -> None:
-    inventory = _AxeConfigActionInventory(
+    inventory = AxeConfigActionInventory(
         _composition(tmp_path / "sase.yml"),
         load_config_schema(),
         _empty_chop_inventory(),
@@ -230,7 +230,7 @@ def test_sparse_plan_projects_missing_script_warning_and_exact_diff(
             )
         ]
     )
-    inventory = _AxeConfigActionInventory(
+    inventory = AxeConfigActionInventory(
         composition,
         load_config_schema(),
         _empty_chop_inventory(),
@@ -244,7 +244,7 @@ def test_sparse_plan_projects_missing_script_warning_and_exact_diff(
         ),
     )
     with patch(
-        "sase.ace.tui.actions.axe_config_actions.discover_chop_script",
+        "sase.ace.tui.actions.axe_config_actions._backend.discover_chop_script",
         return_value=None,
     ):
         plan = _plan_axe_editor_request(
@@ -276,7 +276,8 @@ class _ActionHarness(AxeConfigActionsMixin):
 def test_action_opening_uses_cached_identity_without_sync_inventory_reads() -> None:
     app = _ActionHarness()
     with patch(
-        "sase.ace.tui.actions.axe_config_actions._load_axe_config_action_inventory"
+        "sase.ace.tui.actions.axe_config_actions._mixin."
+        "load_axe_config_action_inventory"
     ) as loader:
         app.action_add_axe_item()
     loader.assert_not_called()
@@ -340,7 +341,7 @@ def _editor_result(*, running: bool, restart: bool) -> AxeEntryEditorResult:
     )
     return AxeEntryEditorResult(
         identity=AxeEntryIdentity("lumberjack", "hooks"),
-        applied=_AxeAppliedConfigOutcome(applied, running),
+        applied=AxeAppliedConfigOutcome(applied, running),
         restart_requested=restart,
     )
 
