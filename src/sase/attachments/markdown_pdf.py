@@ -2,87 +2,42 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
-from html import escape
+from collections.abc import Iterable
 import json
 import logging
 import re
 import shutil
 import subprocess
-import tempfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any
 
-from sase.sdd.frontmatter import parse_frontmatter
-from sase.sdd.plan_properties import (
-    ordered_plan_property_items,
-    plan_property_label,
-    render_plan_value_lines,
+from sase.attachments._markdown_pdf_properties import (
+    escape_markdown_text as _escape_markdown_text,
+    plain_text_lines as _plain_text_lines,
+    preprocess_markdown_source as _preprocess_markdown_source_impl,
+    properties_card_markup as _properties_card_markup,
+)
+from sase.attachments._markdown_pdf_rendering import (
+    DEFAULT_PANDOC_TIMEOUT_SECONDS,
+    MAX_MARKDOWN_PDF_ATTACHMENTS,
+    MOBILE_MARKDOWN_PDF_PROFILE,
+    PDF_ENGINES,
+    SUPPORTED_MARKDOWN_EXTENSIONS,
+    MarkdownPdfProfile,
+    MarkdownPdfProgressCallback,
+    MarkdownPdfProgressEvent,
+    MarkdownPdfRecord,
+    css_for_profile as _css_for_profile,
+    css_path_for_profile as _css_path_for_profile,
+    default_markdown_pdf_css_path as _default_markdown_pdf_css_path,
+    find_available_engines as _find_available_engines,
+    launch_preview_css_path as _launch_preview_css_path,
+    pandoc_cmd as _pandoc_cmd,
+    sase_syntax_definition_path as _sase_syntax_definition_path,
+    temporary_pdf_path as _temporary_pdf_path,
 )
 
 log = logging.getLogger(__name__)
-
-SUPPORTED_MARKDOWN_EXTENSIONS = frozenset({".md", ".markdown"})
-MAX_MARKDOWN_PDF_ATTACHMENTS = 10
-PDF_ENGINES = ("wkhtmltopdf", "xelatex", "pdflatex")
-DEFAULT_PANDOC_TIMEOUT_SECONDS = 120
-_PDF_PAGE_WIDTH = "4.25in"
-_PDF_PAGE_HEIGHT = "7in"
-_PDF_MARGIN = "0.22in"
-_PDF_BODY_FONT_SIZE = "12pt"
-_PDF_CSS_FONT_SIZE = "16px"
-_PDF_LINE_STRETCH = "1.32"
-_DEFAULT_CSS_FILENAME = "markdown_pdf.css"
-_LAUNCH_PREVIEW_CSS_FILENAME = "launch_preview.css"
-_SASE_SYNTAX_DEFINITION_FILENAME = "sase.xml"
-
-
-@dataclass(frozen=True)
-class MarkdownPdfProfile:
-    """Page and typography settings for Markdown PDF rendering."""
-
-    page_width: str
-    page_height: str
-    margin: str
-    css_font_size: str
-    latex_font_size: str
-    line_stretch: str = _PDF_LINE_STRETCH
-
-
-MOBILE_MARKDOWN_PDF_PROFILE = MarkdownPdfProfile(
-    page_width=_PDF_PAGE_WIDTH,
-    page_height=_PDF_PAGE_HEIGHT,
-    margin=_PDF_MARGIN,
-    css_font_size=_PDF_CSS_FONT_SIZE,
-    latex_font_size=_PDF_BODY_FONT_SIZE,
-)
-
-
-@dataclass(frozen=True)
-class MarkdownPdfRecord:
-    """Source-to-artifact mapping for a generated Markdown PDF."""
-
-    source_path: str
-    pdf_path: str
-
-
-@dataclass(frozen=True)
-class MarkdownPdfProgressEvent:
-    """Progress update emitted while rendering Markdown PDFs."""
-
-    stage: str
-    source_path: str | None = None
-    pdf_path: str | None = None
-    engine: str | None = None
-    index: int | None = None
-    total: int | None = None
-    generated: int | None = None
-    skipped: int | None = None
-    reason: str | None = None
-
-
-MarkdownPdfProgressCallback = Callable[[MarkdownPdfProgressEvent], None]
 
 
 def render_markdown_pdf_attachments(
@@ -422,70 +377,6 @@ def _emit_progress(
         log.debug("Markdown PDF progress callback failed", exc_info=True)
 
 
-def _find_available_engines() -> list[str]:
-    """Return installed PDF engines in preferred order."""
-    return [engine for engine in PDF_ENGINES if shutil.which(engine)]
-
-
-def _pandoc_cmd(
-    pandoc: str,
-    source: Path,
-    dest: Path,
-    engine: str,
-    css_path: Path | None,
-    profile: MarkdownPdfProfile = MOBILE_MARKDOWN_PDF_PROFILE,
-    *,
-    title: str,
-    syntax_definitions: Iterable[Path] = (),
-    include_auto_title: bool = True,
-) -> list[str]:
-    """Build a conservative pandoc command for Markdown-to-PDF conversion."""
-    cmd = [
-        pandoc,
-        str(source),
-        "-o",
-        str(dest),
-        f"--pdf-engine={engine}",
-        "--highlight-style=tango",
-    ]
-    for syntax_definition in syntax_definitions:
-        cmd.append(f"--syntax-definition={syntax_definition}")
-    if engine == "wkhtmltopdf":
-        if css_path is not None and css_path.is_file():
-            cmd.append(f"--css={css_path}")
-        cmd += [
-            "--pdf-engine-opt=--page-width",
-            f"--pdf-engine-opt={profile.page_width}",
-            "--pdf-engine-opt=--page-height",
-            f"--pdf-engine-opt={profile.page_height}",
-            "--pdf-engine-opt=--margin-top",
-            f"--pdf-engine-opt={profile.margin}",
-            "--pdf-engine-opt=--margin-right",
-            f"--pdf-engine-opt={profile.margin}",
-            "--pdf-engine-opt=--margin-bottom",
-            f"--pdf-engine-opt={profile.margin}",
-            "--pdf-engine-opt=--margin-left",
-            f"--pdf-engine-opt={profile.margin}",
-        ]
-        if include_auto_title:
-            cmd += ["--metadata", f"title={title}"]
-    else:
-        cmd += [
-            "-V",
-            (
-                "geometry:"
-                f"paperwidth={profile.page_width},"
-                f"paperheight={profile.page_height},"
-                f"margin={profile.margin}"
-            ),
-            "-V",
-            f"fontsize={profile.latex_font_size}",
-            "-V",
-            f"linestretch={profile.line_stretch}",
-        ]
-    return cmd
-
-
 def _preprocess_markdown_source(
     source: Path,
     directory: Path,
@@ -493,194 +384,12 @@ def _preprocess_markdown_source(
     include_properties: bool,
 ) -> tuple[Path, str, Path | None]:
     """Replace YAML frontmatter with a rendered Properties card when enabled."""
-    title = source.stem
-    if not include_properties:
-        return source, title, None
-
-    content = source.read_text(encoding="utf-8")
-    frontmatter, body, had_frontmatter = parse_frontmatter(content)
-    if not had_frontmatter or not frontmatter:
-        return source, title, None
-
-    if "title" in frontmatter:
-        title = str(frontmatter["title"])
-    card = _properties_card_markup(frontmatter)
-    temporary_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            prefix=f".{source.stem}.properties.",
-            suffix=source.suffix,
-            dir=directory,
-            mode="w",
-            encoding="utf-8",
-            delete=False,
-        ) as tmp:
-            temporary_path = Path(tmp.name)
-            tmp.write(f"{card}\n\n{body}")
-    except Exception:
-        if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
-        raise
-    return temporary_path, title, temporary_path
-
-
-def _properties_card_markup(frontmatter: Mapping[str, Any]) -> str:
-    """Render a self-contained, HTML-safe frontmatter Properties card."""
-    rows = [
-        (plan_property_label(key), render_plan_value_lines(value))
-        for key, value in ordered_plan_property_items(frontmatter)
-    ]
-    container_style = (
-        "background:#f6f8fa;border:1px solid #d8dee4;border-radius:4px;"
-        "box-sizing:border-box;margin:0 0 1em;overflow:hidden;padding:0;"
+    return _preprocess_markdown_source_impl(
+        source,
+        directory,
+        include_properties=include_properties,
+        properties_card_markup=_properties_card_markup,
     )
-    heading_style = (
-        "background:#eef1f4;border-bottom:1px solid #d8dee4;color:#111827;"
-        "font-size:0.95em;font-weight:700;letter-spacing:0.01em;"
-        "padding:0.5em 0.65em;"
-    )
-    table_style = (
-        "border:0;border-collapse:collapse;margin:0;table-layout:fixed;width:100%;"
-    )
-    label_style = (
-        "border:0;color:#57606a;font-size:0.82em;font-weight:600;"
-        "padding:0.42em 0.65em;text-align:left;vertical-align:top;width:28%;"
-    )
-    value_style = "border:0;color:#1f2328;padding:0.42em 0.65em;vertical-align:top;"
-    line_style = "line-height:1.3;margin:0;white-space:pre-wrap;"
-    row_style = "border-top:1px solid #d8dee4;break-inside:avoid;"
-
-    html_markup = [
-        (
-            '<div class="sase-properties" aria-label="Properties" '
-            f'style="{container_style}">'
-        ),
-        (
-            '<div class="sase-properties__heading" '
-            f'style="{heading_style}">Properties</div>'
-        ),
-        f'<table class="sase-properties__table" style="{table_style}">',
-        "<tbody>",
-    ]
-    for label, value_lines in rows:
-        html_markup.extend(
-            [
-                f'<tr class="sase-properties__row" style="{row_style}">',
-                (
-                    '<th class="sase-properties__label" scope="row" '
-                    f'style="{label_style}">{escape(label, quote=True)}</th>'
-                ),
-                (f'<td class="sase-properties__value" style="{value_style}">'),
-            ]
-        )
-        for line in value_lines:
-            escaped_line = escape(line, quote=True) or "&#160;"
-            html_markup.append(
-                '<div class="sase-properties__value-line" '
-                f'style="{line_style}">{escaped_line}</div>'
-            )
-        html_markup.extend(["</td>", "</tr>"])
-    html_markup.extend(["</tbody>", "</table>", "</div>"])
-
-    fallback_markup = [
-        '::: {.sase-properties-fallback style="display:none;"}',
-        "",
-        "**Properties**",
-        "",
-    ]
-    for label, value_lines in rows:
-        fallback_markup.append(f"**{_escape_markdown_text(label)}:**  ")
-        rendered_value = False
-        for line in value_lines:
-            for physical_line in _plain_text_lines(line):
-                physical_line = physical_line.lstrip()
-                if not physical_line:
-                    continue
-                fallback_markup.append(f"{_escape_markdown_text(physical_line)}  ")
-                rendered_value = True
-        if not rendered_value:
-            fallback_markup.append("—  ")
-        fallback_markup.append("")
-    fallback_markup.append(":::")
-    return "\n".join(
-        [
-            "```{=html}",
-            *html_markup,
-            "```",
-            "",
-            *fallback_markup,
-        ]
-    )
-
-
-def _plain_text_lines(value: str) -> list[str]:
-    """Split arbitrary property text into safe physical fallback lines."""
-    return value.splitlines() or [""]
-
-
-def _escape_markdown_text(value: str) -> str:
-    """Escape arbitrary property text for the native Markdown fallback."""
-    return re.sub(r"""([!"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~])""", r"\\\1", value)
-
-
-def _default_markdown_pdf_css_path() -> Path:
-    return Path(__file__).with_name(_DEFAULT_CSS_FILENAME)
-
-
-def _launch_preview_css_path() -> Path:
-    return Path(__file__).with_name(_LAUNCH_PREVIEW_CSS_FILENAME)
-
-
-def _sase_syntax_definition_path() -> Path:
-    return Path(__file__).with_name(_SASE_SYNTAX_DEFINITION_FILENAME)
-
-
-def _css_path_for_profile(profile: MarkdownPdfProfile, directory: Path) -> Path:
-    if profile == MOBILE_MARKDOWN_PDF_PROFILE:
-        return _default_markdown_pdf_css_path()
-
-    with tempfile.NamedTemporaryFile(
-        prefix=".markdown-pdf-profile.",
-        suffix=".css",
-        dir=directory,
-        mode="w",
-        encoding="utf-8",
-        delete=False,
-    ) as tmp:
-        tmp.write(_css_for_profile(profile))
-        return Path(tmp.name)
-
-
-def _css_for_profile(profile: MarkdownPdfProfile) -> str:
-    css = _default_markdown_pdf_css_path().read_text(encoding="utf-8")
-    css = css.replace(
-        f"size: {_PDF_PAGE_WIDTH} {_PDF_PAGE_HEIGHT};",
-        f"size: {profile.page_width} {profile.page_height};",
-        1,
-    )
-    css = css.replace(f"margin: {_PDF_MARGIN};", f"margin: {profile.margin};", 1)
-    css = css.replace(
-        f"font-size: {_PDF_CSS_FONT_SIZE};",
-        f"font-size: {profile.css_font_size};",
-        2,
-    )
-    css = css.replace(
-        f"line-height: {_PDF_LINE_STRETCH};",
-        f"line-height: {profile.line_stretch};",
-        1,
-    )
-    return css
-
-
-def _temporary_pdf_path(dest: Path) -> Path:
-    """Reserve a same-directory temporary PDF path for atomic replacement."""
-    with tempfile.NamedTemporaryFile(
-        prefix=f".{dest.stem}.",
-        suffix=".pdf",
-        dir=dest.parent,
-        delete=False,
-    ) as tmp:
-        return Path(tmp.name)
 
 
 def _pdf_filename_for_source(source: Path, workspace: Path) -> str:
