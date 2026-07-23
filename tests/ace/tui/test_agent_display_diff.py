@@ -342,7 +342,7 @@ def test_same_position_row_change_patches_without_panel_rebuild(
     assert app._agent_detail_debouncer.is_pending
 
 
-def test_row_patch_refreshes_family_hole_panel_title_without_rebuild(
+def test_row_patch_refreshes_family_lane_panel_title_without_rebuild(
     monkeypatch: Any,
 ) -> None:
     planner = _agent(

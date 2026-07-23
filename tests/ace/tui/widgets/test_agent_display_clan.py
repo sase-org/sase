@@ -223,7 +223,7 @@ def test_clan_header_uses_same_unread_aggregate_as_list_row() -> None:
     assert "Status: DONE [U1 D1]\n" in detail.plain
 
 
-def test_clan_family_and_standalone_render_as_two_direct_holes() -> None:
+def test_clan_family_and_standalone_render_as_two_direct_lanes() -> None:
     family_name = "research.writer"
     planner = make_clan_agent(
         f"{family_name}--plan",

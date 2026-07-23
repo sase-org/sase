@@ -68,7 +68,7 @@ def test_grouping_badge_renders_by_project_when_unset() -> None:
     assert f"[group: by project ({_DEFAULT_GROUPING_KEY})]" in plain
 
 
-def test_agent_hole_headline_renders_before_concrete_metrics() -> None:
+def test_agent_lane_headline_renders_before_concrete_metrics() -> None:
     panel = AgentInfoPanel()
     panel._position = 2
     panel._total = 12
@@ -78,7 +78,7 @@ def test_agent_hole_headline_renders_before_concrete_metrics() -> None:
     panel._waiting_count = 2
     panel._failed_count = 1
     panel._read_count = 0
-    panel._agent_hole_count = 12
+    panel._agent_lane_count = 12
 
     plain = _collect_text(panel)
 
@@ -114,7 +114,7 @@ def test_agent_count_strip_reports_starting_separately() -> None:
 
 def test_agent_count_numbers_have_rich_styles() -> None:
     panel = AgentInfoPanel()
-    panel._agent_hole_count = 20
+    panel._agent_lane_count = 20
     panel._asking_count = 31
     panel._starting_count = 37
     panel._running_count = 42
@@ -231,7 +231,7 @@ def test_agent_count_strip_omits_metrics_section_when_all_counts_are_zero() -> N
 
 def test_runner_capacity_chip_exact_copy_and_zero_queue_visibility() -> None:
     panel = AgentInfoPanel()
-    panel._agent_hole_count = 12
+    panel._agent_lane_count = 12
     panel._runner_slots_in_use = 8
     panel._runner_limit = 10
     panel._runner_queue_count = 0
@@ -285,7 +285,7 @@ def test_runner_capacity_chip_styles_below_at_and_above_limit() -> None:
 
 def test_neighbor_badge_is_omitted_without_visible_neighbors() -> None:
     panel = AgentInfoPanel()
-    panel._agent_hole_count = 5
+    panel._agent_lane_count = 5
     panel._neighbor_count = 0
 
     plain = _collect_text(panel)
@@ -295,7 +295,7 @@ def test_neighbor_badge_is_omitted_without_visible_neighbors() -> None:
 
 def test_neighbor_badge_renders_single_visible_neighbor() -> None:
     panel = AgentInfoPanel()
-    panel._agent_hole_count = 5
+    panel._agent_lane_count = 5
     panel._neighbor_count = 1
 
     plain = _collect_text(panel)
@@ -305,7 +305,7 @@ def test_neighbor_badge_renders_single_visible_neighbor() -> None:
 
 def test_neighbor_badge_renders_multiple_visible_neighbors_with_styles() -> None:
     panel = AgentInfoPanel()
-    panel._agent_hole_count = 5
+    panel._agent_lane_count = 5
     panel._neighbor_count = 3
 
     text = _collect_rich_text(panel)
@@ -320,7 +320,7 @@ def test_neighbor_badge_uses_active_keymap_registry() -> None:
         panel.set_keymap_registry(
             load_keymap_registry({"keymaps": {"app": {"start_sibling_mode": "f2"}}})
         )
-    panel._agent_hole_count = 5
+    panel._agent_lane_count = 5
     panel._neighbor_count = 2
 
     plain = _collect_text(panel)
@@ -369,7 +369,7 @@ def test_count_strip_suppressed_while_loading() -> None:
     panel._waiting_count = 2
     panel._failed_count = 1
     panel._read_count = 2
-    panel._agent_hole_count = 12
+    panel._agent_lane_count = 12
 
     plain = _collect_text(panel)
 
@@ -389,7 +389,7 @@ def _stable_state_kwargs(**overrides: object) -> dict[str, object]:
         "waiting": 0,
         "failed": 0,
         "read": 0,
-        "agent_hole_count": 5,
+        "agent_lane_count": 5,
         "starting": 0,
         "neighbor_count": 0,
         "countdown": 5,
@@ -405,12 +405,12 @@ def _stable_state_kwargs(**overrides: object) -> dict[str, object]:
     return base
 
 
-def test_update_state_renders_supplied_agent_hole_count_unchanged() -> None:
+def test_update_state_renders_supplied_agent_lane_count_unchanged() -> None:
     panel = AgentInfoPanel()
     with patch.object(panel, "update"):
         panel.update_state(
             **_stable_state_kwargs(
-                agent_hole_count=4,
+                agent_lane_count=4,
                 running=3,
                 read=3,
             )

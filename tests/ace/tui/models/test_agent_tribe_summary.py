@@ -112,7 +112,7 @@ def test_snapshot_preserves_mixed_unit_order_and_aggregates_loaded_rows() -> Non
     ]
     assert snapshot.clan_count == 1
     assert snapshot.family_count == 1
-    assert snapshot.hole_count == 3
+    assert snapshot.lane_count == 3
     assert snapshot.nested_count == 2
     assert snapshot.runtime_span == "1h"
     assert snapshot.counts.failed == 1
@@ -204,7 +204,7 @@ def test_family_unit_counts_and_children_use_concrete_planner_projection() -> No
         "Done",
         "Running",
     ]
-    assert snapshot.hole_count == 1
+    assert snapshot.lane_count == 1
     assert snapshot.nested_count == 2
 
 
@@ -229,7 +229,7 @@ def test_workflow_unit_counts_agent_steps_once_and_never_as_nested() -> None:
         now=_NOW,
     )
 
-    assert snapshot.hole_count == 1
+    assert snapshot.lane_count == 1
     assert snapshot.nested_count == 0
     assert snapshot.counts.done == 1
     assert [child.identity for child in snapshot.units[0].children] == [
@@ -269,7 +269,7 @@ def test_finished_family_projects_all_members_to_done() -> None:
     assert family.status_counts.done == 2
     assert snapshot.counts.running == 0
     assert snapshot.counts.done == 1
-    assert snapshot.hole_count == 1
+    assert snapshot.lane_count == 1
     assert snapshot.nested_count == 1
 
 
@@ -385,7 +385,7 @@ def test_local_machine_clan_with_family_projects_to_one_presented_unit() -> None
     assert [unit.label for unit in snapshot.units] == ["sase-8t"]
 
 
-def test_reference_tribe_counts_six_hole_statuses_and_eight_nested() -> None:
+def test_reference_tribe_counts_six_lane_statuses_and_eight_nested() -> None:
     agents: list[Agent] = []
     for index in range(4):
         root = _agent(
@@ -441,7 +441,7 @@ def test_reference_tribe_counts_six_hole_statuses_and_eight_nested() -> None:
     )
 
     assert snapshot.family_count == 4
-    assert snapshot.hole_count == 6
+    assert snapshot.lane_count == 6
     assert snapshot.nested_count == 8
     assert snapshot.counts.running == 2
     assert snapshot.counts.done == 4

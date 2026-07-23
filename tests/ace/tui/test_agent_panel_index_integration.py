@@ -353,12 +353,12 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     # Position uses the selectable (rendered) top-level total, which excludes
     # the hidden STARTING row.
     assert info_panel.position == (0, 6)
-    # The hole headline includes six rendered standalone holes plus the one
-    # hidden top-level STARTING hole (still one in the ``starting`` bucket).
+    # The lane headline includes six rendered standalone lanes plus the one
+    # hidden top-level STARTING lane (still one in the ``starting`` bucket).
     assert info_panel.counts == (1, 1, 1, 1, 1, 2, 0, 7)
 
 
-def test_info_panel_mixed_family_and_clan_uses_hole_headline() -> None:
+def test_info_panel_mixed_family_and_clan_uses_lane_headline() -> None:
     standalone = _agent(suffix="standalone", status="DONE")
     family_root, family_member = _sequential_family(suffix="family")
     clan_family_root, clan_family_member = _sequential_family(
@@ -385,12 +385,12 @@ def test_info_panel_mixed_family_and_clan_uses_hole_headline() -> None:
     info_panel = _run_info_panel(bare)
 
     assert info_panel.position == (1, 3)
-    # Four holes: standalone, family, and two direct clan members. The status
+    # Four lanes: standalone, family, and two direct clan members. The status
     # buckets classify those same four owners.
     assert info_panel.counts == (0, 0, 0, 2, 1, 0, 1, 4)
 
 
-def test_info_panel_hole_headline_ignores_grouping_and_fold_presentation() -> None:
+def test_info_panel_lane_headline_ignores_grouping_and_fold_presentation() -> None:
     family_root, family_member = _sequential_family(suffix="family")
     bare = _Bare([family_root, family_member])
 
@@ -478,7 +478,7 @@ def test_info_panel_projects_parallel_family_member_statuses() -> None:
     assert info_panel.position == (1, 5)
     # Family STARTING contributes to running, terminal members split by their
     # own unread identities, and each family's members replace its root in the
-    # headline hole total. The serial child is excluded from both projections.
+    # headline lane total. The serial child is excluded from both projections.
     assert info_panel.counts == (1, 0, 0, 7, 7, 0, 1, 16)
 
 

@@ -692,16 +692,16 @@ The Agents tab is laid out as a series of vertically-stacked side panels, one pe
 without a stored tribe live in the reserved `@default` panel; an explicit `default` assignment converges on the same
 panel, so the UI never creates a duplicate default bucket. `@default` is derived for presentation and is not backfilled
 into `agent_meta.json` or `agent_tribes.json`; clearing a user-managed tribe returns the agent to this panel. Every
-tribe renders as `@<tribe>` with an agent-hole count in the panel title. One standalone agent or one sequential family
-is one hole, and a rootless clan contributes one hole per direct member rather than one for its synthetic container.
+tribe renders as `@<tribe>` with an agent-lane count in the panel title. One standalone agent or one sequential family
+is one lane, and a rootless clan contributes one lane per direct member rather than one for its synthetic container.
 Per-tribe icons, identity colors, and initial expansion are configurable through
 [`ace.tribes`](configuration.md#acetribes); the special `default` entry styles the reserved panel, and explicit panel
 folds are remembered and override the configured initial state. Identity colors apply only to the icon and `@tribe`
 name, leaving selection, fold, and status chrome in its semantic palette. Each panel title can also show compact scoped
 metrics in the form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R` is running, `W` is waiting to start, `F`
 is failed, `U` is unread terminal work, and `D` is done/read terminal work. Zero-count metrics are omitted. The status
-metrics use the same holes as the adjacent total and classify a sequential family once from its normalized owner status.
-The selected whole-panel `TRIBE` header uses that same hole projection, while its nested count and per-family/per-clan
+metrics use the same lanes as the adjacent total and classify a sequential family once from its normalized owner status.
+The selected whole-panel `TRIBE` header uses that same lane projection, while its nested count and per-family/per-clan
 member summaries preserve the concrete-member distinction. On the selected whole panel, the title marker, total,
 brackets, and metric letters use the focus accent; each numeric metric count retains its semantic status color. Panel
 heights are sized to their content and separated by a one-row gap. When the panels fit, the first panel grows to absorb
@@ -819,7 +819,7 @@ kind without an additional icon. A clan is a selectable synthetic container, nev
 in an azure `<name>`; ordinary agent annotations and lone plan proposers with only their display-only planner child
 remain gold. Clan `@tribe` labels follow the orchid name. A clan's outer fold is binary: from a collapsed clan row,
 press `l` once to reveal its direct agents, family rows, and visible workflow rows. The clan row's fold count and status
-chrome count those direct clan holes once; nested family or workflow members do not inflate them. To reveal descendants
+chrome count those direct clan lanes once; nested family or workflow members do not inflate them. To reveal descendants
 within a family or workflow, move to that row and press `l` there; pressing `l` again on the clan row itself has no
 effect. `h` collapses the focused structural row one level at a time and re-anchors to a visible owner when necessary.
 Sequential family members use `--<suffix>` names and run one after another. Killing or dismissing a clan row cascades to
@@ -897,12 +897,12 @@ visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
 session mode is always visible after the cycle toast fades. After the first scan, the header starts with the visible
-agent-hole total `N`. One standalone agent or one sequential family is one hole, regardless of whether the family is
-folded. A rootless clan container contributes no hole itself; each direct clan member contributes one, and a direct
-member that is a sequential family still contributes only one. A hidden top-level `STARTING` agent contributes one hole
+agent-lane total `N`. One standalone agent or one sequential family is one lane, regardless of whether the family is
+folded. A rootless clan container contributes no lane itself; each direct clan member contributes one, and a direct
+member that is a sequential family still contributes only one. A hidden top-level `STARTING` agent contributes one lane
 even though it is not selectable yet. Grouping mode, tribe ownership, and fold state do not change this projection.
 
-The hole total is followed by an always-visible capacity chip in the form `[R/L · Q queued]`: `R` is the global number
+The lane total is followed by an always-visible capacity chip in the form `[R/L · Q queued]`: `R` is the global number
 of slot-participating user agents currently holding runner slots, `L` is the current effective `max_running_agents`
 limit (temporary override first, configured value second), and `Q` counts live waiters governed by that effective cap.
 Slot participants are top-level user agents—including every clan member launched independently—plus parallel family
@@ -912,14 +912,14 @@ at the limit, and red above it; a nonzero queue count is violet.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with numeric counts in place of the
-letters and zero-count metrics omitted. These buckets classify the same holes as the leading total, using a sequential
-family's normalized owner status instead of counting historical members separately. `stopped` counts holes paused for
-plan approval, questions, or workflow human-input steps; `starting` counts just-launched holes that have not yet
-surfaced as visible rows; `running` excludes waiting, failed, and stopped holes; `waiting` is the blocked/queued subset;
-`failed` is terminal failed work; `unread` counts terminal holes that still need acknowledgement; and `done` is
+letters and zero-count metrics omitted. These buckets classify the same lanes as the leading total, using a sequential
+family's normalized owner status instead of counting historical members separately. `stopped` counts lanes paused for
+plan approval, questions, or workflow human-input steps; `starting` counts just-launched lanes that have not yet
+surfaced as visible rows; `running` excludes waiting, failed, and stopped lanes; `waiting` is the blocked/queued subset;
+`failed` is terminal failed work; `unread` counts terminal lanes that still need acknowledgement; and `done` is
 completed visible work that has already been acknowledged. Nested family/clan member summaries remain concrete. The
 position/navigation denominator is a separate count: rendered selectable roots, where a clan container is one row and a
-hidden `STARTING` hole is excluded. During startup the header renders `Agents: …` until the first agent scan has loaded,
+hidden `STARTING` lane is excluded. During startup the header renders `Agents: …` until the first agent scan has loaded,
 avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping; cycling only changes the current
 session.
 

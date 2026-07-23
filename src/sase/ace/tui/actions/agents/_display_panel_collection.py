@@ -113,7 +113,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         tribe_display = tribe_display_for(key)
         return agent_panel_border_title(
             key,
-            counts.hole_count,
+            counts.lane_count,
             merge_tribe_panels=merge_tribe_panels,
             counts=counts,
             collapsed=panel_collapsed,

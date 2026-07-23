@@ -249,8 +249,8 @@ async def test_tribe_panel_four_level_png_snapshots(
         assert_page_svg_contains(page, "@epic")
         tribe_summary = page.app._focused_tribe_summary()
         assert tribe_summary is not None
-        assert tribe_summary.hole_count == 2
-        assert_page_svg_contains(page, "holes")
+        assert tribe_summary.lane_count == 2
+        assert_page_svg_contains(page, "lanes")
         assert_page_svg_contains(page, "NEEDS ATTENTION")
         assert page.app._member_jump_maps[("panel", "epic")].targets
         ace_png_visual.assert_page_png(

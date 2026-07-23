@@ -185,15 +185,15 @@ def agent_summary_status_counts(
     return _status_counts_for_projections(projected)
 
 
-def agent_hole_status_counts(
+def agent_lane_status_counts(
     agents: Iterable[Agent],
     unread_ids: Collection[tuple[AgentType, str, str | None]],
 ) -> _AgentSummaryStatusCounts:
-    """Project containers into deduplicated agent-hole status counts."""
+    """Project containers into deduplicated agent-lane status counts."""
     projected = _dedupe_summary_projections(
         projection
         for agent in agents
-        for projection in _hole_summary_projections(agent, unread_ids)
+        for projection in _lane_summary_projections(agent, unread_ids)
     )
     return _status_counts_for_projections(projected)
 
@@ -244,7 +244,7 @@ def agent_status_projections(
     return tuple(projection.status for projection in projected)
 
 
-def _hole_summary_projections(
+def _lane_summary_projections(
     agent: Agent,
     unread_ids: Collection[tuple[AgentType, str, str | None]],
     *,
@@ -254,7 +254,7 @@ def _hole_summary_projections(
         return tuple(
             projection
             for member in clan_members(agent)
-            for projection in _hole_summary_projections(
+            for projection in _lane_summary_projections(
                 member,
                 unread_ids,
                 projected_from_container=True,
@@ -383,7 +383,7 @@ def _dedupe_summary_projections(
 
 __all__ = [
     "ClanStatusCounts",
-    "agent_hole_status_counts",
+    "agent_lane_status_counts",
     "agent_status_projections",
     "agent_summary_status_counts",
     "aggregate_clan_status",

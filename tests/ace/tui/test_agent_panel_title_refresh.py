@@ -258,9 +258,9 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    # Loaded legacy parallel-family members remain individual holes and replace
+    # Loaded legacy parallel-family members remain individual lanes and replace
     # the aggregate root status in each chip. Serial descendants add neither a
-    # hole nor a concrete status projection.
+    # lane nor a concrete status projection.
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
         "@apple · 6 [R3 W1 U1 D1]"
     )

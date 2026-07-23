@@ -9,7 +9,7 @@ from typing import Literal
 
 from sase.agent.status_buckets import status_bucket_for_values
 from ._agent_clan import (
-    agent_hole_status_counts,
+    agent_lane_status_counts,
     agent_status_projections,
     agent_summary_status_counts,
     aggregate_clan_status,
@@ -128,7 +128,7 @@ class AgentTribeSummarySnapshot:
     counts: TribeStatusCounts
     clan_count: int
     family_count: int
-    hole_count: int
+    lane_count: int
     nested_count: int
     runtime_span: str
     units: tuple[_TribeUnitSnapshot, ...]
@@ -262,11 +262,11 @@ def _status_counts(
     )
 
 
-def _hole_status_counts(
+def _lane_status_counts(
     rows: Sequence[Agent],
     unread_ids: Collection[AgentIdentity],
 ) -> tuple[TribeStatusCounts, int]:
-    counts = agent_hole_status_counts(rows, unread_ids)
+    counts = agent_lane_status_counts(rows, unread_ids)
     return (
         TribeStatusCounts(
             stopped=counts.stopped,
@@ -422,17 +422,17 @@ def build_agent_tribe_summary_snapshot(
         else 0
         for root in roots
     )
-    hole_counts, hole_count = _hole_status_counts(roots, unread_ids)
+    lane_counts, lane_count = _lane_status_counts(roots, unread_ids)
     return AgentTribeSummarySnapshot(
         panel_key=panel_key,
         container_identity=_tribe_panel_identity(panel_key),
         label=_panel_label(panel_key),
         panel_collapsed=panel_collapsed,
         status=status,
-        counts=hole_counts,
+        counts=lane_counts,
         clan_count=sum(unit.kind == "clan" for unit in units),
         family_count=len(family_identities),
-        hole_count=hole_count,
+        lane_count=lane_count,
         nested_count=nested_count,
         runtime_span=_runtime_span(real_rows, now=reference),
         units=units,

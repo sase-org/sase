@@ -13,7 +13,7 @@ from ...agent_count_chip import (
     AGENT_COUNT_CHIP_NEUTRAL_STYLE,
     format_agent_count_chip,
 )
-from ...models._agent_clan import agent_hole_status_counts
+from ...models._agent_clan import agent_lane_status_counts
 from ...models._agent_tree import agent_is_tree_child
 from ...models.agent_panels import agent_panel_label
 
@@ -38,9 +38,9 @@ _PANEL_METRIC_LABELS: tuple[tuple[str, str], ...] = tuple(
 
 @dataclass(frozen=True)
 class AgentPanelCounts:
-    """Hole total and status counts for one rendered panel."""
+    """Lane total and status counts for one rendered panel."""
 
-    hole_count: int = 0
+    lane_count: int = 0
     asking: int = 0
     running: int = 0
     waiting: int = 0
@@ -64,12 +64,12 @@ def agent_panel_counts(
     visible_top_level_agents = [
         agent for agent in agents if not agent_is_tree_child(agent)
     ]
-    projected = agent_hole_status_counts(
+    projected = agent_lane_status_counts(
         visible_top_level_agents,
         unread_ids,
     )
     return AgentPanelCounts(
-        hole_count=projected.total,
+        lane_count=projected.total,
         asking=projected.stopped,
         running=projected.running,
         waiting=projected.waiting,
@@ -81,7 +81,7 @@ def agent_panel_counts(
 
 def agent_panel_border_title(
     key: PanelKey,
-    hole_count: int,
+    lane_count: int,
     *,
     merge_tribe_panels: bool = False,
     counts: AgentPanelCounts | None = None,
@@ -117,7 +117,7 @@ def agent_panel_border_title(
         title.append("↺", style=_PANEL_ISOLATION_RESTORE_STYLE)
     title.append(" · ", style=_PANEL_COUNT_STYLE)
     title.append(
-        str(hole_count),
+        str(lane_count),
         style=_PANEL_SELECTED_CHROME_STYLE if selected else _PANEL_COUNT_STYLE,
     )
     if counts is not None:

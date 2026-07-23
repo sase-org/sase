@@ -1,11 +1,11 @@
-"""Concrete-agent and agent-hole status counter projection tests."""
+"""Concrete-agent and agent-lane status counter projection tests."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
 from sase.ace.tui.models._agent_clan import (
-    agent_hole_status_counts,
+    agent_lane_status_counts,
     agent_summary_status_counts,
 )
 from sase.ace.tui.models._agent_tree import project_clan_tree
@@ -56,37 +56,37 @@ def _active_family(*, clan: str | None = None) -> tuple[Agent, Agent]:
     return planner, coder
 
 
-def test_agent_holes_count_each_standalone_agent() -> None:
+def test_agent_lanes_count_each_standalone_agent() -> None:
     agents = (
         _agent("alpha", "RUNNING", role="solo"),
         _agent("beta", "DONE", role="solo"),
     )
 
-    assert agent_hole_status_counts(agents, ()).total == 2
+    assert agent_lane_status_counts(agents, ()).total == 2
 
 
-def test_agent_holes_keep_sequential_family_as_one_hole() -> None:
+def test_agent_lanes_keep_sequential_family_as_one_lane() -> None:
     planner, _coder = _active_family()
 
-    counts = agent_hole_status_counts((planner,), ())
+    counts = agent_lane_status_counts((planner,), ())
     assert counts.total == 1
     assert counts.running == 1
     assert agent_summary_status_counts((planner,), ()).total == 2
 
 
-def test_agent_holes_count_clan_direct_members_without_family_descendants() -> None:
+def test_agent_lanes_count_clan_direct_members_without_family_descendants() -> None:
     planner, coder = _active_family(clan="research")
     standalone = _agent("research-audit", "WAITING", role="solo", clan="research")
     container = project_clan_tree([planner, coder, standalone])[0]
 
-    counts = agent_hole_status_counts((container,), ())
+    counts = agent_lane_status_counts((container,), ())
     assert counts.total == 2
     assert counts.running == 1
     assert counts.waiting == 1
     assert agent_summary_status_counts((container,), ()).total == 3
 
 
-def test_agent_holes_dedupe_stable_identities_across_clans_and_panels() -> None:
+def test_agent_lanes_dedupe_stable_identities_across_clans_and_panels() -> None:
     first = _agent("shared", "RUNNING", role="solo", clan="first")
     second = _agent("shared", "DONE", role="solo", clan="second")
     panel_duplicate = _agent("shared", "WAITING", role="solo")
@@ -94,19 +94,19 @@ def test_agent_holes_dedupe_stable_identities_across_clans_and_panels() -> None:
     second_container = project_clan_tree([second])[0]
 
     assert (
-        agent_hole_status_counts(
+        agent_lane_status_counts(
             (first_container, second_container, panel_duplicate), ()
         ).total
         == 1
     )
 
 
-def test_agent_hole_statuses_dedupe_terminal_owner_and_unread_state() -> None:
+def test_agent_lane_statuses_dedupe_terminal_owner_and_unread_state() -> None:
     read = _agent("shared", "DONE", role="solo")
     unread = _agent("shared", "DONE", role="solo", clan="second")
     container = project_clan_tree([unread])[0]
 
-    counts = agent_hole_status_counts(
+    counts = agent_lane_status_counts(
         (read, container, unread),
         {unread.identity},
     )
@@ -116,7 +116,7 @@ def test_agent_hole_statuses_dedupe_terminal_owner_and_unread_state() -> None:
     assert counts.done == 0
 
 
-def test_agent_holes_preserve_legacy_parallel_family_projection() -> None:
+def test_agent_lanes_preserve_legacy_parallel_family_projection() -> None:
     root = _agent("parallel", "WAITING", role="root", parallel=True)
     members = [
         _agent(
@@ -131,16 +131,16 @@ def test_agent_holes_preserve_legacy_parallel_family_projection() -> None:
     root.runtime_children.extend(members)
     unloaded = _agent("unloaded", "WAITING", role="root", parallel=True)
 
-    loaded_counts = agent_hole_status_counts((root,), ())
+    loaded_counts = agent_lane_status_counts((root,), ())
     assert loaded_counts.total == 3
     assert loaded_counts.running == 3
     assert agent_summary_status_counts((root,), ()).total == 3
-    unloaded_counts = agent_hole_status_counts((unloaded,), ())
+    unloaded_counts = agent_lane_status_counts((unloaded,), ())
     assert unloaded_counts.total == 1
     assert unloaded_counts.waiting == 1
 
 
-def test_agent_hole_screenshot_cardinality_is_31_for_56_concrete_agents() -> None:
+def test_agent_lane_screenshot_cardinality_is_31_for_56_concrete_agents() -> None:
     family_root = _agent("large--plan", "DONE", role="plan")
     family_members = [
         _agent(
@@ -158,15 +158,15 @@ def test_agent_hole_screenshot_cardinality_is_31_for_56_concrete_agents() -> Non
     ]
     top_level = (family_root, *standalones)
 
-    hole_counts = agent_hole_status_counts(top_level, ())
+    lane_counts = agent_lane_status_counts(top_level, ())
     concrete_counts = agent_summary_status_counts(top_level, ())
-    assert hole_counts.total == 31
-    assert hole_counts.done == 31
+    assert lane_counts.total == 31
+    assert lane_counts.done == 31
     assert concrete_counts.total == 56
     assert concrete_counts.done == 56
 
 
-def test_finished_multi_member_family_is_one_done_hole() -> None:
+def test_finished_multi_member_family_is_one_done_lane() -> None:
     root = _agent("alpha--plan", "DONE", role="plan")
     members = [
         _agent(
@@ -180,18 +180,18 @@ def test_finished_multi_member_family_is_one_done_hole() -> None:
     root.runtime_children.extend(members)
     root.followup_agents.extend(members)
 
-    counts = agent_hole_status_counts((root,), ())
+    counts = agent_lane_status_counts((root,), ())
 
     assert counts.total == 1
     assert counts.done == 1
 
 
-def test_nested_starting_hole_rolls_up_to_running() -> None:
+def test_nested_starting_lane_rolls_up_to_running() -> None:
     member = _agent("research-starting", "STARTING", role="solo", clan="research")
     container = project_clan_tree([member])[0]
 
-    top_level = agent_hole_status_counts((member,), ())
-    nested = agent_hole_status_counts((container,), ())
+    top_level = agent_lane_status_counts((member,), ())
+    nested = agent_lane_status_counts((container,), ())
 
     assert top_level.total == 1
     assert top_level.running == 0
