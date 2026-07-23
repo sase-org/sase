@@ -1,4 +1,4 @@
-"""Tests for the PRs-tab onboarding widget."""
+"""Tests for the Artifacts-tab onboarding widget."""
 
 from __future__ import annotations
 
@@ -16,7 +16,8 @@ def test_changespec_onboarding_content_includes_docs_lifecycle_and_storage() -> 
     sections = ChangeSpecOnboarding.render_content(load_keymap_registry({}))
     rendered = "\n".join(text.plain for text in sections.values())
 
-    assert "Your agents' work, shipped as PRs" in rendered
+    assert "Everything your agents produce, in one place" in rendered
+    assert "Browse commits, plans, bugs & PRs" in rendered
     assert "https://sase.sh/change_spec/" in rendered
     assert "https://sase.sh/vcs/" in rendered
     assert "https://sase.sh/plugins/" in rendered
@@ -29,16 +30,32 @@ def test_changespec_onboarding_uses_active_keymap_registry() -> None:
     registry = load_keymap_registry(
         {
             "keymaps": {
-                "app": {"prev_tab": "f2"},
+                "app": {
+                    "prev_tab": "f2",
+                    "cycle_artifacts_subtab_reverse": "f3",
+                    "cycle_artifacts_subtab": "f4",
+                    "pick_artifacts_project": "f5",
+                },
                 "modes": {"leader_mode": {"keys": {"show_help": "f1"}}},
             }
         }
     )
 
     sections = ChangeSpecOnboarding.render_content(registry)
+    tabs_text = _section_plain(sections, "#changespec-onboarding-tabs")
     how_text = _section_plain(sections, "#changespec-onboarding-how")
     learn_text = _section_plain(sections, "#changespec-onboarding-learn")
 
+    positions = {
+        label: tabs_text.index(label) for label in ("Commits", "Plans", "Bugs", "PRs")
+    }
+    assert (
+        positions["Commits"] < positions["Plans"] < positions["Bugs"] < positions["PRs"]
+    )
+    for key in ("f3", "f4", "f5"):
+        assert key in tabs_text
+    assert "cycle views" in tabs_text
+    assert "pick project scope" in tabs_text
     assert "f2" in how_text
     assert "shift+tab" not in how_text
     assert "f1" in learn_text

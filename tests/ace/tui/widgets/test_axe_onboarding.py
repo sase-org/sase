@@ -22,10 +22,12 @@ def test_axe_onboarding_content_describes_axe_chops_bgcmds_and_docs() -> None:
     assert "start or stop Axe (with the Axe row selected)" in rendered
     assert "lumberjack" in rendered
     assert "chops" in rendered
-    assert "Choose a source scope" in rendered
-    assert "raw YAML for compound fields" in rendered
-    assert "Generated rows edit their base chop" in rendered
-    assert "save & restart reconciles immediately" in rendered
+    assert "add a lumberjack or chop" in rendered
+    assert "edit the selected AXE config" in rendered
+    assert (
+        "Run history keeps each chop's status, duration, and captured output"
+        in rendered
+    )
     assert "open recorded output" in rendered
     assert "runs any shell command in a background slot" in rendered
     assert "kill the selected running command" in rendered

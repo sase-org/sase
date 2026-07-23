@@ -73,6 +73,8 @@ def test_agent_onboarding_inspect_card_uses_active_keymap_registry() -> None:
 
     for key in ("f1", "f2", "f3", "f4", "f5"):
         assert key in inspect_text
+    assert "Watch a running agent live" in inspect_text
+    assert "when it finishes, review its transcript" in inspect_text
     assert "open a finished agent's chat transcript" in inspect_text
     assert "jump to the PR it produced" in inspect_text
     assert "browse artifact files" in inspect_text

@@ -1,4 +1,4 @@
-"""On-demand guide for the PRs tab."""
+"""On-demand guide for the Artifacts tab."""
 
 from __future__ import annotations
 
@@ -9,6 +9,11 @@ from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
+from ..artifact_tabs import (
+    ARTIFACTS_ACCENTS,
+    ARTIFACTS_SUBTAB_ORDER,
+    ArtifactsSubTab,
+)
 from ...display_helpers import get_status_color
 from ..keymaps import (
     KeymapRegistry,
@@ -27,10 +32,16 @@ _CHANGESPEC_DOCS_URL = "https://sase.sh/change_spec/"
 _VCS_DOCS_URL = "https://sase.sh/vcs/"
 _PLUGINS_DOCS_URL = "https://sase.sh/plugins/"
 _LIFECYCLE: tuple[str, ...] = ("WIP", "Draft", "Ready", "Mailed", "Submitted")
+_ARTIFACT_DESCRIPTIONS: dict[ArtifactsSubTab, str] = {
+    "commits": "Trace committed work across projects.",
+    "plans": "Review plans, proposals, epics, and beads.",
+    "bugs": "Track issues and launch fixes.",
+    "prs": "Inspect ChangeSpecs and move PRs through review.",
+}
 
 
 class ChangeSpecOnboarding(VerticalScroll):
-    """In-depth PRs tab guide shown by the Help panel."""
+    """In-depth Artifacts tab guide shown by the Help panel."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -43,6 +54,14 @@ class ChangeSpecOnboarding(VerticalScroll):
             id="changespec-onboarding-hero",
             classes="changespec-onboarding-hero",
         )
+
+        tabs = Static(
+            self._build_tabs_card(self._registry),
+            id="changespec-onboarding-tabs",
+            classes="changespec-onboarding-card",
+        )
+        tabs.border_title = "The four views"
+        yield tabs
 
         what = Static(
             self._build_what_card(),
@@ -65,7 +84,7 @@ class ChangeSpecOnboarding(VerticalScroll):
             id="changespec-onboarding-queue",
             classes="changespec-onboarding-card",
         )
-        queue.border_title = "Work the queue"
+        queue.border_title = "Work the PRs pane"
         yield queue
 
         learn = Static(
@@ -104,6 +123,9 @@ class ChangeSpecOnboarding(VerticalScroll):
         """
         return {
             "#changespec-onboarding-hero": ChangeSpecOnboarding._build_hero(),
+            "#changespec-onboarding-tabs": ChangeSpecOnboarding._build_tabs_card(
+                registry
+            ),
             "#changespec-onboarding-what": ChangeSpecOnboarding._build_what_card(),
             "#changespec-onboarding-how": ChangeSpecOnboarding._build_how_card(
                 registry
@@ -120,18 +142,66 @@ class ChangeSpecOnboarding(VerticalScroll):
     def _build_hero() -> Text:
         text = Text(justify="center")
         text.append("*  ", style="bold #FFD700")
-        text.append("Your agents' work, shipped as PRs", style="bold #FFFFFF")
+        text.append(
+            "Everything your agents produce, in one place",
+            style="bold #FFFFFF",
+        )
         text.append("  *\n", style="bold #FFD700")
         text.append(
-            "Every PR your agents produce, tracked in one place",
+            "Browse commits, plans, bugs & PRs without leaving Artifacts",
             style=f"dim {_ACCENT}",
         )
+        return text
+
+    @staticmethod
+    def _artifact_label(subtab: ArtifactsSubTab) -> str:
+        return subtab.upper() if subtab == "prs" else subtab.title()
+
+    @classmethod
+    def _append_artifact_row(
+        cls,
+        text: Text,
+        subtab: ArtifactsSubTab,
+    ) -> None:
+        text.append(
+            f" {cls._artifact_label(subtab)} ",
+            style=f"bold {ARTIFACTS_ACCENTS[subtab]}",
+        )
+        text.append("  ")
+        text.append(_ARTIFACT_DESCRIPTIONS[subtab])
+        text.append("\n")
+
+    @classmethod
+    def _build_tabs_card(cls, registry: KeymapRegistry) -> Text:
+        app = registry.app
+        text = Text()
+        append_section_heading(text, "Know what each view shows", accent=_ACCENT)
+        for subtab in ARTIFACTS_SUBTAB_ORDER:
+            cls._append_artifact_row(text, subtab)
+        text.append("Jump directly:")
+        for index, subtab in enumerate(ARTIFACTS_SUBTAB_ORDER, start=1):
+            append_keycap(text, str(index))
+            text.append(cls._artifact_label(subtab))
+        text.append("\n")
+        append_keycap(
+            text,
+            key_display_name(app.cycle_artifacts_subtab_reverse),
+        )
+        text.append("/")
+        append_keycap(text, key_display_name(app.cycle_artifacts_subtab))
+        text.append("cycle views.")
+        append_keycap(text, key_display_name(app.pick_artifacts_project))
+        text.append("pick project scope.")
         return text
 
     @classmethod
     def _build_what_card(cls) -> Text:
         text = Text()
-        append_section_heading(text, "One ChangeSpec = one PR", accent=_ACCENT)
+        append_section_heading(
+            text,
+            "In the PRs view, one ChangeSpec = one PR",
+            accent=_ACCENT,
+        )
         text.append(
             "Each tracks the full life of a change: commits, hook runs, "
             "review comments, mentors, and status."
@@ -158,7 +228,7 @@ class ChangeSpecOnboarding(VerticalScroll):
         append_section_heading(text, "Agents create them for you", accent=_ACCENT)
         text.append(
             "Launch an agent against a project or PR and its work is registered "
-            "here automatically."
+            "in the PRs view automatically."
         )
         text.append("\n")
         text.append(

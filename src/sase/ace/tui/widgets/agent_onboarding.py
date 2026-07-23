@@ -256,6 +256,12 @@ class AgentOnboarding(VerticalScroll):
         app = registry.app
         text = Text()
         append_section_heading(text, "Read what happened", accent=_AGENTS_ACCENT)
+        text.append(
+            "Watch a running agent live; when it finishes, review its transcript "
+            "or jump to its PR.",
+            style="dim",
+        )
+        text.append("\n")
         append_keycap(text, key_display_name(app.next_changespec))
         text.append("/")
         append_keycap(text, key_display_name(app.prev_changespec))

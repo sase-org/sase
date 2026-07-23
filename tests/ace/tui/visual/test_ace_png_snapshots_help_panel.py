@@ -137,7 +137,7 @@ async def test_help_guide_changespecs_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The PRs guide remains available inside the Help panel's Guide tab."""
+    """The Artifacts guide remains available inside the Help panel's Guide tab."""
     patch_startup_loaders(monkeypatch)
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -155,10 +155,10 @@ async def test_help_guide_changespecs_png_snapshot(
             ),
         )
 
-        assert_page_svg_contains(page, "shipped as PRs")
-        assert_page_svg_contains(page, "One ChangeSpec = one PR")
+        assert_page_svg_contains(page, "Everything your agents produce")
+        assert_page_svg_contains(page, "Know what each view shows")
         ace_png_visual.assert_page_png(
             page,
             "help_guide_changespecs_120x40",
-            title="ACE Help panel guide (PRs)",
+            title="ACE Help panel guide (Artifacts)",
         )
