@@ -38,9 +38,8 @@ phases:
   - id: smoke
     title: End-to-end GC smoke exercises
     depends_on: [cli]
-    size: small
+    size: xsmall
     description: "'End-to-end GC smoke exercises' section: exercise successful and guarded cleanup."
-    model: haiku
 ---
 # Plan: Descriptive title
 
@@ -50,16 +49,20 @@ Describe the implementation.
 Phase IDs must be unique slugs. Dependencies may only name earlier-listed phases; do not use self, duplicate, unknown,
 or forward references. Give every phase a `description` that names its section in the plan body and briefly summarizes
 that section; do not reference the plan file itself because `sase bead show` already displays it. Every phase must
-declare `size: small | medium | large`. Use `small` for focused work that can be implemented directly. Use `medium`
-for substantial work that can still be implemented directly from its phase description. Use `large` for work that
-needs a separate planning handoff and may itself justify an epic plan. Small and medium phase agents implement
-directly; only large phase agents create a plan before implementation. By default, phase size also selects the model
-capability appropriate for the work, unless that phase has an explicit `model` override.
+declare `size: xsmall | small | medium | large | xlarge`. Use `xsmall` only for the very simplest tasks that need
+almost no reasoning, such as launching SASE agents purely to observe their output while testing a SASE agent feature.
+Use `small` for focused work implemented directly. Use `medium` for substantial work still implemented directly from
+its phase description. Use `large` for work that needs a separate planning handoff and may itself justify an epic plan.
+Use `xlarge` rarely: it admits the task is too large to plan effectively alone, or deliberately defers planning part of
+a feature until other parts are implemented; choose it only when fairly confident the phase agent will itself author an
+epic plan. Only `large` and `xlarge` phases receive `#plan` and create a plan before implementation; `xsmall`, `small`,
+and `medium` phase agents implement directly. By default, phase size also selects the model capability appropriate for
+the work, unless that phase has an explicit `model` override.
 
-A phase's `model` is optional. Only set it when the user's prompt requested a specific model, or when that phase's agent
-does not do real consequential work (for example, a phase that exercises or tests the feature itself). An explicit phase
-model is allowed for every size and always takes precedence over the size-derived default. The optional top-level
-`model` selects the tale's coder follow-up or the epic's land agent."""
+A phase's `model` is optional. Set it explicitly only when the user's prompt requested a specific model. For a phase
+that only exercises or observes a SASE agent feature and does no consequential work, use `size: xsmall` instead of a
+cheap model override. An explicit phase model is allowed for every size and always takes precedence over the
+size-derived default. The optional top-level `model` selects the tale's coder follow-up or the epic's land agent."""
 
 INVALID_PLAN_TIER_HINT = (
     "Set a valid `tier: tale` or `tier: epic` property in the plan frontmatter."
