@@ -583,9 +583,10 @@ def rebuild_name_registry() -> dict[str, Any]:
     """Rebuild the registry by scanning existing artifacts and dismissed bundles."""
     with _registry_mutation_lock():
         entries: dict[str, dict[str, Any]] = {}
+        identity = MachineHoodIdentity.current()
         _collect_planned_reservation_entries(entries, _read_registry(_registry_path()))
-        _collect_artifact_entries(entries)
-        _collect_dismissed_bundle_entries(entries)
+        _collect_artifact_entries(entries, identity)
+        _collect_dismissed_bundle_entries(entries, identity)
         data = _registry_data(entries)
         _write_registry(_registry_path(), data)
         _set_cache(_registry_path(), data)

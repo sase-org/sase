@@ -31,6 +31,7 @@ from sase.agent.names import (
     reserve_registered_template_names,
 )
 from sase.agent.names import _registry
+from sase.core.machine_hood_facade import MachineHoodIdentity
 
 from tests._agent_names_fixtures import make_agent as _make_agent
 
@@ -235,6 +236,47 @@ def test_configured_registry_rebuild_preserves_qualified_auto_prefix(
     assert {"athena.1", "athena.1.plan"} <= set(data["entries"])
     assert "1" not in data["entries"]
     assert data["entries"]["athena.1"]["reservation_kind"] == "auto_prefix"
+
+
+def test_registry_rebuild_resolves_one_identity_snapshot_for_all_sources(
+    tmp_path: Path,
+) -> None:
+    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    _make_agent(tmp_path, "proj", "run1", "athena.1.plan")
+    _make_agent(tmp_path, "proj", "run2", "2.plan")
+    _write_bundle(
+        tmp_path,
+        "20260508120000.json",
+        {
+            "agent_name": "zeus.worker",
+            "raw_suffix": "20260508120000",
+        },
+    )
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch.object(
+            MachineHoodIdentity,
+            "current",
+            return_value=identity,
+        ) as current_identity,
+    ):
+        data = rebuild_name_registry()
+
+    assert current_identity.call_count == 1
+    assert {
+        "athena.1",
+        "athena.1.plan",
+        "2",
+        "2.plan",
+        "zeus.worker",
+    } <= set(data["entries"])
+    assert "1" not in data["entries"]
+    assert "athena.2" not in data["entries"]
+    assert "athena.zeus.worker" not in data["entries"]
+    assert data["entries"]["athena.1"]["reservation_kind"] == "auto_prefix"
+    assert data["entries"]["2"]["reservation_kind"] == "auto_prefix"
+    assert data["entries"]["zeus.worker"]["source"] == "dismissed_bundle"
 
 
 def test_registry_rebuild_stays_under_sase_home(monkeypatch, tmp_path: Path) -> None:

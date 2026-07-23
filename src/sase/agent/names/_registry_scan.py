@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.agent.names._common import extract_auto_name_prefix
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_home, sase_projects_dir, sase_subdir
+
+if TYPE_CHECKING:
+    from sase.core.machine_hood_facade import MachineHoodIdentity
 
 
 def source_signature_paths() -> list[Path]:
@@ -67,7 +70,14 @@ def collect_planned_reservation_entries(
         entries[name] = dict(entry)
 
 
-def collect_artifact_entries(entries: dict[str, dict[str, Any]]) -> None:
+def collect_artifact_entries(
+    entries: dict[str, dict[str, Any]],
+    identity: MachineHoodIdentity | None = None,
+) -> None:
+    if identity is None:
+        from sase.core.machine_hood_facade import MachineHoodIdentity
+
+        identity = MachineHoodIdentity.current()
     projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
         return
@@ -113,10 +123,17 @@ def collect_artifact_entries(entries: dict[str, dict[str, Any]]) -> None:
                 names = _names_from_payloads(meta, done)
                 if family is not None:
                     names.discard(family)
-                _add_owner_names(entries, names, owner)
+                _add_owner_names(entries, names, owner, identity)
 
 
-def collect_dismissed_bundle_entries(entries: dict[str, dict[str, Any]]) -> None:
+def collect_dismissed_bundle_entries(
+    entries: dict[str, dict[str, Any]],
+    identity: MachineHoodIdentity | None = None,
+) -> None:
+    if identity is None:
+        from sase.core.machine_hood_facade import MachineHoodIdentity
+
+        identity = MachineHoodIdentity.current()
     bundles_dir = sase_subdir("dismissed_bundles")
     if not bundles_dir.is_dir():
         return
@@ -137,24 +154,23 @@ def collect_dismissed_bundle_entries(entries: dict[str, dict[str, Any]]) -> None
         names = _names_from_payloads(bundle, None, bundle_name_keys=True)
         if family is not None:
             names.discard(family)
-        _add_owner_names(entries, names, owner)
+        _add_owner_names(entries, names, owner, identity)
 
 
 def _add_owner_names(
     entries: dict[str, dict[str, Any]],
     names: set[str],
     owner: dict[str, Any],
+    identity: MachineHoodIdentity,
 ) -> None:
     from sase.core.machine_hood_facade import (
-        MachineHoodIdentity,
         qualify_local_agent_name,
         strip_local_agent_name,
     )
 
-    identity = MachineHoodIdentity.current()
     for name in names:
         _add_owner_name(entries, name, owner, reservation_kind="claimed")
-        prefix = extract_auto_name_prefix(name)
+        prefix = extract_auto_name_prefix(name, identity=identity)
         if prefix is None:
             continue
         # A rebuild preserves the spelling already stored in the artifact.

@@ -6,11 +6,17 @@ lookup, migration, and old dismissed-bundle compatibility still need to parse
 names produced by the previous dismissal-prefix model.
 """
 
+from __future__ import annotations
+
 import json
 import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sase.core.machine_hood_facade import MachineHoodIdentity
 
 
 class AgentRefError(Exception):
@@ -32,14 +38,18 @@ _AUTO_NAME_PREFIX_RE = re.compile(r"^([a-z0-9]+)\.")
 DISMISSED_NAME_PREFIX_RE = re.compile(r"^(\d{6})\.")
 
 
-def extract_auto_name_prefix(*values: object) -> str | None:
+def extract_auto_name_prefix(
+    *values: object,
+    identity: MachineHoodIdentity | None = None,
+) -> str | None:
     """Return the longest auto-name prefix before the first ``.`` in any value."""
     from sase.core.machine_hood_facade import (
         MachineHoodIdentity,
         strip_local_agent_name,
     )
 
-    identity = MachineHoodIdentity.current()
+    if identity is None:
+        identity = MachineHoodIdentity.current()
     best: str | None = None
     for v in values:
         if not isinstance(v, str):
