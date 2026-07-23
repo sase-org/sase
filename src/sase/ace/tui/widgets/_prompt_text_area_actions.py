@@ -278,7 +278,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
         self._vcs_mru_index = None
         bar = self._find_prompt_bar()
         if bar:
-            bar._handle_text_submission(self.text)
+            bar._handle_text_submission(self.text, self)
 
     def action_submit_prompt_stack(self) -> None:
         """Submit the whole prompt stack as one multi-prompt via the chooser."""
@@ -290,7 +290,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
         self._vcs_mru_index = None
         bar = self._find_prompt_bar()
         if bar:
-            bar._handle_whole_stack_submission()
+            bar._handle_whole_stack_submission(self)
 
     def action_open_prompt_history(self) -> None:
         """Request prompt history, filtered by the current single-line prompt."""

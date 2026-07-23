@@ -2525,10 +2525,15 @@ exist, the prompt border shows a matching deep-navy-on-gold `TODO N` count pill 
 full prompt stack, including compact inactive panes and markers outside the active viewport. The pill disappears
 immediately when the last marker is edited away.
 
-TODO treatment is presentation only: it does not move the cursor during history or stash restoration, and ACE stashes,
-opens in `$EDITOR`, submits, and launches the literal prompt text unchanged. Only the colon-terminated body-note color
-follows the active dark or light theme, while the shared deep-navy-on-gold header and count pill remain fixed; search
-matches, selections, yank feedback, and the cursor retain their higher-priority treatments.
+TODO treatment does not move the cursor during history or stash restoration, and ACE stashes and opens the literal
+prompt text in `$EDITOR` unchanged. Submitting an agent prompt with one or more visible TODO markers opens a neutral y/n
+confirmation with **Keep editing** focused by default. Keeping the draft preserves the exact prompt or prompt stack
+without launching or writing history; approving launches the same literal prompt text unchanged. The warning uses the
+same detector as the gold marker and count pill, so TODO-shaped text in inline or fenced code, lowercase `todo`, and
+non-boundary identifiers such as `TODOS`, `TODO2`, and `preTODO` do not trigger it. Feedback and coder-prompt submission
+keep their existing unguarded behavior. Only the colon-terminated body-note color follows the active dark or light
+theme, while the shared deep-navy-on-gold header and count pill remain fixed; search matches, selections, yank feedback,
+and the cursor retain their higher-priority treatments.
 
 ### Prompt Stacks
 
@@ -2581,8 +2586,10 @@ In prompt NORMAL mode, pressing `g` opens a small hint row for the prompt-local 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane so local xprompts and metadata
 continue to resolve. Empty selected panes are dropped without launching. Whole-stack submission joins panes in
 top-to-bottom order and then uses the usual multi-agent launch path, including `%wait`, `%id`, `%model`, and other
-segment-local directives. Segment order alone does not make later agents wait; add `%wait` to the later pane when it
-must start after an earlier agent succeeds.
+segment-local directives. A selected-pane TODO warning counts only that pane; a whole-stack warning counts visible
+markers across all non-empty submitted panes. Choosing **Keep editing**, `n`, `Escape`, or `q` leaves pane order,
+selection, frontmatter, and source binding intact. Segment order alone does not make later agents wait; add `%wait` to
+the later pane when it must start after an earlier agent succeeds.
 
 The `Enter` submit chooser accepts `a` or `Ctrl+S` for all panes, `c` for the current pane, and `Esc`/`q` to cancel
 without changing the stack. Outside that chooser, `Ctrl+S` is always an active-pane stash shortcut.
