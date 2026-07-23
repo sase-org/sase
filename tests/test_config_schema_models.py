@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from jsonschema import Draft7Validator
 
-from tests._config_schema_helpers import format_schema_error, schema, with_machine_name
+from tests._config_schema_helpers import format_schema_error, schema
 
 
 def test_config_schema_rejects_worker_models_mapping() -> None:
@@ -23,7 +23,7 @@ def test_config_schema_rejects_worker_models_mapping() -> None:
     }
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
+        Draft7Validator(public_schema).iter_errors(config),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -41,7 +41,7 @@ def test_config_schema_rejects_obsolete_default_model_field() -> None:
     config = {"llm_provider": {"default_model": "claude/opus"}}
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
+        Draft7Validator(public_schema).iter_errors(config),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -75,7 +75,7 @@ def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> Non
     }
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
+        Draft7Validator(public_schema).iter_errors(config),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -98,7 +98,7 @@ def test_config_schema_accepts_described_custom_model_aliases() -> None:
     }
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
+        Draft7Validator(public_schema).iter_errors(config),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -127,7 +127,7 @@ def test_config_schema_accepts_model_alias_buckets() -> None:
     }
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
+        Draft7Validator(public_schema).iter_errors(config),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -152,7 +152,7 @@ def test_config_schema_accepts_custom_alias_coalesced_into_coders_bucket() -> No
     }
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
+        Draft7Validator(public_schema).iter_errors(config),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -179,7 +179,7 @@ def test_config_schema_accepts_custom_alias_coalesced_into_phase_worker_bucket()
     }
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
+        Draft7Validator(public_schema).iter_errors(config),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -196,7 +196,7 @@ def test_config_schema_rejects_unknown_model_alias_bucket_metadata_key() -> None
         }
     }
 
-    errors = list(Draft7Validator(public_schema).iter_errors(with_machine_name(config)))
+    errors = list(Draft7Validator(public_schema).iter_errors(config))
 
     assert any(
         "Additional properties are not allowed" in error.message for error in errors
@@ -242,7 +242,7 @@ def test_config_schema_rejects_bad_custom_model_aliases(
     }
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
+        Draft7Validator(public_schema).iter_errors(config),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -254,7 +254,7 @@ def test_config_schema_rejects_flat_model_alias_entry() -> None:
     config = {"llm_provider": {"model_aliases": {"coder": "@default"}}}
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
+        Draft7Validator(public_schema).iter_errors(config),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -280,7 +280,7 @@ def test_config_schema_rejects_top_level_custom_model_aliases() -> None:
     }
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
+        Draft7Validator(public_schema).iter_errors(config),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -297,7 +297,7 @@ def test_config_schema_rejects_legacy_worker_model_field() -> None:
     config = {"llm_provider": {"worker_model": "codex/gpt-5.6-sol"}}
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
+        Draft7Validator(public_schema).iter_errors(config),
         key=lambda error: list(error.absolute_path),
     )
 

@@ -8,11 +8,11 @@ import pytest
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import ValidationError
 
-from tests._config_schema_helpers import schema, with_machine_name
+from tests._config_schema_helpers import schema
 
 
 def _validate(config: dict[str, Any]) -> None:
-    Draft7Validator(schema()).validate(with_machine_name(config))
+    Draft7Validator(schema()).validate(config)
 
 
 def test_config_schema_accepts_script_chops_and_compound_durations() -> None:

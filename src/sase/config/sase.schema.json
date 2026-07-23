@@ -3,7 +3,6 @@
   "title": "SASE Configuration",
   "description": "Configuration schema for sase.yml files",
   "type": "object",
-  "required": ["machine_name"],
   "additionalProperties": false,
   "definitions": {
     "linkedRepo": {
@@ -348,7 +347,7 @@
     "machine_name": {
       "type": "string",
       "pattern": "^[a-z_]+$",
-      "description": "Machine-local identity selected through ~/.sase/machine_name. Machine-specific sase_*.yml overlays load only when this value matches the selector."
+      "description": "Marks a machine-specific overlay and is established by sase config init. Optional in base, ordinary-overlay, default, and project-local config fragments; when present, the overlay loads only when this value matches the ~/.sase/machine_name selector."
     },
     "ace": {
       "type": "object",

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from jsonschema import Draft7Validator
 
-from tests._config_schema_helpers import schema, with_machine_name
+from tests._config_schema_helpers import schema
 
 
 @pytest.mark.parametrize("repos_key", ["linked_repos", "sibling_repos"])
@@ -23,7 +23,7 @@ def test_config_schema_requires_linked_repo_descriptions(repos_key: str) -> None
     }
 
     errors = sorted(
-        Draft7Validator(public_schema).iter_errors(with_machine_name(config)),
+        Draft7Validator(public_schema).iter_errors(config),
         key=lambda error: list(error.absolute_path),
     )
 
@@ -48,10 +48,7 @@ def test_config_schema_accepts_linked_repo_auto_clone_and_default_opt_out() -> N
         ],
     }
 
-    assert (
-        list(Draft7Validator(public_schema).iter_errors(with_machine_name(config)))
-        == []
-    )
+    assert list(Draft7Validator(public_schema).iter_errors(config)) == []
 
 
 def test_config_schema_accepts_canonical_linked_and_sidecar_repos() -> None:
@@ -79,10 +76,7 @@ def test_config_schema_accepts_canonical_linked_and_sidecar_repos() -> None:
         }
     }
 
-    assert (
-        list(Draft7Validator(public_schema).iter_errors(with_machine_name(config)))
-        == []
-    )
+    assert list(Draft7Validator(public_schema).iter_errors(config)) == []
 
 
 def test_config_schema_documents_intrinsic_agents_sidecar_contract() -> None:
@@ -118,7 +112,7 @@ def test_config_schema_rejects_invalid_sidecar_controls(
 ) -> None:
     config = {"repos": {"sidecar": [entry]}}
 
-    errors = list(Draft7Validator(schema()).iter_errors(with_machine_name(config)))
+    errors = list(Draft7Validator(schema()).iter_errors(config))
 
     assert [list(error.absolute_path) for error in errors] == [
         ["repos", "sidecar", 0, field]
@@ -147,6 +141,6 @@ def test_config_schema_rejects_invalid_sidecar_controls(
 def test_config_schema_rejects_non_boolean_linked_repo_controls(
     config: dict[str, object], expected_path: list[object]
 ) -> None:
-    errors = list(Draft7Validator(schema()).iter_errors(with_machine_name(config)))
+    errors = list(Draft7Validator(schema()).iter_errors(config))
 
     assert [list(error.absolute_path) for error in errors] == [expected_path]

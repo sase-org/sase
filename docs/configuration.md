@@ -79,8 +79,8 @@ chosen top-level hood is already occupied in the durable agent-name registry, co
 `sase init config --check` for a read-only status check.
 
 The selection itself is stored in the bounded local state file `~/.sase/machine_name` (or `$SASE_HOME/machine_name`). It
-contains exactly one valid name and is deliberately not portable configuration. The corresponding overlay contains the
-schema field:
+contains exactly one valid name and is deliberately not portable configuration. The selected machine identity overlay
+created or selected by `sase config init` must contain the schema field:
 
 ```yaml
 machine_name: athena
@@ -90,6 +90,10 @@ Any `sase_*.yml` overlay with a top-level `machine_name` is machine-specific. SA
 the local selector; foreign machine overlays do not contribute runtime settings, Config inventory layers, or config-
 defined xprompts. Overlays without `machine_name` remain ordinary overlays and always participate. Changing the selector
 invalidates the merged-config cache just like changing a config file.
+
+The shared public schema validates each config file independently, so `machine_name` is optional in base config,
+ordinary overlays, bundled defaults, and project-local fragments. When a document does declare the field, the schema
+requires a lowercase/underscore identity matching `^[a-z_]+$`.
 
 Selecting an existing identity writes only `~/.sase/machine_name`. Creating a new identity minimally adds `machine_name`
 to `~/.config/sase/sase_<name>.yml`, preserving unrelated YAML where possible, then writes the selector. With
@@ -401,13 +405,14 @@ Declares the identity owned by a machine-specific user overlay:
 machine_name: athena
 ```
 
-| Field          | Type   | Default | Description                                                               |
-| -------------- | ------ | ------- | ------------------------------------------------------------------------- |
-| `machine_name` | string | none    | Required schema identity matching `^[a-z_]+$`; activated by the selector. |
+| Field          | Type   | Default | Description                                                                                                 |
+| -------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `machine_name` | string | none    | Optional per document; required in the selected machine identity overlay and validated against `^[a-z_]+$`. |
 
-The public schema requires this field, but the bundled defaults do not synthesize one. Runtime config therefore remains
-compatible with a legacy/uninitialized installation: no machine overlay is selected and the optional accessor returns
-unset. Run `sase config init` to select or create the overlay and write the local state selector. See
+The public per-document schema keeps this field optional because base config, ordinary overlays, bundled defaults, and
+project-local fragments do not own the machine identity. Runtime config therefore remains compatible with a
+legacy/uninitialized installation: no machine overlay is selected and the optional accessor returns unset. Run
+`sase config init` to select or create the identity overlay and write the local state selector. See
 [Machine Identity](#machine-identity) for loading and deployment behavior.
 
 Source: `src/sase/config/core.py`, `src/sase/config/sase.schema.json`, `src/sase/core/paths.py`
