@@ -658,6 +658,12 @@ Templates can contain `$0` to mark where the cursor should be placed after expan
 moves to the end of the expanded text. Templates can also splice another merged snippet with `#[trigger]`; use
 `#[trigger(value)]` or `#[trigger:value]` to fill referenced `$1`, `$2`, ... tabstops before splicing.
 
+Every effective snippet also gains a generated initial-capital alias: only the first character of the trigger and of the
+resolved template is uppercased, so `foo: "foo bar baz"` also exposes `Foo` → `Foo bar baz`. Already-capitalized,
+digit-leading, and underscore-leading triggers produce no extra entry, and an explicitly authored `Foo` is never
+replaced. These aliases are runtime-only and are never written back into config. See
+[docs/ace.md — Capitalized aliases](ace.md#capitalized-aliases) for the full rule.
+
 See [docs/ace.md — Snippets](ace.md#snippets) for usage details.
 
 Source: `src/sase/ace/tui/widgets/prompt_text_area.py`
@@ -2674,7 +2680,9 @@ rows also include aggregate `status`. The structured xprompt catalog includes in
 a real file to jump to.
 
 The snippet catalog uses the same source ordering as ACE: xprompts marked with `snippet` front matter plus user-defined
-`ace.snippets`, with `ace.snippets` winning on trigger collisions.
+`ace.snippets`, with `ace.snippets` winning on trigger collisions. It also includes the generated initial-capital
+aliases (`foo` → `Foo`), so editor completion and the native fallback expose exactly the same trigger/template pairs as
+the TUI.
 
 ### `sase file`
 

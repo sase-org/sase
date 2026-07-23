@@ -84,6 +84,8 @@ file.
 - User snippets from `ace.snippets` in merged SASE config.
 - Valid trigger words only; user snippets override xprompt snippets on collision.
 - `#[trigger]` snippet references resolved after the xprompt/user merge.
+- Generated initial-capital aliases (`foo` → `Foo`, uppercasing only the first character of the trigger and template)
+  composed after that merge, so the registry matches ACE. Explicit `Foo` definitions are never overwritten.
 
 `agent-catalog` requires only `{"schema_version":1}` and reads across projects. It returns active and recent ordinary
 agent rows, de-duplicated by name, with `status` and `project`. When the same artifact snapshot contains usable group

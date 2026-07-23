@@ -3049,6 +3049,34 @@ snippets and `ace.snippets` are merged, any snippet can splice another snippet b
 `#[trigger(value)]` and `#[trigger:value]` fill the referenced snippet's `$1`, `$2`, ... tabstops before splicing. The
 final template is renumbered so tabstops from the caller and referenced snippets do not collide.
 
+### Capitalized aliases
+
+Every effective snippet also gains a generated initial-capital alias. For each explicit trigger, SASE uppercases only
+its first character — the rest of the trigger is preserved byte-for-byte — to form a companion trigger, and uppercases
+only the first character of the resolved template to form the companion expansion. So authoring only
+
+```yaml
+ace:
+  snippets:
+    foo: "foo bar baz"
+```
+
+exposes both `foo` → `foo bar baz` and `Foo` → `Foo bar baz`.
+
+- Only the first character changes. Triggers that are already capitalized, digit-leading, or underscore-leading produce
+  no extra entry, and a template whose first character has no uppercase form expands unchanged (its distinct trigger
+  alias is still created).
+- An explicitly authored capitalized trigger always wins. If both `foo` and `Foo` are defined, each keeps its own
+  template, and no alias is generated over the authored `Foo`.
+- Aliases are runtime-only. They are never written back to `sase.yml`, xprompt front matter, or chezmoi source files,
+  and they never prevent you from later defining the capitalized name yourself.
+- Both spellings participate in `#[trigger]` composition, so `#[foo]` and `#[Foo]` both resolve, and generated templates
+  preserve tabstop and escape behavior.
+
+The rule applies uniformly to xprompt-derived snippets, merged `ace.snippets`, and snippets saved into the current ACE
+session — including a second save that updates an already-pending trigger. The same pairs appear through ACE,
+`sase editor helper-bridge snippet-catalog`, normal LSP completion, and the native Rust fallback.
+
 You can also create a snippet on the fly from the prompt save panel, opened with `gx`, `Ctrl+G x`, or `Ctrl+G Ctrl+X`.
 Press `Ctrl+X` in that panel to switch to snippet mode and choose which config file should store the new `ace.snippets`
 entry; `Ctrl+G Ctrl+X Ctrl+X` performs that sequence directly from the draft. In snippet mode, rows are grouped by

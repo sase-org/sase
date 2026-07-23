@@ -169,7 +169,9 @@ compatibility fallback for sources the Rust loader cannot discover.
 When the editor advertises LSP `completionItem.snippetSupport`, the server also returns SASE snippets as ordinary
 `CompletionItemKind.Snippet` entries after bare trigger words such as `fix` or `review`. Snippet entries are loaded from
 the same registry as ACE: xprompts with `snippet` front matter plus user-defined `ace.snippets`, with `ace.snippets`
-winning on trigger collisions. The editor does not need to shell out or parse SASE config to discover snippets.
+winning on trigger collisions. The registry also includes the generated initial-capital aliases (`foo` → `Foo`), so a
+completion for `Foo` appears wherever `foo` does. The editor does not need to shell out or parse SASE config to discover
+snippets.
 
 The Python helper operation `sase editor helper-bridge snippet-catalog` is the authoritative snippet registry because it
 matches ACE's xprompt composition behavior. The Rust server also has a native fallback for simple xprompt snippets and
@@ -737,6 +739,12 @@ ace:
 
 `welcome` expands as `Hello $1! Welcome to $2.$0`. Positional arguments fill the referenced tabstops before the splice:
 `#[greet(World)]` or `#[greet:World]` expands as `Hello World!`.
+
+After the merge, each effective snippet also gains a generated initial-capital alias — only the first character of the
+trigger and of the resolved template is uppercased. An xprompt-derived `foo` therefore expands as both `foo` and `Foo`,
+already-capitalized triggers produce no extra entry, an explicitly authored `Foo` is never replaced, and both spellings
+can be referenced with `#[foo]` / `#[Foo]`. The aliases are runtime-only. See
+[docs/ace.md — Capitalized aliases](ace.md#capitalized-aliases) for the complete rule.
 
 Snippets saved from the ACE prompt panel become available immediately to all prompt inputs in that running TUI. With
 `use_chezmoi` enabled, this includes a snippet written only to the chezmoi source tree: ACE keeps a session overlay
