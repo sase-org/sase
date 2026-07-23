@@ -247,15 +247,15 @@ def test_navigation_disk_free_with_running_run() -> None:
         patch("sase.ace.tui.actions.axe_display._data.read_chop_run", _boom),
         patch("sase.ace.tui.actions.axe_display._data.read_chop_run_log_tail", _boom),
         patch(
-            "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_status",
+            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_status",
             _boom,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_metrics",
+            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_metrics",
             _boom,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_log_tail",
+            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_log_tail",
             _boom,
         ),
     ):

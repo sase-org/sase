@@ -144,15 +144,21 @@ def test_navigation_does_not_read_from_disk() -> None:
 
     with (
         patch(
-            "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_status", _boom
+            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_status",
+            _boom,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_metrics", _boom
+            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_metrics",
+            _boom,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_log_tail", _boom
+            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_log_tail",
+            _boom,
         ),
-        patch("sase.ace.tui.actions.axe_display._loaders.read_slot_output_tail", _boom),
+        patch(
+            "sase.ace.tui.actions.axe_display._loader_refresh.read_slot_output_tail",
+            _boom,
+        ),
         patch(
             "sase.ace.tui.actions.axe_display._render.get_slot_info",
             side_effect=_boom,

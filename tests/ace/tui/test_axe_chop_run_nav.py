@@ -230,13 +230,16 @@ def test_navigation_does_not_read_disk() -> None:
         patch("sase.ace.tui.actions.axe_display._data.read_chop_run", _boom),
         patch("sase.ace.tui.actions.axe_display._data.read_chop_run_log_tail", _boom),
         patch(
-            "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_status", _boom
+            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_status",
+            _boom,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_metrics", _boom
+            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_metrics",
+            _boom,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loaders.read_lumberjack_log_tail", _boom
+            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_log_tail",
+            _boom,
         ),
     ):
         app.action_next_agent_file()
