@@ -117,6 +117,27 @@ def owner_from_artifact_name(
     return entry
 
 
+def _best_effort_canonical_global_name(
+    name: str,
+    identity: AgentIdentitySnapshot,
+) -> str | None:
+    """Return canonical global provenance, or ``None`` when it cannot be derived.
+
+    A registry rebuild scans every historical artifact and dismissed bundle,
+    including legacy names whose shape the current globalizer rejects (for
+    example ``clan--role.f-0``, a fanout child of a family member). Provenance
+    enrichment is best effort: one un-globalizable name must never raise and
+    abort the whole rebuild, which would block every agent launch. Such names
+    simply carry no canonical global spelling.
+    """
+    if identity.owner is None:
+        return None
+    try:
+        return globalize_owned_agent_name(name, identity)
+    except ValueError:
+        return None
+
+
 def local_entry_provenance(
     name: str,
     identity: AgentIdentitySnapshot,
@@ -125,9 +146,7 @@ def local_entry_provenance(
     owner = identity.owner
     return {
         "origin": REGISTRY_ORIGIN_LOCAL,
-        "canonical_global_name": (
-            globalize_owned_agent_name(name, identity) if owner is not None else None
-        ),
+        "canonical_global_name": _best_effort_canonical_global_name(name, identity),
         "source_owner": (
             {
                 "username": owner.username,
