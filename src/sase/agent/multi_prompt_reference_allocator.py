@@ -2,35 +2,27 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.agent.multi_prompt_reference_allocation import (
+    PlannedNameReservation,
+    TemplateGroup,
+    durable_template_candidate,
+    normalize_template_group,
+    template_candidates,
+)
 from sase.agent.multi_prompt_reference_directives import extract_static_name_directive
-from sase.agent.multi_prompt_reference_resume import (
-    _RESUME_REF_RE,
-    has_non_resume_xprompt_reference,
+from sase.agent.multi_prompt_reference_resume import has_non_resume_xprompt_reference
+from sase.agent.multi_prompt_reference_rewriting import (
+    rewrite_template_references,
 )
 from sase.core.agent_tribe import parse_tribe_reference
 from sase.core.machine_hood_facade import MachineHoodIdentity
 
 if TYPE_CHECKING:
     from sase.agent.names import AgentNameNamespaceReservationIndex
-
-
-@dataclass(frozen=True)
-class _PlannedNameReservation:
-    name: str
-    artifacts_dir: str
-
-
-@dataclass(frozen=True)
-class _TemplateGroup:
-    """Token-sharing group for related agent-name templates."""
-
-    key: str
 
 
 class PlannedNameAllocator:
@@ -44,13 +36,12 @@ class PlannedNameAllocator:
         self._template_group_tokens: dict[str, str] = {}
         self._template_group_names: dict[str, set[str]] = {}
         self._template_group_namespaces: dict[str, set[str]] = {}
-        self._planned_reservations: list[_PlannedNameReservation] = []
-        self._committed_reservations: set[_PlannedNameReservation] = set()
+        self._planned_reservations: list[PlannedNameReservation] = []
+        self._committed_reservations: set[PlannedNameReservation] = set()
 
     def rewrite_template_references(self, prompt: str) -> str:
         """Resolve template wait/resume refs against this launch's plan."""
-        prompt = self._rewrite_template_wait_directives(prompt)
-        return self._rewrite_template_resume_references(prompt)
+        return rewrite_template_references(prompt, self._latest_template_name)
 
     def rewrite_indexed_references(self, prompt: str) -> str:
         """Compatibility alias for legacy indexed-template call sites."""
@@ -139,7 +130,7 @@ class PlannedNameAllocator:
             iter_agent_name_template_tokens,
         )
 
-        group = _normalize_template_group(template_group, templates[0])
+        group = normalize_template_group(template_group, templates[0])
         with agent_name_allocation_lock():
             if self._template_reserved is None:
                 self._template_reserved = get_reserved_agent_names()
@@ -153,7 +144,7 @@ class PlannedNameAllocator:
 
             existing_token = self._template_group_tokens.get(group.key)
             if existing_token is not None:
-                candidates = _template_candidates(
+                candidates = template_candidates(
                     templates_with_namespaces,
                     existing_token,
                     self._machine_identity,
@@ -179,7 +170,7 @@ class PlannedNameAllocator:
                 index.update_names(candidate_names)
 
             for token in iter_agent_name_template_tokens():
-                candidates = _template_candidates(
+                candidates = template_candidates(
                     templates_with_namespaces,
                     token,
                     self._machine_identity,
@@ -207,160 +198,6 @@ class PlannedNameAllocator:
                 return candidate_names
         raise AssertionError("unreachable")
 
-    def _rewrite_template_wait_directives(self, prompt: str) -> str:
-        if "%" not in prompt:
-            return prompt
-
-        from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
-        from sase.xprompt._disabled_regions import (
-            protect_disabled_regions,
-            unprotect_disabled_regions,
-        )
-        from sase.xprompt._fenced_blocks import (
-            protect_fenced_blocks,
-            unprotect_fenced_blocks,
-        )
-        from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
-
-        fenced: list[str] = []
-        protected = protect_fenced_blocks(prompt, fenced)
-        disabled: list[str] = []
-        protected = protect_disabled_regions(protected, disabled)
-
-        replacements: list[tuple[int, int, str]] = []
-        for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
-            raw_name = match.group(1)
-            if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "wait":
-                continue
-
-            colon_arg = match.group(3)
-            if colon_arg is not None:
-                resolved_args = self._resolve_template_arg_list(
-                    _unquote_backtick_arg(colon_arg).split(",")
-                )
-                if resolved_args is None:
-                    continue
-                replacements.append(
-                    (
-                        match.start(),
-                        match.end(),
-                        f"%{raw_name}:{','.join(resolved_args)}",
-                    )
-                )
-                continue
-
-            if match.group(2) is None:
-                continue
-
-            paren_start = match.end() - 1
-            paren_end = find_matching_paren_for_args(protected, paren_start)
-            if paren_end is None:
-                continue
-            inner = protected[paren_start + 1 : paren_end]
-            positional_args, _ = parse_args(inner)
-            resolved_args = self._resolve_template_arg_list(list(positional_args))
-            if resolved_args is None:
-                continue
-            replacements.append(
-                (
-                    match.start(),
-                    paren_end + 1,
-                    f"%{raw_name}({','.join(resolved_args)})",
-                )
-            )
-
-        rewritten = protected
-        for start, end, value in reversed(replacements):
-            rewritten = rewritten[:start] + value + rewritten[end:]
-        rewritten = unprotect_disabled_regions(rewritten, disabled)
-        return unprotect_fenced_blocks(rewritten, fenced)
-
-    def _rewrite_template_resume_references(self, prompt: str) -> str:
-        if "#fork" not in prompt and "#resume" not in prompt:
-            return prompt
-
-        from sase.xprompt._disabled_regions import (
-            protect_disabled_regions,
-            unprotect_disabled_regions,
-        )
-        from sase.xprompt._fenced_blocks import (
-            protect_fenced_blocks,
-            unprotect_fenced_blocks,
-        )
-        from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
-
-        fenced: list[str] = []
-        protected = protect_fenced_blocks(prompt, fenced)
-        disabled: list[str] = []
-        protected = protect_disabled_regions(protected, disabled)
-
-        replacements: list[tuple[int, int, str]] = []
-        for match in _RESUME_REF_RE.finditer(protected):
-            kind = match.group("kind")
-            colon = match.group("colon")
-            if colon is not None:
-                if colon.startswith("`") and colon.endswith("`"):
-                    colon_args = [_unquote_backtick_arg(colon)]
-                else:
-                    colon_args, _ = parse_args(colon, preserve_empty_args=True)
-                resolved_args = self._resolve_template_arg_list(colon_args)
-                if resolved_args is not None:
-                    replacements.append(
-                        (
-                            match.start(),
-                            match.end(),
-                            f"#{kind}:{','.join(resolved_args)}",
-                        )
-                    )
-                continue
-
-            if match.group("open_paren") is None:
-                continue
-            paren_start = match.end("open_paren") - 1
-            paren_end = find_matching_paren_for_args(protected, paren_start)
-            if paren_end is None:
-                continue
-            inner = protected[paren_start + 1 : paren_end]
-            positional_args, _ = parse_args(inner, preserve_empty_args=True)
-            if not positional_args:
-                continue
-            resolved_args = self._resolve_template_arg_list(positional_args)
-            if resolved_args is not None:
-                replacements.append(
-                    (
-                        match.start(),
-                        paren_end + 1,
-                        f"#{kind}({','.join(resolved_args)})",
-                    )
-                )
-
-        rewritten = protected
-        for start, end, value in reversed(replacements):
-            rewritten = rewritten[:start] + value + rewritten[end:]
-        rewritten = unprotect_disabled_regions(rewritten, disabled)
-        return unprotect_fenced_blocks(rewritten, fenced)
-
-    def _resolve_template_arg_list(self, args: list[str]) -> list[str] | None:
-        resolved: list[str] = []
-        changed = False
-        for arg in args:
-            value = self._resolve_template_arg(arg)
-            if value is None:
-                resolved.append(arg)
-            else:
-                resolved.append(value)
-                changed = True
-        return resolved if changed else None
-
-    def _resolve_template_arg(self, arg: str) -> str | None:
-        from sase.agent.names import is_agent_name_template
-
-        if parse_tribe_reference(arg) is not None:
-            return None
-        if not is_agent_name_template(arg):
-            return None
-        return self._latest_template_name(arg)
-
     def mark_template_reservation_committed(
         self, name: str | None, artifacts_dir: str | Path | None
     ) -> None:
@@ -369,7 +206,7 @@ class PlannedNameAllocator:
             return
         from sase.core.machine_hood_facade import qualify_local_agent_name
 
-        reservation = _PlannedNameReservation(
+        reservation = PlannedNameReservation(
             name=qualify_local_agent_name(name, self._machine_identity),
             artifacts_dir=str(Path(artifacts_dir).expanduser().resolve(strict=False)),
         )
@@ -419,7 +256,7 @@ class PlannedNameAllocator:
         except NameCollisionError:
             return False
         self._planned_reservations.append(
-            _PlannedNameReservation(name=name, artifacts_dir=str(artifacts_path))
+            PlannedNameReservation(name=name, artifacts_dir=str(artifacts_path))
         )
         return True
 
@@ -441,7 +278,7 @@ class PlannedNameAllocator:
         names: Sequence[str],
         namespaces: Sequence[str],
         artifacts_dirs: Sequence[str | Path | None],
-        group: _TemplateGroup,
+        group: TemplateGroup,
     ) -> bool:
         materialized: list[tuple[str, str, Path]] = []
         for name, namespace, artifacts_dir in zip(
@@ -477,7 +314,7 @@ class PlannedNameAllocator:
 
         for name, _, artifacts_path in materialized:
             self._planned_reservations.append(
-                _PlannedNameReservation(
+                PlannedNameReservation(
                     name=name,
                     artifacts_dir=str(artifacts_path),
                 )
@@ -505,7 +342,7 @@ class PlannedNameAllocator:
             iter_agent_name_template_tokens,
         )
 
-        group = _normalize_template_group(template_group, template)
+        group = normalize_template_group(template_group, template)
         with agent_name_allocation_lock():
             if self._template_reserved is None:
                 self._template_reserved = get_reserved_agent_names()
@@ -515,7 +352,7 @@ class PlannedNameAllocator:
 
             existing_token = self._template_group_tokens.get(group.key)
             if existing_token is not None:
-                candidate, namespace = _durable_template_candidate(
+                candidate, namespace = durable_template_candidate(
                     template,
                     namespace_template,
                     existing_token,
@@ -535,7 +372,7 @@ class PlannedNameAllocator:
                 index.add_name(candidate)
 
             for token in iter_agent_name_template_tokens():
-                candidate, namespace = _durable_template_candidate(
+                candidate, namespace = durable_template_candidate(
                     template,
                     namespace_template,
                     token,
@@ -580,7 +417,7 @@ class PlannedNameAllocator:
         self,
         name: str,
         namespace: str,
-        group: _TemplateGroup,
+        group: TemplateGroup,
     ) -> bool:
         return self._template_reservation_index().candidate_available(
             name,
@@ -591,7 +428,7 @@ class PlannedNameAllocator:
     def _template_candidates_available(
         self,
         candidates: Sequence[tuple[str, str]],
-        group: _TemplateGroup,
+        group: TemplateGroup,
     ) -> bool:
         names = [name for name, _ in candidates]
         if len(set(names)) != len(names):
@@ -603,7 +440,7 @@ class PlannedNameAllocator:
 
     def _record_template_group_names(
         self,
-        group: _TemplateGroup,
+        group: TemplateGroup,
         candidates: Sequence[tuple[str, str]],
     ) -> None:
         names = self._template_group_names.setdefault(group.key, set())
@@ -650,64 +487,3 @@ class PlannedNameAllocator:
 
             self._template_reserved = get_reserved_agent_names()
         return self._template_reserved
-
-
-def _unquote_backtick_arg(arg: str) -> str:
-    if arg.startswith("`") and arg.endswith("`"):
-        return arg[1:-1]
-    return arg
-
-
-def _template_candidates(
-    templates_with_namespaces: Sequence[tuple[str, str]],
-    token: str,
-    identity: MachineHoodIdentity,
-) -> list[tuple[str, str]]:
-    return [
-        _durable_template_candidate(
-            template,
-            namespace_template,
-            token,
-            identity,
-        )
-        for template, namespace_template in templates_with_namespaces
-    ]
-
-
-def _durable_template_candidate(
-    template: str,
-    namespace_template: str,
-    token: str,
-    identity: MachineHoodIdentity,
-) -> tuple[str, str]:
-    from sase.agent.names import render_agent_name_template
-    from sase.core.machine_hood_facade import qualify_local_agent_name
-
-    return (
-        qualify_local_agent_name(
-            render_agent_name_template(template, token),
-            identity,
-        ),
-        qualify_local_agent_name(
-            render_agent_name_template(namespace_template, token),
-            identity,
-        ),
-    )
-
-
-def _normalize_template_group(
-    group: _TemplateGroup | str | None,
-    template: str,
-) -> _TemplateGroup:
-    if isinstance(group, _TemplateGroup):
-        return group
-    if group is not None:
-        return _TemplateGroup(str(group))
-    return _TemplateGroup(_template_group_key(template))
-
-
-def _template_group_key(template: str) -> str:
-    from sase.agent.names import agent_name_template_base
-
-    base = agent_name_template_base(template)
-    return base.rsplit(".", 1)[0] if "." in base else base
