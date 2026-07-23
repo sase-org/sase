@@ -1,4 +1,4 @@
-"""Machine-identity config initializer coverage."""
+"""Owner-identity config initializer coverage."""
 
 from __future__ import annotations
 
@@ -46,16 +46,18 @@ def _prepare(
     )
 
 
-def test_run_config_init_creates_overlay_and_selector(
+def test_run_config_init_creates_nested_overlay_and_selector(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config_dir = tmp_path / "config"
     _prepare(monkeypatch, config_dir)
 
-    assert config_init_handler.run_config_init(_args("athena")) == 0
+    assert config_init_handler.run_config_init(_args("athena", "alice")) == 0
 
-    assert (config_dir / "sase_athena.yml").read_text() == "machine_name: athena\n"
+    assert (config_dir / "sase_athena.yml").read_text() == (
+        "id:\n  username: alice\n  machine_name: athena\n"
+    )
     assert machine_name_path().read_text() == "athena\n"
 
 
@@ -68,30 +70,34 @@ def test_run_config_init_minimally_splices_existing_ordinary_overlay(
     overlay = config_dir / "sase_athena.yml"
     overlay.write_text("# keep this comment\nuse_chezmoi: false\n", encoding="utf-8")
 
-    assert config_init_handler.run_config_init(_args("athena")) == 0
+    assert config_init_handler.run_config_init(_args("athena", "alice")) == 0
 
     assert overlay.read_text() == (
-        "# keep this comment\nuse_chezmoi: false\nmachine_name: athena\n"
+        "# keep this comment\nuse_chezmoi: false\n"
+        "id:\n  username: alice\n  machine_name: athena\n"
     )
 
 
-def test_run_config_init_selects_existing_overlay_without_editing_it(
+def test_run_config_init_migrates_legacy_overlay_and_preserves_content(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config_dir = tmp_path / "config"
     _prepare(monkeypatch, config_dir)
     overlay = config_dir / "sase_athena.yml"
-    original = "# existing\nmachine_name: athena\nvalue: 1\n"
-    overlay.write_text(original, encoding="utf-8")
+    overlay.write_text("# existing\nmachine_name: athena\nvalue: 1\n", encoding="utf-8")
+    machine_name_path().write_text("athena\n", encoding="utf-8")
 
-    assert config_init_handler.run_config_init(_args("athena")) == 0
+    assert config_init_handler.run_config_init(_args("alice")) == 0
 
-    assert overlay.read_text() == original
-    assert machine_name_path().read_text() == "athena\n"
+    migrated = overlay.read_text()
+    assert migrated == (
+        "# existing\nvalue: 1\nid:\n  username: alice\n  machine_name: athena\n"
+    )
+    assert "\nmachine_name: athena\n" not in f"\n{migrated}"
 
 
-def test_run_config_init_reprompts_and_accepts_sanitized_hostname_default(
+def test_run_config_init_reprompts_machine_and_username(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -100,10 +106,15 @@ def test_run_config_init_reprompts_and_accepts_sanitized_hostname_default(
     _prepare(monkeypatch, config_dir)
     monkeypatch.setattr(config_init_handler.socket, "gethostname", lambda: "Host-1")
 
-    assert config_init_handler.run_config_init(_args("bad-name", "")) == 0
+    assert (
+        config_init_handler.run_config_init(_args("bad-name", "", "Alice", "alice"))
+        == 0
+    )
 
     assert machine_name_path().read_text() == "host__\n"
-    assert "Invalid machine name" in capsys.readouterr().err
+    errors = capsys.readouterr().err
+    assert "Invalid machine name" in errors
+    assert "Invalid SASE username" in errors
 
 
 def test_run_config_init_refuses_non_tty(
@@ -130,10 +141,10 @@ def test_run_config_init_requires_default_no_registry_collision_confirmation(
         lambda _name: ("athena.worker",),
     )
 
-    assert config_init_handler.run_config_init(_args("athena", "")) == 1
+    assert config_init_handler.run_config_init(_args("athena", "alice", "")) == 1
     assert not machine_name_path().exists()
 
-    assert config_init_handler.run_config_init(_args("athena", "yes")) == 0
+    assert config_init_handler.run_config_init(_args("athena", "alice", "yes")) == 0
     assert machine_name_path().read_text() == "athena\n"
 
 
@@ -155,27 +166,69 @@ def test_run_config_init_surfaces_write_failure_and_clears_cache(
         lambda _name: (_ for _ in ()).throw(OSError("read-only state")),
     )
 
-    assert config_init_handler.run_config_init(_args("athena")) == 1
+    assert config_init_handler.run_config_init(_args("athena", "alice")) == 1
     assert clears == [None]
     assert "read-only state" in capsys.readouterr().err
 
 
-def test_run_config_init_is_idempotent_when_selector_and_overlay_agree(
+def test_run_config_init_is_idempotent_for_complete_identity_without_tty(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_dir = tmp_path / "config"
+    _prepare(monkeypatch, config_dir)
+    overlay = config_dir / "sase_athena.yml"
+    original = "id:\n  username: alice\n  machine_name: athena\n"
+    overlay.write_text(original, encoding="utf-8")
+    machine_name_path().write_text("athena\n", encoding="utf-8")
+    args = argparse.Namespace(check=False, _init_stdin=StringIO())
+
+    assert config_init_handler.run_config_init(args) == 0
+    assert overlay.read_text() == original
+
+
+def test_partial_machine_reuses_one_existing_username_only_after_confirmation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config_dir = tmp_path / "config"
     _prepare(monkeypatch, config_dir)
     (config_dir / "sase_athena.yml").write_text(
-        "machine_name: athena\n", encoding="utf-8"
+        "id:\n  username: alice\n  machine_name: athena\n", encoding="utf-8"
     )
-    machine_name_path().write_text("athena\n", encoding="utf-8")
-    args = argparse.Namespace(check=False, _init_stdin=StringIO())
+    zeus = config_dir / "sase_zeus.yml"
+    zeus.write_text("id:\n  machine_name: zeus\nvalue: 1\n", encoding="utf-8")
+    machine_name_path().write_text("zeus\n", encoding="utf-8")
 
-    assert config_init_handler.run_config_init(args) == 0
+    assert config_init_handler.run_config_init(_args("yes")) == 0
+    assert zeus.read_text() == (
+        "id:\n  machine_name: zeus\n  username: alice\nvalue: 1\n"
+    )
 
 
-def test_plan_config_init_reports_missing_and_current_identity(
+def test_partial_machine_refuses_conflicting_existing_usernames(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config_dir = tmp_path / "config"
+    _prepare(monkeypatch, config_dir)
+    (config_dir / "sase_athena.yml").write_text(
+        "id:\n  username: alice\n  machine_name: athena\n", encoding="utf-8"
+    )
+    (config_dir / "sase_hera.yml").write_text(
+        "id:\n  username: bob\n  machine_name: hera\n", encoding="utf-8"
+    )
+    (config_dir / "sase_zeus.yml").write_text(
+        "id:\n  machine_name: zeus\n", encoding="utf-8"
+    )
+    machine_name_path().write_text("zeus\n", encoding="utf-8")
+
+    assert config_init_handler.run_config_init(_args()) == 1
+    assert "conflicting existing usernames" in capsys.readouterr().err
+
+
+def test_plan_config_init_distinguishes_legacy_and_current_identity(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -186,16 +239,41 @@ def test_plan_config_init_reports_missing_and_current_identity(
     assert missing.command == "config"
     assert missing.label == "Config"
     assert len(missing.actions) == 1
-    assert missing.actions[0].path == machine_name_path()
+    assert "selector is missing" in missing.summary
 
-    (config_dir / "sase_athena.yml").write_text(
-        "machine_name: athena\n", encoding="utf-8"
-    )
+    overlay = config_dir / "sase_athena.yml"
+    overlay.write_text("machine_name: athena\n", encoding="utf-8")
     machine_name_path().write_text("athena\n", encoding="utf-8")
+    config_core.clear_config_cache()
+    legacy = config_init_handler.plan_config_init(argparse.Namespace())
+    assert legacy.actions[0].path == overlay
+    assert "legacy" in legacy.summary
+
+    overlay.write_text(
+        "id:\n  username: alice\n  machine_name: athena\n", encoding="utf-8"
+    )
     config_core.clear_config_cache()
     current = config_init_handler.plan_config_init(argparse.Namespace())
     assert current.actions == ()
-    assert "athena" in current.summary
+    assert "alice@athena" in current.summary
+
+
+def test_plan_config_init_identifies_missing_username(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_dir = tmp_path / "config"
+    _prepare(monkeypatch, config_dir)
+    (config_dir / "sase_athena.yml").write_text(
+        "id:\n  machine_name: athena\n",
+        encoding="utf-8",
+    )
+    machine_name_path().write_text("athena\n", encoding="utf-8")
+
+    plan = config_init_handler.plan_config_init(argparse.Namespace())
+
+    assert "missing `id.username`" in plan.summary
+    assert len(plan.actions) == 1
 
 
 def test_new_chezmoi_overlay_uses_direct_deploy(
@@ -218,8 +296,8 @@ def test_new_chezmoi_overlay_uses_direct_deploy(
 
     monkeypatch.setattr(config_init_handler, "deploy_to_chezmoi", _deploy)
 
-    assert config_init_handler.run_config_init(_args("athena")) == 0
-    assert source.read_text() == "machine_name: athena\n"
+    assert config_init_handler.run_config_init(_args("athena", "alice")) == 0
+    assert source.read_text() == ("id:\n  username: alice\n  machine_name: athena\n")
     assert deployed == [source]
 
 
@@ -242,6 +320,6 @@ def test_new_chezmoi_overlay_joins_deferred_bare_init_deploy(
     )
 
     with defer_chezmoi_deploy() as deferred:
-        assert config_init_handler.run_config_init(_args("athena")) == 0
+        assert config_init_handler.run_config_init(_args("athena", "alice")) == 0
 
     assert deferred.paths == [source]

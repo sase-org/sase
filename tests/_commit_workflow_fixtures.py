@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.core.agent_identity_facade import AgentOwnerIdentity
+
 _CONFIG_TARGET = "sase.workflows.commit.commit_hooks.load_merged_config"
 
 
@@ -31,8 +33,8 @@ def no_commit_hooks() -> Iterator[None]:
             clear=False,
         ),
         patch(
-            "sase.workflows.commit.runtime_tags.socket.gethostname",
-            return_value="test-host",
+            "sase.config.require_agent_owner_identity",
+            return_value=AgentOwnerIdentity("test-user", "test-host"),
         ),
         patch("sase.workflows.commit.workflow.handle_beads", return_value=None),
         patch("sase.workflows.commit.workflow.handle_sase_plan", return_value=None),

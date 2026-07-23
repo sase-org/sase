@@ -144,7 +144,8 @@ def test_selector_stat_participates_in_config_freshness_token(tmp_path: Path) ->
     global_dir = tmp_path / "global"
     global_dir.mkdir()
     (global_dir / "sase_athena.yml").write_text(
-        "machine_name: athena\nvalue: selected\n", encoding="utf-8"
+        "id:\n  username: alice\n  machine_name: athena\nvalue: selected\n",
+        encoding="utf-8",
     )
 
     with (
@@ -166,10 +167,12 @@ def test_selector_change_eventually_invalidates_merged_config(tmp_path: Path) ->
     global_dir = tmp_path / "global"
     global_dir.mkdir()
     (global_dir / "sase_athena.yml").write_text(
-        "machine_name: athena\nvalue: first\n", encoding="utf-8"
+        "id:\n  username: alice\n  machine_name: athena\nvalue: first\n",
+        encoding="utf-8",
     )
     (global_dir / "sase_zeus.yml").write_text(
-        "machine_name: zeus\nvalue: second\n", encoding="utf-8"
+        "id:\n  username: alice\n  machine_name: zeus\nvalue: second\n",
+        encoding="utf-8",
     )
     selector = machine_name_path()
     selector.write_text("athena\n", encoding="utf-8")
@@ -193,8 +196,38 @@ def test_selector_change_eventually_invalidates_merged_config(tmp_path: Path) ->
         assert load_merged_config() is first
         second = _wait_for_new_merged_config(first)
 
-    assert second["machine_name"] == "zeus"
+    assert second["id"]["machine_name"] == "zeus"
     assert second["value"] == "second"
+
+
+def test_owner_snapshot_reuses_parsed_overlay_until_token_changes(
+    tmp_path: Path,
+) -> None:
+    global_dir = tmp_path / "global"
+    global_dir.mkdir()
+    overlay = global_dir / "sase_athena.yml"
+    overlay.write_text(
+        "id:\n  username: alice\n  machine_name: athena\n", encoding="utf-8"
+    )
+    machine_name_path().write_text("athena\n", encoding="utf-8")
+    calls = {"count": 0}
+    real_loader = config_core._load_yaml_file
+
+    def counting_loader(path: Path) -> dict | None:
+        calls["count"] += 1
+        return real_loader(path)
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_dir),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch("sase.config.core._load_yaml_file", side_effect=counting_loader),
+    ):
+        first = config_core.get_agent_owner_config_snapshot()
+        second = config_core.get_agent_owner_config_snapshot()
+
+    assert first is second
+    assert first.owner is not None
+    assert calls["count"] == 1
 
 
 def test_load_merged_config_caches_default_layer(tmp_path: Path) -> None:

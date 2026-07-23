@@ -8,6 +8,7 @@ from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
+from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.workflows.commit.runtime_tags import (
     LinkedCommitTagValue,
     RUNTIME_COMMIT_TAG_KEYS,
@@ -21,7 +22,7 @@ from sase.workflows.commit.runtime_tags import (
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
-_HOSTNAME_TARGET = "sase.workflows.commit.runtime_tags.socket.gethostname"
+_OWNER_TARGET = "sase.config.require_agent_owner_identity"
 _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 
 
@@ -35,24 +36,38 @@ def _clean_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "HOSTNAME",
     ):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(
+        _OWNER_TARGET,
+        lambda: AgentOwnerIdentity("alice", "machine_a"),
+    )
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.get_machine_name",
+        lambda: "machine_a",
+    )
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.discover_machine_names",
+        lambda: ("machine_a",),
+    )
 
 
 def test_runtime_tags_use_sase_agent_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-alpha")
-    with patch(_HOSTNAME_TARGET, return_value="machine-a"):
-        assert _resolve_runtime_commit_tags() == {
-            "AGENT": "agent-alpha",
-            "MACHINE": "machine-a",
-        }
+    assert _resolve_runtime_commit_tags() == {
+        "AGENT": "machine_a.agent-alpha",
+        "MACHINE": "machine_a",
+    }
 
 
 def test_runtime_tags_prefer_configured_machine_and_qualify_legacy_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-alpha")
-    monkeypatch.setattr("sase.config.get_machine_name", lambda: "athena")
+    monkeypatch.setattr(
+        _OWNER_TARGET,
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
     monkeypatch.setattr(
         "sase.core.machine_hood_facade.get_machine_name",
         lambda: "athena",
@@ -62,18 +77,20 @@ def test_runtime_tags_prefer_configured_machine_and_qualify_legacy_agent(
         lambda: ("athena",),
     )
 
-    with patch(_HOSTNAME_TARGET, return_value="host-fallback"):
-        assert _resolve_runtime_commit_tags() == {
-            "AGENT": "athena.agent-alpha",
-            "MACHINE": "athena",
-        }
+    assert _resolve_runtime_commit_tags() == {
+        "AGENT": "athena.agent-alpha",
+        "MACHINE": "athena",
+    }
 
 
 def test_runtime_tags_do_not_double_qualify_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SASE_AGENT_NAME", "athena.agent-alpha")
-    monkeypatch.setattr("sase.config.get_machine_name", lambda: "athena")
+    monkeypatch.setattr(
+        _OWNER_TARGET,
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
     monkeypatch.setattr(
         "sase.core.machine_hood_facade.get_machine_name",
         lambda: "athena",
@@ -96,25 +113,42 @@ def test_runtime_tags_fall_back_to_agent_meta(
     )
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
 
-    with patch(_HOSTNAME_TARGET, return_value="machine-a"):
-        assert _resolve_runtime_commit_tags() == {
-            "AGENT": "agent-meta",
-            "MACHINE": "machine-a",
-        }
+    assert _resolve_runtime_commit_tags() == {
+        "AGENT": "machine_a.agent-meta",
+        "MACHINE": "machine_a",
+    }
 
 
 def test_runtime_tags_omit_agent_when_no_name_exists() -> None:
-    with patch(_HOSTNAME_TARGET, return_value="machine-a"):
-        assert _resolve_runtime_commit_tags() == {"MACHINE": "machine-a"}
+    assert _resolve_runtime_commit_tags() == {"MACHINE": "machine_a"}
 
 
 def test_runtime_tags_sanitize_values(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SASE_AGENT_NAME", "  agent\nalpha  ")
-    with patch(_HOSTNAME_TARGET, return_value=" machine\rhost "):
-        assert _resolve_runtime_commit_tags() == {
-            "AGENT": "agent alpha",
-            "MACHINE": "machine host",
-        }
+    monkeypatch.setattr(
+        _OWNER_TARGET,
+        lambda: AgentOwnerIdentity("alice", " machine\rhost "),
+    )
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.get_machine_name",
+        lambda: None,
+    )
+    assert _resolve_runtime_commit_tags() == {
+        "AGENT": "agent alpha",
+        "MACHINE": "machine host",
+    }
+
+
+def test_runtime_tags_require_complete_owner_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        _OWNER_TARGET,
+        lambda: (_ for _ in ()).throw(RuntimeError("run `sase config init`")),
+    )
+
+    with pytest.raises(RuntimeError, match="sase config init"):
+        _resolve_runtime_commit_tags()
 
 
 def test_update_trailing_tags_adds_runtime_tags() -> None:
@@ -251,16 +285,20 @@ def test_auto_commit_tags_with_runtime_adds_agent_when_name_set(
     """``SASE_AGENT_NAME`` adds the runtime ``AGENT=`` provenance tag."""
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-alpha")
     monkeypatch.setattr(
-        "sase.workflows.commit.runtime_tags.socket.gethostname",
-        lambda: "machine-z",
+        _OWNER_TARGET,
+        lambda: AgentOwnerIdentity("alice", "machine_z"),
+    )
+    monkeypatch.setattr(
+        "sase.core.machine_hood_facade.get_machine_name",
+        lambda: "machine_z",
     )
 
     updated = apply_auto_commit_tags_with_runtime("Fix bug", "sdd")
 
     tags = parse_trailing_commit_tags(updated)
     assert tags["TYPE"] == "sdd"
-    assert tags["AGENT"] == "agent-alpha"
-    assert tags["MACHINE"] == "machine-z"
+    assert tags["AGENT"] == "machine_z.agent-alpha"
+    assert tags["MACHINE"] == "machine_z"
 
 
 def test_parse_trailing_commit_tags_reads_legacy_block() -> None:
@@ -422,11 +460,12 @@ def test_create_commit_provider_receives_runtime_tags(
     payload = {"message": "Fix bug"}
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
 
-    with patch(_HOSTNAME_TARGET, return_value="machine-a"):
-        assert _run_workflow(payload, "create_commit", provider) == RunResult.OK
+    assert _run_workflow(payload, "create_commit", provider) == RunResult.OK
 
     provider.create_commit.assert_called_once_with(payload, ANY)
-    assert payload["message"] == "Fix bug\n\nSASE_AGENT=agent-a\nSASE_MACHINE=machine-a"
+    assert payload["message"] == (
+        "Fix bug\n\nSASE_AGENT=machine_a.agent-a\nSASE_MACHINE=machine_a"
+    )
 
 
 def test_create_pull_request_tags_override_inherited_runtime_tags(
@@ -443,7 +482,18 @@ def test_create_pull_request_tags_override_inherited_runtime_tags(
     )
 
     with (
-        patch(_HOSTNAME_TARGET, return_value="machine-current"),
+        patch(
+            _OWNER_TARGET,
+            return_value=AgentOwnerIdentity("alice", "machine_current"),
+        ),
+        patch(
+            "sase.core.machine_hood_facade.get_machine_name",
+            return_value="machine_current",
+        ),
+        patch(
+            "sase.core.machine_hood_facade.discover_machine_names",
+            return_value=("machine_current",),
+        ),
         patch(
             "sase.workflows.commit.pr_operations._fetch_parent_pr_tags",
             return_value={
@@ -463,13 +513,13 @@ def test_create_pull_request_tags_override_inherited_runtime_tags(
     message = payload["message"]
     assert "TEAM=infra" in message
     assert "REVIEW=true" in message
-    assert "AGENT=agent-current" in message
-    assert "MACHINE=machine-current" in message
+    assert "AGENT=machine_current.agent-current" in message
+    assert "MACHINE=machine_current" in message
     assert "agent-parent" not in message
     assert "machine-parent" not in message
     assert "machine-config" not in message
-    assert "AGENT=agent-current" in payload["_pr_body"]
-    assert "MACHINE=machine-current" in payload["_pr_body"]
+    assert "AGENT=machine_current.agent-current" in payload["_pr_body"]
+    assert "MACHINE=machine_current" in payload["_pr_body"]
 
 
 def test_create_proposal_does_not_add_runtime_tags(
@@ -479,8 +529,7 @@ def test_create_proposal_does_not_add_runtime_tags(
     payload = {"message": "Propose change"}
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
 
-    with patch(_HOSTNAME_TARGET, return_value="machine-a"):
-        assert _run_workflow(payload, "create_proposal", provider) == RunResult.OK
+    assert _run_workflow(payload, "create_proposal", provider) == RunResult.OK
 
     provider.create_proposal.assert_called_once_with(payload, ANY)
     assert payload["message"] == "Propose change"

@@ -16,16 +16,16 @@ sase init --all --yes   # skip generic prompts for every enabled main project
 
 The coordinator first builds all four read-only plans in registry order—config, memory, repositories, then skills—before
 it writes anything. It then applies the changed initializers in that same order. Config initialization establishes the
-machine-local identity; memory initialization owns agent-document initialization (managed `AGENTS.md` and its provider
-instruction copies); repository initialization owns configured sidecars and the workspace ignore rule. In
-non-interactive shells, bare `sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes`
-when you want to apply everything that does not require a resource-specific confirmation. Machine identity selection
-itself still requires a TTY. Apply runs can write project files, deploy home files through chezmoi when configured, and
-use each initializer's normal commit/push behavior. Project-wide ownership requires `is_sase_managed: true` in the
-current repository's own `sase/sase.yml`; defaults and merged user configuration cannot grant it. Without that local
-marker, memory init leaves project memory and the root `AGENTS.md` untouched while still copying every existing
-project-tree `AGENTS.md` to the provider instruction files beside it, and explicit repository initialization exits
-successfully without detecting a provider, materializing sidecars, or generating files.
+explicit per-user/per-machine owner identity; memory initialization owns agent-document initialization (managed
+`AGENTS.md` and its provider instruction copies); repository initialization owns configured sidecars and the workspace
+ignore rule. In non-interactive shells, bare `sase init` reports drift and exits non-zero instead of prompting; use
+`sase init --yes` when you want to apply everything that does not require a resource-specific confirmation. Owner
+identity creation and migration still require a TTY. Apply runs can write project files, deploy home files through
+chezmoi when configured, and use each initializer's normal commit/push behavior. Project-wide ownership requires
+`is_sase_managed: true` in the current repository's own `sase/sase.yml`; defaults and merged user configuration cannot
+grant it. Without that local marker, memory init leaves project memory and the root `AGENTS.md` untouched while still
+copying every existing project-tree `AGENTS.md` to the provider instruction files beside it, and explicit repository
+initialization exits successfully without detecting a provider, materializing sidecars, or generating files.
 
 One resource-specific exception is intentionally non-bypassable: `--yes` can run the repository initializer, but it
 cannot approve creation of a missing provider sidecar. Each creation always requires an interactive `y`/`yes` response
@@ -94,8 +94,8 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | `sase init -c, --check`                 | Report initialization drift without writing and exit non-zero when changes are needed.            |
 | `sase init -M, --enable-project-memory` | Mark the current repository as SASE-managed before running initialization.                        |
 | `sase init --yes`                       | Run every needed initializer in config, memory, repository, skills order without generic prompts. |
-| `sase config init`                      | Interactively select or create the machine-local identity.                                        |
-| `sase config init --check`              | Report whether machine identity initialization is needed without writing.                         |
+| `sase config init`                      | Interactively create, select, or migrate the explicit owner identity.                             |
+| `sase config init --check`              | Report owner identity initialization, migration, or conflicts without writing.                    |
 | `sase init config`                      | Compatibility alias for `sase config init`.                                                       |
 | `sase memory`                           | Alias for `sase memory list`.                                                                     |
 | `sase memory list`                      | Inspect loaded, referenced, available, and missing memory files for the current root.             |

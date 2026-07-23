@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.workflows.commit.changespec_operations import (
     _find_changespec_end_line,
 )
@@ -20,6 +21,14 @@ from sase.workflows.commit.commit_tracking import (
 from sase.workflows.commit.editor_utils import get_editor
 from sase.workflows.commit.pr_operations import detect_parent_changespec
 from sase.workflows.commit.workflow import CommitWorkflow
+
+
+@pytest.fixture(autouse=True)
+def _configured_owner(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.config.require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("test-user", "test_host"),
+    )
 
 
 def test_changespec_exists_no_project_file() -> None:

@@ -62,7 +62,7 @@ def test_config_init_labels_prettier_missing_skill_drift(monkeypatch) -> None:
     assert check.data["warning_count"] == 1
 
 
-def test_config_init_doctor_reports_missing_then_current_machine_identity(
+def test_config_init_doctor_reports_missing_then_current_owner_identity(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -84,7 +84,7 @@ def test_config_init_doctor_reports_missing_then_current_machine_identity(
     assert missing.data["action_count"] == 1
 
     (config_dir / "sase_athena.yml").write_text(
-        "machine_name: athena\n", encoding="utf-8"
+        "id:\n  username: alice\n  machine_name: athena\n", encoding="utf-8"
     )
     machine_name_path().write_text("athena\n", encoding="utf-8")
     config_core.clear_config_cache()

@@ -39,17 +39,17 @@ def register_config_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase config init
     config_init_parser = config_subparsers.add_parser(
         "init",
-        help="Initialize the machine-local SASE identity",
+        help="Initialize the explicit SASE owner identity",
         description=(
-            "Interactively select an existing machine overlay or create a new "
-            "sase_<machine>.yml overlay, then record the local selector."
+            "Interactively create or migrate id.username and id.machine_name "
+            "in the selected machine overlay, then record the local selector."
         ),
     )
     config_init_parser.add_argument(
         "-c",
         "--check",
         action="store_true",
-        help="Report whether machine identity initialization is needed",
+        help="Report whether owner identity initialization or migration is needed",
     )
 
     # sase config layers

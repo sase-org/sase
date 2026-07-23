@@ -1,4 +1,4 @@
-"""Interactive machine-identity initialization for SASE configuration."""
+"""Interactive owner-identity initialization for SASE configuration."""
 
 from __future__ import annotations
 
@@ -11,8 +11,9 @@ from typing import TextIO
 
 from sase.config import core as config_core
 from sase.config._edit_types import ConfigEditError
-from sase.config._edit_yaml import set_key
+from sase.config._edit_yaml import set_key, unset_key
 from sase.config.targets import overlay_config_path, resolve_write_path
+from sase.core.agent_identity_facade import validate_agent_username
 from sase.core.paths import machine_name_path
 
 from ._init_chezmoi_deploy import (
@@ -20,9 +21,13 @@ from ._init_chezmoi_deploy import (
     defer_chezmoi_paths,
     deploy_to_chezmoi,
 )
-from .init_plan import InitAction, InitPlan
+from .init_plan import InitAction, InitOperation, InitPlan
 
 _COMMAND_LABEL = "config init"
+_USERNAME_CONTRACT = (
+    "Your SASE username must be globally unique, should be reused on every "
+    "machine you own, and should normally be your GitHub username."
+)
 
 
 def _existing_machine_names() -> tuple[str, ...]:
@@ -30,39 +35,100 @@ def _existing_machine_names() -> tuple[str, ...]:
     return config_core.discover_machine_names()
 
 
-def _configured_machine_name() -> str | None:
-    """Return the current identity only when selector and config agree."""
-    return config_core.get_machine_name()
+def _selected_overlay_missing_username(
+    snapshot: config_core.AgentOwnerConfigSnapshot,
+) -> bool:
+    selected = snapshot.selected_overlay
+    if selected is None:
+        return False
+    overlay = next((item for item in snapshot.overlays if item.path == selected), None)
+    return overlay is not None and overlay.username is None
 
 
 def plan_config_init(args: argparse.Namespace) -> InitPlan:
-    """Return a read-only plan for machine identity initialization."""
+    """Return a read-only, migration-aware owner identity plan."""
     del args
-    configured = _configured_machine_name()
-    if configured is not None:
+    snapshot = config_core.get_agent_owner_config_snapshot()
+    if snapshot.status == "complete" and snapshot.owner is not None:
+        owner = snapshot.owner
         return InitPlan(
             command="config",
             label="Config",
-            summary=f"machine identity is configured as {configured}",
+            summary=(
+                f"owner identity is configured as {owner.username}@{owner.machine_name}"
+            ),
             actions=(),
         )
 
-    names = _existing_machine_names()
+    blockers: list[str] = []
+    if not snapshot.repairable:
+        blockers.append(snapshot.detail)
+    elif (
+        _selected_overlay_missing_username(snapshot)
+        and len(snapshot.existing_usernames) > 1
+    ):
+        blockers.append(
+            "conflicting existing usernames prevent automatic reuse: "
+            f"{', '.join(snapshot.existing_usernames)}; resolve the overlays or "
+            "set the selected overlay's `id.username` explicitly"
+        )
+
+    actions: list[InitAction] = []
+    if not blockers and snapshot.selected_overlay is not None:
+        operation: InitOperation = (
+            "update" if snapshot.selected_overlay.exists() else "create"
+        )
+        detail = {
+            "legacy": (
+                "migrate deprecated top-level `machine_name`, add the stable "
+                "per-user `id.username`, and preserve unrelated YAML"
+            ),
+            "partial": (
+                "complete `id.username` and `id.machine_name` in the selected "
+                "machine overlay"
+            ),
+            "invalid": "repair invalid nested owner identity values",
+            "missing_overlay": (
+                "create the selected machine overlay with `id.username` and "
+                "`id.machine_name`"
+            ),
+        }.get(snapshot.status, "repair the selected owner identity overlay")
+        actions.append(
+            InitAction(
+                path=snapshot.selected_overlay,
+                operation=operation,
+                detail=detail,
+            )
+        )
+
     selector_path = machine_name_path()
-    choices = f" Existing choices: {', '.join(names)}." if names else ""
-    return InitPlan(
-        command="config",
-        label="Config",
-        summary="choose or create the machine-local identity",
-        actions=(
+    if not blockers and snapshot.status in {
+        "missing_selector",
+        "invalid_selector",
+        "selector_mismatch",
+    }:
+        actions.append(
             InitAction(
                 path=selector_path,
                 operation="update" if selector_path.exists() else "create",
                 detail=(
-                    f"select an existing machine overlay or create a new one.{choices}"
+                    "select an existing machine overlay or create a new one; "
+                    f"{snapshot.detail}"
                 ),
-            ),
-        ),
+            )
+        )
+
+    summary = (
+        f"legacy owner identity requires migration: {snapshot.detail}"
+        if snapshot.status == "legacy"
+        else snapshot.detail
+    )
+    return InitPlan(
+        command="config",
+        label="Config",
+        summary=summary,
+        actions=tuple(actions),
+        blockers=tuple(blockers),
     )
 
 
@@ -72,7 +138,10 @@ def _hostname_suggestion() -> str:
 
 
 def _prompt_machine_name(
-    args: argparse.Namespace, names: tuple[str, ...]
+    args: argparse.Namespace,
+    names: tuple[str, ...],
+    *,
+    suggestion: str | None = None,
 ) -> str | None:
     if names:
         print(f"Existing machine names: {', '.join(names)}")
@@ -80,26 +149,26 @@ def _prompt_machine_name(
         print("No existing machine overlays were found.")
 
     input_func = getattr(args, "_init_input_func", None) or input
-    suggestion = _hostname_suggestion()
+    suggested = suggestion or _hostname_suggestion()
     prompt = "Machine name"
-    if suggestion:
-        prompt += f" [{suggestion}]"
+    if suggested:
+        prompt += f" [{suggested}]"
     prompt += ": "
 
     while True:
         try:
             answer = input_func(prompt)
-        except EOFError:
+        except (EOFError, StopIteration):
             print(
-                "error: machine identity initialization received no input",
+                "error: owner identity initialization received no input",
                 file=sys.stderr,
             )
             return None
         except KeyboardInterrupt:
-            print("\nerror: machine identity initialization cancelled", file=sys.stderr)
+            print("\nerror: owner identity initialization cancelled", file=sys.stderr)
             return None
 
-        candidate = answer.strip() or suggestion
+        candidate = answer.strip() or suggested
         if config_core.is_valid_machine_name(candidate):
             return candidate
         print(
@@ -107,6 +176,49 @@ def _prompt_machine_name(
             "(pattern: ^[a-z_]+$).",
             file=sys.stderr,
         )
+
+
+def _prompt_username(args: argparse.Namespace) -> str | None:
+    input_func = getattr(args, "_init_input_func", None) or input
+    print(_USERNAME_CONTRACT)
+    while True:
+        try:
+            candidate = input_func("SASE username: ").strip()
+        except (EOFError, StopIteration):
+            print(
+                "error: owner identity initialization received no username",
+                file=sys.stderr,
+            )
+            return None
+        except KeyboardInterrupt:
+            print("\nerror: owner identity initialization cancelled", file=sys.stderr)
+            return None
+        try:
+            validate_agent_username(candidate)
+        except (RuntimeError, ValueError) as exc:
+            print(f"Invalid SASE username: {exc}", file=sys.stderr)
+            continue
+        return candidate
+
+
+def _confirm_existing_username(
+    args: argparse.Namespace,
+    username: str,
+    machine_name: str,
+) -> bool:
+    input_func = getattr(args, "_init_input_func", None) or input
+    print(_USERNAME_CONTRACT)
+    prompt = (
+        f"Reuse existing username '{username}' for machine '{machine_name}'? [y/N] "
+    )
+    try:
+        answer = input_func(prompt)
+    except (EOFError, StopIteration):
+        answer = ""
+    except KeyboardInterrupt:
+        print(file=sys.stderr)
+        answer = ""
+    return answer.strip().lower() in {"y", "yes"}
 
 
 def _machine_hood_collisions(machine_name: str) -> tuple[str, ...]:
@@ -138,14 +250,14 @@ def _confirm_registry_collision(
     )
     try:
         answer = input_func(prompt)
-    except EOFError:
+    except (EOFError, StopIteration):
         answer = ""
     except KeyboardInterrupt:
         print(file=sys.stderr)
         answer = ""
     if answer.strip().lower() in {"y", "yes"}:
         return True
-    print("Machine identity initialization cancelled.", file=sys.stderr)
+    print("Owner identity initialization cancelled.", file=sys.stderr)
     return False
 
 
@@ -157,16 +269,30 @@ def _read_overlay_text(write_path: Path, target_path: Path) -> str:
     return source.read_text(encoding="utf-8")
 
 
-def _write_new_machine_overlay(machine_name: str, *, use_chezmoi: bool) -> Path:
-    target_path = overlay_config_path(machine_name)
+def _write_identity_overlay(
+    target_path: Path,
+    *,
+    username: str,
+    machine_name: str,
+    use_chezmoi: bool,
+) -> tuple[Path, bool]:
+    """Minimally write the nested identity and remove the legacy key."""
     write_path = resolve_write_path(str(target_path), use_chezmoi=use_chezmoi)
     if write_path is None:  # pragma: no cover - a concrete target was supplied.
         raise ConfigEditError("machine overlay has no writable destination")
     current_text = _read_overlay_text(write_path, target_path)
-    updated_text = set_key(current_text, ("machine_name",), machine_name)
+    updated_text = set_key(current_text, ("id", "username"), username)
+    updated_text = set_key(
+        updated_text,
+        ("id", "machine_name"),
+        machine_name,
+    )
+    updated_text = unset_key(updated_text, ("machine_name",))
+    if updated_text == current_text:
+        return write_path, False
     write_path.parent.mkdir(parents=True, exist_ok=True)
     write_path.write_text(updated_text, encoding="utf-8")
-    return write_path
+    return write_path, True
 
 
 def _write_machine_selector(machine_name: str) -> Path:
@@ -183,7 +309,7 @@ def _deploy_machine_overlay(path: Path, args: argparse.Namespace) -> int:
         (path,),
         ChezmoiDeployBehavior(
             command_label=_COMMAND_LABEL,
-            commit_message="chore: initialize SASE machine config",
+            commit_message="chore: initialize SASE owner identity",
             auto_commit_type="init",
             chezmoi_home=config_core.CHEZMOI_HOME,
             no_commit=getattr(args, "no_commit", False),
@@ -193,8 +319,83 @@ def _deploy_machine_overlay(path: Path, args: argparse.Namespace) -> int:
     )
 
 
+def _overlay_for_machine(
+    snapshot: config_core.AgentOwnerConfigSnapshot,
+    machine_name: str,
+) -> tuple[config_core.RawOverlayIdentity | None, str | None]:
+    matching = [
+        overlay
+        for overlay in snapshot.overlays
+        if overlay.discriminator == machine_name
+    ]
+    if len(matching) > 1:
+        paths = ", ".join(str(item.path) for item in matching)
+        return None, (
+            f"duplicate identity overlays declare machine '{machine_name}': {paths}"
+        )
+    if matching:
+        overlay = matching[0]
+        if overlay.nested_legacy_conflict:
+            return None, (
+                f"{overlay.path} has conflicting nested and legacy machine names"
+            )
+        return overlay, None
+
+    target = overlay_config_path(machine_name)
+    conventional = next(
+        (overlay for overlay in snapshot.overlays if overlay.path == target),
+        None,
+    )
+    if conventional is not None and conventional.declares_machine_overlay:
+        return None, (
+            f"{target} declares machine '{conventional.discriminator}', not "
+            f"'{machine_name}'"
+        )
+    return conventional, None
+
+
+def _configured_username(
+    overlay: config_core.RawOverlayIdentity | None,
+) -> str | None:
+    if overlay is None or overlay.username is None:
+        return None
+    try:
+        validate_agent_username(overlay.username)
+    except (RuntimeError, ValueError):
+        return None
+    return overlay.username
+
+
+def _choose_username(
+    args: argparse.Namespace,
+    snapshot: config_core.AgentOwnerConfigSnapshot,
+    overlay: config_core.RawOverlayIdentity | None,
+    machine_name: str,
+) -> str | None:
+    configured = _configured_username(overlay)
+    if configured is not None:
+        return configured
+
+    candidates = snapshot.existing_usernames
+    if len(candidates) > 1:
+        print(
+            "error: conflicting existing usernames cannot be chosen "
+            f"automatically: {', '.join(candidates)}; set `id.username` in "
+            f"{overlay.path if overlay is not None else overlay_config_path(machine_name)}",
+            file=sys.stderr,
+        )
+        return None
+    if len(candidates) == 1 and _confirm_existing_username(
+        args,
+        candidates[0],
+        machine_name,
+    ):
+        return candidates[0]
+    return _prompt_username(args)
+
+
 def run_config_init(args: argparse.Namespace) -> int:
-    """Interactively select or create the machine-local SASE identity."""
+    """Interactively create, migrate, or repair the selected owner identity."""
     if getattr(args, "check", False):
         from .init_onboarding import run_init_check
         from .init_registry import InitCommandSpec
@@ -211,23 +412,46 @@ def run_config_init(args: argparse.Namespace) -> int:
             ),
         )
 
-    configured = _configured_machine_name()
-    if configured is not None:
-        print(f"Machine identity is already configured as {configured}.")
+    snapshot = config_core.get_agent_owner_config_snapshot()
+    if snapshot.status == "complete" and snapshot.owner is not None:
+        owner = snapshot.owner
+        print(
+            "Owner identity is already configured as "
+            f"{owner.username}@{owner.machine_name}."
+        )
         return 0
+    if not snapshot.repairable:
+        print(
+            f"error: cannot initialize owner identity: {snapshot.detail}",
+            file=sys.stderr,
+        )
+        return 1
 
     stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
     if not stdin.isatty():
         print(
-            "error: machine identity initialization requires an interactive TTY; "
+            "error: owner identity initialization requires an interactive TTY; "
             "run `sase config init` in a terminal",
             file=sys.stderr,
         )
         return 1
 
-    names = _existing_machine_names()
-    machine_name = _prompt_machine_name(args, names)
+    machine_name = snapshot.selector
+    if machine_name is None or snapshot.status == "selector_mismatch":
+        machine_name = _prompt_machine_name(
+            args,
+            _existing_machine_names(),
+            suggestion=snapshot.selector,
+        )
     if machine_name is None:
+        return 1
+
+    overlay, overlay_error = _overlay_for_machine(snapshot, machine_name)
+    if overlay_error is not None:
+        print(f"error: {overlay_error}", file=sys.stderr)
+        return 1
+    username = _choose_username(args, snapshot, overlay, machine_name)
+    if username is None:
         return 1
 
     try:
@@ -245,25 +469,33 @@ def run_config_init(args: argparse.Namespace) -> int:
     except Exception as exc:  # noqa: BLE001 - config failures are user-facing.
         print(f"error: failed to resolve config write policy: {exc}", file=sys.stderr)
         return 1
+
+    target_path = (
+        overlay.path if overlay is not None else overlay_config_path(machine_name)
+    )
     overlay_write_path: Path | None = None
+    overlay_changed = False
     try:
-        if machine_name not in names:
-            overlay_write_path = _write_new_machine_overlay(
-                machine_name,
-                use_chezmoi=use_chezmoi,
-            )
+        overlay_write_path, overlay_changed = _write_identity_overlay(
+            target_path,
+            username=username,
+            machine_name=machine_name,
+            use_chezmoi=use_chezmoi,
+        )
         selector_path = _write_machine_selector(machine_name)
     except Exception as exc:  # noqa: BLE001 - write/YAML failures are user-facing.
         config_core.clear_config_cache()
-        print(f"error: failed to initialize machine identity: {exc}", file=sys.stderr)
+        print(f"error: failed to initialize owner identity: {exc}", file=sys.stderr)
         return 1
 
     config_core.clear_config_cache()
-    if overlay_write_path is not None:
-        print(f"Created machine overlay: {overlay_write_path}")
-    print(f"Selected machine identity '{machine_name}' in {selector_path}.")
+    if overlay_changed:
+        print(f"Updated owner identity overlay: {overlay_write_path}")
+    print(
+        f"Selected owner '{username}' on machine '{machine_name}' in {selector_path}."
+    )
 
-    if use_chezmoi and overlay_write_path is not None:
+    if use_chezmoi and overlay_changed and overlay_write_path is not None:
         return _deploy_machine_overlay(overlay_write_path, args)
     return 0
 

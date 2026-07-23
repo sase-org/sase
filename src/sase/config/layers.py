@@ -28,6 +28,7 @@ UNSUPPORTED_TOP_LEVEL_KEYS: frozenset[str] = frozenset({"workflows"})
 # nudge to migrate without breaking launched agents with repeated warnings.
 DEPRECATED_TOP_LEVEL_KEYS: dict[str, str] = {
     "linked_repos": "repos.linked",
+    "machine_name": "id.machine_name",
     "sibling_repos": "repos.linked",
 }
 

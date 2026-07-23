@@ -12,12 +12,12 @@ Before running `sase repo init`, set the intrinsic `agents` sidecar's `visibilit
 restricted. Set `disabled: true` to opt out entirely. Synchronization never creates a remote and cannot bypass the
 explicit consent requested by repo initialization.
 
-Every participating machine needs a configured `machine_name`. The machine hood is part of each durable agent name, such
-as `athena.worker`, so independently created names remain distinct. Run `sase config init` to select or create the
-machine identity; see [machine_name and machine overlays](configuration.md#machine_name) for how the identity is stored
-and layered. A machine is authoritative for bundles in its own hood: pulled copies from the same machine are not
-imported over local artifacts, and a later local export replaces the transport copy when its commits or portable
-metadata change.
+Every participating machine needs a complete selected `id.username`/`id.machine_name` owner identity. During this
+compatibility phase, the machine hood remains part of each durable agent name, such as `athena.worker`, so independently
+created names remain distinct. Run `sase config init` to create or migrate the owner identity; see
+[owner identity and machine overlays](configuration.md#owner-identity) for the selector/overlay distinction and source
+authority. A machine is authoritative for bundles in its own hood: pulled copies from the same machine are not imported
+over local artifacts, and a later local export replaces the transport copy when its commits or portable metadata change.
 
 ## Portable bundle layout
 

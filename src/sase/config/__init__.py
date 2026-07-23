@@ -7,11 +7,15 @@ the TUI panel and any future CLI/web frontend call through.
 """
 
 from sase.config.core import (
+    AgentOwnerConfigSnapshot,
     CHEZMOI_HOME,
     CONFIG_DIR,
     ConfigLayer,
     DEFAULT_MAX_RUNNING_AGENTS,
+    RawOverlayIdentity,
     discover_machine_names,
+    get_agent_owner_config_snapshot,
+    get_agent_owner_identity,
     get_configured_max_running_agents,
     get_machine_name,
     get_max_running_agents,
@@ -20,6 +24,7 @@ from sase.config.core import (
     load_merged_config,
     load_xprompts_by_source,
     load_yaml_file_with_metadata,
+    require_agent_owner_identity,
     require_machine_name,
 )
 from sase.config.runner_limit_override import (
@@ -73,6 +78,7 @@ from sase.config.targets import (
 
 
 __all__ = [
+    "AgentOwnerConfigSnapshot",
     "CHEZMOI_HOME",
     "CONFIG_DIR",
     "AppliedResult",
@@ -95,6 +101,7 @@ __all__ = [
     "EffectiveRunnerLimitSnapshot",
     "EditPlanResult",
     "RunnerLimitOverrideStateError",
+    "RawOverlayIdentity",
     "TemporaryRunnerLimitOverride",
     "apply_chezmoi",
     "apply_config_edit",
@@ -106,6 +113,8 @@ __all__ = [
     "default_target_layer",
     "discover_layer_inputs",
     "discover_machine_names",
+    "get_agent_owner_config_snapshot",
+    "get_agent_owner_identity",
     "get_active_runner_limit_override",
     "get_configured_max_running_agents",
     "get_machine_name",
@@ -122,6 +131,7 @@ __all__ = [
     "plan_config_edit",
     "resolve_write_path",
     "serialize_config_layer",
+    "require_agent_owner_identity",
     "require_machine_name",
     "set_key",
     "set_runner_limit_override",

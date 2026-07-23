@@ -22,7 +22,7 @@ class InitCommandSpec:
 def iter_init_command_specs() -> tuple[InitCommandSpec, ...]:
     """Return registered onboarding specs in execution order.
 
-    Config establishes the machine-local identity before the memory spec owns
+    Config establishes the explicit owner identity before the memory spec owns
     agent-document initialization (managed AGENTS.md and provider shims), and
     before the repo spec owns configured sidecars and project repository wiring.
     """

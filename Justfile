@@ -239,7 +239,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-8v(AgentFamilyNameKind)' \
         --epic-symbol 'sase-8v(AgentLinkTarget)' \
         --epic-symbol 'sase-8v(AgentLinkTargetKind)' \
-        --epic-symbol 'sase-8v(AgentOwnerIdentity)' \
         --epic-symbol 'sase-8v(AgentOwnershipClassification)' \
         --epic-symbol 'sase-8v(AgentSourceOwnerIdentity)' \
         --epic-symbol 'sase-8v(ParsedAgentFamilyName)' \
@@ -258,9 +257,7 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-8v(parse_agent_family_name)' \
         --epic-symbol 'sase-8v(rewrite_agent_relationship_batch)' \
         --epic-symbol 'sase-8v(strip_global_agent_name)' \
-        --epic-symbol 'sase-8v(validate_agent_owner)' \
         --epic-symbol 'sase-8v(validate_agent_relationship_batch)' \
-        --epic-symbol 'sase-8v(validate_agent_username)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

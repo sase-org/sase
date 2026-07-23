@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.llm_provider.commit_finalizer import run_commit_finalizer
 from sase.llm_provider.types import InvokeResult
 
@@ -64,6 +65,10 @@ def test_finalizer_inspects_spawn_workspace_when_parent_env_stale(
         patch(
             "sase.running_field.transfer_workspace_claim",
             return_value=ClaimResult(success=True),
+        ),
+        patch(
+            "sase.config.require_agent_owner_identity",
+            return_value=AgentOwnerIdentity("alice", "athena"),
         ),
         patch("sase.axe.chop_agents.record_chop_agent_launch_from_env"),
     ):

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import socket
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -77,20 +76,18 @@ def _resolve_agent_name() -> str | None:
     return None
 
 
-def _resolve_machine_name() -> str | None:
-    """Resolve the current host name for commit provenance."""
-    from sase.config import get_machine_name
+def _resolve_machine_name() -> str:
+    """Resolve the configured machine from the complete owner identity."""
+    from sase.config import require_agent_owner_identity
 
-    configured_name = _sanitize_tag_value(get_machine_name())
-    if configured_name:
-        return configured_name
-    try:
-        machine_name = _sanitize_tag_value(socket.gethostname())
-    except OSError:
-        machine_name = None
-    if machine_name:
-        return machine_name
-    return _sanitize_tag_value(os.environ.get("HOSTNAME"))
+    owner = require_agent_owner_identity()
+    machine_name = _sanitize_tag_value(owner.machine_name)
+    if machine_name is None:  # Rust validation makes this unreachable.
+        raise RuntimeError(
+            "SASE agent owner identity has an empty machine name; "
+            "run `sase config init`."
+        )
+    return machine_name
 
 
 def apply_runtime_commit_tags(payload: dict) -> None:

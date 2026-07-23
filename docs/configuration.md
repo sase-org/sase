@@ -6,7 +6,7 @@ and CLI flags.
 ## Table of Contents
 
 - [Config File Location](#config-file-location)
-- [Machine Identity](#machine-identity)
+- [Owner Identity](#owner-identity)
 - [SASE Admin Center (interactive editor)](#sase-admin-center-interactive-editor)
   - [Config tab](#config-tab)
   - [Projects tab](#projects-tab)
@@ -16,7 +16,8 @@ and CLI flags.
   - [amd_h1_title](#amd_h1_title)
   - [generated templates](#generated-templates)
   - [is_sase_managed](#is_sase_managed)
-  - [machine_name](#machine_name)
+  - [id](#id)
+  - [machine_name (deprecated)](#machine_name-deprecated)
   - [ace](#ace)
   - [llm_provider](#llm_provider)
   - [commit](#commit)
@@ -63,46 +64,52 @@ both files exist, SASE reports a collision instead of merging them. The ACE TUI 
 config loading for its own process so opening `sase ace` inside a repo does not inherit that repo's agent-run settings.
 See [Deep-Merge System](#deep-merge-system) below.
 
-## Machine Identity
+## Owner Identity
 
-SASE has one explicit, machine-local identity. Initialize it interactively with either equivalent command:
+SASE has one explicit owner identity selected for the current machine. Initialize or migrate it interactively with
+either equivalent command:
 
 ```bash
 sase config init
 sase init config
 ```
 
-The initializer lists identities already declared by machine overlays, suggests the lowercase hostname with every
-character outside `[a-z_]` replaced by `_`, and keeps prompting until the selected name matches `^[a-z_]+$`. If the
-chosen top-level hood is already occupied in the durable agent-name registry, continuing requires an explicit `y` or
-`yes` confirmation; the default is no. Prompting requires a TTY. Use `sase config init --check` or
-`sase init config --check` for a read-only status check.
-
-The selection itself is stored in the bounded local state file `~/.sase/machine_name` (or `$SASE_HOME/machine_name`). It
-contains exactly one valid name and is deliberately not portable configuration. The selected machine identity overlay
-created or selected by `sase config init` must contain the schema field:
+The selected overlay owns both parts of the identity:
 
 ```yaml
-machine_name: athena
+id:
+  username: alice
+  machine_name: athena
 ```
 
-Any `sase_*.yml` overlay with a top-level `machine_name` is machine-specific. SASE loads it only when that value matches
-the local selector; foreign machine overlays do not contribute runtime settings, Config inventory layers, or config-
-defined xprompts. Overlays without `machine_name` remain ordinary overlays and always participate. Changing the selector
-invalidates the merged-config cache just like changing a config file.
+`id.username` is a path-safe, dot-free SASE username. It must be globally unique, should be identical on every machine
+owned by the same user, and should normally be the user's GitHub username. SASE validates its syntax and reserved names
+but cannot prove global uniqueness. `id.machine_name` matches `^[a-z_]+$` and is unique among that user's machines.
 
-The shared public schema validates each config file independently, so `machine_name` is optional in base config,
-ordinary overlays, bundled defaults, and project-local fragments. When a document does declare the field, the schema
-requires a lowercase/underscore identity matching `^[a-z_]+$`.
+The bounded local state file `~/.sase/machine_name` (or `$SASE_HOME/machine_name`) is only a selector. It contains one
+machine name and is deliberately not portable configuration; it is not the owner identity and cannot supply a missing
+username. SASE discovers machine overlays by nested `id.machine_name` first, with deprecated top-level `machine_name`
+accepted only as migration input. Foreign machine overlays do not contribute runtime settings, Config inventory layers,
+or config-defined xprompts. Ordinary overlays still participate.
 
-Selecting an existing identity writes only `~/.sase/machine_name`. Creating a new identity minimally adds `machine_name`
-to `~/.config/sase/sase_<name>.yml`, preserving unrelated YAML where possible, then writes the selector. With
+Only the selected raw machine overlay can own provenance. An `id` value in bundled defaults, plugins,
+`~/.config/sase/sase.yml`, ordinary overlays, or project-local config is ignored by runtime merging and cannot change
+the owner for one project. The selected raw `id` object remains visible in merged configuration for inspection.
+
+The initializer lists declared machines, suggests a schema-safe hostname when a machine must be chosen, and requires an
+explicit valid username unless exactly one existing username is clearly confirmed for reuse. It never chooses among
+conflicting usernames. Creation and migration minimally set `id.username` and `id.machine_name` in the same overlay,
+remove its deprecated top-level key, preserve unrelated YAML/comments, and then write the selector. With
 `use_chezmoi: true`, the overlay edit is made in the chezmoi source tree. Direct `sase config init` uses the normal
-commit/push/apply deployment; bare `sase init` combines that source edit with its deferred chezmoi deployment.
+commit/push/apply deployment; bare `sase init` combines the edit with deferred chezmoi deployment.
 
-There is intentionally no bundled `machine_name` default. Existing installations continue to load and run with the
-optional machine identity unset until initialization, while features that require a machine hood report the actionable
-`sase config init` instruction.
+Prompting requires a TTY. `sase config init --check`, bare `sase init --check`, and `sase doctor` report missing
+usernames, legacy migration, invalid values, selector mismatches, duplicate overlays, and identity conflicts without
+writing. Config inspection, help, initialization, doctor, and legacy history remain available while identity is
+incomplete. Actual agent process creation, new commit provenance, and agents-sidecar mutations require both identity
+fields and fail with the actionable `sase config init` instruction.
+
+There is intentionally no bundled identity default.
 
 Machine hoods also provide stable ownership for the hidden agents sidecar. See
 [Completed Agent Synchronization](agents_sidecar.md) for privacy controls, bundle contents, sync commands, and recovery.
@@ -292,8 +299,8 @@ Sase builds a merged configuration through five layers, each merged on top of th
 2. **Plugin `default_config.yml` files** — from installed plugin packages (via `sase_config` entry points), sorted by
    entry-point name; lists concatenate
 3. **`sase.yml`** — user config (`~/.config/sase/sase.yml`); lists **replace** defaults (not concatenate)
-4. **Selected `sase_*.yml` overlays** — ordinary overlays plus only the machine overlay whose `machine_name` matches
-   `~/.sase/machine_name`, sorted alphabetically; lists **concatenate**
+4. **Selected `sase_*.yml` overlays** — ordinary overlays plus only the machine overlay whose nested `id.machine_name`
+   (or deprecated top-level fallback) matches `~/.sase/machine_name`, sorted alphabetically; lists **concatenate**
 5. **Local `sase.yml`** — project-level config in the current working directory; lists **concatenate** (highest
    priority)
 
@@ -397,23 +404,34 @@ existing project `AGENTS.md` files remain independent of it.
 
 Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`
 
-### machine_name
+### id
 
-Declares the identity owned by a machine-specific user overlay:
+Declares the explicit owner in the selected machine overlay:
+
+```yaml
+id:
+  username: alice
+  machine_name: athena
+```
+
+| Field             | Type   | Default | Description                                                                                           |
+| ----------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------- |
+| `id.username`     | string | none    | Stable per-user identity shared across that user's machines; syntax and reserved names are validated. |
+| `id.machine_name` | string | none    | Per-user machine name matching `^[a-z_]+$` and the local selector.                                    |
+
+The schema permits partial objects so `sase config init` can diagnose and repair interrupted or legacy migrations, but
+provenance requires both valid fields.
+
+### machine_name (deprecated)
+
+Top-level `machine_name` remains schema-valid only as read-only migration input for legacy overlays:
 
 ```yaml
 machine_name: athena
 ```
 
-| Field          | Type   | Default | Description                                                                                                 |
-| -------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------- |
-| `machine_name` | string | none    | Optional per document; required in the selected machine identity overlay and validated against `^[a-z_]+$`. |
-
-The public per-document schema keeps this field optional because base config, ordinary overlays, bundled defaults, and
-project-local fragments do not own the machine identity. Runtime config therefore remains compatible with a
-legacy/uninitialized installation: no machine overlay is selected and the optional accessor returns unset. Run
-`sase config init` to select or create the identity overlay and write the local state selector. See
-[Machine Identity](#machine-identity) for loading and deployment behavior.
+New writers never emit this form. Run `sase config init` to move it under `id`, add the required username, and preserve
+the rest of the overlay. See [Owner Identity](#owner-identity) for selection, authority, and deployment behavior.
 
 Source: `src/sase/config/core.py`, `src/sase/config/sase.schema.json`, `src/sase/core/paths.py`
 

@@ -344,10 +344,28 @@
       "description": "Explicitly authorize SASE to manage repository resources, including project memory, root AGENTS.md, and SDD initialization. Only the target repository's own sase/sase.yml is consulted.",
       "default": false
     },
+    "id": {
+      "type": "object",
+      "description": "Explicit owner identity. This object is authoritative only in the machine overlay selected by ~/.sase/machine_name; run sase config init to create or repair it.",
+      "additionalProperties": false,
+      "properties": {
+        "username": {
+          "type": "string",
+          "pattern": "^(?!agents$|internal$|sase$)(?!.*--)[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$",
+          "description": "Stable, globally unique SASE username shared by all machines owned by the same user; normally the user's GitHub username."
+        },
+        "machine_name": {
+          "type": "string",
+          "pattern": "^[a-z_]+$",
+          "description": "Stable name unique among this user's machines. In a selected machine overlay it must match the ~/.sase/machine_name selector."
+        }
+      }
+    },
     "machine_name": {
       "type": "string",
       "pattern": "^[a-z_]+$",
-      "description": "Marks a machine-specific overlay and is established by sase config init. Optional in base, ordinary-overlay, default, and project-local config fragments; when present, the overlay loads only when this value matches the ~/.sase/machine_name selector."
+      "deprecated": true,
+      "description": "Deprecated migration input for legacy machine overlays. Run sase config init to move it to id.machine_name; new configuration must use the nested identity object."
     },
     "ace": {
       "type": "object",

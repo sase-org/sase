@@ -20,7 +20,16 @@ from sase.axe.chop_agents import (
     get_chop_agent_records,
 )
 from sase.linked_repos import LinkedRepoResolution
+from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.running_field import ClaimResult
+
+
+@pytest.fixture(autouse=True)
+def _configured_owner(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.config.require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
 
 
 def _spawn_agent_for_env_test(
@@ -69,6 +78,29 @@ def _fake_spawn_success(
     assert env["SASE_HOME"]
     assert "PYTEST_CURRENT_TEST" in env
     return 4321
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_requires_complete_owner_before_process_creation(
+    mock_spawn: MagicMock,
+    _mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.config.require_agent_owner_identity",
+        lambda: (_ for _ in ()).throw(RuntimeError("run `sase config init`")),
+    )
+
+    with pytest.raises(RuntimeError, match="sase config init"):
+        _spawn_agent_for_env_test(
+            tmp_path=tmp_path,
+            monkeypatch=monkeypatch,
+            mock_spawn=mock_spawn,
+        )
+
+    mock_spawn.assert_not_called()
 
 
 def test_build_chop_launch_env() -> None:

@@ -84,7 +84,7 @@ def test_prompt_completion_word_min_length_schema_contract() -> None:
         )
 
 
-def test_config_schema_allows_base_config_without_machine_name() -> None:
+def test_config_schema_allows_base_config_without_identity() -> None:
     validator = Draft7Validator(schema())
 
     validator.validate({})
@@ -96,14 +96,20 @@ def test_config_schema_allows_base_config_without_machine_name() -> None:
     )
 
 
-def test_config_schema_validates_declared_machine_name() -> None:
+def test_config_schema_validates_nested_owner_and_legacy_machine_name() -> None:
     validator = Draft7Validator(schema())
 
+    validator.validate({"id": {"username": "alice-2", "machine_name": "athena"}})
     validator.validate({"machine_name": "athena"})
     validator.validate({"machine_name": "build_host"})
     for invalid in ("Athena", "host-1", "host1", ""):
         with pytest.raises(ValidationError):
-            validator.validate({"machine_name": invalid})
+            validator.validate({"id": {"username": "alice", "machine_name": invalid}})
+    for invalid in ("Alice", "alice.", "a--b", "agents", "sase"):
+        with pytest.raises(ValidationError):
+            validator.validate({"id": {"username": invalid, "machine_name": "athena"}})
+
+    assert schema()["properties"]["machine_name"]["deprecated"] is True
 
 
 def test_config_schema_accepts_scoped_statistics_keymaps() -> None:

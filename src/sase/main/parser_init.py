@@ -126,7 +126,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Alias for `sase config init`",
         description=(
             "Compatibility alias for `sase config init`, which interactively "
-            "selects or creates the machine-local SASE identity."
+            "creates, selects, or migrates the explicit SASE owner identity."
         ),
     )
     config_parser.add_argument(
@@ -134,7 +134,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         "--check",
         action="store_true",
         default=argparse.SUPPRESS,
-        help="Report whether machine identity initialization is needed",
+        help="Report whether owner identity initialization or migration is needed",
     )
 
     memory_parser = init_subparsers.add_parser(

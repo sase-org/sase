@@ -368,6 +368,9 @@ def spawn_agent_subprocess(
 
     # Spawn detached subprocess. Rust owns the process creation and will
     # terminate the child if the Python claim/home callback raises.
+    from sase.config import require_agent_owner_identity
+
+    require_agent_owner_identity()
     with timer.stage("subprocess_spawn"):
         pid = spawn_prepared_agent_process(
             prepared,

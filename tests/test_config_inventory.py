@@ -329,6 +329,10 @@ def test_config_field_model_flattens_real_schema() -> None:
     # The canonical nested fields and deprecated aliases are all visible.
     assert "repos.linked" in by_path
     assert "repos.sidecar" in by_path
+    assert "id.username" in by_path
+    assert "id.machine_name" in by_path
+    assert "machine_name" in by_path
+    assert by_path["machine_name"].deprecated is True
     assert "linked_repos" in by_path
     assert by_path["linked_repos"].kind == "array"
 
