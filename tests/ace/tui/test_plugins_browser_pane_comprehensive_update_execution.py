@@ -1,0 +1,195 @@
+"""Execution and completion tests for comprehensive Updates-pane flows."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+from sase.ace.comprehensive_update import (
+    ComprehensiveSaseUpdateResult,
+    ComprehensiveUpdateResult,
+    SaseUpdateResultStatus,
+)
+from sase.ace.tui.modals import plugins_browser_pane as pbp
+from sase.ace.tui.modals.plugins_browser_comprehensive_update import (
+    ComprehensiveUpdateActionsMixin,
+    ComprehensiveUpdateRequest,
+    _comprehensive_update_summary,
+    _ComprehensiveUpdatePreview,
+)
+from sase.agents_sync.models import ProjectSyncStatus, SyncOutcome, SyncStatusSnapshot
+
+
+class _Reporter:
+    def phase(self, _label: str) -> None:
+        pass
+
+    def section(self, _title: str) -> None:
+        pass
+
+    def log(self, _text: str, *, stream: str = "stdout") -> None:
+        del stream
+
+
+class _SubmitApp:
+    def __init__(self) -> None:
+        self.submitted: tuple[tuple[Any, ...], dict[str, Any]] | None = None
+
+    def _submit_tracked_task(self, *args: Any, **kwargs: Any) -> object:
+        self.submitted = (args, kwargs)
+        return object()
+
+
+class _ExecutionHarness(ComprehensiveUpdateActionsMixin):
+    def __init__(self) -> None:
+        self.app = _SubmitApp()
+        self.order: list[str] = []
+
+    def _execute_provider_leg(
+        self, _preview: Any, _reporter: Any
+    ) -> tuple[tuple[Any, ...], str | None]:
+        self.order.append("providers")
+        return (), "provider failed"
+
+    def _execute_comprehensive_sase_leg(
+        self, _preview: Any, _reporter: Any
+    ) -> ComprehensiveSaseUpdateResult:
+        self.order.append("sase")
+        return ComprehensiveSaseUpdateResult(
+            SaseUpdateResultStatus.ALREADY_CURRENT,
+            "already current",
+        )
+
+    def _execute_agents_leg(
+        self, _preview: Any, _reporter: Any
+    ) -> tuple[tuple[SyncOutcome, ...], str | None]:
+        self.order.append("agents")
+        return (
+            SyncOutcome(
+                "alpha",
+                "Alpha",
+                pulled=True,
+                integrated=1,
+            ),
+        ), None
+
+    def _on_comprehensive_update_complete(self, _completion: Any) -> None:
+        pass
+
+
+def test_comprehensive_task_claims_both_scopes_and_continues_after_provider_failure() -> (
+    None
+):
+    harness = _ExecutionHarness()
+    preview = _ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest(("claude",)),
+        sase_preview=pbp._DevUpdatePreview(plan=None, subject="sase"),
+    )
+
+    assert harness._submit_comprehensive_update_task(preview) is True
+    assert harness.app.submitted is not None
+    args, kwargs = harness.app.submitted
+    assert kwargs["exclusive_scopes"] == (
+        "sase-update",
+        "agent-cli-update",
+        "agents-sync",
+    )
+    assert kwargs["dedup_key"] == "comprehensive-update"
+
+    task_result = args[3](_Reporter())
+    assert harness.order == ["providers", "sase", "agents"]
+    assert task_result.success is False
+    assert task_result.payload is not None
+    assert task_result.payload.provider_error == "provider failed"
+    assert task_result.payload.agents_outcomes[0].project_key == "alpha"
+
+
+def test_comprehensive_summary_and_failures_include_agents_repos() -> None:
+    result = ComprehensiveUpdateResult(
+        sase=ComprehensiveSaseUpdateResult(
+            SaseUpdateResultStatus.ALREADY_CURRENT,
+            "already current",
+        ),
+        agents_outcomes=(
+            SyncOutcome("alpha", "Alpha", integrated=1),
+            SyncOutcome("beta", "Beta", error="push failed"),
+        ),
+    )
+
+    assert result.has_failures is True
+    assert result.has_successful_agents_change is True
+    assert result.fully_failed is False
+    assert _comprehensive_update_summary(result).endswith(
+        "Agents repos: 1 synchronized, 1 failed"
+    )
+
+
+def test_agents_leg_preserves_project_order_and_partial_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    returned = (
+        SyncOutcome("z", "Zulu", error="push failed"),
+        SyncOutcome("a", "Alpha", integrated=2),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution.sync_agents",
+        lambda: returned,
+    )
+    preview = _ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest(()),
+        sase_preview=None,
+        sase_current=True,
+        agents_status=SyncStatusSnapshot(
+            100.0,
+            (ProjectSyncStatus("a", "Alpha", "ready", 0, 0, 0),),
+        ),
+    )
+    harness = ComprehensiveUpdateActionsMixin.__new__(ComprehensiveUpdateActionsMixin)
+
+    outcomes, error = harness._execute_agents_leg(preview, _Reporter())
+
+    assert error is None
+    assert [outcome.project_key for outcome in outcomes] == ["a", "z"]
+    assert outcomes[0].integrated == 2
+    assert outcomes[1].error == "push failed"
+
+
+def test_comprehensive_completion_refreshes_both_shared_indicators() -> None:
+    class _App:
+        def __init__(self) -> None:
+            self.updates_refreshes = 0
+            self.agents_refreshes = 0
+
+        def _schedule_updates_indicator_revalidation(self) -> None:
+            self.updates_refreshes += 1
+
+        def _schedule_agents_sync_indicator_revalidation(self) -> None:
+            self.agents_refreshes += 1
+
+    class _Harness(ComprehensiveUpdateActionsMixin):
+        def __init__(self) -> None:
+            self.app = _App()
+            self._agent_cli_results: dict[str, object] = {}
+            self.is_mounted = False
+            self._loading = False
+            self.messages: list[str] = []
+
+        def _notify(self, message: str, **_kwargs: object) -> None:
+            self.messages.append(message)
+
+    result = ComprehensiveUpdateResult(
+        sase=ComprehensiveSaseUpdateResult(
+            SaseUpdateResultStatus.ALREADY_CURRENT,
+            "already current",
+        ),
+    )
+    harness = _Harness()
+
+    harness._on_comprehensive_update_complete(
+        SimpleNamespace(payload=result, error=None, message="done")
+    )
+
+    assert harness.app.updates_refreshes == 1
+    assert harness.app.agents_refreshes == 1
