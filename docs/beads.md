@@ -172,7 +172,7 @@ Create a new issue.
 | `-c, --changespec`  | no       | Attach a ChangeSpec name to a plan bead                                                                                                                                                                                              |
 | `-b, --bug-id`      | no       | Bug ID for the attached ChangeSpec; requires `--changespec`                                                                                                                                                                          |
 | `-m, --model`       | no       | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase beads it is the per-phase work model. |
-| `-z, --size`        | no       | Phase size: `small`, `medium`, or `large`. Valid only on phase beads; an omitted legacy/manual value behaves as `small`.                                                                                                             |
+| `-z, --size`        | no       | Phase size: `xsmall`, `small`, `medium`, `large`, or `xlarge`. Valid only on phase beads; an omitted legacy/manual value behaves as `small`.                                                                                         |
 
 ChangeSpec metadata is valid only on plan beads. It is used by the epic-approval and `sase bead work` flows to keep plan
 beads linked to the ChangeSpec they are intended to produce.
@@ -241,17 +241,17 @@ Reopen an issue by setting its status to `open`. This is equivalent to `sase bea
 
 Update one or more fields on an issue.
 
-| Flag                | Description                                               |
-| ------------------- | --------------------------------------------------------- |
-| `-s, --status`      | Change status                                             |
-| `-t, --title`       | Change title                                              |
-| `-d, --description` | Change description                                        |
-| `-n, --notes`       | Change notes                                              |
-| `-D, --design`      | Change plan path                                          |
-| `-a, --assignee`    | Change assignee                                           |
-| `--tier`            | Change plan tier                                          |
-| `-m, --model`       | Change the launch model. Pass an empty string to clear.   |
-| `-z, --size`        | Change a phase bead's `small`, `medium`, or `large` size. |
+| Flag                | Description                                                                   |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `-s, --status`      | Change status                                                                 |
+| `-t, --title`       | Change title                                                                  |
+| `-d, --description` | Change description                                                            |
+| `-n, --notes`       | Change notes                                                                  |
+| `-D, --design`      | Change plan path                                                              |
+| `-a, --assignee`    | Change assignee                                                               |
+| `--tier`            | Change plan tier                                                              |
+| `-m, --model`       | Change the launch model. Pass an empty string to clear.                       |
+| `-z, --size`        | Change a phase bead's `xsmall`, `small`, `medium`, `large`, or `xlarge` size. |
 
 ### `sase bead close <id> [<id2> ...]`
 
@@ -376,25 +376,28 @@ Once an epic bead exists, the shared launch path:
    already-closed or currently delegated phases. Requiring both conditions prevents a phase that delegated to a child
    epic from releasing dependents merely because its original agent finished; the child epic must land and close the
    parent phase first. A failed or killed phase keeps dependents and the land agent parked until its agent name is
-   retried successfully and its bead closes. Small and medium phases implement directly with
-   `%model:@small_phase_worker` and `%model:@medium_phase_worker`, respectively. Only large phases append `#plan` after
-   their work reference and use `%model:@large_phase_worker`. A stored phase `model` always wins over the size-derived
-   alias without changing whether the phase receives `#plan`, and a missing legacy size behaves as `small`. The land
-   agent emits `%model:<value>` when the epic plan bead has a stored `model`. Without one, it emits
-   `%model:@epic_lander` below `bead.big_epic_phase_threshold` and `%model:@big_epic_lander` at or above the threshold
-   (default `5`), using the total authored phase count even when resumed work has already-closed phases. Normal landers
-   fall through `@epic_lander` to `@default`, while landers selected by the threshold fall through `@big_epic_lander` to
-   provider-aware `@smartest`. Small phases fall through `@small_phase_worker` to the load-balanced `@cheaper` pool,
-   medium phases fall through `@medium_phase_worker` to `@default`, and large phases fall through `@large_phase_worker`
-   to `@smartest`. The independent `@cheapest` pool is available for explicit use but has no automatic consumer. Builtin
-   aliases can be configured under `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic
-   segment carries bare `%auto`, so submitted implementation and landing plans are auto-approved. An agent may author a
-   tale or an epic as needed; the plan's authored `tier` selects the corresponding automatic follow-up path. Each runner
-   waits for its agent and bead dependencies, prepares its workspace, then atomically claims its associated bead
-   immediately before model execution. The claim sets `status=in_progress` and assigns the runner name; parallel workers
-   claim independently, and the land runner claims the epic only after all phase waits. Each segment uses a force-reuse
-   `%id(!<agent_name>, bead=<bead-id>)` form (with `clan=` on join segments), so re-running `sase bead work` after a
-   killed or failed run wipes stale name owners before relaunch — the command is safe to retry.
+   retried successfully and its bead closes. `xsmall`, `small`, and `medium` phases implement directly with
+   `%model:@xsmall_phase_worker`, `%model:@small_phase_worker`, and `%model:@medium_phase_worker`, respectively. Only
+   `large` and `xlarge` phases append `#plan` after their work reference and use `%model:@large_phase_worker` and
+   `%model:@xlarge_phase_worker`. A stored phase `model` always wins over the size-derived alias without changing
+   whether the phase receives `#plan`, and a missing legacy size behaves as `small`. The land agent emits
+   `%model:<value>` when the epic plan bead has a stored `model`. Without one, it emits `%model:@epic_lander` below
+   `bead.big_epic_phase_threshold` and `%model:@big_epic_lander` at or above the threshold (default `5`), using the
+   total authored phase count even when resumed work has already-closed phases. Normal landers fall through
+   `@epic_lander` to `@default`, while landers selected by the threshold fall through `@big_epic_lander` to
+   provider-aware `@smartest`. `xsmall` phases fall through `@xsmall_phase_worker` to the load-balanced `@cheaper` pool,
+   `small` phases through `@small_phase_worker` to the `@cheap` pool, `medium` phases through `@medium_phase_worker` to
+   `codex/gpt-5.6-sol@high`, `large` phases through `@large_phase_worker` to `@smart`, and `xlarge` phases through
+   `@xlarge_phase_worker` to `@smartest`. The independent `@cheapest` provider fallback is available for explicit use
+   but has no automatic consumer. Builtin aliases can be configured under `llm_provider.model_aliases.builtin`. Each
+   phase segment and the final land-epic segment carries bare `%auto`, so submitted implementation and landing plans are
+   auto-approved. An agent may author a tale or an epic as needed; the plan's authored `tier` selects the corresponding
+   automatic follow-up path. Each runner waits for its agent and bead dependencies, prepares its workspace, then
+   atomically claims its associated bead immediately before model execution. The claim sets `status=in_progress` and
+   assigns the runner name; parallel workers claim independently, and the land runner claims the epic only after all
+   phase waits. Each segment uses a force-reuse `%id(!<agent_name>, bead=<bead-id>)` form (with `clan=` on join
+   segments), so re-running `sase bead work` after a killed or failed run wipes stale name owners before relaunch — the
+   command is safe to retry.
 
 When a phase agent auto-approves an epic-tier implementation plan, that child epic is created beneath the phase and the
 phase remains open while delegated work runs. Landing the child epic triggers the upward close cascade described above,

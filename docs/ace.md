@@ -152,19 +152,19 @@ Moving to another commit always returns the modal to commit mode.
 
 ### Epic phase sizes across plan surfaces
 
-ACE uses the literal scope labels `small`, `medium`, and `large`, with blue, gold, and rose chips whose text remains the
-primary signal. Valid older plans and phase beads with an omitted size use the stable `small` fallback, while an invalid
-authored value never produces a confident chip or count.
+ACE uses the literal scope labels `xsmall`, `small`, `medium`, `large`, and `xlarge`, with mint, sky, gold, rose, and
+violet chips whose text remains the primary signal. Valid older plans and phase beads with an omitted size use the
+stable `small` fallback, while an invalid authored value never produces a confident chip or count.
 
-| Surface                                                                  | Size contract                                                                                                                                                                                                                                                        |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Agents author and lander                                                 | Shows every normalized authored size in roadmap order.                                                                                                                                                                                                               |
-| Agents phase worker                                                      | Shows only that worker's normalized authored size, preserving phase isolation.                                                                                                                                                                                       |
-| Artifacts / Plans epic and phase beads                                   | Shows current persisted bead sizes in rows and details; the epic detail summarizes direct children in `small`, `medium`, `large` order. These execution views intentionally do not reconcile bead values with authored values because work routing follows the bead. |
-| Artifacts proposals, linked plans, and archives                          | Retains the authored `phases` property exactly once instead of adding a competing roadmap.                                                                                                                                                                           |
-| Telegram epic review                                                     | Adds a validated textual size breakdown while retaining the detailed Properties card and source/PDF attachment.                                                                                                                                                      |
-| Epic clan summary, `sase bead show`, and epic work preview               | Continues using persisted bead sizes, which these execution surfaces already exposed.                                                                                                                                                                                |
-| Raw approval, validation/schema, source/PDF, and mobile attachment paths | Remains a lossless generic/source view; authored phase metadata is preserved without a second summary.                                                                                                                                                               |
+| Surface                                                                  | Size contract                                                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agents author and lander                                                 | Shows every normalized authored size in roadmap order.                                                                                                                                                                                                                                   |
+| Agents phase worker                                                      | Shows only that worker's normalized authored size, preserving phase isolation.                                                                                                                                                                                                           |
+| Artifacts / Plans epic and phase beads                                   | Shows current persisted bead sizes in rows and details; the epic detail summarizes direct children in `xsmall`, `small`, `medium`, `large`, `xlarge` order. These execution views intentionally do not reconcile bead values with authored values because work routing follows the bead. |
+| Artifacts proposals, linked plans, and archives                          | Retains the authored `phases` property exactly once instead of adding a competing roadmap.                                                                                                                                                                                               |
+| Telegram epic review                                                     | Adds a validated textual size breakdown while retaining the detailed Properties card and source/PDF attachment.                                                                                                                                                                          |
+| Epic clan summary, `sase bead show`, and epic work preview               | Continues using persisted bead sizes, which these execution surfaces already exposed.                                                                                                                                                                                                    |
+| Raw approval, validation/schema, source/PDF, and mobile attachment paths | Remains a lossless generic/source view; authored phase metadata is preserved without a second summary.                                                                                                                                                                                   |
 
 ## Keybindings: Artifacts / PRs
 
@@ -532,12 +532,12 @@ When ACE knows a planner/author or epic lander's associated plan, the metadata p
 absent lanes omitted. A plan or any recorded output is enough to show the context section. An epic phase worker never
 shows its parent epic as a `PLAN` lane. Instead, its launch metadata identifies the epic plan and exact phase bead, and
 ACE derives one phase-local `BEAD` lane from that phase's validated, frontmatter-ordered entry. The lane shows
-`Description`, `Size`, `Epic Plan`, and `Epic Title`; `Size` uses the literal `small`, `medium`, or `large` label and
-the same accessible chip palette as epic summaries. Authored descriptions are normalized to one line; a missing
-description uses the same stable plan-and-phase pointer generated during deterministic bead creation. This modern path
-does not read the bead store, and missing, unreadable, damaged, explicitly invalid, or out-of-range metadata keeps the
-known identity/path fallbacks while rendering size as `unavailable`, without exposing the epic goal, dependencies, or
-any peer phase.
+`Description`, `Size`, `Epic Plan`, and `Epic Title`; `Size` uses the literal `xsmall`, `small`, `medium`, `large`, or
+`xlarge` label and the same accessible chip palette as epic summaries. Authored descriptions are normalized to one line;
+a missing description uses the same stable plan-and-phase pointer generated during deterministic bead creation. This
+modern path does not read the bead store, and missing, unreadable, damaged, explicitly invalid, or out-of-range metadata
+keeps the known identity/path fallbacks while rendering size as `unavailable`, without exposing the epic goal,
+dependencies, or any peer phase.
 
 For planner/author and lander rows, the lane body contains the complete normalized `Title`, `Goal`, and canonical
 `Path`. Its header shows the effective user-facing tier (`plan`, `tale`, or `epic`) and, for epics, the phase count. The
@@ -550,17 +550,17 @@ agent workspace (including SDD sidecars such as `sase/repos/plans/...`), while p
 archives use `~/.sase/plans/...`.
 
 Validated authored epics add a phase roadmap beneath those three rows. ACE validates this display as a launch consumer:
-modern phases retain their authored `small`, `medium`, or `large` size, while historical phases with an omitted size
-normalize to `small`; an explicit invalid size or other schema damage makes all phase metadata unavailable. Each entry
-shows its one-based authored order and diamond, title, fixed-width literal size chip, canonical ID, `no dependencies` or
-`after <id>, ...`, plus an authored phase model when present. Optional descriptions get their own hanging-indented line.
-The order and diamond glyph describe static plan structure, not execution state or live bead progress. Tales retain the
-compact three-row form. The chip remains visible while the title and other long ASCII or wide-Unicode values fold
-completely without ellipses; the lane caps content at 80 terminal cells on wide panels and reflows to the normal
-metadata panel or metadata zoom width. Logical header text contains the same size labels for search, copy, and style
-inspection. In hint mode only `Path` receives a numbered file hint, allocated in the plan's visual reading order.
-Missing or damaged plans keep their known lane and path visible; when epic context is known, validation failure renders
-one quiet `phases unavailable` header state rather than partial phase data.
+modern phases retain their authored `xsmall`, `small`, `medium`, `large`, or `xlarge` size, while historical phases with
+an omitted size normalize to `small`; an explicit invalid size or other schema damage makes all phase metadata
+unavailable. Each entry shows its one-based authored order and diamond, title, fixed-width literal size chip, canonical
+ID, `no dependencies` or `after <id>, ...`, plus an authored phase model when present. Optional descriptions get their
+own hanging-indented line. The order and diamond glyph describe static plan structure, not execution state or live bead
+progress. Tales retain the compact three-row form. The chip remains visible while the title and other long ASCII or
+wide-Unicode values fold completely without ellipses; the lane caps content at 80 terminal cells on wide panels and
+reflows to the normal metadata panel or metadata zoom width. Logical header text contains the same size labels for
+search, copy, and style inspection. In hint mode only `Path` receives a numbered file hint, allocated in the plan's
+visual reading order. Missing or damaged plans keep their known lane and path visible; when epic context is known,
+validation failure renders one quiet `phases unavailable` header state rather than partial phase data.
 
 ACE separates fast visible-inbox loads from full-history scans. The visible inbox is the normal Agents-tab working set:
 active rows plus recent completed, non-hidden rows. Startup, manual refresh (`y`), and active agent search use that path
@@ -1419,8 +1419,8 @@ markers. It does not delete workspace checkouts, and system-managed projects suc
 
 Press `,m` from any tab to open the **Models** panel — one keyboard-driven surface for viewing and managing every model
 alias: the implicit role aliases (`default`, `coder`, `<provider>_coder`, `epic_lander`, `big_epic_lander`,
-`small_phase_worker`, `medium_phase_worker`, `large_phase_worker`, `smartest`, `cheaper`, `cheapest`) and any
-user-defined `llm_provider.model_aliases.custom` entry.
+`xsmall_phase_worker`, `small_phase_worker`, `medium_phase_worker`, `large_phase_worker`, `xlarge_phase_worker`,
+`smartest`, `smart`, `cheap`, `cheaper`, `cheapest`) and any user-defined `llm_provider.model_aliases.custom` entry.
 
 Each row shows the alias name with a small kind badge (`default` / `role` / `<provider> coder` / `user`), its effective
 provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @<fallback>`, or an
@@ -1431,17 +1431,17 @@ beside it. The third line shows the effective `max running agents` global cap; a
 remaining time and configured value on the same line. An explicit effort suffix inherited from an alias target appears
 beside that row's model badge; rows that simply inherit the header default omit the redundant suffix. The top level is
 sorted deterministically: `default`, the built-in `coders` bucket, `epic_lander`, `big_epic_lander`, the built-in
-`phase_worker` bucket, `smartest`, `cheaper`, `cheapest`, then custom buckets and ungrouped user aliases in alphabetical
-order.
+`phase_worker` bucket, `smartest`, `smart`, `cheap`, `cheaper`, `cheapest`, then custom buckets and ungrouped user
+aliases in alphabetical order.
 
 Two built-in buckets are always present. `coders` groups `coder` first and every registered `<provider>_coder` alias
-alphabetically. `phase_worker` groups `small_phase_worker`, `medium_phase_worker`, and `large_phase_worker`, followed by
-any custom members assigned to that display bucket. Each collapsed row reports the member count and active overrides,
-while the description strip summarizes distinct effective models. Open any bucket with `l`, Right, or Enter; return with
-`h` or Left. Inside either bucket, each alias keeps its own configured/implicit state and can be edited, reset,
-overridden, or cleared independently. Configured descriptions under `model_aliases.buckets.coders` and
-`model_aliases.buckets.phase_worker` replace the defaults; custom aliases tagged with either bucket name coalesce into
-the matching row.
+alphabetically. `phase_worker` groups `xsmall_phase_worker`, `small_phase_worker`, `medium_phase_worker`,
+`large_phase_worker`, and `xlarge_phase_worker`, followed by any custom members assigned to that display bucket. Each
+collapsed row reports the member count and active overrides, while the description strip summarizes distinct effective
+models. Open any bucket with `l`, Right, or Enter; return with `h` or Left. Inside either bucket, each alias keeps its
+own configured/implicit state and can be edited, reset, overridden, or cleared independently. Configured descriptions
+under `model_aliases.buckets.coders` and `model_aliases.buckets.phase_worker` replace the defaults; custom aliases
+tagged with either bucket name coalesce into the matching row.
 
 The two-line strip below the list explains the highlighted alias. Builtin aliases use fixed descriptions. User aliases
 use `llm_provider.model_aliases.custom.<name>.description`; a malformed user alias without one shows that config path as
@@ -1562,7 +1562,8 @@ while the tier override only applies when no concrete override is active.
 
 Delegated launches (plan coder follow-ups and `sase bead work` phase/land agents) resolve through
 [role aliases](llms.md#role-aliases-for-delegated-work) configured under `llm_provider.model_aliases.builtin`. Most fall
-back to `@default`; small phases instead use `@cheaper`, so a `default` override does not move them unless their
+back to `@default`; the size-specific phase aliases instead route through `@cheaper`, `@cheap`,
+`codex/gpt-5.6-sol@high`, `@smart`, and `@smartest`, so a `default` override does not move them unless their
 size-specific alias is configured back to `@default`.
 
 ### Persistent edits
@@ -1596,15 +1597,18 @@ preview.
   medium phases without an explicit model use CLAUDE(opus) until you clear it; the violet non-default pill appears in
   the top bar.
 - Open `phase_worker`, highlight `large_phase_worker`, press `e`, pick `claude/opus`, and confirm — only large phases
-  without an explicit model use that target; small and medium phase routing is unchanged.
-- Highlight `smartest`, `e`, pick `claude/opus`, and confirm — large phases and threshold-selected epic landers reach
-  that target through `@large_phase_worker` → `@smartest` and `@big_epic_lander` → `@smartest`.
+  without an explicit model use that target; other-sized phase routing is unchanged.
+- Highlight `smartest`, `e`, pick `claude/opus`, and confirm — xlarge phases and threshold-selected epic landers reach
+  that target through `@xlarge_phase_worker` → `@smartest` and `@big_epic_lander` → `@smartest`.
 - Leave `smartest` implicit — its `claude/claude-fable-5 || codex/gpt-5.6-sol` fallback prefers Claude when installed
   and otherwise selects Codex without changing load-balancing state.
-- Highlight `cheaper`, `e`, choose `Custom...`, enter `claude/opus@medium | codex/gpt-5.5`, and confirm — small phases
-  round-robin across installed providers while the panel continues to show the next selection without consuming it.
-- Highlight `cheapest`, `e`, choose `Custom...`, enter `claude/sonnet | codex/gpt-5.3-codex-spark`, and confirm —
-  explicit `@cheapest` launches use this independent pool without consuming the `cheaper` cursor.
+- Highlight `cheaper`, `e`, choose `Custom...`, enter `claude/sonnet | codex/gpt-5.3-codex-spark`, and confirm — xsmall
+  phases round-robin across installed providers while the panel continues to show the next selection without consuming
+  it.
+- Highlight `cheap`, `e`, choose `Custom...`, enter `claude/opus@medium | codex/gpt-5.5`, and confirm — small phases
+  round-robin across this independent pool without consuming the `cheaper` cursor.
+- Highlight `cheapest`, `e`, choose `Custom...`, enter `claude/haiku || codex/gpt-5.3-codex-spark`, and confirm —
+  explicit `@cheapest` launches use this independent provider fallback without consuming any pool cursor.
 - Highlight `big_epic_lander`, `e`, pick a model, and confirm — only threshold-selected epic landers use that persistent
   target; leaving it implicit follows provider-aware `@smartest` independently of `@epic_lander`.
 - Highlight `big_epic_lander`, `e`, filter for `@coder`, select it, and confirm — the persistent value is the dynamic

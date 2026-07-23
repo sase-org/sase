@@ -737,8 +737,9 @@ project/ChangeSpec completion uses the same token rule and works regardless of t
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists inline-typable model names,
 implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_lander`, `@big_epic_lander`,
-`@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, `@smartest`, `@cheaper`, `@cheapest`), and
-configured model aliases; provider short aliases are shown as filter/display hints but are not inserted.
+`@xsmall_phase_worker`, `@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, `@xlarge_phase_worker`,
+`@smartest`, `@smart`, `@cheap`, `@cheaper`, `@cheapest`), and configured model aliases; provider short aliases are
+shown as filter/display hints but are not inserted.
 
 File-path completion roots relative lookups in the prompt-selected workspace. Registered workspace-provider refs and
 known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can root lookup in that project checkout. If no
@@ -766,10 +767,11 @@ llm_provider:
       claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
       codex_coder: claude/opus # coder follow-ups from Codex-authored plans
       big_epic_lander: codex/gpt-5.6-sol # specialize threshold-selected epic landers
-      cheaper: claude/opus@medium | codex/gpt-5.5 # small-phase pool
-      cheapest: claude/sonnet | codex/gpt-5.3-codex-spark # explicit-use pool
-      medium_phase_worker: codex/gpt-5.6-sol # medium phase agents
-      large_phase_worker: "@smartest"
+      cheap: claude/opus@medium | codex/gpt-5.5 # small-phase pool
+      cheaper: claude/sonnet | codex/gpt-5.3-codex-spark # xsmall-phase pool
+      cheapest: claude/haiku || codex/gpt-5.3-codex-spark # explicit-use fallback
+      medium_phase_worker: codex/gpt-5.6-sol@high # medium phase agents
+      large_phase_worker: "@smart"
       smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # ordered fallback
     custom:
       blogger:
@@ -806,21 +808,23 @@ pool row reports the available/total count, selector member lists mark the curre
 temporary overrides label selection suspended.
 
 ACE automatically supplies two display-only built-in buckets while alias resolution and configuration remain flat:
-`coders` groups `@coder` with every registered `@<provider>_coder`, and `phase_worker` groups `@small_phase_worker`,
-`@medium_phase_worker`, and `@large_phase_worker`. `model_aliases.buckets.<bucket>.description` overrides either
-built-in description. A custom alias tagged with either built-in bucket name joins that row while remaining
-independently addressable and editable.
+`coders` groups `@coder` with every registered `@<provider>_coder`, and `phase_worker` groups `@xsmall_phase_worker`,
+`@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, and `@xlarge_phase_worker`.
+`model_aliases.buckets.<bucket>.description` overrides either built-in description. A custom alias tagged with either
+built-in bucket name joins that row while remaining independently addressable and editable.
 
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases** that resolve even when unset:
 `@default` (no-`%model` launches), `@coder` and the per-provider `@<provider>_coder` (plan coder follow-ups),
-`@epic_lander`, `@big_epic_lander`, the three `<size>_phase_worker` aliases, `@smartest`, `@cheaper`, and `@cheapest`
-(bead/epic role launches). `@epic_lander` falls back to `@default`, while `@big_epic_lander` falls back independently to
-`@smartest`; small phases fall back to `@cheaper`, medium phases to `@default`, and large phases to `@smartest`. The
-implicit `@smartest` value is `claude/claude-fable-5 || codex/gpt-5.6-sol`, preferring Claude when its CLI is installed.
-`@cheaper` owns the automatic small-phase pool, while `@cheapest` owns an independent explicit-use pool. Override only
-threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`; override only large phases with
-`model_aliases.builtin.large_phase_worker`. `@smartest` is selected automatically through the threshold-sized epic and
-large-phase fallback chains. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
+`@epic_lander`, `@big_epic_lander`, the five `<size>_phase_worker` aliases, `@smartest`, `@smart`, `@cheap`, `@cheaper`,
+and `@cheapest` (bead/epic role launches). `@epic_lander` falls back to `@default`, while `@big_epic_lander` falls back
+independently to `@smartest`; xsmall phases fall back to `@cheaper`, small phases to `@cheap`, medium phases to
+`codex/gpt-5.6-sol@high`, large phases to `@smart` (which itself falls back to `@default`), and xlarge phases to
+`@smartest`. The implicit `@smartest` value is `claude/claude-fable-5 || codex/gpt-5.6-sol`, preferring Claude when its
+CLI is installed. `@cheaper` owns the automatic xsmall-phase pool and `@cheap` the small-phase pool, while `@cheapest`
+owns an independent explicit-use provider fallback. Override only threshold-sized epic landers with
+`model_aliases.builtin.big_epic_lander`; override only large phases with `model_aliases.builtin.large_phase_worker`.
+`@smartest` is selected automatically through the threshold-sized epic and xlarge-phase fallback chains. See
+[Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
 [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role.
 
 Legacy `model_aliases.builtin.epic_creator` entries remain accepted so existing configs still load, but SASE no longer
@@ -2468,17 +2472,17 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead create`
 
-| Flag                | Values                     | Default    | Description                                                                 |
-| ------------------- | -------------------------- | ---------- | --------------------------------------------------------------------------- |
-| `-t, --title`       | string                     | (required) | Issue title                                                                 |
-| `-T, --type`        | string                     | (required) | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)` |
-| `-d, --description` | string                     | -          | Issue description                                                           |
-| `-a, --assignee`    | string                     | -          | Assignee name                                                               |
-| `-m, --model`       | string                     | -          | Epic land-agent or phase-work model                                         |
-| `-z, --size`        | `small`, `medium`, `large` | -          | Phase size; valid only for phase beads                                      |
-| `--tier`            | `plan`, `epic`             | -          | Plan-bead tier                                                              |
-| `-c, --changespec`  | ChangeSpec name            | -          | Attach ChangeSpec metadata to a plan bead                                   |
-| `-b, --bug-id`      | string                     | -          | Bug ID for the attached ChangeSpec; requires `--changespec`                 |
+| Flag                | Values                                         | Default    | Description                                                                 |
+| ------------------- | ---------------------------------------------- | ---------- | --------------------------------------------------------------------------- |
+| `-t, --title`       | string                                         | (required) | Issue title                                                                 |
+| `-T, --type`        | string                                         | (required) | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)` |
+| `-d, --description` | string                                         | -          | Issue description                                                           |
+| `-a, --assignee`    | string                                         | -          | Assignee name                                                               |
+| `-m, --model`       | string                                         | -          | Epic land-agent or phase-work model                                         |
+| `-z, --size`        | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase size; valid only for phase beads                                      |
+| `--tier`            | `plan`, `epic`                                 | -          | Plan-bead tier                                                              |
+| `-c, --changespec`  | ChangeSpec name                                | -          | Attach ChangeSpec metadata to a plan bead                                   |
+| `-b, --bug-id`      | string                                         | -          | Bug ID for the attached ChangeSpec; requires `--changespec`                 |
 
 #### `sase bead list`
 
@@ -2514,18 +2518,18 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead update`
 
-| Flag                | Values                          | Default    | Description           |
-| ------------------- | ------------------------------- | ---------- | --------------------- |
-| `id`                | string                          | (required) | Issue ID to update    |
-| `-s, --status`      | `open`, `in_progress`, `closed` | -          | Change status         |
-| `-t, --title`       | string                          | -          | Change title          |
-| `-d, --description` | string                          | -          | Change description    |
-| `-n, --notes`       | string                          | -          | Change notes          |
-| `-D, --design`      | path                            | -          | Change plan path      |
-| `-a, --assignee`    | string                          | -          | Change assignee       |
-| `-m, --model`       | string                          | -          | Change launch model   |
-| `-z, --size`        | `small`, `medium`, `large`      | -          | Change phase size     |
-| `--tier`            | `plan`, `epic`                  | -          | Change plan-bead tier |
+| Flag                | Values                                         | Default    | Description           |
+| ------------------- | ---------------------------------------------- | ---------- | --------------------- |
+| `id`                | string                                         | (required) | Issue ID to update    |
+| `-s, --status`      | `open`, `in_progress`, `closed`                | -          | Change status         |
+| `-t, --title`       | string                                         | -          | Change title          |
+| `-d, --description` | string                                         | -          | Change description    |
+| `-n, --notes`       | string                                         | -          | Change notes          |
+| `-D, --design`      | path                                           | -          | Change plan path      |
+| `-a, --assignee`    | string                                         | -          | Change assignee       |
+| `-m, --model`       | string                                         | -          | Change launch model   |
+| `-z, --size`        | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Change phase size     |
+| `--tier`            | `plan`, `epic`                                 | -          | Change plan-bead tier |
 
 #### `sase bead close`
 
