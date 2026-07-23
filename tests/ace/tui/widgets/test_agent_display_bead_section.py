@@ -28,7 +28,11 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     HeaderHintState,
     build_header_text,
 )
-from sase.phase_size_presentation import PHASE_SIZE_STYLES, PhaseSizeValue
+from sase.phase_size_presentation import (
+    PHASE_SIZE_STYLES,
+    PHASE_SIZE_VALUES,
+    PhaseSizeValue,
+)
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import assert_span_covers
 
@@ -131,7 +135,7 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
         assert "…" not in rendered
 
 
-@pytest.mark.parametrize("size", ["small", "medium", "large"])
+@pytest.mark.parametrize("size", PHASE_SIZE_VALUES)
 def test_bead_size_uses_shared_accessible_chip_palette(
     size: PhaseSizeValue,
 ) -> None:

@@ -395,6 +395,12 @@ def test_epic_summary_renders_markdown_progress_sizes_children_and_plan(
             design="202607/plan[approved].md",
             tier=BeadTier.EPIC,
         )
+        xsmall_phase = project.create(
+            "Sketch the smallest presentation",
+            IssueType.PHASE,
+            parent_id=epic.id,
+            size=PhaseSize.XSMALL,
+        )
         open_phase = project.create(
             "Parse [bold]directives[/bold]",
             IssueType.PHASE,
@@ -415,6 +421,12 @@ def test_epic_summary_renders_markdown_progress_sizes_children_and_plan(
             parent_id=epic.id,
             description="Finish the visual **goldens**.",
             size=PhaseSize.LARGE,
+        )
+        xlarge_phase = project.create(
+            "Reframe the largest presentation",
+            IssueType.PHASE,
+            parent_id=epic.id,
+            size=PhaseSize.XLARGE,
         )
         legacy_phase = project.create(
             "Support legacy sizeless phases",
@@ -458,14 +470,18 @@ def test_epic_summary_renders_markdown_progress_sizes_children_and_plan(
     assert lines[0] == f"◆ EPIC {epic.id} · Beautiful [clan] summaries"
     assert "Show the full goal with launch[state] context." in lines
     assert " • Keep output stable" in lines
-    assert "PHASES · 1/4 done at launch" in lines
-    assert any(line.startswith(f"○ 1. {open_phase.title}") for line in lines)
-    assert any(line.startswith(f"◐ 2. {active_phase.title}") for line in lines)
-    assert any(line.startswith(f"✓ 3. {closed_phase.title}") for line in lines)
-    assert any(line.startswith(f"○ 4. {legacy_phase.title}") for line in lines)
+    assert "PHASES · 1/6 done at launch" in lines
+    assert any(line.startswith(f"○ 1. {xsmall_phase.title}") for line in lines)
+    assert any(line.startswith(f"○ 2. {open_phase.title}") for line in lines)
+    assert any(line.startswith(f"◐ 3. {active_phase.title}") for line in lines)
+    assert any(line.startswith(f"✓ 4. {closed_phase.title}") for line in lines)
+    assert any(line.startswith(f"○ 5. {xlarge_phase.title}") for line in lines)
+    assert any(line.startswith(f"○ 6. {legacy_phase.title}") for line in lines)
+    assert any(line.endswith(" xsmall ") for line in lines)
     assert sum(line.endswith(" small ") for line in lines) == 2
     assert any(line.endswith(" medium ") for line in lines)
     assert any(line.endswith(" large ") for line in lines)
+    assert any(line.endswith(" xlarge ") for line in lines)
     assert "  └ Handle Rich descriptions safely." in lines
     assert "  └ Keep launch_time status stable." in lines
     assert "CHILD EPICS · 1" in lines

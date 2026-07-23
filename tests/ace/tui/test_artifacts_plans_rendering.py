@@ -146,9 +146,11 @@ def test_plan_list_rows_use_fixed_width_state_glyphs(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("size", "label"),
     [
+        (PhaseSize.XSMALL, "xsmall"),
         (PhaseSize.SMALL, "small"),
         (PhaseSize.MEDIUM, "medium"),
         (PhaseSize.LARGE, "large"),
+        (PhaseSize.XLARGE, "xlarge"),
         (None, "small"),
     ],
 )
@@ -348,6 +350,13 @@ def test_bead_detail_uses_persisted_phase_sizes_and_fixed_epic_breakdown(
     snapshot = _snapshot(tmp_path)
     epic = snapshot.epics[0].issue
     first, second = snapshot.phases_by_epic[("alpha", epic.id)]
+    xsmall_issue = replace(
+        first.issue,
+        id="alpha-1.0",
+        title="Extra-small phase",
+        size=PhaseSize.XSMALL,
+        dependencies=[],
+    )
     third_issue = replace(
         second.issue,
         id="alpha-1.3",
@@ -355,9 +364,16 @@ def test_bead_detail_uses_persisted_phase_sizes_and_fixed_epic_breakdown(
         size=PhaseSize.LARGE,
         dependencies=[],
     )
-    legacy_issue = replace(
+    xlarge_issue = replace(
         second.issue,
         id="alpha-1.4",
+        title="Extra-large phase",
+        size=PhaseSize.XLARGE,
+        dependencies=[],
+    )
+    legacy_issue = replace(
+        second.issue,
+        id="alpha-1.5",
         title="Legacy phase",
         size=None,
         dependencies=[],
@@ -366,9 +382,11 @@ def test_bead_detail_uses_persisted_phase_sizes_and_fixed_epic_breakdown(
         snapshot,
         phases_by_epic={
             ("alpha", epic.id): (
+                ProjectIssue("alpha", xsmall_issue),
                 first,
                 second,
                 ProjectIssue("alpha", third_issue),
+                ProjectIssue("alpha", xlarge_issue),
                 ProjectIssue("alpha", legacy_issue),
             )
         },
@@ -400,7 +418,7 @@ def test_bead_detail_uses_persisted_phase_sizes_and_fixed_epic_breakdown(
     )
 
     assert "Phase sizes" in epic_detail
-    assert "2 small · 1 medium · 1 large" in epic_detail
+    assert "1 xsmall · 2 small · 1 medium · 1 large · 1 xlarge" in epic_detail
     assert "\n       Size" not in epic_detail
     assert "Size" in phase_detail and "large" in phase_detail
     assert "Phase sizes" not in phase_detail
@@ -416,7 +434,10 @@ def test_bead_detail_uses_persisted_phase_sizes_and_fixed_epic_breakdown(
         snapshot,
         project="alpha",
     )
-    assert "**Phase sizes:** 2 small · 1 medium · 1 large" in epic_preview
+    assert (
+        "**Phase sizes:** 1 xsmall · 2 small · 1 medium · 1 large · 1 xlarge"
+        in epic_preview
+    )
     assert "**Size:** small" in phase_preview
 
 

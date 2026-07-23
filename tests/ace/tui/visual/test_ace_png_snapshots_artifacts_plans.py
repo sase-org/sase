@@ -47,6 +47,20 @@ def _visual_snapshot(tmp_path: Path) -> PlansSnapshot:
         size=PhaseSize.LARGE,
         dependencies=[],
     )
+    xsmall_phase = replace(
+        phases[0].issue,
+        id="alpha-1.0",
+        title="Sketch the smallest state",
+        size=PhaseSize.XSMALL,
+        dependencies=[],
+    )
+    xlarge_phase = replace(
+        phases[1].issue,
+        id="alpha-1.5",
+        title="Reframe the largest state",
+        size=PhaseSize.XLARGE,
+        dependencies=[],
+    )
     return replace(
         snapshot,
         proposals=(
@@ -56,7 +70,12 @@ def _visual_snapshot(tmp_path: Path) -> PlansSnapshot:
             ),
         ),
         phases_by_epic={
-            ("alpha", epic.id): (*phases, ProjectIssue("alpha", large_phase))
+            ("alpha", epic.id): (
+                ProjectIssue("alpha", xsmall_phase),
+                *phases,
+                ProjectIssue("alpha", large_phase),
+                ProjectIssue("alpha", xlarge_phase),
+            )
         },
     )
 
@@ -139,7 +158,7 @@ async def test_artifacts_plans_populated_png_snapshot(
         await page.wait_for(
             lambda _state: (
                 (row := pane.selected_row()) is not None
-                and row.row_id == "phase:alpha-1.1"
+                and row.row_id == "phase:alpha-1.0"
             )
         )
         await page.wait_for(
@@ -159,7 +178,7 @@ async def test_artifacts_plans_populated_png_snapshot(
         await page.app.wait_for_refresh()
         await wait_for_svg_contains(page, "Linked plan content.")
         await wait_for_visual_idle(page)
-        for label in ("small", "medium", "large"):
+        for label in ("xsmall", "small", "medium", "large", "xlarge"):
             assert_page_svg_contains(page, label)
         assert_page_svg_contains(page, "Size")
 
@@ -275,7 +294,7 @@ async def test_plans_narrowed_filter_chips_png_snapshot(
         await page.wait_for(
             lambda _state: (
                 "0/1 proposals" in status.content.plain
-                and "1/3 phases" in status.content.plain
+                and "1/5 phases" in status.content.plain
                 and "load" in pane.query_one("#plans-info", Static).content.plain
             )
         )

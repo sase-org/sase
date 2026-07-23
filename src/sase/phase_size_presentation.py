@@ -7,13 +7,21 @@ from typing import Literal, cast
 
 from rich.text import Text
 
-PhaseSizeValue = Literal["small", "medium", "large"]
+PhaseSizeValue = Literal["xsmall", "small", "medium", "large", "xlarge"]
 
-PHASE_SIZE_VALUES: tuple[PhaseSizeValue, ...] = ("small", "medium", "large")
+PHASE_SIZE_VALUES: tuple[PhaseSizeValue, ...] = (
+    "xsmall",
+    "small",
+    "medium",
+    "large",
+    "xlarge",
+)
 PHASE_SIZE_STYLES: dict[PhaseSizeValue, str] = {
+    "xsmall": "bold black on #5FD7AF",
     "small": "bold black on #87D7FF",
     "medium": "bold black on #FFD75F",
     "large": "bold white on #D75F87",
+    "xlarge": "bold white on #AF5FFF",
 }
 PHASE_SIZE_CHIP_WIDTH = max(len(f" {value} ") for value in PHASE_SIZE_VALUES)
 
