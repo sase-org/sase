@@ -190,15 +190,26 @@ def test_model_aliases_allows_custom_phase_worker(
     assert not check.data["problems"]
 
 
-def test_model_aliases_recognizes_big_epic_lander_as_builtin(
+@pytest.mark.parametrize(
+    "alias",
+    [
+        "big_epic_lander",
+        "xsmall_phase_worker",
+        "xlarge_phase_worker",
+        "smart",
+        "cheap",
+    ],
+)
+def test_model_aliases_recognizes_implicit_roles_as_builtin(
     monkeypatch: pytest.MonkeyPatch,
+    alias: str,
 ) -> None:
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config",
         lambda: {
             "model_aliases": {
                 "custom": {
-                    "big_epic_lander": {
+                    alias: {
                         "model": "claude/opus",
                         "description": "Wrong location.",
                     }
@@ -211,7 +222,7 @@ def test_model_aliases_recognizes_big_epic_lander_as_builtin(
 
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
-    assert "builtin alias" in by_key["model_aliases.custom.big_epic_lander"]
+    assert "builtin alias" in by_key[f"model_aliases.custom.{alias}"]
 
 
 def test_model_aliases_warns_on_dangling_bucket_metadata(

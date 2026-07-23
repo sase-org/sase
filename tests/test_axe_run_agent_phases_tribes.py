@@ -456,18 +456,18 @@ def _extract_medium_phase_worker_model_meta(tmp_path: Path) -> dict[str, object]
     return json.loads((artifacts_dir / "agent_meta.json").read_text())
 
 
-def test_medium_phase_worker_directive_metadata_resolves_default_lane(
+def test_medium_phase_worker_directive_metadata_resolves_concrete_lane(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A medium phase records the configured default-lane model.
+    """A medium phase records its concrete high-effort model.
 
-    As an explicit alias reference it resolves to the configured default and is
-    not swayed by a primary override.
+    As an explicit alias reference it is not swayed by a primary override.
     """
     _mock_provider_config(monkeypatch, {"provider": "claude"})
     set_temporary_override("codex/o3", 3600.0, source="test")
 
     meta = _extract_medium_phase_worker_model_meta(tmp_path)
 
-    assert (meta["llm_provider"], meta["model"]) == ("claude", "opus")
+    assert (meta["llm_provider"], meta["model"]) == ("codex", "gpt-5.6-sol")
+    assert meta["reasoning_effort"] == "high"

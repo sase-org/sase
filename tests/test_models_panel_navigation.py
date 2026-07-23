@@ -329,16 +329,21 @@ async def test_panel_phase_worker_bucket_navigation_and_member_order(
         assert panel._highlighted_row_id() == "bucket:phase_worker"
         description = panel.query_one("#models-panel-description", Static).content.plain
         assert "Size-specific phase-agent aliases" in description
-        assert "claude/sonnet ×2" in description
+        assert "claude/opus ×2" in description
 
         await pilot.press("l")
         await pilot.pause()
         assert panel._active_bucket == "phase_worker"
         assert list(panel._row_by_id) == [
+            "xsmall_phase_worker",
             "small_phase_worker",
             "medium_phase_worker",
             "large_phase_worker",
+            "xlarge_phase_worker",
         ]
+        assert panel._highlighted_row_id() == "xsmall_phase_worker"
+
+        await pilot.press("j")
         assert panel._highlighted_row_id() == "small_phase_worker"
 
         await pilot.press("j")

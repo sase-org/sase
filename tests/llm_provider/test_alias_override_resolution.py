@@ -69,9 +69,11 @@ def test_stale_override_on_phase_worker_has_no_builtin_effect(
 
     set_alias_override("phase_worker", "codex/o3", None, source="panel")
     assert resolve_model_alias("@phase_worker") == "phase_worker"
+    assert resolve_model_provider("xsmall_phase_worker") == ("claude", "sonnet")
     assert resolve_model_provider("small_phase_worker") == ("claude", "opus")
-    assert resolve_model_provider("medium_phase_worker") == ("claude", "opus")
-    assert resolve_model_provider("large_phase_worker") == (
+    assert resolve_model_provider("medium_phase_worker") == ("codex", "gpt-5.6-sol")
+    assert resolve_model_provider("large_phase_worker") == ("claude", "opus")
+    assert resolve_model_provider("xlarge_phase_worker") == (
         "claude",
         "claude-fable-5",
     )

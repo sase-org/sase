@@ -116,6 +116,8 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
         "big_epic_lander",
         "phase_worker",
         "smartest",
+        "smart",
+        "cheap",
         "cheaper",
         "cheapest",
         "coding",
@@ -124,7 +126,7 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
     ]
     assert all(row.name not in {"coder", "claude_coder", "codex_coder"} for row in rows)
 
-    user_rows = rows[8:]
+    user_rows = rows[10:]
     assert [row.name for row in user_rows] == ["coding", "research", "alpha"]
     coding, research, alpha = user_rows
     assert isinstance(coding, BucketView)
@@ -187,6 +189,8 @@ def test_models_panel_rows_coalesce_custom_coders_members(
         "big_epic_lander",
         "phase_worker",
         "smartest",
+        "smart",
+        "cheap",
         "cheaper",
         "cheapest",
         "research",
@@ -276,6 +280,8 @@ def test_models_panel_phase_worker_bucket_coalesces_builtin_and_custom_members(
         "big_epic_lander",
         "phase_worker",
         "smartest",
+        "smart",
+        "cheap",
         "cheaper",
         "cheapest",
     ]
@@ -283,13 +289,15 @@ def test_models_panel_phase_worker_bucket_coalesces_builtin_and_custom_members(
     assert isinstance(phase_workers, BucketView)
     assert phase_workers.description == "Configured phase roles."
     assert [member.name for member in phase_workers.members] == [
+        "xsmall_phase_worker",
         "small_phase_worker",
         "medium_phase_worker",
         "large_phase_worker",
+        "xlarge_phase_worker",
         "phase_reviewer",
         "phase_worker",
     ]
-    assert phase_workers.alias_count == 5
+    assert phase_workers.alias_count == 7
     assert phase_workers.override_count == 1
 
 
@@ -304,4 +312,4 @@ def test_models_panel_phase_worker_bucket_uses_builtin_fallback_description(
 
     assert isinstance(phase_workers, BucketView)
     assert phase_workers.description == PHASE_WORKER_BUCKET_DESCRIPTION
-    assert phase_workers.alias_count == 3
+    assert phase_workers.alias_count == 5

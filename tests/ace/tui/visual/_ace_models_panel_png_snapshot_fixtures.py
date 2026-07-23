@@ -119,6 +119,13 @@ def calm_views() -> list[AliasView]:
             ),
         ),
         _view(
+            "xsmall_phase_worker",
+            "role",
+            provider="claude",
+            model="sonnet",
+            description="Extra-small phases that implement the simplest tasks.",
+        ),
+        _view(
             "small_phase_worker",
             "role",
             provider="claude",
@@ -128,8 +135,9 @@ def calm_views() -> list[AliasView]:
         _view(
             "medium_phase_worker",
             "role",
-            provider="claude",
-            model="claude-fable-4-10",
+            provider="codex",
+            model="gpt-5.6-sol",
+            effort="high",
             description="Medium phases that implement directly.",
         ),
         _view(
@@ -140,6 +148,13 @@ def calm_views() -> list[AliasView]:
             provider="claude",
             model="opus",
             description="Large phases that plan before implementation.",
+        ),
+        _view(
+            "xlarge_phase_worker",
+            "role",
+            provider="claude",
+            model="claude-fable-5",
+            description="Extra-large phases that author an epic plan.",
         ),
         _view(
             "smartest",
@@ -167,18 +182,50 @@ def calm_views() -> list[AliasView]:
             ),
         ),
         _view(
-            "cheaper",
+            "smart",
+            "role",
+            provider="claude",
+            model="claude-fable-4-10",
+            description="High-capability alias used automatically by large phases.",
+        ),
+        _view(
+            "cheap",
             "role",
             provider="claude",
             model="opus",
             description="Load-balanced pool used automatically by small phases.",
         ),
         _view(
-            "cheapest",
+            "cheaper",
             "role",
             provider="codex",
             model="gpt-5.3-codex-spark",
-            description="Independent lowest-cost pool for explicit use.",
+            description="Lower-cost pool used automatically by extra-small phases.",
+        ),
+        _view(
+            "cheapest",
+            "role",
+            provider="claude",
+            model="haiku",
+            description="Lowest-cost provider fallback for explicit use.",
+            selector_mode="fallback",
+            selector_members=(
+                ModelAliasSelectorMember(
+                    value="claude/haiku",
+                    target="claude/haiku",
+                    effort=None,
+                    provider="claude",
+                    available=True,
+                    selected=True,
+                ),
+                ModelAliasSelectorMember(
+                    value="codex/gpt-5.3-codex-spark",
+                    target="codex/gpt-5.3-codex-spark",
+                    effort=None,
+                    provider="codex",
+                    available=True,
+                ),
+            ),
         ),
         _view("claude_coder", "provider_coder", provider="claude", model="opus"),
         _view(

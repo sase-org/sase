@@ -63,12 +63,16 @@ def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> Non
                     "default": "claude/opus",
                     "coder": "@default",
                     "codex_coder": "claude/opus",
-                    "cheaper": "claude/opus@medium | codex/gpt-5.5",
-                    "cheapest": "claude/sonnet | codex/gpt-5.3-codex-spark",
-                    "small_phase_worker": "@cheaper",
-                    "medium_phase_worker": "@default",
-                    "large_phase_worker": "@smartest",
+                    "xsmall_phase_worker": "@cheaper",
+                    "small_phase_worker": "@cheap",
+                    "medium_phase_worker": "codex/gpt-5.6-sol@high",
+                    "large_phase_worker": "@smart",
+                    "xlarge_phase_worker": "@smartest",
+                    "smart": "@default",
                     "smartest": ("claude/claude-fable-5 || codex/gpt-5.6-sol"),
+                    "cheap": "claude/opus@medium | codex/gpt-5.5",
+                    "cheaper": "claude/sonnet | codex/gpt-5.3-codex-spark",
+                    "cheapest": "claude/haiku || codex/gpt-5.3-codex-spark",
                 }
             }
         }

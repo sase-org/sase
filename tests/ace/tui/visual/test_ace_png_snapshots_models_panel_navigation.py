@@ -42,7 +42,7 @@ async def test_models_panel_alias_picker_filtered_png_snapshot(
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         # default -> coders bucket -> epic_lander -> big_epic_lander ->
-        # phase_worker bucket -> small member, where @coder is a safe
+        # phase_worker bucket -> xsmall member, where @coder is a safe
         # persistent reference.
         await page.press("j", "j", "j", "j", "l", "e")
         await page.expect_modal("ModelPickerModal")

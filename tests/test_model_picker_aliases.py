@@ -29,16 +29,20 @@ def test_alias_context_builds_ordered_styled_rows_before_models() -> None:
         alias_context=context,
     )
 
-    assert [row.option_id for row in rows[:11]] == [
+    assert [row.option_id for row in rows[:15]] == [
         "__header_aliases__",
         "@default",
         "@coder",
         "@epic_lander",
         "@big_epic_lander",
+        "@xsmall_phase_worker",
         "@small_phase_worker",
         "@medium_phase_worker",
         "@large_phase_worker",
+        "@xlarge_phase_worker",
         "@smartest",
+        "@smart",
+        "@cheap",
         "@cheaper",
         "@cheapest",
     ]
@@ -47,7 +51,7 @@ def test_alias_context_builds_ordered_styled_rows_before_models() -> None:
     )
     alias_options = [
         option
-        for option in rows_to_options(rows[:11])
+        for option in rows_to_options(rows[:15])
         if option is not None and str(option.id).startswith("@")
     ]
     assert all(isinstance(option.prompt, Text) for option in alias_options)
@@ -64,10 +68,16 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
         make_alias_view("codex_coder", "provider_coder"),
         make_alias_view("epic_lander", "role"),
         make_alias_view("big_epic_lander", "role"),
+        make_alias_view("xsmall_phase_worker", "role"),
         make_alias_view("small_phase_worker", "role"),
         make_alias_view("medium_phase_worker", "role"),
         make_alias_view("large_phase_worker", "role"),
+        make_alias_view("xlarge_phase_worker", "role"),
         make_alias_view("smartest", "role"),
+        make_alias_view("smart", "role"),
+        make_alias_view("cheap", "role"),
+        make_alias_view("cheaper", "role"),
+        make_alias_view("cheapest", "role"),
         make_alias_view("hop_a", "user", configured=True, configured_value="@hop_b"),
         make_alias_view("hop_b", "user", configured=True, configured_value="@coder"),
         make_alias_view(
@@ -94,7 +104,13 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
         "would create a cycle"
     )
     assert _alias_disabled_reason(default_context, "big_epic_lander") is None
+    assert _alias_disabled_reason(default_context, "large_phase_worker") == (
+        "would create a cycle"
+    )
     assert _alias_disabled_reason(smartest_context, "big_epic_lander") == (
+        "would create a cycle"
+    )
+    assert _alias_disabled_reason(smartest_context, "xlarge_phase_worker") == (
         "would create a cycle"
     )
     medium_context = make_alias_context(target="medium_phase_worker", views=views)

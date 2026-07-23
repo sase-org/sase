@@ -7,12 +7,17 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.llm_provider.config import (
+    CHEAP_MODEL_ALIAS_DEFAULT,
+    CHEAPER_MODEL_ALIAS_DEFAULT,
+    CHEAPEST_MODEL_ALIAS_DEFAULT,
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT,
     SMARTEST_MODEL_ALIAS_DEFAULT,
     coder_model_alias_for_provider,
     default_model_alias_name,
     implicit_model_alias_fallback,
     implicit_model_alias_value,
     resolve_model_alias,
+    resolve_model_alias_with_effort,
     role_model_directive_value,
 )
 from sase.llm_provider.registry import resolve_model_provider
@@ -28,14 +33,27 @@ def test_role_alias_helpers() -> None:
     assert role_model_directive_value("default") == "@default"
     assert implicit_model_alias_fallback("big_epic_lander") == "smartest"
     assert implicit_model_alias_fallback("epic_lander") == "default"
-    assert implicit_model_alias_fallback("small_phase_worker") == "cheaper"
-    assert implicit_model_alias_fallback("medium_phase_worker") == "default"
-    assert implicit_model_alias_fallback("large_phase_worker") == "smartest"
+    assert implicit_model_alias_fallback("xsmall_phase_worker") == "cheaper"
+    assert implicit_model_alias_fallback("small_phase_worker") == "cheap"
+    assert implicit_model_alias_fallback("medium_phase_worker") is None
+    assert implicit_model_alias_value("medium_phase_worker") == (
+        MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT
+    )
+    assert MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT == "codex/gpt-5.6-sol@high"
+    assert implicit_model_alias_fallback("large_phase_worker") == "smart"
+    assert implicit_model_alias_fallback("xlarge_phase_worker") == "smartest"
+    assert implicit_model_alias_fallback("smart") == "default"
     assert implicit_model_alias_fallback("smartest") is None
     assert implicit_model_alias_value("smartest") == SMARTEST_MODEL_ALIAS_DEFAULT
     assert SMARTEST_MODEL_ALIAS_DEFAULT == (
         "claude/claude-fable-5 || codex/gpt-5.6-sol"
     )
+    assert implicit_model_alias_value("cheap") == CHEAP_MODEL_ALIAS_DEFAULT
+    assert CHEAP_MODEL_ALIAS_DEFAULT == "claude/opus@medium | codex/gpt-5.5"
+    assert implicit_model_alias_value("cheaper") == CHEAPER_MODEL_ALIAS_DEFAULT
+    assert CHEAPER_MODEL_ALIAS_DEFAULT == ("claude/sonnet | codex/gpt-5.3-codex-spark")
+    assert implicit_model_alias_value("cheapest") == CHEAPEST_MODEL_ALIAS_DEFAULT
+    assert CHEAPEST_MODEL_ALIAS_DEFAULT == ("claude/haiku || codex/gpt-5.3-codex-spark")
     assert implicit_model_alias_fallback("default") is None
 
 
@@ -63,6 +81,16 @@ def test_default_alias_falls_back_to_provider_tier_default(
 
     assert resolve_model_alias("default") == "claude/opus"
     assert resolve_model_provider("default") == ("claude", "opus")
+
+
+def test_medium_phase_worker_owns_concrete_high_effort_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+
+    resolved = resolve_model_alias_with_effort("medium_phase_worker")
+
+    assert (resolved.target, resolved.effort) == ("codex/gpt-5.6-sol", "high")
 
 
 def test_coder_alias_chains_to_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -168,10 +196,13 @@ def test_epic_execution_role_aliases_follow_size_specific_fallbacks(
     )
     assert resolve_model_alias("smartest") == "claude/claude-fable-5"
     assert resolve_model_alias("big_epic_lander") == "claude/claude-fable-5"
-    assert resolve_model_alias("large_phase_worker") == "claude/claude-fable-5"
+    assert resolve_model_alias("xlarge_phase_worker") == "claude/claude-fable-5"
+    assert resolve_model_alias("large_phase_worker") == "codex/gpt-5.6-sol"
     assert resolve_model_alias("small_phase_worker") == "claude/opus"
-    assert resolve_model_alias("cheaper") == "claude/opus"
-    assert resolve_model_alias("cheapest") == "claude/sonnet"
+    assert resolve_model_alias("xsmall_phase_worker") == "claude/sonnet"
+    assert resolve_model_alias("cheap") == "claude/opus"
+    assert resolve_model_alias("cheaper") == "claude/sonnet"
+    assert resolve_model_alias("cheapest") == "claude/haiku"
 
 
 def test_configured_smartest_alias_shadows_implicit_fallback(
@@ -216,7 +247,7 @@ def test_smartest_provider_availability_matrix(
 
     assert resolve_model_alias("smartest", consume=True) == expected
     assert resolve_model_alias("big_epic_lander", consume=True) == expected
-    assert resolve_model_alias("large_phase_worker", consume=True) == expected
+    assert resolve_model_alias("xlarge_phase_worker", consume=True) == expected
 
 
 def test_stale_phase_worker_builtin_does_not_control_medium_phase(

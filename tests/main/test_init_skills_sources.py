@@ -228,12 +228,16 @@ def test_sase_plan_skill_does_not_expose_internal_model_aliases() -> None:
 
     for internal_name in (
         "phase_worker",
+        "cheap",
         "cheaper",
         "cheapest",
+        "smart",
         "smartest",
+        "xsmall_phase_worker",
         "small_phase_worker",
         "medium_phase_worker",
         "large_phase_worker",
+        "xlarge_phase_worker",
     ):
         assert internal_name not in body
 

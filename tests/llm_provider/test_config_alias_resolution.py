@@ -158,10 +158,14 @@ def test_worker_other_and_phase_worker_are_not_special_aliases(
         "coder",
         "epic_lander",
         "big_epic_lander",
+        "xsmall_phase_worker",
         "small_phase_worker",
         "medium_phase_worker",
         "large_phase_worker",
+        "xlarge_phase_worker",
+        "smart",
         "smartest",
+        "cheap",
         "cheaper",
         "cheapest",
     } <= names
@@ -214,10 +218,8 @@ def test_launch_phase_worker_override_has_no_builtin_effect(
 
     overrides = {"phase_worker": "codex/o3"}
     assert resolve_model_alias("@small_phase_worker", overrides) == "claude/opus"
-    assert resolve_model_alias("@medium_phase_worker", overrides) == "claude/opus"
-    assert resolve_model_alias("@large_phase_worker", overrides) == (
-        "claude/claude-fable-5"
-    )
+    assert resolve_model_alias("@medium_phase_worker", overrides) == "codex/gpt-5.6-sol"
+    assert resolve_model_alias("@large_phase_worker", overrides) == "claude/opus"
     assert resolve_model_alias("@phase_worker", overrides) == "phase_worker"
 
 

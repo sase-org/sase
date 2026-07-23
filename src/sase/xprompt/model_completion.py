@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 from sase.llm_provider.config import (
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
+    CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
     CODER_MODEL_ALIAS_NAME,
@@ -20,7 +21,10 @@ from sase.llm_provider.config import (
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
+    SMART_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
+    XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+    XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     coder_model_alias_for_provider,
     get_model_aliases,
     model_alias_config_source,
@@ -47,12 +51,19 @@ _TRAILING_IMPLICIT_ALIASES: tuple[tuple[str, str], ...] = (
         BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
         "threshold-selected large-epic land follow-up model",
     ),
+    (XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME, "extra-small bead phase agent model"),
     (SMALL_PHASE_WORKER_MODEL_ALIAS_NAME, "small bead phase agent model"),
     (MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME, "medium bead phase agent model"),
     (LARGE_PHASE_WORKER_MODEL_ALIAS_NAME, "large bead phase agent model"),
-    (SMARTEST_MODEL_ALIAS_NAME, "highest-capability model for large phase agents"),
-    (CHEAPER_MODEL_ALIAS_NAME, "load-balanced small phase agent pool"),
-    (CHEAPEST_MODEL_ALIAS_NAME, "lowest-cost load-balanced explicit-use pool"),
+    (XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME, "extra-large bead phase agent model"),
+    (
+        SMARTEST_MODEL_ALIAS_NAME,
+        "highest-capability model for extra-large phase agents",
+    ),
+    (SMART_MODEL_ALIAS_NAME, "high-capability model for large phase agents"),
+    (CHEAP_MODEL_ALIAS_NAME, "load-balanced small phase agent pool"),
+    (CHEAPER_MODEL_ALIAS_NAME, "lower-cost extra-small phase agent pool"),
+    (CHEAPEST_MODEL_ALIAS_NAME, "lowest-cost explicit-use provider fallback"),
 )
 
 
@@ -80,9 +91,10 @@ def build_model_completion_catalog(
     aliases are kept as match/display hints only; they are not inserted as
     completion values. The implicit role aliases (``@default``, ``@coder``, each
     registered ``@<provider>_coder``, ``@epic_lander``,
-    ``@big_epic_lander``, the three size-specific phase aliases, ``@smartest``,
-    ``@cheaper``, and ``@cheapest``) and user-configured aliases are
-    inserted with their ``@`` form because those values resolve through the
+    ``@big_epic_lander``, the five size-specific phase aliases, ``@smartest``,
+    ``@smart``, ``@cheap``, ``@cheaper``, and ``@cheapest``) and
+    user-configured aliases are inserted with their ``@`` form because those
+    values resolve through the
     normal ``%model`` path.
     """
     global _CATALOG_CACHE  # noqa: PLW0603

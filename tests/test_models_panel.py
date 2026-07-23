@@ -155,7 +155,7 @@ def test_state_tag_implicit_big_epic_lander() -> None:
 
 def test_state_tag_implicit_size_phase_worker() -> None:
     text = _state_tag(make_alias_view("medium_phase_worker", "role"), now=0.0)
-    assert text.plain == "implicit → @default"
+    assert text.plain == "implicit"
 
 
 def test_state_tag_implicit_provider_coder() -> None:
@@ -263,7 +263,7 @@ def test_render_alias_row_contains_name_provider_and_state() -> None:
     line = _render_alias_row(view, now=0.0, provider_model_width=width).plain
     assert "medium_phase_worker" in line
     assert "CODEX(o3)" in line
-    assert "implicit → @default" in line
+    assert "implicit" in line
 
 
 def test_render_alias_row_includes_effort_in_measured_badge() -> None:

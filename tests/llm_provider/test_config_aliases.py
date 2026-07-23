@@ -152,14 +152,21 @@ def test_model_alias_description_builtin_and_custom(
     assert model_alias_description("medium_phase_worker") == (
         "Medium bead phase agents that implement directly."
     )
-    assert model_alias_description("smartest") == (
-        "Highest-capability model used automatically by large phase agents."
+    assert model_alias_description("smart") == (
+        "High-capability model used automatically by large phase agents."
     )
-    assert model_alias_description("cheaper") == (
+    assert model_alias_description("smartest") == (
+        "Highest-capability model used automatically by extra-large phase agents "
+        "and large epic landers."
+    )
+    assert model_alias_description("cheap") == (
         "Load-balanced pool used automatically by small phase agents."
     )
+    assert model_alias_description("cheaper") == (
+        "Lower-cost load-balanced pool used automatically by extra-small phase agents."
+    )
     assert model_alias_description("cheapest") == (
-        "Lowest-cost load-balanced pool available for explicit use."
+        "Lowest-cost provider fallback available for explicit use."
     )
     assert model_alias_description("claude_coder") == (
         "Coder follow-up agents for plans authored by claude."
@@ -190,10 +197,14 @@ def test_model_alias_names_include_configured_and_special(
         "coder",
         "epic_lander",
         "big_epic_lander",
+        "xsmall_phase_worker",
         "small_phase_worker",
         "medium_phase_worker",
         "large_phase_worker",
+        "xlarge_phase_worker",
+        "smart",
         "smartest",
+        "cheap",
         "cheaper",
         "cheapest",
         # per-provider coder aliases

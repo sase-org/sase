@@ -24,6 +24,7 @@ from typing import Literal, cast
 
 from .config import (
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
+    CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
     CODER_MODEL_ALIAS_NAME,
@@ -33,7 +34,10 @@ from .config import (
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
+    SMART_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
+    XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+    XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     ModelAliasSelectorMember,
     get_model_aliases,
     implicit_model_alias_value,
@@ -58,10 +62,14 @@ _ROLE_ALIAS_ORDER: tuple[str, ...] = (
     EPIC_CREATOR_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
+    XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+    XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     SMARTEST_MODEL_ALIAS_NAME,
+    SMART_MODEL_ALIAS_NAME,
+    CHEAP_MODEL_ALIAS_NAME,
     CHEAPER_MODEL_ALIAS_NAME,
     CHEAPEST_MODEL_ALIAS_NAME,
 )
@@ -74,7 +82,7 @@ CODERS_BUCKET_DESCRIPTION = (
     "Generic coder default and planner-provider-specific coder follow-up aliases."
 )
 
-#: Built-in Models-panel bucket for the three size-specific phase roles.
+#: Built-in Models-panel bucket for the five size-specific phase roles.
 PHASE_WORKER_BUCKET_NAME = "phase_worker"
 
 #: Description used when config does not override the phase-worker bucket.
@@ -105,9 +113,11 @@ _BUILTIN_BUCKET_SPECS: tuple[_BuiltinBucketSpec, ...] = (
         name=PHASE_WORKER_BUCKET_NAME,
         description=PHASE_WORKER_BUCKET_DESCRIPTION,
         fixed_members=(
+            XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
             SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
             MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
             LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+            XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
         ),
     ),
 )

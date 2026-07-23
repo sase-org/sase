@@ -55,9 +55,13 @@ def test_includes_default_role_provider_coder_and_user_aliases(
         by_name["big_epic_lander"].model,
     ) == ("claude", "claude-fable-5")
     assert "phase_worker" not in by_name
+    assert by_name["xsmall_phase_worker"].kind == "role"
     assert by_name["small_phase_worker"].kind == "role"
     assert by_name["medium_phase_worker"].kind == "role"
     assert by_name["large_phase_worker"].kind == "role"
+    assert by_name["xlarge_phase_worker"].kind == "role"
+    assert by_name["smart"].kind == "role"
+    assert by_name["smart"].implicit_fallback == "default"
     assert by_name["smartest"].kind == "role"
     assert by_name["smartest"].configured is False
     assert by_name["smartest"].configured_source is None
@@ -74,21 +78,29 @@ def test_includes_default_role_provider_coder_and_user_aliases(
         True,
         False,
     ]
-    assert by_name["cheapest"].kind == "role"
+    assert by_name["cheap"].kind == "role"
     assert by_name["cheaper"].kind == "role"
-    assert by_name["cheaper"].implicit_value == ("claude/opus@medium | codex/gpt-5.5")
-    assert by_name["cheaper"].selector_mode == "round_robin"
-    assert [member.value for member in by_name["cheaper"].selector_members] == [
+    assert by_name["cheap"].implicit_value == ("claude/opus@medium | codex/gpt-5.5")
+    assert by_name["cheap"].selector_mode == "round_robin"
+    assert [member.value for member in by_name["cheap"].selector_members] == [
         "claude/opus@medium",
         "codex/gpt-5.5",
     ]
-    assert by_name["cheapest"].kind == "role"
-    assert by_name["cheapest"].implicit_value == (
+    assert by_name["cheaper"].implicit_value == (
         "claude/sonnet | codex/gpt-5.3-codex-spark"
     )
-    assert by_name["cheapest"].selector_mode == "round_robin"
-    assert [member.value for member in by_name["cheapest"].selector_members] == [
+    assert by_name["cheaper"].selector_mode == "round_robin"
+    assert [member.value for member in by_name["cheaper"].selector_members] == [
         "claude/sonnet",
+        "codex/gpt-5.3-codex-spark",
+    ]
+    assert by_name["cheapest"].kind == "role"
+    assert by_name["cheapest"].implicit_value == (
+        "claude/haiku || codex/gpt-5.3-codex-spark"
+    )
+    assert by_name["cheapest"].selector_mode == "fallback"
+    assert [member.value for member in by_name["cheapest"].selector_members] == [
+        "claude/haiku",
         "codex/gpt-5.3-codex-spark",
     ]
     assert by_name["claude_coder"].kind == "provider_coder"
@@ -121,15 +133,19 @@ def test_default_is_first_and_groups_are_ordered(
 
     assert names[0] == "default"
     # role aliases follow default, in canonical order
-    role_slice = names[1:10]
+    role_slice = names[1:14]
     assert role_slice == [
         "coder",
         "epic_lander",
         "big_epic_lander",
+        "xsmall_phase_worker",
         "small_phase_worker",
         "medium_phase_worker",
         "large_phase_worker",
+        "xlarge_phase_worker",
         "smartest",
+        "smart",
+        "cheap",
         "cheaper",
         "cheapest",
     ]

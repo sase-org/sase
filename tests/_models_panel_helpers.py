@@ -133,13 +133,22 @@ def make_phase_worker_bucket_views() -> list[AliasView]:
         make_alias_view("default", "default", description="Default model."),
         make_alias_view("coder", "role", provider="claude", model="opus"),
         make_alias_view(
-            "small_phase_worker", "role", provider="claude", model="sonnet"
+            "xsmall_phase_worker", "role", provider="claude", model="sonnet"
         ),
+        make_alias_view("small_phase_worker", "role", provider="claude", model="opus"),
         make_alias_view(
-            "medium_phase_worker", "role", provider="claude", model="sonnet"
+            "medium_phase_worker", "role", provider="codex", model="gpt-5.6-sol"
         ),
-        make_alias_view("large_phase_worker", "role", provider="codex", model="o3"),
-        make_alias_view("smartest", "role", provider="claude", model="opus"),
-        make_alias_view("cheaper", "role", provider="claude", model="opus"),
-        make_alias_view("cheapest", "role", provider="claude", model="sonnet"),
+        make_alias_view("large_phase_worker", "role", provider="claude", model="opus"),
+        make_alias_view(
+            "xlarge_phase_worker",
+            "role",
+            provider="claude",
+            model="claude-fable-5",
+        ),
+        make_alias_view("smartest", "role", provider="claude", model="claude-fable-5"),
+        make_alias_view("smart", "role", provider="claude", model="opus"),
+        make_alias_view("cheap", "role", provider="claude", model="opus"),
+        make_alias_view("cheaper", "role", provider="claude", model="sonnet"),
+        make_alias_view("cheapest", "role", provider="claude", model="haiku"),
     ]

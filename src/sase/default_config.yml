@@ -456,11 +456,12 @@ llm_provider:
   # Allowed: none, minimal, low, medium, high, xhigh, max.
   default_effort: ""
   # Model aliases for no-%model launches, delegated work, and reusable prompts.
-  # Builtin role overrides live under builtin. Normal epic landers and medium
-  # phases fall back to @default; threshold-selected epic landers and large
-  # phases fall back to @smartest, which owns an ordered provider fallback.
-  # `cheaper` / `cheapest` own independent load-balanced pools. Use `A | B` for
-  # round-robin or `A || B` for ordered fallback; do not mix the operators.
+  # Builtin role overrides live under builtin. Normal epic landers and @smart
+  # fall back to @default; threshold-selected epic landers and extra-large
+  # phases use @smartest, which owns an ordered provider fallback. `cheap` and
+  # `cheaper` own independent load-balanced pools; `cheapest` owns an ordered
+  # provider fallback. Use `A | B` for round-robin or `A || B` for ordered
+  # fallback; do not mix the operators.
   # Values may be a bare known model (opus), an explicit
   # provider/model (codex/gpt-5.6-sol), a nested provider-local path
   # (opencode/anthropic/claude-sonnet-4-5), or an @<alias> reference.
@@ -476,12 +477,16 @@ llm_provider:
   #     codex_coder: claude/opus    # coder follow-ups from Codex-authored plans
   #     epic_lander: "@default"     # epic land agents
   #     big_epic_lander: "@smartest" # threshold-selected epic land agents
-  #     cheaper: "claude/opus@medium | codex/gpt-5.5" # small-phase pool
-  #     cheapest: "claude/sonnet | codex/gpt-5.3-codex-spark" # explicit-use pool
-  #     small_phase_worker: "@cheaper"  # small bead phase agents
-  #     medium_phase_worker: "@default" # medium bead phase agents
-  #     large_phase_worker: "@smartest"  # large bead phase agents
+  #     xsmall_phase_worker: "@cheaper" # extra-small bead phase agents
+  #     small_phase_worker: "@cheap"    # small bead phase agents
+  #     medium_phase_worker: codex/gpt-5.6-sol@high # medium bead phase agents
+  #     large_phase_worker: "@smart"    # large bead phase agents
+  #     xlarge_phase_worker: "@smartest" # extra-large bead phase agents
+  #     smart: "@default"          # high-capability alias
   #     smartest: "claude/claude-fable-5 || codex/gpt-5.6-sol" # implicit default
+  #     cheap: "claude/opus@medium | codex/gpt-5.5" # small-phase pool
+  #     cheaper: "claude/sonnet | codex/gpt-5.3-codex-spark" # xsmall-phase pool
+  #     cheapest: "claude/haiku || codex/gpt-5.3-codex-spark" # lowest-cost fallback
   #   custom:
   #     blogger:
   #       model: claude/opus
