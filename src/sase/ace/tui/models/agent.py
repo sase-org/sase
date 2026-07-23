@@ -106,7 +106,7 @@ class Agent(AgentState):
         if self.is_clan_container:
             return self.presented_agent_name or raw_clan
         raw_name = self.agent_name or ""
-        presented_name = self.presented_agent_name or raw_name
+        presented_name = self.presented_identity_name or raw_name
         prefix = f"{raw_clan}."
         if raw_name.startswith(prefix):
             suffix = raw_name[len(raw_clan) :]
@@ -120,7 +120,7 @@ class Agent(AgentState):
         if not raw_family:
             return self.presented_agent_name or self.family_reference_name()
         raw_name = self.agent_name or ""
-        presented_name = self.presented_agent_name or raw_name
+        presented_name = self.presented_identity_name or raw_name
         if raw_name.startswith(raw_family):
             suffix = raw_name[len(raw_family) :]
             if suffix and presented_name.endswith(suffix):

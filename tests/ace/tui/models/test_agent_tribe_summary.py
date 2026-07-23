@@ -326,6 +326,65 @@ def test_machine_qualified_children_compact_against_presented_containers() -> No
     assert [child.label for child in units["zeus.review"].children] == [".peer"]
 
 
+def test_local_machine_clan_with_family_projects_to_one_presented_unit() -> None:
+    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    family_root = _agent(
+        "athena.sase-8t.1--plan",
+        "RUNNING",
+        start_minute=0,
+        clan="athena.sase-8t",
+        generation="gen",
+        family="athena.sase-8t.1",
+        role="plan",
+    )
+    agents = [
+        family_root,
+        _agent(
+            "athena.sase-8t.2",
+            "WAITING",
+            start_minute=1,
+            clan="athena.sase-8t",
+            generation="gen",
+        ),
+        _agent(
+            "athena.sase-8t.land",
+            "WAITING",
+            start_minute=2,
+            clan="athena.sase-8t",
+            generation="gen",
+        ),
+    ]
+    foreign_family_root = _agent(
+        "zeus.review.1--plan",
+        "RUNNING",
+        start_minute=3,
+        clan="zeus.review",
+        generation="foreign",
+        family="zeus.review.1",
+        role="plan",
+    )
+
+    for agent in (*agents, foreign_family_root):
+        agent.refresh_presented_agent_name(identity)
+
+    assert family_root.presented_clan_reference_name() == "sase-8t"
+    assert foreign_family_root.presented_clan_reference_name() == "zeus.review"
+
+    projected = project_clan_tree(agents)
+    containers = [agent for agent in projected if agent.is_clan_container]
+    assert len(containers) == 1
+    assert containers[0].presented_clan_reference_name() == "sase-8t"
+
+    snapshot = build_agent_tribe_summary_snapshot(
+        "epic",
+        projected,
+        panel_collapsed=True,
+        now=_NOW,
+    )
+
+    assert [unit.label for unit in snapshot.units] == ["sase-8t"]
+
+
 def test_reference_tribe_counts_six_hole_statuses_and_eight_nested() -> None:
     agents: list[Agent] = []
     for index in range(4):
