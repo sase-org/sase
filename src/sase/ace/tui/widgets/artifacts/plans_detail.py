@@ -14,22 +14,15 @@ from sase.phase_size_presentation import (
     phase_size_chip,
 )
 from sase.plan_search.model import PlanSearchMatch
+from sase.sdd.plan_properties import (
+    ordered_plan_property_items,
+    plan_property_label,
+)
 
 from .plans_data import LinkedPlanDocument, PlanProposal, PlansSnapshot
 
 
 DetailProperty = tuple[str, str | Text]
-
-_KNOWN_FRONTMATTER_KEYS = (
-    "title",
-    "tier",
-    "kind",
-    "status",
-    "create_time",
-    "created",
-    "created_at",
-    "goal",
-)
 
 
 def proposal_properties_header(
@@ -134,17 +127,7 @@ def _ordered_frontmatter_items(
     frontmatter: dict[str, str],
 ) -> tuple[tuple[str, str], ...]:
     """Order known plan properties first, then remaining keys alphabetically."""
-    known_order = {key: index for index, key in enumerate(_KNOWN_FRONTMATTER_KEYS)}
-    return tuple(
-        sorted(
-            frontmatter.items(),
-            key=lambda item: (
-                known_order.get(item[0].casefold(), len(known_order)),
-                item[0].casefold(),
-                item[0],
-            ),
-        )
-    )
+    return tuple(ordered_plan_property_items(frontmatter))
 
 
 def bead_body_markdown(
@@ -161,7 +144,7 @@ def bead_body_markdown(
             lines.append(f"_{linked_plan.error}_")
         else:
             for key, value in _ordered_frontmatter_items(linked_plan.frontmatter):
-                label = _property_label(key)
+                label = plan_property_label(key)
                 lines.append(f"**{label}:** {value.replace(chr(10), ' ')}  ")
             if linked_plan.frontmatter:
                 lines.append("")
@@ -288,13 +271,9 @@ def _frontmatter_properties(
     frontmatter: dict[str, str],
 ) -> tuple[DetailProperty, ...]:
     return tuple(
-        (_property_label(key), value)
+        (plan_property_label(key), value)
         for key, value in _ordered_frontmatter_items(frontmatter)
     )
-
-
-def _property_label(key: str) -> str:
-    return key.replace("_", " ").strip().capitalize() or key
 
 
 def _dependencies_text(

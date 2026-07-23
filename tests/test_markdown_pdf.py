@@ -224,9 +224,11 @@ def test_render_launch_preview_pdf_falls_back_to_generic_renderer(tmp_path):
         Path(markdown_pdf.__file__).with_name("sase.xml")
     ]
     assert first.kwargs["include_auto_title"] is False
+    assert first.kwargs["include_properties"] is False
     assert second.args == (source, dest)
     assert "css_path" not in second.kwargs
     assert "syntax_definitions" not in second.kwargs
+    assert second.kwargs["include_properties"] is False
 
 
 def test_render_markdown_pdf_custom_profile_updates_wkhtmltopdf_and_css(tmp_path):
