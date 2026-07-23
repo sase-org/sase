@@ -236,6 +236,31 @@ _lint-symvision *args: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-8v(AgentFamilyNameKind)' \
+        --epic-symbol 'sase-8v(AgentLinkTarget)' \
+        --epic-symbol 'sase-8v(AgentLinkTargetKind)' \
+        --epic-symbol 'sase-8v(AgentOwnerIdentity)' \
+        --epic-symbol 'sase-8v(AgentOwnershipClassification)' \
+        --epic-symbol 'sase-8v(AgentSourceOwnerIdentity)' \
+        --epic-symbol 'sase-8v(ParsedAgentFamilyName)' \
+        --epic-symbol 'sase-8v(RewrittenAgentRelationshipBatch)' \
+        --epic-symbol 'sase-8v(ValidatedAgentRelationshipSummary)' \
+        --epic-symbol 'sase-8v(agent_link_target)' \
+        --epic-symbol 'sase-8v(agent_local_hood)' \
+        --epic-symbol 'sase-8v(agent_name_ancestors)' \
+        --epic-symbol 'sase-8v(agent_name_in_hood)' \
+        --epic-symbol 'sase-8v(agent_relationship_schema_version)' \
+        --epic-symbol 'sase-8v(classify_agent_ownership)' \
+        --epic-symbol 'sase-8v(globalize_agent_name)' \
+        --epic-symbol 'sase-8v(globalize_legacy_agent_name)' \
+        --epic-symbol 'sase-8v(localize_agent_name)' \
+        --epic-symbol 'sase-8v(normalize_agent_archive_name)' \
+        --epic-symbol 'sase-8v(parse_agent_family_name)' \
+        --epic-symbol 'sase-8v(rewrite_agent_relationship_batch)' \
+        --epic-symbol 'sase-8v(strip_global_agent_name)' \
+        --epic-symbol 'sase-8v(validate_agent_owner)' \
+        --epic-symbol 'sase-8v(validate_agent_relationship_batch)' \
+        --epic-symbol 'sase-8v(validate_agent_username)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
