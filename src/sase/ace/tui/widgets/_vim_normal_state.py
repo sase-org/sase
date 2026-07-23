@@ -81,6 +81,11 @@ class VimNormalStateMixin(_MixinBase):
             insert_text: str,
         ) -> str: ...
 
+        def _normalize_normal_open_above_replay_text(
+            self,
+            insert_text: str,
+        ) -> str: ...
+
         def _execute_charwise_operator(
             self,
             start: tuple[int, int],
@@ -339,6 +344,10 @@ class VimNormalStateMixin(_MixinBase):
             if insert_text is not None and self._vim_mode == "insert":
                 if keys[0] == "o":
                     insert_text = self._normalize_normal_open_below_replay_text(
+                        insert_text
+                    )
+                elif keys[0] == "O":
+                    insert_text = self._normalize_normal_open_above_replay_text(
                         insert_text
                     )
                 payload = (

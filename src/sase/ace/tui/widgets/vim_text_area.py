@@ -221,8 +221,16 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         """Return the structural text inserted by NORMAL-mode ``o``."""
         return "\n"
 
+    def _normal_open_above_insert_text(self, row: int) -> str:
+        """Return the structural text inserted by NORMAL-mode ``O``."""
+        return "\n"
+
     def _normalize_normal_open_below_replay_text(self, insert_text: str) -> str:
         """Normalize captured ``o`` text after structural replay. Default: identity."""
+        return insert_text
+
+    def _normalize_normal_open_above_replay_text(self, insert_text: str) -> str:
+        """Normalize captured ``O`` text after structural replay. Default: identity."""
         return insert_text
 
     def _update_vim_mode_display(self, indicator: str = "") -> None:

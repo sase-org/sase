@@ -2500,9 +2500,9 @@ and backspace or delete removes both sides of an empty pair. Pairing is conserva
 characters, when text is selected (the typed character replaces the selection literally), for contractions or
 possessives, and for repeated quotes/backticks needed to type Markdown fences or code spans.
 
-INSERT-mode `Ctrl+J` and prompt NORMAL-mode lowercase `o` continue a containing space-indented `- ` bullet using that
+INSERT-mode `Ctrl+J` and prompt NORMAL-mode `o` / `O` continue a containing space-indented `- ` bullet using that
 bullet's indentation. This also works from physical continuation lines, including Prettier-wrapped nested bullets;
-non-bullet lines keep the ordinary bare newline or open-below behavior.
+non-bullet lines keep the ordinary bare newline or open-line behavior.
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line. The native cursor cell is color-coded by prompt Vim mode: INSERT uses cyan, NORMAL uses gold,
@@ -2856,7 +2856,7 @@ Text objects compose with `d`, `c`, and `y`.
 | `A`        | Append at end of line; inserted text is repeatable with `.`                               |
 | `I`        | Insert at line start; inserted text is repeatable with `.`                                |
 | `o`        | Open below; prompt hyphen bullets auto-continue, and inserted text repeats with `.`       |
-| `O`        | Open line above; inserted text is repeatable with `.`                                     |
+| `O`        | Open above; prompt hyphen bullets auto-continue, and inserted text repeats with `.`       |
 | `[<Space>` | Insert blank line(s) above current line without leaving NORMAL mode                       |
 | `]<Space>` | Insert blank line(s) below current line without leaving NORMAL mode                       |
 | `u`        | Undo                                                                                      |
@@ -2876,8 +2876,9 @@ Text objects compose with `d`, `c`, and `y`.
 | `/` / `?`  | Search forward / backward in the current prompt pane                                      |
 | `n` / `N`  | Repeat the last confirmed search in its original / opposite direction                     |
 
-In prompt panes, lowercase `o` continues the containing hyphen bullet at the same indentation, including when the cursor
-is on a physical continuation line produced by Prettier wrapping. Non-bullet lines retain ordinary open-below behavior.
+In prompt panes, `o` and `O` continue the containing hyphen bullet below or above at the same indentation, including
+when the cursor is on a physical continuation line produced by Prettier wrapping. Non-bullet lines retain ordinary bare
+open-line behavior.
 
 For `Ctrl+]`, ACE opens the target directly in `$EDITOR` when there is only one available action. Inside tmux, or for
 loadable Markdown xprompt definitions, it can show a small chooser for editor, tmux-pane, or load-into-prompt actions.

@@ -19,6 +19,7 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
         _mutation_count: int
 
         def _clear_prompt_search(self, *, clear_highlights: bool = False) -> None: ...
+        def _normal_open_above_insert_text(self, row: int) -> str: ...
         def _normal_open_below_insert_text(self, row: int) -> str: ...
         def _update_count_display(self) -> None: ...
         def _record_insert_mutation_start(self, count: int) -> None: ...
@@ -106,11 +107,12 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             return True
         if key == "O":
             row = self.cursor_location[0]
+            insert_text = self._normal_open_above_insert_text(row)
             self._enter_insert_mode()
             self.cursor_location = (row, 0)
             start, end = self.selection
-            self._replace_via_keyboard("\n", start, end)
-            self.cursor_location = (row, 0)
+            self._replace_via_keyboard(insert_text, start, end)
+            self.cursor_location = (row, len(insert_text) - 1)
             self._record_insert_mutation_start(count)
             return True
 

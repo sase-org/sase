@@ -111,7 +111,20 @@ class PromptTextAreaActionsMixin(_MixinBase):
         prefix = prompt_bullet_sibling_prefix(self.document.lines, row)
         return f"\n{prefix}" if prefix is not None else "\n"
 
+    def _normal_open_above_insert_text(self, row: int) -> str:
+        """Auto-continue a containing prompt hyphen bullet for ``O``."""
+        prefix = prompt_bullet_sibling_prefix(self.document.lines, row)
+        return f"{prefix}\n" if prefix is not None else "\n"
+
     def _normalize_normal_open_below_replay_text(self, insert_text: str) -> str:
+        """Avoid replaying a typed marker after structural prompt bullet text."""
+        row = self.cursor_location[0]
+        return normalize_prompt_bullet_replay_text(
+            self.document.get_line(row),
+            insert_text,
+        )
+
+    def _normalize_normal_open_above_replay_text(self, insert_text: str) -> str:
         """Avoid replaying a typed marker after structural prompt bullet text."""
         row = self.cursor_location[0]
         return normalize_prompt_bullet_replay_text(
