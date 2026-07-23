@@ -5592,12 +5592,16 @@ AxeEntryEditorModal > #axe-editor-container {
 AxeEntryEditorModal #axe-editor-title {
     height: 1;
     text-style: bold;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 AxeEntryEditorModal #axe-editor-status {
     height: auto;
     color: $text-muted;
-    margin-bottom: 1;
+    border-bottom: solid #B87333;
+    padding-bottom: 1;
+    margin-bottom: 0;
 }
 
 AxeEntryEditorModal #axe-editor-body {
@@ -5606,18 +5610,58 @@ AxeEntryEditorModal #axe-editor-body {
 }
 
 AxeEntryEditorModal #axe-editor-navigation {
-    width: 38;
+    width: 42;
     height: 100%;
     border-right: solid #B87333;
     padding-right: 1;
 }
 
 AxeEntryEditorModal #axe-editor-scopes {
-    height: auto;
-    max-height: 9;
-    border: solid #B87333;
-    padding: 0 1;
+    width: 100%;
+    height: 3;
     margin-bottom: 1;
+}
+
+AxeEntryEditorModal #axe-editor-scope-row {
+    width: 100%;
+    height: 1;
+    overflow-x: hidden;
+}
+
+AxeEntryEditorModal #axe-editor-scope-label {
+    width: auto;
+    height: 1;
+    color: #B87333;
+    text-style: bold;
+    margin-right: 1;
+}
+
+AxeEntryEditorModal .axe-editor-scope-chip {
+    width: auto;
+    height: 1;
+    color: $text-muted;
+    padding: 0 1;
+}
+
+AxeEntryEditorModal .axe-editor-scope-chip.active {
+    color: #100F0F;
+    background: #F0C674;
+    text-style: bold;
+}
+
+AxeEntryEditorModal #axe-editor-scope-hint {
+    width: auto;
+    height: 1;
+    color: $text-muted;
+    margin-left: 1;
+}
+
+AxeEntryEditorModal #axe-editor-scope-path {
+    width: 100%;
+    height: 1;
+    color: $text-muted;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 AxeEntryEditorModal #axe-editor-properties {
@@ -5628,23 +5672,31 @@ AxeEntryEditorModal .axe-editor-group-header {
     height: 1;
     color: #B87333;
     text-style: bold;
+}
+
+AxeEntryEditorModal #axe-editor-advanced-header {
     margin-top: 1;
 }
 
 AxeEntryEditorModal .axe-editor-field {
     height: 1;
     padding: 0 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 AxeEntryEditorModal .axe-editor-field.selected {
-    background: #D7A85B 20%;
-    border-left: thick #D7A85B;
+    background: #F0C674 12%;
+    border-left: thick #F0C674;
     padding: 0 1 0 0;
 }
 
-AxeEntryEditorModal #axe-editor-add-guidance {
+AxeEntryEditorModal .axe-editor-add {
     height: 1;
-    color: $text-muted;
+    color: #B87333;
+    padding-left: 2;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 AxeEntryEditorModal #axe-editor-value-pane {
@@ -5658,17 +5710,19 @@ AxeEntryEditorModal #axe-editor-field-info {
     max-height: 12;
     border-bottom: solid #B87333;
     padding-bottom: 1;
-    margin-bottom: 1;
+    color: $text;
 }
 
 AxeEntryEditorModal #axe-editor-options {
-    height: auto;
-    border: solid #B87333;
-    padding: 0 1;
+    height: 3;
+    padding: 1 1 0 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 AxeEntryEditorModal #axe-editor-input {
     margin-top: 1;
+    border: solid #B87333;
 }
 
 AxeEntryEditorModal #axe-editor-textarea {
@@ -5676,17 +5730,20 @@ AxeEntryEditorModal #axe-editor-textarea {
     height: 1fr;
     min-height: 8;
     border: solid #B87333;
+    margin-top: 1;
 }
 
 AxeEntryEditorModal #axe-editor-validation {
-    height: auto;
-    min-height: 1;
-    margin-top: 1;
+    height: 1;
+    color: $text-muted;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 AxeEntryEditorModal #axe-editor-preview-scroll {
     width: 100%;
     height: 1fr;
+    padding-top: 1;
 }
 
 AxeEntryEditorModal #axe-editor-preview {
@@ -5695,10 +5752,12 @@ AxeEntryEditorModal #axe-editor-preview {
 }
 
 AxeEntryEditorModal #axe-editor-hints {
-    height: 1;
+    height: 2;
     color: $text-muted;
     text-align: center;
-    margin-top: 1;
+    border-top: solid #B87333;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 AxeEntryEditorModal.-narrow > #axe-editor-container {
@@ -5717,7 +5776,7 @@ AxeEntryEditorModal.-narrow #axe-editor-navigation {
     border-right: none;
     border-bottom: solid #B87333;
     padding-right: 0;
-    padding-bottom: 1;
+    padding-bottom: 0;
 }
 
 AxeEntryEditorModal.-narrow #axe-editor-value-pane {
@@ -5725,6 +5784,14 @@ AxeEntryEditorModal.-narrow #axe-editor-value-pane {
     height: 1fr;
     padding-left: 0;
     padding-top: 1;
+}
+
+AxeEntryEditorModal.-narrow #axe-editor-field-info {
+    max-height: 8;
+}
+
+AxeEntryEditorModal.-narrow #axe-editor-textarea {
+    min-height: 5;
 }
 
 /* Models panel — persistent alias edit preview/confirm (sase-5e Phase 3) */

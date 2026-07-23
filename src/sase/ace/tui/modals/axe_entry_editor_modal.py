@@ -327,13 +327,17 @@ class AxeEntryEditorModal(
 
     def on_click(self, event: events.Click) -> None:
         widget_id = getattr(event.widget, "id", None)
-        if widget_id == "axe-editor-scopes":
-            widget = event.widget
-            if widget is None:
+        if isinstance(widget_id, str) and widget_id.startswith("axe-editor-scope-"):
+            try:
+                index = int(widget_id.removeprefix("axe-editor-scope-"))
+            except ValueError:
                 return
-            offset = event.get_content_offset(widget)
-            y = offset.y if offset is not None else int(event.y)
-            self._select_scope_index(y - 1)
+            self._select_scope_index(index)
+            event.stop()
+            event.prevent_default()
+            return
+        if widget_id in {"axe-editor-basics-add", "axe-editor-advanced-add"}:
+            self.action_add_property()
             event.stop()
             event.prevent_default()
             return

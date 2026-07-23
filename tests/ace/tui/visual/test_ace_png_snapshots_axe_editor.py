@@ -294,10 +294,9 @@ async def _push_visual_editor(
     await page.expect_modal("AxeEntryEditorModal")
     await wait_for_state(
         page,
-        lambda: bool(modal.query("#axe-editor-title")),
-        description="AXE editor mounted",
+        lambda: bool(modal.query_one("#axe-editor-title").render().plain),
+        description="AXE editor initialized through the real mount lifecycle",
     )
-    modal._render_all(force_editor=True)
     await wait_for_visual_idle(page)
     return modal
 

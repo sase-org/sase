@@ -13,10 +13,13 @@ from sase.ace.tui.modals.axe_entry_editor_modal import (
     AxeEntryMutationRequest,
     AxeWritableScope,
 )
+from sase.ace.tui.modals.axe_entry_editor_rendering import _HOME, _display_path
 from sase.ace.tui.modals.config_transaction_preview import (
     ConfigTransactionPreview,
     TransactionEffectivePreview,
 )
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.config.inventory import load_config_schema
 
 
@@ -139,6 +142,17 @@ def test_new_seed_intentionally_touches_only_declared_initial_fields() -> None:
     assert modal._title_text().plain.startswith("Add AXE chop")
 
 
+def test_scope_path_collapses_home_and_preserves_both_ends() -> None:
+    rendered = _display_path(
+        f"{_HOME}/.config/sase/a-very-long-overlay-name/sase.yml",
+        30,
+    )
+    assert len(rendered) <= 30
+    assert rendered.startswith("~/")
+    assert "…" in rendered
+    assert rendered.endswith("sase.yml")
+
+
 def test_scope_change_refreshes_target_contribution_without_touching_draft() -> None:
     seed = _seed()
     seed = replace(
@@ -156,6 +170,27 @@ def test_scope_change_refreshes_target_contribution_without_touching_draft() -> 
     assert modal._form.field("script").draft_value == "draft"
 
 
+async def test_real_mount_populates_editor_without_manual_render() -> None:
+    async with AcePage() as page:
+        modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
+        page.app.push_screen(modal)
+        await page.expect_modal("AxeEntryEditorModal")
+        await page.pause()
+
+        assert "checks / lint" in (modal.query_one("#axe-editor-title").render().plain)
+        assert modal.query_one("#axe-editor-scope-0").render().plain == "1 user"
+        editor = modal.query_one("#axe-editor-input", SingleLineVimTextArea)
+        assert editor.display
+        assert not modal.query_one("#axe-editor-textarea", VimTextArea).display
+        assert editor.border_title == "Value"
+        assert editor.border_subtitle == "INSERT"
+
+        await page.press("escape")
+        assert page.app.screen is modal
+        assert editor._vim_mode == "normal"
+        assert editor.border_subtitle == "NORMAL"
+
+
 async def test_chop_groups_picker_badges_warning_and_narrow_layout() -> None:
     async with AcePage(size=(70, 36)) as page:
         modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
@@ -163,12 +198,14 @@ async def test_chop_groups_picker_badges_warning_and_narrow_layout() -> None:
         await page.expect_modal("AxeEntryEditorModal")
         await page.wait_for(lambda _screen: modal.has_class("-narrow"))
         assert modal.has_class("-narrow")
-        assert modal.query_one("#axe-editor-basics-header").render().plain == "Basics"
+        assert modal.query_one("#axe-editor-basics-header").render().plain == "BASICS"
         assert modal.query_one("#axe-editor-advanced-header").render().plain == (
-            "Advanced"
+            "ADVANCED"
         )
-        assert "[user]" in modal._field_row(modal._form.field("script")).plain
+        assert "·user" in modal._field_row(modal._form.field("script")).plain
         assert "every generated instance" in modal._status_text().plain
+        await page.click("#axe-editor-scope-1")
+        assert modal._target == "overlay:test"
         description_index = next(
             index
             for index, field in enumerate(modal._form.fields)
