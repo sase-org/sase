@@ -19,12 +19,13 @@ An agent hood is a group of agents that are all named with the same `<name>.` pr
 `foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of the same `foo` agent hood. The agent `foo`, if it exists, is also
 considered part of the `foo` agent hood.
 
-**Agent Hole**  
-An agent hole is a term that describes either an agent family or a single agent that does not belong to a family. Agent
-holes never have a name that ends with `--<suffix>` since that suffix is reserved for family members. We think of an
-agent hole like an agent's house (i.e. where they live). When agent's are single, they live in their own hole. When a
-new member joins their family, that member moves into the same hole. At that point, the hole and the family share a name
-instead of the hole and the original agent, which is renamed with its own `--<suffix>`.
+**Agent Lane**  
+An agent lane is a term that describes either an agent family or a single agent that does not belong to a family. Agent
+lanes never have a name that ends with `--<suffix>` since that suffix is reserved for family members. We think of an
+agent lane like an agent's house (i.e. where they live). When agent's are single, they live in their own lane. When a
+new member joins their family (which can only happen once the original agent completes, since agents in agent lanes run
+sequentially), that member moves into the same lane. At that point, the lane and the family share a name instead of the
+lane and the original agent, which is renamed with its own `--<suffix>`.
 
 **Agent Instruction Files (aka agents.md files)**  
 An agent instruction file is a `.md` file that an agent CLI reads automatically when working in a directory that
