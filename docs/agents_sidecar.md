@@ -12,9 +12,10 @@ Before running `sase repo init`, set the intrinsic `agents` sidecar's `visibilit
 restricted. Set `disabled: true` to opt out entirely. Synchronization never creates a remote and cannot bypass the
 explicit consent requested by repo initialization.
 
-Every participating machine needs a complete selected `id.username`/`id.machine_name` owner identity. During this
-compatibility phase, the machine hood remains part of each durable agent name, such as `athena.worker`, so independently
-created names remain distinct. Run `sase config init` to create or migrate the owner identity; see
+Every participating machine needs a complete selected `id.username`/`id.machine_name` owner identity. Locally owned
+artifacts persist bare semantic names such as `worker`. During this v1 sidecar compatibility phase, export adds the
+machine hood only at the transport boundary, producing `athena.worker`; imported v1 names keep that explicit foreign
+hood and username-unknown provenance. Run `sase config init` to create or migrate the owner identity; see
 [owner identity and machine overlays](configuration.md#owner-identity) for the selector/overlay distinction and source
 authority. A machine is authoritative for bundles in its own hood: pulled copies from the same machine are not imported
 over local artifacts, and a later local export replaces the transport copy when its commits or portable metadata change.
@@ -38,9 +39,10 @@ is the exact transcript. The manifest advertises a SHA-256 digest over canonical
 chat bytes. Unsupported schemas, unsafe paths, identity mismatches, or digest failures stop that project's integration
 without partially importing the corrupt bundle.
 
-Foreign bundles are reconstructed as normal terminal `ace-run` artifacts and standard sharded chat files. Their exact
-qualified names are claimed in the durable registry, so `sase agent list`, `sase chats`, name lookup, and ACE scans see
-them like local history. Provenance and digest markers distinguish imports from locally owned artifacts.
+Foreign bundles are reconstructed as normal terminal `ace-run` artifacts and standard sharded chat files. Their exact v1
+machine-qualified names are claimed in the durable registry, so `sase agent list`, `sase chats`, name lookup, and ACE
+scans see them like local history. Provenance and digest markers distinguish username-unknown v1 imports from locally
+owned artifacts.
 
 ## Commands and status
 

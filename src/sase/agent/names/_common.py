@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from sase.core.machine_hood_facade import MachineHoodIdentity
+    from sase.core.agent_identity_facade import AgentIdentitySnapshot
 
 
 class AgentRefError(Exception):
@@ -25,6 +25,22 @@ class AgentRefError(Exception):
 
 class NameCollisionError(ValueError):
     """Raised when an explicit repeat-name base conflicts with existing agents."""
+
+
+class ImportedNameCollisionError(NameCollisionError):
+    """Typed collision between an imported claim and durable registry state."""
+
+    def __init__(
+        self,
+        name: str,
+        *,
+        reason: str,
+        existing: dict[str, object] | None = None,
+    ) -> None:
+        self.name = name
+        self.reason = reason
+        self.existing = existing
+        super().__init__(f"imported agent name '{name}' collides: {reason}")
 
 
 # Auto-name prefix: the lowercase letter/digit segment before the first ``.``
@@ -40,21 +56,21 @@ DISMISSED_NAME_PREFIX_RE = re.compile(r"^(\d{6})\.")
 
 def extract_auto_name_prefix(
     *values: object,
-    identity: MachineHoodIdentity | None = None,
+    identity: AgentIdentitySnapshot | None = None,
 ) -> str | None:
     """Return the longest auto-name prefix before the first ``.`` in any value."""
-    from sase.core.machine_hood_facade import (
-        MachineHoodIdentity,
-        strip_local_agent_name,
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        present_agent_name,
     )
 
     if identity is None:
-        identity = MachineHoodIdentity.current()
+        identity = AgentIdentitySnapshot.current()
     best: str | None = None
     for v in values:
         if not isinstance(v, str):
             continue
-        m = _AUTO_NAME_PREFIX_RE.match(strip_local_agent_name(v, identity))
+        m = _AUTO_NAME_PREFIX_RE.match(present_agent_name(v, identity))
         if m is None:
             continue
         candidate = m.group(1)

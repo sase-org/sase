@@ -26,6 +26,7 @@ from sase.agent.names._auto import (
 from sase.agent.names._claim import claim_agent_name
 from sase.agent.names._common import (
     AgentRefError,
+    ImportedNameCollisionError,
     NamedAgent,
     NameCollisionError,
     add_dismissed_prefix,
@@ -70,6 +71,7 @@ from sase.agent.names._migration import (
 )
 from sase.agent.names._registry import (
     claim_imported_registered_name,
+    claim_imported_registered_name_v2,
     claim_registered_name,
     convert_registered_agent_to_family,
     delete_registered_name,
@@ -236,6 +238,7 @@ __all__ = [
     "InvalidAgentNameTemplateError",
     "InvalidAgentNameTemplateTokenError",
     "InvalidIndexedAgentNameTemplateError",
+    "ImportedNameCollisionError",
     "NameCollisionError",
     "NamedAgent",
     "add_dismissed_prefix",
@@ -253,6 +256,8 @@ __all__ = [
     "allocate_wait_name",
     "allocate_wait_names",
     "claim_agent_name",
+    "claim_imported_registered_name",
+    "claim_imported_registered_name_v2",
     "claim_registered_name",
     "convert_registered_agent_to_family",
     "compare_agent_name_template_tokens",

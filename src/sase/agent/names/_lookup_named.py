@@ -59,10 +59,12 @@ def find_named_agent(name: str, *, only_done: bool = False) -> NamedAgent | None
     Returns:
         A NamedAgent if found, or None.
     """
-    from sase.core.machine_hood_facade import local_agent_name_lookup_candidates
+    from sase.core.agent_identity_facade import (
+        current_owner_agent_name_lookup_candidates,
+    )
 
     return _find_named_agent_candidates(
-        local_agent_name_lookup_candidates(name),
+        current_owner_agent_name_lookup_candidates(name),
         only_done=only_done,
     )
 

@@ -297,9 +297,9 @@ class RenameMixin:
                 AgentNameSyntaxError,
                 validate_user_agent_name,
             )
-            from sase.core.machine_hood_facade import (
-                MachineHoodIdentity,
-                qualify_local_agent_name,
+            from sase.core.agent_identity_facade import (
+                AgentIdentitySnapshot,
+                normalize_owned_agent_name,
             )
 
             try:
@@ -313,8 +313,8 @@ class RenameMixin:
                 self.notify(str(exc), severity="error")  # type: ignore[attr-defined]
                 return
 
-            machine_identity = MachineHoodIdentity.current()
-            durable_name = qualify_local_agent_name(new_name, machine_identity)
+            machine_identity = AgentIdentitySnapshot.current()
+            durable_name = normalize_owned_agent_name(new_name, machine_identity)
 
             spec = AgentDirectivePersistenceSpec(
                 artifacts_dir=artifacts_dir,

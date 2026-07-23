@@ -16,7 +16,10 @@ from sase.ace.tui.models.agent_hoods import (
     agent_hood,
     is_agent_descendant,
 )
-from sase.core.machine_hood_facade import MachineHoodIdentity
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+)
 
 
 def _agent(
@@ -75,7 +78,10 @@ def test_agent_hood_matches_case_insensitively() -> None:
 
 
 def test_machine_hood_is_removed_before_local_kinship_indexing() -> None:
-    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
+    )
     local = _agent("athena.foo.plan")
     legacy = _agent("foo.code")
     foreign = _agent("zeus.foo.plan")
@@ -106,11 +112,11 @@ def test_machine_hood_is_removed_before_local_kinship_indexing() -> None:
 def test_agent_row_construction_does_not_read_machine_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fail_current(_cls: type[MachineHoodIdentity]) -> MachineHoodIdentity:
+    def fail_current(_cls: type[AgentIdentitySnapshot]) -> AgentIdentitySnapshot:
         raise AssertionError("row construction must not resolve machine config")
 
     monkeypatch.setattr(
-        MachineHoodIdentity,
+        AgentIdentitySnapshot,
         "current",
         classmethod(fail_current),
     )
@@ -127,7 +133,10 @@ def test_family_display_and_kinship_identity_are_normalized_independently() -> N
     family.agent_family_role = "root"
     family.plan_chain_root = True
     family.refresh_presented_agent_name(
-        MachineHoodIdentity("athena", ("athena", "zeus"))
+        AgentIdentitySnapshot(
+            AgentOwnerIdentity("alice", "athena"),
+            ("athena", "zeus"),
+        )
     )
 
     assert family.presented_agent_name == "foo"

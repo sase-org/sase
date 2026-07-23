@@ -120,20 +120,21 @@ def _reserve_clan_membership(
         member_name=member_name,
         member_name_template=member_name_template,
     )
-    from sase.core.machine_hood_facade import (
-        MachineHoodIdentity,
-        known_foreign_machine,
-        qualify_local_agent_name,
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        foreign_agent_owner_root,
+        normalize_owned_agent_name,
     )
 
-    identity = MachineHoodIdentity.current()
-    foreign_machine = known_foreign_machine(clan_name, identity)
-    if foreign_machine is not None and identity.machine_name is not None:
+    identity = AgentIdentitySnapshot.current()
+    foreign_machine = foreign_agent_owner_root(clan_name, identity)
+    if foreign_machine is not None and identity.owner is not None:
         raise ClanMembershipError(
             f"Clan '{clan_name}' belongs to known machine '{foreign_machine}' "
-            f"and cannot be launched on local machine '{identity.machine_name}'."
+            f"and cannot be launched on local machine "
+            f"'{identity.owner.machine_name}'."
         )
-    clan_name = qualify_local_agent_name(clan_name, identity)
+    clan_name = normalize_owned_agent_name(clan_name, identity)
 
     try:
         reserved_generation = reserve_registered_clan_name(

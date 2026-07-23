@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from enum import StrEnum
+import re
 from typing import Any
 
 from sase.core.rust import require_rust_binding
@@ -33,6 +34,36 @@ class AgentSourceOwnerIdentity:
     @classmethod
     def username_unknown_v1(cls, machine_name: str) -> AgentSourceOwnerIdentity:
         return cls(machine_name=machine_name)
+
+
+@dataclass(frozen=True, slots=True)
+class AgentIdentitySnapshot:
+    """One immutable application identity snapshot.
+
+    ``owner`` is absent only for compatibility callers operating before
+    identity initialization.  ``sibling_machines`` comes from explicit
+    overlay configuration and is used solely for launch/namespace guards; it
+    is never used to guess the owner of an arbitrary dotted name.
+    """
+
+    owner: AgentOwnerIdentity | None
+    sibling_machines: tuple[str, ...] = ()
+
+    @classmethod
+    def current(cls) -> AgentIdentitySnapshot:
+        """Resolve the selected owner and configured sibling machines once."""
+        from sase.config import discover_machine_names, get_agent_owner_identity
+
+        owner = get_agent_owner_identity()
+        if owner is None:
+            return cls(None, ())
+        siblings = tuple(dict.fromkeys((*discover_machine_names(), owner.machine_name)))
+        return cls(owner, siblings)
+
+    @classmethod
+    def unconfigured(cls) -> AgentIdentitySnapshot:
+        """Return the strict no-owner compatibility snapshot."""
+        return cls(None, ())
 
 
 class AgentOwnershipClassification(StrEnum):
@@ -86,6 +117,9 @@ class RewrittenAgentRelationshipBatch:
     runs: tuple[Mapping[str, Any], ...]
     containers: tuple[Mapping[str, Any], ...]
     relationships: tuple[Mapping[str, Any], ...]
+
+
+_DISMISSED_PREFIX_RE = re.compile(r"^(\d{6}\.)(.+)$")
 
 
 def validate_agent_username(username: str) -> None:
@@ -169,6 +203,137 @@ def localize_agent_name(
             source.username,
         )
     )
+
+
+def normalize_owned_agent_name(
+    name: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> str:
+    """Return the bare durable spelling for a newly current-owned name.
+
+    Bare names remain exact.  The current machine-qualified and early fully
+    qualified spellings are accepted as compatibility inputs and normalized
+    to the same bare semantic name.  Foreign spellings are not localized by
+    this function; imports must use :func:`localize_imported_agent_name` with
+    an explicit source owner.
+    """
+    snapshot = identity or AgentIdentitySnapshot.current()
+    owner = snapshot.owner
+    if owner is None:
+        return name
+    prefix, core_name = _split_dismissed_prefix(name)
+    machine_prefix = f"{owner.machine_name}."
+    global_prefix = f"{owner.username}.{owner.machine_name}."
+    if core_name.startswith(global_prefix):
+        core_name = strip_global_agent_name(core_name, owner)
+    elif core_name.startswith(machine_prefix):
+        core_name = core_name[len(machine_prefix) :]
+    return prefix + core_name
+
+
+def globalize_owned_agent_name(
+    name: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> str:
+    """Return canonical global provenance for a current-owned name."""
+    snapshot = identity or AgentIdentitySnapshot.current()
+    owner = snapshot.owner
+    if owner is None:
+        return name
+    prefix, core_name = _split_dismissed_prefix(name)
+    bare = normalize_owned_agent_name(core_name, snapshot)
+    return prefix + globalize_agent_name(bare, owner)
+
+
+def localize_imported_agent_name(
+    global_name: str,
+    source: AgentSourceOwnerIdentity,
+    identity: AgentIdentitySnapshot | None = None,
+) -> str:
+    """Localize one imported name using its explicit source provenance."""
+    snapshot = identity or AgentIdentitySnapshot.current()
+    if snapshot.owner is None:
+        return global_name
+    return localize_agent_name(global_name, source, snapshot.owner)
+
+
+def classify_imported_agent_owner(
+    source: AgentSourceOwnerIdentity,
+    identity: AgentIdentitySnapshot | None = None,
+) -> AgentOwnershipClassification:
+    """Classify explicit imported provenance against the selected owner."""
+    snapshot = identity or AgentIdentitySnapshot.current()
+    if snapshot.owner is None:
+        return AgentOwnershipClassification.USERNAME_UNKNOWN_V1
+    return classify_agent_ownership(source, snapshot.owner)
+
+
+def present_agent_name(
+    name: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> str:
+    """Hide only explicit current-owner compatibility prefixes."""
+    return normalize_owned_agent_name(name, identity)
+
+
+def current_owner_agent_name_lookup_candidates(
+    name: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> tuple[str, ...]:
+    """Return exact-first current-owner compatibility lookup spellings."""
+    snapshot = identity or AgentIdentitySnapshot.current()
+    owner = snapshot.owner
+    if owner is None or foreign_agent_owner_root(name, snapshot) is not None:
+        return (name,)
+    prefix, core_name = _split_dismissed_prefix(name)
+    bare = normalize_owned_agent_name(core_name, snapshot)
+    return tuple(
+        dict.fromkeys(
+            (
+                name,
+                prefix + bare,
+                prefix + f"{owner.machine_name}.{bare}",
+                prefix + globalize_agent_name(bare, owner),
+            )
+        )
+    )
+
+
+def current_owner_agent_name_key(
+    name: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> str:
+    """Return the collision key shared by current-owned legacy spellings."""
+    snapshot = identity or AgentIdentitySnapshot.current()
+    if foreign_agent_owner_root(name, snapshot) is not None:
+        return name
+    return normalize_owned_agent_name(name, snapshot)
+
+
+def foreign_agent_owner_root(
+    name: str,
+    identity: AgentIdentitySnapshot | None = None,
+) -> str | None:
+    """Return an explicitly recognizable foreign owner root for launch guards.
+
+    Recognition is limited to configured machine discriminators.  This keeps
+    ``foo.bar`` available as a semantic local name while rejecting spellings
+    such as ``zeus.foo``, ``alice.zeus.foo``, and ``bob.athena.foo`` when the
+    relevant machine is explicitly configured.
+    """
+    snapshot = identity or AgentIdentitySnapshot.current()
+    owner = snapshot.owner
+    if owner is None:
+        return None
+    _prefix, core_name = _split_dismissed_prefix(name)
+    parts = core_name.split(".")
+    machines = set(snapshot.sibling_machines)
+    if len(parts) >= 2 and parts[0] in machines:
+        return parts[0] if parts[0] != owner.machine_name else None
+    if len(parts) >= 3 and parts[1] in machines:
+        if parts[0] != owner.username or parts[1] != owner.machine_name:
+            return f"{parts[0]}.{parts[1]}"
+    return None
 
 
 def parse_agent_family_name(name: str) -> ParsedAgentFamilyName:
@@ -262,10 +427,18 @@ def _owner_from_mapping(value: Any) -> AgentOwnerIdentity:
     )
 
 
+def _split_dismissed_prefix(name: str) -> tuple[str, str]:
+    match = _DISMISSED_PREFIX_RE.match(name)
+    if match is None:
+        return "", name
+    return match.group(1), match.group(2)
+
+
 __all__ = [
     "AgentFamilyNameKind",
     "AgentLinkTarget",
     "AgentLinkTargetKind",
+    "AgentIdentitySnapshot",
     "AgentOwnerIdentity",
     "AgentOwnershipClassification",
     "AgentSourceOwnerIdentity",
@@ -278,11 +451,19 @@ __all__ = [
     "agent_name_in_hood",
     "agent_relationship_schema_version",
     "classify_agent_ownership",
+    "classify_imported_agent_owner",
+    "current_owner_agent_name_key",
+    "current_owner_agent_name_lookup_candidates",
+    "foreign_agent_owner_root",
     "globalize_agent_name",
     "globalize_legacy_agent_name",
+    "globalize_owned_agent_name",
+    "localize_imported_agent_name",
     "localize_agent_name",
+    "normalize_owned_agent_name",
     "normalize_agent_archive_name",
     "parse_agent_family_name",
+    "present_agent_name",
     "rewrite_agent_relationship_batch",
     "strip_global_agent_name",
     "validate_agent_owner",

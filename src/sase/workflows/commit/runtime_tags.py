@@ -53,9 +53,16 @@ def _resolve_agent_name() -> str | None:
     """Resolve the current SASE agent name, if one is available."""
     env_name = _sanitize_tag_value(os.environ.get("SASE_AGENT_NAME"))
     if env_name:
-        from sase.core.machine_hood_facade import qualify_local_agent_name
+        from sase.config import require_agent_owner_identity
+        from sase.core.agent_identity_facade import (
+            AgentIdentitySnapshot,
+            globalize_owned_agent_name,
+        )
 
-        return qualify_local_agent_name(env_name)
+        return globalize_owned_agent_name(
+            env_name,
+            AgentIdentitySnapshot(require_agent_owner_identity()),
+        )
 
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not artifacts_dir:
@@ -70,9 +77,16 @@ def _resolve_agent_name() -> str | None:
         return None
     meta_name = _sanitize_tag_value(meta.get("name"))
     if meta_name:
-        from sase.core.machine_hood_facade import qualify_local_agent_name
+        from sase.config import require_agent_owner_identity
+        from sase.core.agent_identity_facade import (
+            AgentIdentitySnapshot,
+            globalize_owned_agent_name,
+        )
 
-        return qualify_local_agent_name(meta_name)
+        return globalize_owned_agent_name(
+            meta_name,
+            AgentIdentitySnapshot(require_agent_owner_identity()),
+        )
     return None
 
 

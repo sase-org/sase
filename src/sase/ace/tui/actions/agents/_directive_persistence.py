@@ -181,14 +181,14 @@ def waiting_marker_patch_for_token(
 
 def _durable_wait_names(wait_names: tuple[str, ...]) -> tuple[str, ...]:
     """Qualify agent dependencies while leaving tribe references unchanged."""
-    from sase.core.machine_hood_facade import (
-        MachineHoodIdentity,
-        qualify_local_agent_name,
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        normalize_owned_agent_name,
     )
 
-    identity = MachineHoodIdentity.current()
+    identity = AgentIdentitySnapshot.current()
     return tuple(
-        name if name.startswith("@") else qualify_local_agent_name(name, identity)
+        name if name.startswith("@") else normalize_owned_agent_name(name, identity)
         for name in wait_names
     )
 

@@ -76,13 +76,19 @@ def test_child_identity_persists_and_publishes_one_local_machine_hood(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "sase.core.machine_hood_facade.get_machine_name",
-        lambda: "athena",
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        AgentOwnerIdentity,
+    )
+
+    identity_snapshot = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
     )
     monkeypatch.setattr(
-        "sase.core.machine_hood_facade.discover_machine_names",
-        lambda: ("athena", "zeus"),
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity_snapshot),
     )
     monkeypatch.delenv("SASE_AGENT_PLANNED_NAME", raising=False)
     monkeypatch.delenv("SASE_REPEAT_NAME", raising=False)
@@ -131,6 +137,6 @@ def test_child_identity_persists_and_publishes_one_local_machine_hood(
             metadata_inputs=inputs,
         )
 
-    assert identity.name == "athena.foo"
-    assert identity.meta["name"] == "athena.foo"
-    assert os.environ["SASE_AGENT_NAME"] == "athena.foo"
+    assert identity.name == "foo"
+    assert identity.meta["name"] == "foo"
+    assert os.environ["SASE_AGENT_NAME"] == "foo"

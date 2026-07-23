@@ -228,14 +228,14 @@ def get_live_agent_name_subset(expected_names: set[str]) -> dict[str, str]:
     metadata file names one of those agents and stops once every expected name
     has been found.
     """
-    from sase.core.machine_hood_facade import (
-        MachineHoodIdentity,
-        canonical_local_agent_name_key,
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        current_owner_agent_name_key,
     )
 
-    identity = MachineHoodIdentity.current()
+    identity = AgentIdentitySnapshot.current()
     expected_by_key = {
-        canonical_local_agent_name_key(name, identity): name for name in expected_names
+        current_owner_agent_name_key(name, identity): name for name in expected_names
     }
     remaining = set(expected_by_key)
     if not remaining:
@@ -267,10 +267,10 @@ def get_live_agent_name_subset(expected_names: set[str]) -> dict[str, str]:
             continue
 
         names = {
-            canonical_local_agent_name_key(value, identity): value
+            current_owner_agent_name_key(value, identity): value
             for value in (data.get("name"), data.get("workflow_name"))
             if isinstance(value, str)
-            and canonical_local_agent_name_key(value, identity) in remaining
+            and current_owner_agent_name_key(value, identity) in remaining
         }
         if not names:
             continue
@@ -311,13 +311,13 @@ def get_active_child_names(base: str) -> set[str]:
         return set()
 
     dismissed_suffixes = _load_dismissed_suffixes()
-    from sase.core.machine_hood_facade import (
-        MachineHoodIdentity,
-        strip_local_agent_name,
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        present_agent_name,
     )
 
-    identity = MachineHoodIdentity.current()
-    local_base = strip_local_agent_name(base, identity)
+    identity = AgentIdentitySnapshot.current()
+    local_base = present_agent_name(base, identity)
     pattern = re.compile(rf"^{re.escape(local_base)}\.\d+$")
     names: set[str] = set()
     for artifact_dir in _iter_ace_run_artifact_dirs():
@@ -339,7 +339,7 @@ def get_active_child_names(base: str) -> set[str]:
 
         name = data.get("name")
         local_name = (
-            strip_local_agent_name(name, identity) if isinstance(name, str) else None
+            present_agent_name(name, identity) if isinstance(name, str) else None
         )
         if local_name is None or not pattern.match(local_name):
             continue

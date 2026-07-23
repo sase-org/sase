@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from sase.core.machine_hood_facade import (
-    MachineHoodIdentity,
-    canonical_local_agent_name_key,
-    local_agent_name_lookup_candidates,
-    strip_local_agent_name,
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    current_owner_agent_name_key,
+    current_owner_agent_name_lookup_candidates,
+    present_agent_name,
 )
 
 RegistryLoader = Callable[[], dict[str, Any]]
@@ -20,8 +20,8 @@ def lookup_registered_name(
 ) -> dict[str, Any] | None:
     """Return registry owner metadata for *name*, if reserved."""
     entries = load_registry()["entries"]
-    identity = MachineHoodIdentity.current()
-    for candidate in local_agent_name_lookup_candidates(name, identity):
+    identity = AgentIdentitySnapshot.current()
+    for candidate in current_owner_agent_name_lookup_candidates(name, identity):
         entry = entries.get(candidate)
         if isinstance(entry, dict):
             return dict(entry)
@@ -31,10 +31,10 @@ def lookup_registered_name(
 def is_name_reserved(name: str, *, load_registry: RegistryLoader) -> bool:
     """Return whether *name* is reserved by an existing agent."""
     entries = load_registry()["entries"]
-    identity = MachineHoodIdentity.current()
+    identity = AgentIdentitySnapshot.current()
     return any(
         candidate in entries
-        for candidate in local_agent_name_lookup_candidates(name, identity)
+        for candidate in current_owner_agent_name_lookup_candidates(name, identity)
     )
 
 
@@ -75,15 +75,15 @@ def get_reserved_agent_name_map(*, load_registry: RegistryLoader) -> dict[str, s
 
 def lowest_name_suggestion(base: str, *, load_registry: RegistryLoader) -> str:
     """Return the lowest available ``<base><N>`` suggestion."""
-    identity = MachineHoodIdentity.current()
-    visible_base = strip_local_agent_name(base, identity)
+    identity = AgentIdentitySnapshot.current()
+    visible_base = present_agent_name(base, identity)
     reserved = {
-        canonical_local_agent_name_key(name, identity)
+        current_owner_agent_name_key(name, identity)
         for name in get_reserved_agent_names(load_registry=load_registry)
     }
     n = 1
     while True:
         candidate = f"{visible_base}{n}"
-        if canonical_local_agent_name_key(candidate, identity) not in reserved:
+        if current_owner_agent_name_key(candidate, identity) not in reserved:
             return candidate
         n += 1

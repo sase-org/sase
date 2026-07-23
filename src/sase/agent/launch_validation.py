@@ -128,18 +128,18 @@ def validate_user_agent_name(name: str) -> None:
     """
     if AGENT_FAMILY_SEPARATOR in name:
         raise AgentNameSyntaxError(name)
-    from sase.core.machine_hood_facade import (
-        MachineHoodIdentity,
-        known_foreign_machine,
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        foreign_agent_owner_root,
     )
 
-    identity = MachineHoodIdentity.current()
-    foreign_machine = known_foreign_machine(name, identity)
-    if foreign_machine is not None and identity.machine_name is not None:
+    identity = AgentIdentitySnapshot.current()
+    foreign_machine = foreign_agent_owner_root(name, identity)
+    if foreign_machine is not None and identity.owner is not None:
         raise AgentNameForeignMachineError(
             name,
             foreign_machine,
-            identity.machine_name,
+            identity.owner.machine_name,
         )
 
 
@@ -203,12 +203,12 @@ def validate_launch_name_requests(
         lowest_name_suggestion,
     )
 
-    from sase.core.machine_hood_facade import (
-        MachineHoodIdentity,
-        canonical_local_agent_name_key,
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        current_owner_agent_name_key,
     )
 
-    identity = MachineHoodIdentity.current()
+    identity = AgentIdentitySnapshot.current()
     seen: set[str] = set()
     # Load the reserved-name set once per launch instead of per explicit name.
     # ``is_name_reserved`` reloads the registry (and re-runs O(entries) stale-owner
@@ -231,18 +231,18 @@ def validate_launch_name_requests(
                     clan_names = get_reserved_clan_names()
                     family_names = get_reserved_family_names()
                     reserved_keys = {
-                        canonical_local_agent_name_key(name, identity)
+                        current_owner_agent_name_key(name, identity)
                         for name in reserved_names
                     }
                     clan_keys = {
-                        canonical_local_agent_name_key(name, identity)
+                        current_owner_agent_name_key(name, identity)
                         for name in clan_names
                     }
                     family_keys = {
-                        canonical_local_agent_name_key(name, identity)
+                        current_owner_agent_name_key(name, identity)
                         for name in family_names
                     }
-                request_key = canonical_local_agent_name_key(request.name, identity)
+                request_key = current_owner_agent_name_key(request.name, identity)
                 if clan_keys is not None and request_key in clan_keys:
                     raise _AgentNameClanCollisionError(request.name)
                 if family_keys is not None and request_key in family_keys:
@@ -253,18 +253,17 @@ def validate_launch_name_requests(
                 clan_names = get_reserved_clan_names()
                 family_names = get_reserved_family_names()
                 reserved_keys = {
-                    canonical_local_agent_name_key(name, identity)
+                    current_owner_agent_name_key(name, identity)
                     for name in reserved_names
                 }
                 clan_keys = {
-                    canonical_local_agent_name_key(name, identity)
-                    for name in clan_names
+                    current_owner_agent_name_key(name, identity) for name in clan_names
                 }
                 family_keys = {
-                    canonical_local_agent_name_key(name, identity)
+                    current_owner_agent_name_key(name, identity)
                     for name in family_names
                 }
-            request_key = canonical_local_agent_name_key(request.name, identity)
+            request_key = current_owner_agent_name_key(request.name, identity)
             assert reserved_keys is not None
             if request_key in seen or request_key in reserved_keys:
                 if clan_keys is not None and request_key in clan_keys:

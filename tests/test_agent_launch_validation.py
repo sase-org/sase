@@ -194,13 +194,19 @@ def test_user_agent_names_cannot_contain_reserved_family_separator() -> None:
 def test_known_foreign_machine_name_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "sase.core.machine_hood_facade.get_machine_name",
-        lambda: "athena",
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        AgentOwnerIdentity,
+    )
+
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
     )
     monkeypatch.setattr(
-        "sase.core.machine_hood_facade.discover_machine_names",
-        lambda: ("athena", "zeus"),
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity),
     )
 
     validate_user_agent_name("foo")

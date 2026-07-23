@@ -10,7 +10,10 @@ from sase.ace.tui.models.agent_tribe_summary import (
     build_agent_tribe_summary_snapshot,
     _tribe_panel_identity,
 )
-from sase.core.machine_hood_facade import MachineHoodIdentity
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+)
 
 _NOW = datetime(2026, 7, 18, 15, 0, 0)
 
@@ -274,7 +277,10 @@ def test_finished_family_projects_all_members_to_done() -> None:
 
 
 def test_machine_qualified_children_compact_against_presented_containers() -> None:
-    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
+    )
     local_clan_member = _agent(
         "athena.research.worker",
         "DONE",
@@ -327,7 +333,10 @@ def test_machine_qualified_children_compact_against_presented_containers() -> No
 
 
 def test_local_machine_clan_with_family_projects_to_one_presented_unit() -> None:
-    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
+    )
     family_root = _agent(
         "athena.sase-8t.1--plan",
         "RUNNING",

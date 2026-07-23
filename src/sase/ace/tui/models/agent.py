@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from sase.core.machine_hood_facade import MachineHoodIdentity, strip_local_agent_name
+from sase.core.agent_identity_facade import AgentIdentitySnapshot, present_agent_name
 from sase.core.paths import shorten_path
 from sase.core.time import local_now
 from sase.plan_chain import (
@@ -141,23 +141,23 @@ class Agent(AgentState):
 
     def refresh_presented_agent_name(
         self,
-        identity: MachineHoodIdentity | None = None,
+        identity: AgentIdentitySnapshot | None = None,
     ) -> None:
         """Refresh the final local presentation from one identity snapshot."""
-        snapshot = identity or MachineHoodIdentity.current()
+        snapshot = identity or AgentIdentitySnapshot.current()
         self.refresh_raw_presented_agent_name()
         if self.presented_agent_name:
-            self.presented_agent_name = strip_local_agent_name(
+            self.presented_agent_name = present_agent_name(
                 self.presented_agent_name,
                 snapshot,
             )
         if self.presented_identity_name:
-            self.presented_identity_name = strip_local_agent_name(
+            self.presented_identity_name = present_agent_name(
                 self.presented_identity_name,
                 snapshot,
             )
         self.waiting_for = [
-            strip_local_agent_name(name, snapshot) for name in self.waiting_for
+            present_agent_name(name, snapshot) for name in self.waiting_for
         ]
 
     @property

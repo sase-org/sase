@@ -233,14 +233,12 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-symvision *args: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
+    SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-8v(AgentFamilyNameKind)' \
         --epic-symbol 'sase-8v(AgentLinkTarget)' \
         --epic-symbol 'sase-8v(AgentLinkTargetKind)' \
-        --epic-symbol 'sase-8v(AgentOwnershipClassification)' \
-        --epic-symbol 'sase-8v(AgentSourceOwnerIdentity)' \
         --epic-symbol 'sase-8v(ParsedAgentFamilyName)' \
         --epic-symbol 'sase-8v(RewrittenAgentRelationshipBatch)' \
         --epic-symbol 'sase-8v(ValidatedAgentRelationshipSummary)' \

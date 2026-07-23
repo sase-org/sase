@@ -119,9 +119,9 @@ def _family_base_from_meta(meta: dict[str, Any]) -> str | None:
 
 
 def _iter_family_members(base_name: str) -> list[AgentFamilyMember]:
-    from sase.core.machine_hood_facade import canonical_local_agent_name_key
+    from sase.core.agent_identity_facade import current_owner_agent_name_key
 
-    base_key = canonical_local_agent_name_key(base_name)
+    base_key = current_owner_agent_name_key(base_name)
     rows: list[tuple[Path, dict[str, Any], str, str | None, str | None]] = []
     for artifact_dir in iter_ace_run_artifact_dirs():
         meta = read_json_dict(artifact_dir / "agent_meta.json")
@@ -129,7 +129,7 @@ def _iter_family_members(base_name: str) -> list[AgentFamilyMember]:
         if (
             meta is None
             or family_base is None
-            or canonical_local_agent_name_key(family_base) != base_key
+            or current_owner_agent_name_key(family_base) != base_key
         ):
             continue
 
@@ -204,16 +204,16 @@ def _clan_identity_from_meta(
 
 
 def _iter_clan_members(clan_name: str) -> list[AgentClanMember]:
-    from sase.core.machine_hood_facade import canonical_local_agent_name_key
+    from sase.core.agent_identity_facade import current_owner_agent_name_key
 
-    clan_key = canonical_local_agent_name_key(clan_name)
+    clan_key = current_owner_agent_name_key(clan_name)
     rows: list[tuple[Path, dict[str, Any], str, str | None, str]] = []
     for artifact_dir in iter_ace_run_artifact_dirs():
         meta = read_json_dict(artifact_dir / "agent_meta.json")
         if meta is None:
             continue
         identity = _clan_identity_from_meta(meta, artifact_dir)
-        if identity is None or canonical_local_agent_name_key(identity[0]) != clan_key:
+        if identity is None or current_owner_agent_name_key(identity[0]) != clan_key:
             continue
         name = meta.get("name")
         if not isinstance(name, str) or not name:
@@ -258,9 +258,11 @@ def _iter_clan_members(clan_name: str) -> list[AgentClanMember]:
 
 def find_agent_clan(clan_name: str) -> AgentClan | None:
     """Return the newest known generation of *clan_name*."""
-    from sase.core.machine_hood_facade import local_agent_name_lookup_candidates
+    from sase.core.agent_identity_facade import (
+        current_owner_agent_name_lookup_candidates,
+    )
 
-    for candidate in local_agent_name_lookup_candidates(clan_name):
+    for candidate in current_owner_agent_name_lookup_candidates(clan_name):
         if (clan := _find_agent_clan_exact(candidate)) is not None:
             return clan
     return None
@@ -312,9 +314,11 @@ def find_agent_family(base_name: str) -> AgentFamily | None:
     ``base_name`` are intentionally excluded so legacy exact-name lookups keep
     their existing behavior when no family members exist.
     """
-    from sase.core.machine_hood_facade import local_agent_name_lookup_candidates
+    from sase.core.agent_identity_facade import (
+        current_owner_agent_name_lookup_candidates,
+    )
 
-    for candidate in local_agent_name_lookup_candidates(base_name):
+    for candidate in current_owner_agent_name_lookup_candidates(base_name):
         if (family := _find_agent_family_exact(candidate)) is not None:
             return family
     return None

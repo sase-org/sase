@@ -192,7 +192,8 @@ class AgentState:
 
     # Precomputed identity used for hood/neighbor relationships. Unlike
     # ``presented_agent_name``, this retains a concrete family member suffix;
-    # only the owning machine hood is removed during snapshot normalization.
+    # only explicit prefixes belonging to the selected current owner are
+    # removed during snapshot normalization.
     presented_identity_name: str | None = field(
         default=None,
         init=False,

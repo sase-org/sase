@@ -214,16 +214,16 @@ def extract_directives_and_write_meta(
         )
 
     from sase.core.agent_tribe import parse_tribe_reference
-    from sase.core.machine_hood_facade import (
-        MachineHoodIdentity,
-        qualify_local_agent_name,
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        normalize_owned_agent_name,
     )
 
-    machine_identity = MachineHoodIdentity.current()
+    machine_identity = AgentIdentitySnapshot.current()
     wait_names = [
         name
         if parse_tribe_reference(name) is not None
-        else qualify_local_agent_name(name, machine_identity)
+        else normalize_owned_agent_name(name, machine_identity)
         for name in wait_names
     ]
 

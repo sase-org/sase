@@ -13,7 +13,8 @@ from sase.agent.names._registry_entries import entry_owner_missing
 from sase.agent.names._registry_scan import source_signature_paths
 from sase.core.paths import sase_home
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+_LEGACY_SCHEMA_VERSION = 1
 INDEX_FILENAME = "agent_name_registry.json"
 
 
@@ -31,11 +32,22 @@ def read_registry(path: Path) -> dict[str, Any] | None:
         return None
     if not isinstance(data, dict):
         return None
-    if data.get("schema_version") != SCHEMA_VERSION:
+    schema_version = data.get("schema_version")
+    if schema_version not in {SCHEMA_VERSION, _LEGACY_SCHEMA_VERSION}:
         return None
     entries = data.get("entries")
     if not isinstance(entries, dict):
         return None
+    if schema_version == _LEGACY_SCHEMA_VERSION:
+        upgraded = dict(data)
+        upgraded["schema_version"] = SCHEMA_VERSION
+        upgraded["_needs_rebuild"] = True
+        upgraded["entries"] = {
+            name: _upgrade_v1_entry(name, entry)
+            for name, entry in entries.items()
+            if isinstance(name, str) and isinstance(entry, dict)
+        }
+        return upgraded
     return data
 
 
@@ -78,6 +90,8 @@ def registry_data(entries: dict[str, Any]) -> dict[str, Any]:
 
 def registry_file_is_stale(data: dict[str, Any]) -> bool:
     """Return whether registry data no longer matches its artifact sources."""
+    if data.get("_needs_rebuild") is True:
+        return True
     if data.get("source_signature") != _source_signature():
         return True
     entries = data.get("entries")
@@ -114,3 +128,30 @@ def file_signature(path: Path) -> tuple[int, int]:
     """Return a lightweight signature for one registry file."""
     stat = path.stat()
     return (stat.st_mtime_ns, stat.st_size)
+
+
+def _upgrade_v1_entry(name: str, entry: dict[str, Any]) -> dict[str, Any]:
+    """Retain v1 reservations while making their provenance non-ambiguous."""
+    upgraded = dict(entry)
+    source_machine = upgraded.get("imported_from_machine")
+    if isinstance(source_machine, str) and source_machine:
+        upgraded.update(
+            {
+                "origin": "import_v1",
+                "canonical_global_name": None,
+                "source_owner": None,
+                "legacy_source_machine": source_machine,
+            }
+        )
+    else:
+        upgraded.update(
+            {
+                "origin": "local",
+                "canonical_global_name": None,
+                "source_owner": None,
+                "legacy_source_machine": None,
+                "imported_digest": None,
+            }
+        )
+    upgraded["name"] = name
+    return upgraded

@@ -8,11 +8,11 @@ from dataclasses import dataclass, field
 from functools import cache
 from typing import Any
 
-from sase.core.machine_hood_facade import (
-    MachineHoodIdentity,
-    canonical_local_agent_name_key,
-    qualify_local_agent_name,
-    strip_local_agent_name,
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    current_owner_agent_name_key,
+    normalize_owned_agent_name,
+    present_agent_name,
 )
 
 AGENT_NAME_TEMPLATE_MARKER = "@"
@@ -64,23 +64,23 @@ class AgentNameNamespaceReservationIndex:
 
     exact_names: set[str]
     occupied_namespaces: set[str]
-    identity: MachineHoodIdentity = field(
-        default_factory=MachineHoodIdentity.current,
+    identity: AgentIdentitySnapshot = field(
+        default_factory=AgentIdentitySnapshot.current,
         repr=False,
     )
 
     @classmethod
     def from_names(cls, names: Collection[str]) -> AgentNameNamespaceReservationIndex:
-        identity = MachineHoodIdentity.current()
+        identity = AgentIdentitySnapshot.current()
         index = cls(
             exact_names={
-                canonical_local_agent_name_key(name, identity) for name in names
+                current_owner_agent_name_key(name, identity) for name in names
             },
             occupied_namespaces=set(),
             identity=identity,
         )
         for name in names:
-            key = canonical_local_agent_name_key(name, identity)
+            key = current_owner_agent_name_key(name, identity)
             index.occupied_namespaces.update(_dotted_namespace_prefixes(key))
         return index
 
@@ -92,26 +92,26 @@ class AgentNameNamespaceReservationIndex:
         namespace_containers: Collection[str] = (),
     ) -> AgentNameNamespaceReservationIndex:
         """Build an index while allowing descendants of container names."""
-        identity = MachineHoodIdentity.current()
+        identity = AgentIdentitySnapshot.current()
         containers = {
-            canonical_local_agent_name_key(name, identity)
+            current_owner_agent_name_key(name, identity)
             for name in namespace_containers
         }
         index = cls(
             exact_names={
-                canonical_local_agent_name_key(name, identity) for name in names
+                current_owner_agent_name_key(name, identity) for name in names
             },
             occupied_namespaces=set(),
             identity=identity,
         )
         for name in names:
-            key = canonical_local_agent_name_key(name, identity)
+            key = current_owner_agent_name_key(name, identity)
             if key not in containers:
                 index.occupied_namespaces.update(_dotted_namespace_prefixes(key))
         return index
 
     def add_name(self, name: str) -> None:
-        key = canonical_local_agent_name_key(name, self.identity)
+        key = current_owner_agent_name_key(name, self.identity)
         self.exact_names.add(key)
         self.occupied_namespaces.update(_dotted_namespace_prefixes(key))
 
@@ -126,10 +126,10 @@ class AgentNameNamespaceReservationIndex:
         *,
         owned_namespaces: Collection[str] = (),
     ) -> bool:
-        name_key = canonical_local_agent_name_key(name, self.identity)
-        namespace_key = canonical_local_agent_name_key(namespace, self.identity)
+        name_key = current_owner_agent_name_key(name, self.identity)
+        namespace_key = current_owner_agent_name_key(namespace, self.identity)
         owned_namespace_keys = {
-            canonical_local_agent_name_key(value, self.identity)
+            current_owner_agent_name_key(value, self.identity)
             for value in owned_namespaces
         }
         if name_key in self.exact_names:
@@ -200,9 +200,9 @@ def render_agent_name_template_namespace(template: str, token: str) -> str:
 
 def match_agent_name_template(template: str, concrete: str) -> str | None:
     """Return the canonical template token in *concrete*, if it matches."""
-    identity = MachineHoodIdentity.current()
-    local_template = strip_local_agent_name(template, identity)
-    local_concrete = strip_local_agent_name(concrete, identity)
+    identity = AgentIdentitySnapshot.current()
+    local_template = present_agent_name(template, identity)
+    local_concrete = present_agent_name(concrete, identity)
     try:
         token = _core("match_agent_name_template")(local_template, local_concrete)
     except ValueError as exc:
@@ -268,7 +268,7 @@ def allocate_agent_name_template(
         candidate = render_agent_name_template(template, token)
         namespace = render_agent_name_template(namespace_template, token)
         if index.candidate_available(candidate, namespace):
-            durable_candidate = qualify_local_agent_name(candidate, index.identity)
+            durable_candidate = normalize_owned_agent_name(candidate, index.identity)
             pool.add(durable_candidate)
             index.add_name(durable_candidate)
             return durable_candidate

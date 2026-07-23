@@ -6,6 +6,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+)
 
 from sase.agent.names import (
     find_agent_family,
@@ -19,13 +23,14 @@ from tests._agent_names_fixtures import make_agent as _make_agent
 
 
 def _configure_machine(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "sase.core.machine_hood_facade.get_machine_name",
-        lambda: "athena",
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
     )
     monkeypatch.setattr(
-        "sase.core.machine_hood_facade.discover_machine_names",
-        lambda: ("athena", "zeus"),
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity),
     )
 
 

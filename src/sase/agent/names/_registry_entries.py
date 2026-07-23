@@ -7,6 +7,15 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+    globalize_owned_agent_name,
+)
+
+REGISTRY_ORIGIN_LOCAL = "local"
+REGISTRY_ORIGIN_IMPORT_V2 = "import_v2"
+REGISTRY_ORIGIN_IMPORT_V1 = "import_v1"
 
 
 def dotted_namespace_prefixes(name: str) -> set[str]:
@@ -38,6 +47,8 @@ def entry_has_other_owner(entry: dict[str, Any], artifact_dir: Path) -> bool:
 
 
 def entry_owner_missing(entry: dict[str, Any]) -> bool:
+    if entry.get("container_kind") == "owner_namespace":
+        return False
     if entry.get("reservation_kind") in {"planned", "planned_clan"}:
         return False
     source = entry.get("source")
@@ -104,3 +115,93 @@ def owner_from_artifact_name(
     if template_namespace is not None:
         entry["template_namespace"] = template_namespace
     return entry
+
+
+def local_entry_provenance(
+    name: str,
+    identity: AgentIdentitySnapshot,
+) -> dict[str, Any]:
+    """Return explicit current-owner provenance for a local registry entry."""
+    owner = identity.owner
+    return {
+        "origin": REGISTRY_ORIGIN_LOCAL,
+        "canonical_global_name": (
+            globalize_owned_agent_name(name, identity) if owner is not None else None
+        ),
+        "source_owner": (
+            {
+                "username": owner.username,
+                "machine_name": owner.machine_name,
+            }
+            if owner is not None
+            else None
+        ),
+        "legacy_source_machine": None,
+        "imported_digest": None,
+    }
+
+
+def imported_v1_entry_provenance(
+    source_machine: str,
+    digest: str,
+) -> dict[str, Any]:
+    """Return username-unknown provenance for a legacy v1 import."""
+    return {
+        "origin": REGISTRY_ORIGIN_IMPORT_V1,
+        "canonical_global_name": None,
+        "source_owner": None,
+        "legacy_source_machine": source_machine,
+        "imported_from_machine": source_machine,
+        "imported_digest": digest,
+    }
+
+
+def imported_v2_entry_provenance(
+    source_owner: AgentOwnerIdentity,
+    canonical_global_name: str,
+    digest: str,
+) -> dict[str, Any]:
+    """Return explicit owner provenance for a v2 imported claim."""
+    return {
+        "origin": REGISTRY_ORIGIN_IMPORT_V2,
+        "canonical_global_name": canonical_global_name,
+        "source_owner": {
+            "username": source_owner.username,
+            "machine_name": source_owner.machine_name,
+        },
+        "legacy_source_machine": None,
+        "imported_digest": digest,
+    }
+
+
+def owner_namespace_entry(
+    name: str,
+    *,
+    namespace_kind: str,
+    source_owner: AgentOwnerIdentity | None = None,
+) -> dict[str, Any]:
+    """Build a synthetic namespace reservation with no artifact owner."""
+    return {
+        "source": "registry",
+        "name": name,
+        "origin": (
+            REGISTRY_ORIGIN_IMPORT_V2
+            if source_owner is not None
+            else REGISTRY_ORIGIN_LOCAL
+        ),
+        "reservation_kind": "owner_namespace",
+        "container_kind": "owner_namespace",
+        "namespace_kind": namespace_kind,
+        "canonical_global_name": None,
+        "source_owner": (
+            {
+                "username": source_owner.username,
+                "machine_name": source_owner.machine_name,
+            }
+            if source_owner is not None
+            else None
+        ),
+        "legacy_source_machine": None,
+        "imported_digest": None,
+        "state": "reserved",
+    }

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from sase.core.machine_hood_facade import MachineHoodIdentity
+from sase.core.agent_identity_facade import AgentIdentitySnapshot
 
 
 @dataclass(frozen=True)
@@ -26,7 +26,7 @@ class TemplateGroup:
 def template_candidates(
     templates_with_namespaces: Sequence[tuple[str, str]],
     token: str,
-    identity: MachineHoodIdentity,
+    identity: AgentIdentitySnapshot,
 ) -> list[tuple[str, str]]:
     """Render concrete name and namespace candidates for one token."""
     return [
@@ -44,18 +44,18 @@ def durable_template_candidate(
     template: str,
     namespace_template: str,
     token: str,
-    identity: MachineHoodIdentity,
+    identity: AgentIdentitySnapshot,
 ) -> tuple[str, str]:
-    """Render and machine-qualify one template candidate."""
+    """Render and normalize one locally owned template candidate."""
     from sase.agent.names import render_agent_name_template
-    from sase.core.machine_hood_facade import qualify_local_agent_name
+    from sase.core.agent_identity_facade import normalize_owned_agent_name
 
     return (
-        qualify_local_agent_name(
+        normalize_owned_agent_name(
             render_agent_name_template(template, token),
             identity,
         ),
-        qualify_local_agent_name(
+        normalize_owned_agent_name(
             render_agent_name_template(namespace_template, token),
             identity,
         ),

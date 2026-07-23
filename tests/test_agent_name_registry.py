@@ -13,7 +13,9 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.names import (
+    ImportedNameCollisionError,
     NameCollisionError,
+    claim_imported_registered_name_v2,
     claim_registered_name,
     claim_registered_clan_name,
     convert_registered_agent_to_family,
@@ -31,7 +33,10 @@ from sase.agent.names import (
     reserve_registered_template_names,
 )
 from sase.agent.names import _registry, _registry_store
-from sase.core.machine_hood_facade import MachineHoodIdentity
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+)
 
 from tests._agent_names_fixtures import make_agent as _make_agent
 
@@ -44,13 +49,14 @@ def _write_bundle(base: Path, filename: str, data: dict[str, object]) -> Path:
 
 
 def _configure_machine(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "sase.core.machine_hood_facade.get_machine_name",
-        lambda: "athena",
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
     )
     monkeypatch.setattr(
-        "sase.core.machine_hood_facade.discover_machine_names",
-        lambda: ("athena", "zeus"),
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity),
     )
 
 
@@ -94,7 +100,7 @@ def test_registry_rebuild_collects_active_agent(tmp_path: Path) -> None:
         assert lookup_registered_name("foo")["state"] == "active"
 
 
-def test_configured_claim_uses_durable_machine_hood(
+def test_configured_claim_uses_bare_local_name(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -104,7 +110,7 @@ def test_configured_claim_uses_durable_machine_hood(
 
     with patch.object(Path, "home", return_value=tmp_path):
         claim_registered_name("foo", artifact_dir)
-        assert get_reserved_agent_names() == {"athena.foo"}
+        assert get_reserved_agent_names() == {"foo", "zeus"}
         assert lookup_registered_name("foo") is not None
         assert lookup_registered_name("athena.foo") is not None
 
@@ -215,6 +221,131 @@ def test_claim_registered_name_records_sharded_owner_identity(
     assert entry["created_at"] == "20260613130000"
 
 
+def test_local_claim_records_v2_registry_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    artifact_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/run1"
+    artifact_dir.mkdir(parents=True)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        claim_registered_name("athena.foo", artifact_dir)
+        data = load_name_registry()
+
+    assert data["schema_version"] == 2
+    entry = data["entries"]["foo"]
+    assert entry["origin"] == "local"
+    assert entry["canonical_global_name"] == "alice.athena.foo"
+    assert entry["source_owner"] == {
+        "username": "alice",
+        "machine_name": "athena",
+    }
+
+
+def test_v2_import_claims_preserve_owner_and_namespace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    artifact_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/run1"
+    artifact_dir.mkdir(parents=True)
+    source_owner = AgentOwnerIdentity("alice", "zeus")
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        claim_imported_registered_name_v2(
+            source_owner,
+            "alice.zeus.worker",
+            "zeus.worker",
+            artifact_dir,
+            digest="a" * 64,
+        )
+        claim_imported_registered_name_v2(
+            source_owner,
+            "alice.zeus.worker",
+            "zeus.worker",
+            artifact_dir,
+            digest="b" * 64,
+        )
+        data = load_name_registry()
+
+    entry = data["entries"]["zeus.worker"]
+    assert entry["origin"] == "import_v2"
+    assert entry["canonical_global_name"] == "alice.zeus.worker"
+    assert entry["source_owner"] == {
+        "username": "alice",
+        "machine_name": "zeus",
+    }
+    assert entry["imported_digest"] == "b" * 64
+    assert data["entries"]["zeus"]["container_kind"] == "owner_namespace"
+
+
+def test_v2_import_rejects_owner_and_namespace_collisions_atomically(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    first = tmp_path / ".sase/projects/proj/artifacts/ace-run/run1"
+    second = tmp_path / ".sase/projects/proj/artifacts/ace-run/run2"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+    source_owner = AgentOwnerIdentity("bob", "athena")
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        claim_registered_name("bob.local", first)
+        before = load_name_registry()
+        with pytest.raises(ImportedNameCollisionError):
+            claim_imported_registered_name_v2(
+                source_owner,
+                "bob.athena.worker",
+                "bob.athena.worker",
+                second,
+                digest="a" * 64,
+            )
+        after = load_name_registry()
+
+    assert after == before
+    assert "bob.athena.worker" not in after["entries"]
+
+
+def test_owner_namespaces_block_new_local_descendants(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    artifact_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/run1"
+    artifact_dir.mkdir(parents=True)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        with pytest.raises(NameCollisionError, match="owner namespace 'zeus'"):
+            claim_registered_name("zeus.worker", artifact_dir)
+
+
+def test_exact_current_owner_v2_refresh_reuses_local_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    artifact_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/run1"
+    artifact_dir.mkdir(parents=True)
+    current_owner = AgentOwnerIdentity("alice", "athena")
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        claim_registered_name("foo", artifact_dir)
+        before = load_name_registry()
+        claim_imported_registered_name_v2(
+            current_owner,
+            "alice.athena.foo",
+            "foo",
+            artifact_dir,
+            digest="a" * 64,
+        )
+        after = load_name_registry()
+
+    assert after == before
+    assert set(after["entries"]) == {"foo", "zeus"}
+
+
 def test_registry_rebuild_collects_numeric_auto_prefix(tmp_path: Path) -> None:
     _make_agent(tmp_path, "proj", "run1", "1.plan")
     with patch.object(Path, "home", return_value=tmp_path):
@@ -241,7 +372,10 @@ def test_configured_registry_rebuild_preserves_qualified_auto_prefix(
 def test_registry_rebuild_resolves_one_identity_snapshot_for_all_sources(
     tmp_path: Path,
 ) -> None:
-    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
+    )
     _make_agent(tmp_path, "proj", "run1", "athena.1.plan")
     _make_agent(tmp_path, "proj", "run2", "2.plan")
     _write_bundle(
@@ -256,7 +390,7 @@ def test_registry_rebuild_resolves_one_identity_snapshot_for_all_sources(
     with (
         patch.object(Path, "home", return_value=tmp_path),
         patch.object(
-            MachineHoodIdentity,
+            AgentIdentitySnapshot,
             "current",
             return_value=identity,
         ) as current_identity,
@@ -270,6 +404,7 @@ def test_registry_rebuild_resolves_one_identity_snapshot_for_all_sources(
         "2",
         "2.plan",
         "zeus.worker",
+        "zeus",
     } <= set(data["entries"])
     assert "1" not in data["entries"]
     assert "athena.2" not in data["entries"]
@@ -313,6 +448,61 @@ def test_registry_rebuild_collects_done_agent(tmp_path: Path) -> None:
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
         assert lookup_registered_name("foo")["state"] == "done"
+
+
+def test_registry_rebuild_preserves_explicit_import_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    artifact_dir = _make_agent(tmp_path, "proj", "run1", "zeus.worker", done=True)
+    meta_path = artifact_dir / "agent_meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta.update(
+        {
+            "source_owner": {
+                "username": "alice",
+                "machine_name": "zeus",
+            },
+            "canonical_global_name": "alice.zeus.worker",
+            "imported_digest": "a" * 64,
+        }
+    )
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        data = rebuild_name_registry()
+
+    entry = data["entries"]["zeus.worker"]
+    assert entry["origin"] == "import_v2"
+    assert entry["canonical_global_name"] == "alice.zeus.worker"
+    assert entry["source_owner"]["machine_name"] == "zeus"
+
+
+def test_registry_rebuild_keeps_v1_username_unknown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_machine(monkeypatch)
+    artifact_dir = _make_agent(tmp_path, "proj", "run1", "zeus.worker", done=True)
+    meta_path = artifact_dir / "agent_meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta.update(
+        {
+            "imported_from_machine": "zeus",
+            "imported_digest": "a" * 64,
+        }
+    )
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        data = rebuild_name_registry()
+
+    entry = data["entries"]["zeus.worker"]
+    assert entry["origin"] == "import_v1"
+    assert entry["source_owner"] is None
+    assert entry["legacy_source_machine"] == "zeus"
+    assert entry["canonical_global_name"] is None
 
 
 def test_registry_rebuild_collects_dismissed_artifact(tmp_path: Path) -> None:

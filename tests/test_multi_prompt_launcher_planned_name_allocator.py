@@ -13,20 +13,25 @@ from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planne
 from sase.agent.names import lookup_registered_name
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 from sase.agent.multi_prompt_references import PlannedNameAllocator
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+)
 
 
 def _configure_machine(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "sase.core.machine_hood_facade.get_machine_name",
-        lambda: "athena",
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
     )
     monkeypatch.setattr(
-        "sase.core.machine_hood_facade.discover_machine_names",
-        lambda: ("athena", "zeus"),
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity),
     )
 
 
-def test_configured_allocator_publishes_qualified_names_in_bare_token_order(
+def test_configured_allocator_publishes_bare_names_in_token_order(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -52,10 +57,10 @@ def test_configured_allocator_publishes_qualified_names_in_bare_token_order(
             artifacts_dir=artifacts_root / "run4",
         )
 
-    assert first == ("athena.0", "athena.0")
-    assert second == ("athena.1", "athena.1")
-    assert templated == ("athena.build-0", "athena.build-0")
-    assert explicit == ("athena.writer", None)
+    assert first == ("0", "0")
+    assert second == ("1", "1")
+    assert templated == ("build-0", "build-0")
+    assert explicit == ("writer", None)
 
 
 def test_multi_parent_fork_plans_neutral_auto_name(tmp_path: Path) -> None:

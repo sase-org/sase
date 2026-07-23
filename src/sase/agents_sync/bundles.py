@@ -45,10 +45,7 @@ from sase.core.agent_artifact_paths import (
     iter_agent_artifact_dirs,
     parse_agent_artifact_path,
 )
-from sase.core.machine_hood_facade import (
-    MachineHoodIdentity,
-    qualify_local_agent_name,
-)
+from sase.core.machine_hood_facade import machine_qualify_v1_transport_agent_name
 from sase.core.paths import sase_home
 from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
 
@@ -152,7 +149,6 @@ def _build_local_bundles(
 ) -> tuple[dict[str, AgentBundle], int, list[str]]:
     """Build verified local transport bundles without writing the sidecar."""
 
-    identity = MachineHoodIdentity(machine, (machine,))
     associations: dict[str, dict[str, CommitRecord]] = defaultdict(dict)
     artifacts: dict[str, tuple[Path, dict[str, Any], dict[str, Any]]] = {}
     diagnostics: list[str] = []
@@ -175,7 +171,7 @@ def _build_local_bundles(
         raw_name = meta.get("name") or done.get("name")
         if not isinstance(raw_name, str) or not raw_name:
             continue
-        name = qualify_local_agent_name(raw_name, identity)
+        name = machine_qualify_v1_transport_agent_name(raw_name, machine)
         try:
             validate_qualified_name(name, machine)
         except AgentsSyncFormatError as exc:
@@ -374,7 +370,6 @@ def _historical_commit_associations(
         return []
     chunks = result.stdout.split("\x00")
     associations: list[tuple[str, CommitRecord]] = []
-    identity = MachineHoodIdentity(machine, (machine,))
     for index in range(0, len(chunks) - 3, 4):
         sha = chunks[index].lstrip("\r\n").strip().lower()
         committed_raw = chunks[index + 1].strip()
@@ -391,7 +386,7 @@ def _historical_commit_associations(
         name = _historical_local_agent_name(
             raw_name,
             tags.get("MACHINE"),
-            identity,
+            machine,
         )
         if name is None:
             continue
@@ -406,7 +401,7 @@ def _historical_commit_associations(
 def _historical_local_agent_name(
     raw_name: str,
     commit_machine: str | None,
-    identity: MachineHoodIdentity,
+    machine: str,
 ) -> str | None:
     """Classify legacy and modern commit provenance for local backfill.
 
@@ -416,15 +411,13 @@ def _historical_local_agent_name(
     same machine hood they record; those explicit foreign identities must
     remain foreign instead of being re-qualified as local.
     """
-    machine = identity.machine_name
     if (
-        machine is not None
-        and commit_machine
+        commit_machine
         and raw_name.startswith(f"{commit_machine}.")
         and commit_machine != machine
     ):
         return None
-    return qualify_local_agent_name(raw_name, identity)
+    return machine_qualify_v1_transport_agent_name(raw_name, machine)
 
 
 def _transcript_path(meta: Mapping[str, Any], done: Mapping[str, Any]) -> Path | None:

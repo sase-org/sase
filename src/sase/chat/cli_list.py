@@ -37,16 +37,16 @@ def handle_chat_list(args: argparse.Namespace) -> None:
 
 def _print_json(infos: list[ChatTranscriptInfo]) -> None:
     payload = [chat_info_to_json(info) for info in infos]
-    from sase.core.machine_hood_facade import (
-        MachineHoodIdentity,
-        strip_local_agent_name,
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        present_agent_name,
     )
 
-    identity = MachineHoodIdentity.current()
+    identity = AgentIdentitySnapshot.current()
     for item in payload:
         agent = item.get("agent")
         if isinstance(agent, str):
-            item["agent"] = strip_local_agent_name(agent, identity)
+            item["agent"] = present_agent_name(agent, identity)
     json.dump(payload, sys.stdout, indent=2)
     sys.stdout.write("\n")
 
@@ -72,18 +72,18 @@ def _print_pretty(infos: list[ChatTranscriptInfo]) -> None:
     table.add_column("MTIME")
     table.add_column("PROMPT")
 
-    from sase.core.machine_hood_facade import (
-        MachineHoodIdentity,
-        strip_local_agent_name,
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        present_agent_name,
     )
 
-    identity = MachineHoodIdentity.current()
+    identity = AgentIdentitySnapshot.current()
 
     for info in infos:
         table.add_row(
             info.basename,
             info.workflow or "-",
-            strip_local_agent_name(info.agent, identity) if info.agent else "-",
+            present_agent_name(info.agent, identity) if info.agent else "-",
             info.mtime,
             _truncate(info.prompt_snippet, _PRETTY_SNIPPET_MAX_CHARS),
         )

@@ -115,12 +115,12 @@ def resolve_agent_identity(
     agent_name = request.initial_name
     planned_name = request.planned_name
     with name_lock_context:
-        from sase.core.machine_hood_facade import (
-            MachineHoodIdentity,
-            qualify_local_agent_name,
+        from sase.core.agent_identity_facade import (
+            AgentIdentitySnapshot,
+            normalize_owned_agent_name,
         )
 
-        machine_identity = MachineHoodIdentity.current()
+        machine_identity = AgentIdentitySnapshot.current()
         if planned_name and not _planned_name_is_reserved_for_artifacts(
             planned_name, artifacts_dir
         ):
@@ -182,7 +182,7 @@ def resolve_agent_identity(
             agent_name = get_next_auto_name()
 
         if agent_name is not None:
-            agent_name = qualify_local_agent_name(agent_name, machine_identity)
+            agent_name = normalize_owned_agent_name(agent_name, machine_identity)
 
         if clan_membership_plan is None and directives.clan is not None:
             clan_membership_plan = _resolve_clan_membership(
@@ -315,10 +315,10 @@ def _planned_name_matches_resume_target(planned_name: str, resume_name: str) -> 
     except AgentNameTemplateError:
         pass
 
-    from sase.core.machine_hood_facade import strip_local_agent_name
+    from sase.core.agent_identity_facade import present_agent_name
 
-    local_planned_name = strip_local_agent_name(planned_name)
-    local_resume_name = strip_local_agent_name(resume_name)
+    local_planned_name = present_agent_name(planned_name)
+    local_resume_name = present_agent_name(resume_name)
     prefix = f"{local_resume_name}.f"
     if not local_planned_name.startswith(prefix):
         return False

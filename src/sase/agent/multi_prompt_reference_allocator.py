@@ -19,7 +19,7 @@ from sase.agent.multi_prompt_reference_rewriting import (
     rewrite_template_references,
 )
 from sase.core.agent_tribe import parse_tribe_reference
-from sase.core.machine_hood_facade import MachineHoodIdentity
+from sase.core.agent_identity_facade import AgentIdentitySnapshot
 
 if TYPE_CHECKING:
     from sase.agent.names import AgentNameNamespaceReservationIndex
@@ -29,7 +29,7 @@ class PlannedNameAllocator:
     """Allocate parent-side names and resolve template references."""
 
     def __init__(self) -> None:
-        self._machine_identity = MachineHoodIdentity.current()
+        self._machine_identity = AgentIdentitySnapshot.current()
         self._template_reserved: set[str] | None = None
         self._template_index: AgentNameNamespaceReservationIndex | None = None
         self._template_latest: dict[str, str] = {}
@@ -66,10 +66,10 @@ class PlannedNameAllocator:
                     template_group=template_group,
                 )
                 return name, name
-            from sase.core.machine_hood_facade import qualify_local_agent_name
+            from sase.core.agent_identity_facade import normalize_owned_agent_name
 
             return (
-                qualify_local_agent_name(explicit_name, self._machine_identity),
+                normalize_owned_agent_name(explicit_name, self._machine_identity),
                 None,
             )
 
@@ -204,10 +204,10 @@ class PlannedNameAllocator:
         """Mark a planned reservation as owned by a spawned child."""
         if name is None or artifacts_dir is None:
             return
-        from sase.core.machine_hood_facade import qualify_local_agent_name
+        from sase.core.agent_identity_facade import normalize_owned_agent_name
 
         reservation = PlannedNameReservation(
-            name=qualify_local_agent_name(name, self._machine_identity),
+            name=normalize_owned_agent_name(name, self._machine_identity),
             artifacts_dir=str(Path(artifacts_dir).expanduser().resolve(strict=False)),
         )
         if reservation in self._planned_reservations:
@@ -247,9 +247,9 @@ class PlannedNameAllocator:
             return True
 
         from sase.agent.names import NameCollisionError, reserve_registered_name
-        from sase.core.machine_hood_facade import qualify_local_agent_name
+        from sase.core.agent_identity_facade import normalize_owned_agent_name
 
-        name = qualify_local_agent_name(name, self._machine_identity)
+        name = normalize_owned_agent_name(name, self._machine_identity)
         artifacts_path = Path(artifacts_dir).expanduser().resolve(strict=False)
         try:
             reserve_registered_name(name, artifacts_path)

@@ -5,9 +5,9 @@ from __future__ import annotations
 
 def prompt_facing_agent_name(agent_name: str) -> str:
     """Return the editable-prompt spelling of a durable agent name."""
-    from sase.core.machine_hood_facade import strip_local_agent_name
+    from sase.core.agent_identity_facade import present_agent_name
 
-    return strip_local_agent_name(agent_name)
+    return present_agent_name(agent_name)
 
 
 def rewrite_retry_prompt_name(

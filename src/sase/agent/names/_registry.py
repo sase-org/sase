@@ -24,6 +24,7 @@ from sase.agent.names._registry_mutations import RegistryMutationOperations
 from sase.agent.names._registry_scan import (
     collect_artifact_entries as _collect_artifact_entries,
     collect_dismissed_bundle_entries as _collect_dismissed_bundle_entries,
+    collect_owner_namespace_entries as _collect_owner_namespace_entries,
     collect_planned_reservation_entries as _collect_planned_reservation_entries,
 )
 from sase.agent.names._registry_store import (
@@ -36,10 +37,11 @@ from sase.agent.names._registry_store import (
     registry_path as _store_registry_path,
     write_registry as _store_write_registry,
 )
-from sase.core.machine_hood_facade import (
-    MachineHoodIdentity,
-    local_agent_name_lookup_candidates,
-    strip_local_agent_name,
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+    current_owner_agent_name_lookup_candidates,
+    present_agent_name,
 )
 
 _CACHE_PATH: Path | None = None
@@ -125,6 +127,25 @@ def claim_imported_registered_name(
         _mutation_operations(),
         name,
         source_machine,
+        claiming_dir,
+        digest=digest,
+    )
+
+
+def claim_imported_registered_name_v2(
+    source_owner: AgentOwnerIdentity,
+    canonical_global_name: str,
+    localized_name: str,
+    claiming_dir: str | Path,
+    *,
+    digest: str,
+) -> None:
+    """Claim an imported name with explicit v2 owner provenance."""
+    _registry_mutations.claim_imported_registered_name_v2(
+        _mutation_operations(),
+        source_owner,
+        canonical_global_name,
+        localized_name,
         claiming_dir,
         digest=digest,
     )
@@ -266,10 +287,10 @@ def _mutation_operations() -> RegistryMutationOperations:
 def _equivalent_entry(
     entries: Mapping[str, Any],
     durable_name: str,
-    identity: MachineHoodIdentity,
+    identity: AgentIdentitySnapshot,
 ) -> tuple[str, dict[str, Any] | None]:
     """Return the exact-first stored key and owner for a local identity."""
-    for candidate in local_agent_name_lookup_candidates(durable_name, identity):
+    for candidate in current_owner_agent_name_lookup_candidates(durable_name, identity):
         entry = entries.get(candidate)
         if isinstance(entry, dict):
             return candidate, entry
@@ -279,7 +300,7 @@ def _equivalent_entry(
 def _raise_name_collision(name: str) -> NoReturn:
     from sase.agent.names._common import NameCollisionError
 
-    visible_name = strip_local_agent_name(name)
+    visible_name = present_agent_name(name)
     suggestion = lowest_name_suggestion(visible_name)
     raise NameCollisionError(
         f"agent name '{visible_name}' is already taken; try '{suggestion}'"
@@ -289,11 +310,15 @@ def _raise_name_collision(name: str) -> NoReturn:
 def _raise_container_name_collision(name: str, entry: dict[str, Any]) -> NoReturn:
     from sase.agent.names._common import NameCollisionError
 
-    name = strip_local_agent_name(name)
+    name = present_agent_name(name)
     if entry.get("container_kind") == "clan":
         raise NameCollisionError(
             f"agent name '{name}' is reserved for clan '{name}'; "
             f"choose a name inside the clan hood, such as '{name}.member'"
+        )
+    if entry.get("container_kind") == "owner_namespace":
+        raise NameCollisionError(
+            f"agent name '{name}' is reserved as a foreign owner namespace"
         )
     raise NameCollisionError(
         f"agent name '{name}' is reserved for agent family '{name}'; "
@@ -320,10 +345,15 @@ def rebuild_name_registry() -> dict[str, Any]:
     """Rebuild the registry by scanning existing artifacts and dismissed bundles."""
     with _registry_mutation_lock():
         entries: dict[str, dict[str, Any]] = {}
-        identity = MachineHoodIdentity.current()
-        _collect_planned_reservation_entries(entries, _read_registry(_registry_path()))
+        identity = AgentIdentitySnapshot.current()
+        _collect_planned_reservation_entries(
+            entries,
+            _read_registry(_registry_path()),
+            identity,
+        )
         _collect_artifact_entries(entries, identity)
         _collect_dismissed_bundle_entries(entries, identity)
+        _collect_owner_namespace_entries(entries, identity)
         data = _registry_data(entries)
         _write_registry(_registry_path(), data)
         _set_cache(_registry_path(), data)

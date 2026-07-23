@@ -138,24 +138,24 @@ def family_base(record: Any, parent_name: str) -> str:
 
 
 def known_family_suffixes(records: list[Any], parent_base: str) -> list[str]:
-    from sase.core.machine_hood_facade import canonical_local_agent_name_key
+    from sase.core.agent_identity_facade import current_owner_agent_name_key
 
     suffixes: list[str] = []
-    parent_key = canonical_local_agent_name_key(parent_base)
+    parent_key = current_owner_agent_name_key(parent_base)
     for record in records:
         meta = record.agent_meta
         if meta is None:
             continue
         if (
             meta.agent_family
-            and canonical_local_agent_name_key(meta.agent_family) != parent_key
+            and current_owner_agent_name_key(meta.agent_family) != parent_key
         ):
             continue
         if meta.role_suffix:
             suffixes.append(meta.role_suffix)
             continue
         if meta.name:
-            local_name = canonical_local_agent_name_key(meta.name)
+            local_name = current_owner_agent_name_key(meta.name)
             prefix = f"{parent_key}{AGENT_FAMILY_SEPARATOR}"
             if local_name.startswith(prefix):
                 suffixes.append(local_name[len(parent_key) :])
@@ -166,18 +166,18 @@ def known_family_suffixes_from_siblings(
     siblings: list[_types.FamilyAttachSibling],
     parent_base: str,
 ) -> list[str]:
-    from sase.core.machine_hood_facade import canonical_local_agent_name_key
+    from sase.core.agent_identity_facade import current_owner_agent_name_key
 
     suffixes: list[str] = []
-    parent_key = canonical_local_agent_name_key(parent_base)
+    parent_key = current_owner_agent_name_key(parent_base)
     prefix = f"{parent_key}{AGENT_FAMILY_SEPARATOR}"
     for sibling in siblings:
         if (
             sibling.family_base
-            and canonical_local_agent_name_key(sibling.family_base) != parent_key
+            and current_owner_agent_name_key(sibling.family_base) != parent_key
         ):
             continue
-        local_name = canonical_local_agent_name_key(sibling.name)
+        local_name = current_owner_agent_name_key(sibling.name)
         if local_name.startswith(prefix):
             suffixes.append(local_name[len(parent_key) :])
     return suffixes
@@ -202,20 +202,19 @@ def known_agent_names_from_siblings(
 
 
 def family_sase_plan(records: list[Any], parent_base: str) -> str | None:
-    from sase.core.machine_hood_facade import canonical_local_agent_name_key
+    from sase.core.agent_identity_facade import current_owner_agent_name_key
 
-    parent_key = canonical_local_agent_name_key(parent_base)
+    parent_key = current_owner_agent_name_key(parent_base)
     family_records = [
         record
         for record in records
         if record.agent_meta is not None
         and (
-            canonical_local_agent_name_key(record.agent_meta.agent_family or "")
+            current_owner_agent_name_key(record.agent_meta.agent_family or "")
             == parent_key
-            or canonical_local_agent_name_key(record.agent_meta.workflow_name or "")
+            or current_owner_agent_name_key(record.agent_meta.workflow_name or "")
             == parent_key
-            or canonical_local_agent_name_key(record.agent_meta.name or "")
-            == parent_key
+            or current_owner_agent_name_key(record.agent_meta.name or "") == parent_key
         )
     ]
     family_records.sort(key=lambda record: record.timestamp, reverse=True)

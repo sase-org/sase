@@ -41,17 +41,17 @@ def _agent_key_for_output_variables(
 
         if is_agent_name_template(agent_name_template):
             key = agent_name_template_base(agent_name_template)
-            from sase.core.machine_hood_facade import strip_local_agent_name
+            from sase.core.agent_identity_facade import present_agent_name
 
-            return strip_local_agent_name(key)
+            return present_agent_name(key)
     if agent_name:
-        from sase.core.machine_hood_facade import strip_local_agent_name
+        from sase.core.agent_identity_facade import present_agent_name
 
-        return strip_local_agent_name(agent_name)
+        return present_agent_name(agent_name)
     if agent_name_template:
-        from sase.core.machine_hood_facade import strip_local_agent_name
+        from sase.core.agent_identity_facade import present_agent_name
 
-        return strip_local_agent_name(agent_name_template)
+        return present_agent_name(agent_name_template)
     raise _AgentOutputVariableNamespaceError(
         "Cannot expose output variables without an agent name"
     )
@@ -259,11 +259,11 @@ def _resolve_submitted_plan_wait(wait_name: str) -> tuple[str, str] | None:
             ),
             outcome=record.done.outcome if record.done is not None else None,
         )
-        from sase.core.machine_hood_facade import canonical_local_agent_name_key
+        from sase.core.agent_identity_facade import current_owner_agent_name_key
 
         if plan_artifact is None or (
-            canonical_local_agent_name_key(plan_artifact.planner_row_name)
-            != canonical_local_agent_name_key(target)
+            current_owner_agent_name_key(plan_artifact.planner_row_name)
+            != current_owner_agent_name_key(target)
         ):
             continue
         if record.timestamp > best_timestamp:
@@ -271,9 +271,9 @@ def _resolve_submitted_plan_wait(wait_name: str) -> tuple[str, str] | None:
             best_dir = record.artifact_dir
     if best_dir is None:
         return None
-    from sase.core.machine_hood_facade import strip_local_agent_name
+    from sase.core.agent_identity_facade import present_agent_name
 
-    return best_dir, strip_local_agent_name(target)
+    return best_dir, present_agent_name(target)
 
 
 def _plan_meta_from_wire(meta: Any) -> dict[str, Any]:

@@ -5,7 +5,15 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd -- "$script_dir/.." && pwd)"
 
 if [[ -x "$repo_dir/.venv/bin/sase" ]]; then
-  exec "$repo_dir/.venv/bin/sase" bead "$@"
+  sase_bin="$repo_dir/.venv/bin/sase"
+else
+  sase_bin="sase"
 fi
 
-exec sase bead "$@"
+if [[ "${SASE_SYMVISION_BEAD_STATUS_ONLY:-}" == "1" && "${1:-}" == "show" ]]; then
+  output="$("$sase_bin" bead "$@")"
+  printf '%s\n' "${output%%$'\n'*}"
+  exit 0
+fi
+
+exec "$sase_bin" bead "$@"

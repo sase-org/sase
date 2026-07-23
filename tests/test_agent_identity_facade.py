@@ -202,6 +202,46 @@ def test_owner_family_and_localization_integration() -> None:
     )
 
 
+def test_application_identity_policy_keeps_local_storage_bare() -> None:
+    identity = facade.AgentIdentitySnapshot(
+        facade.AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
+    )
+
+    for spelling in ("foo", "athena.foo", "alice.athena.foo"):
+        assert facade.normalize_owned_agent_name(spelling, identity) == "foo"
+        assert facade.present_agent_name(spelling, identity) == "foo"
+        assert facade.current_owner_agent_name_key(spelling, identity) == "foo"
+
+    assert facade.current_owner_agent_name_lookup_candidates("foo", identity) == (
+        "foo",
+        "athena.foo",
+        "alice.athena.foo",
+    )
+    assert facade.current_owner_agent_name_lookup_candidates(
+        "athena.foo", identity
+    ) == ("athena.foo", "foo", "alice.athena.foo")
+    assert (
+        facade.globalize_owned_agent_name("athena.foo", identity) == "alice.athena.foo"
+    )
+
+
+def test_application_identity_policy_preserves_explicit_foreign_hoods() -> None:
+    identity = facade.AgentIdentitySnapshot(
+        facade.AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
+    )
+
+    assert facade.foreign_agent_owner_root("zeus.foo", identity) == "zeus"
+    assert facade.foreign_agent_owner_root("alice.zeus.foo", identity) == "alice.zeus"
+    assert facade.foreign_agent_owner_root("bob.athena.foo", identity) == "bob.athena"
+    assert facade.present_agent_name("zeus.foo", identity) == "zeus.foo"
+    assert facade.present_agent_name("bob.athena.foo", identity) == ("bob.athena.foo")
+    assert facade.current_owner_agent_name_lookup_candidates("zeus.foo", identity) == (
+        "zeus.foo",
+    )
+
+
 def test_relationship_validation_and_rewrite_integration() -> None:
     summary = facade.validate_agent_relationship_batch(_batch())
     assert summary.schema_version == 2

@@ -76,15 +76,15 @@ def promote_agent_to_family(
     JSON. Repeated calls are idempotent.
     """
     from sase.agent.names import agent_name_allocation_lock
-    from sase.core.machine_hood_facade import (
-        MachineHoodIdentity,
-        canonical_local_agent_name_key,
-        qualify_local_agent_name,
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        current_owner_agent_name_key,
+        normalize_owned_agent_name,
     )
 
     artifact_path = Path(artifacts_dir).expanduser().resolve(strict=False)
-    identity = MachineHoodIdentity.current()
-    durable_base = qualify_local_agent_name(base_name, identity)
+    identity = AgentIdentitySnapshot.current()
+    durable_base = normalize_owned_agent_name(base_name, identity)
     meta_path = artifact_path / "agent_meta.json"
     if wait_for_meta_seconds > 0:
         # A just-spawned parent publishes its metadata while holding this same
@@ -108,8 +108,8 @@ def promote_agent_to_family(
         legacy_family_prefix = f"{base_name}{AGENT_FAMILY_SEPARATOR}"
         if current_name.startswith((family_prefix, legacy_family_prefix)):
             if not isinstance(existing_family, str) or (
-                canonical_local_agent_name_key(existing_family, identity)
-                != canonical_local_agent_name_key(durable_base, identity)
+                current_owner_agent_name_key(existing_family, identity)
+                != current_owner_agent_name_key(durable_base, identity)
             ):
                 raise FamilyAttachError(
                     f"Cannot create agent family '{base_name}': parent "
@@ -125,9 +125,9 @@ def promote_agent_to_family(
             _refresh_artifact_index(artifact_path)
             return current_name
 
-        if canonical_local_agent_name_key(
+        if current_owner_agent_name_key(
             current_name, identity
-        ) != canonical_local_agent_name_key(durable_base, identity):
+        ) != current_owner_agent_name_key(durable_base, identity):
             raise FamilyAttachError(
                 f"Cannot create agent family '{base_name}': resolved parent "
                 f"is named '{current_name}'."

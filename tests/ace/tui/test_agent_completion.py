@@ -22,7 +22,10 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
-from sase.core.machine_hood_facade import MachineHoodIdentity
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+)
 
 
 class _FakeAgentList:
@@ -192,7 +195,10 @@ def test_filter_agent_completion_candidates_uses_name_prefix(tmp_path: Path) -> 
 def test_completion_inserts_bare_local_names_and_searches_raw_alias(
     tmp_path: Path,
 ) -> None:
-    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
+    )
     local = _agent(tmp_path, agent_name="athena.foo.plan")
     legacy = _agent(
         tmp_path,
@@ -223,7 +229,10 @@ def test_completion_inserts_bare_local_names_and_searches_raw_alias(
 def test_clan_tree_merges_legacy_and_qualified_local_metadata(
     tmp_path: Path,
 ) -> None:
-    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
+    )
     legacy = _agent(
         tmp_path,
         agent_name="research.legacy",

@@ -36,12 +36,12 @@ def _self_parallel_family_root(
         return False, None
     if meta.get("agent_family_parallel") is not True:
         return False, None
-    from sase.core.machine_hood_facade import canonical_local_agent_name_key
+    from sase.core.agent_identity_facade import current_owner_agent_name_key
 
     family_name = meta.get(AGENT_FAMILY_FIELD)
-    if not isinstance(family_name, str) or canonical_local_agent_name_key(
+    if not isinstance(family_name, str) or current_owner_agent_name_key(
         family_name
-    ) != canonical_local_agent_name_key(base_name):
+    ) != current_owner_agent_name_key(base_name):
         return False, None
     parent_timestamp = meta_parent_timestamp(meta)
     if parent_timestamp is None:

@@ -45,10 +45,14 @@ def resolve_family_attach_plan(
     }
 
     binding = _candidates.resolve_binding()
-    from sase.core.machine_hood_facade import local_agent_name_lookup_candidates
+    from sase.core.agent_identity_facade import (
+        current_owner_agent_name_lookup_candidates,
+    )
 
     result: dict[str, Any] = {"kind": "absent"}
-    for parent_candidate in local_agent_name_lookup_candidates(directive.parent):
+    for parent_candidate in current_owner_agent_name_lookup_candidates(
+        directive.parent
+    ):
         result = dict(binding({**request, "parent_name": parent_candidate}))
         if result.get("kind") != "absent":
             break
@@ -82,9 +86,9 @@ def resolve_family_attach_plan(
         if parent_sibling is not None
         else _candidates.family_base(parent_record, parent_name)
     )
-    from sase.core.machine_hood_facade import qualify_local_agent_name
+    from sase.core.agent_identity_facade import normalize_owned_agent_name
 
-    parent_base = qualify_local_agent_name(raw_parent_base)
+    parent_base = normalize_owned_agent_name(raw_parent_base)
     role_suffix = _resolve_role_suffix(
         directive.suffix,
         parent_base,
@@ -165,7 +169,7 @@ def resolve_family_attach_plan(
                 or parent_record.timestamp
             )
     if parent_agent_clan:
-        parent_agent_clan = qualify_local_agent_name(parent_agent_clan)
+        parent_agent_clan = normalize_owned_agent_name(parent_agent_clan)
 
     return _types.FamilyAttachLaunchPlan(
         parent_arg=directive.parent,
@@ -265,10 +269,10 @@ def _ensure_family_name_available(
     known_names.update(
         _candidates.known_agent_names_from_siblings(pending_family_parents or [])
     )
-    from sase.core.machine_hood_facade import canonical_local_agent_name_key
+    from sase.core.agent_identity_facade import current_owner_agent_name_key
 
-    known_keys = {canonical_local_agent_name_key(name) for name in known_names}
-    if canonical_local_agent_name_key(agent_name) in known_keys:
+    known_keys = {current_owner_agent_name_key(name) for name in known_names}
+    if current_owner_agent_name_key(agent_name) in known_keys:
         raise _types.FamilyAttachError(
             f"Agent {member_kind} '{agent_name}' already exists. "
             f"Use %i(@, family={directive.parent}) to allocate the next free suffix."

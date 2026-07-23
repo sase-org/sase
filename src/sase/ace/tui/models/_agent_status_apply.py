@@ -416,9 +416,9 @@ def apply_status_overrides(
                 key=lambda a: a.retry_attempt or 0,
             )
 
-    from sase.core.machine_hood_facade import MachineHoodIdentity
+    from sase.core.agent_identity_facade import AgentIdentitySnapshot
 
-    machine_identity = MachineHoodIdentity.current()
+    machine_identity = AgentIdentitySnapshot.current()
     for agent in all_agents:
         agent.refresh_presented_agent_name(machine_identity)
 

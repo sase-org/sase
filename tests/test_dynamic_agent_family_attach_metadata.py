@@ -358,13 +358,19 @@ def test_family_promotion_qualifies_legacy_parent_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    monkeypatch.setattr(
-        "sase.core.machine_hood_facade.get_machine_name",
-        lambda: "athena",
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        AgentOwnerIdentity,
+    )
+
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena",),
     )
     monkeypatch.setattr(
-        "sase.core.machine_hood_facade.discover_machine_names",
-        lambda: ("athena",),
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: identity),
     )
     artifact_dir = tmp_path / "artifact"
     artifact_dir.mkdir()
@@ -378,7 +384,7 @@ def test_family_promotion_qualifies_legacy_parent_once(
     second = promote_agent_to_family(artifact_dir, "athena.foo")
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
 
-    assert first == second == "athena.foo--plan"
-    assert meta["name"] == "athena.foo--plan"
-    assert meta["workflow_name"] == "athena.foo"
-    assert meta["agent_family"] == "athena.foo"
+    assert first == second == "foo--plan"
+    assert meta["name"] == "foo--plan"
+    assert meta["workflow_name"] == "foo"
+    assert meta["agent_family"] == "foo"

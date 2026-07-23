@@ -16,14 +16,20 @@ from sase.ace.tui.actions.agent_workflow._entry_points import (
     _force_name_reuse_in_prompt,
     _rewrite_retry_prompt_name,
 )
-from sase.core.machine_hood_facade import MachineHoodIdentity
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+)
 
 
 @pytest.fixture(autouse=True)
 def _configured_machine_identity(monkeypatch: pytest.MonkeyPatch) -> None:
-    identity = MachineHoodIdentity("athena", ("athena", "zeus"))
+    identity = AgentIdentitySnapshot(
+        AgentOwnerIdentity("alice", "athena"),
+        ("athena", "zeus"),
+    )
     monkeypatch.setattr(
-        MachineHoodIdentity,
+        AgentIdentitySnapshot,
         "current",
         classmethod(lambda _cls: identity),
     )

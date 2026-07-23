@@ -33,9 +33,11 @@ def is_workflow_complete(name: str) -> bool | None:
     if not projects_dir.exists():
         return None
 
-    from sase.core.machine_hood_facade import local_agent_name_lookup_candidates
+    from sase.core.agent_identity_facade import (
+        current_owner_agent_name_lookup_candidates,
+    )
 
-    candidates = local_agent_name_lookup_candidates(name)
+    candidates = current_owner_agent_name_lookup_candidates(name)
     candidate_names = set(candidates)
     workflow_agents_by_name: dict[str, list[tuple[Path, dict[str, Any]]]] = {
         candidate: [] for candidate in candidates

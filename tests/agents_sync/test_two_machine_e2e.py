@@ -27,7 +27,10 @@ from sase.core.agent_artifact_paths import (
     canonical_agent_artifact_path,
     iter_agent_artifact_dirs,
 )
-from sase.core.machine_hood_facade import MachineHoodIdentity
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+)
 from sase.core.paths import sase_home
 from sase.workflows.commit.runtime_tags import (
     RUNTIME_COMMIT_TAG_KEYS,
@@ -177,10 +180,10 @@ def _registry_entry(home: Path, qualified_name: str) -> dict[str, object]:
 
 
 def _listed_chats(
-    identity: MachineHoodIdentity,
+    identity: AgentIdentitySnapshot,
     capsys: pytest.CaptureFixture[str],
 ) -> list[dict[str, object]]:
-    with patch.object(MachineHoodIdentity, "current", return_value=identity):
+    with patch.object(AgentIdentitySnapshot, "current", return_value=identity):
         handle_chat_list(argparse.Namespace(limit=None, query=None, json=True))
     rows = json.loads(capsys.readouterr().out)
     assert isinstance(rows, list)
@@ -216,7 +219,10 @@ def test_two_machines_round_trip_completed_agents_through_shared_sidecar(
     assert alpha_first.exported == 1
     assert alpha_first.pushed
     alpha_chat_rows = _listed_chats(
-        MachineHoodIdentity("alpha", ("alpha", "beta")),
+        AgentIdentitySnapshot(
+            AgentOwnerIdentity("alice", "alpha"),
+            ("alpha", "beta"),
+        ),
         capsys,
     )
     assert [row["agent"] for row in alpha_chat_rows] == ["worker"]
@@ -261,7 +267,10 @@ def test_two_machines_round_trip_completed_agents_through_shared_sidecar(
     beta_registry_entry = _registry_entry(home_beta, "alpha.worker")
     assert beta_registry_entry["imported_from_machine"] == "alpha"
     beta_chat_rows = _listed_chats(
-        MachineHoodIdentity("beta", ("alpha", "beta")),
+        AgentIdentitySnapshot(
+            AgentOwnerIdentity("alice", "beta"),
+            ("alpha", "beta"),
+        ),
         capsys,
     )
     assert {row["agent"] for row in beta_chat_rows} == {
@@ -295,7 +304,10 @@ def test_two_machines_round_trip_completed_agents_through_shared_sidecar(
         _registry_entry(home_alpha, "beta.builder")["imported_from_machine"] == "beta"
     )
     alpha_round_trip_rows = _listed_chats(
-        MachineHoodIdentity("alpha", ("alpha", "beta")),
+        AgentIdentitySnapshot(
+            AgentOwnerIdentity("alice", "alpha"),
+            ("alpha", "beta"),
+        ),
         capsys,
     )
     assert {row["agent"] for row in alpha_round_trip_rows} == {
