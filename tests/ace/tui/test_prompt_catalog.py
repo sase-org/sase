@@ -121,18 +121,100 @@ def test_build_prompt_catalog_snapshot_merges_xprompt_and_user_snippets(
         generation=2,
         projects=[None],
         previous_source_token=None,
-        pending_snippet_saves={"combo": "#[review] + #[user]"},
+        pending_snippet_saves={
+            "combo": "#[review] + #[user]",
+            "capital_ref": "#[Review]!",
+        },
     )
 
     assert snapshot is not None
     assert snapshot.generation == 2
     assert snapshot.snippets == {
+        "Combo": "Review this + User body$0",
+        "Capital_ref": "Review this!$0",
+        "Review": "Review this$0",
+        "User": "User body$0",
+        "capital_ref": "Review this!$0",
         "review": "Review this$0",
         "user": "User body$0",
         "combo": "Review this + User body$0",
     }
+    assert snapshot.explicit_snippets == {
+        "review": "Review this$0",
+        "user": "User body$0",
+        "combo": "#[review] + #[user]",
+        "capital_ref": "#[Review]!",
+    }
     assert snapshot.user_snippets == {"user": "User body$0"}
     assert snapshot.assist_entries_by_project[None][0].name == "review"
+
+
+def test_prompt_catalog_preserves_explicit_capitalized_collisions(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        prompt_catalog,
+        "_prompt_source_token",
+        lambda _projects: ("changed",),
+    )
+    monkeypatch.setattr(
+        prompt_catalog,
+        "get_all_xprompts",
+        lambda project=None: {
+            "foo": XPrompt(name="foo", content="xprompt lower", snippet=True),
+            "Foo": XPrompt(name="Foo", content="xprompt capital", snippet=True),
+            "bar": XPrompt(name="bar", content="xprompt bar", snippet=True),
+        },
+    )
+    monkeypatch.setattr(
+        prompt_catalog,
+        "build_xprompt_assist_entries",
+        lambda project=None: [],
+    )
+
+    import sase.config
+
+    monkeypatch.setattr(
+        sase.config,
+        "load_merged_config",
+        lambda: {
+            "ace": {
+                "snippets": {
+                    "foo": "user lower",
+                    "Bar": "user capital",
+                    "User_only": "authored capital",
+                    "user_only": "user lowercase",
+                }
+            }
+        },
+    )
+
+    snapshot = prompt_catalog.build_prompt_catalog_snapshot(
+        generation=1,
+        projects=[None],
+    )
+
+    assert snapshot is not None
+    assert snapshot.explicit_snippets == {
+        "foo": "user lower",
+        "Foo": "xprompt capital$0",
+        "bar": "xprompt bar$0",
+        "Bar": "user capital",
+        "User_only": "authored capital",
+        "user_only": "user lowercase",
+    }
+    assert snapshot.snippets["foo"] == "user lower"
+    assert snapshot.snippets["Foo"] == "xprompt capital$0"
+    assert snapshot.snippets["bar"] == "xprompt bar$0"
+    assert snapshot.snippets["Bar"] == "user capital"
+    assert snapshot.snippets["user_only"] == "user lowercase"
+    assert snapshot.snippets["User_only"] == "authored capital"
+    assert snapshot.user_snippets == {
+        "foo": "user lower",
+        "Bar": "user capital",
+        "User_only": "authored capital",
+        "user_only": "user lowercase",
+    }
 
 
 def test_config_dirty_build_invalidates_warm_merged_config(monkeypatch) -> None:
@@ -178,7 +260,8 @@ def test_config_dirty_build_invalidates_warm_merged_config(monkeypatch) -> None:
 
     assert snapshot is not None
     assert snapshot.user_snippets == {"saved": "new"}
-    assert snapshot.snippets == {"saved": "new"}
+    assert snapshot.explicit_snippets == {"saved": "new"}
+    assert snapshot.snippets == {"Saved": "New", "saved": "new"}
 
 
 def test_compose_pending_snippet_saves_preserves_existing_and_resolves_refs() -> None:
@@ -188,8 +271,11 @@ def test_compose_pending_snippet_saves_preserves_existing_and_resolves_refs() ->
     )
 
     assert composed["xprompt"] == "Existing $1$0"
+    assert composed["Xprompt"] == "Existing $1$0"
     assert composed["user"] == "User"
+    assert composed["User"] == "User"
     assert composed["saved"] == "Existing $1 then $2$0"
+    assert composed["Saved"] == "Existing $1 then $2$0"
 
 
 def test_app_prompt_catalog_returns_stable_assist_list_until_snapshot_changes() -> None:
@@ -204,6 +290,7 @@ def test_app_prompt_catalog_returns_stable_assist_list_until_snapshot_changes() 
     app._prompt_catalog = prompt_catalog.PromptCatalogSnapshot(
         generation=1,
         source_token=("first",),
+        explicit_snippets={},
         snippets={},
         user_snippets={},
         assist_entries_by_project={None: (_entry("review"),)},
@@ -218,6 +305,7 @@ def test_app_prompt_catalog_returns_stable_assist_list_until_snapshot_changes() 
     app._prompt_catalog = prompt_catalog.PromptCatalogSnapshot(
         generation=2,
         source_token=("second",),
+        explicit_snippets={},
         snippets={},
         user_snippets={},
         assist_entries_by_project={None: (_entry("ship"),)},
@@ -242,6 +330,7 @@ def test_exact_warm_catalog_does_not_fallback_to_default_project() -> None:
     app._prompt_catalog = prompt_catalog.PromptCatalogSnapshot(
         generation=1,
         source_token=("first",),
+        explicit_snippets={},
         snippets={},
         user_snippets={},
         assist_entries_by_project={None: (_entry("global"),)},
@@ -271,6 +360,10 @@ def test_fresh_snapshot_retires_only_matching_pending_saves() -> None:
         prompt_catalog.PromptCatalogSnapshot(
             generation=4,
             source_token=("fresh",),
+            explicit_snippets={
+                "applied": "body",
+                "source_only": "later",
+            },
             snippets={"applied": "body", "source_only": "later"},
             user_snippets={"applied": "body"},
             assist_entries_by_project={None: ()},
@@ -296,6 +389,7 @@ def test_older_catalog_generation_cannot_erase_pending_save() -> None:
         prompt_catalog.PromptCatalogSnapshot(
             generation=4,
             source_token=("old",),
+            explicit_snippets={"old": "catalog"},
             snippets={"old": "catalog"},
             user_snippets={"old": "catalog"},
             assist_entries_by_project={None: ()},

@@ -4,12 +4,11 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.xprompt._parsing_args import find_matching_bracket_for_args
+from sase.core.snippet_catalog_facade import compose_snippet_catalog
 from sase.xprompt.models import UNSET, InputArg, XPrompt
 from sase.xprompt.snippet_bridge import (
     _xprompt_to_snippet_template,
     _get_xprompt_snippets,
-    resolve_snippet_references,
 )
 
 
@@ -238,16 +237,7 @@ def test_resolve_snippet_reference_golden_vectors(
     trigger: str,
     expected: str,
 ) -> None:
-    assert resolve_snippet_references(catalog)[trigger] == expected
-
-
-def test_find_matching_bracket_for_args_skips_text_blocks() -> None:
-    text = "#[wrap([[multi, ] text]], suffix)] tail"
-    assert find_matching_bracket_for_args(text, 1) == text.index("] tail")
-
-
-def test_find_matching_bracket_for_args_unmatched() -> None:
-    assert find_matching_bracket_for_args("#[wrap([[text]])", 1) is None
+    assert compose_snippet_catalog(catalog).templates[trigger] == expected
 
 
 # --- _get_xprompt_snippets composition ---

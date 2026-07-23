@@ -254,7 +254,24 @@ def test_editor_helper_bridge_snippet_catalog_merges_xprompt_and_user_config(
     assert code == 0
     assert stderr.getvalue() == ""
     assert data["context"] == {"project": "sase", "scope": "explicit"}
-    assert data["stats"] == {"total_count": 2}
+    assert data["stats"] == {"total_count": 4}
+    assert list(entries) == ["Helper", "User_snip", "helper", "user_snip"]
+    assert entries["Helper"] == {
+        "trigger": "Helper",
+        "template": "Help with $1$0",
+        "source": "xprompt",
+        "xprompt_name": "helper",
+        "description": "Helper prompt",
+        "source_path_display": "xprompts/helper.md",
+    }
+    assert entries["User_snip"] == {
+        "trigger": "User_snip",
+        "template": "User $1$0",
+        "source": "user_config",
+        "xprompt_name": None,
+        "description": None,
+        "source_path_display": "ace.snippets",
+    }
     assert entries["helper"] == {
         "trigger": "helper",
         "template": "Help with $1$0",
@@ -290,7 +307,15 @@ def test_editor_helper_bridge_snippet_catalog_user_overrides_xprompt(
     )
     monkeypatch.setattr(
         "sase.integrations._editor_helper_snippets.load_merged_config",
-        lambda: {"ace": {"snippets": {"shared": "from user", "bad-trigger": "no"}}},
+        lambda: {
+            "ace": {
+                "snippets": {
+                    "shared": "from user",
+                    "Shared": "authored capital",
+                    "bad-trigger": "no",
+                }
+            }
+        },
     )
 
     stdout = io.StringIO()
@@ -306,7 +331,10 @@ def test_editor_helper_bridge_snippet_catalog_user_overrides_xprompt(
     entries = {entry["trigger"]: entry for entry in data["entries"]}
     assert code == 0
     assert stderr.getvalue() == ""
-    assert list(entries) == ["shared"]
+    assert list(entries) == ["Shared", "shared"]
+    assert data["stats"] == {"total_count": 2}
+    assert entries["Shared"]["template"] == "authored capital"
+    assert entries["Shared"]["source"] == "user_config"
     assert entries["shared"]["template"] == "from user"
     assert entries["shared"]["source"] == "user_config"
 
@@ -341,13 +369,21 @@ def test_editor_helper_bridge_snippet_catalog_composes_nested_xprompts(
     assert stderr.getvalue() == ""
     assert data["entries"] == [
         {
+            "trigger": "Outer",
+            "template": "Outer leaf text$0",
+            "source": "xprompt",
+            "xprompt_name": "outer",
+            "description": None,
+            "source_path_display": None,
+        },
+        {
             "trigger": "outer",
             "template": "outer leaf text$0",
             "source": "xprompt",
             "xprompt_name": "outer",
             "description": None,
             "source_path_display": None,
-        }
+        },
     ]
 
 
@@ -396,6 +432,77 @@ def test_editor_helper_bridge_snippet_catalog_resolves_snippet_references(
     assert stderr.getvalue() == ""
     assert entries["outer"]["template"] == "User $1 $2$0"
     assert entries["wrap"]["template"] == "Help World $1$0"
+
+
+def test_editor_helper_bridge_snippet_aliases_keep_provenance_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    xprompts = {
+        "foo": XPrompt(
+            name="foo",
+            content="foo {{ topic }}",
+            inputs=[InputArg(name="topic", default=UNSET)],
+            source_path="xprompts/foo.md",
+            snippet=True,
+            description="Foo source",
+        )
+    }
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_all_xprompts",
+        lambda project=None: xprompts,
+    )
+    monkeypatch.setattr(
+        "sase.integrations._editor_helper_snippets.load_merged_config",
+        lambda: {
+            "ace": {
+                "snippets": {
+                    "wrap": "#[Foo] tail $1$0",
+                    "bad-trigger": "filtered before composition",
+                }
+            }
+        },
+    )
+
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    code = handle_editor_helper_bridge(
+        argparse.Namespace(editor_helper_bridge_subcommand="snippet-catalog"),
+        stdin=io.StringIO(json.dumps({"schema_version": 1})),
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    data = json.loads(stdout.getvalue())
+    assert code == 0
+    assert stderr.getvalue() == ""
+    assert data["result"]["message"] == "loaded 4 snippet(s)"
+    assert data["stats"] == {"total_count": 4}
+    assert [entry["trigger"] for entry in data["entries"]] == [
+        "Foo",
+        "Wrap",
+        "foo",
+        "wrap",
+    ]
+    entries = {entry["trigger"]: entry for entry in data["entries"]}
+    assert entries["Foo"] == {
+        "trigger": "Foo",
+        "template": "Foo $1$0",
+        "source": "xprompt",
+        "xprompt_name": "foo",
+        "description": "Foo source",
+        "source_path_display": "xprompts/foo.md",
+    }
+    assert entries["Wrap"] == {
+        "trigger": "Wrap",
+        "template": "Foo $1 tail $2$0",
+        "source": "user_config",
+        "xprompt_name": None,
+        "description": None,
+        "source_path_display": "ace.snippets",
+    }
+    assert entries["foo"]["template"] == "foo $1$0"
+    assert entries["wrap"]["template"] == "Foo $1 tail $2$0"
+    assert "bad-trigger" not in entries
 
 
 def test_parser_accepts_editor_helper_bridge_agent_catalog() -> None:

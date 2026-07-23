@@ -93,9 +93,10 @@ class PromptBarSaveSnippetMixin(
 
         while True:
             generation = getattr(self, "_prompt_catalog_generation", None)
+            catalog = getattr(self, "_prompt_catalog", None)
             base = (
-                self._snippets_cache
-                if self._snippets_cache is not None
+                catalog.explicit_snippets
+                if catalog is not None
                 else self._user_snippets
             )
             base_snapshot = dict(base)

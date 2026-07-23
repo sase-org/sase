@@ -344,7 +344,7 @@ async def test_unified_snippet_result_writes_only_active_pane_and_refreshes(
     assert payload["ace"]["snippets"] == {"review": "beta"}
     assert harness._user_snippets == {}
     assert harness._pending_snippet_saves == {"review": "beta"}
-    assert harness._snippets_cache == {"review": "beta"}
+    assert harness._snippets_cache == {"Review": "Beta", "review": "beta"}
     assert harness.git_offers == [(str(config), True, "review", "snippet")]
 
 
@@ -371,6 +371,12 @@ async def test_chezmoi_source_save_expands_in_same_mounted_prompt_before_apply(
         "applied": "Applied",
         "xprompt": "Hello $1$0",
     }
+    app._prompt_catalog = SimpleNamespace(
+        explicit_snippets={
+            "applied": "Applied",
+            "xprompt": "Hello $1$0",
+        }
+    )
 
     with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
         async with app.run_test() as pilot:
@@ -383,9 +389,10 @@ async def test_chezmoi_source_save_expands_in_same_mounted_prompt_before_apply(
             assert app._snippets_cache["applied"] == "Applied"
             assert app._snippets_cache["xprompt"] == "Hello $1$0"
             assert app._snippets_cache["welcome"] == "Hello $1 from $2$0"
+            assert app._snippets_cache["Welcome"] == "Hello $1 from $2$0"
 
-            text_area.load_text("welcome")
-            text_area.cursor_location = (0, len("welcome"))
+            text_area.load_text("Welcome")
+            text_area.cursor_location = (0, len("Welcome"))
             with patch.object(
                 type(text_area),
                 "_ace_app",
@@ -420,7 +427,39 @@ async def test_second_save_replaces_pending_trigger_deterministically(
         await harness._write_snippet_target(target, "second")
 
     assert harness._pending_snippet_saves == {"review": "second"}
-    assert harness._snippets_cache == {"review": "second"}
+    assert harness._snippets_cache == {"Review": "Second", "review": "second"}
+
+
+async def test_live_save_preserves_authored_capital_collision_off_event_loop() -> None:
+    from sase.ace.tui import prompt_catalog
+
+    harness = _SaveHarness()
+    harness._user_snippets = {"Foo": "authored capital"}
+    event_loop_thread = threading.get_ident()
+    composition_threads: list[int] = []
+    real_compose = prompt_catalog.compose_pending_snippet_saves
+
+    def record_compose(
+        explicit_snippets: dict[str, str],
+        pending_snippet_saves: dict[str, str],
+    ) -> dict[str, str]:
+        composition_threads.append(threading.get_ident())
+        return real_compose(explicit_snippets, pending_snippet_saves)
+
+    with patch.object(
+        prompt_catalog,
+        "compose_pending_snippet_saves",
+        side_effect=record_compose,
+    ):
+        await harness._publish_saved_snippet("foo", "lower save")
+
+    assert composition_threads
+    assert all(thread_id != event_loop_thread for thread_id in composition_threads)
+    assert harness._pending_snippet_saves == {"foo": "lower save"}
+    assert harness._snippets_cache == {
+        "Foo": "authored capital",
+        "foo": "lower save",
+    }
 
 
 def test_commit_push_confirmation_submits_tracked_task(tmp_path: Path) -> None:

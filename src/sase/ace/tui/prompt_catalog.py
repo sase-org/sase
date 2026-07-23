@@ -22,11 +22,9 @@ from sase.content_layout import (
     resolve_project_layout,
     resolve_xprompt_file_sources,
 )
+from sase.core.snippet_catalog_facade import compose_snippet_catalog
 from sase.xprompt.loader import get_all_xprompts, get_xprompt_search_paths
-from sase.xprompt.snippet_bridge import (
-    build_xprompt_snippet_entries_from_catalog,
-    resolve_snippet_references,
-)
+from sase.xprompt.snippet_bridge import build_xprompt_snippet_entries_from_catalog
 
 PROMPT_SOURCE_SUFFIXES = frozenset({".md", ".yml", ".yaml"})
 PROMPT_SOURCE_DEBOUNCE_S = 0.3
@@ -38,6 +36,7 @@ class PromptCatalogSnapshot:
 
     generation: int
     source_token: tuple[Any, ...]
+    explicit_snippets: Mapping[str, str]
     snippets: Mapping[str, str]
     user_snippets: Mapping[str, str]
     assist_entries_by_project: Mapping[
@@ -70,7 +69,7 @@ def build_prompt_catalog_snapshot(
         return None
 
     xprompts = get_all_xprompts(project=None)
-    snippets = {
+    explicit_snippets = {
         entry.trigger: entry.template
         for entry in build_xprompt_snippet_entries_from_catalog(xprompts)
     }
@@ -87,10 +86,10 @@ def build_prompt_catalog_snapshot(
             for key, value in raw_user_snippets.items()
             if isinstance(value, str)
         }
-        snippets.update(user_snippets)
+        explicit_snippets.update(user_snippets)
     if pending_snippet_saves:
-        snippets.update(pending_snippet_saves)
-    snippets = resolve_snippet_references(snippets)
+        explicit_snippets.update(pending_snippet_saves)
+    composed_snippets = compose_snippet_catalog(explicit_snippets)
 
     assist_entries_by_project: dict[str | None, tuple[XPromptAssistEntry, ...]] = {}
     for project in project_tuple:
@@ -101,20 +100,21 @@ def build_prompt_catalog_snapshot(
     return PromptCatalogSnapshot(
         generation=generation,
         source_token=source_token,
-        snippets=dict(snippets),
+        explicit_snippets=dict(explicit_snippets),
+        snippets=dict(composed_snippets.templates),
         user_snippets=user_snippets,
         assist_entries_by_project=assist_entries_by_project,
     )
 
 
 def compose_pending_snippet_saves(
-    snippets: Mapping[str, str],
+    explicit_snippets: Mapping[str, str],
     pending_snippet_saves: Mapping[str, str],
 ) -> dict[str, str]:
-    """Overlay and resolve session-local snippet saves off the UI thread."""
-    composed = dict(snippets)
-    composed.update(pending_snippet_saves)
-    return resolve_snippet_references(composed)
+    """Overlay and compose session-local snippet saves off the UI thread."""
+    explicit = dict(explicit_snippets)
+    explicit.update(pending_snippet_saves)
+    return compose_snippet_catalog(explicit).templates
 
 
 def _normalize_prompt_catalog_projects(

@@ -193,22 +193,6 @@ def find_matching_brace_for_args(text: str, start: int) -> int | None:
     return _find_matching_delimiter_for_args(text, start, "{", "}")
 
 
-def find_matching_bracket_for_args(text: str, start: int) -> int | None:
-    """Find the matching ] for an opening [ at position start.
-
-    Mirrors :func:`find_matching_paren_for_args` for ``#[...]`` snippet
-    references: respects quoted strings, text blocks, and nested brackets.
-
-    Args:
-        text: The full text to search.
-        start: Position of the opening '[' character.
-
-    Returns:
-        Position of the matching ']' or None if not found.
-    """
-    return _find_matching_delimiter_for_args(text, start, "[", "]")
-
-
 def _top_level_delimiter_positions(text: str, delimiter: str) -> list[int]:
     """Return delimiter positions outside quoted strings and ``[[...]]``."""
     positions: list[int] = []
