@@ -10,7 +10,7 @@ from typing import Any, Literal
 BUNDLE_SCHEMA_VERSION = 1
 MANIFEST_SCHEMA_VERSION = 1
 STATUS_SCHEMA_VERSION = 1
-SYNC_RESULT_SCHEMA_VERSION = 1
+SYNC_RESULT_SCHEMA_VERSION = 2
 
 StatusState = Literal[
     "ready",
@@ -146,10 +146,20 @@ class ExportCounts:
     unchanged: int = 0
     skipped: int = 0
     diagnostics: tuple[str, ...] = ()
+    hoods_published: int = 0
+    hoods_refreshed: int = 0
+    hoods_unchanged: int = 0
+    families_published: int = 0
+    runs_published: int = 0
+    schema_version: int = 2
 
     @property
     def changed(self) -> int:
         return self.exported + self.refreshed
+
+    @property
+    def v2_changed(self) -> int:
+        return self.hoods_published + self.hoods_refreshed
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,6 +179,11 @@ class SyncOutcome:
     skip_reason: str | None = None
     error: str | None = None
     diagnostics: tuple[str, ...] = ()
+    hoods_published: int = 0
+    hoods_refreshed: int = 0
+    hoods_unchanged: int = 0
+    families_published: int = 0
+    runs_published: int = 0
     schema_version: int = SYNC_RESULT_SCHEMA_VERSION
 
     @property
@@ -185,6 +200,11 @@ class SyncOutcome:
             "refreshed": self.refreshed,
             "exported": self.exported,
             "export_refreshed": self.export_refreshed,
+            "hoods_published": self.hoods_published,
+            "hoods_refreshed": self.hoods_refreshed,
+            "hoods_unchanged": self.hoods_unchanged,
+            "families_published": self.families_published,
+            "runs_published": self.runs_published,
             "committed": self.committed,
             "pushed": self.pushed,
             "push_attempts": self.push_attempts,

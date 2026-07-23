@@ -1,66 +1,92 @@
-# Completed Agent Synchronization
+# Agent Hood Synchronization
 
-SASE can exchange completed, commit-associated agents through each managed project's hidden `agents` sidecar. The
-machine-level clone lives under `~/.sase/projects/<project-key>/repos/agents`; it is never exposed to launched agents or
-copied into numbered workspaces.
+SASE publishes deterministic project-scoped agent-hood snapshots through each managed project's hidden `agents` sidecar.
+The machine-level clone lives under `~/.sase/projects/<project-key>/repos/agents`; it is never exposed to launched
+agents or copied into numbered workspaces.
 
 ## Privacy and configuration
 
-An agents sidecar contains full chat transcripts—including prompts and responses—portable display metadata, and commit
-associations. Creating or pushing it therefore publishes agent data to everyone who can read the configured remote.
-Before running `sase repo init`, set the intrinsic `agents` sidecar's `visibility: private` when that data must remain
+One publication includes every locally owned active, waiting, terminal, failed, and dismissed run in the committing
+agent's complete top-level hood. Active prompts can therefore appear before a transcript exists; later syncs can refresh
+the stable run with terminal state, commits, or a readable chat. Portable metadata and family/clan relationships are
+included as well. Creating or pushing the sidecar publishes that data to everyone who can read the configured remote.
+
+Before running `sase repo init`, set the intrinsic `agents` sidecar's `visibility: private` when that scope must remain
 restricted. Set `disabled: true` to opt out entirely. Synchronization never creates a remote and cannot bypass the
-explicit consent requested by repo initialization.
+explicit consent requested by repository initialization.
 
-Every participating machine needs a complete selected `id.username`/`id.machine_name` owner identity. Locally owned
-artifacts persist bare semantic names such as `worker`. During this v1 sidecar compatibility phase, export adds the
-machine hood only at the transport boundary, producing `athena.worker`; imported v1 names keep that explicit foreign
-hood and username-unknown provenance. Run `sase config init` to create or migrate the owner identity; see
-[owner identity and machine overlays](configuration.md#owner-identity) for the selector/overlay distinction and source
-authority. A machine is authoritative for bundles in its own hood: pulled copies from the same machine are not imported
-over local artifacts, and a later local export replaces the transport copy when its commits or portable metadata change.
+Every publisher needs a complete selected `id.username` / `id.machine_name` owner identity. Local artifacts keep bare
+semantic names such as `foo.bar--code`; v2 transport uses the canonical global name
+`<username>.<machine_name>.foo.bar--code`. The exact owner manifest is the only shared authority file that publisher
+mutates. Run `sase config init` to create or migrate the identity; see
+[owner identity and machine overlays](configuration.md#owner-identity).
 
-## Portable bundle layout
-
-The sidecar uses a versioned manifest and one directory per qualified name:
+## Strict v2 layout
 
 ```text
-manifest.json
-agents/
-  athena.worker/
-    meta.json
-    commits.json
-    chat.md
+README.md
+schema.json
+users/<username>/README.md
+users/<username>/machines/<machine>/README.md
+users/<username>/machines/<machine>/manifest.json
+users/<username>/machines/<machine>/hoods/<hood>/README.md
+users/<username>/machines/<machine>/hoods/<hood>/snapshot.json
+agents/<global-name>/
+  README.md
+  meta.json
+  state.json
+  prompt.md
+  commits.json
+  chat.md                 # only when readable
+families/<global-family>.md
 ```
 
-`meta.json` is an allowlisted projection. It excludes PIDs, workspace numbers, checkout paths, chat/output paths, and
-other machine-local absolute state. `commits.json` contains stable SHA, subject, and committed-time records. `chat.md`
-is the exact transcript. The manifest advertises a SHA-256 digest over canonical metadata and commits plus the exact
-chat bytes. Unsupported schemas, unsafe paths, identity mismatches, or digest failures stop that project's integration
-without partially importing the corrupt bundle.
+Owner manifests map each hood to the snapshot digest and its complete referenced-file set. Snapshot and per-run JSON is
+strictly versioned, canonically encoded, size/count bounded, and content-addressed with SHA-256. Names and paths are
+validated as single components, and every relationship/container batch passes through the Rust identity facade before
+publication.
 
-Foreign bundles are reconstructed as normal terminal `ace-run` artifacts and standard sharded chat files. Their exact v1
-machine-qualified names are claimed in the durable registry, so `sase agent list`, `sase chats`, name lookup, and ACE
-scans see them like local history. Provenance and digest markers distinguish username-unknown v1 imports from locally
-owned artifacts.
+The allowlist excludes PIDs, workspace numbers, credentials, absolute paths, checkout paths, and other host-local
+execution state. A publication is fully built and validated before rollback-safe atomic writes begin, so malformed input
+cannot leave a half-rendered hood.
+
+Existing top-level v1 `manifest.json` and `agents/<machine-qualified-name>` bundles are left untouched. Sync can still
+read those records for compatibility, but it no longer creates or refreshes v1 transport data.
+
+## Scope and reconciliation
+
+Targeted publication refreshes exactly the committing agent's complete top-level hood. Full reconciliation publishes
+every locally owned project hood with at least one primary-repository commit association. Commit-less plan members,
+active siblings, failed/waiting runs, dismissed archives, and structural family/clan containers are included when they
+belong to that hood.
+
+Published runs that are temporarily missing from local inventory are retained. New terminal state, commits, prompt data,
+and chat refresh the same stable run; absence does not create an implicit deletion or tombstone. Identical inputs
+produce byte-identical files and a no-op publication.
+
+After each pull/rebase, SASE rebuilds root, user, machine, hood, family, and agent Markdown from every validated owner
+manifest. Family member links use stable `member-<role>` anchors; solo links target the corresponding agent README.
+Because owners mutate disjoint authority files, a bounded non-fast-forward retry can pull a competing owner, recompute
+the shared views, and converge without overwriting either snapshot.
 
 ## Commands and status
 
-Run a mutating synchronization for all enabled projects:
+Run a mutating reconciliation for all enabled projects:
 
 ```bash
 sase agent sync
 sase agent sync -p project-alias -p another-project
 ```
 
-The transaction acquires a bounded per-repository lock, pulls with rebase, integrates foreign bundles, exports local
-bundles, commits only `manifest.json` and `agents/`, and pushes. A non-fast-forward rejection triggers one
-pull/recompute/commit/push retry. Conflicted rebases are aborted and reported; a failure in one project does not prevent
-the others from running.
+The transaction acquires a bounded per-repository lock, pulls with rebase, reads optional legacy v1 imports, performs v2
+full reconciliation, stages the complete v2 payload, commits with the full owner identity, and pushes. A
+non-fast-forward rejection triggers one pull/recompute/commit/push retry. Conflicted rebases are aborted and reported; a
+failure in one project does not prevent the others from running.
 
-Status checks use an atomic snapshot under `~/.sase/agents_sync/`. A fresh snapshot is revalidated from local refs and
-terminal artifact markers without network access. A stale snapshot is recomputed; `--refresh` explicitly forces the
-selected fetches:
+JSON and table outcomes report additive v2 hood, family, and run publication counts while retaining the legacy
+integration/export fields with their original meanings.
+
+Status checks use an atomic snapshot under `~/.sase/agents_sync/`:
 
 ```bash
 sase agent sync --check
@@ -68,14 +94,12 @@ sase agent sync --check --refresh
 sase agent sync --check --json
 ```
 
-Status reports ahead, behind, and unexported-agent counts together with missing clones/upstreams, disabled sidecars,
-configuration errors, and last fetch time.
-
 ## Recovery
 
 - A busy lock is a benign skip; retry after the active sync finishes.
-- A missing sidecar reports `not_created`; run `sase repo init` interactively if you intend to publish agent data.
-- A corrupt manifest or bundle is not overwritten automatically. Repair or restore the sidecar data, then rerun sync.
+- A missing sidecar reports `not_created`; run `sase repo init` interactively if you intend to publish this scope.
+- A corrupt v1 manifest, owner manifest, snapshot, or referenced digest stops that project's sync rather than being
+  overwritten.
 - A push or fetch failure leaves local agent history intact. Fix credentials/connectivity and retry.
-- A rebase conflict is aborted before the command returns. Resolve unexpected repository state in the hidden clone, then
-  rerun `sase agent sync`.
+- A rebase conflict is aborted before the command returns. Resolve unexpected state in the hidden clone, then rerun
+  `sase agent sync`.

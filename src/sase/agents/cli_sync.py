@@ -53,7 +53,7 @@ def handle_agents_sync(args: argparse.Namespace) -> int:
     if as_json:
         json.dump(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "mode": "sync",
                 "projects": [outcome.to_json_dict() for outcome in outcomes],
             },
@@ -70,11 +70,10 @@ def handle_agents_sync(args: argparse.Namespace) -> int:
 def _render_outcomes(outcomes: tuple[SyncOutcome, ...]) -> None:
     table = Table(title="Agent Sync", header_style="bold cyan")
     table.add_column("PROJECT", style="bold")
-    table.add_column("PULLED", justify="center")
     table.add_column("IMPORTED", justify="right")
-    table.add_column("EXPORTED", justify="right")
-    table.add_column("COMMIT", justify="center")
-    table.add_column("PUSH", justify="center")
+    table.add_column("V1", justify="right")
+    table.add_column("HOODS", justify="right")
+    table.add_column("RUNS", justify="right")
     table.add_column("RESULT")
     for outcome in outcomes:
         result: Text
@@ -86,11 +85,10 @@ def _render_outcomes(outcomes: tuple[SyncOutcome, ...]) -> None:
             result = Text("synchronized", style="green")
         table.add_row(
             outcome.project,
-            _yes_no(outcome.pulled),
             str(outcome.integrated + outcome.refreshed),
             str(outcome.exported + outcome.export_refreshed),
-            _yes_no(outcome.committed),
-            _yes_no(outcome.pushed),
+            str(outcome.hoods_published + outcome.hoods_refreshed),
+            str(outcome.runs_published),
             result,
         )
     Console().print(table)
@@ -123,10 +121,6 @@ def _render_status(statuses: Sequence[ProjectSyncStatus]) -> None:
             status.error or status.detail or "-",
         )
     Console().print(table)
-
-
-def _yes_no(value: bool) -> Text:
-    return Text("yes" if value else "no", style="green" if value else "dim")
 
 
 def _number(value: int | None) -> str:

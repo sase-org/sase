@@ -70,7 +70,7 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase agent sync
     sync_parser = agents_sub.add_parser(
         "sync",
-        help="Synchronize completed commit-associated agents through sidecars",
+        help="Synchronize complete commit-eligible agent hoods through sidecars",
     )
     sync_parser.add_argument(
         "-c",

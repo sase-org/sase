@@ -47,6 +47,8 @@ def _agents_sync_outcome_changed(outcome: SyncOutcome) -> bool:
         or outcome.refreshed
         or outcome.exported
         or outcome.export_refreshed
+        or outcome.hoods_published
+        or outcome.hoods_refreshed
         or outcome.committed
         or outcome.pushed
     )
@@ -67,7 +69,10 @@ def agents_sync_outcome_line(outcome: SyncOutcome) -> str:
         details.append(f"imported {imported}")
     exported = outcome.exported + outcome.export_refreshed
     if exported:
-        details.append(f"exported {exported}")
+        details.append(f"exported {exported} legacy bundles")
+    hoods = outcome.hoods_published + outcome.hoods_refreshed
+    if hoods:
+        details.append(f"published {hoods} hoods / {outcome.runs_published} runs")
     if outcome.committed:
         details.append("committed")
     if outcome.pushed:

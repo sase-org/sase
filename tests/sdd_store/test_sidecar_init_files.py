@@ -44,33 +44,48 @@ def test_agents_sidecar_generated_files_are_privacy_forward_and_idempotent(
 
     assert {action.path.relative_to(root).as_posix() for action in actions} == {
         "README.md",
-        "manifest.json",
+        "schema.json",
         "agents/.gitkeep",
+        "families/.gitkeep",
+        "users/.gitkeep",
     }
     written = ensure_sdd_sidecar_initialized("agents", root)
     assert set(written) == {action.path for action in actions}
     readme = (root / "README.md").read_text(encoding="utf-8")
-    assert "full agent chat transcripts" in readme
-    assert "prompts and responses" in readme
-    assert "agent metadata and commit associations" in readme
+    assert "active prompts" in readme
+    assert "complete project-scoped" in readme
+    assert "allowlisted metadata" in readme
     assert "`private`" in readme
     assert "`disabled: true`" in readme
     assert "`sase agent sync`" in readme
-    assert json.loads((root / "manifest.json").read_text(encoding="utf-8")) == {
-        "schema_version": 1,
-        "agents": {},
+    assert json.loads((root / "schema.json").read_text(encoding="utf-8")) == {
+        "schema_version": 2,
+        "format": "sase-agents-sidecar",
+        "authority": "owner-sharded",
+        "relationship_schema_version": 2,
     }
     assert (root / "agents" / ".gitkeep").read_text(encoding="utf-8") == ""
+    assert (root / "families" / ".gitkeep").read_text(encoding="utf-8") == ""
+    assert (root / "users" / ".gitkeep").read_text(encoding="utf-8") == ""
     assert plan_sdd_sidecar_init_actions("agents", root) == ()
 
-    (root / "manifest.json").write_text("{}\n", encoding="utf-8")
+    legacy_manifest = root / "manifest.json"
+    legacy_manifest.write_text("{}\n", encoding="utf-8")
     assert plan_sdd_sidecar_init_actions("agents", root) == ()
+    assert legacy_manifest.read_text(encoding="utf-8") == "{}\n"
 
     (root / "agents" / ".gitkeep").unlink()
     populated = root / "agents" / "athena.worker"
     populated.mkdir()
     (populated / "meta.json").write_text("{}\n", encoding="utf-8")
     assert plan_sdd_sidecar_init_actions("agents", root) == ()
+
+    owner = root / "users" / "alice" / "machines" / "athena"
+    owner.mkdir(parents=True)
+    (owner / "manifest.json").write_text("{}\n", encoding="utf-8")
+    (root / "README.md").write_text("# Derived\n", encoding="utf-8")
+    ensure_sdd_sidecar_initialized("agents", root)
+    assert (root / "README.md").read_text(encoding="utf-8") == "# Derived\n"
 
 
 def test_custom_sidecar_generates_deterministic_generic_readme(tmp_path: Path) -> None:

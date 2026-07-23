@@ -8,7 +8,9 @@ from pathlib import Path
 import time
 from typing import Any
 
-from sase.agents_sync.bundles import count_unexported_local_agents
+from sase.agents_sync.bundles import (  # noqa: F401 - compatibility patch seam
+    count_unexported_local_agents,
+)
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.io import AgentsSyncFormatError, atomic_write_json, read_manifest
 from sase.agents_sync.models import (
@@ -145,16 +147,21 @@ def _revalidate_project_status(
             last_fetch_time=last_fetch_time,
             detail="agents sidecar clone does not exist on this machine",
         )
-    try:
-        manifest = read_manifest(repo / "manifest.json")
-    except AgentsSyncFormatError as exc:
-        return ProjectSyncStatus(
-            target.project_key,
-            target.project,
-            "error",
-            last_fetch_time=last_fetch_time,
-            error=str(exc),
-        )
+    # v2 repositories do not require a legacy top-level manifest. If one is
+    # present, validate it because sync still supports read-only v1 import.
+    legacy_manifest_path = repo / "manifest.json"
+    manifest = None
+    if legacy_manifest_path.is_file():
+        try:
+            manifest = read_manifest(legacy_manifest_path)
+        except AgentsSyncFormatError as exc:
+            return ProjectSyncStatus(
+                target.project_key,
+                target.project,
+                "error",
+                last_fetch_time=last_fetch_time,
+                error=str(exc),
+            )
     upstream = git_runner(
         repo,
         ["rev-parse", "--verify", "@{upstream}"],
@@ -165,8 +172,12 @@ def _revalidate_project_status(
             target.project_key,
             target.project,
             "missing_upstream",
-            unexported_agents=count_unexported_local_agents(
-                target, manifest, machine, git_runner=git_runner
+            unexported_agents=(
+                count_unexported_local_agents(
+                    target, manifest, machine, git_runner=git_runner
+                )
+                if manifest is not None
+                else 0
             ),
             last_fetch_time=last_fetch_time,
             detail="agents sidecar clone has no configured upstream",
@@ -189,8 +200,14 @@ def _revalidate_project_status(
         ahead_raw, behind_raw = counts.stdout.split()
         ahead = int(ahead_raw)
         behind = int(behind_raw)
-        unexported = count_unexported_local_agents(
-            target, manifest, machine, git_runner=git_runner
+        # This field retains its v1 meaning. A v2-only sidecar reports zero
+        # instead of relabeling a bundle count as a hood count.
+        unexported = (
+            count_unexported_local_agents(
+                target, manifest, machine, git_runner=git_runner
+            )
+            if manifest is not None
+            else 0
         )
     except (ValueError, OSError, RuntimeError) as exc:
         return ProjectSyncStatus(

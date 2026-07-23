@@ -129,8 +129,10 @@ def test_plan_github_reports_every_configured_sidecar_without_writing(
     } == {
         ".",
         "README.md",
-        "manifest.json",
+        "schema.json",
         "agents/.gitkeep",
+        "families/.gitkeep",
+        "users/.gitkeep",
     }
     assert all(
         not action.path.is_relative_to(tmp_path / "sase" / "repos" / "agents")

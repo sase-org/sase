@@ -85,6 +85,8 @@ class ComprehensiveUpdateResult:
                 or outcome.refreshed
                 or outcome.exported
                 or outcome.export_refreshed
+                or outcome.hoods_published
+                or outcome.hoods_refreshed
                 or outcome.committed
                 or outcome.pushed
             )

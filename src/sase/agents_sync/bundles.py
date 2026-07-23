@@ -50,64 +50,6 @@ from sase.core.paths import sase_home
 from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
 
 
-def export_local_bundles(
-    target: ProjectTarget,
-    repo_root: Path,
-    manifest: AgentsManifest,
-    machine: str,
-    *,
-    git_runner: GitRunner = run_git,
-    now: datetime | None = None,
-) -> tuple[AgentsManifest, ExportCounts]:
-    """Create or refresh stale locally owned bundles, then update manifest."""
-
-    bundles, skipped, diagnostics = _build_local_bundles(
-        target,
-        machine,
-        git_runner=git_runner,
-        incremental_only=False,
-    )
-    entries = manifest.by_name()
-    exported = 0
-    refreshed = 0
-    unchanged = 0
-    updated_at = (now or datetime.now(UTC)).isoformat()
-    for name, bundle in sorted(bundles.items()):
-        existing = entries.get(name)
-        if existing is not None and existing.machine != machine:
-            raise AgentsSyncFormatError(
-                f"local bundle {name!r} collides with foreign manifest ownership"
-            )
-        if existing is not None and existing.digest == bundle.digest:
-            unchanged += 1
-            continue
-        write_bundle(repo_root, bundle)
-        entries[name] = ManifestEntry(
-            name=name,
-            machine=machine,
-            digest=bundle.digest,
-            artifact_timestamp=bundle.metadata.artifact_timestamp,
-            updated_at=updated_at,
-        )
-        if existing is None:
-            exported += 1
-        else:
-            refreshed += 1
-
-    updated = AgentsManifest(
-        tuple(sorted(entries.values(), key=lambda item: item.name))
-    )
-    if updated != manifest:
-        write_manifest(repo_root / "manifest.json", updated)
-    return updated, ExportCounts(
-        exported=exported,
-        refreshed=refreshed,
-        unchanged=unchanged,
-        skipped=skipped,
-        diagnostics=tuple(diagnostics),
-    )
-
-
 def integrate_foreign_bundles(
     target: ProjectTarget,
     repo_root: Path,
@@ -179,15 +121,15 @@ def _build_local_bundles(
             skipped += 1
             continue
         artifacts[name] = (artifact_dir, meta, done)
-        for marker in _commit_markers(artifact_dir):
+        for marker in commit_markers(artifact_dir):
             sha = _text(marker.get("result")) or _text(marker.get("commit_result"))
             cwd = _text(marker.get("cwd"))
             if sha is None or cwd is None:
                 continue
-            repo_root = _repository_root(Path(cwd), git_runner, root_cache)
-            if repo_root is None or not _is_primary_root(repo_root, target):
+            repo_root = repository_root(Path(cwd), git_runner, root_cache)
+            if repo_root is None or not is_primary_root(repo_root, target):
                 continue
-            commit = _commit_record(repo_root, sha, git_runner)
+            commit = commit_record(repo_root, sha, git_runner)
             if commit is None:
                 diagnostics.append(
                     f"{artifact_dir}: commit marker {sha!r} is not readable"
@@ -285,7 +227,7 @@ def _portable_metadata(
         return None
 
 
-def _commit_markers(artifact_dir: Path) -> list[dict[str, Any]]:
+def commit_markers(artifact_dir: Path) -> list[dict[str, Any]]:
     results = _read_json(artifact_dir / "commit_results.json")
     if isinstance(results, list):
         return [item for item in results if isinstance(item, dict)]
@@ -293,7 +235,7 @@ def _commit_markers(artifact_dir: Path) -> list[dict[str, Any]]:
     return [result] if result is not None else []
 
 
-def _repository_root(
+def repository_root(
     cwd: Path,
     git_runner: GitRunner,
     cache: dict[str, Path | None],
@@ -318,12 +260,12 @@ def _repository_root(
     return root
 
 
-def _is_primary_root(root: Path, target: ProjectTarget) -> bool:
+def is_primary_root(root: Path, target: ProjectTarget) -> bool:
     normalized = root.resolve(strict=False)
     return any(normalized == candidate for candidate in target.primary_roots)
 
 
-def _commit_record(
+def commit_record(
     repo_root: Path, sha: str, git_runner: GitRunner
 ) -> CommitRecord | None:
     result = git_runner(
@@ -594,6 +536,5 @@ def _text(value: object) -> str | None:
 
 __all__ = [
     "count_unexported_local_agents",
-    "export_local_bundles",
     "integrate_foreign_bundles",
 ]

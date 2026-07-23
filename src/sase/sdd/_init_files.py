@@ -19,7 +19,10 @@ SDD_SIDECAR_DIRECTORY_MAP_FILENAMES = {
     "plans": "plans-directory-map.png",
     "research": "research-directory-map.png",
 }
-AGENTS_SIDECAR_MANIFEST = '{\n  "schema_version": 1,\n  "agents": {}\n}\n'
+AGENTS_SIDECAR_SCHEMA = (
+    '{"authority":"owner-sharded","format":"sase-agents-sidecar",'
+    '"relationship_schema_version":2,"schema_version":2}\n'
+)
 
 
 def _read_sdd_markdown(filename: str) -> str:
@@ -92,11 +95,19 @@ def expected_sdd_sidecar_files(
                 content=_read_sdd_markdown("sidecar-agents-README.md"),
             ),
             SddExpectedTextFile(
-                path=sidecar_root / "manifest.json",
-                content=AGENTS_SIDECAR_MANIFEST,
+                path=sidecar_root / "schema.json",
+                content=AGENTS_SIDECAR_SCHEMA,
             ),
             SddExpectedTextFile(
                 path=sidecar_root / "agents" / ".gitkeep",
+                content="",
+            ),
+            SddExpectedTextFile(
+                path=sidecar_root / "families" / ".gitkeep",
+                content="",
+            ),
+            SddExpectedTextFile(
+                path=sidecar_root / "users" / ".gitkeep",
                 content="",
             ),
         )
@@ -134,16 +145,18 @@ def plan_sdd_sidecar_init_actions(
         root,
         description=description,
     ):
-        if kind == "agents" and expected.path.name == "manifest.json":
-            # The sync engine owns this file after the initial scaffold. Repo
-            # init must never replace a populated (or diagnostically corrupt)
-            # manifest with an empty one on a later idempotent pass.
-            if expected.path.exists():
-                continue
+        if (
+            kind == "agents"
+            and expected.path.name == "README.md"
+            and _agents_sidecar_has_publication(Path(root))
+        ):
+            # Root and nested browsing pages are derived from owner manifests.
+            # Once populated, repo init must not replace those rendered views.
+            continue
         if kind == "agents" and expected.path.name == ".gitkeep":
-            agents_dir = expected.path.parent
+            parent = expected.path.parent
             try:
-                populated = agents_dir.is_dir() and any(agents_dir.iterdir())
+                populated = parent.is_dir() and any(parent.iterdir())
             except OSError:
                 populated = True
             if populated and not expected.path.exists():
@@ -163,6 +176,13 @@ def plan_sdd_sidecar_init_actions(
                 )
             )
     return tuple(actions)
+
+
+def _agents_sidecar_has_publication(root: Path) -> bool:
+    try:
+        return any(root.glob("users/*/machines/*/manifest.json"))
+    except OSError:
+        return True
 
 
 def ensure_sdd_sidecar_initialized(

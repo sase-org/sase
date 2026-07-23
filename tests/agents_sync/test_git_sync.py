@@ -11,13 +11,13 @@ import pytest
 from sase.agents_sync import git_sync
 from sase.agents_sync.git import _noninteractive_git_env, run_git
 from sase.agents_sync.models import (
-    AgentsManifest,
-    ExportCounts,
     IntegrationCounts,
     ProjectTarget,
     SyncOutcome,
     TargetSelection,
 )
+from sase.agents_sync.v2_models import V2PublicationCounts
+from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -71,14 +71,22 @@ def _patch_payload_pass(monkeypatch: pytest.MonkeyPatch) -> list[int]:
         lambda *_args, **_kwargs: IntegrationCounts(),
     )
 
-    def export(_target, repo, manifest, _machine, **_kwargs):
+    def reconcile(_target, repo, **_kwargs):
         calls.append(1)
-        bundle = repo / "agents" / "athena.worker"
+        (repo / "README.md").write_text("# Hoods\n")
+        (repo / "schema.json").write_text("{}\n")
+        manifest = repo / "users" / "local" / "machines" / "athena"
+        manifest.mkdir(parents=True, exist_ok=True)
+        (manifest / "manifest.json").write_text("{}\n")
+        bundle = repo / "agents" / "local.athena.worker"
         bundle.mkdir(parents=True, exist_ok=True)
         (bundle / "chat.md").write_text("chat\n")
-        return manifest, ExportCounts(exported=1)
+        families = repo / "families"
+        families.mkdir(exist_ok=True)
+        (families / ".gitkeep").write_text("")
+        return V2PublicationCounts(hoods_published=1, runs_published=1)
 
-    monkeypatch.setattr(git_sync, "export_local_bundles", export)
+    monkeypatch.setattr(git_sync, "reconcile_agent_hoods", reconcile)
     return calls
 
 
@@ -93,13 +101,19 @@ def test_full_sync_transaction_commits_and_pushes_only_payload(
 
     assert outcome.error is None
     assert outcome.pulled and outcome.committed and outcome.pushed
-    assert outcome.exported == 1
+    assert outcome.hoods_published == 1
     verify = tmp_path / "verify"
     _git(tmp_path, "clone", str(remote), str(verify))
-    assert (verify / "agents" / "athena.worker" / "chat.md").read_text() == "chat\n"
+    assert (
+        verify / "agents" / "local.athena.worker" / "chat.md"
+    ).read_text() == "chat\n"
     assert _git(verify, "log", "-1", "--format=%s").stdout.strip() == (
-        "chore(agents): sync from athena"
+        "chore(agents): sync from local.athena"
     )
+    assert json.loads((verify / "manifest.json").read_text()) == {
+        "schema_version": 1,
+        "agents": {},
+    }
 
 
 def test_non_fast_forward_recomputes_and_retries_push_once(
@@ -234,7 +248,11 @@ def test_all_project_sync_isolates_failures(
         "resolve_sync_targets",
         lambda _projects: TargetSelection((first, second), ()),
     )
-    monkeypatch.setattr(git_sync, "require_machine_name", lambda: "athena")
+    monkeypatch.setattr(
+        git_sync,
+        "require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
     monkeypatch.setattr(
         git_sync,
         "_sync_project",

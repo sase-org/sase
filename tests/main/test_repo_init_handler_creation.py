@@ -132,8 +132,9 @@ def test_missing_agents_sidecar_requires_loud_role_specific_confirmation(
     assert calls == [{"agents": True}]
     prompt = prompts[0]
     assert "PUBLISH SASE agent data" in prompt
-    assert "full chat transcripts (prompts and responses)" in prompt
-    assert "agent metadata, and commit associations" in prompt
+    assert "active prompts, waiting, failed, terminal, and dismissed runs" in prompt
+    assert "allowlisted metadata, commit associations" in prompt
+    assert "refresh the same runs with newly available transcripts" in prompt
     assert f"Repository visibility: {visibility.upper()}." in prompt
     assert "visibility: private" in prompt
     assert "disabled: true" in prompt

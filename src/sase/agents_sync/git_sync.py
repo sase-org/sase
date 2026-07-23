@@ -13,17 +13,23 @@ import tempfile
 import time
 from typing import Any
 
-from sase.agents_sync.bundles import export_local_bundles, integrate_foreign_bundles
+from sase.agents_sync.bundles import integrate_foreign_bundles
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.io import read_manifest
 from sase.agents_sync.models import (
+    AgentsManifest,
     ExportCounts,
     IntegrationCounts,
     ProjectTarget,
     SyncOutcome,
 )
+from sase.agents_sync.publication import reconcile_agent_hoods
 from sase.agents_sync.targets import resolve_sync_targets
-from sase.config import require_machine_name
+from sase.config import require_agent_owner_identity
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+)
 
 DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS = 2.0
 _LOCK_TIMEOUT_ENV = "SASE_AGENTS_SYNC_LOCK_TIMEOUT"
@@ -40,13 +46,13 @@ def sync_agents(
     selection = resolve_sync_targets(projects)
     outcomes = list(selection.outcomes)
     try:
-        machine = require_machine_name()
+        owner = require_agent_owner_identity()
     except (RuntimeError, ValueError) as exc:
         outcomes.extend(
             SyncOutcome(
                 target.project_key,
                 target.project,
-                error=f"machine identity is not configured: {exc}",
+                error=f"owner identity is not configured: {exc}",
             )
             for target in selection.targets
         )
@@ -62,7 +68,7 @@ def sync_agents(
             outcomes.append(
                 _sync_project(
                     target,
-                    machine,
+                    owner,
                     git_runner=git_runner,
                     lock_timeout_seconds=timeout,
                 )
@@ -89,12 +95,14 @@ def sync_agents(
 
 def _sync_project(
     target: ProjectTarget,
-    machine: str,
+    owner: AgentOwnerIdentity | str,
     *,
     git_runner: GitRunner = run_git,
     lock_timeout_seconds: float = DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS,
 ) -> SyncOutcome:
     """Run one project's bounded mutation transaction."""
+
+    resolved_owner = _coerce_owner(owner)
 
     if not target.primary_checkout.is_dir():
         return _error(target, "primary checkout does not exist")
@@ -112,12 +120,12 @@ def _sync_project(
     with _bounded_lock(lock_path, lock_timeout_seconds) as acquired:
         if not acquired:
             return _skip(target, "agents sync lock is busy")
-        return _sync_project_locked(target, machine, git_runner)
+        return _sync_project_locked(target, resolved_owner, git_runner)
 
 
 def _sync_project_locked(
     target: ProjectTarget,
-    machine: str,
+    owner: AgentOwnerIdentity,
     git_runner: GitRunner,
 ) -> SyncOutcome:
     repo = target.sidecar_path
@@ -130,11 +138,11 @@ def _sync_project_locked(
         )
 
     try:
-        integrated, exported = _integrate_export_pass(target, repo, machine, git_runner)
+        integrated, exported = _integrate_export_pass(target, repo, owner, git_runner)
     except Exception as exc:  # noqa: BLE001 - project-scoped format/import error
         return _error(target, str(exc), pulled=True)
 
-    committed_result = _commit_payload_if_dirty(repo, machine, git_runner)
+    committed_result = _commit_payload_if_dirty(repo, owner, git_runner)
     if isinstance(committed_result, str):
         return _error(target, committed_result, pulled=True)
     committed = committed_result
@@ -148,6 +156,11 @@ def _sync_project_locked(
             refreshed=integrated.refreshed,
             exported=exported.exported,
             export_refreshed=exported.refreshed,
+            hoods_published=exported.hoods_published,
+            hoods_refreshed=exported.hoods_refreshed,
+            hoods_unchanged=exported.hoods_unchanged,
+            families_published=exported.families_published,
+            runs_published=exported.runs_published,
             committed=False,
             diagnostics=exported.diagnostics,
         )
@@ -167,6 +180,11 @@ def _sync_project_locked(
             refreshed=integrated.refreshed,
             exported=exported.exported,
             export_refreshed=exported.refreshed,
+            hoods_published=exported.hoods_published,
+            hoods_refreshed=exported.hoods_refreshed,
+            hoods_unchanged=exported.hoods_unchanged,
+            families_published=exported.families_published,
+            runs_published=exported.runs_published,
             committed=committed,
             pushed=True,
             push_attempts=1,
@@ -181,6 +199,11 @@ def _sync_project_locked(
             refreshed=integrated.refreshed,
             exported=exported.exported,
             export_refreshed=exported.refreshed,
+            hoods_published=exported.hoods_published,
+            hoods_refreshed=exported.hoods_refreshed,
+            hoods_unchanged=exported.hoods_unchanged,
+            families_published=exported.families_published,
+            runs_published=exported.runs_published,
             committed=committed,
             push_attempts=1,
             diagnostics=exported.diagnostics,
@@ -211,7 +234,7 @@ def _sync_project_locked(
         )
     try:
         retry_integrated, retry_exported = _integrate_export_pass(
-            target, repo, machine, git_runner
+            target, repo, owner, git_runner
         )
     except Exception as exc:  # noqa: BLE001 - project-scoped retry error
         return _error(
@@ -220,7 +243,7 @@ def _sync_project_locked(
             pulled=True,
             push_attempts=1,
         )
-    retry_commit_result = _commit_payload_if_dirty(repo, machine, git_runner)
+    retry_commit_result = _commit_payload_if_dirty(repo, owner, git_runner)
     if isinstance(retry_commit_result, str):
         return _error(
             target,
@@ -247,6 +270,20 @@ def _sync_project_locked(
             refreshed=max(integrated.refreshed, retry_integrated.refreshed),
             exported=max(exported.exported, retry_exported.exported),
             export_refreshed=max(exported.refreshed, retry_exported.refreshed),
+            hoods_published=max(
+                exported.hoods_published, retry_exported.hoods_published
+            ),
+            hoods_refreshed=max(
+                exported.hoods_refreshed, retry_exported.hoods_refreshed
+            ),
+            hoods_unchanged=max(
+                exported.hoods_unchanged, retry_exported.hoods_unchanged
+            ),
+            families_published=max(
+                exported.families_published,
+                retry_exported.families_published,
+            ),
+            runs_published=max(exported.runs_published, retry_exported.runs_published),
             committed=retry_committed,
             push_attempts=2,
             diagnostics=all_diagnostics,
@@ -259,6 +296,13 @@ def _sync_project_locked(
         refreshed=max(integrated.refreshed, retry_integrated.refreshed),
         exported=max(exported.exported, retry_exported.exported),
         export_refreshed=max(exported.refreshed, retry_exported.refreshed),
+        hoods_published=max(exported.hoods_published, retry_exported.hoods_published),
+        hoods_refreshed=max(exported.hoods_refreshed, retry_exported.hoods_refreshed),
+        hoods_unchanged=max(exported.hoods_unchanged, retry_exported.hoods_unchanged),
+        families_published=max(
+            exported.families_published, retry_exported.families_published
+        ),
+        runs_published=max(exported.runs_published, retry_exported.runs_published),
         committed=retry_committed,
         pushed=True,
         push_attempts=2,
@@ -269,26 +313,40 @@ def _sync_project_locked(
 def _integrate_export_pass(
     target: ProjectTarget,
     repo: Path,
-    machine: str,
+    owner: AgentOwnerIdentity,
     git_runner: GitRunner,
 ) -> tuple[IntegrationCounts, ExportCounts]:
-    manifest = read_manifest(repo / "manifest.json")
-    integrated = integrate_foreign_bundles(target, repo, manifest, machine)
-    # Import never mutates the transport manifest, so the same validated view
-    # remains the correct base for local-authority export.
-    _manifest, exported = export_local_bundles(
+    legacy_manifest_path = repo / "manifest.json"
+    legacy_manifest = (
+        read_manifest(legacy_manifest_path)
+        if legacy_manifest_path.is_file()
+        else AgentsManifest()
+    )
+    integrated = integrate_foreign_bundles(
         target,
         repo,
-        manifest,
-        machine,
+        legacy_manifest,
+        owner.machine_name,
+    )
+    published = reconcile_agent_hoods(
+        target,
+        repo,
+        identity=AgentIdentitySnapshot(owner),
         git_runner=git_runner,
     )
-    return integrated, exported
+    return integrated, ExportCounts(
+        diagnostics=published.diagnostics,
+        hoods_published=published.hoods_published,
+        hoods_refreshed=published.hoods_refreshed,
+        hoods_unchanged=published.hoods_unchanged,
+        families_published=published.families_published,
+        runs_published=published.runs_published,
+    )
 
 
 def _commit_payload_if_dirty(
     repo: Path,
-    machine: str,
+    owner: AgentOwnerIdentity,
     git_runner: GitRunner,
 ) -> bool | str:
     status = git_runner(
@@ -298,8 +356,11 @@ def _commit_payload_if_dirty(
             "--porcelain",
             "--untracked-files=all",
             "--",
-            "manifest.json",
+            "README.md",
+            "schema.json",
+            "users",
             "agents",
+            "families",
         ],
         op="agents_sync.status_payload",
     )
@@ -309,7 +370,7 @@ def _commit_payload_if_dirty(
         return False
     staged = git_runner(
         repo,
-        ["add", "--", "manifest.json", "agents"],
+        ["add", "--", "README.md", "schema.json", "users", "agents", "families"],
         op="agents_sync.stage",
     )
     if staged.returncode != 0:
@@ -323,7 +384,7 @@ def _commit_payload_if_dirty(
             "user.email=sase@localhost",
             "commit",
             "-m",
-            f"chore(agents): sync from {machine}",
+            f"chore(agents): sync from {owner.username}.{owner.machine_name}",
         ],
         op="agents_sync.commit",
     )
@@ -368,6 +429,22 @@ def _ensure_clone(
         finally:
             shutil.rmtree(temp_root, ignore_errors=True)
     return None
+
+
+def _coerce_owner(owner: AgentOwnerIdentity | str) -> AgentOwnerIdentity:
+    if isinstance(owner, AgentOwnerIdentity):
+        return owner
+    try:
+        configured = require_agent_owner_identity()
+    except (RuntimeError, ValueError):
+        # Compatibility for direct internal/test calls that historically
+        # supplied only the machine. Public sync always requires full identity.
+        return AgentOwnerIdentity("local", owner)
+    return (
+        configured
+        if configured.machine_name == owner
+        else AgentOwnerIdentity(configured.username, owner)
+    )
 
 
 def _pull_rebase(

@@ -207,11 +207,15 @@ def test_agents_init_uses_hidden_root_and_leaves_compatibility_store_two_slot(
     assert outcome.roots == {**visible_clones, "agents": agents_root}
     assert outcome.created == frozenset({"plans", "research", "agents"})
     assert (agents_root / "README.md").is_file()
-    assert json.loads((agents_root / "manifest.json").read_text()) == {
-        "schema_version": 1,
-        "agents": {},
+    assert json.loads((agents_root / "schema.json").read_text()) == {
+        "schema_version": 2,
+        "format": "sase-agents-sidecar",
+        "authority": "owner-sharded",
+        "relationship_schema_version": 2,
     }
     assert (agents_root / "agents" / ".gitkeep").is_file()
+    assert (agents_root / "families" / ".gitkeep").is_file()
+    assert (agents_root / "users" / ".gitkeep").is_file()
     assert not (project / "sase" / "repos" / "agents").exists()
 
     record = read_sdd_store_record(project)

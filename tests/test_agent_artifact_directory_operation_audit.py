@@ -41,6 +41,13 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "artifact directory."
         ),
     ),
+    "src/sase/agents_sync/v2_io.py:apply_payload_atomic": DirOpReview(
+        exemption=(
+            "Atomically promotes validated owner-sharded payload files inside "
+            "an agents sidecar and removes only its task-owned staging and "
+            "rollback directories, never a local agent artifact directory."
+        ),
+    ),
     "src/sase/agent/names/_wipe.py:_remove_artifact_dirs": DirOpReview(
         batched_by=(
             BatchedCoverage(
