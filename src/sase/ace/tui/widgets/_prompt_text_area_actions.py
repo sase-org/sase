@@ -306,9 +306,12 @@ class PromptTextAreaActionsMixin(_MixinBase):
         )
 
     def action_insert_newline(self) -> None:
-        """Insert a newline at the cursor position."""
+        """Insert a newline, continuing a containing prompt hyphen bullet."""
+        row = self.cursor_location[0]
+        prefix = prompt_bullet_sibling_prefix(self.document.lines, row)
+        insert = f"\n{prefix}" if prefix is not None else "\n"
         start, end = self.selection
-        self._replace_via_keyboard("\n", start, end)
+        self._replace_via_keyboard(insert, start, end)
 
     def _refresh_completion_after_cursor_move(self) -> None:
         """Refresh prompt assist surfaces after TextArea cursor actions."""

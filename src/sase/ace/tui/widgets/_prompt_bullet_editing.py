@@ -1,4 +1,4 @@
-"""Pure prompt-list helpers for NORMAL-mode structural edits."""
+"""Pure helpers for prompt hyphen-bullet ownership and structural replay."""
 
 from __future__ import annotations
 

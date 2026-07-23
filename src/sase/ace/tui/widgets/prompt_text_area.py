@@ -97,7 +97,7 @@ class PromptTextArea(
     the ``PromptInputBar`` integration -- by overriding the base's host hooks.
 
     Enter submits the prompt, or opens the submit chooser for prompt stacks.
-    Ctrl+J inserts a newline.
+    Ctrl+J inserts a newline and continues a containing hyphen bullet.
     Line numbers appear automatically when there's more than one line.
     """
 

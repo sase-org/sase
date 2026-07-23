@@ -2469,7 +2469,7 @@ multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent
 | `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                |
 | `Ctrl+G Enter`               | Submit only the selected pane                                                                              |
 | `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                        |
-| `Ctrl+J`                     | Insert a newline                                                                                           |
+| `Ctrl+J`                     | Insert a newline; continue a containing hyphen bullet at its indentation                                   |
 | `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                   |
 | `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                             |
 | `Ctrl+G`                     | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                               |
@@ -2499,6 +2499,10 @@ backticks. Typing the matching closer over an auto-inserted closer moves the cur
 and backspace or delete removes both sides of an empty pair. Pairing is conservative: it is suppressed before token
 characters, when text is selected (the typed character replaces the selection literally), for contractions or
 possessives, and for repeated quotes/backticks needed to type Markdown fences or code spans.
+
+INSERT-mode `Ctrl+J` and prompt NORMAL-mode lowercase `o` continue a containing space-indented `- ` bullet using that
+bullet's indentation. This also works from physical continuation lines, including Prettier-wrapped nested bullets;
+non-bullet lines keep the ordinary bare newline or open-below behavior.
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line. The native cursor cell is color-coded by prompt Vim mode: INSERT uses cyan, NORMAL uses gold,

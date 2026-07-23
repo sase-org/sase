@@ -1,8 +1,9 @@
-"""Prompt hyphen-bullet ownership and NORMAL-mode ``o`` coverage."""
+"""Prompt hyphen-bullet ownership, INSERT ``Ctrl+J``, and NORMAL ``o`` coverage."""
 
 from __future__ import annotations
 
 import pytest
+from textual.widgets.text_area import Selection
 
 from sase.ace.testing import PromptPage, VimEditorPage
 from sase.ace.tui.widgets._prompt_bullet_editing import (
@@ -104,6 +105,64 @@ def test_normalize_prompt_bullet_replay_text(
     expected: str,
 ) -> None:
     assert normalize_prompt_bullet_replay_text(structural_line, replay_text) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "cursor", "expected_text", "expected_cursor"),
+    [
+        ("- direct", (0, 4), "- di\n- rect", (1, 2)),
+        ("- top\n  wrapped", (1, 4), "- top\n  wr\n- apped", (2, 2)),
+        ("- outer\n  - nested", (1, 6), "- outer\n  - ne\n  - sted", (2, 4)),
+        (
+            "- outer\n  - nested\n    wrapped",
+            (2, 7),
+            "- outer\n  - nested\n    wra\n  - pped",
+            (3, 4),
+        ),
+        ("plain line", (0, 5), "plain\n line", (1, 0)),
+    ],
+    ids=[
+        "direct",
+        "wrapped",
+        "nested",
+        "nested-wrapped",
+        "plain",
+    ],
+)
+async def test_prompt_insert_ctrl_j_splits_with_structural_prefix(
+    text: str,
+    cursor: tuple[int, int],
+    expected_text: str,
+    expected_cursor: tuple[int, int],
+) -> None:
+    async with PromptPage(text, cursor=cursor, mode="insert") as page:
+        await page.press("ctrl+j")
+
+        assert page.text == expected_text
+        assert page.cursor == expected_cursor
+        assert page.mode == "insert"
+
+
+async def test_prompt_insert_ctrl_j_selection_uses_cursor_row() -> None:
+    async with PromptPage("intro\n- bullet tail", mode="insert") as page:
+        page.ta.selection = Selection((0, 2), (1, 5))
+        await page.press("ctrl+j")
+
+        assert page.text == "in\n- let tail"
+        assert page.cursor == (1, 2)
+        assert page.mode == "insert"
+
+
+async def test_prompt_insert_ctrl_j_prefix_is_its_own_undo_checkpoint() -> None:
+    async with PromptPage("- item", cursor=(0, 6), mode="insert") as page:
+        await page.press("ctrl+j", "n", "e", "w", "escape")
+        assert page.text == "- item\n- new"
+
+        await page.press("u")
+        assert page.text == "- item\n- "
+
+        await page.press("u")
+        assert page.text == "- item"
 
 
 @pytest.mark.parametrize(
