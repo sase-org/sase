@@ -2512,11 +2512,18 @@ Uppercase `TODO` at identifier boundaries is a visual draft marker. ACE gives `T
 `TODO(owner):` headers the exact `#FFD700` gold used by the Agents-tab `RUNNING` status with explicit deep navy
 `#00005F` text. The deep navy stays legible on gold without relying on the terminal's customizable ANSI black palette
 entry. Only a header ending in `:` activates the quiet, theme-aware warm italic annotation style for the rest of that
-line; punctuation and prose after bare `TODO` or `TODO(owner)` retain their ordinary prompt syntax. This treatment also
-applies inside Markdown code regions. Lowercase `todo` and identifiers such as `TODOS`, `TODO2`, and `preTODO` remain
-ordinary text. When markers exist, the prompt border shows a matching deep-navy-on-gold `TODO N` count pill for every
-match across the full prompt stack, including compact inactive panes and markers outside the active viewport. The pill
-disappears immediately when the last marker is edited away.
+line; punctuation and prose after bare `TODO` or `TODO(owner)` retain their ordinary prompt syntax. When the first
+content in a dash-list item is the exact `TODO:` header, the body style continues through lazy and indented continuation
+lines, nested list content, and later paragraphs that Markdown assigns to that item. It stops at the sibling-item or
+outside-content boundary, and structural list dashes keep their bullet color. Checklist prefixes, `TODO(owner):`, and a
+`TODO:` later in item prose retain the same-line behavior.
+
+Inline backtick spans and closed or live unclosed backtick/tilde fenced code blocks are literal zones: TODO-shaped text
+inside them receives no marker or body treatment and is omitted from the count. Ordinary quotation marks are not code
+delimiters. Lowercase `todo` and identifiers such as `TODOS`, `TODO2`, and `preTODO` remain ordinary text. When markers
+exist, the prompt border shows a matching deep-navy-on-gold `TODO N` count pill for every non-literal match across the
+full prompt stack, including compact inactive panes and markers outside the active viewport. The pill disappears
+immediately when the last marker is edited away.
 
 TODO treatment is presentation only: it does not move the cursor during history or stash restoration, and ACE stashes,
 opens in `$EDITOR`, submits, and launches the literal prompt text unchanged. Only the colon-terminated body-note color

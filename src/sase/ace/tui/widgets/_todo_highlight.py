@@ -15,11 +15,13 @@ from textual.strip import Strip
 from textual.widgets._text_area import TextAreaTheme
 
 from sase.ace.tui.models.agent_status import RUNNING_COLOR
+from sase.ace.tui.widgets._bullet_highlight import bullet_dash_spans
 from sase.ace.tui.widgets._jinja_highlight import (
     _JINJA_THEME_NAME,
     _MAX_OVERLAY_BYTES,
     _MAX_OVERLAY_LINES,
 )
+from sase.xprompt._literal_zones import code_literal_ranges
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -28,18 +30,27 @@ else:
 
 
 _TODO_HEADER_RE = re.compile(r"(?<!\w)TODO(?!\w)(?:\([^()\n]+\))?:?")
+_TODO_LIST_ITEM_QUERY = "(list_item) @item"
 _TODO_MARKER_FOREGROUND = "#00005F"
 _TODO_NOTE_FOREGROUND_WARMTH = 0.30
 
 
 @dataclass(frozen=True, slots=True)
 class _TodoAnnotationSpan:
-    """Character offsets for one TODO header and its remaining line body."""
+    """Character offsets for one TODO header and its presentation body."""
 
     header_start: int
     header_end: int
     body_start: int
     body_end: int
+
+
+@dataclass(frozen=True, slots=True)
+class _TodoListItemSpan:
+    """Character offsets for a dash-list item's content start and end."""
+
+    content_start: int
+    item_end: int
 
 
 def _todo_annotation_spans(text: str) -> tuple[_TodoAnnotationSpan, ...]:
@@ -65,7 +76,7 @@ def todo_annotation_count(text: str) -> int:
 
 
 def _scan_todo_annotation_spans(text: str) -> tuple[_TodoAnnotationSpan, ...]:
-    matches = tuple(_TODO_HEADER_RE.finditer(text))
+    matches = _todo_header_matches(text)
     annotations: list[_TodoAnnotationSpan] = []
     for index, match in enumerate(matches):
         line_end = text.find("\n", match.end())
@@ -86,6 +97,99 @@ def _scan_todo_annotation_spans(text: str) -> tuple[_TodoAnnotationSpan, ...]:
             )
         )
     return tuple(annotations)
+
+
+def _todo_header_matches(text: str) -> tuple[re.Match[str], ...]:
+    """Return TODO matches whose starts are outside prompt code literals."""
+    literal_ranges = code_literal_ranges(text) if "`" in text or "~~~" in text else ()
+    if not literal_ranges:
+        return tuple(_TODO_HEADER_RE.finditer(text))
+
+    matches: list[re.Match[str]] = []
+    literal_index = 0
+    for match in _TODO_HEADER_RE.finditer(text):
+        match_start = match.start()
+        while (
+            literal_index < len(literal_ranges)
+            and literal_ranges[literal_index][1] <= match_start
+        ):
+            literal_index += 1
+        if (
+            literal_index < len(literal_ranges)
+            and literal_ranges[literal_index][0]
+            <= match_start
+            < literal_ranges[literal_index][1]
+        ):
+            continue
+        matches.append(match)
+    return tuple(matches)
+
+
+def _point_to_character_offset(
+    text: str,
+    line_starts: tuple[int, ...],
+    point: tuple[int, int],
+) -> int:
+    """Convert a tree-sitter UTF-8 point to a clamped character offset."""
+    row, byte_column = point
+    if row < 0:
+        return 0
+    if row >= len(line_starts):
+        return len(text)
+
+    line_start = line_starts[row]
+    newline = text.find("\n", line_start)
+    line_end = len(text) if newline == -1 else newline
+    encoded_line = text[line_start:line_end].encode("utf-8")
+    byte_column = max(0, min(byte_column, len(encoded_line)))
+    character_column = len(encoded_line[:byte_column].decode("utf-8", errors="ignore"))
+    return min(len(text), line_start + character_column)
+
+
+def _line_start_offsets(text: str) -> tuple[int, ...]:
+    starts = [0]
+    starts.extend(match.end() for match in re.finditer("\n", text))
+    return tuple(starts)
+
+
+def _merged_body_ranges(
+    annotations: tuple[_TodoAnnotationSpan, ...],
+) -> tuple[tuple[int, int], ...]:
+    """Return sorted, merged non-empty body ranges."""
+    merged: list[tuple[int, int]] = []
+    for annotation in annotations:
+        start = annotation.body_start
+        end = annotation.body_end
+        if end <= start:
+            continue
+        if merged and start <= merged[-1][1]:
+            previous_start, previous_end = merged[-1]
+            merged[-1] = (previous_start, max(previous_end, end))
+        else:
+            merged.append((start, end))
+    return tuple(merged)
+
+
+def _bullet_spans_overlapping_bodies(
+    text: str,
+    annotations: tuple[_TodoAnnotationSpan, ...],
+) -> tuple[tuple[int, int], ...]:
+    """Return structural dashes that need re-layering over TODO bodies."""
+    bodies = _merged_body_ranges(annotations)
+    if not bodies:
+        return ()
+
+    overlaps: list[tuple[int, int]] = []
+    body_index = 0
+    for start, end in bullet_dash_spans(text):
+        while body_index < len(bodies) and bodies[body_index][1] <= start:
+            body_index += 1
+        if body_index >= len(bodies):
+            break
+        body_start, body_end = bodies[body_index]
+        if body_start < end and start < body_end:
+            overlaps.append((start, end))
+    return tuple(overlaps)
 
 
 def todo_theme_colors(
@@ -115,13 +219,19 @@ class TodoHighlightMixin(_MixinBase):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._todo_cache_text: str | None = None
+        self._todo_cached_base_annotations: tuple[_TodoAnnotationSpan, ...] | None = (
+            None
+        )
+        self._todo_cached_list_items: tuple[_TodoListItemSpan, ...] | None = None
         self._todo_cached_annotations: tuple[_TodoAnnotationSpan, ...] | None = None
+        self._todo_list_item_query: Any | None = None
+        self._todo_list_item_query_unavailable = False
         super().__init__(*args, **kwargs)
 
     @property
     def todo_annotation_count(self) -> int:
         """Return the cached annotation count for the current document."""
-        return len(self._todo_annotations_for_document())
+        return len(self._todo_base_annotations_for_document())
 
     def on_mount(self) -> None:
         """Register TODO styles after the base prompt overlay theme exists."""
@@ -144,18 +254,22 @@ class TodoHighlightMixin(_MixinBase):
 
     def _build_highlight_map(self) -> None:
         super()._build_highlight_map()
-        for annotation in self._todo_annotations_for_document():
-            self._append_highlight_span(
-                annotation.header_start,
-                annotation.header_end,
-                "todo.header",
-            )
+        annotations = self._todo_annotations_for_document()
+        for annotation in annotations:
             if annotation.body_end > annotation.body_start:
                 self._append_highlight_span(
                     annotation.body_start,
                     annotation.body_end,
                     "todo.body",
                 )
+        for annotation in annotations:
+            self._append_highlight_span(
+                annotation.header_start,
+                annotation.header_end,
+                "todo.header",
+            )
+        for start, end in _bullet_spans_overlapping_bodies(self.text, annotations):
+            self._append_highlight_span(start, end, "bullet.dash")
 
     def _render_line(self, y: int) -> Strip:
         """Restore selection chrome that the TODO marker chip would hide."""
@@ -246,12 +360,101 @@ class TodoHighlightMixin(_MixinBase):
         return Strip.join((gutter, restored_content))
 
     def _todo_annotations_for_document(self) -> tuple[_TodoAnnotationSpan, ...]:
-        """Return annotations cached by exact prompt text."""
+        """Return list-aware annotations cached by exact prompt text."""
         text = self.text
-        if self._todo_cache_text != text:
-            self._todo_cache_text = text
-            self._todo_cached_annotations = _todo_annotation_spans(text)
+        self._reset_todo_cache_for_text(text)
+        if self._todo_cached_annotations is None:
+            annotations = self._todo_base_annotations_for_document()
+            item_ends = {
+                item.content_start: item.item_end
+                for item in self._todo_list_items_for_document()
+            }
+            self._todo_cached_annotations = tuple(
+                dataclasses.replace(
+                    annotation,
+                    body_end=item_ends[annotation.header_start],
+                )
+                if text[annotation.header_start : annotation.header_end] == "TODO:"
+                and annotation.header_start in item_ends
+                else annotation
+                for annotation in annotations
+            )
         return self._todo_cached_annotations or ()
+
+    def _todo_base_annotations_for_document(
+        self,
+    ) -> tuple[_TodoAnnotationSpan, ...]:
+        """Return literal-aware annotations without querying Markdown."""
+        text = self.text
+        self._reset_todo_cache_for_text(text)
+        if self._todo_cached_base_annotations is None:
+            self._todo_cached_base_annotations = _todo_annotation_spans(text)
+        return self._todo_cached_base_annotations
+
+    def _todo_list_items_for_document(self) -> tuple[_TodoListItemSpan, ...]:
+        """Return dash-list item boundaries from the incremental Markdown tree."""
+        text = self.text
+        self._reset_todo_cache_for_text(text)
+        if self._todo_cached_list_items is not None:
+            return self._todo_cached_list_items
+
+        self._todo_cached_list_items = self._query_todo_list_items(text)
+        return self._todo_cached_list_items
+
+    def _query_todo_list_items(self, text: str) -> tuple[_TodoListItemSpan, ...]:
+        if self._todo_list_item_query_unavailable:
+            return ()
+
+        document = self.document
+        try:
+            if self._todo_list_item_query is None:
+                self._todo_list_item_query = document.prepare_query(
+                    _TODO_LIST_ITEM_QUERY
+                )
+                if self._todo_list_item_query is None:
+                    self._todo_list_item_query_unavailable = True
+                    return ()
+            captures = document.query_syntax_tree(self._todo_list_item_query)
+        except Exception:
+            self._todo_list_item_query_unavailable = True
+            self._todo_list_item_query = None
+            return ()
+
+        line_starts = _line_start_offsets(text)
+        items: list[_TodoListItemSpan] = []
+        for item_node in captures.get("item", ()):
+            named_children = item_node.named_children
+            if not named_children:
+                continue
+            marker = named_children[0]
+            if marker.type != "list_marker_minus":
+                continue
+            content_start = _point_to_character_offset(
+                text,
+                line_starts,
+                marker.end_point,
+            )
+            item_end = _point_to_character_offset(
+                text,
+                line_starts,
+                item_node.end_point,
+            )
+            if item_end >= content_start:
+                items.append(
+                    _TodoListItemSpan(
+                        content_start=content_start,
+                        item_end=min(item_end, len(text)),
+                    )
+                )
+        return tuple(items)
+
+    def _reset_todo_cache_for_text(self, text: str) -> None:
+        if self._todo_cache_text == text:
+            return
+        self._todo_cache_text = text
+        self._todo_cached_base_annotations = None
+        self._todo_cached_list_items = None
+        self._todo_cached_annotations = None
 
     def _register_todo_text_area_theme(
         self,

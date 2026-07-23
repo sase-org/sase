@@ -11,7 +11,7 @@ from rich.style import Style
 from sase.ace.tui.widgets import _bullet_highlight
 from sase.ace.tui.widgets._bullet_highlight import (
     _bullet_dash_color,
-    _bullet_dash_spans,
+    bullet_dash_spans,
 )
 from sase.ace.tui.widgets._jinja_highlight import (
     _MAX_OVERLAY_BYTES,
@@ -45,7 +45,7 @@ def _highlight_names(text_area: PromptTextArea) -> list[str]:
     ],
 )
 def test_bullet_dash_contract(text: str, expected_dashes: int) -> None:
-    spans = _bullet_dash_spans(text)
+    spans = bullet_dash_spans(text)
 
     assert len(spans) == expected_dashes
     # Every reported span covers exactly one dash character.
@@ -55,7 +55,7 @@ def test_bullet_dash_contract(text: str, expected_dashes: int) -> None:
 def test_bullet_dash_only_spans_the_dash_not_indent_or_space() -> None:
     text = "  - buy milk"
 
-    ((start, end),) = _bullet_dash_spans(text)
+    ((start, end),) = bullet_dash_spans(text)
 
     assert (start, end) == (2, 3)
     assert text[start:end] == "-"
@@ -63,17 +63,17 @@ def test_bullet_dash_only_spans_the_dash_not_indent_or_space() -> None:
 
 def test_bullet_dash_fast_path_and_overlay_ceilings() -> None:
     with patch.object(_bullet_highlight, "_scan_bullet_dash_spans") as scan:
-        assert _bullet_dash_spans("no bullet dashes here at all") == ()
+        assert bullet_dash_spans("no bullet dashes here at all") == ()
     scan.assert_not_called()
 
     oversized_bytes = "é" * (_MAX_OVERLAY_BYTES // 2 + 1) + "\n- late bullet"
     oversized_lines = "- b\n" * (_MAX_OVERLAY_LINES + 2)
-    assert _bullet_dash_spans(oversized_bytes) == ()
-    assert _bullet_dash_spans(oversized_lines) == ()
+    assert bullet_dash_spans(oversized_bytes) == ()
+    assert bullet_dash_spans(oversized_lines) == ()
 
 
 def test_bullet_dash_empty_prompt() -> None:
-    assert _bullet_dash_spans("") == ()
+    assert bullet_dash_spans("") == ()
 
 
 @pytest.mark.parametrize(

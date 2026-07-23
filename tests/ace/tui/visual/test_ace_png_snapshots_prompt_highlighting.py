@@ -62,7 +62,7 @@ async def test_prompt_todo_restored_png_snapshot(
         await page.expect_state("tab", "changespecs")
         bar = await mount_prompt_bar(page, TODO_RESTORED_PROMPT)
 
-        assert "TODO 5" in str(bar.border_title)
+        assert "TODO 4" in str(bar.border_title)
         assert bar.active_text_area().cursor_location[0] == 32
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 
@@ -80,11 +80,11 @@ async def test_prompt_todo_stack_png_snapshot(
         await page.expect_state("tab", "changespecs")
         bar = await mount_prompt_bar(page, TODO_HIGHLIGHT_STACK)
 
-        assert "TODO 3" in str(bar.border_title)
+        assert "TODO 2" in str(bar.border_title)
         assert bar._stack.selected_index == 1
         assert (
             bar.query_one(".prompt-pane.inactive", PromptTextArea).todo_annotation_count
-            == 2
+            == 1
         )
         ace_png_visual.assert_page_png(
             page,

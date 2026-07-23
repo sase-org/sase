@@ -46,7 +46,7 @@ _BULLET_DASH_FOREGROUND_LIFT = 0.30
 _BULLET_DASH_FALLBACK_PRIMARY = "#205EA6"
 
 
-def _bullet_dash_spans(text: str) -> tuple[tuple[int, int], ...]:
+def bullet_dash_spans(text: str) -> tuple[tuple[int, int], ...]:
     """Return character offsets of leading ``- `` bullet dashes in *text*.
 
     Offsets are Python character offsets. ``PromptTextArea`` converts them to
@@ -115,7 +115,7 @@ class BulletHighlightMixin(_MixinBase):
 
     def _build_highlight_map(self) -> None:
         super()._build_highlight_map()
-        for start, end in _bullet_dash_spans(self.text):
+        for start, end in bullet_dash_spans(self.text):
             self._append_highlight_span(start, end, "bullet.dash")
 
     def _register_bullet_text_area_theme(

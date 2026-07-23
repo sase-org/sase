@@ -57,10 +57,36 @@ def _contrast_ratio(foreground: Color, background: Color) -> float:
         ("preTODO TODOS TODO2 todo TODO", ("TODO",)),
         ("TODO: first TODO(owner): second", ("TODO:", "TODO(owner):")),
         ('A quoted "TODO" remains ordinary.', ("TODO",)),
-        ("`TODO: literal`\n```\nTODO(dev): fenced\n```", ("TODO:", "TODO(dev):")),
     ],
 )
 def test_todo_annotation_contract(
+    text: str,
+    expected_headers: tuple[str, ...],
+) -> None:
+    spans = _todo_annotation_spans(text)
+
+    assert tuple(text[span.header_start : span.header_end] for span in spans) == (
+        expected_headers
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_headers"),
+    [
+        ("`TODO: literal` TODO: real", ("TODO:",)),
+        ("``TODO(owner): literal`` TODO after", ("TODO",)),
+        (
+            "TODO: before\n```\nTODO(dev): fenced\n```\nTODO(owner): after",
+            ("TODO:", "TODO(owner):"),
+        ),
+        (
+            "TODO: before\n~~~text\nTODO(dev): fenced\n~~~\nTODO(owner): after",
+            ("TODO:", "TODO(owner):"),
+        ),
+        ("TODO: before\n```text\nTODO(dev): live fenced", ("TODO:",)),
+    ],
+)
+def test_todo_annotations_ignore_inline_and_fenced_code_literals(
     text: str,
     expected_headers: tuple[str, ...],
 ) -> None:
@@ -101,10 +127,27 @@ def test_todo_count_includes_all_supported_header_forms() -> None:
     )
 
 
+def test_todo_count_omits_code_literals_without_losing_real_markers() -> None:
+    text = (
+        "TODO: real\n"
+        "`TODO inline`\n"
+        "~~~text\n"
+        "TODO(owner): fenced\n"
+        "~~~\n"
+        "TODO(owner): real"
+    )
+
+    assert _todo_highlight.todo_annotation_count(text) == 2
+
+
 def test_todo_annotation_fast_path_and_overlay_ceilings() -> None:
     with patch.object(_todo_highlight, "_scan_todo_annotation_spans") as scan:
         assert _todo_annotation_spans("ordinary lowercase todo") == ()
     scan.assert_not_called()
+
+    with patch.object(_todo_highlight, "code_literal_ranges") as literal_ranges:
+        assert len(_todo_annotation_spans("TODO: no delimiters")) == 1
+    literal_ranges.assert_not_called()
 
     oversized_bytes = "é" * (_MAX_OVERLAY_BYTES // 2 + 1) + " TODO"
     oversized_lines = "TODO\n" * (_MAX_OVERLAY_LINES + 2)
@@ -136,6 +179,20 @@ def test_todo_document_cache_reuses_and_invalidates() -> None:
         text_area.load_text("done")
         assert text_area.todo_annotation_count == 0
         assert scan.call_count == 2
+
+
+def test_todo_count_does_not_query_markdown_list_items() -> None:
+    text_area = PromptTextArea("- TODO: first\ncontinuation", language="markdown")
+
+    with patch.object(
+        text_area.document,
+        "query_syntax_tree",
+        wraps=text_area.document.query_syntax_tree,
+    ) as query:
+        assert text_area.todo_annotation_count == 1
+        assert text_area.todo_annotation_count == 1
+
+    query.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -208,6 +265,108 @@ async def test_todo_overlay_uses_utf8_byte_columns_and_coexists_with_syntax() ->
         assert names.index("xprompt.invocation") < names.index("todo.header")
         assert names.index("todo.header") < names.index("search.current")
         assert names.index("search.current") < names.index("yank.flash")
+
+
+async def test_todo_dash_item_extends_body_through_markdown_item_boundary() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        text_area = app.query_one(PromptTextArea)
+        text = (
+            "- TODO: confirm café\n"
+            "made updates.\n"
+            "  indented continuation 🚀\n"
+            "\n"
+            "  later paragraph\n"
+            "- ordinary sibling\n"
+            "unrelated prose"
+        )
+        text_area.load_text(text)
+        text_area._build_highlight_map()
+
+        (annotation,) = text_area._todo_annotations_for_document()
+        sibling_start = text.index("- ordinary sibling")
+        assert text[annotation.body_start : annotation.body_end] == (
+            " confirm café\n"
+            "made updates.\n"
+            "  indented continuation 🚀\n"
+            "\n"
+            "  later paragraph\n"
+        )
+        assert annotation.body_end == sibling_start
+
+        for row in (0, 1, 2, 4):
+            assert any(
+                name == "todo.body" for *_range, name in text_area._highlights[row]
+            )
+        for row in (5, 6):
+            assert not any(
+                name == "todo.body" for *_range, name in text_area._highlights[row]
+            )
+        assert (
+            0,
+            len("  indented continuation 🚀".encode()),
+            "todo.body",
+        ) in text_area._highlights[2]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "- prose TODO: same-line note\n  continuation stays plain",
+        "- TODO(owner): same-line note\n  continuation stays plain",
+        "- [ ] TODO: same-line note\n  continuation stays plain",
+        "unrelated TODO: same-line note\ncontinuation stays plain",
+    ],
+)
+def test_todo_multiline_extension_requires_exact_dash_item_starter(
+    text: str,
+) -> None:
+    text_area = PromptTextArea(text, language="markdown")
+
+    (annotation,) = text_area._todo_annotations_for_document()
+    line_end = text.index("\n")
+
+    assert annotation.body_end == line_end
+    assert text[annotation.body_start : annotation.body_end] == " same-line note"
+
+
+async def test_nested_todo_item_keeps_overlay_precedence_and_structural_dashes() -> (
+    None
+):
+    app = CompletionTestApp()
+    async with app.run_test():
+        text_area = app.query_one(PromptTextArea)
+        text = (
+            "- TODO: outer item\n"
+            "  - TODO: nested item\n"
+            "    nested detail\n"
+            "- ordinary sibling"
+        )
+        text_area.load_text(text)
+        nested_dash = text.index("- TODO: nested")
+        text_area._set_search_highlights(((nested_dash, nested_dash + 1),), 0)
+        text_area._yank_flash_span = (nested_dash, nested_dash + 1)
+        text_area._build_highlight_map()
+
+        nested_names = [name for *_range, name in text_area._highlights[1]]
+        last_body = max(
+            index for index, name in enumerate(nested_names) if name == "todo.body"
+        )
+        last_header = max(
+            index for index, name in enumerate(nested_names) if name == "todo.header"
+        )
+        last_bullet = max(
+            index for index, name in enumerate(nested_names) if name == "bullet.dash"
+        )
+        search = nested_names.index("search.current")
+        yank = nested_names.index("yank.flash")
+
+        assert last_body < last_header
+        assert last_body < last_bullet < search < yank
+        assert any(name == "todo.body" for *_range, name in text_area._highlights[2])
+        assert not any(
+            name == "todo.body" for *_range, name in text_area._highlights[3]
+        )
 
 
 async def test_todo_overlay_does_not_style_prose_after_a_bare_marker() -> None:

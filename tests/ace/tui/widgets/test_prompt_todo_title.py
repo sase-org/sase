@@ -42,7 +42,13 @@ def _compute_jinja_now(bar: PromptInputBar) -> None:
 
 
 async def test_todo_title_tracks_initial_offscreen_text_and_live_edits() -> None:
-    initial = "TODO: above viewport\n" + "ordinary line\n" * 30 + "finish here"
+    initial = (
+        "TODO: above viewport\n"
+        "`TODO: inline literal`\n"
+        "```text\n"
+        "TODO(owner): fenced literal\n"
+        "```\n" + "ordinary line\n" * 30 + "finish here"
+    )
     app = _PromptBarApp(initial)
 
     async with app.run_test(size=(80, 16)) as pilot:
@@ -53,7 +59,7 @@ async def test_todo_title_tracks_initial_offscreen_text_and_live_edits() -> None
         assert text_area.cursor_location[0] == text_area.document.line_count - 1
         assert "TODO 1" in _plain_title(bar)
 
-        text_area.load_text("done")
+        text_area.load_text("`TODO: done`\n~~~\nTODO(owner): fenced\n~~~")
         await pilot.pause()
         assert text_area.todo_annotation_count == 0
         assert not any(
@@ -63,7 +69,7 @@ async def test_todo_title_tracks_initial_offscreen_text_and_live_edits() -> None
         )
         assert "TODO" not in _plain_title(bar)
 
-        text_area.load_text("TODO(owner): restored")
+        text_area.load_text("TODO(owner): restored; `TODO: still literal`")
         await pilot.pause()
         assert text_area.todo_annotation_count == 1
         assert any(
@@ -75,7 +81,14 @@ async def test_todo_title_tracks_initial_offscreen_text_and_live_edits() -> None
 
 
 async def test_todo_title_aggregates_reorders_and_removes_panes() -> None:
-    app = _PromptBarApp("TODO: upper\n---\nTODO: lower and TODO(dev): second")
+    app = _PromptBarApp(
+        "TODO: upper; `TODO: inline literal`\n"
+        "---\n"
+        "TODO: lower and TODO(dev): second\n"
+        "~~~\n"
+        "TODO: fenced literal\n"
+        "~~~"
+    )
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
@@ -99,21 +112,33 @@ async def test_todo_title_updates_for_append_and_fresh_stash_restore_paths() -> 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        bar.restore_stashed_entries([("plain restored", ""), ("TODO: restored", "")])
+        bar.restore_stashed_entries(
+            [
+                ("plain restored with `TODO: literal`", ""),
+                ("TODO: restored with `TODO(owner): literal`", ""),
+            ]
+        )
         await pilot.pause()
         await pilot.pause()
 
         assert len(bar._stack) == 3
         assert "TODO 2" in _plain_title(bar)
-        assert bar.active_text() == "TODO: restored"
+        assert bar.active_text() == "TODO: restored with `TODO(owner): literal`"
 
-    fresh = _XPromptMarkdownApp("TODO: restored one\n---\nTODO(dev): restored two")
+    fresh = _XPromptMarkdownApp(
+        "TODO: restored one\n"
+        "```\n"
+        "TODO: fenced literal\n"
+        "```\n"
+        "---\n"
+        "TODO(dev): restored two with `TODO: literal`"
+    )
     async with fresh.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = fresh.query_one(PromptInputBar)
         assert len(bar._stack) == 2
         assert "TODO 2" in _plain_title(bar)
-        assert bar.active_text() == "TODO(dev): restored two"
+        assert bar.active_text() == ("TODO(dev): restored two with `TODO: literal`")
 
 
 async def test_todo_title_updates_through_history_and_editor_rebuilds() -> None:
@@ -123,13 +148,18 @@ async def test_todo_title_updates_through_history_and_editor_rebuilds() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
-        bar.update_active_pane("TODO: returned from the pane editor")
+        bar.update_active_pane("TODO: returned from the pane editor; `TODO: literal`")
         await pilot.pause()
         await pilot.pause()
         assert "TODO 1" in _plain_title(bar)
 
         bar.load_stack_from_xprompt_markdown(
-            "TODO(owner): returned from the whole-stack editor\n---\nplain second pane"
+            "TODO(owner): returned from the whole-stack editor\n"
+            "~~~text\n"
+            "TODO: fenced literal\n"
+            "~~~\n"
+            "---\n"
+            "plain second pane with `TODO: literal`"
         )
         await pilot.pause()
         await pilot.pause()
@@ -140,7 +170,7 @@ async def test_todo_title_updates_through_history_and_editor_rebuilds() -> None:
         assert bar.load_prompt_into_pane(
             target,
             target.id,
-            "TODO: history one and TODO(dev): history two",
+            "TODO: history one, `TODO: literal`, and TODO(dev): history two",
         )
         await pilot.pause()
         await pilot.pause()

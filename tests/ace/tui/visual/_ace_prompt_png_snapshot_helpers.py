@@ -110,12 +110,18 @@ TODO_RESTORED_PROMPT = (
     "TODO(release): confirm the rollback owner before the handoff\n"
     + "\n".join(
         f"Review note {index:02d}: preserve this restored drafting context."
-        for index in range(1, 25)
+        for index in range(1, 19)
     )
     + "\n\n"
     "## Remaining work\n"
-    "- [ ] TODO: verify the migration against a clean workspace\n"
-    "- [ ] TODO(ops): capture the final dashboard screenshot\n"
+    "- TODO: verify the migration and confirm reviewers have\n"
+    "made updates.\n"
+    "  Record the café rollout result for the release owner.\n"
+    "- Keep this ordinary sibling bullet outside the highlighted note\n"
+    "Keep `TODO: inline literal` rendered as code.\n"
+    "```text\n"
+    "TODO(owner): fenced literal\n"
+    "```\n"
     'A quoted "TODO" leaves this prose ordinary; TODO: style only this note.\n'
     "Lowercase todo stays ordinary, then write the final summary here."
 )
@@ -126,7 +132,7 @@ TODO_HIGHLIGHT_STACK = (
     "---\n"
     "# Active release note\n"
     "TODO: finish the customer-facing summary\n"
-    "The cursor stays at the end while the title reports all three annotations."
+    "The cursor stays at the end while the title reports both annotations."
 )
 
 _VISUAL_SKILL_ENTRIES = [
