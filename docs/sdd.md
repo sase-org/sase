@@ -214,20 +214,21 @@ phases:
 ```
 
 On Epic approval, SASE deterministically copies the top-level model to the epic plan bead and each phase's model and
-size to its phase bead. Small phases launch directly with `@small_phase_worker`. Medium phases use
-`@medium_phase_worker` and receive `#plan` so they plan before implementation. Large phases receive `#plan` and use
+size to its phase bead. Small and medium phases implement directly with `@small_phase_worker` and
+`@medium_phase_worker`, respectively. Only large phases receive `#plan`, after their work reference, and use
 `@large_phase_worker`. Small, medium, and large aliases fall back to `@cheaper`, `@default`, and `@smartest`
-respectively, while an explicit phase `model` is valid at every size and always wins over size-derived routing. The
-standalone `@cheapest` pool is available for explicit use but is not selected automatically. When the top-level model is
-omitted, the land agent uses `@epic_lander` below `bead.big_epic_phase_threshold` and `@big_epic_lander` at or above the
-threshold (default `5`). The normal role falls back to `@default`; the threshold-selected role falls back independently
-to provider-aware `@smartest`. An explicit top-level land model or direct role-alias override still wins. The approval
-preview and emitted launch prompt use these same rules. Routing counts every authored phase, including already-closed
-phases when an epic resumes, so the selected lander role stays stable throughout the epic.
+respectively, while an explicit phase `model` is valid at every size and always wins over size-derived routing without
+changing whether the phase receives `#plan`. The standalone `@cheapest` pool is available for explicit use but is not
+selected automatically. When the top-level model is omitted, the land agent uses `@epic_lander` below
+`bead.big_epic_phase_threshold` and `@big_epic_lander` at or above the threshold (default `5`). The normal role falls
+back to `@default`; the threshold-selected role falls back independently to provider-aware `@smartest`. An explicit
+top-level land model or direct role-alias override still wins. The approval preview and emitted launch prompt use these
+same rules. Routing counts every authored phase, including already-closed phases when an epic resumes, so the selected
+lander role stays stable throughout the epic.
 
-Choose `medium` when a phase is potentially a lot of work and merits its own plan file. Choose `large` when that phase
-plan may itself be large enough to deserve an epic tier. Use `small` for focused work that does not need a planning
-handoff.
+Choose `small` for focused work that can be implemented directly. Choose `medium` for substantial work that can still be
+implemented directly from its phase description. Choose `large` for work that needs a separate planning handoff and may
+itself justify an epic plan.
 
 ### Plan Frontmatter Schema and Validation
 

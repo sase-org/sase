@@ -37,6 +37,7 @@ def render_plan_preview(
     from sase.bead.work import (
         epic_land_model_directive_value,
         phase_model_directive_value,
+        phase_requires_plan,
     )
 
     phase_by_id = {phase.id: phase for phase in plan.phases}
@@ -45,7 +46,7 @@ def render_plan_preview(
         for phase_id in wave:
             phase = phase_by_id[phase_id]
             model = phase_model_directive_value(phase.model, size=phase.size)
-            plan_suffix = " · #plan" if phase.size in {"medium", "large"} else ""
+            plan_suffix = " · #plan" if phase_requires_plan(phase.size) else ""
             rendered_entries.append(
                 f"{phase_id} {phase.title} ({phase.size} · {model}{plan_suffix})"
             )

@@ -150,7 +150,7 @@ def test_model_alias_description_builtin_and_custom(
     )
     assert model_alias_description("phase_worker") is None
     assert model_alias_description("medium_phase_worker") == (
-        "Medium bead phase agents that plan before implementation."
+        "Medium bead phase agents that implement directly."
     )
     assert model_alias_description("smartest") == (
         "Highest-capability model used automatically by large phase agents."

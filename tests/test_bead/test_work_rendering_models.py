@@ -20,11 +20,11 @@ class TestModelDirective:
         [
             (None, "@small_phase_worker", False),
             (PhaseSize.SMALL, "@small_phase_worker", False),
-            (PhaseSize.MEDIUM, "@medium_phase_worker", True),
+            (PhaseSize.MEDIUM, "@medium_phase_worker", False),
             (PhaseSize.LARGE, "@large_phase_worker", True),
         ],
     )
-    def test_phase_size_controls_model_and_plan_first_prompt(
+    def test_phase_size_controls_model_and_planning_handoff(
         self,
         conn: sqlite3.Connection,
         size: PhaseSize | None,
@@ -49,8 +49,9 @@ class TestModelDirective:
     @pytest.mark.parametrize(
         ("size", "model", "expects_plan"),
         [
+            pytest.param(None, "claude/sonnet", False, id="legacy"),
             pytest.param(PhaseSize.SMALL, "claude/sonnet", False, id="small"),
-            pytest.param(PhaseSize.MEDIUM, "@coder", True, id="medium"),
+            pytest.param(PhaseSize.MEDIUM, "@coder", False, id="medium"),
             pytest.param(
                 PhaseSize.LARGE,
                 "codex/gpt-5.6-sol",
@@ -62,7 +63,7 @@ class TestModelDirective:
     def test_explicit_model_wins_for_every_phase_size(
         self,
         conn: sqlite3.Connection,
-        size: PhaseSize,
+        size: PhaseSize | None,
         model: str,
         expects_plan: bool,
     ) -> None:

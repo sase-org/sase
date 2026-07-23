@@ -905,8 +905,8 @@ Delegated launches do not use a separate "worker lane". Instead, each delegated 
   `@claude_coder`), falling back to `@coder` and then `@default`.
 - **`sase bead work` phase agents** without an explicit per-bead model use the alias matching their normalized size:
   `@small_phase_worker`, `@medium_phase_worker`, or `@large_phase_worker`. Their defaults are respectively `@cheaper`,
-  `@default`, and `@smartest`. Medium and large phases also receive `#plan`; an explicit per-bead model is accepted at
-  every size and always wins.
+  `@default`, and `@smartest`. Small and medium phases implement directly; only large phases receive `#plan`. An
+  explicit per-bead model is accepted at every size and always wins without changing the size-based planning policy.
 - **Epic land agents** without an explicit land model use `@epic_lander`, or `@big_epic_lander` when their authored
   phase count meets `bead.big_epic_phase_threshold` (default `5`). Normal landers fall back to `@default`; the
   threshold-selected alias falls back independently to provider-aware `@smartest`.

@@ -301,6 +301,11 @@ def phase_model_directive_value(
     return role_model_directive_value(alias_by_size[_phase_size(size)])
 
 
+def phase_requires_plan(size: PhaseSize | str | None) -> bool:
+    """Return whether a phase needs a separate planning handoff."""
+    return _phase_size(size) is PhaseSize.LARGE
+
+
 def render_multi_prompt(
     plan: EpicWorkPlan,
     work_phase_xprompt: Workflow,
@@ -370,7 +375,7 @@ def render_multi_prompt(
                 f"%w(bead={bead_id})" for bead_id in assignment.blocker_bead_ids
             )
             lines.append(f"#{work_phase_xprompt.name}:{assignment.bead_id}")
-            if _phase_size(assignment.size) in {PhaseSize.MEDIUM, PhaseSize.LARGE}:
+            if phase_requires_plan(assignment.size):
                 lines.append("#plan")
             segments.append("\n".join(lines))
 

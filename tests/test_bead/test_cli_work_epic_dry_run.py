@@ -189,9 +189,7 @@ def test_work_dry_run_relaunches_from_stored_phase_sizes(
     assert "%model:claude/sonnet" in by_bead[small.id]
     assert "#plan" not in by_bead[small.id].splitlines()
     assert "%model:@coder" in by_bead[medium.id]
-    assert (
-        by_bead[medium.id].rstrip().endswith(f"#bd/work_phase_bead:{medium.id}\n#plan")
-    )
+    assert "#plan" not in by_bead[medium.id].splitlines()
     assert "%model:codex/gpt-5.6-sol" in by_bead[large.id]
     assert by_bead[large.id].rstrip().endswith(f"#bd/work_phase_bead:{large.id}\n#plan")
 

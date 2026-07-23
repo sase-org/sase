@@ -107,7 +107,7 @@ ROLE_ALIAS_DESCRIPTIONS: dict[str, str] = {
         "Small bead phase agents that implement directly."
     ),
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME: (
-        "Medium bead phase agents that plan before implementation."
+        "Medium bead phase agents that implement directly."
     ),
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME: (
         "Large bead phase agents that plan before implementation."

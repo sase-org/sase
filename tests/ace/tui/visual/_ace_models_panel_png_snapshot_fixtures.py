@@ -130,7 +130,7 @@ def calm_views() -> list[AliasView]:
             "role",
             provider="claude",
             model="claude-fable-4-10",
-            description="Medium phases that plan before implementation.",
+            description="Medium phases that implement directly.",
         ),
         _view(
             "large_phase_worker",

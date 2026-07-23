@@ -376,23 +376,23 @@ Once an epic bead exists, the shared launch path:
    already-closed or currently delegated phases. Requiring both conditions prevents a phase that delegated to a child
    epic from releasing dependents merely because its original agent finished; the child epic must land and close the
    parent phase first. A failed or killed phase keeps dependents and the land agent parked until its agent name is
-   retried successfully and its bead closes. Small phases launch directly with `%model:@small_phase_worker`; medium
-   phases use `%model:@medium_phase_worker` and append `#plan` after their work reference; large phases likewise append
-   `#plan` and use `%model:@large_phase_worker`. A stored phase `model` always wins over the size-derived alias, and a
-   missing legacy size behaves as `small`. The land agent emits `%model:<value>` when the epic plan bead has a stored
-   `model`. Without one, it emits `%model:@epic_lander` below `bead.big_epic_phase_threshold` and
-   `%model:@big_epic_lander` at or above the threshold (default `5`), using the total authored phase count even when
-   resumed work has already-closed phases. Normal landers fall through `@epic_lander` to `@default`, while landers
-   selected by the threshold fall through `@big_epic_lander` to provider-aware `@smartest`. Small phases fall through
-   `@small_phase_worker` to the load-balanced `@cheaper` pool, medium phases fall through `@medium_phase_worker` to
-   `@default`, and large phases fall through `@large_phase_worker` to `@smartest`. The independent `@cheapest` pool is
-   available for explicit use but has no automatic consumer. Builtin aliases can be configured under
-   `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic segment carries bare `%auto`, so
-   submitted implementation and landing plans are auto-approved. An agent may author a tale or an epic as needed; the
-   plan's authored `tier` selects the corresponding automatic follow-up path. Each runner waits for its agent and bead
-   dependencies, prepares its workspace, then atomically claims its associated bead immediately before model execution.
-   The claim sets `status=in_progress` and assigns the runner name; parallel workers claim independently, and the land
-   runner claims the epic only after all phase waits. Each segment uses a force-reuse
+   retried successfully and its bead closes. Small and medium phases implement directly with
+   `%model:@small_phase_worker` and `%model:@medium_phase_worker`, respectively. Only large phases append `#plan` after
+   their work reference and use `%model:@large_phase_worker`. A stored phase `model` always wins over the size-derived
+   alias without changing whether the phase receives `#plan`, and a missing legacy size behaves as `small`. The land
+   agent emits `%model:<value>` when the epic plan bead has a stored `model`. Without one, it emits
+   `%model:@epic_lander` below `bead.big_epic_phase_threshold` and `%model:@big_epic_lander` at or above the threshold
+   (default `5`), using the total authored phase count even when resumed work has already-closed phases. Normal landers
+   fall through `@epic_lander` to `@default`, while landers selected by the threshold fall through `@big_epic_lander` to
+   provider-aware `@smartest`. Small phases fall through `@small_phase_worker` to the load-balanced `@cheaper` pool,
+   medium phases fall through `@medium_phase_worker` to `@default`, and large phases fall through `@large_phase_worker`
+   to `@smartest`. The independent `@cheapest` pool is available for explicit use but has no automatic consumer. Builtin
+   aliases can be configured under `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic
+   segment carries bare `%auto`, so submitted implementation and landing plans are auto-approved. An agent may author a
+   tale or an epic as needed; the plan's authored `tier` selects the corresponding automatic follow-up path. Each runner
+   waits for its agent and bead dependencies, prepares its workspace, then atomically claims its associated bead
+   immediately before model execution. The claim sets `status=in_progress` and assigns the runner name; parallel workers
+   claim independently, and the land runner claims the epic only after all phase waits. Each segment uses a force-reuse
    `%id(!<agent_name>, bead=<bead-id>)` form (with `clan=` on join segments), so re-running `sase bead work` after a
    killed or failed run wipes stale name owners before relaunch — the command is safe to retry.
 

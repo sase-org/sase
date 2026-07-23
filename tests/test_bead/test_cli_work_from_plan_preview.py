@@ -60,7 +60,7 @@ def test_plan_file_dry_run_is_pure_and_previews_waves(
     assert not result.archived_plan_path.exists()
     output = capsys.readouterr().out
     assert "core Build the core (small · @small_phase_worker)" in output
-    assert "cli Add the CLI (medium · @medium_phase_worker · #plan)" in output
+    assert "cli Add the CLI (medium · @medium_phase_worker)" in output
     assert "verify Verify the result (large · @large_phase_worker · #plan)" in output
     assert "Land    @epic_lander" in output
 
