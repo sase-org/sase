@@ -9,6 +9,7 @@ import sqlite3
 from pathlib import Path
 
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType, PhaseSize, Status
+from sase.core.rust import require_rust_binding
 
 _SCHEMA = """\
 CREATE TABLE IF NOT EXISTS issues (
@@ -134,6 +135,20 @@ def _migrate_add_size(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_relax_size_check(conn: sqlite3.Connection) -> None:
+    """Expand the legacy three-value phase-size constraint via Rust policy."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
+    ).fetchone()
+    create_table_sql = None if row is None else row["sql"]
+    needs_migration = require_rust_binding("bead_needs_size_check_relax_migration")
+    if not needs_migration(create_table_sql):
+        return
+
+    migration_sql = require_rust_binding("bead_size_check_relax_migration_sql")
+    conn.executescript(migration_sql())
+
+
 def _migrate_add_tier(conn: sqlite3.Connection) -> None:
     """Add plan-tier metadata to a pre-existing issues table."""
     columns = {
@@ -214,6 +229,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _migrate_add_tier(conn)
     _migrate_add_model(conn)
     _migrate_add_size(conn)
+    _migrate_relax_size_check(conn)
     conn.executescript(_SCHEMA)
     return conn
 
