@@ -30,7 +30,7 @@ from sase.agent.names import (
     reserve_registered_template_name,
     reserve_registered_template_names,
 )
-from sase.agent.names import _registry
+from sase.agent.names import _registry, _registry_store
 from sase.core.machine_hood_facade import MachineHoodIdentity
 
 from tests._agent_names_fixtures import make_agent as _make_agent
@@ -179,7 +179,7 @@ def test_registry_rebuild_collects_sharded_agent_and_tracks_day_dir(
 ) -> None:
     first = _make_sharded_agent(tmp_path, "proj", "20260613120000", "sharded")
     with patch.object(Path, "home", return_value=tmp_path):
-        paths = _registry._source_signature_paths()
+        paths = _registry_store._registry_source_signature_paths()
         assert first.parent in paths
         assert first not in paths
 
@@ -188,10 +188,10 @@ def test_registry_rebuild_collects_sharded_agent_and_tracks_day_dir(
         assert data["entries"]["sharded"]["workflow_dir"] == "ace-run"
         assert data["entries"]["sharded"]["raw_suffix"] == "20260613120000"
 
-        before = _registry._source_signature()
+        before = _registry_store._source_signature()
         time.sleep(0.01)
         _make_sharded_agent(tmp_path, "proj", "20260613120100", "sharded-later")
-        after = _registry._source_signature()
+        after = _registry_store._source_signature()
         assert after != before
 
 
@@ -296,7 +296,7 @@ def test_registry_rebuild_stays_under_sase_home(monkeypatch, tmp_path: Path) -> 
     assert _registry._registry_path() == isolated_sase_home / (
         "agent_name_registry.json"
     )
-    for path in _registry._source_signature_paths():
+    for path in _registry_store._registry_source_signature_paths():
         assert path == isolated_sase_home or isolated_sase_home in path.parents
         assert path != real_sase_home and real_sase_home not in path.parents
 

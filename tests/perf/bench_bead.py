@@ -424,6 +424,7 @@ def _seed_name_registry(count: int) -> None:
     floors the per-launch reserved-name lookup cost against registry size.
     """
     import sase.agent.names._registry as reg
+    from sase.agent.names import _registry_store
 
     entries = {
         f"benchreg{i}": {"reservation_kind": "planned", "name": f"benchreg{i}"}
@@ -431,7 +432,7 @@ def _seed_name_registry(count: int) -> None:
     }
     data = {
         "schema_version": reg.SCHEMA_VERSION,
-        "source_signature": reg._source_signature(),
+        "source_signature": _registry_store._source_signature(),
         "entries": entries,
     }
     path = reg._registry_path()

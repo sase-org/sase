@@ -9,37 +9,38 @@ from __future__ import annotations
 
 from collections.abc import Collection, Mapping, Sequence
 from contextlib import AbstractContextManager
-import json
 import os
-import tempfile
 from pathlib import Path
 from typing import Any, NoReturn
 
-from sase.agent.names import _registry_mutations
-from sase.agent.names._registry_mutations import RegistryMutationOperations
+from sase.agent.names import _registry_mutations, _registry_queries
 from sase.agent.names._registry_entries import (
     dotted_namespace_prefixes as _dotted_namespace_prefixes,
     entry_belongs_to_artifact as _entry_belongs_to_artifact,
     entry_has_other_owner as _entry_has_other_owner,
-    entry_owner_missing as _entry_owner_missing,
     owner_from_artifact_name as _owner_from_artifact_name,
 )
+from sase.agent.names._registry_mutations import RegistryMutationOperations
 from sase.agent.names._registry_scan import (
     collect_artifact_entries as _collect_artifact_entries,
     collect_dismissed_bundle_entries as _collect_dismissed_bundle_entries,
     collect_planned_reservation_entries as _collect_planned_reservation_entries,
-    source_signature_paths,
 )
-from sase.core.paths import sase_home
+from sase.agent.names._registry_store import (
+    INDEX_FILENAME,
+    SCHEMA_VERSION,
+    file_signature as _store_file_signature,
+    read_registry as _store_read_registry,
+    registry_data as _store_registry_data,
+    registry_file_is_stale as _store_registry_file_is_stale,
+    registry_path as _store_registry_path,
+    write_registry as _store_write_registry,
+)
 from sase.core.machine_hood_facade import (
     MachineHoodIdentity,
-    canonical_local_agent_name_key,
     local_agent_name_lookup_candidates,
     strip_local_agent_name,
 )
-
-SCHEMA_VERSION = 1
-INDEX_FILENAME = "agent_name_registry.json"
 
 _CACHE_PATH: Path | None = None
 _CACHE_SIGNATURE: tuple[int, int] | None = None
@@ -48,79 +49,48 @@ _CACHE_DATA: dict[str, Any] | None = None
 
 def _registry_path() -> Path:
     """Return the durable agent-name registry path."""
-    return sase_home() / INDEX_FILENAME
+    return _store_registry_path()
 
 
 def lookup_registered_name(name: str) -> dict[str, Any] | None:
     """Return registry owner metadata for *name*, if reserved."""
-    entries = load_name_registry()["entries"]
-    identity = MachineHoodIdentity.current()
-    for candidate in local_agent_name_lookup_candidates(name, identity):
-        entry = entries.get(candidate)
-        if isinstance(entry, dict):
-            return dict(entry)
-    return None
+    return _registry_queries.lookup_registered_name(
+        name, load_registry=load_name_registry
+    )
 
 
 def is_name_reserved(name: str) -> bool:
     """Return whether *name* is reserved by an existing agent."""
-    entries = load_name_registry()["entries"]
-    identity = MachineHoodIdentity.current()
-    return any(
-        candidate in entries
-        for candidate in local_agent_name_lookup_candidates(name, identity)
-    )
+    return _registry_queries.is_name_reserved(name, load_registry=load_name_registry)
 
 
 def get_reserved_agent_names() -> set[str]:
     """Return every name currently reserved by the registry."""
-    return set(load_name_registry()["entries"])
+    return _registry_queries.get_reserved_agent_names(load_registry=load_name_registry)
 
 
 def get_reserved_clan_names() -> set[str]:
     """Return every name owned by a clan container."""
-    return {
-        name
-        for name, entry in load_name_registry()["entries"].items()
-        if isinstance(entry, dict) and entry.get("container_kind") == "clan"
-    }
+    return _registry_queries.get_reserved_clan_names(load_registry=load_name_registry)
 
 
 def get_reserved_family_names() -> set[str]:
     """Return every name owned by a sequential family container."""
-    return {
-        name
-        for name, entry in load_name_registry()["entries"].items()
-        if isinstance(entry, dict) and entry.get("container_kind") == "family"
-    }
+    return _registry_queries.get_reserved_family_names(load_registry=load_name_registry)
 
 
 def get_reserved_agent_name_map() -> dict[str, str]:
     """Return ``{name: owner_path}`` for registered names with a known owner path."""
-    out: dict[str, str] = {}
-    for name, entry in load_name_registry()["entries"].items():
-        if not isinstance(entry, dict):
-            continue
-        owner_path = entry.get("artifacts_dir") or entry.get("bundle_path")
-        if isinstance(owner_path, str) and owner_path:
-            out[name] = owner_path
-    return out
+    return _registry_queries.get_reserved_agent_name_map(
+        load_registry=load_name_registry
+    )
 
 
 def lowest_name_suggestion(base: str) -> str:
     """Return the lowest available ``<base><N>`` suggestion."""
-    identity = MachineHoodIdentity.current()
-    visible_base = strip_local_agent_name(base, identity)
-    reserved = {
-        canonical_local_agent_name_key(name, identity)
-        for name in get_reserved_agent_names()
-    }
-    n = 1
-    while True:
-        candidate = f"{visible_base}{n}"
-        if canonical_local_agent_name_key(candidate, identity) not in reserved:
-            return candidate
-        n += 1
+    return _registry_queries.lowest_name_suggestion(
+        base, load_registry=load_name_registry
+    )
 
 
 def claim_registered_name(
@@ -391,41 +361,11 @@ def _set_cache(path: Path, data: dict[str, Any]) -> None:
 
 
 def _read_registry(path: Path) -> dict[str, Any] | None:
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    if data.get("schema_version") != SCHEMA_VERSION:
-        return None
-    entries = data.get("entries")
-    if not isinstance(entries, dict):
-        return None
-    return data
+    return _store_read_registry(path)
 
 
 def _write_registry(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path: Path | None = None
-    replaced = False
-    try:
-        fd, tmp_name = tempfile.mkstemp(
-            prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
-        )
-        tmp_path = Path(tmp_name)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, sort_keys=True)
-            f.write("\n")
-        os.replace(tmp_path, path)
-        replaced = True
-    finally:
-        if tmp_path is not None and not replaced:
-            try:
-                tmp_path.unlink()
-            except FileNotFoundError:
-                pass
+    _store_write_registry(path, data, replace_file=os.replace)
 
 
 def _save_entries(entries: dict[str, Any]) -> None:
@@ -437,45 +377,12 @@ def _save_entries(entries: dict[str, Any]) -> None:
 
 
 def _registry_data(entries: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "source_signature": _source_signature(),
-        "entries": dict(sorted(entries.items())),
-    }
+    return _store_registry_data(entries)
 
 
 def _registry_file_is_stale(data: dict[str, Any]) -> bool:
-    if data.get("source_signature") != _source_signature():
-        return True
-    entries = data.get("entries")
-    if not isinstance(entries, dict):
-        return True
-    for entry in entries.values():
-        if not isinstance(entry, dict):
-            return True
-        if _entry_owner_missing(entry):
-            return True
-    return False
-
-
-def _source_signature() -> dict[str, int]:
-    paths = _source_signature_paths()
-    count = 0
-    max_mtime_ns = 0
-    for path in paths:
-        try:
-            stat = path.stat()
-        except OSError:
-            continue
-        count += 1
-        max_mtime_ns = max(max_mtime_ns, stat.st_mtime_ns)
-    return {"count": count, "max_mtime_ns": max_mtime_ns}
-
-
-def _source_signature_paths() -> list[Path]:
-    return source_signature_paths()
+    return _store_registry_file_is_stale(data)
 
 
 def _file_signature(path: Path) -> tuple[int, int]:
-    stat = path.stat()
-    return (stat.st_mtime_ns, stat.st_size)
+    return _store_file_signature(path)
