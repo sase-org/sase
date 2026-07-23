@@ -34,6 +34,27 @@ from .config_backend import (
     plan_axe_entry_edit,
 )
 from .runner_pool import RunnerPool, SharedRunnerPool
+from .status_collector import collect_axe_status, collect_axe_status_snapshot
+from .status_models import (
+    AXE_STATUS_WIRE_SCHEMA_VERSION,
+    AxeDesiredStateRecord,
+    AxeLifecycleEvent,
+    AxeLumberjackObservation,
+    AxeLumberjackStatus,
+    AxeMaintenanceRecord,
+    AxeOrchestratorObservation,
+    AxeOrchestratorStatus,
+    AxeProcessObservation,
+    AxeRunnerOccupancy,
+    AxeStatusCollectionError,
+    AxeStatusIssue,
+    AxeStatusRequest,
+    AxeStatusSnapshot,
+    AxeStatusWireError,
+    classify_axe_status,
+    rehydrate_axe_status_snapshot,
+    serialize_axe_status_request,
+)
 from .state import (
     AxeMetrics,
     AxeStatus,
@@ -88,6 +109,27 @@ __all__ = [
     # Runner pool
     "RunnerPool",
     "SharedRunnerPool",
+    # Portable whole-system status
+    "AXE_STATUS_WIRE_SCHEMA_VERSION",
+    "AxeDesiredStateRecord",
+    "AxeLifecycleEvent",
+    "AxeLumberjackObservation",
+    "AxeLumberjackStatus",
+    "AxeMaintenanceRecord",
+    "AxeOrchestratorObservation",
+    "AxeOrchestratorStatus",
+    "AxeProcessObservation",
+    "AxeRunnerOccupancy",
+    "AxeStatusCollectionError",
+    "AxeStatusIssue",
+    "AxeStatusRequest",
+    "AxeStatusSnapshot",
+    "AxeStatusWireError",
+    "classify_axe_status",
+    "collect_axe_status",
+    "collect_axe_status_snapshot",
+    "rehydrate_axe_status_snapshot",
+    "serialize_axe_status_request",
     # State reading (for TUI)
     "AxeMetrics",
     "AxeStatus",

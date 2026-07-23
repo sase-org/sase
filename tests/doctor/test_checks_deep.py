@@ -5,6 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+from sase.axe.status_models import (
+    AxeLumberjackStatus,
+    AxeOrchestratorStatus,
+    AxeProcessObservation,
+    AxeRunnerOccupancy,
+    AxeStatusCollectionError,
+    AxeStatusIssue,
+    AxeStatusSnapshot,
+)
 from sase.doctor.checks_deep_agent_index import check_agent_index_verify
 from sase.doctor.checks_deep_axe import check_axe_state
 from sase.doctor.checks_deep_providers import check_provider_cli_versions
@@ -24,6 +33,69 @@ def _context(tmp_path: Path) -> DoctorContext:
         project=None,
         sase_home=tmp_path / ".sase",
         env={},
+    )
+
+
+def _axe_snapshot(
+    *,
+    state: str = "not_started",
+    health: str = "healthy",
+    summary: str = "AXE has not been started.",
+    lumberjacks: tuple[AxeLumberjackStatus, ...] = (),
+    issues: tuple[AxeStatusIssue, ...] = (),
+    collection_error: AxeStatusCollectionError | None = None,
+) -> AxeStatusSnapshot:
+    missing = AxeProcessObservation(pid=None, live=None)
+    return AxeStatusSnapshot(
+        schema_version=1,
+        generated_at="2026-07-23T12:00:00+00:00",
+        state=state,  # type: ignore[arg-type]
+        health=health,  # type: ignore[arg-type]
+        summary=summary,
+        exit_code=2 if health == "error" else (1 if health == "unhealthy" else 0),
+        desired_state=None,
+        orchestrator=AxeOrchestratorStatus(
+            state="stopped",
+            coherence="coherent",
+            live_pids=(),
+            lifecycle_lock_held=False,
+            lock_holder=missing,
+            orchestrator_pid_file=missing,
+            legacy_pid_file=missing,
+        ),
+        maintenance=None,
+        hook_runners=AxeRunnerOccupancy(current=0, maximum=3),
+        agent_runners=AxeRunnerOccupancy(current=0, maximum=3),
+        lumberjacks=lumberjacks,
+        latest_lifecycle_event=None,
+        issues=issues,
+        collection_error=collection_error,
+    )
+
+
+def _lumberjack_row(
+    *,
+    state: str,
+    errors: int = 0,
+    heartbeat_age: int | None = None,
+) -> AxeLumberjackStatus:
+    return AxeLumberjackStatus(
+        name="hooks",
+        state=state,  # type: ignore[arg-type]
+        stale_threshold_seconds=60,
+        configured=True,
+        interval_seconds=5,
+        configured_chops=("hook_checks",),
+        recorded_pid=123,
+        reported_state="running",
+        process_live=True,
+        started_at="2026-07-23T11:00:00+00:00",
+        start_age_seconds=3600,
+        heartbeat_at="2026-07-23T11:58:59+00:00",
+        heartbeat_age_seconds=heartbeat_age,
+        cycles_run=1,
+        errors_encountered=errors,
+        uptime_seconds=3600,
     )
 
 
@@ -94,30 +166,19 @@ def test_provider_cli_versions_reports_success(monkeypatch, tmp_path: Path) -> N
 
 def test_axe_state_ok_when_no_lumberjack_status_files(monkeypatch) -> None:
     state_dir = Path("/nonexistent/sase-test-axe-state")
+    snapshot = _axe_snapshot(
+        lumberjacks=(_lumberjack_row(state="not_reporting"),),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.collect_axe_status_snapshot",
+        lambda: snapshot,
+    )
     monkeypatch.setattr(
         "sase.doctor.checks_deep_axe.load_axe_config",
         lambda: SimpleNamespace(
-            lumberjacks={"hooks": object()},
-            max_hook_runners=3,
-            max_agent_runners=3,
             zombie_timeout_seconds=7200,
+            lumberjack_log_max_bytes=1024,
         ),
-    )
-    monkeypatch.setattr(
-        "sase.doctor.checks_deep_axe.read_lumberjack_status",
-        lambda _name: None,
-    )
-    monkeypatch.setattr(
-        "sase.doctor.checks_deep_axe.read_maintenance",
-        lambda: None,
-    )
-    monkeypatch.setattr(
-        "sase.doctor.checks_deep_axe.read_desired_state",
-        lambda: None,
-    )
-    monkeypatch.setattr(
-        "sase.doctor.checks_deep_axe.probe_orchestrator",
-        lambda **_kwargs: SimpleNamespace(running_pid=None),
     )
     monkeypatch.setattr("sase.axe.state.axe_state_dir", lambda: state_dir)
 
@@ -128,52 +189,39 @@ def test_axe_state_ok_when_no_lumberjack_status_files(monkeypatch) -> None:
 
 
 def test_axe_state_warns_on_stale_heartbeat(monkeypatch, tmp_path: Path) -> None:
+    issue = AxeStatusIssue(
+        code="lumberjack_stale_heartbeat",
+        severity="warning",
+        subject="hooks",
+        summary=(
+            "Configured lumberjack `hooks` has a stale heartbeat (61s; threshold 60s)."
+        ),
+        suggested_command="sase doctor --deep",
+    )
+    snapshot = _axe_snapshot(
+        state="degraded",
+        health="unhealthy",
+        summary="AXE is degraded and requires operator attention.",
+        lumberjacks=(_lumberjack_row(state="stale_heartbeat", heartbeat_age=61),),
+        issues=(issue,),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.collect_axe_status_snapshot",
+        lambda: snapshot,
+    )
     monkeypatch.setattr(
         "sase.doctor.checks_deep_axe.load_axe_config",
         lambda: SimpleNamespace(
-            lumberjacks={"hooks": object()},
-            max_hook_runners=3,
-            max_agent_runners=3,
             zombie_timeout_seconds=7200,
             lumberjack_log_max_bytes=1024,
         ),
-    )
-    monkeypatch.setattr(
-        "sase.doctor.checks_deep_axe.read_lumberjack_status",
-        lambda _name: SimpleNamespace(
-            pid=123,
-            started_at="2000-01-01T00:00:00+00:00",
-            status="running",
-            interval=5,
-            chops=["hook_checks"],
-            last_cycle="2000-01-01T00:00:00+00:00",
-            cycles_run=1,
-            errors_encountered=0,
-            uptime_seconds=1,
-        ),
-    )
-    monkeypatch.setattr(
-        "sase.doctor.checks_deep_axe.is_process_running",
-        lambda _pid: True,
-    )
-    monkeypatch.setattr(
-        "sase.doctor.checks_deep_axe.read_maintenance",
-        lambda: None,
-    )
-    monkeypatch.setattr(
-        "sase.doctor.checks_deep_axe.read_desired_state",
-        lambda: None,
-    )
-    monkeypatch.setattr(
-        "sase.doctor.checks_deep_axe.probe_orchestrator",
-        lambda **_kwargs: SimpleNamespace(running_pid=456),
     )
     monkeypatch.setattr("sase.axe.state.axe_state_dir", lambda: tmp_path)
 
     check = check_axe_state()
 
     assert check.status == "WARN"
-    assert any("heartbeat is stale" in detail for detail in check.details)
+    assert any("stale heartbeat" in detail for detail in check.details)
     assert check.data["lumberjacks"][0]["heartbeat_stale"] is True
 
 
@@ -186,26 +234,15 @@ def test_axe_state_warns_on_pinned_logs_and_orphan_temps(
     (logs_dir / "axe.log").write_bytes(b"0123456789")
     (logs_dir / ".axe.log.abcd.tmp").write_bytes(b"orphan")
     monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.collect_axe_status_snapshot",
+        lambda: _axe_snapshot(state="running", summary="AXE is running and healthy."),
+    )
+    monkeypatch.setattr(
         "sase.doctor.checks_deep_axe.load_axe_config",
         lambda: SimpleNamespace(
-            lumberjacks={},
-            max_hook_runners=3,
-            max_agent_runners=3,
             zombie_timeout_seconds=7200,
             lumberjack_log_max_bytes=10,
         ),
-    )
-    monkeypatch.setattr(
-        "sase.doctor.checks_deep_axe.read_maintenance",
-        lambda: None,
-    )
-    monkeypatch.setattr(
-        "sase.doctor.checks_deep_axe.read_desired_state",
-        lambda: None,
-    )
-    monkeypatch.setattr(
-        "sase.doctor.checks_deep_axe.probe_orchestrator",
-        lambda **_kwargs: SimpleNamespace(running_pid=456),
     )
     monkeypatch.setattr("sase.axe.state.axe_state_dir", lambda: tmp_path)
     monkeypatch.setattr("sase.doctor.checks_deep_axe._ORPHAN_TEMP_WARN_COUNT", 1)
@@ -217,6 +254,69 @@ def test_axe_state_warns_on_pinned_logs_and_orphan_temps(
     assert any("orphan log-rotation temp litter" in detail for detail in check.details)
     assert check.data["pinned_logs"] == (str(logs_dir / "axe.log"),)
     assert check.data["orphan_log_temp_count"] == 1
+
+
+def test_axe_state_maps_collection_error_to_error(monkeypatch, tmp_path: Path) -> None:
+    collection_error = AxeStatusCollectionError(
+        code="config_read_failed",
+        message="broken config",
+    )
+    issue = AxeStatusIssue(
+        code="collection_error",
+        severity="error",
+        subject="collection",
+        summary="AXE status collection failed [config_read_failed]: broken config",
+        suggested_command="sase doctor --deep",
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.collect_axe_status_snapshot",
+        lambda: _axe_snapshot(
+            state="error",
+            health="error",
+            summary="AXE status collection failed: broken config",
+            issues=(issue,),
+            collection_error=collection_error,
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.load_axe_config",
+        lambda: (_ for _ in ()).throw(RuntimeError("broken config")),
+    )
+    monkeypatch.setattr("sase.axe.state.axe_state_dir", lambda: tmp_path)
+
+    check = check_axe_state()
+
+    assert check.status == "ERROR"
+    assert check.data["health"] == "error"
+    assert check.data["collection_error"]["code"] == "config_read_failed"
+
+
+def test_axe_state_keeps_historical_errors_as_deep_only_warning(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.collect_axe_status_snapshot",
+        lambda: _axe_snapshot(
+            state="running",
+            summary="AXE is running and healthy.",
+            lumberjacks=(_lumberjack_row(state="running", errors=3),),
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_axe.load_axe_config",
+        lambda: SimpleNamespace(
+            zombie_timeout_seconds=7200,
+            lumberjack_log_max_bytes=1024,
+        ),
+    )
+    monkeypatch.setattr("sase.axe.state.axe_state_dir", lambda: tmp_path)
+
+    check = check_axe_state()
+
+    assert check.status == "WARN"
+    assert check.data["health"] == "healthy"
+    assert any("cumulative historical" in detail for detail in check.details)
 
 
 def test_xprompt_lsp_ok_when_env_override_resolves(monkeypatch, tmp_path: Path) -> None:
