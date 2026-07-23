@@ -19,7 +19,10 @@ from sase.axe.run_agent_exec_plan import (
     agent_name_for_suffix,
     record_workflow_metadata,
 )
-from sase.axe.run_agent_exec_plan_artifacts import get_embedded_workflow_refs
+from sase.axe.run_agent_exec_plan_artifacts import (
+    get_embedded_workflow_refs,
+    store_followup_prompt_artifact,
+)
 from sase.axe.run_agent_exec_plan_sdd import (
     build_saved_plan_ref,
     commit_sdd_files_for_exec_plan,
@@ -49,6 +52,7 @@ logger = logging.getLogger(__name__)
 
 _EPIC_ID_LINE = re.compile(r"^Epic:\s+(\S+)\s*$")
 _EPIC_OUTPUT_TAIL_LINES = 40
+_store_followup_prompt_artifact = store_followup_prompt_artifact
 
 
 def _accepted_plan_action_for_meta(plan_result: Any) -> str:
@@ -645,6 +649,11 @@ def handle_accepted_plan(
         f"Implement it now.{coder_extra}\n{embedded_refs}"
     )
     _write_followup_effort_meta(state, state.current_prompt)
+    _store_followup_prompt_artifact(
+        state.current_artifacts_dir,
+        state.current_prompt,
+        label="Full coder prompt",
+    )
 
     # A ``/sase_questions`` interruption from this follow-up phase must rebuild
     # from the exact code prompt (with its resolved ``%model`` directive), not

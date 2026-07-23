@@ -40,6 +40,10 @@ class _FakeAgent:
     project_file: str = "/tmp/projects/proj/proj.sase"
     is_project_agent: bool = False
     agent_type: AgentType = AgentType.RUNNING
+    agent_family: str | None = None
+    agent_family_parallel: bool = False
+    role_suffix: str | None = None
+    phase_bead_id: str | None = None
 
     @property
     def identity(self) -> AgentIdentity:
@@ -282,6 +286,29 @@ def test_bulk_kill_and_edit_one_mark_uses_marked_flow() -> None:
     _confirm(app)
 
     assert app.edit_calls[0]["prompts"] == ["Just do it"]
+
+
+def test_bulk_kill_and_edit_rewrites_exact_marked_family_member() -> None:
+    family_member = _FakeAgent(
+        cl_name="family",
+        raw_suffix="20260723120000",
+        raw_prompt="Implement the plan",
+        agent_name="sase-8u.4.2--code",
+        agent_family="sase-8u.4.2",
+        role_suffix="--code",
+        phase_bead_id="sase-8u.4.2",
+        status="DONE",
+        pid=None,
+    )
+    app = _FakeBulkEditApp([family_member])
+    _mark_in_order(app, family_member)
+
+    app._bulk_kill_marked_agents_and_edit()
+    _confirm(app)
+
+    assert app.edit_calls[0]["prompts"] == [
+        "%id(!code, family=sase-8u.4.2, bead=sase-8u.4.2)\nImplement the plan"
+    ]
 
 
 def test_bulk_kill_and_edit_does_not_split_embedded_separator() -> None:

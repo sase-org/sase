@@ -24,6 +24,7 @@ from sase.agent.launch_validation import (
     rewrite_force_reuse_name_directives,
     validate_user_agent_name,
     validate_launch_name_requests,
+    wipe_names_for_forced_reuse,
 )
 from sase.agent.launch_validation import (
     _AgentNameClanCollisionError as AgentNameClanCollisionError,
@@ -123,6 +124,48 @@ def test_collision_validation_preserves_family_container(tmp_path: Path) -> None
 def test_forced_reuse_requires_confirmation_on_non_tui_surfaces() -> None:
     with pytest.raises(AgentNameReuseConfirmationRequiredError, match="confirmation"):
         validate_launch_name_requests(["%id:!foo\nDo work"])
+
+
+def test_forced_family_attach_requires_confirmation_and_derives_exact_owner() -> None:
+    prompt = "%id(!code, family=foo)\nDo work"
+
+    with pytest.raises(AgentNameReuseConfirmationRequiredError, match="foo--code"):
+        validate_launch_name_requests([prompt])
+
+    preflight_launch_name_requests([prompt], allow_force_reuse=True)
+    assert force_reuse_owner_names([prompt]) == ["foo--code"]
+    assert rewrite_force_reuse_name_directives(prompt) == (
+        "%id(code, family=foo)\nDo work"
+    )
+
+
+def test_forced_family_attach_does_not_relax_direct_family_shaped_names() -> None:
+    preflight_launch_name_requests(
+        ["%id(!code, family=foo)\nDo work"],
+        allow_force_reuse=True,
+    )
+    with pytest.raises(AgentNameSyntaxError, match="foo--code"):
+        preflight_launch_name_requests(
+            ["%id:!foo--code\nDo work"],
+            allow_force_reuse=True,
+        )
+
+
+def test_forced_reuse_wipe_result_errors_abort_launch_cleanup() -> None:
+    from sase.agent.names import AgentNameWipeResult
+
+    with (
+        patch(
+            "sase.agent.names.wipe_agent_name_for_reuse",
+            return_value=AgentNameWipeResult(
+                target_name="foo--code",
+                found=True,
+                errors=("artifact removal failed",),
+            ),
+        ),
+        pytest.raises(RuntimeError, match="artifact removal failed"),
+    ):
+        wipe_names_for_forced_reuse(["foo--code"])
 
 
 def test_validation_loads_reserved_name_set_once_for_many_names(

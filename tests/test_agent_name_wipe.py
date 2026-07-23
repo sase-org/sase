@@ -328,6 +328,59 @@ def test_wipe_family_member_finds_day_sharded_handoff_and_bundle(
         assert "unrelated" in get_reserved_agent_names()
 
 
+def test_wipe_code_member_preserves_plan_member_and_family_container(
+    tmp_path: Path,
+) -> None:
+    family_name = "epic.phase"
+    plan_name = f"{family_name}--plan"
+    code_name = f"{family_name}--code"
+    family_meta = {
+        "agent_family": family_name,
+        "agent_family_parallel": False,
+    }
+    plan = _artifact(
+        tmp_path,
+        "20260723120000",
+        plan_name,
+        done=True,
+        meta=family_meta,
+    )
+    code = _artifact(
+        tmp_path,
+        "20260723120100",
+        code_name,
+        done=True,
+        meta={**family_meta, "parent_timestamp": plan.name},
+    )
+    descendant = _bundle(
+        tmp_path,
+        "20260723120200",
+        f"{family_name}--code-review",
+        parent_timestamp=code.name,
+        **family_meta,
+    )
+    sibling = _artifact(
+        tmp_path,
+        "20260723120300",
+        f"{family_name}--reviewer",
+        done=True,
+        meta=family_meta,
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        result = wipe_agent_name_for_reuse(code_name)
+
+        assert set(result.artifact_dirs_removed) == {str(code)}
+        assert str(descendant) in result.bundle_paths_removed
+        assert plan.exists()
+        assert sibling.exists()
+        assert {family_name, plan_name, f"{family_name}--reviewer"} <= (
+            get_reserved_agent_names()
+        )
+        assert code_name not in get_reserved_agent_names()
+
+
 @pytest.mark.parametrize(
     ("container_kind", "container_name", "member_names", "container_meta"),
     [

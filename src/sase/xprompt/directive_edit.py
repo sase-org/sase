@@ -164,6 +164,45 @@ def rewrite_prompt_clan_member_name(
     return _set_prompt_directive(rewritten, {"id"}, replacement)
 
 
+def rewrite_prompt_family_member_name(
+    prompt: str,
+    family_name: str,
+    role_suffix: str,
+    *,
+    force_reuse: bool = False,
+    bead_id: str | None = None,
+) -> str:
+    """Rewrite a prompt as an exact serial-family attachment.
+
+    Existing ``bead=`` metadata wins over *bead_id*. Clan/tribe membership
+    syntax is intentionally dropped: the family resolver restores inherited
+    clan and tribe context from the authoritative parent.
+    """
+    from sase.plan_chain import agent_family_suffix_token, canonical_plan_chain_suffix
+    from sase.xprompt.directives import extract_prompt_directives
+
+    canonical_suffix = canonical_plan_chain_suffix(role_suffix)
+    suffix = agent_family_suffix_token(canonical_suffix or role_suffix)
+    if not family_name or not suffix:
+        raise ValueError("Cannot rewrite a family member without a family and suffix.")
+
+    _, directives = extract_prompt_directives(prompt)
+    effective_bead = directives.bead_id or bead_id
+    member_id = f"!{suffix}" if force_reuse else suffix
+    replacement_parts = [
+        _format_wait_arg(member_id),
+        f"family={_format_wait_arg(family_name)}",
+    ]
+    if effective_bead:
+        replacement_parts.append(f"bead={_format_wait_arg(effective_bead)}")
+    replacement = f"%id({', '.join(replacement_parts)})"
+
+    rewritten = prompt
+    if directives.clan_declared:
+        rewritten = _set_prompt_directive(rewritten, {"clan"}, None)
+    return _set_prompt_directive(rewritten, {"id"}, replacement)
+
+
 def set_prompt_tribe(prompt: str, tribe: str | None) -> str:
     """Add, replace, or remove the ``tribe=`` keyword on ``%id``."""
     if _prompt_has_effective_clan(prompt):

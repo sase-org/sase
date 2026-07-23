@@ -62,6 +62,10 @@ def force_name_reuse_in_prompt(
 def prepare_kill_and_edit_prompt(
     raw_prompt: str,
     agent_name: str | None,
+    *,
+    family_name: str | None = None,
+    role_suffix: str | None = None,
+    phase_bead_id: str | None = None,
 ) -> str:
     """Return the exact editable prompt for a kill-and-edit relaunch.
 
@@ -69,15 +73,25 @@ def prepare_kill_and_edit_prompt(
     aliases, templates, and already-forced directives cannot drift between
     the single- and multi-pane workflows.
     """
-    from sase.plan_chain import AGENT_FAMILY_SEPARATOR, agent_family_base
+    if family_name and role_suffix:
+        from sase.xprompt.directive_edit import rewrite_prompt_family_member_name
 
-    # Only canonical ``--`` family phases normalize to their family base. A
-    # clan member lives in a ``<clan>.<suffix>`` hood, and its dotted suffix is
-    # NOT a family phase: ``agent_family_base`` would misread it as one (e.g.
-    # ``sase-8k.2`` -> ``sase-8k``), forcing reuse of the bare clan name and
-    # crashing ``rewrite_prompt_clan_member_name``. Preserving the full clan
-    # member name lets forced reuse target the actual agent.
+        return rewrite_prompt_family_member_name(
+            raw_prompt,
+            prompt_facing_agent_name(family_name),
+            role_suffix,
+            force_reuse=True,
+            bead_id=phase_bead_id,
+        )
+
+    # A clan member lives in a ``<clan>.<suffix>`` hood. Preserve that full
+    # name so forced reuse targets the real member rather than its clan.
     replacement_name = prompt_facing_agent_name(agent_name) if agent_name else None
-    if replacement_name and AGENT_FAMILY_SEPARATOR in replacement_name:
-        replacement_name = agent_family_base(replacement_name) or replacement_name
+    if replacement_name:
+        from sase.plan_chain import AGENT_FAMILY_SEPARATOR, agent_family_base
+
+        # Legacy callers without family metadata retain the old base-name
+        # behavior. Real family rows take the explicit branch above.
+        if AGENT_FAMILY_SEPARATOR in replacement_name:
+            replacement_name = agent_family_base(replacement_name) or replacement_name
     return force_name_reuse_in_prompt(raw_prompt, replacement_name=replacement_name)

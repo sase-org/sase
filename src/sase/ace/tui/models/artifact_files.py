@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -151,11 +153,154 @@ def get_raw_xprompt_content(agent: Agent) -> str | None:
     Returns:
         Raw xprompt content string, or None if not available.
     """
-    artifacts_dir = get_artifacts_dir(agent)
+    try:
+        artifacts_dir = agent.get_artifacts_dir()
+    except AttributeError:
+        return None
     if artifacts_dir is None:
         return None
     raw_path = os.path.join(artifacts_dir, "raw_xprompt.md")
     return get_global_cache().read_text(raw_path)
+
+
+def get_restartable_prompt_content(
+    agent: Agent,
+    agents: Sequence[Agent] = (),
+) -> str | None:
+    """Return a complete prompt suitable for restarting *agent*.
+
+    ``raw_xprompt.md`` is authoritative. Historical plan-chain members may
+    lack it, so their cached detail-panel ``*_prompt.md`` selection is used as
+    a body and any consumed launch context is reconstructed from already-loaded
+    row metadata and ancestor artifacts.
+
+    This helper performs filesystem work and must be called off the Textual
+    message pump.
+    """
+    raw_prompt = agent.get_raw_xprompt_content()
+    if raw_prompt is not None:
+        return raw_prompt
+
+    try:
+        artifacts_dir = agent.get_artifacts_dir()
+    except AttributeError:
+        return None
+    if artifacts_dir is None:
+        return None
+    cache = get_global_cache()
+    selected = cache.select_prompt_file(
+        artifacts_dir,
+        is_workflow_child=agent.is_workflow_child,
+        step_name=agent.step_name,
+    )
+    if selected is None:
+        return None
+    body = cache.read_text(selected)
+    if body is None:
+        return None
+
+    from sase.xprompt import extract_vcs_workflow_tag, find_vcs_workflow_tag
+
+    existing_vcs = extract_vcs_workflow_tag(body) or find_vcs_workflow_tag(body)
+    vcs_tag = existing_vcs or _restart_vcs_tag(agent, agents)
+
+    prefixes: list[str] = []
+    if not _has_model_directive(body):
+        model_directive = _restart_model_directive(agent)
+        if model_directive:
+            prefixes.append(model_directive)
+    if existing_vcs is None and vcs_tag:
+        prefixes.append(vcs_tag.strip())
+
+    rebuilt = "\n".join([*prefixes, body]) if prefixes else body
+    rollover_refs = _restart_rollover_refs(agent, agents, vcs_tag)
+    if rollover_refs and rollover_refs.strip() not in rebuilt:
+        rebuilt = f"{rebuilt.rstrip()}\n{rollover_refs.strip()}\n"
+    return rebuilt
+
+
+def _has_model_directive(prompt: str) -> bool:
+    try:
+        from sase.xprompt.directives import has_model_directive
+
+        return has_model_directive(prompt)
+    except Exception:
+        return False
+
+
+def _restart_model_directive(agent: Agent) -> str:
+    model = (agent.model or "").strip()
+    if not model:
+        return ""
+
+    from sase.xprompt.effort import split_model_effort
+
+    model, embedded_effort = split_model_effort(model)
+    provider = (agent.llm_provider or "").strip()
+    if provider and "/" not in model:
+        model = f"{provider}/{model}"
+    effort = (agent.reasoning_effort or embedded_effort or "").strip()
+    if effort:
+        model = f"{model}@{effort}"
+
+    if any(char.isspace() or char in ",()=" for char in model):
+        return f"%model({json.dumps(model)})"
+    return f"%model:{model}"
+
+
+def _restart_vcs_tag(agent: Agent, agents: Sequence[Agent]) -> str | None:
+    try:
+        from sase.ace.tui.actions.agents._fork_scope import resolve_vcs_tag
+
+        prompt_name = agent.presented_agent_name or agent.agent_name or agent.cl_name
+        return resolve_vcs_tag(agent, prompt_name, agents)
+    except Exception:
+        return None
+
+
+def _restart_rollover_refs(
+    agent: Agent,
+    agents: Sequence[Agent],
+    vcs_tag: str | None,
+) -> str:
+    from sase.axe.run_agent_exec_plan_artifacts import (
+        embedded_workflow_refs_from_metadata,
+    )
+
+    cache = get_global_cache()
+    for candidate in _agent_and_ancestors(agent, agents):
+        artifacts_dir = get_artifacts_dir(candidate)
+        if artifacts_dir is None:
+            continue
+        metadata = cache.read_json(
+            os.path.join(artifacts_dir, "embedded_workflows.json")
+        )
+        refs = embedded_workflow_refs_from_metadata(metadata, vcs_tag)
+        if refs:
+            return refs
+    return ""
+
+
+def _agent_and_ancestors(
+    agent: Agent,
+    agents: Sequence[Agent],
+) -> list[Agent]:
+    by_timestamp = {
+        candidate.raw_suffix: candidate
+        for candidate in agents
+        if candidate.raw_suffix is not None
+    }
+    result = [agent]
+    seen = {agent.identity}
+    current = agent
+    while current.parent_timestamp:
+        parent = by_timestamp.get(current.parent_timestamp)
+        if parent is None or parent.identity in seen:
+            break
+        result.append(parent)
+        seen.add(parent.identity)
+        current = parent
+    return result
 
 
 def get_live_reply_content(agent: Agent) -> str | None:

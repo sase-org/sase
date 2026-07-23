@@ -39,6 +39,10 @@ class _Agent:
     status: str = "DONE"
     pid: int | None = None
     workspace_num: int | None = None
+    agent_family: str | None = None
+    agent_family_parallel: bool = False
+    role_suffix: str | None = None
+    phase_bead_id: str | None = None
 
     def get_raw_xprompt_content(self) -> str | None:
         return self.raw_prompt
@@ -273,6 +277,61 @@ def test_prepare_kill_and_edit_prompt_contract(
     assert prepare_kill_and_edit_prompt(raw_prompt, agent_name) == expected
 
 
+@pytest.mark.parametrize(
+    ("raw_prompt", "kwargs", "expected"),
+    [
+        (
+            "%id:sase-8u.4.2\n%auto\nDo work",
+            {
+                "agent_name": "sase-8u.4.2--code",
+                "family_name": "sase-8u.4.2",
+                "role_suffix": "--code",
+            },
+            "%id(!code, family=sase-8u.4.2)\n%auto\nDo work",
+        ),
+        (
+            "Do work",
+            {
+                "agent_name": "sase-8u.4.2--code",
+                "family_name": "sase-8u.4.2",
+                "role_suffix": "--code",
+                "phase_bead_id": "sase-8u.4.2",
+            },
+            "%id(!code, family=sase-8u.4.2, bead=sase-8u.4.2)\nDo work",
+        ),
+        (
+            "%id(worker, clan=research, bead=kept)\nDo work",
+            {
+                "agent_name": "athena.research.worker--reviewer",
+                "family_name": "athena.research.worker",
+                "role_suffix": "--reviewer",
+                "phase_bead_id": "ignored",
+            },
+            "%id(!reviewer, family=research.worker, bead=kept)\nDo work",
+        ),
+        (
+            "%clan(research, tribe=review)\n%id:research.worker\nDo work",
+            {
+                "agent_name": "research.worker--commit",
+                "family_name": "research.worker",
+                "role_suffix": "--commit",
+            },
+            "%id(!commit, family=research.worker)\nDo work",
+        ),
+    ],
+)
+def test_prepare_kill_and_edit_prompt_restarts_exact_family_member(
+    raw_prompt: str,
+    kwargs: dict[str, str],
+    expected: str,
+) -> None:
+    call_kwargs = dict(kwargs)
+    agent_name = call_kwargs.pop("agent_name")
+    assert (
+        prepare_kill_and_edit_prompt(raw_prompt, agent_name, **call_kwargs) == expected
+    )
+
+
 @patch("sase.agent.names.allocate_retry_name", return_value="foo.r0")
 def test_retry_edit_agent_prepends_allocated_retry_name(
     _mock_allocate: Mock,
@@ -488,18 +547,21 @@ def test_kill_and_edit_agent_forces_name_reuse_for_done_agent() -> None:
     assert app.notifications == []
 
 
-def test_kill_and_edit_family_phase_forces_base_name_reuse() -> None:
+def test_kill_and_edit_family_phase_forces_exact_member_attachment() -> None:
     app = _App(
         _Agent(
             "%id:sase-8a.3\n%auto\nDo work",
             agent_name="athena.sase-8a.3--plan",
+            agent_family="athena.sase-8a.3",
+            role_suffix="--plan",
+            phase_bead_id="sase-8a.3",
         )
     )
 
     app._kill_and_edit_agent()
 
     assert app.launched == (
-        "%id:!sase-8a.3\n%auto\nDo work",
+        "%id(!plan, family=sase-8a.3, bead=sase-8a.3)\n%auto\nDo work",
         "/tmp/proj/proj.sase",
         "branch",
         False,

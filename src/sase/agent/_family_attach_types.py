@@ -22,6 +22,7 @@ class ParsedNameDirective:
 class FamilyAttachDirective:
     parent: str
     suffix: str
+    force_reuse: bool = False
 
 
 @dataclass(frozen=True)

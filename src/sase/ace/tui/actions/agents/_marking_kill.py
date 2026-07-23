@@ -53,40 +53,90 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             self.notify("No marked agents remain", severity="warning")  # type: ignore[attr-defined]
             return
 
-        from ..agent_workflow._entry_name_prompts import (
-            prepare_kill_and_edit_prompt,
+        from ..agent_workflow._entry_relaunch import (
+            prepare_kill_edit_agent_prompt,
+            resolve_agent_identity,
+            schedule_relaunch_prompt_resolution,
         )
 
-        # Collect raw prompts BEFORE any kill mutates the agent list. Marks are
-        # preserved on abort so the user can fix the prompt-less row.
-        prompts: list[str] = []
-        missing = 0
-        for agent in marked_agents:
-            raw_prompt = agent.get_raw_xprompt_content()
-            if raw_prompt is None:
-                missing += 1
-                continue
-            prompts.append(prepare_kill_and_edit_prompt(raw_prompt, agent.agent_name))
-        if missing:
-            suffix = "s" if missing != 1 else ""
-            self.notify(  # type: ignore[attr-defined]
-                f"{missing} marked agent{suffix} missing a prompt; nothing killed",
-                severity="warning",
-            )
-            return
+        identities = tuple(agent.identity for agent in marked_agents)
+        agents_snapshot = tuple(self._agents_with_children)
 
-        first = marked_agents[0]
+        def resolve_prompts() -> list[str | None]:
+            return [
+                prepare_kill_edit_agent_prompt(agent, agents_snapshot)
+                for agent in marked_agents
+            ]
 
-        def on_confirm(killable: list[Agent], dismissable: list[Agent]) -> None:
-            self._do_bulk_kill_agents(killable, dismissable)  # type: ignore[attr-defined]
-            self._edit_and_relaunch_agents_bulk(  # type: ignore[attr-defined]
-                prompts,
-                first.project_file,
-                first.cl_name,
-                first.is_project_agent,
-            )
+        def on_prompts_resolved(resolved: list[str | None]) -> None:
+            current_agents = [
+                resolve_agent_identity(self, identity) for identity in identities
+            ]
+            if any(agent is None for agent in current_agents):
+                self.notify(  # type: ignore[attr-defined]
+                    "A marked agent is no longer available; nothing killed",
+                    severity="warning",
+                )
+                return
+            missing = sum(prompt is None for prompt in resolved)
+            if missing:
+                suffix = "s" if missing != 1 else ""
+                self.notify(  # type: ignore[attr-defined]
+                    f"{missing} marked agent{suffix} missing a prompt; nothing killed",
+                    severity="warning",
+                )
+                return
 
-        self._present_bulk_kill_modal(marked_agents, on_confirm=on_confirm)
+            prompts = [prompt for prompt in resolved if prompt is not None]
+            present_agents = [agent for agent in current_agents if agent is not None]
+            first = present_agents[0]
+
+            def on_confirm(
+                _killable: list[Agent],
+                _dismissable: list[Agent],
+            ) -> None:
+                confirmed_agents = [
+                    resolve_agent_identity(self, identity) for identity in identities
+                ]
+                if any(agent is None for agent in confirmed_agents):
+                    self.notify(  # type: ignore[attr-defined]
+                        "A marked agent is no longer available; nothing killed",
+                        severity="warning",
+                    )
+                    return
+                from ._core import DISMISSABLE_STATUSES
+
+                exact_agents = [
+                    agent for agent in confirmed_agents if agent is not None
+                ]
+                killable = [
+                    agent
+                    for agent in exact_agents
+                    if agent.pid is not None
+                    and agent.status not in DISMISSABLE_STATUSES
+                ]
+                dismissable = [
+                    agent
+                    for agent in exact_agents
+                    if agent.status in DISMISSABLE_STATUSES or agent.pid is None
+                ]
+                self._do_bulk_kill_agents(killable, dismissable)  # type: ignore[attr-defined]
+                self._edit_and_relaunch_agents_bulk(  # type: ignore[attr-defined]
+                    prompts,
+                    first.project_file,
+                    first.cl_name,
+                    first.is_project_agent,
+                )
+
+            self._present_bulk_kill_modal(present_agents, on_confirm=on_confirm)
+
+        schedule_relaunch_prompt_resolution(
+            self,
+            resolve_prompts,
+            on_prompts_resolved,
+            worker_name="marked-agent-relaunch-prompts",
+            failure_message="Unable to prepare marked-agent relaunch prompts",
+        )
 
     def _present_bulk_kill_modal(
         self,

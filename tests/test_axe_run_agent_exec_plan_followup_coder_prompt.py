@@ -1,6 +1,7 @@
 """Tests for approved plan coder prompt construction."""
 
 import dataclasses
+from unittest.mock import patch
 
 import pytest
 
@@ -133,3 +134,22 @@ class TestPlanFollowupCoderPrompt:
         assert state.question_base_prompt == state.current_prompt
         assert state.question_base_prompt.startswith("%model:@claude_coder\n")
         assert "@plan.md" in state.question_base_prompt
+
+    def test_accepted_plan_stores_complete_coder_prompt_artifact(
+        self,
+        tmp_path,
+    ) -> None:
+        with patch(
+            "sase.axe.run_agent_exec_plan_accept._store_followup_prompt_artifact"
+        ) as store_prompt:
+            state = run_followup_plan(
+                tmp_path,
+                action="approve",
+                agent_model="opus",
+            )
+
+        store_prompt.assert_called_once_with(
+            "/tmp/followup",
+            state.current_prompt,
+            label="Full coder prompt",
+        )

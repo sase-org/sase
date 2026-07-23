@@ -86,6 +86,9 @@ def parse_name_directive_args(
             )
         parent = family.strip()
         suffix = positional_args[0].strip()
+        force_reuse = suffix.startswith("!")
+        if force_reuse:
+            suffix = suffix[1:]
         if not parent:
             raise ValueError(
                 f"The family= keyword on {source} requires a non-empty family name."
@@ -97,6 +100,7 @@ def parse_name_directive_args(
         normalize_family_suffix_arg(suffix)
         return _types.ParsedNameDirective(
             bead_id=bead_id,
+            force_reuse=force_reuse,
             family_parent=parent,
             family_suffix=suffix,
         )
@@ -163,6 +167,7 @@ def extract_family_attach_directive(
             return _types.FamilyAttachDirective(
                 parsed.family_parent,
                 parsed.family_suffix,
+                force_reuse=parsed.force_reuse,
             )
     return None
 

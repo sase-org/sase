@@ -113,6 +113,24 @@ def test_extract_family_attach_directive() -> None:
     assert directive == FamilyAttachDirective(parent="foo", suffix="@")
 
 
+def test_extract_forced_family_attach_directive() -> None:
+    prompt = "%id(!code, family=foo, bead=sase-1)\nDo work"
+
+    cleaned, directives = extract_prompt_directives(prompt)
+    directive = extract_family_attach_directive(prompt)
+
+    assert cleaned == "Do work"
+    assert directives.name_force_reuse is True
+    assert directives.family_attach_parent == "foo"
+    assert directives.family_attach_suffix == "code"
+    assert directives.bead_id == "sase-1"
+    assert directive == FamilyAttachDirective(
+        parent="foo",
+        suffix="code",
+        force_reuse=True,
+    )
+
+
 def test_with_feedback_parent_default_uses_family_attach_directive() -> None:
     args: dict[str, str] = {"feedback": "tighten tests"}
 

@@ -34,6 +34,7 @@ class _LaunchNameRequest:
     force_reuse: bool
     name_template: bool
     prompt_index: int
+    family_attach_parent: str | None = None
 
 
 class _LaunchNameValidationError(RuntimeError):
@@ -162,13 +163,14 @@ def _explicit_launch_name_requests(prompts: list[str]) -> list[_LaunchNameReques
         parsed = _extract_explicit_name(prompt)
         if parsed is None:
             continue
-        name, force_reuse, name_template = parsed
+        name, force_reuse, name_template, family_attach_parent = parsed
         requests.append(
             _LaunchNameRequest(
                 name=name,
                 force_reuse=force_reuse,
                 name_template=name_template,
                 prompt_index=i,
+                family_attach_parent=family_attach_parent,
             )
         )
     return requests
@@ -303,7 +305,9 @@ def _preflight_launch_name_requests(
 
     if not allow_reserved_family_separator_names:
         for request in requests:
-            if not request.name_template:
+            if request.family_attach_parent is not None:
+                validate_user_agent_name(request.family_attach_parent)
+            elif not request.name_template:
                 validate_user_agent_name(request.name)
 
     from sase.agent.names import (
@@ -411,14 +415,24 @@ def force_reuse_owner_names(prompts: list[str]) -> list[str]:
 
 
 def wipe_names_for_forced_reuse(names: list[str]) -> None:
-    """Best-effort removal hook used for explicit force-reuse launches."""
+    """Remove explicit force-reuse owners or fail before launch mutation."""
     for name in names:
         from sase.agent.names import wipe_agent_name_for_reuse
 
-        wipe_agent_name_for_reuse(name)
+        result = wipe_agent_name_for_reuse(name)
+        if result.errors:
+            detail = "; ".join(result.errors)
+            raise RuntimeError(f"Failed to wipe agent name '{name}': {detail}")
+        if result.skipped_container_kind:
+            raise RuntimeError(
+                f"Cannot force-reuse {result.skipped_container_kind} "
+                f"container '{name}'."
+            )
 
 
-def _extract_explicit_name(prompt: str) -> tuple[str, bool, bool] | None:
+def _extract_explicit_name(
+    prompt: str,
+) -> tuple[str, bool, bool, str | None] | None:
     if "%" not in prompt:
         return None
     if _prompt_has_launch_fanout(prompt):
@@ -456,8 +470,19 @@ def _extract_explicit_name(prompt: str) -> tuple[str, bool, bool] | None:
                     )
                 except ValueError as exc:
                     raise _AgentNameDirectiveSyntaxError(str(exc)) from exc
-                if parsed.family_parent is not None:
-                    return None
+                if (
+                    parsed.family_parent is not None
+                    and parsed.family_suffix is not None
+                ):
+                    if not parsed.force_reuse:
+                        return None
+                    from sase.agent.family_attach import normalize_family_suffix_arg
+
+                    exact_name = (
+                        f"{parsed.family_parent}"
+                        f"{normalize_family_suffix_arg(parsed.family_suffix)}"
+                    )
+                    return exact_name, True, False, parsed.family_parent
                 value = parsed.plain_name or ""
                 if parsed.clan is not None:
                     value = f"{parsed.clan}.{value}"
@@ -482,7 +507,7 @@ def _extract_explicit_name(prompt: str) -> tuple[str, bool, bool] | None:
         name = value
         if "#" in name or not name:
             return None
-        return name, force_reuse, "@" in name
+        return name, force_reuse, "@" in name, None
     return None
 
 

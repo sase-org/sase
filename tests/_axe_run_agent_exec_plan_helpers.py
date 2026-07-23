@@ -84,6 +84,7 @@ PLAN_PATCHES = {
         "/tmp/followup"
     ),
     "sase.axe.run_agent_exec_plan_accept.promote_to_workflow": None,
+    "sase.axe.run_agent_exec_plan_accept._store_followup_prompt_artifact": None,
     "sase.axe.run_agent_exec_plan_accept._commit_sdd_files": None,
     "sase.axe.run_agent_exec_plan_accept._commit_sdd_spec": None,
     "sase.axe.run_agent_exec_plan_accept._run_epic_launch_subprocess": (

@@ -246,7 +246,6 @@ def test_finish_agent_launch_force_reuse_schedules_original_prompt_and_worker_re
         save_history = stack.enter_context(
             patch("sase.history.prompt.add_or_update_prompt")
         )
-
         app._finish_agent_launch("%id:!foo\nDo work")
 
         wipe_names.assert_not_called()
@@ -270,6 +269,49 @@ def test_finish_agent_launch_force_reuse_schedules_original_prompt_and_worker_re
         assert call.args == (["%id:foo\nDo work"],)
     save_history.assert_called_once_with("%id:foo\nDo work")
     assert app.launched[0]["prompt"] == "%id:foo\nDo work"
+    assert outcome.success is True
+
+
+def test_finish_agent_launch_forced_family_attach_wipes_exact_member() -> None:
+    app = _SubmitLaunchBodyApp()
+    prompt = "%id(!code, family=foo, bead=sase-1)\nDo work"
+    rewritten = "%id(code, family=foo, bead=sase-1)\nDo work"
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+                return_value=["forced-ts"],
+            )
+        )
+        _enter_launch_body_base_patches(stack)
+        wipe_names = stack.enter_context(
+            patch("sase.agent.launch_validation.wipe_names_for_forced_reuse")
+        )
+        validate_names = stack.enter_context(
+            patch("sase.agent.launch_validation.validate_launch_name_requests")
+        )
+        save_history = stack.enter_context(
+            patch("sase.history.prompt.add_or_update_prompt")
+        )
+        stack.enter_context(
+            patch(
+                "sase.agent.family_attach.prepare_family_attach_launch",
+                side_effect=lambda _prompt, context, extra_env, **_kwargs: (
+                    context,
+                    extra_env,
+                ),
+            )
+        )
+
+        app._finish_agent_launch(prompt)
+        outcome = app.launch_tasks[0]["task_callable"]()
+
+    wipe_names.assert_called_once_with(["foo--code"])
+    for call in validate_names.call_args_list:
+        assert call.args == ([rewritten],)
+    save_history.assert_called_once_with(rewritten)
+    assert app.launched[0]["prompt"] == rewritten
     assert outcome.success is True
 
 

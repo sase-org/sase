@@ -53,6 +53,52 @@ def store_followup_prompt_artifact(
         logger.warning("Failed to store follow-up prompt artifact", exc_info=True)
 
 
+def embedded_workflow_refs_from_metadata(
+    workflows: object,
+    vcs_tag: str | None,
+) -> str:
+    """Render rollover workflow references from expanded-workflow metadata."""
+    if not isinstance(workflows, list):
+        return ""
+    workflow_items = [item for item in workflows if isinstance(item, dict)]
+
+    # Extract the workspace workflow name from the tag (e.g. "#gh:sase " -> "gh")
+    vcs_name: str | None = None
+    if vcs_tag:
+        m = re.match(r"#(\w+)", vcs_tag)
+        if m:
+            vcs_name = m.group(1)
+
+    # Only roll over workflows tagged with "rollover".
+    # Backward compat: if no entry has a "tags" key at all, roll over
+    # all non-VCS workflows (legacy behavior).
+    has_any_tags = any("tags" in workflow for workflow in workflow_items)
+
+    refs: list[str] = []
+    for workflow in workflow_items:
+        name = workflow.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+        wf_tags = workflow.get("tags", [])
+        if name == vcs_name or (vcs_tag and "vcs" in wf_tags):
+            continue
+        if has_any_tags and "rollover" not in wf_tags:
+            continue
+        args = workflow.get("args", {})
+        if not isinstance(args, dict) or not args:
+            refs.append(f"#{name}")
+        elif len(args) == 1:
+            value = next(iter(args.values()))
+            refs.append(f"#{name}:{value}")
+        else:
+            arg_parts = [f"{key}={value}" for key, value in args.items()]
+            refs.append(f"#{name}({', '.join(arg_parts)})")
+
+    if not refs:
+        return ""
+    return " ".join(refs) + " "
+
+
 def get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
     """Reconstruct non-VCS embedded workflow refs from artifacts metadata.
 
@@ -68,36 +114,4 @@ def get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return ""
 
-    # Extract the workspace workflow name from the tag (e.g. "#gh:sase " -> "gh")
-    vcs_name: str | None = None
-    if vcs_tag:
-        m = re.match(r"#(\w+)", vcs_tag)
-        if m:
-            vcs_name = m.group(1)
-
-    # Only roll over workflows tagged with "rollover".
-    # Backward compat: if no entry has a "tags" key at all, roll over
-    # all non-VCS workflows (legacy behavior).
-    has_any_tags = any("tags" in w for w in workflows)
-
-    refs: list[str] = []
-    for wf in workflows:
-        name = wf["name"]
-        wf_tags = wf.get("tags", [])
-        if name == vcs_name or (vcs_tag and "vcs" in wf_tags):
-            continue
-        if has_any_tags and "rollover" not in wf_tags:
-            continue
-        args = wf.get("args", {})
-        if not args:
-            refs.append(f"#{name}")
-        elif len(args) == 1:
-            value = next(iter(args.values()))
-            refs.append(f"#{name}:{value}")
-        else:
-            arg_parts = [f"{k}={v}" for k, v in args.items()]
-            refs.append(f"#{name}({', '.join(arg_parts)})")
-
-    if not refs:
-        return ""
-    return " ".join(refs) + " "
+    return embedded_workflow_refs_from_metadata(workflows, vcs_tag)
