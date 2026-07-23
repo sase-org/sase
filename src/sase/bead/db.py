@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS issues (
     design      TEXT,
     model       TEXT NOT NULL DEFAULT '',
     size        TEXT
-                  CHECK(size IN ('small', 'medium', 'large')),
+                  CHECK(size IN ('xsmall', 'small', 'medium', 'large', 'xlarge')),
     is_ready_to_work INTEGER NOT NULL DEFAULT 0,
     changespec_name TEXT NOT NULL DEFAULT '',
     changespec_bug_id TEXT NOT NULL DEFAULT '',
@@ -129,7 +129,7 @@ def _migrate_add_size(conn: sqlite3.Connection) -> None:
         return
     conn.execute(
         "ALTER TABLE issues ADD COLUMN size TEXT "
-        "CHECK(size IN ('small','medium','large'))"
+        "CHECK(size IN ('xsmall','small','medium','large','xlarge'))"
     )
     conn.commit()
 

@@ -55,7 +55,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_create_parser.add_argument(
         "-z",
         "--size",
-        choices=["small", "medium", "large"],
+        choices=["xsmall", "small", "medium", "large", "xlarge"],
         help="Phase size controlling plan-first prompting and default model routing",
     )
     bead_create_parser.add_argument(
@@ -304,7 +304,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_update_parser.add_argument(
         "-z",
         "--size",
-        choices=["small", "medium", "large"],
+        choices=["xsmall", "small", "medium", "large", "xlarge"],
         help="Phase size controlling plan-first prompting and default model routing",
     )
     bead_update_parser.add_argument(

@@ -231,7 +231,7 @@ def test_parser_accepts_model_on_update_short_and_long() -> None:
 def test_parser_accepts_size_on_create_and_update_short_and_long() -> None:
     parser = create_parser()
     create_short = parser.parse_args(
-        ["bead", "create", "-t", "x", "-T", "phase(p)", "-z", "medium"]
+        ["bead", "create", "-t", "x", "-T", "phase(p)", "-z", "xsmall"]
     )
     create_long = parser.parse_args(
         [
@@ -242,15 +242,15 @@ def test_parser_accepts_size_on_create_and_update_short_and_long() -> None:
             "-T",
             "phase(p)",
             "--size",
-            "large",
+            "small",
         ]
     )
-    update_short = parser.parse_args(["bead", "update", "x", "-z", "small"])
-    update_long = parser.parse_args(["bead", "update", "x", "--size", "medium"])
-    assert create_short.size == "medium"
-    assert create_long.size == "large"
-    assert update_short.size == "small"
-    assert update_long.size == "medium"
+    update_short = parser.parse_args(["bead", "update", "x", "-z", "large"])
+    update_long = parser.parse_args(["bead", "update", "x", "--size", "xlarge"])
+    assert create_short.size == "xsmall"
+    assert create_long.size == "small"
+    assert update_short.size == "large"
+    assert update_long.size == "xlarge"
 
 
 def test_create_and_update_phase_size_persist(
@@ -264,12 +264,12 @@ def test_create_and_update_phase_size_persist(
         _create_args(
             title="Sized phase",
             type_value=f"phase({epic.id})",
-            size="medium",
+            size="xsmall",
         )
     )
     with BeadProject(project_dir) as proj:
         phase = proj.get_epic_children(epic.id)[0]
-        assert phase.size is PhaseSize.MEDIUM
+        assert phase.size is PhaseSize.XSMALL
 
     bead_cli.handle_bead_update(
         argparse.Namespace(
@@ -282,12 +282,12 @@ def test_create_and_update_phase_size_persist(
             assignee=None,
             tier=None,
             model=None,
-            size="large",
+            size="xlarge",
         )
     )
 
     with BeadProject(project_dir) as proj:
-        assert proj.show(phase.id).size is PhaseSize.LARGE
+        assert proj.show(phase.id).size is PhaseSize.XLARGE
     capsys.readouterr()
 
 

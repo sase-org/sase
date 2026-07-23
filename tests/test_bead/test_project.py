@@ -156,14 +156,14 @@ def test_create_and_update_phase_size(project):
         "Phase",
         IssueType.PHASE,
         parent_id=epic.id,
-        size=PhaseSize.MEDIUM,
+        size=PhaseSize.XSMALL,
     )
-    assert phase.size is PhaseSize.MEDIUM
-    assert project.show(phase.id).size is PhaseSize.MEDIUM
+    assert phase.size is PhaseSize.XSMALL
+    assert project.show(phase.id).size is PhaseSize.XSMALL
 
-    updated = project.update(phase.id, size="large")
-    assert updated.size is PhaseSize.LARGE
-    assert project.show(phase.id).size is PhaseSize.LARGE
+    updated = project.update(phase.id, size="xlarge")
+    assert updated.size is PhaseSize.XLARGE
+    assert project.show(phase.id).size is PhaseSize.XLARGE
 
 
 def test_create_epic_with_changespec_metadata(project):

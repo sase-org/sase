@@ -370,7 +370,7 @@ def test_epic_failure_renders_size_parent_schema_and_minimal_example(
     assert _invoke([str(plan), "--json"]) == 1
     payload = json.loads(capsys.readouterr().out)
     fields = {field["name"]: field for field in payload["expected_schema"]["fields"]}
-    assert fields["phases[].size"]["type"] == "small | medium | large"
+    assert fields["phases[].size"]["type"] == "xsmall | small | medium | large | xlarge"
     assert fields["phases[].size"]["required"] is True
     assert fields["phases[].size"]["example"] == "small"
     assert fields["parent_bead"]["required"] is False

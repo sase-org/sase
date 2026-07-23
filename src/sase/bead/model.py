@@ -23,9 +23,11 @@ class BeadTier(Enum):
 
 
 class PhaseSize(Enum):
+    XSMALL = "xsmall"
     SMALL = "small"
     MEDIUM = "medium"
     LARGE = "large"
+    XLARGE = "xlarge"
 
 
 @dataclass

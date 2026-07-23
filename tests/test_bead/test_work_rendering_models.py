@@ -19,9 +19,11 @@ class TestModelDirective:
         ("size", "expected_model", "expects_plan"),
         [
             (None, "@small_phase_worker", False),
+            (PhaseSize.XSMALL, "@xsmall_phase_worker", False),
             (PhaseSize.SMALL, "@small_phase_worker", False),
             (PhaseSize.MEDIUM, "@medium_phase_worker", False),
             (PhaseSize.LARGE, "@large_phase_worker", True),
+            (PhaseSize.XLARGE, "@xlarge_phase_worker", True),
         ],
     )
     def test_phase_size_controls_model_and_planning_handoff(
@@ -50,6 +52,7 @@ class TestModelDirective:
         ("size", "model", "expects_plan"),
         [
             pytest.param(None, "claude/sonnet", False, id="legacy"),
+            pytest.param(PhaseSize.XSMALL, "claude/haiku", False, id="xsmall"),
             pytest.param(PhaseSize.SMALL, "claude/sonnet", False, id="small"),
             pytest.param(PhaseSize.MEDIUM, "@coder", False, id="medium"),
             pytest.param(
@@ -57,6 +60,12 @@ class TestModelDirective:
                 "codex/gpt-5.6-sol",
                 True,
                 id="large",
+            ),
+            pytest.param(
+                PhaseSize.XLARGE,
+                "claude/claude-fable-5",
+                True,
+                id="xlarge",
             ),
         ],
     )

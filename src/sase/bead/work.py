@@ -23,6 +23,8 @@ from sase.llm_provider.config import EPIC_LANDER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import LARGE_PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import SMALL_PHASE_WORKER_MODEL_ALIAS_NAME
+from sase.llm_provider.config import XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME
+from sase.llm_provider.config import XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import format_model_directive_value
 from sase.llm_provider.config import role_model_directive_value
 
@@ -294,16 +296,18 @@ def phase_model_directive_value(
     if explicit_model:
         return format_model_directive_value(explicit_model)
     alias_by_size = {
+        PhaseSize.XSMALL: XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
         PhaseSize.SMALL: SMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
         PhaseSize.MEDIUM: MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
         PhaseSize.LARGE: LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
+        PhaseSize.XLARGE: XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     }
     return role_model_directive_value(alias_by_size[_phase_size(size)])
 
 
 def phase_requires_plan(size: PhaseSize | str | None) -> bool:
     """Return whether a phase needs a separate planning handoff."""
-    return _phase_size(size) is PhaseSize.LARGE
+    return _phase_size(size) in {PhaseSize.LARGE, PhaseSize.XLARGE}
 
 
 def render_multi_prompt(

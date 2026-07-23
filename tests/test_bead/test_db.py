@@ -15,7 +15,7 @@ from sase.bead.db import (
     stats,
     update_issue,
 )
-from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
 
 NOW = "2026-03-17T00:00:00Z"
 
@@ -112,6 +112,21 @@ class TestCreateAndGet:
 
     def test_get_nonexistent_returns_none(self, conn: sqlite3.Connection) -> None:
         assert get_issue(conn, "no-such") is None
+
+    @pytest.mark.parametrize("size", [PhaseSize.XSMALL, PhaseSize.XLARGE])
+    def test_extended_phase_sizes_round_trip(
+        self,
+        conn: sqlite3.Connection,
+        size: PhaseSize,
+    ) -> None:
+        create_issue(conn, _epic())
+        child = _child()
+        child.size = size
+        create_issue(conn, child)
+
+        loaded = get_issue(conn, child.id)
+        assert loaded is not None
+        assert loaded.size is size
 
     def test_child_without_parent_fails_db_constraint(
         self, conn: sqlite3.Connection
