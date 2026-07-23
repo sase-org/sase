@@ -94,9 +94,11 @@ sase plugin show github -r
   third-party warning. An unknown `<plugin_name>` prints ranked `did you mean…?` suggestions and exits non-zero.
 - Built-in vs. community is decided by the owning org: `sase-org` (case-insensitive) is built-in; anything else is
   community. Archived repos are surfaced with an archived marker rather than hidden.
-- Installed status, version, and contributed entry-point groups come from merging the catalog with the live
-  [plugin inventory](#how-plugins-are-discovered). Plugins that carry the topic but contribute no Python entry points
-  (for example a Neovim-only integration) correctly show as not installed.
+- For a managed `uv tool` install, every package explicitly injected in `sase`'s `uv-receipt.toml` is authoritative
+  installed membership for the catalog and Admin Center. Its version comes from live distribution metadata. SASE entry
+  points and recognized console-script / `sase-*` distribution naming remain the discovery fallback for unmanaged
+  environments and the source of contributed entry-point-group metadata. A catalogued package absent from both paths
+  (for example a Neovim-only integration) correctly shows as not installed.
 - Latest available versions for index installs come from PyPI's package JSON (`info.version`), which matches what
   `sase plugin update` would actually install. Editable checkouts derive their latest dev version from the upstream
   tracking ref after a best-effort fetch, carry a lowercase `dev` source marker, and base update availability on git
@@ -338,8 +340,12 @@ sase plugin uninstall github -j     # stable machine-readable JSON
 
 ## How Plugins Are Discovered
 
-Plugin discovery uses `importlib.metadata.entry_points()` to find installed packages that declare one of Sase's entry
-point groups.
+For catalog and Admin Center installed status, a managed uv tool receipt is authoritative: each explicitly-injected
+requirement is matched to its live `importlib.metadata` distribution by PEP 503-normalized name. Receipt inspection is
+best effort, so unmanaged environments or a temporarily unavailable receipt retain the generic discovery behavior.
+
+Generic plugin discovery uses `importlib.metadata.entry_points()` plus recognized console-script and distribution naming
+to find installed packages. It is also what supplies the contributed entry-point groups displayed by `sase plugin show`.
 
 There are two discovery paths:
 
@@ -405,7 +411,9 @@ user's `sase.yml`. See the [Deep-Merge System](configuration.md#deep-merge-syste
 Chop scripts are installed console scripts, not a pluggy entry-point group. Axe resolves the exact configured `script`
 name from `axe.chop_script_dirs`, the running interpreter's bin directory, then `$PATH`; it never adds a `sase_chop_`
 prefix. A package may also expose a `sase_config` resource when it wants to contribute disabled-by-default or
-ready-to-patch lumberjack configuration.
+ready-to-patch lumberjack configuration. Exact-name chop packages do not need to rename their public scripts to
+`sase_chop_*` merely to appear installed in the catalog: when Sase injects them into its managed uv tool environment,
+receipt membership provides that installed identity.
 
 Proposal-emitting packages should depend on `sase` and use the public `sase.chops` SDK. Scripts read `--context`, write
 their versioned result atomically to `SASE_CHOP_RESULT_FILE`, and emit structured launch proposals. They must not call

@@ -11,6 +11,9 @@ place:
 - :func:`sase.version._plugins.plugin_candidates_from_distributions` additionally
   detects console-script-only plugins (e.g. a Telegram bot) that contribute no
   ``sase_*`` entry point.
+- The managed uv tool receipt contributes every explicitly-injected package,
+  including plugins whose public console scripts intentionally do not use SASE's
+  generic naming conventions.
 
 A catalog repository (``sase-github``) maps to an installed distribution via
 :func:`sase.version._utils.normalize_distribution_name`.
@@ -21,8 +24,16 @@ from __future__ import annotations
 import importlib.metadata
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from pathlib import Path
 
 from sase.plugins.inventory import PluginInventory, collect_plugin_inventory
+from sase.uv_tool import (
+    NotUvToolInstall,
+    ToolReceipt,
+    UvToolInstall,
+    load_receipt,
+    probe_uv_tool_install,
+)
 from sase.version._plugins import (
     PluginCandidate,
     plugin_candidates_from_distributions,
@@ -35,6 +46,9 @@ _UNKNOWN_VERSION = "<unknown>"
 
 InventoryFn = Callable[..., PluginInventory]
 CandidatesFn = Callable[[], tuple[PluginCandidate, ...]]
+ProbeFn = Callable[[], UvToolInstall | NotUvToolInstall]
+ReceiptLoaderFn = Callable[[Path], ToolReceipt]
+DistributionFn = Callable[[str], importlib.metadata.Distribution]
 
 
 @dataclass(frozen=True)
@@ -50,20 +64,74 @@ class InstalledInfo:
         return cls()
 
 
+@dataclass(frozen=True)
+class _ReceiptOwnedPlugin:
+    """One live distribution explicitly injected through the uv tool receipt."""
+
+    distribution_name: str
+    version: str | None
+
+
+ReceiptPluginsFn = Callable[[], tuple[_ReceiptOwnedPlugin, ...]]
+
+
 def _installed_plugin_candidates() -> tuple[PluginCandidate, ...]:
     """Detect installed SASE plugins from the live Python environment."""
     return plugin_candidates_from_distributions(importlib.metadata.distributions())
+
+
+def _receipt_owned_plugins(
+    *,
+    probe_fn: ProbeFn = probe_uv_tool_install,
+    receipt_loader_fn: ReceiptLoaderFn = load_receipt,
+    distribution_fn: DistributionFn = importlib.metadata.distribution,
+) -> tuple[_ReceiptOwnedPlugin, ...]:
+    """Read live distributions explicitly injected into the managed uv tool.
+
+    Receipt inspection is an additive, best-effort discovery path. A non-uv
+    runtime or any transient probe, receipt, or distribution-metadata failure
+    simply omits the affected receipt entries and leaves heuristic discovery
+    unchanged.
+    """
+    try:
+        install = probe_fn()
+        if not isinstance(install, UvToolInstall):
+            return ()
+        receipt = receipt_loader_fn(install.receipt_path)
+        requirements = receipt.deduped_injected_plugins()
+    except Exception:
+        return ()
+
+    plugins: list[_ReceiptOwnedPlugin] = []
+    for requirement in requirements:
+        try:
+            key = requirement.normalized_name
+            if not key:
+                continue
+            dist = distribution_fn(requirement.name)
+            version = _clean_version(distribution_version(dist))
+        except Exception:
+            continue
+        plugins.append(
+            _ReceiptOwnedPlugin(
+                distribution_name=key,
+                version=version,
+            )
+        )
+    return tuple(plugins)
 
 
 def build_installed_index(
     *,
     inventory_fn: InventoryFn = collect_plugin_inventory,
     candidates_fn: CandidatesFn = _installed_plugin_candidates,
+    receipt_plugins_fn: ReceiptPluginsFn = _receipt_owned_plugins,
 ) -> dict[str, InstalledInfo]:
     """Map normalized distribution name -> :class:`InstalledInfo`.
 
     Distributions that contribute ``sase_*`` entry points are indexed first (with
-    their contributed groups); console-script-only plugins fill in any gaps.
+    their contributed groups); generic plugin candidates and then receipt-owned
+    packages fill in any gaps.
     """
     index: dict[str, InstalledInfo] = {}
 
@@ -91,17 +159,40 @@ def build_installed_index(
             entry_point_groups=(),
         )
 
+    try:
+        receipt_plugins = receipt_plugins_fn()
+    except Exception:
+        receipt_plugins = ()
+    for plugin in receipt_plugins:
+        key = normalize_distribution_name(plugin.distribution_name)
+        if not key or key in index:
+            continue
+        index[key] = InstalledInfo(
+            installed=True,
+            version=plugin.version,
+            entry_point_groups=(),
+        )
+
     return index
 
 
 def _installed_plugin_distributions(
     *,
     candidates_fn: CandidatesFn = _installed_plugin_candidates,
+    receipt_plugins_fn: ReceiptPluginsFn = _receipt_owned_plugins,
 ) -> tuple[str, ...]:
     """Return normalized distribution names for installed third-party plugins."""
     names: list[str] = []
     for candidate in candidates_fn():
         key = normalize_distribution_name(candidate.distribution_name)
+        if key:
+            names.append(key)
+    try:
+        receipt_plugins = receipt_plugins_fn()
+    except Exception:
+        receipt_plugins = ()
+    for plugin in receipt_plugins:
+        key = normalize_distribution_name(plugin.distribution_name)
         if key:
             names.append(key)
     return tuple(_dedupe(names))
@@ -110,9 +201,15 @@ def _installed_plugin_distributions(
 def any_plugins_installed(
     *,
     candidates_fn: CandidatesFn = _installed_plugin_candidates,
+    receipt_plugins_fn: ReceiptPluginsFn = _receipt_owned_plugins,
 ) -> bool:
     """Return whether any third-party SASE plugin is installed locally."""
-    return bool(_installed_plugin_distributions(candidates_fn=candidates_fn))
+    return bool(
+        _installed_plugin_distributions(
+            candidates_fn=candidates_fn,
+            receipt_plugins_fn=receipt_plugins_fn,
+        )
+    )
 
 
 def lookup_installed(
