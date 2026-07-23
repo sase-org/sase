@@ -1973,6 +1973,19 @@ Command groups that default to a nested `list` command still parse flags at the 
 | -------------------- | ------------------- | ------- | ---------------------- |
 | `-v, --vcs-provider` | `git`, `hg`, `auto` | -       | Override VCS provider. |
 
+### `sase axe status`
+
+Collects one read-only whole-system AXE snapshot. Human output is the default; JSON output is the exact stable
+schema-version-1 wire object and never contains Rich markup or ANSI escapes.
+
+| Flag         | Values | Default | Description                                               |
+| ------------ | ------ | ------- | --------------------------------------------------------- |
+| `-j, --json` | flag   | -       | Emit the machine-readable schema-version-1 status object. |
+
+The classifier-owned exit code is `0` for healthy or intentionally inactive states, `1` for actionable degradation, and
+`2` for a collection or classification error. See [Axe Whole-System Status](axe.md#whole-system-status) for the state,
+health, field, and recovery-command contract.
+
 ### `sase axe start`
 
 | Flag                      | Values        | Default          | Description                                         |

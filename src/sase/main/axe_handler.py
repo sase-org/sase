@@ -26,10 +26,12 @@ def handle_axe_command(args: argparse.Namespace) -> None:
         _handle_maintenance(args)
     elif axe_sub == "start":
         _handle_start(args)
+    elif axe_sub == "status":
+        _handle_status(args)
     elif axe_sub == "stop":
         _handle_stop(args)
     else:
-        print("Usage: sase axe {chop,ensure,lumberjack,maintenance,start,stop}")
+        print("Usage: sase axe {chop,ensure,lumberjack,maintenance,start,status,stop}")
         sys.exit(1)
 
 
@@ -149,6 +151,22 @@ def _handle_maintenance(args: argparse.Namespace) -> None:
 
     print("Usage: sase axe maintenance {enter,exit,status}")
     sys.exit(1)
+
+
+def _handle_status(args: argparse.Namespace) -> None:
+    """Handle the read-only whole-system ``sase axe status`` snapshot."""
+    from sase.axe.status_collector import collect_axe_status_snapshot
+    from sase.axe.status_render import (
+        render_axe_status_human,
+        render_axe_status_json,
+    )
+
+    snapshot = collect_axe_status_snapshot()
+    if bool(getattr(args, "json", False)):
+        render_axe_status_json(snapshot)
+    else:
+        render_axe_status_human(snapshot)
+    sys.exit(snapshot.exit_code)
 
 
 def _handle_start(args: argparse.Namespace) -> None:

@@ -271,6 +271,19 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     axe_maintenance_subparsers.add_parser("exit", help="Exit maintenance mode")
     axe_maintenance_subparsers.add_parser("status", help="Show maintenance status")
 
+    # --- axe status ---
+    axe_status_parser = axe_subparsers.add_parser(
+        "status",
+        help="Show a read-only, whole-system AXE health snapshot",
+        description="Show a read-only, whole-system AXE health snapshot.",
+    )
+    axe_status_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit the machine-readable schema-version-1 status object",
+    )
+
     # --- axe start ---
     axe_start_parser = axe_subparsers.add_parser(
         "start", help="Start the axe orchestrator (spawns all lumberjacks)"

@@ -54,6 +54,8 @@ operators can also manage it directly with `sase axe start` and `sase axe stop`.
 | `sase axe ensure`                          | Heal a missing daemon unless it was explicitly stopped |
 | `sase axe ensure install`                  | Install and start the optional user-systemd watchdog   |
 | `sase axe ensure uninstall`                | Stop and remove the optional user-systemd watchdog     |
+| `sase axe status`                          | Show the read-only whole-system health snapshot        |
+| `sase axe status --json`                   | Emit the schema-version-1 status object                |
 | `sase axe chop list`                       | List configured chops with status (`-a` adds scripts)  |
 | `sase axe chop doctor`                     | Diagnose configured/available chops and Telegram setup |
 | `sase axe chop run <name>`                 | Run a single chop in the foreground                    |
@@ -74,6 +76,10 @@ sase axe stop
 
 # Check desired state and heal an unexpected outage
 sase axe ensure
+
+# Inspect whole-system health for an operator or automation
+sase axe status
+sase axe status --json
 
 # On a host with user systemd, check automatically every five minutes
 sase axe ensure install
@@ -108,6 +114,43 @@ sase axe maintenance enter --reason "install plugin update"
 sase axe maintenance status
 sase axe maintenance exit
 ```
+
+## Whole-System Status
+
+`sase axe status` collects one read-only snapshot of AXE intent and runtime evidence, classifies it once, and renders an
+operator dashboard. It does not clean stale files, start or stop processes, clear maintenance, or otherwise change host
+state. `sase axe status -j` (equivalently `--json`) emits that same snapshot as the stable schema-version-1 JSON object,
+with deterministic formatting and no Rich markup or ANSI escapes.
+
+The top-level lifecycle state and health are separate:
+
+| State         | Meaning                                                                | Health      |
+| ------------- | ---------------------------------------------------------------------- | ----------- |
+| `running`     | The orchestrator and configured lumberjacks are coherently running.    | `healthy`   |
+| `maintenance` | AXE is running with a valid maintenance marker pausing scheduled work. | `healthy`   |
+| `stopped`     | The desired-state marker intentionally requests a stopped AXE.         | `healthy`   |
+| `not_started` | No running process or explicit desired-state marker has been observed. | `healthy`   |
+| `down`        | Desired state is `running`, but the orchestrator is not live.          | `unhealthy` |
+| `degraded`    | Processes are live but orchestrator or lumberjack evidence is invalid. | `unhealthy` |
+| `error`       | A required host input could not be collected or classified.            | `error`     |
+
+The summary shows the desired state with its source and timestamp; orchestrator live PIDs, lifecycle-lock state, and
+PID-file coherence; maintenance reason, owner, and age; hook and agent runner occupancy; and the newest lifecycle
+journal event. The lumberjack table is sorted by name and includes derived and reported state, process liveness, PID,
+interval and staleness threshold, start and heartbeat times/ages, uptime, cycle and historical error counts, and
+configured chops. At narrow terminal widths those facts fold into a compact details column rather than being truncated.
+
+When the classifier reports issues or collection failure, an **Attention** panel preserves the issue order and lists
+deduplicated suggested commands. Exit codes are part of the snapshot contract: `0` means healthy or intentionally
+inactive, `1` means actionable degradation, and `2` means collection/classification error.
+
+Use these related commands according to intent:
+
+- `sase axe status` is the read-only first look at whole-system intent and health.
+- `sase axe ensure` reconciles desired state and may start a missing orchestrator; it is a recovery command.
+- `sase doctor --deep` runs broader, slower diagnostics when the status evidence needs deeper investigation.
+- `sase axe maintenance status` remains the compatibility/debugging view of only the maintenance marker.
+- `sase axe lumberjack status` remains the compatibility/debugging process view for individual lumberjacks.
 
 ## Default Lumberjacks
 
