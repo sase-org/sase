@@ -150,14 +150,19 @@ async def test_group_submit_uses_current_branch_selection(tmp_path) -> None:
         coder_label = str(modal.query_one("#gate-option-0-0", Button).label)
         assert "🚀" in coder_label
         assert "Launch coder agent" in coder_label
+        assert not coder_label.startswith("1 ")
         assert "Commit plan file to the plans sidecar" in str(
             modal.query_one("#gate-option-0-1", Button).label
         )
         tale_label = str(modal.query_one("#gate-group-submit-0", Button).label)
+        assert tale_label.startswith("1 ")
         assert "✅" in tale_label
         assert "Tale" in tale_label
+        assert str(modal.query_one("#gate-singleton-1", Button).label).startswith("2 ")
+        assert str(modal.query_one("#gate-singleton-2", Button).label).startswith("3 ")
+        assert str(modal.query_one("#plan-approval-cancel", Button).label) == "Cancel"
         await pilot.press("space")
-        await pilot.press("enter")
+        await pilot.press("1")
         await pilot.pause()
 
     assert len(results) == 1
@@ -287,3 +292,39 @@ async def test_enter_submits_epic_primary(tmp_path) -> None:
     assert results[0] is not None
     assert results[0].selected_option_ids == ("approve",)
     assert results[0].choice == "epic"
+
+
+async def test_number_one_submits_epic_primary_branch(tmp_path) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    results: list[PlanApprovalResult | None] = []
+    modal = PlanApprovalModal(str(plan), default_choice="epic")
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        await pilot.press("j")
+        await pilot.press("1")
+        await pilot.pause()
+
+    assert results[0] is not None
+    assert results[0].selected_option_ids == ("approve",)
+    assert results[0].choice == "epic"
+
+
+async def test_number_one_submits_tale_primary_branch(tmp_path) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    results: list[PlanApprovalResult | None] = []
+    modal = PlanApprovalModal(str(plan), default_choice="tale")
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        await pilot.press("j")
+        await pilot.press("1")
+        await pilot.pause()
+
+    assert results[0] is not None
+    assert results[0].selected_option_ids == ("approve", "commit")
+    assert results[0].choice == "tale"

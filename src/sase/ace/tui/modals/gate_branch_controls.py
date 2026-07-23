@@ -180,7 +180,7 @@ class GateBranchControls(VerticalScroll):
                     for index in singleton_indices:
                         option = self._options_by_id[self.data.branches[index][0]]
                         yield _GateControlButton(
-                            self._option_label(option),
+                            self._numbered_label(index, self._option_label(option)),
                             branch_index=index,
                             id=f"gate-singleton-{index}",
                             classes=(
@@ -200,7 +200,10 @@ class GateBranchControls(VerticalScroll):
             expanded = branch_index == self._expanded_group_index
             with Vertical(classes="gate-group", id=f"gate-group-{branch_index}"):
                 yield _GateControlButton(
-                    self._group_label(group),
+                    self._numbered_label(
+                        branch_index,
+                        self._group_label(group),
+                    ),
                     branch_index=branch_index,
                     id=f"gate-group-expand-{branch_index}",
                     classes="gate-group-expand hidden"
@@ -226,7 +229,10 @@ class GateBranchControls(VerticalScroll):
                             classes="gate-option-toggle",
                         )
                     yield _GateControlButton(
-                        self._group_label(group),
+                        self._numbered_label(
+                            branch_index,
+                            self._group_label(group),
+                        ),
                         branch_index=branch_index,
                         id=f"gate-group-submit-{branch_index}",
                         classes=(
@@ -344,6 +350,12 @@ class GateBranchControls(VerticalScroll):
 
     def submit_active_branch(self) -> None:
         self._resolve_branch(self._active_branch_index)
+
+    def submit_numbered_branch(self, branch_index: int) -> None:
+        """Submit a branch selected by its zero-based numbered shortcut."""
+        if not 0 <= branch_index < len(self.data.branches):
+            return
+        self._resolve_branch(branch_index)
 
     def selected_option_ids(self, branch_index: int) -> tuple[str, ...]:
         branch = self.data.branches[branch_index]
@@ -490,6 +502,10 @@ class GateBranchControls(VerticalScroll):
     def _group_label(group: GateGroup) -> str:
         value = f"{group.icon} {group.label}" if group.icon else str(group.label)
         return escape(value)
+
+    @staticmethod
+    def _numbered_label(branch_index: int, label: str) -> str:
+        return f"{branch_index + 1} {label}"
 
 
 __all__ = ["GateBranchControls", "GateBranchData"]

@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import pytest
 from textual.app import App
 from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.widgets import Button, Input
 
-from sase.ace.tui.keymaps import GateModalKeymaps
+from sase.ace.tui.keymaps import (
+    GateModalKeymaps,
+    build_gate_numbered_branch_bindings,
+)
 from sase.ace.tui.modals.custom_gate_modal import (
     CustomGateModal,
     CustomGateModalData,
@@ -114,17 +118,51 @@ async def test_group_renders_defaults_toggles_and_configured_submit() -> None:
         await pilot.pause()
         controls = modal.query_one(GateBranchControls)
         assert controls.selected_option_ids(0) == ("approve",)
-        assert "⬜" in str(modal.query_one("#gate-option-0-1", Button).label)
-        assert "Approve guarded work" in str(
-            modal.query_one("#gate-group-submit-0", Button).label
-        )
+        group_expand_label = str(modal.query_one("#gate-group-expand-0", Button).label)
+        group_submit_label = str(modal.query_one("#gate-group-submit-0", Button).label)
+        toggle_label = str(modal.query_one("#gate-option-0-1", Button).label)
+        assert group_expand_label.startswith("1 ")
+        assert group_submit_label.startswith("1 ")
+        assert toggle_label.startswith("⬜")
+        assert str(modal.query_one("#gate-singleton-1", Button).label).startswith("2 ")
+        assert str(modal.query_one("#custom-gate-cancel", Button).label) == "Cancel"
+        assert "Approve guarded work" in group_submit_label
 
         modal.query_one("#gate-option-0-1", Button).press()
         await pilot.pause()
-        modal.query_one("#gate-group-submit-0", Button).press()
+        await pilot.press("1")
         await pilot.pause()
 
     assert results == [CustomGateModalResult(("approve", "audit"), None)]
+
+
+@pytest.mark.parametrize(
+    ("key", "expected_option_id"),
+    [("1", "first"), ("2", "second"), ("3", "third")],
+)
+async def test_numbered_shortcuts_dispatch_canonical_branch_independent_of_focus(
+    key: str,
+    expected_option_id: str,
+) -> None:
+    results: list[CustomGateModalResult | None] = []
+    modal = CustomGateModal(
+        _data(
+            options=tuple(
+                _option(option_id) for option_id in ("first", "second", "third")
+            ),
+            branches=(("first",), ("second",), ("third",)),
+        )
+    )
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        await pilot.press("j")
+        assert modal.query_one("#gate-singleton-1", Button).has_focus
+        await pilot.press(key)
+        await pilot.pause()
+
+    assert results == [CustomGateModalResult((expected_option_id,), None)]
 
 
 async def test_required_feedback_blocks_until_entered() -> None:
@@ -139,15 +177,20 @@ async def test_required_feedback_blocks_until_entered() -> None:
     async with _TestApp().run_test(size=(100, 34)) as pilot:
         pilot.app.push_screen(modal, results.append)
         await pilot.pause()
-        await pilot.press("enter")
+        await pilot.press("1")
         await pilot.pause()
         assert results == []
         feedback = modal.query_one("#gate-feedback-input", Input)
-        feedback.value = "Please revise the rollout."
+        assert feedback.has_focus
+        await pilot.press("1", "2", "3")
+        assert feedback.value == "123"
+        feedback.value += " Please revise the rollout."
         await pilot.press("enter")
         await pilot.pause()
 
-    assert results == [CustomGateModalResult(("revise",), "Please revise the rollout.")]
+    assert results == [
+        CustomGateModalResult(("revise",), "123 Please revise the rollout.")
+    ]
 
 
 async def test_enter_submits_declared_primary_even_when_focus_is_elsewhere() -> None:
@@ -236,6 +279,24 @@ async def test_multiple_groups_expand_primary_and_switch_one_at_a_time() -> None
         assert not modal.query_one("#gate-group-details-1").has_class("hidden")
 
 
+async def test_unassigned_digit_is_harmless_and_q_still_cancels() -> None:
+    results: list[CustomGateModalResult | None] = []
+    modal = CustomGateModal(
+        _data(options=(_option("proceed"),), branches=(("proceed",),))
+    )
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        await pilot.press("9")
+        await pilot.pause()
+        assert results == []
+        await pilot.press("q")
+        await pilot.pause()
+
+    assert results == [None]
+
+
 async def test_preview_composes_two_pane_shell_with_document_border_title() -> None:
     modal = CustomGateModal(
         _data(
@@ -303,4 +364,11 @@ def test_bindings_match_shared_branch_actions() -> None:
     }
     assert {"next_control", "previous_control", "toggle_option"} <= actions
     assert {"submit_primary", "submit_branch"} <= actions
+    assert {f"submit_numbered_branch({index})" for index in range(9)} <= actions
     assert "next_choice" not in actions
+
+    numbered = build_gate_numbered_branch_bindings()
+    assert [binding.key for binding in numbered] == [
+        str(index) for index in range(1, 10)
+    ]
+    assert all(not binding.show and not binding.priority for binding in numbered)

@@ -8,6 +8,7 @@ system (``default_config.yml`` -> plugins -> ``sase.yml`` -> overlays).
 from sase.ace.tui.keymaps.bindings import (
     build_app_bindings,
     build_gate_modal_bindings,
+    build_gate_numbered_branch_bindings,
     build_statistics_bindings,
     statistics_help_bindings,
 )
@@ -55,6 +56,7 @@ __all__ = [
     "_BINDING_META",
     "build_app_bindings",
     "build_gate_modal_bindings",
+    "build_gate_numbered_branch_bindings",
     "build_statistics_bindings",
     "canonicalize_key_binding",
     "canonicalize_single_key",

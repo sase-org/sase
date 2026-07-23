@@ -349,7 +349,8 @@ defaults to true, and a matching `groups` entry configures an AND branch's submi
 `disabled`, `optional`, or `required`; custom options default to `optional`, and a group selection uses the strongest
 mode among its selected members. Automatic resolution is forbidden for custom gates. `primary_branch` must name one
 complete branch in canonical query order. ACE submits it with Enter while Space toggles the focused AND member;
-submitting a primary group preserves the reviewer's current toggles.
+submitting a primary group preserves the reviewer's current toggles. ACE also numbers top-level branches in canonical
+order: the fixed keys `1`–`9` submit their matching branches directly. AND-member toggles remain unnumbered.
 
 Every option references a bundle-owned `command` resource and is executed in query order as an argv array without a
 shell after its hash is reverified. A selected-command failure is recorded in the bundle error log and leaves the gate
@@ -431,9 +432,10 @@ timeout is terminal.
 
 ACE, Telegram, and mobile render branches in query order from the same normalized envelope structure. Singleton branches
 are buttons. AND branches expose one toggle per option and a configurable submit control; the primary AND branch starts
-expanded. Enter submits the declared primary branch, Space toggles its focused options, and Ctrl+S submits the active
-branch. Surfaces submit only `selected_option_ids` and feedback, and the shared executor runs the selected commands in
-query order.
+expanded. Top-level branches have fixed one-based digit selectors in canonical query order, while AND members remain
+unnumbered and use Space to toggle. Enter submits the declared primary branch, Ctrl+S submits the active branch, and `q`
+or Escape cancels the modal. Surfaces submit only `selected_option_ids` and feedback, and the shared executor runs the
+selected commands in query order.
 
 Tale plan approval uses `(approve AND commit) OR reject OR feedback`. The approve and commit options start selected, the
 group submit is labeled **Tale**, and the two singleton branches remain **Reject** and **Send Feedback**. Epic plans use

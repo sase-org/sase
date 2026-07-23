@@ -25,6 +25,8 @@ _ARTIFACT_SUBTAB_BINDINGS: list[Binding] = [
     for index, subtab in enumerate(ARTIFACTS_SUBTAB_ORDER, start=1)
 ]
 
+_GATE_NUMBERED_BRANCH_KEYS = tuple(str(index) for index in range(1, 10))
+
 
 def build_app_bindings(app_km: AppKeymaps) -> list[Binding]:
     """Generate the Textual ``Binding`` list from an ``AppKeymaps`` instance.
@@ -66,6 +68,20 @@ def build_gate_modal_bindings(keymaps: GateModalKeymaps) -> list[Binding]:
             priority=True,
         )
         for action, description in _GATE_BINDING_META
+    ]
+
+
+def build_gate_numbered_branch_bindings() -> list[Binding]:
+    """Build fixed, modal-scoped digit selectors for gate branches."""
+
+    return [
+        Binding(
+            key,
+            f"submit_numbered_branch({branch_index})",
+            f"Submit branch {key}",
+            show=False,
+        )
+        for branch_index, key in enumerate(_GATE_NUMBERED_BRANCH_KEYS)
     ]
 
 

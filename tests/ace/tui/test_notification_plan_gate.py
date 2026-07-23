@@ -128,6 +128,10 @@ async def test_plan_modal_bundle_loading_stays_off_the_message_pump(
             modal.query_one("#gate-option-0-1", Button).label
         )
         assert "Tale" in str(modal.query_one("#gate-group-submit-0", Button).label)
+        assert str(modal.query_one("#gate-group-submit-0", Button).label).startswith(
+            "1 "
+        )
+        assert not coder_label.startswith("1 ")
 
 
 async def test_epic_plan_modal_renders_canonical_singleton_label(
@@ -152,6 +156,7 @@ async def test_epic_plan_modal_renders_canonical_singleton_label(
         assert modal._gate.options[0].label == "Epic"
         assert modal._gate.options[0].icon == "✅"
         epic_label = str(modal.query_one("#gate-singleton-0", Button).label)
+        assert epic_label.startswith("1 ")
         assert "✅" in epic_label
         assert "Epic" in epic_label
 

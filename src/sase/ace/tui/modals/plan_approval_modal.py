@@ -29,6 +29,7 @@ from ..actions.clipboard import copy_to_system_clipboard
 from ..keymaps import (
     GateModalKeymaps,
     build_gate_modal_bindings,
+    build_gate_numbered_branch_bindings,
     key_display_name,
     load_builtin_gate_defaults,
 )
@@ -211,6 +212,7 @@ class PlanApprovalModal(
     BINDINGS = [
         *_PLAN_GATE_STATIC_BINDINGS,
         *build_gate_modal_bindings(_DEFAULT_GATE_KEYMAPS),
+        *build_gate_numbered_branch_bindings(),
     ]
 
     def __init__(
@@ -252,6 +254,7 @@ class PlanApprovalModal(
             [
                 *_PLAN_GATE_STATIC_BINDINGS,
                 *build_gate_modal_bindings(self._gate_keymaps),
+                *build_gate_numbered_branch_bindings(),
             ]
         )
 
@@ -426,6 +429,9 @@ class PlanApprovalModal(
 
     def action_submit_branch(self) -> None:
         self.query_one(GateBranchControls).submit_active_branch()
+
+    def action_submit_numbered_branch(self, branch_index: int) -> None:
+        self.query_one(GateBranchControls).submit_numbered_branch(branch_index)
 
     def action_approve(self) -> None:
         """Backward-compatible programmatic plain-approval action."""

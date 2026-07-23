@@ -17,6 +17,7 @@ from sase.notification_gates.debug import GateDebugContext
 from ..keymaps import (
     GateModalKeymaps,
     build_gate_modal_bindings,
+    build_gate_numbered_branch_bindings,
     key_display_name,
     load_builtin_gate_defaults,
 )
@@ -73,6 +74,7 @@ class CustomGateModal(
     BINDINGS = [
         *_CUSTOM_GATE_STATIC_BINDINGS,
         *build_gate_modal_bindings(_DEFAULT_GATE_KEYMAPS),
+        *build_gate_numbered_branch_bindings(),
     ]
 
     def __init__(
@@ -90,6 +92,7 @@ class CustomGateModal(
             [
                 *_CUSTOM_GATE_STATIC_BINDINGS,
                 *build_gate_modal_bindings(self._gate_keymaps),
+                *build_gate_numbered_branch_bindings(),
             ]
         )
 
@@ -193,6 +196,9 @@ class CustomGateModal(
 
     def action_submit_branch(self) -> None:
         self.query_one(GateBranchControls).submit_active_branch()
+
+    def action_submit_numbered_branch(self, branch_index: int) -> None:
+        self.query_one(GateBranchControls).submit_numbered_branch(branch_index)
 
     def action_scroll_down(self) -> None:
         scroll = self.query_one("#custom-gate-review-scroll", VerticalScroll)
