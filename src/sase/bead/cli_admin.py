@@ -65,7 +65,7 @@ Quick Start:
   sase bead update <id> --status=in_progress     Claim an issue
   sase bead open <id>                            Reopen an issue
   sase bead close <id>                           Close an issue
-  sase bead rm <id>                              Remove an issue (and children)
+  sase bead rm <id> [<id2> ...]                 Remove issues (and children)
   sase bead dep add <issue> <depends-on>         Add dependency
   sase bead blocked                              Show blocked issues
   sase bead sync                                 Stage bead state in git

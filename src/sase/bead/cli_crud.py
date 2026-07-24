@@ -187,11 +187,13 @@ def handle_bead_close(args: argparse.Namespace) -> None:
 def handle_bead_rm(args: argparse.Namespace) -> None:
     with get_project() as proj:
         try:
-            removed = proj.remove(args.id)
-        except KeyError:
-            print(f"Error: issue not found: {args.id}", file=sys.stderr)
+            removed = proj.remove_many(args.ids)
+        except KeyError as exc:
+            message = str(exc.args[0]) if exc.args else ""
+            missing_id = message.rsplit("Issue not found:", 1)[-1].strip()
+            print(f"Error: issue not found: {missing_id}", file=sys.stderr)
             sys.exit(1)
-    auto_commit_bead_store(f"chore(beads): remove {args.id}")
+    auto_commit_bead_store(f"chore(beads): remove {' '.join(args.ids)}")
     for issue in removed:
         print(f"✗ Removed: {issue.id} — {issue.title}")
 

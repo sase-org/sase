@@ -140,9 +140,11 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
 
     # sase bead rm
     bead_rm_parser = bead_subparsers.add_parser(
-        "rm", help="Remove an issue and all its children"
+        "rm", help="Remove issues and all their children"
     )
-    bead_rm_parser.add_argument("id", help="Issue ID to remove")
+    bead_rm_parser.add_argument(
+        "ids", nargs="+", help="One or more issue IDs to remove"
+    )
 
     # sase bead search
     bead_search_parser = bead_subparsers.add_parser(

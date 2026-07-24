@@ -235,13 +235,30 @@ def test_handle_bead_close_auto_commit_message(project_dir: Path) -> None:
     auto_commit.assert_called_once_with(f"chore(beads): close {issue.id}")
 
 
-def test_handle_bead_rm_auto_commit_message(project_dir: Path) -> None:
-    issue = _create_issue(project_dir, "Removed")
+def test_handle_bead_rm_auto_commit_message_includes_all_requested_ids(
+    project_dir: Path,
+) -> None:
+    first = _create_issue(project_dir, "Removed first")
+    second = _create_issue(project_dir, "Removed second")
 
     with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
-        bead_cli.handle_bead_rm(argparse.Namespace(id=issue.id))
+        bead_cli.handle_bead_rm(argparse.Namespace(ids=[first.id, second.id]))
 
-    auto_commit.assert_called_once_with(f"chore(beads): remove {issue.id}")
+    auto_commit.assert_called_once_with(f"chore(beads): remove {first.id} {second.id}")
+
+
+def test_handle_bead_rm_missing_id_does_not_remove_or_commit(
+    project_dir: Path,
+) -> None:
+    issue = _create_issue(project_dir, "Preserved")
+
+    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+        with pytest.raises(SystemExit, match="1"):
+            bead_cli.handle_bead_rm(argparse.Namespace(ids=[issue.id, "missing"]))
+
+    auto_commit.assert_not_called()
+    with BeadProject(project_dir) as project:
+        assert project.show(issue.id).id == issue.id
 
 
 def test_handle_bead_dep_add_auto_commit_message(project_dir: Path) -> None:

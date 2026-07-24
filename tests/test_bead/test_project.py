@@ -434,6 +434,41 @@ def test_remove_plan_cascades_children(project):
     assert project.list_issues() == []
 
 
+def test_remove_many_deduplicates_overlapping_and_repeated_requests(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
+    independent = project.create("Independent", IssueType.PLAN)
+
+    removed = project.remove_many([epic.id, child.id, independent.id, independent.id])
+
+    assert [issue.id for issue in removed] == [
+        child.id,
+        epic.id,
+        independent.id,
+    ]
+    assert project.list_issues() == []
+
+
+def test_remove_many_missing_id_is_atomic(project):
+    epic = project.create("Epic", IssueType.PLAN)
+    child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
+    survivor = project.create("Survivor", IssueType.PLAN)
+    project.add_dependency(survivor.id, child.id)
+    projection_before = (project.beads_dir / "issues.jsonl").read_bytes()
+    rows_before = project._conn.execute("SELECT id FROM issues ORDER BY id").fetchall()
+
+    with pytest.raises(KeyError, match="Issue not found: missing"):
+        project.remove_many([epic.id, "missing"])
+
+    assert (project.beads_dir / "issues.jsonl").read_bytes() == projection_before
+    assert project._conn.execute("SELECT id FROM issues ORDER BY id").fetchall() == (
+        rows_before
+    )
+    assert project.show(epic.id).id == epic.id
+    assert project.show(child.id).id == child.id
+    assert project.show(survivor.id).dependencies[0].depends_on_id == child.id
+
+
 def test_remove_phase(project):
     epic = project.create("Epic", IssueType.PLAN)
     child = project.create("Child", IssueType.PHASE, parent_id=epic.id)

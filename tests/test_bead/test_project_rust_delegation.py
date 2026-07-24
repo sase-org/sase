@@ -120,6 +120,33 @@ def test_bead_project_claim_failure_does_not_refresh_compatibility_state(
         assert refreshes == []
 
 
+def test_bead_project_remove_many_delegates_and_refreshes_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with BeadProject.init(tmp_path) as project:
+        removed = [
+            Issue(id="delegated-1", title="First", issue_type=IssueType.PLAN),
+            Issue(id="delegated-2", title="Second", issue_type=IssueType.PLAN),
+        ]
+        calls: list[tuple[Path | str, list[str]]] = []
+        refreshes: list[bool] = []
+
+        def fake_remove_many(
+            beads_dir: Path | str, issue_ids: list[str]
+        ) -> tuple[list[Issue], dict[str, Any]]:
+            calls.append((beads_dir, issue_ids))
+            return removed, {"operation": "rm"}
+
+        monkeypatch.setattr(bead_mutation_facade, "remove_many", fake_remove_many)
+        monkeypatch.setattr(
+            project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
+        )
+
+        assert project.remove_many(["delegated-1", "delegated-2"]) == removed
+        assert calls == [(project.beads_dir, ["delegated-1", "delegated-2"])]
+        assert refreshes == [True]
+
+
 def test_bead_project_show_returns_issue_with_model(
     tmp_path: Path, monkeypatch
 ) -> None:

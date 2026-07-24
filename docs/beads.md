@@ -269,10 +269,11 @@ scheduled again on retry.
 | -------------- | -------------------------- |
 | `-r, --reason` | Optional close reason text |
 
-### `sase bead rm <id>`
+### `sase bead rm <id> [<id2> ...]`
 
-Remove an issue and recursively cascade-delete all its descendants, including phases nested beneath child epics. This is
-irreversible.
+Remove one or more issues and recursively cascade-delete the union of all their descendants, including phases nested
+beneath child epics. Every requested ID is validated before anything is removed, so a missing ID leaves the store
+unchanged. Overlapping or repeated selections remove and print each issue only once. This is irreversible.
 
 ### `sase bead dep add <issue> <depends_on>`
 

@@ -106,6 +106,45 @@ def test_mutation_facade_jsonl_matches_python_after_each_operation(
         _assert_jsonl_equal(py_root, rust_root)
 
 
+def test_remove_many_facade_returns_unique_expanded_removals(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "rust"
+    _init_store(root)
+    epic, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Epic",
+        issue_type=IssueType.PLAN,
+        now="2026-01-01T00:00:00Z",
+    )
+    child, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Child",
+        issue_type=IssueType.PHASE,
+        parent_id=epic.id,
+        now="2026-01-01T00:01:00Z",
+    )
+    independent, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Independent",
+        issue_type=IssueType.PLAN,
+        now="2026-01-01T00:02:00Z",
+    )
+
+    removed, outcome = rust_beads.remove_many(
+        root / "sdd/beads",
+        [child.id, epic.id, independent.id, child.id],
+    )
+
+    assert [issue.id for issue in removed] == [
+        child.id,
+        epic.id,
+        independent.id,
+    ]
+    assert outcome["operation"] == "rm"
+    assert outcome["issue_ids"] == [child.id, epic.id, independent.id]
+
+
 def test_ready_to_work_errors_map_to_python_exceptions(tmp_path: Path) -> None:
     root = tmp_path / "rust"
     _init_store(root)

@@ -307,6 +307,12 @@ def _run_cli(
             stdout=_read_expected("rm.stdout"),
         ),
         CliCase(
+            "rm_multiple",
+            ["bead", "rm", "beads-1.2", "beads-2"],
+            "current",
+            stdout=_read_expected("rm_multiple.stdout"),
+        ),
+        CliCase(
             "sync_status",
             ["bead", "sync", "--status"],
             "current_git",

@@ -2540,9 +2540,12 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead rm`
 
-| Flag | Values | Default    | Description        |
-| ---- | ------ | ---------- | ------------------ |
-| `id` | string | (required) | Issue ID to remove |
+Atomically removes the requested issues and the recursive union of their descendants. Every requested ID must exist;
+overlapping or repeated selections remove each issue only once. Removal is irreversible.
+
+| Flag  | Values | Default    | Description           |
+| ----- | ------ | ---------- | --------------------- |
+| `ids` | string | (required) | One or more issue IDs |
 
 #### `sase bead dep add`
 

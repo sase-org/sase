@@ -271,6 +271,18 @@ class BeadProject:
         self._refresh_db_from_jsonl()
         return removed
 
+    def remove_many(self, issue_ids: list[str]) -> list[Issue]:
+        """Atomically delete one or more issues and their descendants.
+
+        Every requested ID is validated before mutation. The returned issues
+        are unique even when requests overlap or repeat.
+        """
+        from sase.core import bead_mutation_facade as rust_beads
+
+        removed, _outcome = rust_beads.remove_many(self.beads_dir, issue_ids)
+        self._refresh_db_from_jsonl()
+        return removed
+
     def mark_ready_to_work(self, epic_id: str) -> Issue:
         """Flip the epic plan's is_ready_to_work flag to True.
 

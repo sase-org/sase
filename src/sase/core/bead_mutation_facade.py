@@ -141,8 +141,15 @@ def remove(
     beads_dir: Path | str,
     issue_id: str,
 ) -> tuple[list[Issue], dict[str, Any]]:
-    binding = require_rust_binding("bead_remove")
-    payload = _call_issue_operation(binding, str(beads_dir), issue_id)
+    return remove_many(beads_dir, [issue_id])
+
+
+def remove_many(
+    beads_dir: Path | str,
+    issue_ids: list[str],
+) -> tuple[list[Issue], dict[str, Any]]:
+    binding = require_rust_binding("bead_remove_many")
+    payload = _call_issue_operation(binding, str(beads_dir), issue_ids)
     return issues_from_list(payload.get("issues", [])), payload
 
 
@@ -231,6 +238,7 @@ __all__ = [
     "mark_ready_to_work",
     "preclaim_epic_work",
     "remove",
+    "remove_many",
     "unmark_ready_to_work",
     "update",
 ]

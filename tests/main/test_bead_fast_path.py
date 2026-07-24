@@ -335,9 +335,28 @@ def test_fast_path_create_and_rm_use_rust_on_sidecar_layout(
     with BeadProject(root, beads_dirname="beads") as project:
         assert project.show("plans-1").design == storage_plan_path(plan.resolve())
 
-    assert try_handle_bead_fast_path(["rm", "plans-1"]) == 0
-    assert "✗ Removed: plans-1 — Fast plan" in capsys.readouterr().out
+    assert (
+        try_handle_bead_fast_path(
+            [
+                "create",
+                "--title",
+                "Second fast plan",
+                "--type",
+                f"plan({plan})",
+                "--tier",
+                "epic",
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    assert try_handle_bead_fast_path(["rm", "plans-1", "plans-2"]) == 0
+    output = capsys.readouterr().out
+    assert "✗ Removed: plans-1 — Fast plan" in output
+    assert "✗ Removed: plans-2 — Second fast plan" in output
     assert summaries[-1]["operation"] == "rm"
+    assert summaries[-1]["issue_ids"] == ["plans-1", "plans-2"]
 
 
 def test_mutation_commit_messages_match_slow_path_contract() -> None:
@@ -353,8 +372,8 @@ def test_mutation_commit_messages_match_slow_path_contract() -> None:
     assert _mutation_commit_message("close", ["beads-1", "beads-2"]) == (
         "chore(beads): close beads-1 beads-2"
     )
-    assert _mutation_commit_message("rm", ["beads-1"]) == (
-        "chore(beads): remove beads-1"
+    assert _mutation_commit_message("rm", ["beads-1", "beads-2"]) == (
+        "chore(beads): remove beads-1 beads-2"
     )
     assert _mutation_commit_message("dep_add", ["beads-1", "beads-2"]) == (
         "chore(beads): link beads-1 -> beads-2"
