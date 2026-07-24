@@ -247,20 +247,21 @@ CLI segments, and the tooltip spells out both counts plus any manual-only CLI up
 without mutating anything.
 
 The global `,U` action captures the provider names from the latest completed automatic snapshot at keypress time,
-revalidates those names against the live inventory, captures a no-network agents-repository status snapshot, and
-previews one comprehensive update. Its foreground load cannot add a newly discovered provider to that invocation. Safe
-commands run sequentially; Homebrew, non-writable npm, and unknown-provenance installs remain visible with manual
-guidance. The pane-wide `u` remains SASE/core/plugins-only, and pane-wide `A` remains the deliberate action for the
-current agent-CLI inventory.
+revalidates those names against the live inventory, captures a no-network agents-repository status snapshot from the
+enabled-project inventory, and previews one comprehensive update. Its foreground load cannot add a newly discovered
+provider to that invocation. Safe commands run sequentially; Homebrew, non-writable npm, and unknown-provenance installs
+remain visible with manual guidance. The pane-wide `u` remains SASE/core/plugins-only, and pane-wide `A` remains the
+deliberate action for the current agent-CLI inventory.
 
 Every mutation **previews first**, and long confirmation panes scroll with `Ctrl+D` / `Ctrl+U`. Plugin and core actions
 show the exact `uv` command or editable-checkout plan. When commit previews are enabled and a comparable range is
 available, confirmations for core and installed-plugin **updates** load incoming commits by repository in the
 background; install, uninstall, and mode-switch confirmations do not claim a commit range. The global `,U` comprehensive
 confirmation groups SASE, Agent CLI, and **Agents repos** work into labeled sections with update/current/skipped glyphs,
-counts, and commands (home paths display as `~/`). Every enabled agents repository is runnable even when currently
-synchronized; disabled rows remain skipped. The tracked task runs that sync after the Agent CLI and SASE/core/plugin
-legs and reports independent partial failures. `A` previews every exact agent-CLI command and every skip with its reason
+counts, and commands (home paths display as `~/`). Every represented enabled project is runnable even when its cached
+agents-repository status is current. Lifecycle-disabled projects are excluded from the all-project inventory rather than
+shown as skipped. The tracked task runs Agent CLI commands first, the SASE/core/plugin leg second, and the agents sync
+last, reporting independent partial failures. `A` previews every exact agent-CLI command and every skip with its reason
 and docs URL; on the Agent CLIs sub-tab it uses the marked subset, otherwise it targets every safely updatable installed
 CLI. Agent-CLI commands execute sequentially as one tracked task and refresh the browser without restarting ACE; new
 agent launches naturally use the updated binaries. Installable plugins use `I` / `Space` marks, while updatable agent
@@ -558,13 +559,16 @@ is independent of the `sase vcs log` CLI's sidecar opt-in and limit contract.
 
 | Field                        | Type   | Default | Description                                                                                        |
 | ---------------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------- |
-| `check_interval_minutes`     | number | `10`    | Interval between local/cached agents-repository status revalidations in a running ACE session.     |
+| `check_interval_minutes`     | number | `10`    | Interval between cache-and-receipt status reconciliations in a running ACE session.                |
 | `recompute_interval_minutes` | number | `30`    | Minimum cadence between status checks that fetch remote refs before recomputing the snapshot.      |
 | `indicator`                  | bool   | `true`  | Show the top-bar `⇅ N` badge when enabled agents repositories need synchronization or have errors. |
 
 Both intervals must be greater than zero. ACE schedules the first check after its initial paint, coalesces overlapping
-checks, and keeps the network-fetch cadence separate from the cheaper local revalidation cadence. Clicking the badge
-runs a tracked mutating sync across enabled agents repositories; hiding the indicator also disables the periodic ACE
+checks, and keeps the network-fetch cadence separate from the cheaper cache reconciliation cadence. Only a remote
+recomputation runs Git and refreshes ahead, behind, and legacy unexported-agent counts; the cheaper pass carries those
+previously recorded values forward while reconciling cached incoming hoods against import receipts. Clicking the badge
+runs a tracked mutating sync across enabled agents repositories. Its immediate follow-up check is cache-only, so a
+count-based badge can remain until the next remote recomputation. Hiding the indicator also disables the periodic ACE
 status scheduler, but it does not disable `sase agent sync`, commit-triggered hood publication, or the `,U`
 comprehensive-update sync leg. See [Agent Hood Synchronization](agents_sidecar.md).
 
@@ -988,8 +992,9 @@ Research is config-declared per project and defaults to `<owner>/<project>--rese
 and research entries. A project-local `agents` entry replaces the implicit entry: use `disabled: true` to opt out or
 `visibility: private` to retain it with a private remote policy. Project-local `default_linked_repos: false` suppresses
 both implicit managed-project entries. `sase repo init` can create and seed the agents remote only after its separate
-default-no consent prompt; normal commits and `sase agent sync` then publish and import agent hoods through the stable
-machine-level clone. See [Agent Hood Synchronization](agents_sidecar.md) before enabling a public remote.
+default-no consent prompt. Successful agent commit/PR workflows publish the committing hood, while `sase agent sync`
+imports shared history and reconciles every locally commit-eligible hood through the stable machine-level clone. See
+[Agent Hood Synchronization](agents_sidecar.md) before enabling a public remote.
 
 The deprecated `linked_repos` and `sibling_repos` keys are still accepted as aliases during the compatibility window.
 Canonical `repos.linked` entries take precedence over both aliases when the same name is defined.
@@ -2883,7 +2888,7 @@ it with `A`, even after the agent has been dismissed and revived.
 | `artifacts` | `layout status` / `migrate` / `verify` / `rollback`, `-P/--project`, `-p/--projects-root`, `-i/--index-path`, `-j/--json` | Inspect and migrate the physical `ace-run` artifact directory layout. `status` reports flat and sharded directory counts, `migrate` moves flat timestamp directories into day shards, `verify` checks current or manifest-backed state, and `rollback` reverses a manifest-backed migration.                                                                                    |
 | `index`     | `status` / `rebuild` / `verify` / `gc`, `-i/--index-path`, `-p/--projects-root`, `-j/--json`                              | Maintain the persistent agent artifact index. Defaults are `~/.sase/agent_artifact_index.sqlite` and `~/.sase/projects`; `status` performs a lightweight visible-inbox check without scanning source artifacts, `verify` exits non-zero when the index diverges from source artifacts, and `gc` rebuilds the index from source artifacts and replaces the dismissed projection. |
 | `names`     | `migrate-auto`, `-f/--force`, `-j/--json`                                                                                 | Maintain the permanent agent-name registry. `migrate-auto` runs the historical generated-name namespace migration; `--force` reruns it after the completion marker exists and `--json` emits a machine-readable summary.                                                                                                                                                        |
-| `sync`      | `-c/--check`, `-j/--json`, repeatable `-p/--project`, `-r/--refresh`                                                      | Import and publish complete commit-eligible agent hoods through enabled agents sidecars. `--check` is read-only; `--refresh` is valid only with `--check` and fetches before recomputing status. See [Agent Hood Synchronization](agents_sidecar.md).                                                                                                                           |
+| `sync`      | `-c/--check`, `-j/--json`, repeatable `-p/--project`, `-r/--refresh`                                                      | Import shared agent history and publish locally commit-eligible hoods through enabled agents sidecars. Plain `--check` uses cached status without Git or artifact scans; `--check --refresh` fetches and recomputes status. See [Agent Hood Synchronization](agents_sidecar.md).                                                                                                |
 
 ### `sase chat`
 

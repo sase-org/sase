@@ -292,11 +292,12 @@ the missing repository, and leaves creation for a later interactive `sase repo i
 and post-commit hooks non-blocking without allowing `--yes` to authorize remote creation.
 
 Managed projects also resolve an implicit public `<project>--agents` sidecar unless project configuration disables it,
-sets `default_linked_repos: false`, or supplies an explicit replacement. Its missing remote receives the same separate,
-default-no creation prompt; `--yes` never authorizes publishing agent history. Before accepting, review the transported
-prompt, chat, commit, and relationship data and set a project-local `visibility: private` override when appropriate. The
-initialized privacy-forward seed explains the layout and synchronization command. See
-[Agent Hood Synchronization](agents_sidecar.md).
+sets `default_linked_repos: false`, or supplies an explicit replacement. Its missing remote receives a separate,
+agent-specific, default-no creation prompt; `--yes` never authorizes publishing agent history. Declining that prompt
+continues initialization without the agents sidecar, while another missing sidecar can still make initialization
+incomplete. Before accepting, review the transported prompt, chat, commit, and relationship data and set a project-local
+`visibility: private` override when appropriate. The initialized README explains the privacy implications, layout, and
+synchronization command. See [Agent Hood Synchronization](agents_sidecar.md).
 
 Plans and research sidecars retain their illustrated README and directory-map templates. Custom sidecar roles receive a
 deterministic generic README using their configured description. Initialized guide files are committed and pushed in

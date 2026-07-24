@@ -143,7 +143,7 @@ ChangeSpec         (create ChangeSpec entry in project file)              [PR on
     |
 Result marker      (write commit_result.json for xprompt post-steps)
     |
-Agent publication  (publish the exact hood or queue a durable retry)      [commit/PR only]
+Agent publication  (resolve target; enqueue exact hood, then try publish) [agent commit/PR only]
     |
 COMMITS entry      (append entry to project file)                         [commit/propose only]
 ```
@@ -197,10 +197,12 @@ for manual non-agent commits. New commits never produce `SASE_MACHINE`, while cl
 and historical `MACHINE` values. `create_proposal` does not get runtime commit tags because it saves a diff instead of
 creating a VCS commit.
 
-After the primary operation and its first durable result marker, the workflow resolves the immutable primary revision
-through the VCS provider and publishes only that agent's project-scoped top-level hood. Publication is a checkpointed
-tracking step. A sidecar failure does not invalidate the primary commit: SASE records a project-scoped durable outbox
-entry and retries it on a later commit or full `sase agent sync`.
+After an agent-backed primary operation and its first durable result marker, the workflow resolves the immutable primary
+revision through the VCS provider and then resolves the project's agents target. When that target is available, SASE
+records a project-scoped outbox request for only that agent's top-level hood before attempting publication. The attempt
+also drains older requests for the project. A failure after enqueueing does not invalidate the primary commit; the
+request remains for a later agent commit or full `sase agent sync`. Target-resolution and outbox-persistence failures
+occur before that durability guarantee, so they can instead skip publication or require `sase commit --resume`.
 
 **Footer tag prefix:** All SASE-authored commit footer tags (`TYPE`, `AGENT`, `PLAN`, `BUG`, and any configured or
 inherited PR tag keys) are written with a `SASE_` prefix — for example `SASE_TYPE=sdd` and `SASE_AGENT=<name>`. Readers

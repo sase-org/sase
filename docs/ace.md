@@ -2486,7 +2486,7 @@ multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent
 | `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                |
 | `Ctrl+G Enter`               | Submit only the selected pane                                                                              |
 | `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                        |
-| `Ctrl+J`                     | Insert a newline; continue a containing hyphen bullet, or exit from an exact empty marker                  |
+| `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet, or leave the list from an exact empty marker          |
 | `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                   |
 | `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                             |
 | `Ctrl+G`                     | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                               |
@@ -2519,10 +2519,11 @@ possessives, and for repeated quotes/backticks needed to type Markdown fences or
 
 INSERT-mode `Ctrl+J` and prompt NORMAL-mode `o` / `O` continue a containing space-indented `- ` bullet using that
 bullet's indentation. This also works from physical continuation lines, including Prettier-wrapped nested bullets;
-non-bullet lines keep the ordinary bare newline or open-line behavior. In INSERT mode, pressing `Ctrl+J` on a line that
-is exactly a spaces-only `- ` marker removes that marker and inserts a blank line at column zero, ending the list. The
-common sequence is therefore `Ctrl+J` once to create the next sibling marker and `Ctrl+J` again to exit the list. The
-continuation and exit are separate undo checkpoints. Extra spaces after the marker, tab indentation, other Markdown
+non-bullet lines keep the ordinary bare newline or open-line behavior. In INSERT mode, when there is no selection,
+pressing `Ctrl+J` anywhere on a line containing only zero or more leading spaces followed by `- ` replaces that marker
+with a bare newline and moves the cursor to column zero, ending the list. The common sequence is therefore `Ctrl+J` once
+to create the next sibling marker and `Ctrl+J` again to exit the list. Those two edits are separate undo checkpoints. A
+selection uses the normal replacement path instead. Extra spaces after the marker, tab indentation, other Markdown
 markers, and markers containing text do not trigger the exit path.
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
@@ -3041,12 +3042,12 @@ previews are enabled and a comparable range is available, core and installed-plu
 incoming commits by repository in the background; install confirmations do not. The global `,U` comprehensive
 confirmation additionally groups SASE, Agent CLI, and agents-repository work into labeled sections with
 update/current/skipped glyphs, counts, and commands. Its **Agents repos** section uses a captured no-network status
-snapshot and includes every enabled repository, even one currently synchronized; disabled repositories are shown as
-skipped. After the Agent CLI and SASE/core/plugin legs finish, the tracked task runs one all-enabled-project agent sync.
-A failure in that leg is reported alongside the independent earlier results. After a changed core/plugin update restarts
-ACE, the one-shot result toast can show applied commits grouped by repository as well as file/line statistics. Configure
-the toast with `ace.updates.post_update_toast_commits`, `post_update_toast_max_commits`, and
-`post_update_toast_diffstat`.
+snapshot from the enabled-project inventory. Every represented project remains runnable even when its cached status is
+current; lifecycle-disabled projects are absent rather than shown as skipped. The tracked task runs Agent CLI commands
+first, the SASE/core/plugin leg second, and one all-enabled-project agent sync last. A failure in the final leg is
+reported alongside the independent earlier results. After a changed core/plugin update restarts ACE, the one-shot result
+toast can show applied commits grouped by repository as well as file/line statistics. Configure the toast with
+`ace.updates.post_update_toast_commits`, `post_update_toast_max_commits`, and `post_update_toast_diffstat`.
 
 Global `,U` captures the agent-CLI candidates from the latest completed automatic result, revalidates exactly those
 names, and previews one comprehensive tracked update; the Updates-pane load cannot broaden the captured set. Manual-only
@@ -3058,10 +3059,12 @@ the Agent CLIs sub-tab it updates the marked `Space` selection, and elsewhere it
 installed CLI. See the [Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior, and
 [Plugins](plugins.md) for the equivalent `sase plugin` CLI.
 
-Separately, ACE checks enabled agents repositories after first paint and on the cadence configured by `ace.agents_sync`.
-A green `⇅ N` top-bar badge appears when projects are behind, ahead, have a nonzero legacy unexported-agent count, or
-have another non-ready status. Its tooltip lists the affected projects; clicking it launches the agent-sync leg directly
-as a tracked task. See [Agent Hood Synchronization](agents_sidecar.md) for privacy, import, and recovery behavior.
+Separately, ACE fetches and checks enabled agents repositories after first paint and on the remote cadence configured by
+`ace.agents_sync`; cheaper checks between fetches only reconcile cached entries and receipts. A green `⇅ N` top-bar
+badge appears when the cached status reports projects behind, ahead, with a nonzero legacy unexported-agent count, or in
+another non-ready state. Its tooltip lists the affected projects; clicking it launches the agent-sync leg directly as a
+tracked task. The immediate post-sync recheck remains cache-only, so a count-based badge can persist until the next
+remote check. See [Agent Hood Synchronization](agents_sidecar.md) for privacy, import, status, and recovery behavior.
 
 ## Snippets
 

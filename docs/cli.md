@@ -19,7 +19,7 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 | `sase agent artifacts`          | Inspect and migrate physical agent artifact storage layout.                                                          | [Configuration](configuration.md#directory-sharding)  |
 | `sase agent index`              | Manage the persistent agent artifact SQLite index (`status`, `rebuild`, `verify`, `gc`).                             | [ACE TUI](ace.md)                                     |
 | `sase agent names migrate-auto` | Backfill the permanent agent-name registry from legacy auto-generated names; pass `--force` to rerun.                | [ACE TUI](ace.md)                                     |
-| `sase agent sync`               | Import and publish project-scoped agent hoods through hidden agents sidecars; `--check` is read-only.                | [Agent hood synchronization](agents_sidecar.md)       |
+| `sase agent sync`               | Import shared history and publish locally commit-eligible hoods; `--check --refresh` fetches fresh status.           | [Agent hood synchronization](agents_sidecar.md)       |
 | `sase chat list`                | List recent chat transcripts.                                                                                        | [XPrompts](xprompt.md)                                |
 | `sase chat show`                | Show one chat transcript by agent name, path, or basename.                                                           | [XPrompts](xprompt.md)                                |
 | `sase prompt list`              | List, search, and filter previously submitted prompts (pretty table or JSON).                                        | [Prompt history](prompt.md)                           |
