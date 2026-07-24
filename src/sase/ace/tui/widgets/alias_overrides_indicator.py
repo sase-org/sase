@@ -86,6 +86,10 @@ class AliasOverridesIndicator(Static):
                 # Expired entries are pruned by ``get_active_alias_overrides``;
                 # guard the direct-call path so a lapsed entry shows nothing.
                 return Text("")
-            return Text(f" Override @{alias} {remaining} ", style=_ACTIVE_STYLE)
+            effort = f"@{override.effort}" if override.effort else ""
+            return Text(
+                f" Override @{alias}{effort} {remaining} ",
+                style=_ACTIVE_STYLE,
+            )
 
         return Text(f" Overrides ×{len(overrides)} ", style=_ACTIVE_STYLE)

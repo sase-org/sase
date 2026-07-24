@@ -815,10 +815,11 @@ public surface spells it `effort`; the threaded/stored field is named `reasoning
 
 There are five ways an effort reaches a launch, in precedence order:
 
-1. An explicit per-prompt `%effort:<level>` directive, or the `@<level>` suffix on a `%model` value
-   (`%model:opus@xhigh`). See [Effort Directive](xprompt.md#effort-directive) for the directive syntax and per-branch
-   fan-out (`%{%m:opus@xhigh | %m:sonnet@low}`).
-2. A trailing effort on the selected alias target or pool member (for example `claude/opus@medium`).
+1. An explicit per-prompt `%effort:<level>` directive, or the `@<level>` suffix on a `%model`/alias reference
+   (`%model:opus@xhigh`, `%model:@default@medium`). See [Effort Directive](xprompt.md#effort-directive) for the
+   directive syntax and per-branch fan-out (`%{%m:opus@xhigh | %m:sonnet@low}`).
+2. A trailing effort on the selected alias target, temporary model override, or pool member (for example
+   `claude/opus@medium`). An outer alias-reference suffix wins over effort carried by the alias target.
 3. An active machine-wide temporary default-effort override from `~/.sase/llm_effort_override.json`.
 4. The `llm_provider.default_effort` config value, applied when none of the higher-precedence sources sets effort.
 5. Nothing — the provider runs at its own built-in default.
@@ -981,6 +982,11 @@ override's duration. Machine-wide temporary overrides do not change:
 - An explicit `@default` reference — it ignores the machine-wide `default` override. A launch-scoped `default` still
   applies within the propagated launch lineage.
 
+An override may carry a canonical reasoning-effort suffix, such as `codex/gpt-5.6-sol@medium` or `@coder@medium`. The
+write resolves and snapshots the clean provider/model plus `medium`, while preserving the original `raw_model`. That
+effort survives state reloads and shapes the next matching launch. An explicit outer reference such as `@coder@xhigh`
+still wins over the stored override effort.
+
 `SASE_MODEL_TIER_OVERRIDE` / `SASE_MODEL_SIZE_OVERRIDE` still force the tier for tier-based launches. A concrete
 temporary override supplies a provider and model directly, so it is used only when no explicit model/provider was
 requested.
@@ -1014,7 +1020,8 @@ Override state is keyed by alias under a versioned envelope:
     "default": {
       "provider": "opencode",
       "model": "anthropic/claude-sonnet-4-5",
-      "raw_model": "opencode/anthropic/claude-sonnet-4-5",
+      "raw_model": "opencode/anthropic/claude-sonnet-4-5@medium",
+      "effort": "medium",
       "created_at": 1777470000.0,
       "expires_at": 1777473600.0,
       "source": "ace"
@@ -1025,17 +1032,19 @@ Override state is keyed by alias under a versioned envelope:
 
 Each entry under `overrides` has these fields:
 
-| Field        | Type            | Description                                                             |
-| ------------ | --------------- | ----------------------------------------------------------------------- |
-| `provider`   | `str`           | Resolved provider name (e.g. `"claude"`, `"codex"`, `"opencode"`).      |
-| `model`      | `str`           | Concrete model passed to the provider (e.g. `"o3"`, `"opus"`).          |
-| `raw_model`  | `str`           | Original user input (e.g. `"codex/o3"`, `"opencode/anthropic/..."`).    |
-| `created_at` | `float`         | Unix timestamp when the override was set.                               |
-| `expires_at` | `float \| None` | Unix timestamp when the override expires; `null` means "until cleared". |
-| `source`     | `str`           | Free-form tag indicating who set the override (e.g. `"ace"`).           |
+| Field        | Type            | Description                                                              |
+| ------------ | --------------- | ------------------------------------------------------------------------ |
+| `provider`   | `str`           | Resolved provider name (e.g. `"claude"`, `"codex"`, `"opencode"`).       |
+| `model`      | `str`           | Concrete model passed to the provider (e.g. `"o3"`, `"opus"`).           |
+| `raw_model`  | `str`           | Original user input (e.g. `"codex/o3"`, `"opencode/anthropic/..."`).     |
+| `effort`     | `str \| None`   | Canonical resolved effort suffix; `null` means no model-specific effort. |
+| `created_at` | `float`         | Unix timestamp when the override was set.                                |
+| `expires_at` | `float \| None` | Unix timestamp when the override expires; `null` means "until cleared".  |
+| `source`     | `str`           | Free-form tag indicating who set the override (e.g. `"ace"`).            |
 
 A legacy **v1** file (a single flat override object with top-level `provider` / `model` / ... keys) is migrated on read
-into `overrides.default`, so an override set by an older build keeps working after upgrade.
+into `overrides.default`, so an override set by an older build keeps working after upgrade. Existing v2 entries without
+`effort` remain valid and are read as `effort: null`.
 
 Writes are atomic (temp file + `os.replace`). Reads are best-effort self-cleaning: expired or unparseable entries are
 pruned and the file is deleted once no override remains, so a forgotten override never lingers past its `expires_at`,
@@ -1052,6 +1061,8 @@ The user-supplied `raw_model` is normalized through the same rules as `%model`:
 - `provider/model` selects the provider explicitly (e.g. `codex/o3` or `opencode/anthropic/claude-sonnet-4-5`).
 - A bare known model name infers its provider from plugin metadata (e.g. `sonnet` → claude).
 - An unknown bare model is accepted and runs on the current default provider, matching `%model` behavior.
+- A known trailing effort is split into the entry's `effort` field. Unknown trailing `@token` text remains part of the
+  model identifier, and `@alias@effort` resolves the alias eagerly while retaining the raw reference for display.
 
 ### Duration Parsing
 

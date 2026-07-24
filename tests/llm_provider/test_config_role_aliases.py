@@ -93,6 +93,39 @@ def test_medium_phase_worker_owns_concrete_high_effort_default(
     assert (resolved.target, resolved.effort) == ("codex/gpt-5.6-sol", "high")
 
 
+def test_alias_reference_effort_overrides_target_and_chain_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {
+                    "default": "codex/gpt-5.6-sol",
+                    "focused": "claude/opus@high",
+                    "chained": "@focused",
+                },
+            },
+        },
+    )
+
+    default = resolve_model_alias_with_effort("@default@medium")
+    focused = resolve_model_alias_with_effort("@focused")
+    focused_outer = resolve_model_alias_with_effort("@focused@medium")
+    chained = resolve_model_alias_with_effort("@chained")
+    chained_outer = resolve_model_alias_with_effort("@chained@low")
+
+    assert (default.target, default.effort) == ("codex/gpt-5.6-sol", "medium")
+    assert (focused.target, focused.effort) == ("claude/opus", "high")
+    assert (focused_outer.target, focused_outer.effort) == (
+        "claude/opus",
+        "medium",
+    )
+    assert (chained.target, chained.effort) == ("claude/opus", "high")
+    assert (chained_outer.target, chained_outer.effort) == ("claude/opus", "low")
+
+
 def test_coder_alias_chains_to_default(monkeypatch: pytest.MonkeyPatch) -> None:
     """``coder`` defaults to ``@default`` when not explicitly configured."""
     mock_provider_config(

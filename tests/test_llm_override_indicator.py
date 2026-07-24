@@ -24,6 +24,7 @@ def _override(
     provider: str = "codex",
     model: str = "o3",
     expires_at: float | None = 1_000.0,
+    effort: str | None = None,
 ) -> TemporaryLLMOverride:
     """Build a test override."""
     return TemporaryLLMOverride(
@@ -33,6 +34,7 @@ def _override(
         created_at=100.0,
         expires_at=expires_at,
         source="test",
+        effort=effort,
     )
 
 
@@ -69,6 +71,15 @@ def test_active_with_expiry_renders_label_and_countdown() -> None:
 
     assert text.plain == " Override CODEX(o3) 1h2m "
     assert "#D7AF5F" in str(text.style)
+
+
+def test_active_override_renders_effort() -> None:
+    text = LLMOverrideIndicator._build_content(
+        _override(expires_at=3_820.0, effort="medium"),
+        now=100.0,
+    )
+
+    assert text.plain == " Override CODEX(o3)@medium 1h2m "
 
 
 def test_active_until_cleared_renders_without_countdown() -> None:

@@ -98,6 +98,20 @@ def test_peek_is_stable_and_consumes_round_robin(
     assert resolve_model_alias("@pool", consume=True) == "claude/opus"
 
 
+def test_outer_effort_applies_to_each_selected_pool_member_without_extra_consumption(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_pool(monkeypatch)
+
+    first = resolve_model_alias_with_effort("@pool@high", consume=True)
+    second = resolve_model_alias_with_effort("@pool@high", consume=True)
+    third = resolve_model_alias_with_effort("@pool@high")
+
+    assert (first.target, first.effort) == ("claude/opus", "high")
+    assert (second.target, second.effort) == ("codex/gpt-5.5", "high")
+    assert (third.target, third.effort) == ("claude/opus", "high")
+
+
 def test_ordered_fallback_selects_first_available_without_cursor_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

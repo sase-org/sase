@@ -242,6 +242,8 @@ class ModelsPanelOverrideMixin(_MixinBase):
             )
             return
         label = format_provider_model_label(override.provider, override.model)
+        if override.effort:
+            label = f"{label}@{override.effort}"
         if isinstance(result, ResolvedOverrideUntil):
             suffix = f"until {result.notification_display}"
         elif isinstance(result, OverrideUntilCleared):

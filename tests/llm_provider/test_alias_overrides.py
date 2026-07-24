@@ -53,6 +53,7 @@ def test_set_then_get_alias_override() -> None:
     assert override.model == "o3"
     assert override.raw_model == "codex/o3"
     assert override.source == "panel"
+    assert override.effort is None
 
     fetched = get_active_alias_override("coder")
     assert fetched is not None
@@ -65,20 +66,40 @@ def test_alias_token_is_resolved_eagerly_and_retained_raw(
 ) -> None:
     calls: list[str] = []
 
-    def resolve(raw_model: str) -> tuple[str | None, str]:
+    def resolve(raw_model: str) -> tuple[str | None, str, str | None]:
         calls.append(raw_model)
-        return "codex", "gpt-5.6-sol"
+        return "codex", "gpt-5.6-sol", "medium"
 
-    monkeypatch.setattr("sase.llm_provider.registry.resolve_model_provider", resolve)
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.resolve_model_provider_with_effort", resolve
+    )
 
-    override = set_alias_override("phase_worker", "@coder", 3600.0, source="panel")
+    override = set_alias_override(
+        "phase_worker", "@coder@medium", 3600.0, source="panel"
+    )
 
-    assert calls == ["@coder"]
-    assert override.raw_model == "@coder"
+    assert calls == ["@coder@medium"]
+    assert override.raw_model == "@coder@medium"
     assert (override.provider, override.model) == ("codex", "gpt-5.6-sol")
+    assert override.effort == "medium"
     stored = _read_state()["overrides"]["phase_worker"]
-    assert stored["raw_model"] == "@coder"
+    assert stored["raw_model"] == "@coder@medium"
     assert (stored["provider"], stored["model"]) == ("codex", "gpt-5.6-sol")
+    assert stored["effort"] == "medium"
+
+
+def test_effort_suffix_round_trips_with_clean_provider_model() -> None:
+    override = set_alias_override(
+        "coder", "codex/gpt-5.6-sol@medium", None, source="panel"
+    )
+
+    assert (override.provider, override.model, override.effort) == (
+        "codex",
+        "gpt-5.6-sol",
+        "medium",
+    )
+    assert override.raw_model == "codex/gpt-5.6-sol@medium"
+    assert get_active_alias_override("coder") == override
 
 
 def test_set_until_cleared_has_no_expiry() -> None:
@@ -389,6 +410,7 @@ def test_v1_flat_state_migrates_to_default_alias() -> None:
     assert fetched is not None
     assert fetched.provider == "codex"
     assert fetched.model == "o3"
+    assert fetched.effort is None
     # No non-default override leaks out of the migration.
     assert get_active_alias_override("coder") is None
 
@@ -410,6 +432,7 @@ def test_v1_flat_state_is_rewritten_as_v2_on_read() -> None:
     data = _read_state()
     assert data["version"] == 2
     assert set(data["overrides"]) == {"default"}
+    assert data["overrides"]["default"]["effort"] is None
     # Canonical entry only — no stray top-level v1 keys remain.
     assert set(data) == {"version", "overrides"}
 
@@ -450,6 +473,29 @@ def test_one_malformed_entry_pruned_valid_kept() -> None:
     active = get_active_alias_overrides()
     assert set(active) == {"coder"}
     assert set(_read_state()["overrides"]) == {"coder"}
+
+
+def test_v2_entry_without_effort_remains_readable() -> None:
+    set_alias_override("coder", "codex/o3", None, source="panel")
+    data = _read_state()
+    del data["overrides"]["coder"]["effort"]
+    _write_state(data)
+
+    override = get_active_alias_override("coder")
+
+    assert override is not None
+    assert override.effort is None
+
+
+@pytest.mark.parametrize("effort", ["turbo", "", 42, True, ["medium"]])
+def test_invalid_persisted_effort_is_pruned(effort: object) -> None:
+    set_alias_override("coder", "codex/o3", None, source="panel")
+    data = _read_state()
+    data["overrides"]["coder"]["effort"] = effort
+    _write_state(data)
+
+    assert get_active_alias_overrides() == {}
+    assert not _state_path().exists()
 
 
 @pytest.mark.parametrize(

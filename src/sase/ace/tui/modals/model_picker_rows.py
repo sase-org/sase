@@ -7,6 +7,7 @@ from rich.text import Text
 
 from sase.ace.tui.provider_styles import provider_model_badge_markup
 from sase.llm_provider import AliasView
+from sase.llm_provider.config import normalize_model_alias_reference
 
 # Sentinel returned when user selects "Custom..."
 CUSTOM_SENTINEL = "__custom__"
@@ -140,7 +141,7 @@ def alias_reference_rejection(
     cleaned = value.strip()
     if context is None or not cleaned.startswith("@"):
         return None
-    alias = cleaned[1:].strip()
+    alias, _ = normalize_model_alias_reference(cleaned)
     known = {view.name for view in context.views}
     if not alias or alias not in known:
         return "unknown alias"

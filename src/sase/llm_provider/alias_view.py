@@ -50,6 +50,7 @@ from .config import (
     model_alias_kind,
     model_alias_names,
     model_alias_selector_details,
+    normalize_model_alias_reference,
 )
 from .load_balancing import ModelAliasSelectorMode
 from .temporary_override import TemporaryLLMOverride, get_active_alias_overrides
@@ -201,9 +202,10 @@ class AliasView:
     @property
     def references(self) -> str | None:
         """Return the immediate alias referenced by the configured value."""
-        if self.configured_value is None or not self.configured_value.startswith("@"):
+        if self.configured_value is None:
             return None
-        return self.configured_value[1:].strip() or None
+        alias, _ = normalize_model_alias_reference(self.configured_value)
+        return alias
 
     @property
     def raw_value(self) -> str | None:
@@ -396,7 +398,7 @@ def _effective_provider_model(
     resolved and split into a provider/model pair.
     """
     if override is not None:
-        return override.provider, override.model, None
+        return override.provider, override.model, override.effort
 
     # Lazy import to avoid an import cycle: registry imports this package's
     # config at import time.

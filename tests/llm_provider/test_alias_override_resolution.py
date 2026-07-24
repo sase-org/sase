@@ -11,9 +11,13 @@ from __future__ import annotations
 import pytest
 
 from sase.llm_provider.config import resolve_model_alias
-from sase.llm_provider.registry import resolve_model_provider
+from sase.llm_provider.registry import (
+    resolve_model_provider,
+    resolve_model_provider_with_effort,
+)
 from sase.llm_provider.temporary_override import (
     resolve_effective_default_provider_model,
+    resolve_effective_default_provider_model_with_effort,
     set_alias_override,
 )
 from tests.llm_provider._provider_config_helpers import mock_provider_config
@@ -50,6 +54,30 @@ def test_override_beats_configured_alias(monkeypatch: pytest.MonkeyPatch) -> Non
 
     set_alias_override("coder", "codex/o3", None, source="panel")
     assert resolve_model_alias("coder") == "codex/o3"
+
+
+def test_nondefault_override_effort_and_outer_suffix_precedence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"coder": "claude/opus@high"}},
+        },
+    )
+    set_alias_override("coder", "codex/gpt-5.6-sol@medium", None, source="panel")
+
+    assert resolve_model_provider_with_effort("@coder") == (
+        "codex",
+        "gpt-5.6-sol",
+        "medium",
+    )
+    assert resolve_model_provider_with_effort("@coder@xhigh") == (
+        "codex",
+        "gpt-5.6-sol",
+        "xhigh",
+    )
 
 
 def test_stale_override_on_phase_worker_has_no_builtin_effect(
@@ -149,6 +177,30 @@ def test_default_override_preserves_two_path_semantics(
     assert resolve_model_alias("@default") == "claude/opus"
     # The effective launch default applies the override.
     assert resolve_effective_default_provider_model() == ("codex", "o3")
+
+
+def test_default_override_effort_drives_no_directive_launch_lane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "claude/opus@high"}},
+        },
+    )
+    set_alias_override("default", "codex/gpt-5.6-sol@medium", None, source="panel")
+
+    assert resolve_effective_default_provider_model_with_effort() == (
+        "codex",
+        "gpt-5.6-sol",
+        "medium",
+    )
+    assert resolve_model_provider_with_effort("@default") == (
+        "claude",
+        "opus",
+        "high",
+    )
 
 
 def test_concrete_model_token_is_not_overridden(

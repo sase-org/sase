@@ -343,6 +343,8 @@ def test_ownership_partition_preserves_top_and_bucket_order() -> None:
     ("configured_value", "expected"),
     [
         ("@default", "default"),
+        ("@default@medium", "default"),
+        ("@default@turbo", "default@turbo"),
         ("claude/opus", None),
         (None, None),
     ],
@@ -538,6 +540,29 @@ def test_active_override_clears_alias_borne_effort(
         clear_alias_override("coder")
 
     assert (coder.provider, coder.model, coder.effort) == ("codex", "o3", None)
+
+
+def test_active_override_surfaces_its_own_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {"coder": "claude/opus@high"},
+            },
+        },
+    )
+    patch_available_providers(monkeypatch)
+
+    set_alias_override("coder", "codex/o3@medium", None, source="test")
+    try:
+        coder = {view.name: view for view in build_alias_views()}["coder"]
+    finally:
+        clear_alias_override("coder")
+
+    assert (coder.provider, coder.model, coder.effort) == ("codex", "o3", "medium")
 
 
 def test_non_default_override_wins_effective_target(

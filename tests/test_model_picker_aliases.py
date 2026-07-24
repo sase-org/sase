@@ -160,6 +160,8 @@ def test_free_form_alias_guard_rejects_unknown_and_unsafe_references() -> None:
     assert alias_reference_rejection(context, "@missing") == "unknown alias"
     assert alias_reference_rejection(context, "@coder") == "current alias"
     assert alias_reference_rejection(context, "@default") is None
+    assert alias_reference_rejection(context, "@default@medium") is None
+    assert alias_reference_rejection(context, "@default@turbo") == "unknown alias"
     assert alias_reference_rejection(context, "claude/opus") is None
 
 

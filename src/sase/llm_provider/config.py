@@ -170,6 +170,7 @@ from .model_alias_resolution import (  # noqa: E402
     _ALIAS_RESOLUTION_DEPTH_LIMIT as _ALIAS_RESOLUTION_DEPTH_LIMIT,
     active_alias_overrides as _active_alias_overrides,
     model_alias_selector_details as model_alias_selector_details,
+    normalize_model_alias_reference as normalize_model_alias_reference,
     provider_for_resolved_target as _provider_for_resolved_target,
     resolve_default_alias_target as _resolve_default_alias_target,
     resolve_model_alias as resolve_model_alias,

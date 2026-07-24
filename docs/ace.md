@@ -1424,12 +1424,13 @@ alias: the implicit role aliases (`default`, `coder`, `<provider>_coder`, `epic_
 
 Each row shows the alias name with a small kind badge (`default` / `role` / `<provider> coder` / `user`), its effective
 provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @<fallback>`, or an
-`override · <time> left` / `override · until cleared` chip when a temporary override is active. The title's second line
-shows the launch-effective default effort. With no temporary override it says `default effort: @ <level>` or
-`provider default`; with an active override it shows that `@<level>`, its remaining time, and the configured value
-beside it. The third line shows the effective `max running agents` global cap; an active temporary cap shows its
-remaining time and configured value on the same line. An explicit effort suffix inherited from an alias target appears
-beside that row's model badge; rows that simply inherit the header default omit the redundant suffix.
+`override · <time> left` / `override · until cleared` chip when a temporary override is active. A model-specific effort
+carried by that override appears beside the effective provider/model badge. The title's second line shows the
+launch-effective default effort. With no temporary override it says `default effort: @ <level>` or `provider default`;
+with an active override it shows that `@<level>`, its remaining time, and the configured value beside it. The third line
+shows the effective `max running agents` global cap; an active temporary cap shows its remaining time and configured
+value on the same line. An explicit effort suffix inherited from an alias target appears beside that row's model badge;
+rows that simply inherit the header default omit the redundant suffix.
 
 The top level is split into **Built-in** and **Custom** sections. Each header reports the aliases represented by its
 rows (including members of collapsed buckets) and its bucket count. This sectioning groups the existing deterministic
@@ -1558,8 +1559,8 @@ independent:
 - An override on **any other alias** takes effect wherever that alias is resolved. A size-specific phase override
   affects only that alias. Overrides on `@smartest`, `@cheaper`, and `@cheapest` suspend their ordered fallback or
   independent load-balanced rotation until the override expires or is cleared. It is surfaced by a distinct, concise
-  violet top-bar pill: a single active override renders as `Override @<alias> <time-left>`, and several render as an
-  `Overrides ×N` count.
+  violet top-bar pill: a single active override renders as `Override @<alias>[@<effort>] <time-left>`, and several
+  render as an `Overrides ×N` count.
 
 Overrides apply only to default selection: explicit prompt directives (`%model:codex/o3`,
 `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win, already-running
@@ -1589,7 +1590,9 @@ _configured_ value from the _currently effective (overridden)_ one.
 Selecting an alias during `Edit` stores the raw reference (for example, `@big_epic_lander` → `@coder`), so it remains a
 dynamic link and follows future changes to `@coder`. Selecting an alias during `Override` instead resolves it when the
 override is written and stores that concrete provider/model snapshot together with the raw token; later changes to the
-referenced alias do not change the active override.
+referenced alias do not change the active override. A canonical trailing effort is snapshotted with the target and shown
+in the row, success notification, and single-override top-bar pill. A known suffix on an alias reference is ignored for
+dependency/cycle checks but retained for the written value; unknown trailing `@token` text is not treated as effort.
 
 Builtin aliases edit under `llm_provider.model_aliases.builtin.<name>`. User aliases under
 `llm_provider.model_aliases.custom.<name>` edit their `model` field and reset by deleting the whole custom alias entry.

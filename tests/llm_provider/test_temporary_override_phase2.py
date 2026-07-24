@@ -15,7 +15,10 @@ import pytest
 from sase.llm_provider._invoke import invoke_agent
 from sase.llm_provider.preprocessing import PreprocessResult
 from sase.llm_provider.registry import get_default_provider_name
-from sase.llm_provider.temporary_override import set_temporary_override
+from sase.llm_provider.temporary_override import (
+    set_alias_override,
+    set_temporary_override,
+)
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions
 from sase.xprompt.directives import PromptDirectives
 
@@ -96,6 +99,60 @@ def test_invoke_agent_applies_active_override(
         suppress_output=True,
         model_override="o3",
         options=_NO_EFFORT,
+    )
+
+
+@patch("sase.llm_provider._invoke.get_provider")
+@patch("sase.llm_provider._invoke.preprocess_prompt")
+@patch("sase.llm_provider._invoke.postprocess_success")
+def test_invoke_agent_applies_default_override_effort(
+    _mock_postprocess: MagicMock,
+    mock_preprocess: MagicMock,
+    mock_get_provider: MagicMock,
+) -> None:
+    mock_preprocess.return_value = PreprocessResult(prompt="preprocessed prompt")
+    mock_provider = MagicMock()
+    mock_provider.invoke.return_value = InvokeResult(content="response")
+    mock_get_provider.return_value = mock_provider
+
+    set_temporary_override("codex/o3@medium", 3600.0, source="test")
+    invoke_agent("prompt", agent_type="test", suppress_output=True)
+
+    mock_provider.invoke.assert_called_once_with(
+        "preprocessed prompt",
+        model_tier="large",
+        suppress_output=True,
+        model_override="o3",
+        options=LLMInvocationOptions(reasoning_effort="medium", explicit=False),
+    )
+
+
+@patch("sase.llm_provider._invoke.get_provider")
+@patch("sase.llm_provider._invoke.preprocess_prompt")
+@patch("sase.llm_provider._invoke.postprocess_success")
+def test_invoke_agent_applies_nondefault_alias_override_effort(
+    _mock_postprocess: MagicMock,
+    mock_preprocess: MagicMock,
+    mock_get_provider: MagicMock,
+) -> None:
+    mock_preprocess.return_value = PreprocessResult(
+        prompt="preprocessed prompt",
+        directives=PromptDirectives(model="@coder"),
+    )
+    mock_provider = MagicMock()
+    mock_provider.invoke.return_value = InvokeResult(content="response")
+    mock_get_provider.return_value = mock_provider
+
+    set_alias_override("coder", "codex/o3@medium", 3600.0, source="test")
+    invoke_agent("prompt", agent_type="test", suppress_output=True)
+
+    mock_get_provider.assert_called_once_with("codex")
+    mock_provider.invoke.assert_called_once_with(
+        "preprocessed prompt",
+        model_tier="large",
+        suppress_output=True,
+        model_override="o3",
+        options=LLMInvocationOptions(reasoning_effort="medium", explicit=False),
     )
 
 
@@ -233,6 +290,32 @@ def test_extract_directives_records_override_in_meta(tmp_path) -> None:
     )
     assert meta["llm_provider"] == "codex"
     assert meta["model"] == "o3"
+
+
+def test_extract_directives_records_default_override_effort_in_meta(tmp_path) -> None:
+    import json
+    import os
+
+    from sase.axe.run_agent_phases import extract_directives_and_write_meta
+
+    workspace_dir = str(tmp_path / "workspace")
+    artifacts_dir = str(tmp_path / "artifacts")
+    os.makedirs(workspace_dir, exist_ok=True)
+    os.makedirs(artifacts_dir, exist_ok=True)
+
+    set_temporary_override("codex/o3@medium", 3600.0, source="test")
+    extract_directives_and_write_meta(
+        prompt="just a plain prompt",
+        workspace_dir=workspace_dir,
+        artifacts_dir=artifacts_dir,
+    )
+
+    meta = json.loads(
+        (tmp_path / "artifacts" / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert meta["llm_provider"] == "codex"
+    assert meta["model"] == "o3"
+    assert meta["reasoning_effort"] == "medium"
 
 
 def test_extract_directives_prompt_model_beats_override(tmp_path) -> None:

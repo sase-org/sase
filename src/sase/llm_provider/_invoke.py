@@ -211,6 +211,7 @@ def invoke_agent(
             # slot (it is the user's recent explicit choice).
             provider_name = active.provider
             model_override = active.model
+            alias_effort = active.effort
         elif default_model_alias_name() in get_model_aliases():
             # A configured @default alias routes the no-directive launch through
             # the alias resolver so a configured default model is never silently

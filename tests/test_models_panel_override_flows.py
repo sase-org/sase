@@ -111,12 +111,14 @@ async def test_set_flow_threads_model_and_duration(monkeypatch) -> None:
         created_at=0.0,
         expires_at=3600.0,
         source="ace",
+        effort="medium",
     )
     set_mock = MagicMock(return_value=fake)
     monkeypatch.setattr(models_panel, "set_alias_override", set_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
         pilot.app.push_screen(panel)
         await pilot.pause()
         panel._pending_alias = "coder"
@@ -127,6 +129,7 @@ async def test_set_flow_threads_model_and_duration(monkeypatch) -> None:
         await pilot.pause()
 
     set_mock.assert_called_once_with("coder", "o3", 3600.0, source="ace")
+    assert "CODEX(o3)@medium" in panel.notify.call_args.args[0]
     assert panel._changed is True
 
 

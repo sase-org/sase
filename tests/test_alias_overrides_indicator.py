@@ -25,6 +25,7 @@ def _override(
     provider: str = "codex",
     model: str = "o3",
     expires_at: float | None = 1_000.0,
+    effort: str | None = None,
 ) -> TemporaryLLMOverride:
     """Build a test override."""
     return TemporaryLLMOverride(
@@ -34,6 +35,7 @@ def _override(
         created_at=100.0,
         expires_at=expires_at,
         source="test",
+        effort=effort,
     )
 
 
@@ -63,6 +65,15 @@ def test_single_override_until_cleared_renders_without_countdown() -> None:
     )
 
     assert text.plain == " Override @phase_worker until cleared "
+
+
+def test_single_override_renders_effort_suffix() -> None:
+    text = AliasOverridesIndicator._build_content(
+        {"coder": _override(expires_at=None, effort="medium")},
+        now=100.0,
+    )
+
+    assert text.plain == " Override @coder@medium until cleared "
 
 
 def test_single_expired_override_renders_empty() -> None:

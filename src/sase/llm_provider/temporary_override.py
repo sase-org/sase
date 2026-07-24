@@ -13,12 +13,13 @@ Writes are atomic (temp file + ``os.replace``); reads are best-effort
 self-cleaning — expired or malformed entries are pruned and the file is
 removed once no override remains.
 
-The ``default`` override keeps its existing behavior: it only changes the
-no-``%model`` launch default (explicit ``%model`` directives and an
-explicit ``provider_name`` argument to :func:`invoke_agent` still win, and
-an explicit ``@default`` reference ignores it). Overrides on any other
-alias take effect wherever that alias is resolved (see
-:func:`sase.llm_provider.config.resolve_model_alias`).
+Each entry snapshots the resolved provider/model and optional canonical effort
+while retaining the original raw reference. The ``default`` override keeps its
+existing behavior: it only changes the no-``%model`` launch default (explicit
+``%model`` directives and an explicit ``provider_name`` argument to
+:func:`invoke_agent` still win, and an explicit ``@default`` reference ignores
+it). Overrides on any other alias take effect wherever that alias is resolved
+(see :func:`sase.llm_provider.config.resolve_model_alias`).
 """
 
 from __future__ import annotations
@@ -37,6 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.paths import sase_home
+from sase.xprompt.effort import is_valid_effort
 
 from .config import DEFAULT_MODEL_ALIAS_NAME
 from .types import ModelTier
@@ -79,6 +81,7 @@ class TemporaryLLMOverride:
     created_at: float
     expires_at: float | None
     source: str
+    effort: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +242,11 @@ def _entry_from_dict(entry: object) -> TemporaryLLMOverride | None:
     expires_at = entry.get("expires_at")
     if expires_at is not None and not _is_finite_number(expires_at):
         return None
+    effort = entry.get("effort")
+    if effort is not None and (
+        not isinstance(effort, str) or not is_valid_effort(effort)
+    ):
+        return None
     return TemporaryLLMOverride(
         provider=entry["provider"],
         model=entry["model"],
@@ -246,6 +254,7 @@ def _entry_from_dict(entry: object) -> TemporaryLLMOverride | None:
         created_at=float(created_at),
         expires_at=float(expires_at) if expires_at is not None else None,
         source=entry["source"],
+        effort=effort,
     )
 
 
@@ -351,7 +360,8 @@ def set_alias_override(
     """Set a temporary override on *alias* for *raw_model* lasting *duration_seconds*.
 
     Overrides on other aliases are preserved (and any expired ones pruned).
-    *raw_model* is resolved via the existing ``resolve_model_provider()`` rules:
+    *raw_model* is resolved via the existing
+    ``resolve_model_provider_with_effort()`` rules:
     ``"codex/o3"`` selects codex explicitly, ``"opus"`` infers claude from
     plugin metadata, and an unknown bare model is accepted but runs on the
     current effective default provider (mirroring ``%model``).
@@ -435,9 +445,11 @@ def _write_alias_override(
 
     # Lazy import to avoid an import cycle (registry imports from this
     # module's siblings via __init__.py).
-    from .registry import resolve_model_provider
+    from .registry import resolve_model_provider_with_effort
 
-    resolved_provider, resolved_model = resolve_model_provider(cleaned)
+    resolved_provider, resolved_model, resolved_effort = (
+        resolve_model_provider_with_effort(cleaned)
+    )
     if resolved_provider is None:
         resolved_provider, _ = resolve_effective_default_provider_model()
 
@@ -448,6 +460,7 @@ def _write_alias_override(
         created_at=created_at,
         expires_at=expires_at,
         source=source.strip(),
+        effort=resolved_effort,
     )
 
     with _locked_state():
@@ -597,7 +610,7 @@ def resolve_effective_default_provider_model_with_effort(
 
     override = get_active_temporary_override()
     if override is not None:
-        return override.provider, override.model, None
+        return override.provider, override.model, override.effort
 
     from .registry import resolve_default_alias_provider_model_with_effort
 

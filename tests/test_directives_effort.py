@@ -54,6 +54,7 @@ def test_is_valid_effort() -> None:
 
 def test_split_model_effort_splits_known_trailing_level() -> None:
     assert split_model_effort("opus@xhigh") == ("opus", "xhigh")
+    assert split_model_effort("@default@medium") == ("@default", "medium")
     assert split_model_effort("codex/gpt-5.6-sol@xhigh") == (
         "codex/gpt-5.6-sol",
         "xhigh",
@@ -65,6 +66,7 @@ def test_split_model_effort_leaves_unknown_trailing_token() -> None:
     """A trailing ``@token`` that is not a known level is preserved."""
     assert split_model_effort("foo@bar") == ("foo@bar", None)
     assert split_model_effort("model@v2") == ("model@v2", None)
+    assert split_model_effort("@default@turbo") == ("@default@turbo", None)
 
 
 def test_split_model_effort_no_at_sign() -> None:

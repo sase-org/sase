@@ -156,6 +156,8 @@ class LLMOverrideIndicator(Static):
             return None
 
         label = format_provider_model_label(override.provider, override.model)
+        if override.effort:
+            label = f"{label}@{override.effort}"
         return Text(f" Override {label} {remaining} ", style=_ACTIVE_STYLE)
 
     @staticmethod

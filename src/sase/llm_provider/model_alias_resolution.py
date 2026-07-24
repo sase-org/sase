@@ -26,6 +26,20 @@ from .model_alias_policy import (
 _ALIAS_RESOLUTION_DEPTH_LIMIT = 16
 
 
+def normalize_model_alias_reference(value: str) -> tuple[str | None, str | None]:
+    """Return the clean alias name and canonical effort from *value*.
+
+    Only a known trailing effort token is removed. Unknown ``@`` suffixes stay
+    attached to the alias name so model identifiers and future syntax are not
+    silently reinterpreted.
+    """
+    clean_value, effort = split_model_effort(value.strip())
+    if not clean_value.startswith("@"):
+        return None, effort
+    alias = clean_value[1:].strip()
+    return alias or None, effort
+
+
 def active_alias_overrides() -> dict[str, Any]:
     """Return active temporary alias overrides, failing safely to none."""
     try:
@@ -174,9 +188,12 @@ def _resolve_model_alias_result(
                     overrides = config._active_alias_overrides()
                 override = overrides.get(bare)
                 if override is not None:
+                    override_effort = getattr(override, "effort", None)
+                    if not isinstance(override_effort, str):
+                        override_effort = None
                     return _ResolvedModelAlias(
                         f"{override.provider}/{override.model}",
-                        effort,
+                        effort or override_effort,
                         selector_owner,
                     )
 
