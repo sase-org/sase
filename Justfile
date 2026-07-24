@@ -242,7 +242,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-8v(RewrittenAgentRelationshipBatch)' \
         --epic-symbol 'sase-8v(ValidatedAgentRelationshipSummary)' \
         --epic-symbol 'sase-8v(agent_relationship_schema_version)' \
-        --epic-symbol 'sase-8v(classify_agent_ownership)' \
         --epic-symbol 'sase-8v(globalize_legacy_agent_name)' \
         --epic-symbol 'sase-8v(localize_agent_name)' \
         --epic-symbol 'sase-8v(strip_global_agent_name)' \

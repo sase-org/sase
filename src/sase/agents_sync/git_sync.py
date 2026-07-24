@@ -13,8 +13,10 @@ import tempfile
 import time
 from typing import Any
 
-from sase.agents_sync.bundles import integrate_foreign_bundles
 from sase.agents_sync.git import GitRunner, run_git
+from sase.agents_sync.incoming_integration import (
+    integrate_agent_imports_with_receipts,
+)
 from sase.agents_sync.models import (
     ExportCounts,
     IntegrationCounts,
@@ -23,9 +25,6 @@ from sase.agents_sync.models import (
 )
 from sase.agents_sync.publication import reconcile_agent_hoods
 from sase.agents_sync.targets import resolve_sync_targets
-from sase.agents_sync.v2_import_package import discover_agent_imports
-from sase.agents_sync.v2_importer import integrate_v2_hoods
-from sase.agents_sync.v2_models import V2ProjectIdentity
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
@@ -385,45 +384,11 @@ def _integrate_export_pass(
     git_runner: GitRunner,
 ) -> tuple[IntegrationCounts, ExportCounts]:
     identity = AgentIdentitySnapshot(owner)
-    discovery = discover_agent_imports(
-        repo,
-        V2ProjectIdentity(target.project_key, target.project),
-    )
-    v2_integrated = integrate_v2_hoods(
+    integrated = integrate_agent_imports_with_receipts(
         target,
-        discovery.v2_packages,
-        identity=identity,
-    )
-    legacy_diagnostics: tuple[str, ...] = ()
-    try:
-        legacy_integrated = integrate_foreign_bundles(
-            target,
-            repo,
-            discovery.legacy_manifest,
-            owner.machine_name,
-        )
-    except Exception as exc:  # noqa: BLE001 - isolate the legacy compatibility tier
-        legacy_integrated = IntegrationCounts()
-        legacy_diagnostics = (f"quarantined legacy v1 import batch: {exc}",)
-    integrated = IntegrationCounts(
-        integrated=legacy_integrated.integrated,
-        refreshed=legacy_integrated.refreshed,
-        unchanged=legacy_integrated.unchanged,
-        hoods_imported=v2_integrated.hoods_imported,
-        hoods_refreshed=v2_integrated.hoods_refreshed,
-        hoods_unchanged=v2_integrated.hoods_unchanged,
-        hoods_quarantined=v2_integrated.hoods_quarantined,
-        families_imported=v2_integrated.families_imported,
-        runs_imported=v2_integrated.runs_imported,
-        diagnostics=tuple(
-            dict.fromkeys(
-                (
-                    *discovery.diagnostics,
-                    *v2_integrated.diagnostics,
-                    *legacy_diagnostics,
-                )
-            )
-        ),
+        repo,
+        owner,
+        git_runner=git_runner,
     )
     published = reconcile_agent_hoods(
         target,

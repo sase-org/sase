@@ -124,7 +124,7 @@ def discover_agent_imports(
         for hood, entry in manifest.hoods:
             try:
                 packages.append(
-                    _validate_v2_hood_package(repo_root, manifest, hood, entry)
+                    validate_v2_hood_package(repo_root, manifest, hood, entry)
                 )
             except (AgentsSyncFormatError, ValueError, RuntimeError, OSError) as exc:
                 diagnostics.append(
@@ -155,7 +155,7 @@ def discover_agent_imports(
     )
 
 
-def _validate_v2_hood_package(
+def validate_v2_hood_package(
     repo_root: Path,
     manifest: V2OwnerManifest,
     hood: str,
@@ -238,6 +238,10 @@ def _validate_v2_hood_package(
         snapshot,
         tuple(verified_runs),
     )
+
+
+# Compatibility for tests and integrations that used the original private seam.
+_validate_v2_hood_package = validate_v2_hood_package
 
 
 def _validate_run(
@@ -468,4 +472,5 @@ __all__ = [
     "ValidatedV2HoodPackage",
     "ValidatedV2RunPayload",
     "discover_agent_imports",
+    "validate_v2_hood_package",
 ]

@@ -72,7 +72,7 @@ def _patch_payload_pass(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     calls: list[int] = []
     monkeypatch.setattr(
         git_sync,
-        "integrate_foreign_bundles",
+        "integrate_agent_imports_with_receipts",
         lambda *_args, **_kwargs: IntegrationCounts(),
     )
 
@@ -213,7 +213,7 @@ def test_pull_rebase_conflict_is_aborted_cleanly(
     _git(intruder, "push")
     monkeypatch.setattr(
         git_sync,
-        "integrate_foreign_bundles",
+        "integrate_agent_imports_with_receipts",
         lambda *_args, **_kwargs: pytest.fail("integration must not run"),
     )
 

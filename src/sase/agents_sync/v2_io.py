@@ -162,6 +162,12 @@ def read_owner_manifest(
     return manifest
 
 
+def owner_manifest_from_bytes(payload: bytes) -> V2OwnerManifest:
+    """Decode strict owner-manifest bytes from a fetched Git object."""
+
+    return _owner_manifest_from_json(_json_from_bytes(payload, "owner manifest"))
+
+
 def read_all_owner_manifests(repo_root: Path) -> tuple[V2OwnerManifest, ...]:
     manifests: list[V2OwnerManifest] = []
     pattern = "users/*/machines/*/manifest.json"
@@ -526,6 +532,15 @@ def _read_json(path: Path, label: str) -> object:
         raise AgentsSyncFormatError(f"could not read {label} at {path}: {exc}") from exc
 
 
+def _json_from_bytes(payload: bytes, label: str) -> object:
+    if len(payload) > MAX_JSON_BYTES:
+        raise AgentsSyncFormatError(f"{label} exceeds the byte limit")
+    try:
+        return json.loads(payload.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise AgentsSyncFormatError(f"could not decode {label}: {exc}") from exc
+
+
 def _owner(value: object, label: str) -> AgentOwnerIdentity:
     row = _exact_object(value, label, {"username", "machine_name"})
     owner = AgentOwnerIdentity(
@@ -625,6 +640,7 @@ __all__ = [
     "content_digest",
     "file_reference",
     "owner_manifest_path",
+    "owner_manifest_from_bytes",
     "read_all_owner_manifests",
     "read_hood_snapshot",
     "read_owner_manifest",

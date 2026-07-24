@@ -85,7 +85,7 @@ def test_push_failure_is_queued_and_next_commit_drains_idempotently(
         lambda: owner,
     )
     monkeypatch.setattr(
-        "sase.agents_sync.commit_publication.integrate_foreign_bundles",
+        "sase.agents_sync.commit_publication.integrate_agent_imports_with_receipts",
         lambda *_args, **_kwargs: IntegrationCounts(),
     )
 

@@ -5,10 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.agents_sync.bundles import integrate_foreign_bundles
 from sase.agents_sync.git import GitRunner, run_git
-from sase.agents_sync.io import read_manifest
-from sase.agents_sync.models import AgentsManifest, ProjectTarget
+from sase.agents_sync.incoming_integration import (
+    integrate_agent_imports_with_receipts,
+)
+from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication import publish_agent_hood
 from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
@@ -110,6 +111,13 @@ def publish_committed_agent_hood(
     if error is not None:
         return _record_failure(target, error)
 
+    try:
+        from sase.agents_sync.status import rewrite_agents_sync_status_after_sync
+
+        rewrite_agents_sync_status_after_sync((target.project_key,))
+    except Exception:
+        # Status projection is auxiliary and must not fail a completed publish.
+        pass
     return _CommitPublicationOutcome(
         published=True,
         drained=queued_count,
@@ -205,9 +213,12 @@ def _prepare_publications(
     git_runner: GitRunner,
 ) -> str | None:
     repo = target.sidecar_path
-    legacy_path = repo / "manifest.json"
-    legacy = read_manifest(legacy_path) if legacy_path.is_file() else AgentsManifest()
-    integrate_foreign_bundles(target, repo, legacy, owner.machine_name)
+    integrate_agent_imports_with_receipts(
+        target,
+        repo,
+        owner,
+        git_runner=git_runner,
+    )
     identity = AgentIdentitySnapshot(owner)
     for request in requests:
         try:

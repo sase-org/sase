@@ -6,6 +6,8 @@ import subprocess
 import pytest
 
 from sase.agents_sync import status
+from sase.agents_sync.git_objects import FetchedAgentsCommit
+from sase.agents_sync.incoming_detection import _IncomingCaptureReport
 from sase.agents_sync.io import write_manifest
 from sase.agents_sync.models import (
     AgentsManifest,
@@ -14,6 +16,7 @@ from sase.agents_sync.models import (
     SyncStatusSnapshot,
     TargetSelection,
 )
+from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 
 def _target(tmp_path: Path) -> ProjectTarget:
@@ -32,149 +35,199 @@ def _target(tmp_path: Path) -> ProjectTarget:
     )
 
 
-def test_fresh_status_revalidates_without_fetch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def _patch_selection(
+    monkeypatch: pytest.MonkeyPatch,
+    target: ProjectTarget,
+) -> None:
+    monkeypatch.setattr(
+        status,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        status,
+        "require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
+
+
+def test_plain_status_reconciles_cache_without_running_git(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     target = _target(tmp_path)
     cache = tmp_path / "status.json"
     previous = SyncStatusSnapshot(
         100.0,
-        (ProjectSyncStatus("proj", "Project", "ready", 0, 0, 0, last_fetch_time=90.0),),
+        (
+            ProjectSyncStatus(
+                "proj",
+                "Project",
+                "ready",
+                2,
+                3,
+                4,
+                last_fetch_time=90.0,
+            ),
+        ),
     )
     status._write_agents_sync_status_snapshot(previous, path=cache)
-    calls: list[tuple[str, bool]] = []
+    _patch_selection(monkeypatch, target)
 
     def runner(
-        _cwd: Path, args: list[str], *, network: bool = False, op: str = ""
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
     ) -> subprocess.CompletedProcess[str]:
-        calls.append((args[0], network))
-        if args[:2] == ["rev-parse", "--verify"]:
-            return subprocess.CompletedProcess(args, 0, "upstream\n", "")
-        if args[0] == "rev-list":
-            return subprocess.CompletedProcess(args, 0, "2 3\n", "")
-        raise AssertionError(args)
-
-    monkeypatch.setattr(
-        status, "resolve_sync_targets", lambda _projects: TargetSelection((target,), ())
-    )
-    monkeypatch.setattr(status, "require_machine_name", lambda: "athena")
-    monkeypatch.setattr(status, "count_unexported_local_agents", lambda *_a, **_k: 4)
+        raise AssertionError(f"short status must not run Git: {args}")
 
     snapshot = status.get_agents_sync_status(
-        now=101.0, ttl_seconds=10.0, git_runner=runner, path=cache
+        now=101.0,
+        ttl_seconds=0.0,
+        git_runner=runner,
+        path=cache,
     )
 
-    assert calls == [("rev-parse", False), ("rev-list", False)]
     current = snapshot.projects[0]
     assert (current.ahead, current.behind, current.unexported_agents) == (2, 3, 4)
     assert current.last_fetch_time == 90.0
 
 
 @pytest.mark.parametrize("cache_contents", [None, "{broken"])
-def test_stale_or_corrupt_status_fetches_then_recovers(
+def test_missing_or_corrupt_status_never_implies_network(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     cache_contents: str | None,
 ) -> None:
     target = _target(tmp_path)
     cache = tmp_path / "status.json"
-    if cache_contents is None:
-        status._write_agents_sync_status_snapshot(
-            SyncStatusSnapshot(1.0, ()), path=cache
-        )
-    else:
+    if cache_contents is not None:
         cache.write_text(cache_contents)
-    calls: list[tuple[str, bool]] = []
+    _patch_selection(monkeypatch, target)
 
     def runner(
-        _cwd: Path, args: list[str], *, network: bool = False, op: str = ""
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
     ) -> subprocess.CompletedProcess[str]:
-        calls.append((args[0], network))
+        raise AssertionError(f"plain status must not run Git: {args}")
+
+    snapshot = status.get_agents_sync_status(
+        now=1000.0,
+        git_runner=runner,
+        path=cache,
+    )
+
+    assert snapshot.projects[0].state == "ready"
+    assert snapshot.projects[0].last_fetch_time is None
+
+
+def test_explicit_refresh_fetches_once_and_updates_cached_diagnostics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _target(tmp_path)
+    cache = tmp_path / "status.json"
+    calls: list[tuple[tuple[str, ...], bool]] = []
+    _patch_selection(monkeypatch, target)
+    monkeypatch.setattr(
+        status,
+        "capture_fetched_agent_updates",
+        lambda *_args, **_kwargs: _IncomingCaptureReport(
+            FetchedAgentsCommit("refs/remotes/origin/main", "a" * 40),
+            (),
+            2,
+            1,
+            (),
+            1000.0,
+        ),
+    )
+    monkeypatch.setattr(
+        status,
+        "count_unexported_local_agents",
+        lambda *_args, **_kwargs: 4,
+    )
+
+    def runner(
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append((tuple(args), network))
+        if args == ["rev-parse", "--git-dir"]:
+            return subprocess.CompletedProcess(args, 0, ".git\n", "")
         if args[0] == "fetch":
             return subprocess.CompletedProcess(args, 0, "", "")
         if args[:2] == ["rev-parse", "--verify"]:
             return subprocess.CompletedProcess(args, 0, "upstream\n", "")
         if args[0] == "rev-list":
-            return subprocess.CompletedProcess(args, 0, "0 1\n", "")
+            return subprocess.CompletedProcess(args, 0, "2 3\n", "")
         raise AssertionError(args)
 
-    monkeypatch.setattr(
-        status, "resolve_sync_targets", lambda _projects: TargetSelection((target,), ())
-    )
-    monkeypatch.setattr(status, "require_machine_name", lambda: "athena")
-    monkeypatch.setattr(status, "count_unexported_local_agents", lambda *_a, **_k: 0)
-
     snapshot = status.get_agents_sync_status(
-        now=1000.0, ttl_seconds=10.0, git_runner=runner, path=cache
+        refresh=True,
+        now=1000.0,
+        git_runner=runner,
+        path=cache,
     )
 
-    assert calls[0] == ("fetch", True)
-    assert snapshot.projects[0].behind == 1
-    assert snapshot.projects[0].last_fetch_time == 1000.0
-    assert status._read_agents_sync_status_snapshot(path=cache) == snapshot
+    assert sum(network for _args, network in calls) == 1
+    current = snapshot.projects[0]
+    assert (current.ahead, current.behind, current.unexported_agents) == (2, 3, 4)
+    assert current.fetched_sha == "a" * 40
+    assert current.validated_foreign_count == 2
+    assert current.exact_owner_count == 1
 
 
-@pytest.mark.parametrize("cache_contents", [None, "{broken"])
-def test_revalidate_only_never_fetches_with_missing_or_stale_cache(
+def test_revalidate_only_never_runs_git(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    cache_contents: str | None,
 ) -> None:
     target = _target(tmp_path)
     cache = tmp_path / "status.json"
-    if cache_contents is None:
-        status._write_agents_sync_status_snapshot(
-            SyncStatusSnapshot(
-                1.0,
-                (
-                    ProjectSyncStatus(
-                        "proj",
-                        "Project",
-                        "ready",
-                        0,
-                        0,
-                        0,
-                        last_fetch_time=0.5,
-                    ),
+    status._write_agents_sync_status_snapshot(
+        SyncStatusSnapshot(
+            1.0,
+            (
+                ProjectSyncStatus(
+                    "proj",
+                    "Project",
+                    "ready",
+                    1,
+                    2,
+                    3,
+                    last_fetch_time=0.5,
                 ),
             ),
-            path=cache,
-        )
-    else:
-        cache.write_text(cache_contents)
-    calls: list[tuple[str, bool]] = []
+        ),
+        path=cache,
+    )
+    _patch_selection(monkeypatch, target)
 
     def runner(
-        _cwd: Path, args: list[str], *, network: bool = False, op: str = ""
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
     ) -> subprocess.CompletedProcess[str]:
-        calls.append((args[0], network))
-        assert args[0] != "fetch"
-        if args[:2] == ["rev-parse", "--verify"]:
-            return subprocess.CompletedProcess(args, 0, "upstream\n", "")
-        if args[0] == "rev-list":
-            return subprocess.CompletedProcess(args, 0, "1 2\n", "")
-        raise AssertionError(args)
-
-    monkeypatch.setattr(
-        status, "resolve_sync_targets", lambda _projects: TargetSelection((target,), ())
-    )
-    monkeypatch.setattr(status, "require_machine_name", lambda: "athena")
-    monkeypatch.setattr(status, "count_unexported_local_agents", lambda *_a, **_k: 3)
+        raise AssertionError(f"revalidation must not run Git: {args}")
 
     snapshot = status.get_agents_sync_status(
         now=1000.0,
-        ttl_seconds=10.0,
         revalidate_only=True,
         git_runner=runner,
         path=cache,
     )
 
-    assert calls == [("rev-parse", False), ("rev-list", False)]
-    assert (
-        snapshot.projects[0].ahead,
-        snapshot.projects[0].behind,
-        snapshot.projects[0].unexported_agents,
-    ) == (1, 2, 3)
+    current = snapshot.projects[0]
+    assert (current.ahead, current.behind, current.unexported_agents) == (1, 2, 3)
 
 
 def test_status_rejects_conflicting_network_modes() -> None:
@@ -182,29 +235,40 @@ def test_status_rejects_conflicting_network_modes() -> None:
         status.get_agents_sync_status(refresh=True, revalidate_only=True)
 
 
-def test_post_sync_rewrite_never_fetches(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_post_sync_rewrite_never_runs_git(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     target = _target(tmp_path)
+    _patch_selection(monkeypatch, target)
+    monkeypatch.setattr(
+        status,
+        "_status_snapshot_path",
+        lambda: tmp_path / "cache.json",
+    )
 
     def runner(
-        _cwd: Path, args: list[str], *, network: bool = False, op: str = ""
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
     ) -> subprocess.CompletedProcess[str]:
-        assert not network
-        assert args[0] != "fetch"
-        if args[:2] == ["rev-parse", "--verify"]:
-            return subprocess.CompletedProcess(args, 0, "upstream\n", "")
-        return subprocess.CompletedProcess(args, 0, "0 0\n", "")
+        raise AssertionError(f"post-sync rewrite must not run Git: {args}")
 
-    monkeypatch.setattr(
-        status, "resolve_sync_targets", lambda _projects: TargetSelection((target,), ())
+    snapshot = status.rewrite_agents_sync_status_after_sync(
+        now=50.0,
+        git_runner=runner,
     )
-    monkeypatch.setattr(status, "require_machine_name", lambda: "athena")
-    monkeypatch.setattr(status, "count_unexported_local_agents", lambda *_a, **_k: 0)
-    monkeypatch.setattr(
-        status, "_status_snapshot_path", lambda: tmp_path / "cache.json"
-    )
-
-    snapshot = status.rewrite_agents_sync_status_after_sync(now=50.0, git_runner=runner)
 
     assert snapshot.projects[0].state == "ready"
+
+
+def test_status_decoder_rejects_non_finite_times(tmp_path: Path) -> None:
+    cache = tmp_path / "status.json"
+    cache.write_text(
+        '{"schema_version":2,"checked_at":NaN,"projects":[]}',
+        encoding="utf-8",
+    )
+
+    assert status._read_agents_sync_status_snapshot(path=cache) is None

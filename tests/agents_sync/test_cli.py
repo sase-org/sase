@@ -69,7 +69,7 @@ def test_check_json_is_stable_and_errors_exit_nonzero(
         exit_code = handle_agents_sync(args)
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["mode"] == "check"
     assert payload["projects"][0]["error"] == "corrupt manifest"
     assert exit_code == 1

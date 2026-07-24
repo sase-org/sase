@@ -292,6 +292,16 @@ def read_manifest(path: Path) -> AgentsManifest:
     return _manifest_from_json(_read_json(path, "manifest.json"))
 
 
+def manifest_from_bytes(payload: bytes) -> AgentsManifest:
+    """Decode a strict legacy manifest captured from an immutable Git object."""
+
+    try:
+        value = json.loads(payload.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise AgentsSyncFormatError(f"could not decode manifest.json: {exc}") from exc
+    return _manifest_from_json(value)
+
+
 def read_bundle(repo_root: Path, entry: ManifestEntry) -> AgentBundle:
     """Read and fully verify one manifest-advertised bundle."""
 
@@ -424,6 +434,7 @@ __all__ = [
     "atomic_write_json",
     "canonical_json_bytes",
     "compute_bundle_digest",
+    "manifest_from_bytes",
     "portable_metadata_from_json",
     "read_bundle",
     "read_manifest",
