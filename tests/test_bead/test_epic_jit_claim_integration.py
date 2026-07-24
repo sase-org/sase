@@ -10,6 +10,7 @@ import pytest
 
 from sase.agent.launch_types import AgentLaunchResult
 from sase.axe.run_agent_runner_bead import claim_bead_for_agent_launch
+from sase.bead.claims import claim_bead_for_waiting_agent
 from sase.bead.cli_work_launch import launch_bead_work_agents
 from sase.bead.cli_work_plan import expected_agent_names
 from sase.bead.model import Status
@@ -38,7 +39,7 @@ def _launch_result(name: str) -> AgentLaunchResult:
 
 
 @pytest.mark.parametrize("planned", [False, True], ids=["generic-cwd", "planned"])
-def test_rendered_waves_claim_only_when_each_runner_reaches_execution(
+def test_rendered_waves_claim_while_waiting_then_promote_at_execution(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     planned: bool,
@@ -117,6 +118,18 @@ def test_rendered_waves_claim_only_when_each_runner_reaches_execution(
         assert directives.bead_id == env["SASE_BEAD_ID"]
         directives_by_bead[directives.bead_id] = directives
 
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: project_dir / "sdd/beads",
+    )
+    for bead_id, directives in directives_by_bead.items():
+        assert directives.name is not None
+        assert claim_bead_for_waiting_agent(
+            project_name="proj",
+            bead_id=bead_id,
+            agent_name=directives.name,
+        )
+
     store = SddStore(
         storage="in_tree",
         sdd_dir=project_dir / "sdd",
@@ -129,7 +142,8 @@ def test_rendered_waves_claim_only_when_each_runner_reaches_execution(
         assert directives.name is not None
         with BeadProject(project_dir) as project:
             before = project.show(bead_id)
-            assert before.status == Status.OPEN
+            assert before.status == Status.CLAIMED
+            assert before.assignee == directives.name
             assert all(
                 project.show(blocker).status == Status.CLOSED
                 for blocker in directives.wait_beads
@@ -148,29 +162,31 @@ def test_rendered_waves_claim_only_when_each_runner_reaches_execution(
     with patch("sase.sdd.store.resolve_sdd_store", return_value=store):
         first, parallel_a, parallel_b, downstream = phase_ids
 
-        # Launching and waiting do not mutate downstream work.
+        # Every launched runner reserves its work before dependency admission.
         with BeadProject(project_dir) as project:
-            assert all(project.show(bead).status == Status.OPEN for bead in phase_ids)
-            assert project.show(epic_id).status == Status.OPEN
+            assert all(
+                project.show(bead).status == Status.CLAIMED for bead in phase_ids
+            )
+            assert project.show(epic_id).status == Status.CLAIMED
 
         cross_runner_claim(first)
         with BeadProject(project_dir) as project:
-            assert project.show(parallel_a).status == Status.OPEN
-            assert project.show(parallel_b).status == Status.OPEN
+            assert project.show(parallel_a).status == Status.CLAIMED
+            assert project.show(parallel_b).status == Status.CLAIMED
             project.close([first])
 
-        # Parallel workers claim independently immediately before their models.
+        # Each worker promotes its reservation immediately before its model.
         cross_runner_claim(parallel_a)
         with BeadProject(project_dir) as project:
-            assert project.show(parallel_b).status == Status.OPEN
+            assert project.show(parallel_b).status == Status.CLAIMED
         cross_runner_claim(parallel_b)
         with BeadProject(project_dir) as project:
-            assert project.show(downstream).status == Status.OPEN
+            assert project.show(downstream).status == Status.CLAIMED
             project.close([parallel_a, parallel_b])
 
         cross_runner_claim(downstream)
         with BeadProject(project_dir) as project:
-            assert project.show(epic_id).status == Status.OPEN
+            assert project.show(epic_id).status == Status.CLAIMED
             project.close([downstream])
 
         cross_runner_claim(epic_id)

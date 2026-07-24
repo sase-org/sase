@@ -29,10 +29,10 @@ def _runner_args(tmp_path: Path) -> SimpleNamespace:
     )
 
 
-def _agent_info() -> SimpleNamespace:
+def _agent_info(*, bead_id: str | None = None) -> SimpleNamespace:
     return SimpleNamespace(
         name="foo--reviewer",
-        bead_id=None,
+        bead_id=bead_id,
         wait_names=["foo"],
         wait_identity_deps=[
             {
@@ -61,11 +61,14 @@ def _agent_info() -> SimpleNamespace:
 def _run_runner_with_wait_result(
     tmp_path: Path,
     wait_result: object,
+    *,
+    bead_id: str | None = None,
 ) -> dict[str, object]:
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
     done_markers: list[tuple[str, dict[str, object]]] = []
     shutdown_states: list[object] = []
+    lifecycle_events: list[str] = []
     exec_result = SimpleNamespace(
         outcome="completed",
         success=True,
@@ -93,6 +96,7 @@ def _run_runner_with_wait_result(
         agent_meta: dict[str, object],
         **_kwargs: object,
     ) -> object:
+        lifecycle_events.append("wait")
         persisted_meta = json.loads(
             (Path(wait_artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
         )
@@ -152,7 +156,7 @@ def _run_runner_with_wait_result(
             patch.object(
                 run_agent_runner,
                 "extract_directives_and_write_meta",
-                return_value=_agent_info(),
+                return_value=_agent_info(bead_id=bead_id),
             )
         )
         stack.enter_context(
@@ -207,11 +211,35 @@ def _run_runner_with_wait_result(
                 return_value="2026-07-01T01:02:03+00:00",
             )
         )
+        claim_for_wait = stack.enter_context(
+            patch.object(
+                run_agent_runner,
+                "claim_bead_for_waiting_agent",
+                side_effect=lambda **_kwargs: lifecycle_events.append("claim") or True,
+            )
+        )
+        claim_for_launch = stack.enter_context(
+            patch.object(
+                run_agent_runner,
+                "claim_bead_for_agent_launch",
+                side_effect=lambda **_kwargs: lifecycle_events.append("promote"),
+            )
+        )
+
+        def execute(*_args: object, **_kwargs: object) -> object:
+            lifecycle_events.append("execute")
+            meta = json.loads(
+                (artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")
+            )
+            if bead_id is not None:
+                assert meta["bead_claim_promoted"] is True
+            return exec_result
+
         run_execution_loop = stack.enter_context(
             patch.object(
                 run_agent_runner,
                 "run_execution_loop",
-                return_value=exec_result,
+                side_effect=execute,
             )
         )
         stack.enter_context(
@@ -248,6 +276,9 @@ def _run_runner_with_wait_result(
     assert exc_info.value.code == 0
     return {
         "done_markers": done_markers,
+        "claim_for_launch": claim_for_launch,
+        "claim_for_wait": claim_for_wait,
+        "lifecycle_events": lifecycle_events,
         "notify": notify,
         "run_execution_loop": run_execution_loop,
         "shutdown_states": shutdown_states,
@@ -289,3 +320,28 @@ def test_runner_forwards_blocking_wait_result_to_code_refresh(tmp_path: Path) ->
         prompt_file=str(tmp_path / "prompt.md"),
         submitted_xprompt="%i(reviewer, family=foo)\nDo work",
     )
+
+
+def test_waiting_bead_claims_before_wait_and_promotes_before_execution(
+    tmp_path: Path,
+) -> None:
+    result = _run_runner_with_wait_result(
+        tmp_path,
+        None,
+        bead_id="sase-87.2",
+    )
+
+    assert result["lifecycle_events"] == ["claim", "wait", "promote", "execute"]
+    claim_for_wait = result["claim_for_wait"]
+    assert isinstance(claim_for_wait, MagicMock)
+    claim_for_wait.assert_called_once_with(
+        project_name="sase",
+        bead_id="sase-87.2",
+        agent_name="foo--reviewer",
+    )
+    claim_for_launch = result["claim_for_launch"]
+    assert isinstance(claim_for_launch, MagicMock)
+    claim_for_launch.assert_called_once()
+    shutdown_states = result["shutdown_states"]
+    assert isinstance(shutdown_states, list)
+    assert shutdown_states[0].held_bead_claim_id is None

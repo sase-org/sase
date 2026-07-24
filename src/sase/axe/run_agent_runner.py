@@ -95,6 +95,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_output_variables import set_agent_output_variables
+from sase.bead.claims import claim_bead_for_waiting_agent
 from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
 from sase.telemetry import init_telemetry, register_flush_on_exit
 from sase.telemetry.metrics import AGENT_KILLS
@@ -173,6 +174,7 @@ def main() -> None:
     suppress_completion_notification = False
     active_agent_started = False
     running_marker_path: str | None = None
+    held_bead_claim: tuple[str, str, str] | None = None
 
     # Defaults for agent metadata (populated later, but needed by error handler).
     agent_name: str | None = None
@@ -313,6 +315,18 @@ def main() -> None:
                     "SASE_AGENT_DEFERRED_WORKSPACE=1 but extracted wait metadata "
                     "is empty; refusing to continue in the placeholder workspace"
                 )
+            if (
+                has_wait
+                and info.bead_id is not None
+                and agent_name is not None
+                and project_name
+                and claim_bead_for_waiting_agent(
+                    project_name=project_name,
+                    bead_id=info.bead_id,
+                    agent_name=agent_name,
+                )
+            ):
+                held_bead_claim = (info.bead_id, agent_name, project_name)
             wait_chats: list[str] = []
             repeat_stop: RepeatStopDecision | None = None
             blocking_wait_occurred = False
@@ -512,6 +526,9 @@ def main() -> None:
                         workspace_num=workspace_num,
                         artifacts_dir=artifacts_dir,
                     )
+                    agent_meta["bead_claim_promoted"] = True
+                    write_agent_meta(artifacts_dir, agent_meta)
+                    held_bead_claim = None
 
                 sdd_base_sha = capture_sdd_base_sha(workspace_dir, workspace_num)
                 if sdd_base_sha:
@@ -649,6 +666,15 @@ def main() -> None:
                 error_traceback_str=error_traceback_str,
                 suppress_completion_notification=suppress_completion_notification,
                 runtime=runtime,
+                held_bead_claim_id=(
+                    held_bead_claim[0] if held_bead_claim is not None else None
+                ),
+                held_bead_claim_agent=(
+                    held_bead_claim[1] if held_bead_claim is not None else None
+                ),
+                held_bead_claim_project=(
+                    held_bead_claim[2] if held_bead_claim is not None else None
+                ),
             ),
             deps=RunnerShutdownDeps(
                 update_artifact_index=update_agent_artifact_index_for_marker_mutation,

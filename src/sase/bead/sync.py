@@ -90,6 +90,26 @@ def commit_bead_work_launch(
     )
 
 
+def commit_bead_claim(beads_dir: Path, bead_id: str, agent_name: str) -> bool:
+    """Commit a waiting agent's canonical bead claim without pushing it."""
+    return _commit_bead_state(
+        beads_dir,
+        message=f"chore(beads): claim {bead_id} for {agent_name}",
+        auto_commit_type="beads",
+        op_prefix="bead.claim",
+    )
+
+
+def commit_bead_claim_release(beads_dir: Path, bead_id: str, agent_name: str) -> bool:
+    """Commit release of a waiting agent's canonical bead claim."""
+    return _commit_bead_state(
+        beads_dir,
+        message=f"chore(beads): release claim on {bead_id} from {agent_name}",
+        auto_commit_type="beads",
+        op_prefix="bead.claim_release",
+    )
+
+
 def commit_epic_graph_checkpoint(beads_dir: Path, epic_id: str) -> bool:
     """Commit the complete epic graph before any worker can be spawned.
 

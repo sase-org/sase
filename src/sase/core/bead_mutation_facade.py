@@ -96,6 +96,42 @@ def claim_for_agent_launch(
     return _issue_payload(payload), payload
 
 
+def claim_for_agent_wait(
+    beads_dir: Path | str,
+    bead_id: str,
+    agent_name: str,
+    *,
+    now: str | None = None,
+) -> tuple[Issue, dict[str, Any]]:
+    binding = require_rust_binding("bead_claim_for_agent_wait")
+    payload = _call_issue_operation(
+        binding,
+        str(beads_dir),
+        bead_id,
+        agent_name,
+        now,
+    )
+    return _issue_payload(payload), payload
+
+
+def release_agent_claim(
+    beads_dir: Path | str,
+    bead_id: str,
+    agent_name: str,
+    *,
+    now: str | None = None,
+) -> tuple[Issue, dict[str, Any]]:
+    binding = require_rust_binding("bead_release_agent_claim")
+    payload = _call_issue_operation(
+        binding,
+        str(beads_dir),
+        bead_id,
+        agent_name,
+        now,
+    )
+    return _issue_payload(payload), payload
+
+
 def preclaim_epic_work(
     beads_dir: Path | str,
     epic_id: str,
@@ -231,12 +267,14 @@ def _optional_text(value: str | int | None) -> str:
 __all__ = [
     "add_dependency",
     "claim_for_agent_launch",
+    "claim_for_agent_wait",
     "close",
     "create",
     "export_jsonl",
     "init_store",
     "mark_ready_to_work",
     "preclaim_epic_work",
+    "release_agent_claim",
     "remove",
     "remove_many",
     "unmark_ready_to_work",

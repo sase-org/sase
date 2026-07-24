@@ -348,6 +348,50 @@ def test_claim_for_agent_launch_maps_missing_and_preserves_specific_failures(
         rust_beads.claim_for_agent_launch(root / "sdd/beads", epic.id, "  ")
 
 
+def test_wait_claim_facade_claims_idempotently_and_releases(tmp_path: Path) -> None:
+    root = tmp_path / "rust"
+    _init_store(root)
+    epic, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Epic",
+        issue_type=IssueType.PLAN,
+        now="2026-01-01T00:00:00Z",
+    )
+    phase, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Phase",
+        issue_type=IssueType.PHASE,
+        parent_id=epic.id,
+        now="2026-01-01T00:00:01Z",
+    )
+
+    claimed, claim_outcome = rust_beads.claim_for_agent_wait(
+        root / "sdd/beads",
+        phase.id,
+        "agent-1",
+        now="2026-01-01T00:01:00Z",
+    )
+    retained, retained_outcome = rust_beads.claim_for_agent_wait(
+        root / "sdd/beads",
+        phase.id,
+        "agent-1",
+        now="2026-01-01T00:02:00Z",
+    )
+    released, release_outcome = rust_beads.release_agent_claim(
+        root / "sdd/beads",
+        phase.id,
+        "agent-1",
+        now="2026-01-01T00:03:00Z",
+    )
+
+    assert (claimed.status, claimed.assignee) == (Status.CLAIMED, "agent-1")
+    assert claim_outcome["changed"] is True
+    assert (retained.status, retained.assignee) == (Status.CLAIMED, "agent-1")
+    assert retained_outcome["changed"] is False
+    assert (released.status, released.assignee) == (Status.OPEN, "")
+    assert release_outcome["changed"] is True
+
+
 def test_mutation_facade_writes_events_and_repairs_jsonl_projection(
     tmp_path: Path,
 ) -> None:

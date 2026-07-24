@@ -120,6 +120,57 @@ def test_bead_project_claim_failure_does_not_refresh_compatibility_state(
         assert refreshes == []
 
 
+@pytest.mark.parametrize(
+    ("method_name", "facade_name", "status", "changed"),
+    [
+        ("claim_for_agent_wait", "claim_for_agent_wait", Status.CLAIMED, True),
+        ("release_agent_claim", "release_agent_claim", Status.OPEN, False),
+    ],
+)
+def test_bead_project_wait_claim_methods_return_mutation_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    method_name: str,
+    facade_name: str,
+    status: Status,
+    changed: bool,
+) -> None:
+    with BeadProject.init(tmp_path) as project:
+        expected = Issue(
+            id="delegated-1",
+            title="Delegated",
+            issue_type=IssueType.PHASE,
+            status=status,
+            assignee="agent-1" if status == Status.CLAIMED else "",
+        )
+        refreshes: list[bool] = []
+
+        def fake_mutation(
+            beads_dir: Path | str,
+            bead_id: str,
+            agent_name: str,
+            *,
+            now: str | None = None,
+        ) -> tuple[Issue, dict[str, Any]]:
+            assert (beads_dir, bead_id, agent_name, now) == (
+                project.beads_dir,
+                "delegated-1",
+                "agent-1",
+                "2026-01-01T00:00:00Z",
+            )
+            return expected, {"changed": changed}
+
+        monkeypatch.setattr(bead_mutation_facade, facade_name, fake_mutation)
+        monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:00:00Z")
+        monkeypatch.setattr(
+            project, "_refresh_db_from_jsonl", lambda: refreshes.append(True)
+        )
+
+        method = getattr(project, method_name)
+        assert method("delegated-1", "agent-1") == (expected, changed)
+        assert refreshes == [True]
+
+
 def test_bead_project_remove_many_delegates_and_refreshes_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

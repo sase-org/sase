@@ -58,6 +58,9 @@ class RunnerShutdownState:
     error_traceback_str: str | None
     suppress_completion_notification: bool
     runtime: str | None
+    held_bead_claim_id: str | None = None
+    held_bead_claim_agent: str | None = None
+    held_bead_claim_project: str | None = None
 
 
 @dataclass(frozen=True)
@@ -169,6 +172,27 @@ def finalize_runner_shutdown(
                 print("Workspace released")
         except Exception as e:
             print(f"Error updating workspace claim: {e}", file=sys.stderr)
+
+    if (
+        state.held_bead_claim_id
+        and state.held_bead_claim_agent
+        and state.held_bead_claim_project
+    ):
+        try:
+            from sase.agent.pending_handoff import has_pending_handoff
+
+            if not has_pending_handoff(context.artifacts_dir):
+                from sase.bead.claims import release_bead_claim_for_agent
+
+                release_bead_claim_for_agent(
+                    project_name=state.held_bead_claim_project,
+                    bead_id=state.held_bead_claim_id,
+                    agent_name=state.held_bead_claim_agent,
+                )
+        except Exception as e:
+            print(
+                f"Warning: Failed to release waiting bead claim: {e}", file=sys.stderr
+            )
 
     try:
         with open(context.output_path, "a") as f:

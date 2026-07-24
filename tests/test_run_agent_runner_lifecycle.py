@@ -229,3 +229,89 @@ def test_finalize_releases_failed_retry_parent(tmp_path: Path) -> None:
 
     hold.assert_not_called()
     release.assert_called_once_with("/tmp/project.sase", 17, "run", "feature")
+
+
+def test_finalize_releases_held_prelaunch_bead_claim(tmp_path: Path) -> None:
+    output_path = tmp_path / "output.log"
+    context = RunnerShutdownContext(
+        project_file="/tmp/project.sase",
+        workflow_name="run",
+        cl_name="feature",
+        artifacts_timestamp="20260712120000",
+        artifacts_dir=str(tmp_path),
+        output_path=str(output_path),
+        submitted_xprompt="do work",
+        prompt="do work",
+        is_home_mode=True,
+    )
+    deps = RunnerShutdownDeps(
+        update_artifact_index=MagicMock(),
+        was_killed=MagicMock(return_value=True),
+        all_steps_hidden=MagicMock(return_value=True),
+        write_error_report=MagicMock(),
+        send_completion_notification=MagicMock(),
+        auto_dismiss_completed_agent=MagicMock(),
+    )
+
+    with patch(
+        "sase.bead.claims.release_bead_claim_for_agent",
+        return_value=True,
+    ) as release:
+        finalize_runner_shutdown(
+            context=context,
+            state=_state(
+                error_summary=None,
+                suppress_completion_notification=True,
+                held_bead_claim_id="sase-1.2",
+                held_bead_claim_agent="sase-1.2",
+                held_bead_claim_project="sase",
+            ),
+            deps=deps,
+        )
+
+    release.assert_called_once_with(
+        project_name="sase",
+        bead_id="sase-1.2",
+        agent_name="sase-1.2",
+    )
+
+
+@pytest.mark.parametrize("marker", [".sase_plan_pending", ".sase_questions_pending"])
+def test_finalize_preserves_held_bead_claim_for_pending_handoff(
+    tmp_path: Path, marker: str
+) -> None:
+    (tmp_path / marker).touch()
+    context = RunnerShutdownContext(
+        project_file="/tmp/project.sase",
+        workflow_name="run",
+        cl_name="feature",
+        artifacts_timestamp="20260712120000",
+        artifacts_dir=str(tmp_path),
+        output_path=str(tmp_path / "output.log"),
+        submitted_xprompt="do work",
+        prompt="do work",
+        is_home_mode=True,
+    )
+    deps = RunnerShutdownDeps(
+        update_artifact_index=MagicMock(),
+        was_killed=MagicMock(return_value=False),
+        all_steps_hidden=MagicMock(return_value=True),
+        write_error_report=MagicMock(),
+        send_completion_notification=MagicMock(),
+        auto_dismiss_completed_agent=MagicMock(),
+    )
+
+    with patch("sase.bead.claims.release_bead_claim_for_agent") as release:
+        finalize_runner_shutdown(
+            context=context,
+            state=_state(
+                error_summary=None,
+                suppress_completion_notification=True,
+                held_bead_claim_id="sase-1.2",
+                held_bead_claim_agent="sase-1.2",
+                held_bead_claim_project="sase",
+            ),
+            deps=deps,
+        )
+
+    release.assert_not_called()

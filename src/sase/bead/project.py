@@ -245,6 +245,32 @@ class BeadProject:
         self._refresh_db_from_jsonl()
         return issue
 
+    def claim_for_agent_wait(self, bead_id: str, agent_name: str) -> tuple[Issue, bool]:
+        """Reserve an open bead while its owning agent waits to launch."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        issue, outcome = rust_beads.claim_for_agent_wait(
+            self.beads_dir,
+            bead_id,
+            agent_name,
+            now=_now(),
+        )
+        self._refresh_db_from_jsonl()
+        return issue, bool(outcome["changed"])
+
+    def release_agent_claim(self, bead_id: str, agent_name: str) -> tuple[Issue, bool]:
+        """Release a waiting claim when it is still held by *agent_name*."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        issue, outcome = rust_beads.release_agent_claim(
+            self.beads_dir,
+            bead_id,
+            agent_name,
+            now=_now(),
+        )
+        self._refresh_db_from_jsonl()
+        return issue, bool(outcome["changed"])
+
     def close(self, issue_ids: list[str], reason: str | None = None) -> list[Issue]:
         """Close one or more issues.
 
