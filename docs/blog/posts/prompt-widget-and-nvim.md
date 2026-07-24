@@ -40,8 +40,9 @@ mode badge, and the messages the widget emits when you ask for an editor, histor
 
 The widget operates in two modes:
 
-- **INSERT** (default) is the editing surface. `Enter` submits; `Ctrl+J` inserts a literal newline; `Ctrl+A` / `Ctrl+E`
-  do readline-style line motion; `Escape` switches to NORMAL.
+- **INSERT** (default) is the editing surface. `Enter` submits; `Ctrl+J` inserts a newline, continues a containing
+  hyphen bullet, and exits the list when the current line is exactly an empty `- ` marker; `Ctrl+A` / `Ctrl+E` do
+  readline-style line motion; `Escape` switches to NORMAL.
 - **NORMAL** is a faithful slice of Vim. Motions (`h`/`j`/`k`/`l`, `w`/`e`/`b`, `f`/`t`, `0`/`$`, `gg`/`G`,
   `Ctrl+D`/`Ctrl+U`) and operators (`d`, `c`, `D`, `C`, `dd`, `cae` to wipe the buffer) accept count prefixes and write
   to the system clipboard. The border title flips to `[NORMAL]` and line numbers switch to relative numbering. `.`

@@ -294,7 +294,7 @@ commit; the staged event/projection files are included in the next normal projec
 
 ### `sase bead stats`
 
-Show project statistics: total, open, in-progress, and closed counts, plus plan and phase counts.
+Show project statistics: total, open, claimed, in-progress, and closed counts, plus plan and phase counts.
 
 ### `sase bead doctor`
 

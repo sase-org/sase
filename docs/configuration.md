@@ -112,7 +112,8 @@ fields and fail with the actionable `sase config init` instruction.
 There is intentionally no bundled identity default.
 
 Machine hoods also provide stable ownership for the hidden agents sidecar. See
-[Completed Agent Synchronization](agents_sidecar.md) for privacy controls, bundle contents, sync commands, and recovery.
+[Agent Hood Synchronization](agents_sidecar.md) for privacy controls, package contents, import/publication commands, and
+recovery.
 
 ## SASE Admin Center (interactive editor)
 
@@ -246,22 +247,26 @@ CLI segments, and the tooltip spells out both counts plus any manual-only CLI up
 without mutating anything.
 
 The global `,U` action captures the provider names from the latest completed automatic snapshot at keypress time,
-revalidates those names against the live inventory, and previews one comprehensive update. Its foreground load cannot
-add a newly discovered provider to that invocation. Safe commands run sequentially; Homebrew, non-writable npm, and
-unknown-provenance installs remain visible with manual guidance. The pane-wide `u` remains SASE/core/plugins-only, and
-pane-wide `A` remains the deliberate action for the current agent-CLI inventory.
+revalidates those names against the live inventory, captures a no-network agents-repository status snapshot, and
+previews one comprehensive update. Its foreground load cannot add a newly discovered provider to that invocation. Safe
+commands run sequentially; Homebrew, non-writable npm, and unknown-provenance installs remain visible with manual
+guidance. The pane-wide `u` remains SASE/core/plugins-only, and pane-wide `A` remains the deliberate action for the
+current agent-CLI inventory.
 
 Every mutation **previews first**, and long confirmation panes scroll with `Ctrl+D` / `Ctrl+U`. Plugin and core actions
 show the exact `uv` command or editable-checkout plan. When commit previews are enabled and a comparable range is
 available, confirmations for core and installed-plugin **updates** load incoming commits by repository in the
 background; install, uninstall, and mode-switch confirmations do not claim a commit range. The global `,U` comprehensive
-confirmation groups SASE and Agent CLI work into labeled sections with update/current/skipped glyphs, counts, and
-commands (home paths display as `~/`). `A` previews every exact agent-CLI command and every skip with its reason and
-docs URL; on the Agent CLIs sub-tab it uses the marked subset, otherwise it targets every safely updatable installed
+confirmation groups SASE, Agent CLI, and **Agents repos** work into labeled sections with update/current/skipped glyphs,
+counts, and commands (home paths display as `~/`). Every enabled agents repository is runnable even when currently
+synchronized; disabled rows remain skipped. The tracked task runs that sync after the Agent CLI and SASE/core/plugin
+legs and reports independent partial failures. `A` previews every exact agent-CLI command and every skip with its reason
+and docs URL; on the Agent CLIs sub-tab it uses the marked subset, otherwise it targets every safely updatable installed
 CLI. Agent-CLI commands execute sequentially as one tracked task and refresh the browser without restarting ACE; new
 agent launches naturally use the updated binaries. Installable plugins use `I` / `Space` marks, while updatable agent
 CLIs use `Space`; `Esc` clears marks in the active sub-tab before closing. All slow work runs off the event loop.
-Core/plugin code changes retain the existing automatic ACE/axe restart behavior. The context-sensitive keymaps are:
+Core/plugin code changes retain the existing automatic ACE/axe restart behavior after the other legs finish. The
+context-sensitive keymaps are:
 
 | Key                 | Action                                                                                                      |
 | ------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -467,6 +472,10 @@ ace:
     check_interval_minutes: 10 # attempt a periodic check this often
     check_ttl_minutes: 10 # refresh latest-version checks at most this often
     recompute_interval_minutes: 60 # periodic full network recompute cadence
+  agents_sync:
+    check_interval_minutes: 10 # local/cached agents-repository status cadence
+    recompute_interval_minutes: 30 # minimum remote-fetching status cadence
+    indicator: true # show ⇅ N when enabled agents repositories need attention
   keymaps:
     statistics:
       prev_view: "left_square_bracket" # active only while Statistics is focused
@@ -521,6 +530,7 @@ ace:
 
 | Field               | Type         | Default   | Description                                                                                                                                                |
 | ------------------- | ------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agents_sync`       | dict         | see below | Periodic agents-repository status checks and the top-bar synchronization indicator.                                                                        |
 | `artifacts`         | dict         | see below | Per-pane settings for ACE's Artifacts tab.                                                                                                                 |
 | `keymaps`           | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
 | `prompt_completion` | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
@@ -543,6 +553,20 @@ shows a lower-bound total such as `[1/40+]` in the repository legend while the f
 `[P/N]` form means selected one-based position over displayed matched entries. `limit:all` is accepted as an unlimited
 synonym but is omitted from canonical query text. Day-granular `until:` values include the full named day. This setting
 is independent of the `sase vcs log` CLI's sidecar opt-in and limit contract.
+
+#### `ace.agents_sync`
+
+| Field                        | Type   | Default | Description                                                                                        |
+| ---------------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------- |
+| `check_interval_minutes`     | number | `10`    | Interval between local/cached agents-repository status revalidations in a running ACE session.     |
+| `recompute_interval_minutes` | number | `30`    | Minimum cadence between status checks that fetch remote refs before recomputing the snapshot.      |
+| `indicator`                  | bool   | `true`  | Show the top-bar `⇅ N` badge when enabled agents repositories need synchronization or have errors. |
+
+Both intervals must be greater than zero. ACE schedules the first check after its initial paint, coalesces overlapping
+checks, and keeps the network-fetch cadence separate from the cheaper local revalidation cadence. Clicking the badge
+runs a tracked mutating sync across enabled agents repositories; hiding the indicator also disables the periodic ACE
+status scheduler, but it does not disable `sase agent sync`, commit-triggered hood publication, or the `,U`
+comprehensive-update sync leg. See [Agent Hood Synchronization](agents_sidecar.md).
 
 #### `ace.tribes`
 
@@ -963,8 +987,9 @@ Managed projects (`is_sase_managed: true`) receive deterministic `<project>--pla
 Research is config-declared per project and defaults to `<owner>/<project>--research`; `sase repo init` writes the plans
 and research entries. A project-local `agents` entry replaces the implicit entry: use `disabled: true` to opt out or
 `visibility: private` to retain it with a private remote policy. Project-local `default_linked_repos: false` suppresses
-both implicit managed-project entries. This foundation only declares, inventories, and explicitly materializes the
-agents sidecar; automatic repo-init creation, consent, seeding, and agent-data synchronization are separate behavior.
+both implicit managed-project entries. `sase repo init` can create and seed the agents remote only after its separate
+default-no consent prompt; normal commits and `sase agent sync` then publish and import agent hoods through the stable
+machine-level clone. See [Agent Hood Synchronization](agents_sidecar.md) before enabling a public remote.
 
 The deprecated `linked_repos` and `sibling_repos` keys are still accepted as aliases during the compatibility window.
 Canonical `repos.linked` entries take precedence over both aliases when the same name is defined.
@@ -2846,7 +2871,7 @@ it with `A`, even after the agent has been dismissed and revived.
 
 ### `sase agent`
 
-`sase agent` provides cross-project visibility into running agents. Subcommands:
+`sase agent` provides cross-project visibility into running agents and synchronizes shared agent history. Subcommands:
 
 | Subcommand  | Flags                                                                                                                     | Description                                                                                                                                                                                                                                                                                                                                                                     |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -2858,6 +2883,7 @@ it with `A`, even after the agent has been dismissed and revived.
 | `artifacts` | `layout status` / `migrate` / `verify` / `rollback`, `-P/--project`, `-p/--projects-root`, `-i/--index-path`, `-j/--json` | Inspect and migrate the physical `ace-run` artifact directory layout. `status` reports flat and sharded directory counts, `migrate` moves flat timestamp directories into day shards, `verify` checks current or manifest-backed state, and `rollback` reverses a manifest-backed migration.                                                                                    |
 | `index`     | `status` / `rebuild` / `verify` / `gc`, `-i/--index-path`, `-p/--projects-root`, `-j/--json`                              | Maintain the persistent agent artifact index. Defaults are `~/.sase/agent_artifact_index.sqlite` and `~/.sase/projects`; `status` performs a lightweight visible-inbox check without scanning source artifacts, `verify` exits non-zero when the index diverges from source artifacts, and `gc` rebuilds the index from source artifacts and replaces the dismissed projection. |
 | `names`     | `migrate-auto`, `-f/--force`, `-j/--json`                                                                                 | Maintain the permanent agent-name registry. `migrate-auto` runs the historical generated-name namespace migration; `--force` reruns it after the completion marker exists and `--json` emits a machine-readable summary.                                                                                                                                                        |
+| `sync`      | `-c/--check`, `-j/--json`, repeatable `-p/--project`, `-r/--refresh`                                                      | Import and publish complete commit-eligible agent hoods through enabled agents sidecars. `--check` is read-only; `--refresh` is valid only with `--check` and fetches before recomputing status. See [Agent Hood Synchronization](agents_sidecar.md).                                                                                                                           |
 
 ### `sase chat`
 

@@ -112,6 +112,13 @@ text, and wrapping-friendly CSS for code blocks, tables, links, and other long c
 receives both the default stylesheet and explicit page/margin options; LaTeX fallbacks receive the same page size,
 margin, font size, and line-height defaults through Pandoc variables.
 
+When a discovered Markdown source starts with usable, non-empty YAML frontmatter, the generated PDF replaces the raw
+metadata block with a styled **Properties** card and uses its string `title` as the PDF document title. Property
+ordering and nested-value formatting match ACE's plan-detail presentation; HTML-sensitive property text is escaped.
+Empty, malformed, or absent frontmatter leaves the source unchanged, and a preprocessing failure falls back to rendering
+the original Markdown. Dedicated launch-preview PDFs opt out of this transformation so prompt frontmatter and
+highlighting retain their launch-review presentation.
+
 Completion notifications attach generated Markdown PDFs after the saved chat and diff files, before image attachments.
 The Agents tab file panel also loads `markdown_pdf_paths` alongside plan and image files for completed agents.
 

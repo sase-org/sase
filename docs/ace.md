@@ -323,7 +323,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,C`       | Review mentors (opens Mentor Review modal)                                           |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`              |
 | `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel)) |
-| `,U`       | Update eligible SASE and agent CLIs from the latest automatic snapshot               |
+| `,U`       | Update SASE/agent CLIs and synchronize enabled agents repositories                   |
 | `,M`       | Kill running mentors                                                                 |
 | `,R`       | Show runners info                                                                    |
 | `,<space>` | Run agent from current PR (skips project selection)                                  |
@@ -1049,7 +1049,7 @@ collapsed clan.
 | `,u`       | Mark all loaded unread completed agents as read                                                   |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
 | `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel))              |
-| `,U`       | Update eligible SASE and agent CLIs from the latest automatic snapshot                            |
+| `,U`       | Update SASE/agent CLIs and synchronize enabled agents repositories                                |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
 | `,r`       | Revert focused or marked agent commits, including recorded linked repos                           |
@@ -1220,7 +1220,7 @@ the next restart. `E` remains reserved for opening recorded chop output.
 | `,,` | Repeat the last leader command                                                       |
 | `,h` | Run agent from home prompt context; bare prompts default to `#git:home`              |
 | `,m` | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel)) |
-| `,U` | Update eligible SASE and agent CLIs from the latest automatic snapshot               |
+| `,U` | Update SASE/agent CLIs and synchronize enabled agents repositories                   |
 | `,R` | Show runners info                                                                    |
 | `,?` | Open Help for the current tab (Keymaps / Guide)                                      |
 
@@ -2483,7 +2483,7 @@ multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent
 | `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                |
 | `Ctrl+G Enter`               | Submit only the selected pane                                                                              |
 | `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                        |
-| `Ctrl+J`                     | Insert a newline; continue a containing hyphen bullet at its indentation                                   |
+| `Ctrl+J`                     | Insert a newline; continue a containing hyphen bullet, or exit from an exact empty marker                  |
 | `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                   |
 | `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                             |
 | `Ctrl+G`                     | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                               |
@@ -2516,7 +2516,11 @@ possessives, and for repeated quotes/backticks needed to type Markdown fences or
 
 INSERT-mode `Ctrl+J` and prompt NORMAL-mode `o` / `O` continue a containing space-indented `- ` bullet using that
 bullet's indentation. This also works from physical continuation lines, including Prettier-wrapped nested bullets;
-non-bullet lines keep the ordinary bare newline or open-line behavior.
+non-bullet lines keep the ordinary bare newline or open-line behavior. In INSERT mode, pressing `Ctrl+J` on a line that
+is exactly a spaces-only `- ` marker removes that marker and inserts a blank line at column zero, ending the list. The
+common sequence is therefore `Ctrl+J` once to create the next sibling marker and `Ctrl+J` again to exit the list. The
+continuation and exit are separate undo checkpoints. Extra spaces after the marker, tab indentation, other Markdown
+markers, and markers containing text do not trigger the exit path.
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line. The native cursor cell is color-coded by prompt Vim mode: INSERT uses cyan, NORMAL uses gold,
@@ -3032,20 +3036,29 @@ segments with separate counts.
 Every mutation opens a confirmation preview first, and `Ctrl+D` / `Ctrl+U` scroll long preview panes. When commit
 previews are enabled and a comparable range is available, core and installed-plugin **update** confirmations load
 incoming commits by repository in the background; install confirmations do not. The global `,U` comprehensive
-confirmation additionally groups the SASE and Agent CLI work into labeled sections with update/current/skipped glyphs,
-counts, and commands. After a changed core/plugin update restarts ACE, the one-shot result toast can show applied
-commits grouped by repository as well as file/line statistics. Configure the toast with
-`ace.updates.post_update_toast_commits`, `post_update_toast_max_commits`, and `post_update_toast_diffstat`.
+confirmation additionally groups SASE, Agent CLI, and agents-repository work into labeled sections with
+update/current/skipped glyphs, counts, and commands. Its **Agents repos** section uses a captured no-network status
+snapshot and includes every enabled repository, even one currently synchronized; disabled repositories are shown as
+skipped. After the Agent CLI and SASE/core/plugin legs finish, the tracked task runs one all-enabled-project agent sync.
+A failure in that leg is reported alongside the independent earlier results. After a changed core/plugin update restarts
+ACE, the one-shot result toast can show applied commits grouped by repository as well as file/line statistics. Configure
+the toast with `ace.updates.post_update_toast_commits`, `post_update_toast_max_commits`, and
+`post_update_toast_diffstat`.
 
 Global `,U` captures the agent-CLI candidates from the latest completed automatic result, revalidates exactly those
 names, and previews one comprehensive tracked update; the Updates-pane load cannot broaden the captured set. Manual-only
 providers remain in the preview with their suggested command or docs. A real SASE/core/plugin code change restarts ACE
-and axe only after provider work finishes, while provider-only updates refresh in place.
+and axe only after provider and agents-repository work finishes, while provider-only updates refresh in place.
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate pane-wide agent-CLI action: on
 the Agent CLIs sub-tab it updates the marked `Space` selection, and elsewhere it targets every safely updatable
 installed CLI. See the [Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior, and
 [Plugins](plugins.md) for the equivalent `sase plugin` CLI.
+
+Separately, ACE checks enabled agents repositories after first paint and on the cadence configured by `ace.agents_sync`.
+A green `⇅ N` top-bar badge appears when projects are behind, ahead, have a nonzero legacy unexported-agent count, or
+have another non-ready status. Its tooltip lists the affected projects; clicking it launches the agent-sync leg directly
+as a tracked task. See [Agent Hood Synchronization](agents_sidecar.md) for privacy, import, and recovery behavior.
 
 ## Snippets
 
