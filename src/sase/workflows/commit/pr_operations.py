@@ -119,8 +119,17 @@ def build_pr_body(payload: dict) -> None:
     model = meta.get("model")
     if provider and model:
         lines.append(f"**Model:** `{provider}/{model}`")
-    name = meta.get("name")
-    if name:
+    from sase.core.commit_footer_facade import LinkedCommitTagValue
+    from sase.workflows.commit.runtime_tags import parse_trailing_commit_tag_values
+
+    agent_value = parse_trailing_commit_tag_values(
+        str(payload.get("message") or "")
+    ).get("AGENT")
+    if isinstance(agent_value, LinkedCommitTagValue):
+        lines.append(f"**Agent:** [{agent_value.label}]({agent_value.destination})")
+    elif agent_value:
+        lines.append(f"**Agent:** `{agent_value}`")
+    elif name := meta.get("name"):
         lines.append(f"**Agent:** `{name}`")
 
     if lines:

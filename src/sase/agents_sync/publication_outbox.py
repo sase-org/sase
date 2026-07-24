@@ -1,0 +1,282 @@
+"""Durable retry outbox for post-commit agent-hood publication."""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, replace
+import fcntl
+import hashlib
+import json
+from pathlib import Path
+import time
+from typing import Any
+
+from sase.agents_sync.io import atomic_write_json
+from sase.core.paths import sase_projects_dir, validate_sase_project_name
+
+PUBLICATION_OUTBOX_SCHEMA_VERSION = 1
+_OUTBOX_FILENAME = "agents-publication-outbox.json"
+
+
+@dataclass(frozen=True, slots=True)
+class AgentPublicationOutboxItem:
+    """One idempotent primary-commit-to-sidecar publication request."""
+
+    project_key: str
+    project: str
+    local_agent: str
+    global_agent: str
+    primary_revision: str
+    local_hood: str
+    hood_digest: str = "pending"
+    attempts: int = 0
+    last_error: str | None = None
+    created_at: float = 0.0
+    updated_at: float = 0.0
+
+    @property
+    def logical_key(self) -> tuple[str, str]:
+        return self.global_agent, self.primary_revision
+
+    @property
+    def id(self) -> str:
+        payload = "\0".join(
+            (
+                self.project_key,
+                self.global_agent,
+                self.primary_revision,
+                self.hood_digest,
+            )
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def to_json_dict(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "project_key": self.project_key,
+            "project": self.project,
+            "local_agent": self.local_agent,
+            "global_agent": self.global_agent,
+            "primary_revision": self.primary_revision,
+            "local_hood": self.local_hood,
+            "hood_digest": self.hood_digest,
+            "attempts": self.attempts,
+            "last_error": self.last_error,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+
+def enqueue_agent_publication(
+    item: AgentPublicationOutboxItem,
+) -> AgentPublicationOutboxItem:
+    """Insert or refresh *item* without duplicating its logical operation."""
+
+    now = time.time()
+
+    def update(
+        items: tuple[AgentPublicationOutboxItem, ...],
+    ) -> tuple[AgentPublicationOutboxItem, ...]:
+        existing = next(
+            (
+                candidate
+                for candidate in items
+                if candidate.logical_key == item.logical_key
+            ),
+            None,
+        )
+        queued = replace(
+            item,
+            created_at=existing.created_at if existing is not None else now,
+            updated_at=now,
+            attempts=existing.attempts if existing is not None else item.attempts,
+            last_error=existing.last_error if existing is not None else item.last_error,
+            hood_digest=(
+                existing.hood_digest
+                if existing is not None and item.hood_digest == "pending"
+                else item.hood_digest
+            ),
+        )
+        return tuple(
+            sorted(
+                (
+                    *(
+                        candidate
+                        for candidate in items
+                        if candidate.logical_key != item.logical_key
+                    ),
+                    queued,
+                ),
+                key=lambda candidate: (candidate.created_at, candidate.id),
+            )
+        )
+
+    return next(
+        candidate
+        for candidate in _mutate_outbox(item.project_key, update)
+        if candidate.logical_key == item.logical_key
+    )
+
+
+def list_agent_publications(
+    project_key: str,
+) -> tuple[AgentPublicationOutboxItem, ...]:
+    """Return the durable requests currently queued for *project_key*."""
+
+    with _outbox_lock(project_key):
+        return _read_outbox(_outbox_path(project_key), project_key)
+
+
+def update_agent_publications(
+    project_key: str,
+    logical_keys: Iterable[tuple[str, str]],
+    *,
+    hood_digest: str | None = None,
+    error: str | None = None,
+    increment_attempts: bool = False,
+) -> tuple[AgentPublicationOutboxItem, ...]:
+    """Update matching requests atomically and return the resulting outbox."""
+
+    selected = frozenset(logical_keys)
+    now = time.time()
+
+    def update(
+        items: tuple[AgentPublicationOutboxItem, ...],
+    ) -> tuple[AgentPublicationOutboxItem, ...]:
+        return tuple(
+            replace(
+                item,
+                hood_digest=hood_digest or item.hood_digest,
+                last_error=error,
+                attempts=item.attempts + int(increment_attempts),
+                updated_at=now,
+            )
+            if item.logical_key in selected
+            else item
+            for item in items
+        )
+
+    return _mutate_outbox(project_key, update)
+
+
+def acknowledge_agent_publications(
+    project_key: str,
+    logical_keys: Iterable[tuple[str, str]],
+) -> tuple[AgentPublicationOutboxItem, ...]:
+    """Remove successfully published requests and return the remaining outbox."""
+
+    selected = frozenset(logical_keys)
+    return _mutate_outbox(
+        project_key,
+        lambda items: tuple(item for item in items if item.logical_key not in selected),
+    )
+
+
+def _mutate_outbox(
+    project_key: str,
+    update: Callable[
+        [tuple[AgentPublicationOutboxItem, ...]],
+        tuple[AgentPublicationOutboxItem, ...],
+    ],
+) -> tuple[AgentPublicationOutboxItem, ...]:
+    with _outbox_lock(project_key):
+        path = _outbox_path(project_key)
+        items = update(_read_outbox(path, project_key))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(
+            path,
+            {
+                "schema_version": PUBLICATION_OUTBOX_SCHEMA_VERSION,
+                "items": [item.to_json_dict() for item in items],
+            },
+        )
+        return items
+
+
+def _outbox_path(project_key: str) -> Path:
+    validate_sase_project_name(project_key)
+    return sase_projects_dir() / project_key / _OUTBOX_FILENAME
+
+
+@contextmanager
+def _outbox_lock(project_key: str) -> Iterator[None]:
+    path = _outbox_path(project_key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    with lock_path.open("a+b") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _read_outbox(
+    path: Path,
+    project_key: str,
+) -> tuple[AgentPublicationOutboxItem, ...]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return ()
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"could not read agents publication outbox: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("agents publication outbox must be a JSON object")
+    if payload.get("schema_version") != PUBLICATION_OUTBOX_SCHEMA_VERSION:
+        raise RuntimeError("unsupported agents publication outbox schema")
+    rows = payload.get("items")
+    if not isinstance(rows, list):
+        raise RuntimeError("agents publication outbox items must be a list")
+    items = tuple(_item_from_json(row, project_key) for row in rows)
+    if len({item.logical_key for item in items}) != len(items):
+        raise RuntimeError("agents publication outbox contains duplicate requests")
+    return items
+
+
+def _item_from_json(
+    value: object,
+    project_key: str,
+) -> AgentPublicationOutboxItem:
+    if not isinstance(value, dict):
+        raise RuntimeError("agents publication outbox item must be an object")
+    row: dict[str, Any] = value
+    item = AgentPublicationOutboxItem(
+        project_key=str(row.get("project_key") or ""),
+        project=str(row.get("project") or ""),
+        local_agent=str(row.get("local_agent") or ""),
+        global_agent=str(row.get("global_agent") or ""),
+        primary_revision=str(row.get("primary_revision") or ""),
+        local_hood=str(row.get("local_hood") or ""),
+        hood_digest=str(row.get("hood_digest") or "pending"),
+        attempts=int(row.get("attempts") or 0),
+        last_error=(
+            str(row["last_error"]) if row.get("last_error") is not None else None
+        ),
+        created_at=float(row.get("created_at") or 0.0),
+        updated_at=float(row.get("updated_at") or 0.0),
+    )
+    if item.project_key != project_key:
+        raise RuntimeError("agents publication outbox project identity mismatch")
+    if not all(
+        (
+            item.project,
+            item.local_agent,
+            item.global_agent,
+            item.primary_revision,
+            item.local_hood,
+        )
+    ):
+        raise RuntimeError("agents publication outbox item is incomplete")
+    return item
+
+
+__all__ = [
+    "PUBLICATION_OUTBOX_SCHEMA_VERSION",
+    "AgentPublicationOutboxItem",
+    "acknowledge_agent_publications",
+    "enqueue_agent_publication",
+    "list_agent_publications",
+    "update_agent_publications",
+]

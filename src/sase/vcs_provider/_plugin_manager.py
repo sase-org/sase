@@ -158,6 +158,12 @@ class VCSPluginManager(VCSProvider):
             return changespec_name
         return result  # type: ignore[return-value]
 
+    def revision_id(self, revision: str, cwd: str) -> str:
+        result = self._pm.hook.vcs_revision_id(revision=revision, cwd=cwd)
+        if result is None:
+            return revision
+        return result  # type: ignore[return-value]
+
     def resolve_current_changespec_head_ref(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str:

@@ -32,6 +32,33 @@ def _git_cmds(mock_run: MagicMock) -> list[list[str]]:
     return [call[0][0] for call in mock_run.call_args_list]
 
 
+def test_git_revision_id_resolves_head_to_full_commit(tmp_path: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Tests"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "tests@example.test"],
+        cwd=tmp_path,
+        check=True,
+    )
+    (tmp_path / "tracked.txt").write_text("content\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "seed", "-q"], cwd=tmp_path, check=True)
+
+    revision = BareGitPlugin().vcs_revision_id("HEAD", str(tmp_path))
+
+    assert len(revision) == 40
+    assert (
+        revision
+        == subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    )
+
+
 def test_git_runner_removes_persistent_index_lock_after_retries(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

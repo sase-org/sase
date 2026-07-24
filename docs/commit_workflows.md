@@ -127,7 +127,7 @@ Detect parent PR   (auto-set PARENT from current branch's ChangeSpec)     [PR on
     |
 PR metadata        (append PR tags and project prefix)                    [PR only]
     |
-Runtime tags       (append/update SASE_AGENT=, SASE_MACHINE= provenance)  [commit/PR only]
+Runtime tags       (append/update linked global SASE_AGENT= provenance)   [commit/PR only]
     |
 PR body            (build body with final tags and agent footer)          [PR only]
     |
@@ -142,6 +142,8 @@ After hook         (`commit_hooks.after`, after commit/push)              [commi
 ChangeSpec         (create ChangeSpec entry in project file)              [PR only]
     |
 Result marker      (write commit_result.json for xprompt post-steps)
+    |
+Agent publication  (publish the exact hood or queue a durable retry)      [commit/PR only]
     |
 COMMITS entry      (append entry to project file)                         [commit/propose only]
 ```
@@ -188,18 +190,23 @@ first line of the dispatched commit or PR message. Conflict resumes reuse the be
 checkpoint.
 
 Runtime provenance tags are also not user-supplied CLI flags. For `create_commit` and `create_pull_request`,
-`CommitWorkflow` appends or updates trailing `SASE_AGENT=<sase agent name>` and `SASE_MACHINE=<host name>` lines in the
-commit message. `AGENT` comes from `SASE_AGENT_NAME`, falling back to `SASE_ARTIFACTS_DIR/agent_meta.json` when
-available; it is omitted for manual non-agent commits with no agent name. `MACHINE` comes from the local hostname.
-Runtime-owned `AGENT` and `MACHINE` values replace inherited or configured PR tags with the same keys. `create_proposal`
-does not get runtime commit tags because it saves a diff instead of creating a VCS commit.
+`CommitWorkflow` appends or updates a trailing `SASE_AGENT=<username>.<machine>.<agent>` line. When the configured
+agents sidecar is hosted on GitHub, the value is a Markdown reference link to the solo-agent page or the family member's
+stable anchor. `AGENT` comes from `SASE_AGENT_NAME`, falling back to `SASE_ARTIFACTS_DIR/agent_meta.json`; it is omitted
+for manual non-agent commits. New commits never produce `SASE_MACHINE`, while cleanup still removes inherited `AGENT`
+and historical `MACHINE` values. `create_proposal` does not get runtime commit tags because it saves a diff instead of
+creating a VCS commit.
 
-**Footer tag prefix:** All SASE-authored commit footer tags (`TYPE`, `AGENT`, `MACHINE`, `PLAN`, `BUG`, and any
-configured or inherited PR tag keys) are written with a `SASE_` prefix — for example `SASE_TYPE=sdd` and
-`SASE_AGENT=<name>`. Readers (agent-commit/revert discovery, parent-PR tag inheritance, ChangeSpec description
-stripping) still accept the historical unprefixed spelling, so commit history is not rewritten and old commits remain
-readable. Because this changes the exact footer keys visible to external PR tooling, any external consumer that reads
-these tag names must be updated to accept the `SASE_`-prefixed keys (or both spellings).
+After the primary operation and its first durable result marker, the workflow resolves the immutable primary revision
+through the VCS provider and publishes only that agent's project-scoped top-level hood. Publication is a checkpointed
+tracking step. A sidecar failure does not invalidate the primary commit: SASE records a project-scoped durable outbox
+entry and retries it on a later commit or full `sase agent sync`.
+
+**Footer tag prefix:** All SASE-authored commit footer tags (`TYPE`, `AGENT`, `PLAN`, `BUG`, and any configured or
+inherited PR tag keys) are written with a `SASE_` prefix — for example `SASE_TYPE=sdd` and `SASE_AGENT=<name>`. Readers
+(agent-commit/revert discovery, parent-PR tag inheritance, ChangeSpec description stripping) still accept historical
+`MACHINE` tags and the unprefixed spelling, so commit history is not rewritten and old commits remain readable. External
+consumers should accept both historical and `SASE_`-prefixed spellings.
 
 Internal fields added by `CommitWorkflow`:
 

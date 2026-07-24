@@ -30,6 +30,8 @@ class CommitCheckpoint:
     reserved_name: str | None = None
     parent_cl_name: str | None = None
     dispatch_result: str | None = None
+    primary_revision: str | None = None
+    publication_agent: str | None = None
     cs_name: str | None = None
     entry_id: str | None = None
     completed_steps: list[str] = field(default_factory=list)

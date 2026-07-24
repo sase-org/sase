@@ -39,6 +39,12 @@ class _ResolveRevisionPlugin:
         return f"resolved-{changespec_name}"
 
 
+class _RevisionIdPlugin:
+    @hookimpl
+    def vcs_revision_id(self, revision: str, cwd: str) -> str:
+        return f"immutable-{revision}"
+
+
 class _PrepareDescriptionPlugin:
     """Plugin implementing vcs_prepare_description_for_reword."""
 
@@ -162,6 +168,14 @@ class TestNonTrivialDefaults:
     def test_resolve_revision_delegates_when_handled(self) -> None:
         mgr = _make_manager(_ResolveRevisionPlugin())
         assert mgr.resolve_revision("my-branch", "proj", "/tmp") == "resolved-my-branch"
+
+    def test_revision_id_returns_input_when_unhandled(self) -> None:
+        mgr = _make_manager()
+        assert mgr.revision_id("immutable", "/tmp") == "immutable"
+
+    def test_revision_id_delegates_when_handled(self) -> None:
+        mgr = _make_manager(_RevisionIdPlugin())
+        assert mgr.revision_id("HEAD", "/tmp") == "immutable-HEAD"
 
     def test_prepare_description_returns_input_when_unhandled(self) -> None:
         mgr = _make_manager()

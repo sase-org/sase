@@ -14,7 +14,10 @@ from sase.core.commit_footer_facade import (
     update_commit_footer,
 )
 
-RUNTIME_COMMIT_TAG_KEYS = frozenset({"AGENT", "MACHINE"})
+PRODUCED_RUNTIME_COMMIT_TAG_KEYS = frozenset({"AGENT"})
+STALE_RUNTIME_COMMIT_TAG_KEYS = frozenset({"AGENT", "MACHINE"})
+# Compatibility name for callers that use this set specifically for cleanup.
+RUNTIME_COMMIT_TAG_KEYS = STALE_RUNTIME_COMMIT_TAG_KEYS
 
 #: Prefix rendered onto every SASE-authored commit footer tag key. New commit
 #: messages write ``SASE_<KEY>=<value>`` while readers still accept the legacy
@@ -34,35 +37,24 @@ def _canonicalize_commit_tag_key(key: str) -> str:
     return key
 
 
-def _resolve_runtime_commit_tags() -> dict[str, str]:
+def _resolve_runtime_commit_tags() -> dict[str, CommitTagValue]:
     """Return runtime-owned commit tags for the current process."""
-    tags: dict[str, str] = {}
+    local_name = resolve_local_agent_name()
+    if not local_name:
+        return {}
+    from sase.agents_sync.links import resolve_agent_commit_tag
+    from sase.config import require_agent_owner_identity
+    from sase.core.agent_identity_facade import AgentIdentitySnapshot
 
-    agent_name = _resolve_agent_name()
-    if agent_name:
-        tags["AGENT"] = agent_name
-
-    machine_name = _resolve_machine_name()
-    if machine_name:
-        tags["MACHINE"] = machine_name
-
-    return tags
+    identity = AgentIdentitySnapshot(require_agent_owner_identity())
+    return {"AGENT": resolve_agent_commit_tag(local_name, identity=identity)}
 
 
-def _resolve_agent_name() -> str | None:
-    """Resolve the current SASE agent name, if one is available."""
+def resolve_local_agent_name() -> str | None:
+    """Resolve the current locally stored SASE agent name, if available."""
     env_name = _sanitize_tag_value(os.environ.get("SASE_AGENT_NAME"))
     if env_name:
-        from sase.config import require_agent_owner_identity
-        from sase.core.agent_identity_facade import (
-            AgentIdentitySnapshot,
-            globalize_owned_agent_name,
-        )
-
-        return globalize_owned_agent_name(
-            env_name,
-            AgentIdentitySnapshot(require_agent_owner_identity()),
-        )
+        return env_name
 
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not artifacts_dir:
@@ -76,32 +68,7 @@ def _resolve_agent_name() -> str | None:
     if not isinstance(meta, dict):
         return None
     meta_name = _sanitize_tag_value(meta.get("name"))
-    if meta_name:
-        from sase.config import require_agent_owner_identity
-        from sase.core.agent_identity_facade import (
-            AgentIdentitySnapshot,
-            globalize_owned_agent_name,
-        )
-
-        return globalize_owned_agent_name(
-            meta_name,
-            AgentIdentitySnapshot(require_agent_owner_identity()),
-        )
-    return None
-
-
-def _resolve_machine_name() -> str:
-    """Resolve the configured machine from the complete owner identity."""
-    from sase.config import require_agent_owner_identity
-
-    owner = require_agent_owner_identity()
-    machine_name = _sanitize_tag_value(owner.machine_name)
-    if machine_name is None:  # Rust validation makes this unreachable.
-        raise RuntimeError(
-            "SASE agent owner identity has an empty machine name; "
-            "run `sase config init`."
-        )
-    return machine_name
+    return meta_name
 
 
 def apply_runtime_commit_tags(payload: dict) -> None:
@@ -110,7 +77,7 @@ def apply_runtime_commit_tags(payload: dict) -> None:
     payload["message"] = update_trailing_commit_tags(
         message,
         _resolve_runtime_commit_tags(),
-        remove_keys=RUNTIME_COMMIT_TAG_KEYS,
+        remove_keys=STALE_RUNTIME_COMMIT_TAG_KEYS,
     )
 
 
@@ -127,22 +94,18 @@ def apply_auto_commit_tags_with_runtime(message: str, auto_commit_type: str) -> 
     """Compose the auto-commit ``TYPE`` tag with runtime provenance tags.
 
     When a SASE agent identity is available (``SASE_AGENT_NAME`` or an
-    ``agent_meta.json`` ``name``), the resulting tag block also carries the
-    runtime ``AGENT=``/``MACHINE=`` provenance so raw SDD auto-commits can be
-    associated with the agent that produced them. Without an agent identity the
-    behavior matches :func:`apply_auto_commit_type_tag` exactly, leaving only
-    ``TYPE=<kind>`` so non-agent environments are unchanged.
+    ``agent_meta.json`` ``name``), the resulting tag block also carries linked
+    ``AGENT=`` provenance so raw SDD auto-commits can be associated with the
+    agent that produced them. Legacy ``MACHINE=`` is removed but never
+    produced. Without an agent identity the result carries only
+    ``TYPE=<kind>`` after stale runtime provenance is removed.
     """
-    updates: dict[str, str] = {"TYPE": auto_commit_type}
-    remove_keys: set[str] = {"TYPE"}
+    updates: dict[str, object] = {"TYPE": auto_commit_type}
+    remove_keys: set[str] = {"TYPE", *STALE_RUNTIME_COMMIT_TAG_KEYS}
 
-    agent_name = _resolve_agent_name()
-    if agent_name:
-        updates["AGENT"] = agent_name
-        machine_name = _resolve_machine_name()
-        if machine_name:
-            updates["MACHINE"] = machine_name
-        remove_keys |= set(RUNTIME_COMMIT_TAG_KEYS)
+    runtime_tags = _resolve_runtime_commit_tags()
+    if runtime_tags:
+        updates.update(runtime_tags)
 
     return update_trailing_commit_tags(message, updates, remove_keys=remove_keys)
 
@@ -191,7 +154,7 @@ def filter_runtime_owned_tags(tags: Mapping[str, object]) -> dict[str, object]:
     return {
         key: value
         for key, value in tags.items()
-        if _canonicalize_commit_tag_key(key) not in RUNTIME_COMMIT_TAG_KEYS
+        if _canonicalize_commit_tag_key(key) not in STALE_RUNTIME_COMMIT_TAG_KEYS
     }
 
 

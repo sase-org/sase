@@ -161,7 +161,7 @@ def _github_repo_identity_from_origin(
         return None
 
     parsed = parse_hosted_git_remote(remote)
-    if parsed is None or parsed.host not in _configured_github_hosts(config):
+    if parsed is None or parsed.host not in configured_github_hosts(config):
         return None
     parts = parsed.repo.split("/")
     if len(parts) != 2 or not all(parts):
@@ -169,7 +169,7 @@ def _github_repo_identity_from_origin(
     return _GitHubRepoIdentity(parsed.host, f"{parts[0]}/{parts[1]}")
 
 
-def _configured_github_hosts(config: Mapping[str, Any] | None) -> frozenset[str]:
+def configured_github_hosts(config: Mapping[str, Any] | None) -> frozenset[str]:
     hosts = {"github.com"}
     raw_hosts = config.get("github_hosts") if config is not None else None
     values = (

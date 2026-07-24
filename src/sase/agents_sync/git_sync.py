@@ -59,20 +59,31 @@ def sync_agents(
         return tuple(sorted(outcomes, key=lambda item: item.project_key))
 
     timeout = (
-        _configured_lock_timeout()
+        configured_agents_lock_timeout()
         if lock_timeout_seconds is None
         else max(lock_timeout_seconds, 0.0)
     )
     for target in selection.targets:
+        pending_publications: tuple[Any, ...] = ()
         try:
-            outcomes.append(
-                _sync_project(
-                    target,
-                    owner,
-                    git_runner=git_runner,
-                    lock_timeout_seconds=timeout,
-                )
+            from sase.agents_sync.publication_outbox import (
+                acknowledge_agent_publications,
+                list_agent_publications,
             )
+
+            pending_publications = list_agent_publications(target.project_key)
+            outcome = _sync_project(
+                target,
+                owner,
+                git_runner=git_runner,
+                lock_timeout_seconds=timeout,
+            )
+            if outcome.ok and outcome.skip_reason is None and pending_publications:
+                acknowledge_agent_publications(
+                    target.project_key,
+                    (item.logical_key for item in pending_publications),
+                )
+            outcomes.append(outcome)
         except Exception as exc:  # noqa: BLE001 - per-project isolation contract
             outcomes.append(
                 SyncOutcome(
@@ -106,7 +117,7 @@ def _sync_project(
 
     if not target.primary_checkout.is_dir():
         return _error(target, "primary checkout does not exist")
-    clone_error = _ensure_clone(
+    clone_error = ensure_agents_clone(
         target,
         git_runner=git_runner,
         lock_timeout_seconds=lock_timeout_seconds,
@@ -116,8 +127,10 @@ def _sync_project(
             return _skip(target, clone_error)
         return _error(target, clone_error)
 
-    lock_path = _git_dir(target.sidecar_path, git_runner) / "sase-agents-sync.lock"
-    with _bounded_lock(lock_path, lock_timeout_seconds) as acquired:
+    lock_path = (
+        agents_git_dir(target.sidecar_path, git_runner) / "sase-agents-sync.lock"
+    )
+    with bounded_agents_lock(lock_path, lock_timeout_seconds) as acquired:
         if not acquired:
             return _skip(target, "agents sync lock is busy")
         return _sync_project_locked(target, resolved_owner, git_runner)
@@ -129,12 +142,12 @@ def _sync_project_locked(
     git_runner: GitRunner,
 ) -> SyncOutcome:
     repo = target.sidecar_path
-    pulled = _pull_rebase(repo, git_runner, "agents_sync.pull")
+    pulled = pull_agents_rebase(repo, git_runner, "agents_sync.pull")
     if pulled.returncode != 0:
-        cleanup = _abort_rebase(repo, git_runner)
+        cleanup = abort_agents_rebase(repo, git_runner)
         return _error(
             target,
-            _git_error("git pull --rebase failed", pulled, cleanup),
+            agents_git_error("git pull --rebase failed", pulled, cleanup),
         )
 
     try:
@@ -142,11 +155,11 @@ def _sync_project_locked(
     except Exception as exc:  # noqa: BLE001 - project-scoped format/import error
         return _error(target, str(exc), pulled=True)
 
-    committed_result = _commit_payload_if_dirty(repo, owner, git_runner)
+    committed_result = commit_agents_payload_if_dirty(repo, owner, git_runner)
     if isinstance(committed_result, str):
         return _error(target, committed_result, pulled=True)
     committed = committed_result
-    should_push = committed or _ahead_count(repo, git_runner) > 0
+    should_push = committed or agents_ahead_count(repo, git_runner) > 0
     if not should_push:
         return SyncOutcome(
             target.project_key,
@@ -190,10 +203,10 @@ def _sync_project_locked(
             push_attempts=1,
             diagnostics=exported.diagnostics,
         )
-    if not _is_non_fast_forward(pushed):
+    if not is_agents_non_fast_forward(pushed):
         return _error(
             target,
-            _git_error("git push failed", pushed),
+            agents_git_error("git push failed", pushed),
             pulled=True,
             integrated=integrated.integrated,
             refreshed=integrated.refreshed,
@@ -218,17 +231,19 @@ def _sync_project_locked(
         if dropped.returncode != 0:
             return _error(
                 target,
-                _git_error("could not prepare rejected sync commit for retry", dropped),
+                agents_git_error(
+                    "could not prepare rejected sync commit for retry", dropped
+                ),
                 pulled=True,
                 push_attempts=1,
             )
 
-    repulled = _pull_rebase(repo, git_runner, "agents_sync.retry_pull")
+    repulled = pull_agents_rebase(repo, git_runner, "agents_sync.retry_pull")
     if repulled.returncode != 0:
-        cleanup = _abort_rebase(repo, git_runner)
+        cleanup = abort_agents_rebase(repo, git_runner)
         return _error(
             target,
-            _git_error("git pull --rebase retry failed", repulled, cleanup),
+            agents_git_error("git pull --rebase retry failed", repulled, cleanup),
             pulled=True,
             push_attempts=1,
         )
@@ -243,7 +258,7 @@ def _sync_project_locked(
             pulled=True,
             push_attempts=1,
         )
-    retry_commit_result = _commit_payload_if_dirty(repo, owner, git_runner)
+    retry_commit_result = commit_agents_payload_if_dirty(repo, owner, git_runner)
     if isinstance(retry_commit_result, str):
         return _error(
             target,
@@ -264,7 +279,7 @@ def _sync_project_locked(
     if retry_push.returncode != 0:
         return _error(
             target,
-            _git_error("git push retry failed", retry_push),
+            agents_git_error("git push retry failed", retry_push),
             pulled=True,
             integrated=max(integrated.integrated, retry_integrated.integrated),
             refreshed=max(integrated.refreshed, retry_integrated.refreshed),
@@ -344,7 +359,7 @@ def _integrate_export_pass(
     )
 
 
-def _commit_payload_if_dirty(
+def commit_agents_payload_if_dirty(
     repo: Path,
     owner: AgentOwnerIdentity,
     git_runner: GitRunner,
@@ -365,7 +380,7 @@ def _commit_payload_if_dirty(
         op="agents_sync.status_payload",
     )
     if status.returncode != 0:
-        return _git_error("could not inspect agents sidecar changes", status)
+        return agents_git_error("could not inspect agents sidecar changes", status)
     if not status.stdout.strip():
         return False
     staged = git_runner(
@@ -374,7 +389,7 @@ def _commit_payload_if_dirty(
         op="agents_sync.stage",
     )
     if staged.returncode != 0:
-        return _git_error("could not stage agents sidecar payload", staged)
+        return agents_git_error("could not stage agents sidecar payload", staged)
     committed = git_runner(
         repo,
         [
@@ -389,11 +404,11 @@ def _commit_payload_if_dirty(
         op="agents_sync.commit",
     )
     if committed.returncode != 0:
-        return _git_error("could not commit agents sidecar payload", committed)
+        return agents_git_error("could not commit agents sidecar payload", committed)
     return True
 
 
-def _ensure_clone(
+def ensure_agents_clone(
     target: ProjectTarget,
     *,
     git_runner: GitRunner,
@@ -403,7 +418,7 @@ def _ensure_clone(
         return None
     target.sidecar_path.parent.mkdir(parents=True, exist_ok=True)
     clone_lock = target.sidecar_path.parent / ".sase-agents-sync-clone.lock"
-    with _bounded_lock(clone_lock, lock_timeout_seconds) as acquired:
+    with bounded_agents_lock(clone_lock, lock_timeout_seconds) as acquired:
         if not acquired:
             return "agents sync clone lock is busy"
         if (target.sidecar_path / ".git").exists():
@@ -424,7 +439,9 @@ def _ensure_clone(
                 op="agents_sync.clone",
             )
             if cloned.returncode != 0:
-                return _git_error("could not clone configured agents sidecar", cloned)
+                return agents_git_error(
+                    "could not clone configured agents sidecar", cloned
+                )
             os.replace(checkout, target.sidecar_path)
         finally:
             shutil.rmtree(temp_root, ignore_errors=True)
@@ -447,7 +464,7 @@ def _coerce_owner(owner: AgentOwnerIdentity | str) -> AgentOwnerIdentity:
     )
 
 
-def _pull_rebase(
+def pull_agents_rebase(
     repo: Path, git_runner: GitRunner, op: str
 ) -> subprocess.CompletedProcess[str]:
     return git_runner(
@@ -458,8 +475,8 @@ def _pull_rebase(
     )
 
 
-def _abort_rebase(repo: Path, git_runner: GitRunner) -> str | None:
-    git_dir = _git_dir(repo, git_runner)
+def abort_agents_rebase(repo: Path, git_runner: GitRunner) -> str | None:
+    git_dir = agents_git_dir(repo, git_runner)
     if not any(
         (git_dir / marker).exists() for marker in ("rebase-merge", "rebase-apply")
     ):
@@ -472,11 +489,11 @@ def _abort_rebase(repo: Path, git_runner: GitRunner) -> str | None:
     return (
         None
         if result.returncode == 0
-        else _git_error("git rebase --abort failed", result)
+        else agents_git_error("git rebase --abort failed", result)
     )
 
 
-def _git_dir(repo: Path, git_runner: GitRunner) -> Path:
+def agents_git_dir(repo: Path, git_runner: GitRunner) -> Path:
     result = git_runner(
         repo,
         ["rev-parse", "--git-dir"],
@@ -488,7 +505,7 @@ def _git_dir(repo: Path, git_runner: GitRunner) -> Path:
     return git_dir if git_dir.is_absolute() else repo / git_dir
 
 
-def _ahead_count(repo: Path, git_runner: GitRunner) -> int:
+def agents_ahead_count(repo: Path, git_runner: GitRunner) -> int:
     result = git_runner(
         repo,
         ["rev-list", "--count", "@{upstream}..HEAD"],
@@ -501,7 +518,7 @@ def _ahead_count(repo: Path, git_runner: GitRunner) -> int:
 
 
 @contextmanager
-def _bounded_lock(path: Path, timeout_seconds: float) -> Iterator[bool]:
+def bounded_agents_lock(path: Path, timeout_seconds: float) -> Iterator[bool]:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
     acquired = False
@@ -523,12 +540,12 @@ def _bounded_lock(path: Path, timeout_seconds: float) -> Iterator[bool]:
         os.close(descriptor)
 
 
-def _is_non_fast_forward(result: subprocess.CompletedProcess[str]) -> bool:
+def is_agents_non_fast_forward(result: subprocess.CompletedProcess[str]) -> bool:
     text = f"{result.stdout}\n{result.stderr}".lower()
     return "non-fast-forward" in text or "fetch first" in text or "[rejected]" in text
 
 
-def _git_error(
+def agents_git_error(
     prefix: str,
     result: subprocess.CompletedProcess[str],
     cleanup: str | None = None,
@@ -546,7 +563,7 @@ def _skip(target: ProjectTarget, reason: str) -> SyncOutcome:
     return SyncOutcome(target.project_key, target.project, skip_reason=reason)
 
 
-def _configured_lock_timeout() -> float:
+def configured_agents_lock_timeout() -> float:
     raw = os.environ.get(_LOCK_TIMEOUT_ENV)
     if raw is None:
         return DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS
@@ -559,5 +576,15 @@ def _configured_lock_timeout() -> float:
 
 __all__ = [
     "DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS",
+    "abort_agents_rebase",
+    "agents_ahead_count",
+    "agents_git_dir",
+    "agents_git_error",
+    "bounded_agents_lock",
+    "commit_agents_payload_if_dirty",
+    "configured_agents_lock_timeout",
+    "ensure_agents_clone",
+    "is_agents_non_fast_forward",
+    "pull_agents_rebase",
     "sync_agents",
 ]

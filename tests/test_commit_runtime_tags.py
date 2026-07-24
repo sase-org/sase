@@ -11,8 +11,11 @@ import pytest
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.workflows.commit.runtime_tags import (
     LinkedCommitTagValue,
+    PRODUCED_RUNTIME_COMMIT_TAG_KEYS,
     RUNTIME_COMMIT_TAG_KEYS,
+    STALE_RUNTIME_COMMIT_TAG_KEYS,
     _resolve_runtime_commit_tags,
+    apply_runtime_commit_tags,
     apply_auto_commit_tags_with_runtime,
     apply_auto_commit_type_tag,
     filter_runtime_owned_tags,
@@ -48,8 +51,13 @@ def test_runtime_tags_use_sase_agent_name(
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-alpha")
     assert _resolve_runtime_commit_tags() == {
         "AGENT": "alice.machine_a.agent-alpha",
-        "MACHINE": "machine_a",
     }
+
+
+def test_produced_and_stale_runtime_tag_keys_are_deliberately_separate() -> None:
+    assert PRODUCED_RUNTIME_COMMIT_TAG_KEYS == {"AGENT"}
+    assert STALE_RUNTIME_COMMIT_TAG_KEYS == {"AGENT", "MACHINE"}
+    assert RUNTIME_COMMIT_TAG_KEYS == STALE_RUNTIME_COMMIT_TAG_KEYS
 
 
 def test_runtime_tags_prefer_configured_machine_and_qualify_legacy_agent(
@@ -63,7 +71,6 @@ def test_runtime_tags_prefer_configured_machine_and_qualify_legacy_agent(
 
     assert _resolve_runtime_commit_tags() == {
         "AGENT": "alice.athena.agent-alpha",
-        "MACHINE": "athena",
     }
 
 
@@ -91,12 +98,11 @@ def test_runtime_tags_fall_back_to_agent_meta(
 
     assert _resolve_runtime_commit_tags() == {
         "AGENT": "alice.machine_a.agent-meta",
-        "MACHINE": "machine_a",
     }
 
 
 def test_runtime_tags_omit_agent_when_no_name_exists() -> None:
-    assert _resolve_runtime_commit_tags() == {"MACHINE": "machine_a"}
+    assert _resolve_runtime_commit_tags() == {}
 
 
 def test_runtime_tags_sanitize_values(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -107,13 +113,13 @@ def test_runtime_tags_sanitize_values(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     assert _resolve_runtime_commit_tags() == {
         "AGENT": "alice.machine_host.agent-alpha",
-        "MACHINE": "machine_host",
     }
 
 
 def test_runtime_tags_require_complete_owner_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-alpha")
     monkeypatch.setattr(
         _OWNER_TARGET,
         lambda: (_ for _ in ()).throw(RuntimeError("run `sase config init`")),
@@ -251,6 +257,13 @@ def test_auto_commit_tags_with_runtime_type_only_without_agent_identity(
     )
 
 
+def test_auto_commit_without_agent_removes_stale_machine() -> None:
+    assert apply_auto_commit_tags_with_runtime(
+        "Fix bug\n\nSASE_MACHINE=legacy-host",
+        "sdd",
+    ) == ("Fix bug\n\nSASE_TYPE=sdd")
+
+
 def test_auto_commit_tags_with_runtime_adds_agent_when_name_set(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -266,7 +279,21 @@ def test_auto_commit_tags_with_runtime_adds_agent_when_name_set(
     tags = parse_trailing_commit_tags(updated)
     assert tags["TYPE"] == "sdd"
     assert tags["AGENT"] == "alice.machine_z.agent-alpha"
-    assert tags["MACHINE"] == "machine_z"
+    assert "MACHINE" not in tags
+
+
+def test_runtime_producer_removes_inherited_legacy_machine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-alpha")
+    payload = {"message": "Fix bug\n\nSASE_AGENT=old\nSASE_MACHINE=legacy-host"}
+
+    apply_runtime_commit_tags(payload)
+
+    assert parse_trailing_commit_tags(payload["message"]) == {
+        "AGENT": "alice.machine_a.agent-alpha"
+    }
+    assert "MACHINE=" not in payload["message"]
 
 
 def test_parse_trailing_commit_tags_reads_legacy_block() -> None:
@@ -321,6 +348,32 @@ def test_runtime_update_preserves_linked_plan_footer() -> None:
         "[1]: https://github.com/acme/plans/blob/main/202607/plan.md"
     )
     assert parse_trailing_commit_tags(updated)["PLAN"] == "202607/plan.md"
+
+
+def test_linked_agent_follows_existing_plan_reference_number() -> None:
+    message = (
+        "Fix bug\n\nSASE_PLAN=[202607/plan.md][1]\n\n"
+        "[1]: https://github.com/acme/plans/blob/main/202607/plan.md"
+    )
+
+    updated = update_trailing_commit_tags(
+        message,
+        {
+            "AGENT": LinkedCommitTagValue(
+                "alice.athena.foo--code",
+                "https://github.com/acme/project--agents/blob/main/"
+                "families/alice.athena.foo.md#member-code",
+            )
+        },
+        remove_keys=RUNTIME_COMMIT_TAG_KEYS,
+    )
+
+    assert "SASE_PLAN=[202607/plan.md][1]" in updated
+    assert "SASE_AGENT=[alice.athena.foo--code][2]" in updated
+    assert (
+        "[2]: https://github.com/acme/project--agents/blob/main/"
+        "families/alice.athena.foo.md#member-code"
+    ) in updated
 
 
 def test_linked_update_is_idempotent_and_removes_replaced_definition() -> None:
@@ -418,6 +471,7 @@ def _make_provider() -> MagicMock:
     provider.create_commit.return_value = (True, "abc123")
     provider.create_proposal.return_value = (True, "proposal.diff")
     provider.create_pull_request.return_value = (True, "https://example.test/pr/1")
+    provider.revision_id.return_value = "a" * 40
     return provider
 
 
@@ -431,9 +485,7 @@ def test_create_commit_provider_receives_runtime_tags(
     assert _run_workflow(payload, "create_commit", provider) == RunResult.OK
 
     provider.create_commit.assert_called_once_with(payload, ANY)
-    assert payload["message"] == (
-        "Fix bug\n\nSASE_AGENT=alice.machine_a.agent-a\nSASE_MACHINE=machine_a"
-    )
+    assert payload["message"] == ("Fix bug\n\nSASE_AGENT=alice.machine_a.agent-a")
 
 
 def test_create_pull_request_tags_override_inherited_runtime_tags(
@@ -474,12 +526,12 @@ def test_create_pull_request_tags_override_inherited_runtime_tags(
     assert "TEAM=infra" in message
     assert "REVIEW=true" in message
     assert "AGENT=alice.machine_current.agent-current" in message
-    assert "MACHINE=machine_current" in message
+    assert "MACHINE=" not in message
     assert "agent-parent" not in message
     assert "machine-parent" not in message
     assert "machine-config" not in message
     assert "AGENT=alice.machine_current.agent-current" in payload["_pr_body"]
-    assert "MACHINE=machine_current" in payload["_pr_body"]
+    assert "MACHINE=" not in payload["_pr_body"]
 
 
 def test_create_proposal_does_not_add_runtime_tags(

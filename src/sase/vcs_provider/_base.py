@@ -153,6 +153,15 @@ class VCSProvider(ABC):
         """
         return changespec_name
 
+    def revision_id(self, revision: str, cwd: str) -> str:
+        """Return the provider's canonical immutable identity for *revision*.
+
+        Backends whose revision spelling is already immutable can use this
+        default. Providers with symbolic refs should override it.
+        """
+
+        return revision
+
     def resolve_current_changespec_head_ref(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str:

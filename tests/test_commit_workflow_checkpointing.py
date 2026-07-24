@@ -246,6 +246,45 @@ def test_run_records_completed_steps_in_order_for_create_commit(
     ]
 
 
+@patch(_PROVIDER_TARGET)
+def test_publication_failure_with_durable_outbox_keeps_primary_successful(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agents_sync.commit_publication import _CommitPublicationOutcome
+    from sase.core.agent_identity_facade import AgentOwnerIdentity
+
+    monkeypatch.setenv("SASE_AGENT_NAME", "foo--code")
+    monkeypatch.setattr(
+        "sase.config.require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("test-user", "test_host"),
+    )
+    provider = _make_provider(dispatch_result=(True, "not-a-sha"))
+    provider.revision_id.return_value = "a" * 40
+    mock_get.return_value = provider
+
+    with (
+        patch(
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+            return_value=_CommitPublicationOutcome(
+                queued=True,
+                error="sidecar push failed",
+            ),
+        ) as publish,
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value=None,
+        ),
+    ):
+        assert CommitWorkflow({"message": "fix: bug"}, "create_commit").run() == (
+            RunResult.OK
+        )
+
+    publish.assert_called_once_with("foo--code", "a" * 40)
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
 @patch(_PROJECT_NAME_TARGET, return_value=None)
 @patch(_PROVIDER_TARGET)
 def test_run_records_completed_steps_for_pull_request(

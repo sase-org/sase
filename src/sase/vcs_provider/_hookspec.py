@@ -101,6 +101,9 @@ class VCSHookSpec:
     ) -> str: ...
 
     @hookspec(firstresult=True)
+    def vcs_revision_id(self, revision: str, cwd: str) -> str: ...
+
+    @hookspec(firstresult=True)
     def vcs_resolve_current_changespec_head_ref(
         self, changespec_name: str, project_basename: str, cwd: str
     ) -> str: ...

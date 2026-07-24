@@ -57,7 +57,7 @@ class TestCommitWorkflowDispatch:
 
         assert wf.run() == RunResult.OK
         mock_provider.create_commit.assert_called_once_with(payload, ANY)
-        assert payload["message"] == "fix: bug (sase-1.2)\n\nSASE_MACHINE=test-host"
+        assert payload["message"] == "fix: bug (sase-1.2)"
 
     @patch(_PROVIDER_TARGET)
     def test_create_commit_does_not_duplicate_existing_bead_id(
@@ -69,7 +69,7 @@ class TestCommitWorkflowDispatch:
 
         assert wf.run() == RunResult.OK
         mock_provider.create_commit.assert_called_once_with(payload, ANY)
-        assert payload["message"] == "fix: bug for sase-1.2\n\nSASE_MACHINE=test-host"
+        assert payload["message"] == "fix: bug for sase-1.2"
 
     @patch(_PROVIDER_TARGET)
     def test_dispatches_create_proposal(
@@ -115,7 +115,7 @@ class TestCommitWorkflowDispatch:
 
         assert wf.run() == RunResult.OK
         mock_provider.create_pull_request.assert_called_once_with(payload, ANY)
-        assert payload["message"] == "add feature (sase-1.2)\n\nSASE_MACHINE=test-host"
+        assert payload["message"] == "add feature (sase-1.2)"
 
     def test_invalid_method_returns_false(self) -> None:
         wf = CommitWorkflow({"message": "test"}, "invalid_method")

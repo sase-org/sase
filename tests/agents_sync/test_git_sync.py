@@ -16,6 +16,11 @@ from sase.agents_sync.models import (
     SyncOutcome,
     TargetSelection,
 )
+from sase.agents_sync.publication_outbox import (
+    AgentPublicationOutboxItem,
+    enqueue_agent_publication,
+    list_agent_publications,
+)
 from sase.agents_sync.v2_models import V2PublicationCounts
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 
@@ -272,6 +277,46 @@ def test_all_project_sync_isolates_failures(
     assert [outcome.project_key for outcome in outcomes] == ["one", "two"]
     assert outcomes[0].error == "agents sync failed: broken"
     assert outcomes[1].pulled is True
+
+
+def test_full_sync_acknowledges_publication_outbox_after_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target = _target(tmp_path, tmp_path / "remote.git", tmp_path / "sidecar")
+    enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key=target.project_key,
+            project=target.project,
+            local_agent="foo",
+            global_agent="alice.athena.foo",
+            primary_revision="a" * 40,
+            local_hood="foo",
+        )
+    )
+    monkeypatch.setattr(
+        git_sync,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        git_sync,
+        "require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
+    monkeypatch.setattr(
+        git_sync,
+        "_sync_project",
+        lambda *_args, **_kwargs: SyncOutcome("proj", "Project", pulled=True),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.status.rewrite_agents_sync_status_after_sync",
+        lambda _projects: None,
+    )
+
+    assert git_sync.sync_agents() == (SyncOutcome("proj", "Project", pulled=True),)
+    assert list_agent_publications("proj") == ()
 
 
 def test_network_git_environment_is_noninteractive() -> None:

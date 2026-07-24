@@ -333,6 +333,18 @@ class GitQueryOpsMixin(GitRevisionOpsMixin, GitSyncOpsMixin):
         return (True, out.stdout)
 
     @hookimpl
+    def vcs_revision_id(self, revision: str, cwd: str) -> str:
+        out = self._run(["git", "rev-parse", "--verify", revision], cwd)
+        if not out.success or not out.stdout.strip():
+            from sase.vcs_provider._errors import VCSOperationError
+
+            raise VCSOperationError(
+                "revision_id",
+                out.stderr.strip() or f"could not resolve revision {revision!r}",
+            )
+        return out.stdout.strip()
+
+    @hookimpl
     def vcs_get_branch_name(self, cwd: str) -> tuple[bool, str | None]:
         out = self._run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd)
         if not out.success:

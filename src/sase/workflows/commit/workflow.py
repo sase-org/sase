@@ -39,6 +39,7 @@ from sase.workflows.commit.pr_operations import (
     detect_parent_changespec,
 )
 from sase.workflows.commit.runtime_tags import apply_runtime_commit_tags
+from sase.workflows.commit.runtime_tags import resolve_local_agent_name
 
 
 class RunResult(IntEnum):
@@ -200,6 +201,7 @@ class CommitWorkflow(BaseWorkflow):
             base_cl_name=self._base_cl_name,
             reserved_name=self._reserved_name,
             parent_cl_name=self._parent_cl_name,
+            publication_agent=resolve_local_agent_name(),
         )
         checkpoint_save(cp)
 
@@ -325,6 +327,10 @@ class CommitWorkflow(BaseWorkflow):
             cp.completed_steps.append("write_result_marker")
             checkpoint_save(cp)
 
+        publication_result = self._run_agent_publication_step(cp)
+        if publication_result != RunResult.OK:
+            return publication_result
+
         if self._method in ("create_commit", "create_proposal"):
             if "append_commits_entry" in cp.completed_steps:
                 entry_id = cp.entry_id
@@ -359,6 +365,77 @@ class CommitWorkflow(BaseWorkflow):
             if project_file and cl_name:
                 refresh_deltas_after_commits_change(project_file, cl_name, cp.cwd)
 
+        return RunResult.OK
+
+    def _run_agent_publication_step(self, cp: CommitCheckpoint) -> RunResult:
+        """Publish the committing hood after the first durable result marker."""
+
+        if self._method not in ("create_commit", "create_pull_request"):
+            return RunResult.OK
+        if "publish_agent_hood" in cp.completed_steps:
+            return RunResult.OK
+        if not cp.publication_agent:
+            return RunResult.OK
+
+        if not cp.primary_revision:
+            provider = get_vcs_provider(cp.cwd)
+            try:
+                revision = provider.revision_id("HEAD", cp.cwd)
+            except Exception as exc:  # noqa: BLE001 - provider boundary
+                print_status(
+                    "The primary commit succeeded, but its immutable revision "
+                    f"could not be resolved for agent publication: {exc}. "
+                    "Run `sase commit --resume` to retry without creating "
+                    "another primary commit.",
+                    "error",
+                )
+                return RunResult.FAILED
+            if not isinstance(revision, str) or not revision.strip():
+                print_status(
+                    "The primary commit succeeded, but the VCS provider did "
+                    "not return an immutable revision. Run "
+                    "`sase commit --resume` to retry without creating another "
+                    "primary commit.",
+                    "error",
+                )
+                return RunResult.FAILED
+            cp.primary_revision = revision.strip()
+            checkpoint_save(cp)
+
+        from sase.agents_sync.commit_publication import (
+            publish_committed_agent_hood,
+        )
+
+        try:
+            outcome = publish_committed_agent_hood(
+                cp.publication_agent,
+                cp.primary_revision,
+            )
+        except Exception as exc:  # noqa: BLE001 - auxiliary publication boundary
+            print_status(
+                "The primary commit succeeded, but agent publication failed "
+                f"before a retry could be confirmed: {exc}. Run "
+                "`sase commit --resume` to retry without creating another "
+                "primary commit.",
+                "error",
+            )
+            return RunResult.FAILED
+        if outcome.error and not outcome.queued and not outcome.skip_reason:
+            print_status(
+                "The primary commit succeeded, but agent publication could "
+                f"not be queued: {outcome.error}. Run `sase commit --resume` "
+                "to retry without creating another primary commit.",
+                "error",
+            )
+            return RunResult.FAILED
+        if outcome.queued:
+            print_status(
+                "Primary commit succeeded; agent-hood publication will retry "
+                f"automatically: {outcome.error}",
+                "warning",
+            )
+        cp.completed_steps.append("publish_agent_hood")
+        checkpoint_save(cp)
         return RunResult.OK
 
     @classmethod

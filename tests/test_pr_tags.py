@@ -290,7 +290,7 @@ class TestAppendPrTags:
             wf.run()
 
         sent_payload = provider.create_pull_request.call_args[0][0]
-        assert sent_payload["message"] == "Add feature\n\nSASE_MACHINE=test-host"
+        assert sent_payload["message"] == "Add feature"
 
     @patch(_FETCH_PARENT_TARGET, return_value={})
     def test_existing_tag_block_is_updated_without_duplicate(
@@ -389,17 +389,26 @@ def test_pr_body_agent_info_precedes_structured_footer(
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
     payload = {
         "message": (
-            "Description\n\nSASE_PLAN=[202607/p.md][1]\n\n"
-            "[1]: https://github.com/acme/plans/blob/main/202607/p.md"
+            "Description\n\nSASE_PLAN=[202607/p.md][1]\n"
+            "SASE_AGENT=[alice.athena.worker][2]\n\n"
+            "[1]: https://github.com/acme/plans/blob/main/202607/p.md\n"
+            "[2]: https://github.com/acme/project--agents/blob/main/"
+            "agents/alice.athena.worker/README.md"
         )
     }
 
     build_pr_body(payload)
 
     assert payload["_pr_body"] == (
-        "Description\n\n---\n**Model:** `codex/gpt-5`\n**Agent:** `worker`\n\n"
-        "SASE_PLAN=[202607/p.md][1]\n\n"
-        "[1]: https://github.com/acme/plans/blob/main/202607/p.md"
+        "Description\n\n---\n**Model:** `codex/gpt-5`\n"
+        "**Agent:** [alice.athena.worker]"
+        "(https://github.com/acme/project--agents/blob/main/"
+        "agents/alice.athena.worker/README.md)\n\n"
+        "SASE_PLAN=[202607/p.md][1]\n"
+        "SASE_AGENT=[alice.athena.worker][2]\n\n"
+        "[1]: https://github.com/acme/plans/blob/main/202607/p.md\n"
+        "[2]: https://github.com/acme/project--agents/blob/main/"
+        "agents/alice.athena.worker/README.md"
     )
 
 
@@ -502,4 +511,4 @@ class TestInheritParentPrTags:
             wf.run()
 
         sent = provider.create_pull_request.call_args[0][0]
-        assert sent["message"] == "Add feature\n\nSASE_MACHINE=test-host"
+        assert sent["message"] == "Add feature"

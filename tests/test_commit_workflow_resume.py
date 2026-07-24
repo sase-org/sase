@@ -59,6 +59,8 @@ def _save_checkpoint(
     cs_name: str | None = None,
     entry_id: str | None = None,
     dispatch_result: str | None = None,
+    publication_agent: str | None = None,
+    primary_revision: str | None = None,
 ) -> checkpoint.CommitCheckpoint:
     cp = checkpoint.CommitCheckpoint(
         method=method,
@@ -70,6 +72,8 @@ def _save_checkpoint(
         cs_name=cs_name,
         entry_id=entry_id,
         dispatch_result=dispatch_result,
+        publication_agent=publication_agent,
+        primary_revision=primary_revision,
     )
     checkpoint.checkpoint_save(cp)
     return cp
@@ -171,6 +175,42 @@ def test_resume_after_hook_failure_does_not_finalize_or_duplicate_dispatch(
 
     provider.finalize_commit.assert_not_called()
     after_hook.assert_called_once_with(str(tmp_path))
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_resume_publishes_agent_hood_without_redispatching_primary_commit(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    tmp_path: Path,
+) -> None:
+    from sase.agents_sync.commit_publication import _CommitPublicationOutcome
+
+    provider = _make_provider(head_subject="fix: bug")
+    provider.revision_id.return_value = "a" * 40
+    mock_get.return_value = provider
+    _save_checkpoint(
+        cwd=str(tmp_path),
+        completed_steps=["dispatch", "after_hook", "write_result_marker"],
+        dispatch_result="not-a-sha",
+        publication_agent="foo--code",
+    )
+
+    with (
+        patch(
+            "sase.agents_sync.commit_publication.publish_committed_agent_hood",
+            return_value=_CommitPublicationOutcome(published=True),
+        ) as publish,
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value=None,
+        ),
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    provider.finalize_commit.assert_not_called()
+    provider.revision_id.assert_called_once_with("HEAD", str(tmp_path))
+    publish.assert_called_once_with("foo--code", "a" * 40)
     assert not (artifacts_dir / "commit_state.json").exists()
 
 
