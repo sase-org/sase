@@ -114,6 +114,7 @@ class ArtifactsPlansActionsMixin:
         issue = row.issue
         next_status = {
             Status.OPEN: Status.IN_PROGRESS,
+            Status.CLAIMED: Status.IN_PROGRESS,
             Status.IN_PROGRESS: Status.CLOSED,
             Status.CLOSED: Status.OPEN,
         }[issue.status]

@@ -15,6 +15,7 @@ from rich.text import Text
 
 from sase.bead.cli_common import get_read_view, status_icon
 from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
+from sase.bead_status_presentation import bead_status_presentation
 from sase.bead.sync import bead_refresh_mode, refresh_current_bead_store
 from sase.phase_size_presentation import phase_size_chip
 from sase.scripts._rich_summary import (
@@ -39,11 +40,6 @@ _HEADER_STYLE = "bold #D75FFF"
 _GOAL_STYLE = "dim #D7D7FF"
 _SECTION_STYLE = "bold #87D7FF"
 _MUTED_STYLE = "dim #A8A8A8"
-_STATUS_STYLES = {
-    Status.OPEN: "bold #87D7FF",
-    Status.IN_PROGRESS: "bold #FFD700",
-    Status.CLOSED: "bold #5FD787",
-}
 
 
 class _MissingEpicError(KeyError):
@@ -342,7 +338,7 @@ def _phase_lines(index: int, phase: Issue) -> tuple[Text, ...]:
     left_width = max(_SUMMARY_WIDTH - visible_width(chip) - 1, 1)
 
     left = Text()
-    left.append(status_icon(phase.status), style=_STATUS_STYLES[phase.status])
+    left.append(status_icon(phase.status), style=_status_style(phase.status))
     left.append(f" {index}. ", style=_SECTION_STYLE)
     left.append(phase.title)
     left = shorten_text(left, width=left_width)
@@ -366,7 +362,7 @@ def _phase_lines(index: int, phase: Issue) -> tuple[Text, ...]:
 
 def _child_epic_line(child: Issue) -> Text:
     line = Text()
-    line.append(status_icon(child.status), style=_STATUS_STYLES[child.status])
+    line.append(status_icon(child.status), style=_status_style(child.status))
     line.append(" ")
     line.append(child.id, style="bold #D75FFF")
     line.append(" · ")
@@ -437,6 +433,10 @@ def _join_labels(labels: list[str]) -> str:
 
 def _joined_utf8_size(parts: list[str]) -> int:
     return sum(len(part.encode("utf-8")) for part in parts) + max(len(parts) - 1, 0)
+
+
+def _status_style(status: Status) -> str:
+    return bead_status_presentation(status).rich_style
 
 
 def _fallback_summary(epic_id: str) -> str:

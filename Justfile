@@ -245,7 +245,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-8v(globalize_legacy_agent_name)' \
         --epic-symbol 'sase-8v(localize_agent_name)' \
         --epic-symbol 'sase-8v(strip_global_agent_name)' \
-        --epic-symbol 'sase-8y(bead_status_display_order)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

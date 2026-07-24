@@ -136,10 +136,18 @@ def test_plan_list_rows_use_fixed_width_state_glyphs(tmp_path: Path) -> None:
         ready_ids=frozenset(),
         blocked_ids=frozenset(),
     ).plain
+    claimed_phase = plans_pane._phase_text(
+        replace(phases[0], status=Status.CLAIMED),
+        project="alpha",
+        ready_ids=frozenset({("alpha", phases[0].id)}),
+        blocked_ids=frozenset(),
+    )
 
     assert ready_phase.startswith("↳ ○ alpha-1.1 ►  small  ")
     assert blocked_phase.startswith("↳ ○ alpha-1.2 ⊜  medium ")
     assert active_phase.startswith("↳ ◐ alpha-1.1 ·  small  ")
+    assert claimed_phase.plain.startswith("↳ ◎ alpha-1.1 ►  small  ")
+    assert any(str(span.style) == "bold #AF87FF" for span in claimed_phase.spans)
     assert "active" not in active_phase
 
 
@@ -462,6 +470,18 @@ def test_epic_detail_omits_size_breakdown_without_direct_phase_context(
 
 def test_bead_detail_keeps_dependency_states_in_properties(tmp_path: Path) -> None:
     snapshot = _snapshot(tmp_path)
+    epic = snapshot.epics[0].issue
+    first, second = snapshot.phases_by_epic[("alpha", epic.id)]
+    claimed_dependency = replace(first.issue, status=Status.CLAIMED)
+    snapshot = replace(
+        snapshot,
+        phases_by_epic={
+            ("alpha", epic.id): (
+                ProjectIssue("alpha", claimed_dependency),
+                second,
+            )
+        },
+    )
     dependent = snapshot.phases_by_epic[("alpha", "alpha-1")][1].issue
 
     detail = _render_detail(
@@ -475,9 +495,52 @@ def test_bead_detail_keeps_dependency_states_in_properties(tmp_path: Path) -> No
 
     assert "Dependencies" in detail
     assert "alpha-1.1" in detail
-    assert "open" in detail
+    assert "claimed" in detail
+    assert "◎" in detail
     assert "blocked" in detail
     assert "Render dependency state" in detail
+
+
+def test_claimed_bead_detail_uses_status_and_readiness_visuals(
+    tmp_path: Path,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    epic = snapshot.epics[0].issue
+    first, second = snapshot.phases_by_epic[("alpha", epic.id)]
+    claimed = replace(
+        first.issue,
+        status=Status.CLAIMED,
+        assignee="alpha-1.1",
+    )
+    snapshot = replace(
+        snapshot,
+        phases_by_epic={
+            ("alpha", epic.id): (
+                ProjectIssue("alpha", claimed),
+                second,
+            )
+        },
+    )
+
+    detail = _render_detail(
+        plans_detail.bead_properties_header(
+            claimed,
+            snapshot,
+            project="alpha",
+            project_name="Alpha",
+        )
+    )
+    preview = plans_detail.bead_preview_markdown(
+        claimed,
+        snapshot,
+        project="alpha",
+    )
+
+    assert "◎ alpha-1.1 · Load plans" in detail
+    assert "◎ claimed" in detail
+    assert "Readiness" in detail
+    assert "**Status:** claimed" in preview
+    assert "**Readiness:** claimed" in preview
 
 
 async def test_proposal_detail_markdown_excludes_frontmatter(

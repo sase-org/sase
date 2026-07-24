@@ -7,6 +7,7 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
+from sase.bead_status_presentation import bead_status_presentation
 from sase.phase_size_presentation import (
     PHASE_SIZE_STYLES,
     PHASE_SIZE_VALUES,
@@ -366,14 +367,10 @@ def _chip(label: str, color: str, *, glyph: str = "") -> Text:
 
 
 def _status_chip(status: Status) -> Text:
-    color = {
-        Status.OPEN: "#87D7FF",
-        Status.IN_PROGRESS: "#FFD700",
-        Status.CLOSED: "#5FD787",
-    }[status]
+    presentation = bead_status_presentation(status)
     return _chip(
         status.value.replace("_", " "),
-        color,
+        presentation.rich_color,
         glyph=_status_glyph(status),
     )
 
@@ -387,6 +384,7 @@ def _readiness_chip(
     label = _readiness_label(issue, snapshot, project=project)
     color, glyph = {
         "closed": ("#5FD787", "●"),
+        "claimed": ("#AF87FF", "◎"),
         "in progress": ("#FFD700", "◐"),
         "blocked": ("#FF5F5F", "×"),
         "ready": ("#5FD787", "✓"),
@@ -404,6 +402,8 @@ def _readiness_label(
 ) -> str:
     if issue.status == Status.CLOSED:
         return "closed"
+    if issue.status == Status.CLAIMED:
+        return "claimed"
     if issue.status == Status.IN_PROGRESS:
         return "in progress"
     if snapshot is None:
@@ -417,19 +417,11 @@ def _readiness_label(
 
 
 def _status_glyph(status: Status) -> str:
-    return {
-        Status.OPEN: "○",
-        Status.IN_PROGRESS: "◐",
-        Status.CLOSED: "●",
-    }[status]
+    return bead_status_presentation(status).tui_glyph
 
 
 def _status_style(status: Status) -> str:
-    return {
-        Status.OPEN: "bold #87D7FF",
-        Status.IN_PROGRESS: "bold #FFD700",
-        Status.CLOSED: "bold #5FD787",
-    }[status]
+    return bead_status_presentation(status).rich_style
 
 
 __all__ = [

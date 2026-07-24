@@ -446,6 +446,7 @@ def test_epic_summary_renders_markdown_progress_sizes_children_and_plan(
             tier=BeadTier.PLAN,
         )
         project.update(active_phase.id, status=Status.IN_PROGRESS.value)
+        project.update(open_phase.id, status=Status.CLAIMED.value)
         project.update(closed_phase.id, status=Status.CLOSED.value)
         project.update(child_epic.id, status=Status.IN_PROGRESS.value)
 
@@ -472,7 +473,7 @@ def test_epic_summary_renders_markdown_progress_sizes_children_and_plan(
     assert " • Keep output stable" in lines
     assert "PHASES · 1/6 done at launch" in lines
     assert any(line.startswith(f"○ 1. {xsmall_phase.title}") for line in lines)
-    assert any(line.startswith(f"○ 2. {open_phase.title}") for line in lines)
+    assert any(line.startswith(f"◎ 2. {open_phase.title}") for line in lines)
     assert any(line.startswith(f"◐ 3. {active_phase.title}") for line in lines)
     assert any(line.startswith(f"✓ 4. {closed_phase.title}") for line in lines)
     assert any(line.startswith(f"○ 5. {xlarge_phase.title}") for line in lines)

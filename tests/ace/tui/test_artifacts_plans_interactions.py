@@ -12,7 +12,7 @@ from textual.widgets import Input, OptionList
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.plans_data import PlansSnapshot
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
-from sase.bead.model import Issue
+from sase.bead.model import Issue, Status
 from tests.ace.tui._artifacts_plans_helpers import (
     _all_choices,
     _all_projects_snapshot,
@@ -129,6 +129,45 @@ async def test_status_change_runs_as_tracked_task(
         tasks = page.app._task_queue.get_all()
         assert tasks[0].task_type == "bead status"
         assert tasks[0].status == "success"
+
+    assert updates == [("alpha", "alpha-1", {"status": "in_progress"})]
+
+
+async def test_status_cycle_from_claimed_takes_bead_over(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    claimed_epic = replace(snapshot.epics[0].issue, status=Status.CLAIMED)
+    snapshot = replace(
+        snapshot,
+        epics=(replace(snapshot.epics[0], issue=claimed_epic),),
+    )
+    updates: list[tuple[str, str, dict[str, str]]] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.plans_pane.load_plans_snapshot",
+        lambda _project, **_kwargs: snapshot,
+    )
+
+    def update(project: str, issue_id: str, fields: dict[str, str]) -> Issue:
+        updates.append((project, issue_id, fields))
+        return claimed_epic
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts_plans._update_scoped_bead",
+        update,
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("2")
+        pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
+        await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await page.press("j", "s")
+        await page.wait_for(lambda _state: page.app._task_queue.running_count == 0)
 
     assert updates == [("alpha", "alpha-1", {"status": "in_progress"})]
 

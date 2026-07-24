@@ -7,6 +7,7 @@ from collections.abc import Iterable
 from textual.message import Message
 
 from sase.ace.tui.widgets.filter_bar import FilterBar
+from sase.bead_status_presentation import bead_status_display_order
 from sase.plan_search.filter_query import plan_completion_context
 
 from .types import ARTIFACTS_ACCENTS
@@ -35,9 +36,10 @@ class PlanFilterBar(FilterBar):
     STATUS_ID = "plan-filter-status"
     COMPLETION_ID = "plan-filter-completion"
     CANDIDATE_ID_PREFIX = "plan-filter-candidate"
+    _BEAD_STATUS_COMPLETIONS = bead_status_display_order()
     KEY_COMPLETIONS = (
         ("kind", "proposal, epic, phase, archive"),
-        ("status", "open, in_progress, closed, ready, blocked"),
+        ("status", "open, claimed, in_progress, closed, ready, blocked"),
         ("tier", "tale, epic, plan"),
         ("project", "project key or display name"),
         ("since", "Nh/Nd/Nw, today, YYYY-MM-DD"),
@@ -47,9 +49,7 @@ class PlanFilterBar(FilterBar):
         "kind": ("proposal", "epic", "phase", "archive"),
         "status": (
             "proposed",
-            "open",
-            "in_progress",
-            "closed",
+            *_BEAD_STATUS_COMPLETIONS,
             "ready",
             "blocked",
             "launched",

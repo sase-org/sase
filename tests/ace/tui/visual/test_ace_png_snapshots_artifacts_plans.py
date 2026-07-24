@@ -18,7 +18,7 @@ from sase.ace.tui.widgets.artifacts.plans_data import (
 )
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from sase.bead.model import PhaseSize
+from sase.bead.model import PhaseSize, Status
 from sase.plan_search.filter_query import parse_plan_filter_query
 from tests.ace.tui._artifacts_plans_helpers import _choices, _snapshot
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
@@ -61,6 +61,14 @@ def _visual_snapshot(tmp_path: Path) -> PlansSnapshot:
         size=PhaseSize.XLARGE,
         dependencies=[],
     )
+    claimed_phase = replace(
+        phases[0].issue,
+        id="alpha-1.4",
+        title="Reserve claimed visual state",
+        status=Status.CLAIMED,
+        assignee="alpha-1.4",
+        dependencies=[],
+    )
     return replace(
         snapshot,
         proposals=(
@@ -74,6 +82,7 @@ def _visual_snapshot(tmp_path: Path) -> PlansSnapshot:
                 ProjectIssue("alpha", xsmall_phase),
                 *phases,
                 ProjectIssue("alpha", large_phase),
+                ProjectIssue("alpha", claimed_phase),
                 ProjectIssue("alpha", xlarge_phase),
             )
         },
@@ -181,6 +190,7 @@ async def test_artifacts_plans_populated_png_snapshot(
         for label in ("xsmall", "small", "medium", "large", "xlarge"):
             assert_page_svg_contains(page, label)
         assert_page_svg_contains(page, "Size")
+        assert_page_svg_contains(page, "Reserve claimed visual state")
 
         ace_png_visual.assert_page_png(
             page,
@@ -244,9 +254,10 @@ async def test_plans_filter_completion_png_snapshot(
         bar.open("status:")
         completion = bar.query_one("#plan-filter-completion", OptionList)
         await page.wait_for(
-            lambda _state: completion.display and completion.option_count == 8
+            lambda _state: completion.display and completion.option_count == 9
         )
         await wait_for_svg_contains(page, "in_progress")
+        await wait_for_svg_contains(page, "claimed")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -294,7 +305,7 @@ async def test_plans_narrowed_filter_chips_png_snapshot(
         await page.wait_for(
             lambda _state: (
                 "0/1 proposals" in status.content.plain
-                and "1/5 phases" in status.content.plain
+                and "1/6 phases" in status.content.plain
                 and "load" in pane.query_one("#plans-info", Static).content.plain
             )
         )

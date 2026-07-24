@@ -87,6 +87,19 @@ async def test_tab_accepts_filtered_repeatable_status_candidate() -> None:
         assert app.messages == [("changed", editor.text)]
 
 
+async def test_status_completion_includes_claimed_bead_status() -> None:
+    app = _PlanFilterBarApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PlanFilterBar)
+        bar.open("status:cl")
+        await pilot.pause()
+
+        completion = app.query_one("#plan-filter-completion", OptionList)
+        labels = _option_labels(completion)
+        assert labels[0].startswith("claimed")
+        assert any(label.startswith("closed") for label in labels)
+
+
 async def test_tab_quotes_project_display_name() -> None:
     app = _PlanFilterBarApp()
     async with app.run_test() as pilot:

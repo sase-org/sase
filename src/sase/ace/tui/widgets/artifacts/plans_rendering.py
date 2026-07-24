@@ -8,6 +8,7 @@ from datetime import datetime
 from rich.text import Text
 
 from sase.bead.model import Issue, PhaseSize, Status
+from sase.bead_status_presentation import bead_status_presentation
 from sase.phase_size_presentation import phase_size_chip
 from sase.plan_search.model import PlanSearchMatch
 
@@ -367,16 +368,8 @@ def _compact_plan_date(timestamp: str) -> str:
 
 
 def _status_glyph(status: Status) -> str:
-    return {
-        Status.OPEN: "○",
-        Status.IN_PROGRESS: "◐",
-        Status.CLOSED: "●",
-    }[status]
+    return bead_status_presentation(status).tui_glyph
 
 
 def _status_style(status: Status) -> str:
-    return {
-        Status.OPEN: "bold #87D7FF",
-        Status.IN_PROGRESS: "bold #FFD700",
-        Status.CLOSED: "bold #5FD787",
-    }[status]
+    return bead_status_presentation(status).rich_style
