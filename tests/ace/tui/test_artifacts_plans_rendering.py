@@ -16,6 +16,7 @@ from sase.ace.tui.widgets.artifacts import plans_detail, plans_pane
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.ace.tui.widgets.artifacts.plans_data import ProjectIssue
 from sase.bead.model import PhaseSize, Status
+from sase.bead_status_presentation import bead_status_presentation
 from sase.phase_size_presentation import PHASE_SIZE_STYLES
 from tests.ace.tui._artifacts_plans_helpers import (
     _all_projects_snapshot,
@@ -541,6 +542,36 @@ def test_claimed_bead_detail_uses_status_and_readiness_visuals(
     assert "Readiness" in detail
     assert "**Status:** claimed" in preview
     assert "**Readiness:** claimed" in preview
+
+
+def test_claimed_readiness_chip_uses_shared_status_presentation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    claimed = replace(
+        snapshot.phases_by_epic[("alpha", "alpha-1")][0].issue,
+        status=Status.CLAIMED,
+    )
+    presentation = replace(
+        bead_status_presentation(Status.CLAIMED),
+        tui_glyph="¤",
+        rich_color="#123456",
+    )
+    monkeypatch.setattr(
+        plans_detail,
+        "bead_status_presentation",
+        lambda _status: presentation,
+    )
+
+    chip = plans_detail._readiness_chip(
+        claimed,
+        snapshot,
+        project="alpha",
+    )
+
+    assert "¤ claimed" in chip.plain
+    assert any("#123456" in str(span.style) for span in chip.spans)
 
 
 async def test_proposal_detail_markdown_excludes_frontmatter(

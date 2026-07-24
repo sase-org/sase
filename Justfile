@@ -236,15 +236,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-8v(AgentLinkTarget)' \
-        --epic-symbol 'sase-8v(AgentLinkTargetKind)' \
-        --epic-symbol 'sase-8v(ParsedAgentFamilyName)' \
-        --epic-symbol 'sase-8v(RewrittenAgentRelationshipBatch)' \
-        --epic-symbol 'sase-8v(ValidatedAgentRelationshipSummary)' \
-        --epic-symbol 'sase-8v(agent_relationship_schema_version)' \
-        --epic-symbol 'sase-8v(globalize_legacy_agent_name)' \
-        --epic-symbol 'sase-8v(localize_agent_name)' \
-        --epic-symbol 'sase-8v(strip_global_agent_name)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

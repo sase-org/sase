@@ -382,10 +382,14 @@ def _readiness_chip(
     project: str,
 ) -> Text:
     label = _readiness_label(issue, snapshot, project=project)
+    if issue.status in (Status.CLOSED, Status.CLAIMED, Status.IN_PROGRESS):
+        presentation = bead_status_presentation(issue.status)
+        return _chip(
+            label,
+            presentation.rich_color,
+            glyph=presentation.tui_glyph,
+        )
     color, glyph = {
-        "closed": ("#5FD787", "●"),
-        "claimed": ("#AF87FF", "◎"),
-        "in progress": ("#FFD700", "◐"),
         "blocked": ("#FF5F5F", "×"),
         "ready": ("#5FD787", "✓"),
         "waiting": ("#87D7FF", "○"),

@@ -79,26 +79,26 @@ class AgentFamilyNameKind(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
-class ParsedAgentFamilyName:
+class _ParsedAgentFamilyName:
     kind: AgentFamilyNameKind
     family_name: str
     member_role: str | None
 
 
-class AgentLinkTargetKind(StrEnum):
+class _AgentLinkTargetKind(StrEnum):
     AGENT = "agent"
     FAMILY = "family"
 
 
 @dataclass(frozen=True, slots=True)
-class AgentLinkTarget:
-    kind: AgentLinkTargetKind
+class _AgentLinkTarget:
+    kind: _AgentLinkTargetKind
     path: str
     anchor: str | None
 
 
 @dataclass(frozen=True, slots=True)
-class ValidatedAgentRelationshipSummary:
+class _ValidatedAgentRelationshipSummary:
     schema_version: int
     owner: AgentOwnerIdentity
     run_count: int
@@ -111,7 +111,7 @@ class ValidatedAgentRelationshipSummary:
 
 
 @dataclass(frozen=True, slots=True)
-class RewrittenAgentRelationshipBatch:
+class _RewrittenAgentRelationshipBatch:
     schema_version: int
     owner: AgentOwnerIdentity
     runs: tuple[Mapping[str, Any], ...]
@@ -160,21 +160,7 @@ def globalize_agent_name(
     return str(binding(local_name, owner.username, owner.machine_name))
 
 
-def globalize_legacy_agent_name(
-    legacy_name: str,
-    current_owner: AgentOwnerIdentity,
-) -> str:
-    binding = require_rust_binding("globalize_legacy_agent_name")
-    return str(
-        binding(
-            legacy_name,
-            current_owner.username,
-            current_owner.machine_name,
-        )
-    )
-
-
-def strip_global_agent_name(
+def _strip_global_agent_name(
     global_name: str,
     source_owner: AgentOwnerIdentity,
 ) -> str:
@@ -188,7 +174,7 @@ def strip_global_agent_name(
     )
 
 
-def localize_agent_name(
+def _localize_agent_name(
     global_name: str,
     source: AgentSourceOwnerIdentity,
     target: AgentOwnerIdentity,
@@ -225,7 +211,7 @@ def normalize_owned_agent_name(
     machine_prefix = f"{owner.machine_name}."
     global_prefix = f"{owner.username}.{owner.machine_name}."
     if core_name.startswith(global_prefix):
-        core_name = strip_global_agent_name(core_name, owner)
+        core_name = _strip_global_agent_name(core_name, owner)
     elif core_name.startswith(machine_prefix):
         core_name = core_name[len(machine_prefix) :]
     return prefix + core_name
@@ -254,7 +240,7 @@ def localize_imported_agent_name(
     snapshot = identity or AgentIdentitySnapshot.current()
     if snapshot.owner is None:
         return global_name
-    return localize_agent_name(global_name, source, snapshot.owner)
+    return _localize_agent_name(global_name, source, snapshot.owner)
 
 
 def classify_imported_agent_owner(
@@ -336,10 +322,10 @@ def foreign_agent_owner_root(
     return None
 
 
-def parse_agent_family_name(name: str) -> ParsedAgentFamilyName:
+def parse_agent_family_name(name: str) -> _ParsedAgentFamilyName:
     binding = require_rust_binding("parse_agent_family_name")
     payload: Mapping[str, Any] = binding(name)
-    return ParsedAgentFamilyName(
+    return _ParsedAgentFamilyName(
         kind=AgentFamilyNameKind(str(payload["kind"])),
         family_name=str(payload["family_name"]),
         member_role=(
@@ -368,27 +354,22 @@ def agent_name_ancestors(name: str) -> tuple[str, ...]:
 def agent_link_target(
     name: str,
     owner: AgentOwnerIdentity,
-) -> AgentLinkTarget:
+) -> _AgentLinkTarget:
     binding = require_rust_binding("agent_link_target")
     payload: Mapping[str, Any] = binding(name, owner.username, owner.machine_name)
-    return AgentLinkTarget(
-        kind=AgentLinkTargetKind(str(payload["kind"])),
+    return _AgentLinkTarget(
+        kind=_AgentLinkTargetKind(str(payload["kind"])),
         path=str(payload["path"]),
         anchor=(str(payload["anchor"]) if payload.get("anchor") is not None else None),
     )
 
 
-def agent_relationship_schema_version() -> int:
-    binding = require_rust_binding("agent_relationship_schema_version")
-    return int(binding())
-
-
 def validate_agent_relationship_batch(
     batch: Mapping[str, Any],
-) -> ValidatedAgentRelationshipSummary:
+) -> _ValidatedAgentRelationshipSummary:
     binding = require_rust_binding("validate_agent_relationship_batch")
     payload: Mapping[str, Any] = binding(dict(batch))
-    return ValidatedAgentRelationshipSummary(
+    return _ValidatedAgentRelationshipSummary(
         schema_version=int(payload["schema_version"]),
         owner=_owner_from_mapping(payload["owner"]),
         run_count=int(payload["run_count"]),
@@ -404,13 +385,13 @@ def validate_agent_relationship_batch(
 def rewrite_agent_relationship_batch(
     batch: Mapping[str, Any],
     destination_ids: Mapping[str, str],
-) -> RewrittenAgentRelationshipBatch:
+) -> _RewrittenAgentRelationshipBatch:
     binding = require_rust_binding("rewrite_agent_relationship_batch")
     payload: Mapping[str, Any] = binding(
         dict(batch),
         dict(destination_ids),
     )
-    return RewrittenAgentRelationshipBatch(
+    return _RewrittenAgentRelationshipBatch(
         schema_version=int(payload["schema_version"]),
         owner=_owner_from_mapping(payload["owner"]),
         runs=tuple(dict(value) for value in payload["runs"]),
@@ -436,36 +417,27 @@ def _split_dismissed_prefix(name: str) -> tuple[str, str]:
 
 __all__ = [
     "AgentFamilyNameKind",
-    "AgentLinkTarget",
-    "AgentLinkTargetKind",
     "AgentIdentitySnapshot",
     "AgentOwnerIdentity",
     "AgentOwnershipClassification",
     "AgentSourceOwnerIdentity",
-    "ParsedAgentFamilyName",
-    "RewrittenAgentRelationshipBatch",
-    "ValidatedAgentRelationshipSummary",
     "agent_link_target",
     "agent_local_hood",
     "agent_name_ancestors",
     "agent_name_in_hood",
-    "agent_relationship_schema_version",
     "classify_agent_ownership",
     "classify_imported_agent_owner",
     "current_owner_agent_name_key",
     "current_owner_agent_name_lookup_candidates",
     "foreign_agent_owner_root",
     "globalize_agent_name",
-    "globalize_legacy_agent_name",
     "globalize_owned_agent_name",
     "localize_imported_agent_name",
-    "localize_agent_name",
     "normalize_owned_agent_name",
     "normalize_agent_archive_name",
     "parse_agent_family_name",
     "present_agent_name",
     "rewrite_agent_relationship_batch",
-    "strip_global_agent_name",
     "validate_agent_owner",
     "validate_agent_relationship_batch",
     "validate_agent_username",

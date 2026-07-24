@@ -59,7 +59,6 @@ def test_facade_delegates_every_operation_with_static_binding_names(
         "classify_agent_ownership": "exact_owner",
         "normalize_agent_archive_name": "foo",
         "globalize_agent_name": "alice.athena.foo",
-        "globalize_legacy_agent_name": "alice.athena.foo",
         "strip_global_agent_name": "foo",
         "localize_agent_name": "foo",
         "parse_agent_family_name": {
@@ -75,7 +74,6 @@ def test_facade_delegates_every_operation_with_static_binding_names(
             "path": "families/alice.athena.foo.md",
             "anchor": "member-code",
         },
-        "agent_relationship_schema_version": 2,
         "validate_agent_relationship_batch": {
             "schema_version": 2,
             "owner": owner,
@@ -109,6 +107,7 @@ def test_facade_delegates_every_operation_with_static_binding_names(
     monkeypatch.setattr(facade, "require_rust_binding", lookup)
     target = facade.AgentOwnerIdentity("alice", "athena")
     source = facade.AgentSourceOwnerIdentity.v2(target)
+    identity = facade.AgentIdentitySnapshot(target)
 
     facade.validate_agent_username("alice")
     facade.validate_agent_owner(target)
@@ -118,17 +117,20 @@ def test_facade_delegates_every_operation_with_static_binding_names(
     )
     assert facade.normalize_agent_archive_name("260722.foo") == "foo"
     assert facade.globalize_agent_name("foo", target) == "alice.athena.foo"
+    assert facade.normalize_owned_agent_name("alice.athena.foo", identity) == "foo"
     assert (
-        facade.globalize_legacy_agent_name("athena.foo", target) == "alice.athena.foo"
+        facade.localize_imported_agent_name(
+            "alice.athena.foo",
+            source,
+            identity,
+        )
+        == "foo"
     )
-    assert facade.strip_global_agent_name("alice.athena.foo", target) == "foo"
-    assert facade.localize_agent_name("alice.athena.foo", source, target) == "foo"
     assert facade.parse_agent_family_name("foo--code").member_role == "code"
     assert facade.agent_local_hood("foo.bar") == "foo"
     assert facade.agent_name_in_hood("foo.bar", "foo")
     assert facade.agent_name_ancestors("foo.bar") == ("foo", "foo.bar")
     assert facade.agent_link_target("foo--code", target).anchor == "member-code"
-    assert facade.agent_relationship_schema_version() == 2
     assert facade.validate_agent_relationship_batch(_batch()).run_count == 2
     assert (
         facade.rewrite_agent_relationship_batch(
@@ -143,7 +145,6 @@ def test_facade_delegates_every_operation_with_static_binding_names(
         "classify_agent_ownership",
         "normalize_agent_archive_name",
         "globalize_agent_name",
-        "globalize_legacy_agent_name",
         "strip_global_agent_name",
         "localize_agent_name",
         "parse_agent_family_name",
@@ -151,7 +152,6 @@ def test_facade_delegates_every_operation_with_static_binding_names(
         "agent_name_in_hood",
         "agent_name_ancestors",
         "agent_link_target",
-        "agent_relationship_schema_version",
         "validate_agent_relationship_batch",
         "rewrite_agent_relationship_batch",
     ]
@@ -159,6 +159,7 @@ def test_facade_delegates_every_operation_with_static_binding_names(
 
 def test_owner_family_and_localization_integration() -> None:
     target = facade.AgentOwnerIdentity("alice", "athena")
+    identity = facade.AgentIdentitySnapshot(target)
     cases = [
         (
             facade.AgentSourceOwnerIdentity.v2(target),
@@ -182,17 +183,24 @@ def test_owner_family_and_localization_integration() -> None:
         ),
     ]
     for source, global_name, expected in cases:
-        assert facade.localize_agent_name(global_name, source, target) == expected
+        assert (
+            facade.localize_imported_agent_name(global_name, source, identity)
+            == expected
+        )
 
     assert (
         facade.globalize_agent_name("260722.foo.bar--code", target)
         == "alice.athena.foo.bar--code"
     )
     parsed = facade.parse_agent_family_name("foo.bar--code")
-    assert parsed == facade.ParsedAgentFamilyName(
-        kind=facade.AgentFamilyNameKind.MEMBER,
-        family_name="foo.bar",
-        member_role="code",
+    assert (
+        parsed.kind,
+        parsed.family_name,
+        parsed.member_role,
+    ) == (
+        facade.AgentFamilyNameKind.MEMBER,
+        "foo.bar",
+        "code",
     )
     assert facade.agent_name_ancestors("foo.bar--code") == ("foo", "foo.bar")
     assert facade.agent_name_in_hood("foo.bar--code", "foo")
