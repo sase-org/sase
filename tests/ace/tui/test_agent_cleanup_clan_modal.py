@@ -118,6 +118,36 @@ def test_clan_modal_preview_includes_workflow_child_cascade() -> None:
     assert "cascade 1" in modal._clan_row_label(modal._rows[0]).plain
 
 
+def test_clan_modal_preview_renders_only_implicit_global_queue_waits() -> None:
+    implicit = _member(
+        "alpha.implicit",
+        "implicit",
+        clan="alpha",
+        status="WAITING",
+    )
+    implicit.wait_runners = 9
+    implicit.slot_requested_at = "2026-07-19T08:00:00Z"
+    explicit = _member(
+        "alpha.explicit",
+        "explicit",
+        clan="alpha",
+        status="WAITING",
+    )
+    explicit.wait_runners = 0
+    explicit.wait_runners_explicit = True
+    explicit.slot_requested_at = "2026-07-19T08:00:01Z"
+    clans, targets = _project(implicit, explicit)
+    modal = AgentCleanupClanModal(
+        clans=clans,
+        targets=targets,
+        focused_panel_label="@epic",
+    )
+
+    label = modal._clan_row_label(modal._rows[0])
+
+    assert "[Q1 W2]" in label.plain
+
+
 async def test_clan_modal_pre_highlights_focused_clan_and_folds_members() -> None:
     alpha = _member("alpha.1", "alpha-1", clan="alpha")
     beta = _member("beta.1", "beta-1", clan="beta")

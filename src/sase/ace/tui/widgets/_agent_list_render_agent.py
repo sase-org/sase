@@ -372,6 +372,7 @@ def format_agent_option(
     family_chip = format_agent_count_chip(
         stopped=family_counts.awaiting,
         running=family_counts.running,
+        queued=family_counts.queued,
         waiting=family_counts.waiting,
         failed=family_counts.failed,
         unread=family_counts.unread,

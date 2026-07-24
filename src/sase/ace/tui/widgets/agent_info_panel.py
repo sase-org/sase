@@ -5,6 +5,7 @@ from typing import Any
 from rich.text import Text
 from textual.widgets import Static
 
+from ..agent_count_chip import AGENT_COUNT_CHIP_QUEUED_STYLE
 from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 
 
@@ -310,7 +311,10 @@ class AgentInfoPanel(Static):
 
         if self._runner_queue_count > 0:
             text.append(" · ", style="dim")
-            text.append(str(self._runner_queue_count), style="bold #AF87FF")
+            text.append(
+                str(self._runner_queue_count),
+                style=AGENT_COUNT_CHIP_QUEUED_STYLE,
+            )
             text.append(" queued", style="dim")
 
         metrics = [(label, count) for label, count in self._metric_counts() if count]

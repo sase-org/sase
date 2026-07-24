@@ -7,6 +7,7 @@ from datetime import datetime
 from sase.ace.tui.models._agent_clan import (
     agent_lane_status_counts,
     agent_summary_status_counts,
+    clan_member_counts,
 )
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -253,3 +254,48 @@ def test_container_unread_is_attributed_once_to_projected_member() -> None:
     assert container_only.done == 1
     assert container_and_member.unread == 1
     assert container_and_member.done == 0
+
+
+def test_queue_counts_are_orthogonal_and_dedupe_container_flat_rows() -> None:
+    implicit = _agent(
+        "research.implicit",
+        "WAITING",
+        role="solo",
+        clan="research",
+    )
+    explicit = _agent(
+        "research.explicit",
+        "WAITING",
+        role="solo",
+        clan="research",
+    )
+    dependency = _agent(
+        "research.dependency",
+        "WAITING",
+        role="solo",
+        clan="research",
+    )
+    for agent in (implicit, explicit, dependency):
+        agent.agent_family = None
+        agent.pid = 100
+    implicit.wait_runners = 9
+    implicit.slot_requested_at = "2026-07-19T09:00:00Z"
+    explicit.wait_runners = 0
+    explicit.wait_runners_explicit = True
+    explicit.slot_requested_at = "2026-07-19T09:00:01Z"
+    dependency.waiting_for = ["research.other"]
+    container = project_clan_tree([implicit, explicit, dependency])[0]
+
+    concrete = agent_summary_status_counts(
+        (container, implicit, explicit, dependency),
+        (),
+    )
+    lanes = agent_lane_status_counts(
+        (container, implicit, explicit, dependency),
+        (),
+    )
+    clan = clan_member_counts(container)
+
+    assert (concrete.total, concrete.queued, concrete.waiting) == (3, 1, 3)
+    assert (lanes.total, lanes.queued, lanes.waiting) == (3, 1, 3)
+    assert (clan.queued, clan.waiting) == (1, 3)

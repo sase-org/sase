@@ -263,6 +263,39 @@ def test_clan_family_and_standalone_render_as_two_direct_lanes() -> None:
     assert "▸ ❖ CLAN MEMBERS · 2\n" in detail
 
 
+def test_clan_header_queue_count_excludes_explicit_and_dependency_waits() -> None:
+    implicit = make_clan_agent(
+        "research.implicit",
+        status="WAITING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    explicit = make_clan_agent(
+        "research.explicit",
+        status="WAITING",
+        start=datetime(2026, 7, 17, 12, 1, 0),
+    )
+    dependency = make_clan_agent(
+        "research.dependency",
+        status="WAITING",
+        start=datetime(2026, 7, 17, 12, 2, 0),
+    )
+    for member in (implicit, explicit, dependency):
+        member.pid = 100
+    implicit.wait_runners = 9
+    implicit.slot_requested_at = "2026-07-17T12:00:00Z"
+    explicit.wait_runners = 0
+    explicit.wait_runners_explicit = True
+    explicit.slot_requested_at = "2026-07-17T12:01:00Z"
+    dependency.waiting_for = ["research.other"]
+    container = project_clan_tree([implicit, explicit, dependency])[0]
+
+    detail = build_clan_detail_text(container)
+
+    assert "Status: WAITING [Q1 W3]\n" in detail.plain
+    queue_digit = detail.plain.index("Q1") + 1
+    assert style_at(detail, queue_digit) == "bold #FF87D7"
+
+
 def test_clan_build_header_path_is_aggregate_only() -> None:
     member = make_clan_agent(
         "research.only",

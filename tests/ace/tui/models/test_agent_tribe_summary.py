@@ -211,6 +211,66 @@ def test_family_unit_counts_and_children_use_concrete_planner_projection() -> No
     assert snapshot.nested_count == 2
 
 
+def test_tribe_queue_count_is_scoped_and_preserves_waiting_status() -> None:
+    implicit = _agent(
+        "research.implicit",
+        "WAITING",
+        start_minute=0,
+        clan="research",
+        generation="gen-1",
+    )
+    explicit = _agent(
+        "research.explicit",
+        "WAITING",
+        start_minute=1,
+        clan="research",
+        generation="gen-1",
+    )
+    dependency = _agent(
+        "research.dependency",
+        "WAITING",
+        start_minute=2,
+        clan="research",
+        generation="gen-1",
+    )
+    for agent in (implicit, explicit, dependency):
+        agent.pid = 100
+    implicit.wait_runners = 9
+    implicit.slot_requested_at = "2026-07-18T14:00:00Z"
+    explicit.wait_runners = 0
+    explicit.wait_runners_explicit = True
+    explicit.slot_requested_at = "2026-07-18T14:00:01Z"
+    dependency.waiting_for = ["research.other"]
+    projected = project_clan_tree([implicit, explicit, dependency])
+
+    snapshot = build_agent_tribe_summary_snapshot(
+        "epic",
+        projected,
+        panel_collapsed=True,
+        now=_NOW,
+    )
+    unrelated_dependency = _agent(
+        "review.dependency",
+        "WAITING",
+        start_minute=3,
+    )
+    unrelated_dependency.waiting_for = ["review.other"]
+    unrelated = build_agent_tribe_summary_snapshot(
+        "review",
+        [unrelated_dependency],
+        panel_collapsed=True,
+        now=_NOW,
+    )
+
+    assert (snapshot.counts.queued, snapshot.counts.waiting) == (1, 3)
+    assert snapshot.units[0].status_counts is not None
+    assert (
+        snapshot.units[0].status_counts.queued,
+        snapshot.units[0].status_counts.waiting,
+    ) == (1, 3)
+    assert (unrelated.counts.queued, unrelated.counts.waiting) == (0, 1)
+
+
 def test_workflow_unit_counts_agent_steps_once_and_never_as_nested() -> None:
     root = _agent("workflow", "DONE", start_minute=0)
     root.agent_type = AgentType.WORKFLOW

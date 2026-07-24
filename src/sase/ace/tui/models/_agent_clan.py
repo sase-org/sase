@@ -22,6 +22,7 @@ from .agent_family_members import (
     concrete_agent_statuses,
     is_sequential_family_container,
 )
+from .agent_runner_slots import agent_is_globally_queued
 
 _QUESTION_STATUSES = frozenset({"QUESTION", "WAITING INPUT"})
 _CLAN_MEMBER_STATUS_PRIORITIES: dict[str, int] = {
@@ -41,6 +42,7 @@ class ClanStatusCounts:
     awaiting: int = 0
     failed: int = 0
     running: int = 0
+    queued: int = 0
     waiting: int = 0
     unread: int = 0
     done: int = 0
@@ -51,6 +53,7 @@ class _AgentSummaryStatusCounts:
     total: int = 0
     stopped: int = 0
     running: int = 0
+    queued: int = 0
     waiting: int = 0
     failed: int = 0
     unread: int = 0
@@ -162,10 +165,15 @@ def clan_member_counts(
             waiting += 1
         elif bucket == "Done" and not is_unread:
             done += 1
+    queued = sum(
+        agent_is_globally_queued(status.agent)
+        for status in agent_status_projections((agent,))
+    )
     return ClanStatusCounts(
         awaiting=awaiting,
         failed=failed,
         running=running,
+        queued=queued,
         waiting=waiting,
         unread=unread,
         done=done,
@@ -201,11 +209,13 @@ def agent_lane_status_counts(
 def _status_counts_for_projections(
     projected: Iterable[_ProjectedSummaryAgent],
 ) -> _AgentSummaryStatusCounts:
-    total = stopped = running = waiting = failed = unread = done = 0
+    total = stopped = running = queued = waiting = failed = unread = done = 0
     for projection in projected:
         projected_agent = projection.status.agent
         bucket = projection.status.bucket
         total += 1
+        if agent_is_globally_queued(projected_agent):
+            queued += 1
         if projection.is_unread:
             unread += 1
         if agent_is_asking(projected_agent.status):
@@ -227,6 +237,7 @@ def _status_counts_for_projections(
         total=total,
         stopped=stopped,
         running=running,
+        queued=queued,
         waiting=waiting,
         failed=failed,
         unread=unread,

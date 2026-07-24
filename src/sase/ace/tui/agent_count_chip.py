@@ -5,9 +5,11 @@ from __future__ import annotations
 from rich.text import Text
 
 AGENT_COUNT_CHIP_NEUTRAL_STYLE = "#AFAFAF"
+AGENT_COUNT_CHIP_QUEUED_STYLE = "bold #FF87D7"
 AGENT_COUNT_CHIP_METRIC_STYLES: dict[str, str] = {
     "stopped": "bold #FFAF00",
     "running": "bold #00D7AF",
+    "queued": AGENT_COUNT_CHIP_QUEUED_STYLE,
     "waiting": "bold #AF87FF",
     "failed": "bold #FF5F5F",
     "unread": "bold #1a1a1a on #FFD700",
@@ -16,6 +18,7 @@ AGENT_COUNT_CHIP_METRIC_STYLES: dict[str, str] = {
 AGENT_COUNT_CHIP_METRICS: tuple[tuple[str, str], ...] = (
     ("stopped", "S"),
     ("running", "R"),
+    ("queued", "Q"),
     ("waiting", "W"),
     ("failed", "F"),
     ("unread", "U"),
@@ -27,6 +30,7 @@ def format_agent_count_chip(
     *,
     stopped: int = 0,
     running: int = 0,
+    queued: int = 0,
     waiting: int = 0,
     failed: int = 0,
     unread: int = 0,
@@ -34,7 +38,7 @@ def format_agent_count_chip(
     chrome_style: str | None = None,
 ) -> Text:
     """Return a zero-suppressing ``[S1 R2 ...]`` Rich status chip."""
-    counts = (stopped, running, waiting, failed, unread, done)
+    counts = (stopped, running, queued, waiting, failed, unread, done)
     if not any(counts):
         return Text()
 

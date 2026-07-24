@@ -64,13 +64,13 @@ def refresh_runner_slot_context(
         effective_limit=effective_limit,
         slots_in_use=running_count,
         global_cap_queue_count=sum(
-            1 for agent in waiters if not agent.wait_runners_explicit
+            agent_is_globally_queued(agent) for agent in waiters
         ),
     )
 
 
 def _is_ace_run_root(agent: Agent) -> bool:
-    if agent.is_child_row:
+    if agent.is_clan_container or agent.is_child_row:
         return False
     if agent.slot_requested_at:
         return True
@@ -108,6 +108,11 @@ def _is_live_slot_waiter(agent: Agent) -> bool:
     )
 
 
+def agent_is_globally_queued(agent: Agent) -> bool:
+    """Return whether ``agent`` is waiting specifically on the global cap."""
+    return _is_live_slot_waiter(agent) and not agent.wait_runners_explicit
+
+
 def _waiter_sort_key(agent: Agent) -> tuple[int, int, datetime, str, str]:
     requested_at = agent.slot_requested_at or ""
     try:
@@ -129,4 +134,8 @@ def _waiter_sort_key(agent: Agent) -> tuple[int, int, datetime, str, str]:
     )
 
 
-__all__ = ["RunnerCapacitySnapshot", "refresh_runner_slot_context"]
+__all__ = [
+    "RunnerCapacitySnapshot",
+    "agent_is_globally_queued",
+    "refresh_runner_slot_context",
+]

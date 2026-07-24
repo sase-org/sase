@@ -5,6 +5,7 @@ from rich.text import Text
 from sase.ace.tui.agent_count_chip import (
     AGENT_COUNT_CHIP_METRIC_STYLES,
     AGENT_COUNT_CHIP_NEUTRAL_STYLE,
+    AGENT_COUNT_CHIP_QUEUED_STYLE,
     format_agent_count_chip,
 )
 
@@ -38,16 +39,18 @@ def test_agent_count_chip_uses_canonical_order_and_status_styles() -> None:
     chip = format_agent_count_chip(
         stopped=1,
         running=2,
+        queued=33,
         waiting=3,
         failed=4,
         unread=5,
         done=6,
     )
 
-    assert chip.plain == "[S1 R2 W3 F4 U5 D6]"
+    assert chip.plain == "[S1 R2 Q33 W3 F4 U5 D6]"
     for token, metric in (
         ("S1", "stopped"),
         ("R2", "running"),
+        ("Q33", "queued"),
         ("W3", "waiting"),
         ("F4", "failed"),
         ("D6", "done"),
@@ -70,6 +73,7 @@ def test_agent_count_chip_can_override_chrome_and_letter_styles() -> None:
     chip = format_agent_count_chip(
         stopped=1,
         running=2,
+        queued=33,
         waiting=3,
         failed=4,
         unread=5,
@@ -77,10 +81,11 @@ def test_agent_count_chip_can_override_chrome_and_letter_styles() -> None:
         chrome_style=chrome_style,
     )
 
-    assert chip.plain == "[S1 R2 W3 F4 U5 D6]"
+    assert chip.plain == "[S1 R2 Q33 W3 F4 U5 D6]"
     for token, metric in (
         ("S1", "stopped"),
         ("R2", "running"),
+        ("Q33", "queued"),
         ("W3", "waiting"),
         ("F4", "failed"),
         ("U5", "unread"),
@@ -96,6 +101,21 @@ def test_agent_count_chip_can_override_chrome_and_letter_styles() -> None:
 
 
 def test_agent_count_chip_suppresses_zero_metrics() -> None:
-    chip = format_agent_count_chip(stopped=0, waiting=7, unread=0, done=8)
+    chip = format_agent_count_chip(
+        stopped=0,
+        queued=0,
+        waiting=7,
+        unread=0,
+        done=8,
+    )
 
     assert chip.plain == "[W7 D8]"
+
+
+def test_agent_count_chip_uses_canonical_bright_pink_queue_style() -> None:
+    chip = format_agent_count_chip(queued=12)
+
+    assert chip.plain == "[Q12]"
+    assert _style_at(chip, 1) == AGENT_COUNT_CHIP_NEUTRAL_STYLE
+    assert _style_at(chip, 2) == AGENT_COUNT_CHIP_QUEUED_STYLE
+    assert _style_at(chip, 3) == AGENT_COUNT_CHIP_QUEUED_STYLE

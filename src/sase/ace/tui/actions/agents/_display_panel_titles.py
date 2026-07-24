@@ -43,6 +43,7 @@ class AgentPanelCounts:
     lane_count: int = 0
     asking: int = 0
     running: int = 0
+    queued: int = 0
     waiting: int = 0
     failed: int = 0
     unread: int = 0
@@ -72,6 +73,7 @@ def agent_panel_counts(
         lane_count=projected.total,
         asking=projected.stopped,
         running=projected.running,
+        queued=projected.queued,
         waiting=projected.waiting,
         failed=projected.failed,
         unread=projected.unread,
@@ -124,6 +126,7 @@ def agent_panel_border_title(
         chip = format_agent_count_chip(
             stopped=counts.asking,
             running=counts.running,
+            queued=counts.queued,
             waiting=counts.waiting,
             failed=counts.failed,
             unread=counts.unread,

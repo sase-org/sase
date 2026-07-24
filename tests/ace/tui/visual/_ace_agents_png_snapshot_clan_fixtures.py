@@ -183,6 +183,48 @@ def epic_clan_agents(*, clan_summary: str | None = None) -> list[Agent]:
     )
 
 
+def queued_clan_agents() -> list[Agent]:
+    """Return a clan with one global-cap wait and one explicit barrier."""
+    generation = "20260724120000"
+
+    def waiter(
+        name: str,
+        minute: int,
+        *,
+        explicit: bool,
+        threshold: int,
+    ) -> Agent:
+        return Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"visual-{name}",
+            project_file="/workspace/sase/visual_project.sase",
+            status="WAITING",
+            start_time=datetime(2026, 7, 24, 12, minute, 0),
+            raw_suffix=f"2026072412{minute:02d}00-{name}",
+            artifacts_dir=(
+                f"/workspace/sase/artifacts/ace-run/2026072412{minute:02d}00-{name}"
+            ),
+            agent_name=f"queue-demo.{name}",
+            agent_clan="queue-demo",
+            agent_clan_generation=generation,
+            tribe="epic",
+            pid=4200 + minute,
+            wait_runners=threshold,
+            wait_runners_explicit=explicit,
+            slot_requested_at=f"2026-07-24T12:{minute:02d}:00Z",
+            llm_provider="codex",
+            model="gpt-5",
+        )
+
+    return sort_and_reorder(
+        [
+            waiter("global-cap", 0, explicit=False, threshold=9),
+            waiter("drain-barrier", 1, explicit=True, threshold=0),
+        ],
+        [],
+    )
+
+
 def decorate_clan_panel_sections(rows: list[Agent]) -> list[Agent]:
     """Give panel-only fixtures representative in-memory aggregate sections."""
     container = next(row for row in rows if row.is_clan_container)

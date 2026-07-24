@@ -351,6 +351,7 @@ class AgentCleanupClanModal(
         chip = format_agent_count_chip(
             stopped=counts.awaiting,
             running=counts.running,
+            queued=counts.queued,
             waiting=counts.waiting,
             failed=counts.failed,
             unread=counts.unread,

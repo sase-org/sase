@@ -7,6 +7,7 @@ from datetime import datetime
 import pytest
 
 from sase.ace.tui.models._agent_clan_sections import ClanTextEntry
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_tribe_summary import (
     build_agent_tribe_summary_snapshot,
@@ -196,6 +197,51 @@ def test_tribe_family_children_use_effective_status_glyphs() -> None:
     assert "[R1 D1]" in detail.plain
     assert "--plan-step · step · ✓ TALE APPROVED" in detail.plain
     assert "--code · agent · ▶ WORKING TALE" in detail.plain
+
+
+def test_tribe_header_and_clan_unit_render_scoped_queue_count() -> None:
+    implicit = _agent(
+        "research.implicit",
+        "WAITING",
+        suffix="implicit",
+    )
+    explicit = _agent(
+        "research.explicit",
+        "WAITING",
+        suffix="explicit",
+    )
+    for agent in (implicit, explicit):
+        agent.agent_clan = "research"
+        agent.agent_clan_generation = "gen-1"
+        agent.pid = 100
+    implicit.wait_runners = 9
+    implicit.slot_requested_at = "2026-07-18T14:00:00Z"
+    explicit.wait_runners = 0
+    explicit.wait_runners_explicit = True
+    explicit.slot_requested_at = "2026-07-18T14:00:01Z"
+    snapshot = build_agent_tribe_summary_snapshot(
+        "epic",
+        project_clan_tree([implicit, explicit]),
+        panel_collapsed=True,
+        now=_NOW,
+    )
+
+    detail = build_tribe_detail_text(
+        snapshot,
+        fold_level=FoldLevel.COLLAPSED,
+    )
+
+    assert detail.plain.count("[Q1 W2]") == 2
+    for start in (
+        index
+        for index in range(len(detail.plain))
+        if detail.plain.startswith("Q1", index)
+    ):
+        digit = start + 1
+        assert any(
+            span.start <= digit < span.end and str(span.style) == "bold #FF87D7"
+            for span in detail.spans
+        )
 
 
 def test_tribe_section_overrides_are_scoped_and_publish_anchors() -> None:

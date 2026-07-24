@@ -169,6 +169,7 @@ def test_selected_expanded_panel_title_has_focus_marker() -> None:
         counts=AgentPanelCounts(
             asking=1,
             running=2,
+            queued=7,
             waiting=3,
             failed=4,
             unread=5,
@@ -177,7 +178,7 @@ def test_selected_expanded_panel_title_has_focus_marker() -> None:
         selected=True,
     )
 
-    assert title.plain == "❖ @chop · 21 [S1 R2 W3 F4 U5 D6]"
+    assert title.plain == "❖ @chop · 21 [S1 R2 Q7 W3 F4 U5 D6]"
     selected_style = "#FFD75F"
     _assert_title_span(title, start=0, end=2, style=selected_style, text="❖ ")
     total_start = title.plain.index("21")
@@ -189,7 +190,7 @@ def test_selected_expanded_panel_title_has_focus_marker() -> None:
         text="21",
     )
 
-    for character in "[]SRWFUD":
+    for character in "[]SRQWFUD":
         position = title.plain.index(character, total_start + 2)
         _assert_title_range_style(
             title,
@@ -201,6 +202,7 @@ def test_selected_expanded_panel_title_has_focus_marker() -> None:
     for token, metric_name in (
         ("S1", "asking"),
         ("R2", "running"),
+        ("Q7", "queued"),
         ("W3", "waiting"),
         ("F4", "failed"),
         ("U5", "unread"),
@@ -396,6 +398,9 @@ def test_panel_counts_use_lanes_for_total_and_statuses() -> None:
     )
     clan_standalone.agent_clan = "research"
     clan_standalone.agent_clan_generation = "gen-1"
+    clan_standalone.pid = 101
+    clan_standalone.wait_runners = 9
+    clan_standalone.slot_requested_at = "2026-07-12T12:00:00Z"
     agents = project_clan_tree(
         [
             standalone,
@@ -410,5 +415,6 @@ def test_panel_counts_use_lanes_for_total_and_statuses() -> None:
     counts = agent_panel_counts(agents, set())
 
     assert counts.lane_count == 4
+    assert counts.queued == 1
     assert (counts.running, counts.waiting, counts.read) == (2, 1, 1)
-    assert sum(value for _name, value in counts.metric_items()) == 4
+    assert sum(value for _name, value in counts.metric_items()) == 5

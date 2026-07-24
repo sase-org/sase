@@ -79,6 +79,25 @@ def test_clan_unread_counts_deduplicate_and_replace_successful_done() -> None:
     assert counts == ClanStatusCounts(failed=1, unread=2, done=1)
 
 
+def test_clan_queue_count_projects_parallel_member_behind_family() -> None:
+    container = _agent("research", "WAITING", suffix=None)
+    container.is_clan_container = True
+    family = _agent("research.family", "WAITING", suffix="family")
+    family.agent_family_parallel = True
+    queued = _agent("research.family.phase", "WAITING", suffix="phase")
+    queued.agent_family_parallel = True
+    queued.parent_timestamp = family.raw_suffix
+    queued.pid = 100
+    queued.wait_runners = 9
+    queued.slot_requested_at = "2026-07-17T10:00:00Z"
+    family.runtime_children = [queued]
+    container.runtime_children = [family]
+
+    counts = clan_member_counts(container)
+
+    assert (counts.queued, counts.waiting) == (1, 1)
+
+
 def test_cleanup_cascades_from_container_but_not_from_member() -> None:
     container = _agent("research", "RUNNING", suffix=None)
     container.is_clan_container = True

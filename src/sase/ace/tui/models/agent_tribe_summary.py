@@ -65,6 +65,7 @@ class TribeStatusCounts:
 
     stopped: int = 0
     running: int = 0
+    queued: int = 0
     waiting: int = 0
     failed: int = 0
     unread: int = 0
@@ -255,6 +256,7 @@ def _status_counts(
     return TribeStatusCounts(
         stopped=counts.stopped,
         running=counts.running,
+        queued=counts.queued,
         waiting=counts.waiting,
         failed=counts.failed,
         unread=counts.unread,
@@ -271,6 +273,7 @@ def _lane_status_counts(
         TribeStatusCounts(
             stopped=counts.stopped,
             running=counts.running,
+            queued=counts.queued,
             waiting=counts.waiting,
             failed=counts.failed,
             unread=counts.unread,

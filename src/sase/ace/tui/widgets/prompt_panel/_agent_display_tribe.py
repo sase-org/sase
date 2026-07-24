@@ -132,6 +132,7 @@ def _append_count_chip(text: Text, counts: TribeStatusCounts) -> None:
     chip = format_agent_count_chip(
         stopped=counts.stopped,
         running=counts.running,
+        queued=counts.queued,
         waiting=counts.waiting,
         failed=counts.failed,
         unread=counts.unread,
@@ -245,6 +246,7 @@ def _roster_entries(
                     MemberRosterStatusCounts(
                         stopped=counts.stopped,
                         running=counts.running,
+                        queued=counts.queued,
                         waiting=counts.waiting,
                         failed=counts.failed,
                         unread=counts.unread,

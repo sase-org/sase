@@ -150,6 +150,44 @@ def test_cached_family_root_recolors_when_member_status_changes() -> None:
     assert "[R1]" not in done_parts[0].plain
 
 
+def test_cached_family_root_invalidates_when_member_joins_global_queue() -> None:
+    cache = AgentRenderCache()
+    root = _agent(status="WAITING")
+    root.agent_family_parallel = True
+    member = _agent(
+        cl_name="demo.phase",
+        status="WAITING",
+        raw_suffix="20260425143100",
+    )
+    member.agent_family_parallel = True
+    member.parent_timestamp = root.raw_suffix
+    member.pid = 100
+    member.waiting_for = ["dependency"]
+    root.runtime_children.append(member)
+
+    dependency_wait = cached_format_agent_option(
+        cache,
+        root,
+        0,
+        is_selected=False,
+        now=None,
+    )
+    member.waiting_for = []
+    member.wait_runners = 9
+    member.slot_requested_at = "2026-04-25T14:31:00Z"
+    global_wait = cached_format_agent_option(
+        cache,
+        root,
+        0,
+        is_selected=False,
+        now=None,
+    )
+
+    assert dependency_wait[0] is not global_wait[0]
+    assert "[W1]" in dependency_wait[0].plain
+    assert "[Q1 W1]" in global_wait[0].plain
+
+
 def test_cached_family_root_aggregates_members_once_per_render_attempt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

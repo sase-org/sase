@@ -98,6 +98,7 @@ class MemberRosterStatusCounts:
 
     stopped: int = 0
     running: int = 0
+    queued: int = 0
     waiting: int = 0
     failed: int = 0
     unread: int = 0
@@ -350,6 +351,7 @@ def _append_member_fields(
         chip = format_agent_count_chip(
             stopped=status_counts.stopped,
             running=status_counts.running,
+            queued=status_counts.queued,
             waiting=status_counts.waiting,
             failed=status_counts.failed,
             unread=status_counts.unread,

@@ -28,6 +28,11 @@ def _family_root() -> Agent:
     for index, status in enumerate(statuses):
         member = _agent(suffix=f"member-{index}", status=status)
         member.agent_family_parallel = True
+        member.parent_timestamp = root.raw_suffix
+        if status == "WAITING":
+            member.pid = 100
+            member.wait_runners = 9
+            member.slot_requested_at = "2026-07-17T12:00:00Z"
         root.runtime_children.append(member)
 
     # Serial children and the root itself are not members of the count bundle.
@@ -68,7 +73,7 @@ def test_collapsed_family_row_combines_fold_retry_annotation_and_chip() -> None:
     )
 
     assert annotation == " ×9 ↻1"
-    assert " ×9 ↻1 [S1 R2 W1 F1 D1]" in left.plain
+    assert " ×9 ↻1 [S1 R2 Q1 W1 F1 D1]" in left.plain
     assert " running" not in left.plain
     assert " done" not in left.plain
     assert " · " not in left.plain
@@ -92,7 +97,7 @@ def test_expanded_family_row_keeps_chip_with_hidden_child_annotation() -> None:
     )
 
     assert annotation == " ×9 +2"
-    assert " ×9 +2 [S1 R2 W1 F1 D1]" in left.plain
+    assert " ×9 +2 [S1 R2 Q1 W1 F1 D1]" in left.plain
 
 
 def test_expanded_family_row_without_structural_annotation_keeps_chip() -> None:
@@ -113,7 +118,7 @@ def test_expanded_family_row_without_structural_annotation_keeps_chip() -> None:
     )
 
     assert annotation == ""
-    assert "[S1 R2 W1 F1 D1]" in left.plain
+    assert "[S1 R2 Q1 W1 F1 D1]" in left.plain
 
 
 def test_non_family_and_zero_bucket_rows_omit_count_chip() -> None:

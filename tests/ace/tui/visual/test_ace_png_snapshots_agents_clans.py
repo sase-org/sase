@@ -5,11 +5,16 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
+from rich.text import Text
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent_groups import GroupingMode, build_agent_tree
+from sase.ace.tui.widgets.agent_list import AgentList
+from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
+from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
     clan_tree_agents,
+    queued_clan_agents,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -25,6 +30,42 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+async def test_queued_clan_counts_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 10)
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 24, 12, 5, 0))
+    patch_startup_loaders(monkeypatch, agents=queued_clan_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert page.app._agents[0].is_clan_container is True
+        panel = page.app.query_one("#agent-list-panel", AgentList)
+        assert Text.from_markup(panel.border_title).plain == "▲ @epic · 2 [Q1 W2]"
+        list_rows = "\n".join(
+            option.prompt.plain
+            for option in panel._options  # type: ignore[union-attr]
+        )
+        assert "(WAITING) ×2 [Q1 W2]" in list_rows
+        prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        assert "Status: WAITING [Q1 W2]" in prompt.content.plain
+        info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
+        assert info._build_display_text().plain.startswith(
+            "2  [0/10 running · 1 queued · 2 waiting]"
+        )
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_queued_clan_counts_120x40",
+            title="ACE queued clan counts",
+        )
 
 
 async def test_clan_tree_fold_levels_png_snapshots(

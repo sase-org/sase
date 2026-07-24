@@ -7,6 +7,7 @@ from datetime import datetime
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_runner_slots import (
     RunnerCapacitySnapshot,
+    agent_is_globally_queued,
     refresh_runner_slot_context,
 )
 
@@ -250,6 +251,70 @@ def test_runner_capacity_excludes_non_slot_and_explicit_waits_from_global_queue(
     assert implicit.runner_slot_queue_size == 2
     assert explicit.runner_slot_queue_size == 2
     assert dependency_wait.runner_slot_queue_position is None
+
+
+def test_global_queue_predicate_matches_capacity_and_rejects_other_waits() -> None:
+    implicit = _agent(
+        "implicit",
+        wait_runners=9,
+        slot_requested_at="2026-07-12T12:00:00Z",
+    )
+    explicit = _agent(
+        "explicit",
+        wait_runners=0,
+        wait_runners_explicit=True,
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+    dependency = _agent("dependency", waiting_for=["other"], slot_requested_at=None)
+    dead = _agent(
+        "dead",
+        pid=None,
+        wait_runners=9,
+        slot_requested_at="2026-07-12T12:00:02Z",
+    )
+    yielded_question = _agent(
+        "question",
+        status="QUESTION",
+        runner_slot_yielded=True,
+        wait_runners=9,
+        slot_requested_at="2026-07-12T12:00:03Z",
+    )
+    serial_child = _agent(
+        "serial-child",
+        parent_timestamp="parent",
+        wait_runners=9,
+        slot_requested_at="2026-07-12T12:00:04Z",
+    )
+    clan_container = _agent(
+        "clan",
+        is_clan_container=True,
+        agent_clan="clan",
+        wait_runners=9,
+        slot_requested_at="2026-07-12T12:00:05Z",
+    )
+    agents = [
+        implicit,
+        explicit,
+        dependency,
+        dead,
+        yielded_question,
+        serial_child,
+        clan_container,
+    ]
+
+    assert [agent_is_globally_queued(agent) for agent in agents] == [
+        True,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+    ]
+    assert refresh_runner_slot_context(
+        agents,
+        effective_limit=10,
+    ).global_cap_queue_count == sum(agent_is_globally_queued(agent) for agent in agents)
 
 
 def test_runner_capacity_counts_only_live_rows_and_excludes_yielded_question() -> None:

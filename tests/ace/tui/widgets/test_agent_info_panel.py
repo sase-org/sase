@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from rich.text import Text
 
+from sase.ace.tui.agent_count_chip import AGENT_COUNT_CHIP_QUEUED_STYLE
 from sase.ace.tui.keymaps import key_display_name, load_keymap_registry
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 
@@ -286,8 +287,12 @@ def test_status_strip_styles_running_capacity_and_positive_queue() -> None:
         assert _style_at_plain_index(text, slash_index) == "dim"
         assert limit_styles == {"bold #FFD700"}
         assert _style_at_plain_index(text, running_label_index) == "dim"
-        assert _style_at_plain_index(text, queue_index) == "bold #AF87FF"
+        queue_style = _style_at_plain_index(text, queue_index)
+        waiting_style = panel._COUNT_STYLES["waiting"]
+        assert queue_style == AGENT_COUNT_CHIP_QUEUED_STYLE
+        assert queue_style != waiting_style
         assert done_style == "bold #5FD7FF"
+        assert queue_style != done_style
         assert done_style not in limit_styles
 
     panel._running_count = 8
