@@ -99,7 +99,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_list_parser.add_argument(
         "-s",
         "--status",
-        choices=["open", "in_progress", "closed"],
+        choices=["open", "claimed", "in_progress", "closed"],
         action="append",
         help="Filter by status (repeatable)",
     )
@@ -152,7 +152,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Search issues by text",
         description=(
             "Find beads whose human-readable fields contain a literal query "
-            "string. Searches open, in-progress, and closed beads by default."
+            "string. Searches open, claimed, in-progress, and closed beads by default."
         ),
         epilog=(
             "Examples:\n"
@@ -191,7 +191,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_search_parser.add_argument(
         "-s",
         "--status",
-        choices=["open", "in_progress", "closed"],
+        choices=["open", "claimed", "in_progress", "closed"],
         action="append",
         help="Filter by status (repeatable)",
     )
@@ -310,7 +310,9 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Phase size controlling plan-first prompting and default model routing",
     )
     bead_update_parser.add_argument(
-        "-s", "--status", choices=["open", "in_progress", "closed"]
+        "-s",
+        "--status",
+        choices=["open", "claimed", "in_progress", "closed"],
     )
     bead_update_parser.add_argument("-r", "--tier", choices=["plan", "epic"])
     bead_update_parser.add_argument("-t", "--title")

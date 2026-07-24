@@ -87,6 +87,35 @@ def test_project_beads_prefers_resolved_local_store(
     assert check.data["beads_dir"] == str(local_beads)
 
 
+def test_project_beads_summary_counts_claimed_issues(
+    monkeypatch, tmp_path: Path
+) -> None:
+    beads_dir = tmp_path / "sdd" / "beads"
+    beads_dir.mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.rust_beads.doctor",
+        lambda _path: ["OK: bead store healthy"],
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.rust_beads.stats",
+        lambda _path: {
+            "open": 1,
+            "claimed": 2,
+            "in_progress": 3,
+            "closed": 4,
+        },
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.bead_state_is_clean",
+        lambda _path: True,
+    )
+
+    check = _check_project_beads(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.summary == "bead store healthy; 10 issue(s)"
+
+
 def test_project_beads_degrades_when_git_is_unavailable(
     monkeypatch,
     tmp_path: Path,

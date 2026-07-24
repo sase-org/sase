@@ -10,7 +10,7 @@ from sase.bead.db import (
     init_db,
     list_issues,
 )
-from sase.bead.model import PhaseSize
+from sase.bead.model import PhaseSize, Status
 
 from .db_test_helpers import NOW, child, epic
 
@@ -268,6 +268,93 @@ class TestSizeConstraintMigration:
                 PhaseSize.MEDIUM,
                 PhaseSize.XLARGE,
             }
+            assert reopened.execute("PRAGMA foreign_key_check").fetchall() == []
+        finally:
+            reopened.close()
+
+
+class TestStatusConstraintMigration:
+    def test_legacy_three_status_db_is_relaxed_and_idempotent(self, tmp_path) -> None:
+        db_path = tmp_path / "legacy_three_statuses.db"
+        legacy_schema = _SCHEMA.replace(
+            "('open', 'claimed', 'in_progress', 'closed')",
+            "('open', 'in_progress', 'closed')",
+        )
+        assert legacy_schema != _SCHEMA
+
+        old = sqlite3.connect(str(db_path))
+        old.executescript(legacy_schema)
+        plan = epic("e-legacy", "Legacy plan")
+        plan.description = "preserved description"
+        phase = child("c-running", plan.id, "Running phase")
+        phase.status = Status.IN_PROGRESS
+        phase.notes = "preserved notes"
+        create_issue(old, plan)
+        create_issue(old, phase)
+        add_dependency(old, phase.id, plan.id, NOW, "legacy-user")
+        expected_columns = [
+            row[1] for row in old.execute("PRAGMA table_info(issues)").fetchall()
+        ]
+        expected_indexes = {
+            row[0]
+            for row in old.execute(
+                "SELECT name FROM sqlite_master WHERE type='index' AND sql IS NOT NULL"
+            ).fetchall()
+        }
+        old.close()
+
+        conn = init_db(db_path)
+        try:
+            loaded_plan = get_issue(conn, plan.id)
+            assert loaded_plan is not None
+            assert loaded_plan.description == "preserved description"
+            loaded_phase = get_issue(conn, phase.id)
+            assert loaded_phase is not None
+            assert loaded_phase.status is Status.IN_PROGRESS
+            assert loaded_phase.notes == "preserved notes"
+            assert [
+                dependency.depends_on_id for dependency in loaded_phase.dependencies
+            ] == [plan.id]
+
+            assert [
+                row["name"] for row in conn.execute("PRAGMA table_info(issues)")
+            ] == expected_columns
+            assert {
+                row["name"]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type='index' AND sql IS NOT NULL"
+                )
+            } == expected_indexes
+            assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
+
+            claimed = child("c-claimed", plan.id, "Claimed phase")
+            claimed.status = Status.CLAIMED
+            create_issue(conn, claimed)
+            assert get_issue(conn, claimed.id).status is Status.CLAIMED
+
+            schema_before_reopen = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
+            ).fetchone()["sql"]
+            rootpage_before_reopen = conn.execute(
+                "SELECT rootpage FROM sqlite_master "
+                "WHERE type='table' AND name='issues'"
+            ).fetchone()["rootpage"]
+        finally:
+            conn.close()
+
+        reopened = init_db(db_path)
+        try:
+            schema_after_reopen = reopened.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
+            ).fetchone()["sql"]
+            rootpage_after_reopen = reopened.execute(
+                "SELECT rootpage FROM sqlite_master "
+                "WHERE type='table' AND name='issues'"
+            ).fetchone()["rootpage"]
+            assert schema_after_reopen == schema_before_reopen
+            assert rootpage_after_reopen == rootpage_before_reopen
+            assert get_issue(reopened, "c-claimed").status is Status.CLAIMED
             assert reopened.execute("PRAGMA foreign_key_check").fetchall() == []
         finally:
             reopened.close()

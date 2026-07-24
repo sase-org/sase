@@ -496,7 +496,9 @@ def _storage_relative_roots() -> list[Path]:
 
 
 def status_icon(status: Status) -> str:
-    return {"open": "○", "in_progress": "◐", "closed": "✓"}[status.value]
+    from sase.bead_status_presentation import bead_status_presentation
+
+    return bead_status_presentation(status).glyph
 
 
 # --- Subcommand handlers ---

@@ -198,6 +198,7 @@ class TestDependency:
 class TestEnums:
     def test_status_values(self) -> None:
         assert Status.OPEN.value == "open"
+        assert Status.CLAIMED.value == "claimed"
         assert Status.IN_PROGRESS.value == "in_progress"
         assert Status.CLOSED.value == "closed"
 

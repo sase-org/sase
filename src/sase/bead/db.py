@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS issues (
     id          TEXT PRIMARY KEY,
     title       TEXT NOT NULL,
     status      TEXT NOT NULL DEFAULT 'open'
-                  CHECK(status IN ('open', 'in_progress', 'closed')),
+                  CHECK(status IN ('open', 'claimed', 'in_progress', 'closed')),
     issue_type  TEXT NOT NULL DEFAULT 'phase'
                   CHECK(issue_type IN ('plan', 'phase')),
     tier        TEXT
@@ -69,6 +69,41 @@ CREATE INDEX IF NOT EXISTS idx_issues_tier ON issues(tier);
 CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id);
 CREATE INDEX IF NOT EXISTS idx_deps_depends_on ON dependencies(depends_on_id);
 """
+
+_ISSUES_SCHEMA = _SCHEMA.split(
+    "\n\nCREATE TABLE IF NOT EXISTS dependencies", maxsplit=1
+)[0]
+_STATUS_CHECK_RELAX_MIGRATION_SQL = (
+    "PRAGMA foreign_keys=OFF;\n"
+    "DROP TABLE IF EXISTS _issues_new;\n"
+    + _ISSUES_SCHEMA.replace(
+        "CREATE TABLE IF NOT EXISTS issues",
+        "CREATE TABLE _issues_new",
+        1,
+    )
+    + "\n"
+    + """\
+INSERT INTO _issues_new (
+    id, title, status, issue_type, tier, parent_id, owner, assignee,
+    created_at, created_by, updated_at, closed_at, close_reason,
+    description, notes, design, model, size, is_ready_to_work,
+    changespec_name, changespec_bug_id
+)
+SELECT
+    id, title, status, issue_type, tier, parent_id, owner, assignee,
+    created_at, created_by, updated_at, closed_at, close_reason,
+    description, notes, design, model, size, is_ready_to_work,
+    changespec_name, changespec_bug_id
+FROM issues;
+DROP TABLE issues;
+ALTER TABLE _issues_new RENAME TO issues;
+CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status);
+CREATE INDEX IF NOT EXISTS idx_issues_type ON issues(issue_type);
+CREATE INDEX IF NOT EXISTS idx_issues_tier ON issues(tier);
+CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id);
+PRAGMA foreign_keys=ON;
+"""
+)
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:
@@ -147,6 +182,18 @@ def _migrate_relax_size_check(conn: sqlite3.Connection) -> None:
 
     migration_sql = require_rust_binding("bead_size_check_relax_migration_sql")
     conn.executescript(migration_sql())
+
+
+def _migrate_relax_status_check(conn: sqlite3.Connection) -> None:
+    """Expand the legacy three-value status constraint to accept claimed."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='issues'"
+    ).fetchone()
+    create_table_sql = None if row is None else row["sql"]
+    if create_table_sql is None or "'claimed'" in create_table_sql:
+        return
+
+    conn.executescript(_STATUS_CHECK_RELAX_MIGRATION_SQL)
 
 
 def _migrate_add_tier(conn: sqlite3.Connection) -> None:
@@ -230,6 +277,7 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _migrate_add_model(conn)
     _migrate_add_size(conn)
     _migrate_relax_size_check(conn)
+    _migrate_relax_status_check(conn)
     conn.executescript(_SCHEMA)
     return conn
 

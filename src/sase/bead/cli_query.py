@@ -32,7 +32,7 @@ def handle_bead_list(args: argparse.Namespace) -> None:
         statuses = (
             [Status(s) for s in args.status]
             if explicit_statuses
-            else [Status.OPEN, Status.IN_PROGRESS]
+            else [Status.OPEN, Status.CLAIMED, Status.IN_PROGRESS]
         )
         issue_types = [IssueType(t) for t in args.type] if args.type else None
         tiers = [BeadTier(t) for t in args.tier] if args.tier else None
@@ -78,6 +78,8 @@ def handle_bead_show(args: argparse.Namespace) -> None:
         )
         if issue.assignee:
             print(f"Assignee: {issue.assignee}")
+        if issue.status == Status.CLAIMED:
+            print(f"Claimed by: {issue.assignee} (agent has not started working yet)")
         if issue.model:
             print(f"Model: {issue.model}")
         if issue.issue_type == IssueType.PHASE:
@@ -282,6 +284,7 @@ def handle_bead_stats(args: argparse.Namespace) -> None:
         print("Issue Statistics")
         print(f"  Total:       {s.get('total', 0)}")
         print(f"  Open:        {s.get('open', 0)}")
+        print(f"  Claimed:     {s.get('claimed', 0)}")
         print(f"  In Progress: {s.get('in_progress', 0)}")
         print(f"  Closed:      {s.get('closed', 0)}")
         print(f"  Plans:       {s.get('plan', 0)}")

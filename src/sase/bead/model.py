@@ -8,6 +8,7 @@ from enum import Enum
 
 class Status(Enum):
     OPEN = "open"
+    CLAIMED = "claimed"
     IN_PROGRESS = "in_progress"
     CLOSED = "closed"
 
