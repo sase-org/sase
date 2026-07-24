@@ -2516,23 +2516,23 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead list`
 
-| Flag           | Values                          | Default | Description                           |
-| -------------- | ------------------------------- | ------- | ------------------------------------- |
-| `-s, --status` | `open`, `in_progress`, `closed` | -       | Filter by status (repeatable)         |
-| `-t, --type`   | `plan`, `phase`                 | -       | Filter by type (repeatable)           |
-| `--tier`       | `plan`, `epic`                  | -       | Filter by plan-bead tier (repeatable) |
+| Flag           | Values                                     | Default | Description                           |
+| -------------- | ------------------------------------------ | ------- | ------------------------------------- |
+| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | -       | Filter by status (repeatable)         |
+| `-t, --type`   | `plan`, `phase`                            | -       | Filter by type (repeatable)           |
+| `--tier`       | `plan`, `epic`                             | -       | Filter by plan-bead tier (repeatable) |
 
 #### `sase bead search`
 
-| Flag           | Values                          | Default     | Description                                                         |
-| -------------- | ------------------------------- | ----------- | ------------------------------------------------------------------- |
-| `query`        | string                          | (required)  | Literal non-empty text to search for                                |
-| `-c, --color`  | `auto`, `always`, `never`       | `auto`      | Color mode for compact output                                       |
-| `-f, --format` | `compact`, `json`, `full`       | `compact`   | Output format                                                       |
-| `-n, --limit`  | non-negative integer            | (unlimited) | Maximum results to print; `0` also means unlimited                  |
-| `-s, --status` | `open`, `in_progress`, `closed` | -           | Filter by status (repeatable); all statuses are searched by default |
-| `--tier`       | `plan`, `epic`                  | -           | Filter by plan-bead tier (repeatable)                               |
-| `-t, --type`   | `plan`, `phase`                 | -           | Filter by type (repeatable)                                         |
+| Flag           | Values                                     | Default     | Description                                                         |
+| -------------- | ------------------------------------------ | ----------- | ------------------------------------------------------------------- |
+| `query`        | string                                     | (required)  | Literal non-empty text to search for                                |
+| `-c, --color`  | `auto`, `always`, `never`                  | `auto`      | Color mode for compact output                                       |
+| `-f, --format` | `compact`, `json`, `full`                  | `compact`   | Output format                                                       |
+| `-n, --limit`  | non-negative integer                       | (unlimited) | Maximum results to print; `0` also means unlimited                  |
+| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | -           | Filter by status (repeatable); all statuses are searched by default |
+| `--tier`       | `plan`, `epic`                             | -           | Filter by plan-bead tier (repeatable)                               |
+| `-t, --type`   | `plan`, `phase`                            | -           | Filter by type (repeatable)                                         |
 
 #### `sase bead show`
 
@@ -2551,7 +2551,7 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 | Flag                | Values                                         | Default    | Description           |
 | ------------------- | ---------------------------------------------- | ---------- | --------------------- |
 | `id`                | string                                         | (required) | Issue ID to update    |
-| `-s, --status`      | `open`, `in_progress`, `closed`                | -          | Change status         |
+| `-s, --status`      | `open`, `claimed`, `in_progress`, `closed`     | -          | Change status         |
 | `-t, --title`       | string                                         | -          | Change title          |
 | `-d, --description` | string                                         | -          | Change description    |
 | `-n, --notes`       | string                                         | -          | Change notes          |

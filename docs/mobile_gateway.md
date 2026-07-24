@@ -562,7 +562,7 @@ Each xprompt catalog entry includes the display-only `input_signature` plus mobi
 to `#<name>` for older gateways, and use `inputs` only for prompt-adjacent argument hints. The raw launch prompt remains
 authoritative and is sent unchanged.
 
-List open/in-progress beads in a project and inspect one bead:
+List active (open/claimed/in-progress) beads in a project and inspect one bead:
 
 ```bash
 curl -sS "$BASE_URL/api/v1/beads?project=sase&status=in_progress&limit=25" \

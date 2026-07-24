@@ -32,6 +32,7 @@ def test_list_skill_examples_parse_against_cli_contract() -> None:
         "sase bead list --limit 5",
         "sase bead list -n 0",
         "sase bead list --status=open",
+        "sase bead list --status=claimed",
         "sase bead list --status=in_progress",
         "sase bead list --status=closed",
         "sase bead list --type=plan",

@@ -14,6 +14,7 @@ metadata.
 - [Data Model](#data-model)
   - [Issue Types](#issue-types)
   - [Status Lifecycle](#status-lifecycle)
+  - [Bead Claim Lifecycle](#bead-claim-lifecycle)
   - [Dependencies](#dependencies)
 - [Storage](#storage)
   - [Directory Structure](#directory-structure)
@@ -32,10 +33,10 @@ sase bead init                                          # Initialize beads in cu
 sase bead create -t "New feature" --type "plan(${PLANS_ROOT}/202605/feature.md)" --tier plan
 sase bead create -t "Epic" --type "plan(${PLANS_ROOT}/202605/epic.md)" --tier epic
 sase bead create -t "Sub-task" --type "phase(beads-001)" --size small # Create a sized phase
-sase bead list                                          # List open and in-progress issues
+sase bead list                                          # List open, claimed, and in-progress issues
 sase bead list --status=open                            # List open issues
 sase bead list --status=closed                          # List closed issues
-sase bead search auth                                   # Search open, in-progress, and closed issues
+sase bead search auth                                   # Search issues in every status
 sase bead ready                                         # Show issues ready to work on
 sase bead show beads-001                                # View issue details
 sase bead update beads-001.1 --status=in_progress       # Claim an issue
@@ -81,21 +82,55 @@ sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.m
 
 ### Status Lifecycle
 
-| Status        | Icon | Description               |
-| ------------- | ---- | ------------------------- |
-| `open`        | `○`  | Not started               |
-| `in_progress` | `◐`  | Currently being worked on |
-| `closed`      | `✓`  | Completed or abandoned    |
+| Status        | Icon | Description                                        |
+| ------------- | ---- | -------------------------------------------------- |
+| `open`        | `○`  | Not started                                        |
+| `claimed`     | `◎`  | Reserved by a live agent that has not started work |
+| `in_progress` | `◐`  | Currently being worked on                          |
+| `closed`      | `✓`  | Completed or abandoned                             |
 
 Status can transition freely between any values via `sase bead update --status=<status>`. `sase bead open <id>` is a
-shortcut for `sase bead update <id> --status=open`.
+shortcut for `sase bead update <id> --status=open`. `claimed` is machine-managed: the agent runner sets and clears it
+(see [Bead Claim Lifecycle](#bead-claim-lifecycle)), so set it by hand only to deliberately park a bead.
+
+### Bead Claim Lifecycle
+
+An agent launched with `%id(<name>, bead=<id>)` reserves its bead before it starts working, so a bead is never silently
+owned by a process that nothing else can see:
+
+```
+open ──claim──▶ claimed ──promote──▶ in_progress ──close──▶ closed
+  ▲                │
+  └────release─────┘        (claim owner died before launching)
+```
+
+- **Claim.** When a bead-carrying agent enters a wait phase (dependency `%wait`, runner-slot, or duration waits), the
+  runner sets the bead to `claimed` and assigns it to the agent name. Claims are written to the project's canonical bead
+  store and committed locally, but never pushed — a claim is host-local runtime state. Claiming is advisory: it never
+  blocks or fails an agent launch, and a straight-through launch with no waits skips it entirely.
+- **Promote.** Immediately before model execution the runner performs the existing just-in-time claim, which sets
+  `status=in_progress` and assigns the runner name. Promotion is what makes the claim permanent; from that point the
+  claim is never released automatically.
+- **Release.** If the owning agent dies before it ever promoted its claim, the bead returns to `open` with an empty
+  assignee. The runner shutdown path releases the claim on ordinary kills (except when a retry handoff is pending, which
+  keeps the claim), and the `bead_claim_checks` chop — registered under the `waits` lumberjack — is the backstop for
+  SIGKILL, crashes, and reboots. It releases a claim only when the owning agent is dead, never promoted, and resolvable
+  to its artifact; anything else is left untouched and reported by `sase doctor` instead.
+
+Claim and release are compare-and-swap operations: a claim succeeds only from `open` (re-claiming your own claim is a
+no-op), and a release succeeds only when the bead is still `claimed` by the releasing agent. Both decline silently
+rather than overwriting someone else's state, so all three layers are safe to run concurrently.
+
+`sase bead work` ignores bead status entirely and decides from agent liveness (artifacts and PID checks), so a `claimed`
+phase is still scheduled and relaunching an epic over its own claimed phases is safe — the relaunched agent reuses the
+same name and re-claims its own claim.
 
 ### Dependencies
 
 Dependencies are one-way relationships: issue A **depends on** issue B. An issue is:
 
 - **Ready** if it is `open` and all its dependencies are `closed`.
-- **Blocked** if it has at least one dependency with status `open` or `in_progress`.
+- **Blocked** if it has at least one dependency with status `open`, `claimed`, or `in_progress`.
 
 ## Storage
 
@@ -179,27 +214,27 @@ beads linked to the ChangeSpec they are intended to produce.
 
 ### `sase bead list`
 
-List issues with optional filtering. Without `--status`, the command lists `open` and `in_progress` issues; pass
-`--status=closed` when you need closed history. When the default open/in-progress query is empty and no explicit
-`--status` was given, the command falls back to listing closed beads. `--status`, `--type`, and `--tier` are repeatable.
+List issues with optional filtering. Without `--status`, the command lists `open`, `claimed`, and `in_progress` issues;
+pass `--status=closed` when you need closed history. When the default active query is empty and no explicit `--status`
+was given, the command falls back to listing closed beads. `--status`, `--type`, and `--tier` are repeatable.
 
-| Flag           | Values                          | Description                                                                           |
-| -------------- | ------------------------------- | ------------------------------------------------------------------------------------- |
-| `-s, --status` | `open`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
-| `-t, --type`   | `plan`, `phase`                 | Filter by type (repeatable)                                                           |
-| `--tier`       | `plan`, `epic`                  | Filter by plan-bead tier                                                              |
-| `-n, --limit`  | integer                         | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
+| Flag           | Values                                     | Description                                                                           |
+| -------------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
+| `-t, --type`   | `plan`, `phase`                            | Filter by type (repeatable)                                                           |
+| `--tier`       | `plan`, `epic`                             | Filter by plan-bead tier                                                              |
+| `-n, --limit`  | integer                                    | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
 
-Open/in-progress listings are unlimited by default. Whenever the final status scope includes `closed` and `--limit` is
-omitted, only the newest 20 beads print; pass `--limit 0` for the full closed history.
+Active (open/claimed/in-progress) listings are unlimited by default. Whenever the final status scope includes `closed`
+and `--limit` is omitted, only the newest 20 beads print; pass `--limit 0` for the full closed history.
 
 ### `sase bead search <query>`
 
 Find beads whose indexed text fields contain a case-insensitive literal substring. This is substring search, not regex
 or glob matching. Current indexed fields include ID, title, description, notes, design/plan path, owner, assignee,
 model, phase size, ChangeSpec name/bug ID, status, type, and tier; timestamps are not searched. Unlike `sase bead list`,
-search includes `open`, `in_progress`, and `closed` beads by default, so it is the quickest way to recover older
-context.
+search includes `open`, `claimed`, `in_progress`, and `closed` beads by default, so it is the quickest way to recover
+older context.
 
 Compact output prints each matching bead with a short snippet. For multi-line fields such as descriptions or notes, the
 snippet uses the line that matched the query when possible instead of always showing the first line. JSON output exposes
@@ -213,25 +248,27 @@ sase bead search auth --status open --type phase
 sase bead search auth --type plan --tier epic
 ```
 
-| Flag           | Values                          | Description                                     |
-| -------------- | ------------------------------- | ----------------------------------------------- |
-| `-c, --color`  | `auto`, `always`, `never`       | Color mode for compact output                   |
-| `-f, --format` | `compact`, `json`, `full`       | Output format; defaults to `compact`            |
-| `-n, --limit`  | non-negative integer            | Maximum results; omitted or `0` means unlimited |
-| `-s, --status` | `open`, `in_progress`, `closed` | Filter by status (repeatable)                   |
-| `--tier`       | `plan`, `epic`                  | Filter by plan-bead tier (repeatable)           |
-| `-t, --type`   | `plan`, `phase`                 | Filter by type (repeatable)                     |
+| Flag           | Values                                     | Description                                     |
+| -------------- | ------------------------------------------ | ----------------------------------------------- |
+| `-c, --color`  | `auto`, `always`, `never`                  | Color mode for compact output                   |
+| `-f, --format` | `compact`, `json`, `full`                  | Output format; defaults to `compact`            |
+| `-n, --limit`  | non-negative integer                       | Maximum results; omitted or `0` means unlimited |
+| `-s, --status` | `open`, `claimed`, `in_progress`, `closed` | Filter by status (repeatable)                   |
+| `--tier`       | `plan`, `epic`                             | Filter by plan-bead tier (repeatable)           |
+| `-t, --type`   | `plan`, `phase`                            | Filter by type (repeatable)                     |
 
 ### `sase bead show <id>`
 
 Display complete details for an issue including status, type, tier, parent lineage, dependencies, blockers, description,
 notes, ChangeSpec metadata, model, and linked plan path. Phase beads show their effective size (`small` for legacy beads
 without a stored size). Any bead's children are grouped as phases (with status and size) and child epics (with tier and
-status), including child epics owned by a phase bead. Nested beads show their complete lineage back to the root plan.
+status), including child epics owned by a phase bead. Nested beads show their complete lineage back to the root plan. A
+`claimed` bead also prints `Claimed by: <assignee> (agent has not started working yet)`.
 
 ### `sase bead ready`
 
-Show issues that are ready to work on: `open` status with all dependencies `closed`.
+Show issues that are ready to work on: `open` status with all dependencies `closed`. A `claimed` bead is already spoken
+for by a live agent, so it does not appear in `ready`.
 
 ### `sase bead open <id>`
 
@@ -305,6 +342,7 @@ Run health checks on the beads database. Checks for:
 - Invalid events or unreduced orphan phase records
 - Uncommitted bead-state changes
 - Orphan children (phase or nested-plan beads whose parent is missing)
+- `claimed` beads whose assignee resolves to no agent artifact (reported only; run `sase bead open <id>` to clear them)
 
 If bead commands fail before opening a store, run `sase core health` first. It verifies that the required `sase_core_rs`
 extension is importable and exposes the representative bead CLI binding used by the fast path.
@@ -393,12 +431,14 @@ Once an epic bead exists, the shared launch path:
    but has no automatic consumer. Builtin aliases can be configured under `llm_provider.model_aliases.builtin`. Each
    phase segment and the final land-epic segment carries bare `%auto`, so submitted implementation and landing plans are
    auto-approved. An agent may author a tale or an epic as needed; the plan's authored `tier` selects the corresponding
-   automatic follow-up path. Each runner waits for its agent and bead dependencies, prepares its workspace, then
-   atomically claims its associated bead immediately before model execution. The claim sets `status=in_progress` and
-   assigns the runner name; parallel workers claim independently, and the land runner claims the epic only after all
-   phase waits. Each segment uses a force-reuse `%id(!<agent_name>, bead=<bead-id>)` form (with `clan=` on join
-   segments), so re-running `sase bead work` after a killed or failed run wipes stale name owners before relaunch — the
-   command is safe to retry.
+   automatic follow-up path. Each runner reserves its associated bead as `claimed` before it starts waiting, waits for
+   its agent and bead dependencies, prepares its workspace, then atomically promotes that claim immediately before model
+   execution. The promotion sets `status=in_progress` and assigns the runner name; parallel workers claim and promote
+   independently, and the land runner claims the epic only after all phase waits. A runner that dies before promoting
+   releases its bead back to `open` (see [Bead Claim Lifecycle](#bead-claim-lifecycle)). Scheduling itself is
+   status-blind — it depends only on agent liveness — so claimed phases are still scheduled on a relaunch. Each segment
+   uses a force-reuse `%id(!<agent_name>, bead=<bead-id>)` form (with `clan=` on join segments), so re-running
+   `sase bead work` after a killed or failed run wipes stale name owners before relaunch — the command is safe to retry.
 
 When a phase agent auto-approves an epic-tier implementation plan, that child epic is created beneath the phase and the
 phase remains open while delegated work runs. Landing the child epic triggers the upward close cascade described above,

@@ -687,9 +687,10 @@ xprompts:
     input:
       bead_id: word
     content: |
-      Can you complete the work for bead {{ bead_id }}? The bead has already been claimed for you (status=in_progress,
-      assignee set). Read its description and design file, do the work, and close the bead. Do NOT close the parent
-      epic. Do NOT create new beads.
+      Can you complete the work for bead {{ bead_id }}? The bead is already reserved for you and assigned to your agent
+      name: it was set to status=claimed while your agent was waiting, and the runtime promoted it to
+      status=in_progress before you started reading this. Do not set either status by hand. Read its description and
+      design file, do the work, and close the bead. Do NOT close the parent epic. Do NOT create new beads.
   epic: |
     This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
     keep in mind that each phase will be completed by a distinct agent instance (i.e. a distinct `claude` / `agy` /
