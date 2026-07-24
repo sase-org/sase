@@ -57,3 +57,36 @@ def make_agent(
         }
         (artifact_dir / "workflow_state.json").write_text(json.dumps(wf_data))
     return artifact_dir
+
+
+def make_sharded_agent(
+    base: Path,
+    project: str,
+    timestamp: str,
+    name: str,
+    *,
+    done: bool = False,
+) -> Path:
+    """Create a fake agent in a year-month/day-sharded artifact directory."""
+    artifact_dir = (
+        base
+        / ".sase"
+        / "projects"
+        / project
+        / "artifacts"
+        / "ace-run"
+        / timestamp[:6]
+        / timestamp[6:8]
+        / timestamp
+    )
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps({"name": name, "model": "test"}),
+        encoding="utf-8",
+    )
+    if done:
+        (artifact_dir / "done.json").write_text(
+            json.dumps({"outcome": "completed"}),
+            encoding="utf-8",
+        )
+    return artifact_dir
