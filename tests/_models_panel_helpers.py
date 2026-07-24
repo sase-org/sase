@@ -1,10 +1,14 @@
 """Shared helpers for Models panel tests."""
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from textual.app import App, ComposeResult
 
 import sase.ace.tui.modals.models_panel as models_panel
+from sase.config.edit import ConfigEffectivePreview, ConfigWritePlan, EditPlanResult
+from sase.config.inventory import ConfigDiagnostic
 from sase.llm_provider import AliasKind, AliasView, TemporaryLLMOverride
 from sase.llm_provider.config import ModelAliasSelectorMember
 from sase.llm_provider.load_balancing import ModelAliasSelectorMode
@@ -105,6 +109,67 @@ def patch_alias_views(
         lambda name: (bucket_descriptions or {}).get(name),
     )
     monkeypatch.setattr(models_panel, "_now", lambda: 0.0)
+
+
+def make_edit_plan(
+    *,
+    op: str = "set",
+    value: str | None = "opus",
+    target_path: str = "/tmp/sase.yml",
+    diff: str = "@@ -1 +1 @@\n-coder: old\n+coder: opus\n",
+    valid: bool = True,
+    used_chezmoi: bool = False,
+) -> EditPlanResult:
+    write_plan = ConfigWritePlan(
+        file=target_path,
+        layer="user",
+        key_path=("llm_provider", "model_aliases", "builtin", "coder"),
+        op=op,
+        has_value=op == "set",
+        new_value=value if op == "set" else None,
+    )
+    preview = ConfigEffectivePreview(
+        path="llm_provider.model_aliases.builtin.coder",
+        has_before=True,
+        before="old",
+        has_after=op == "set",
+        after=value if op == "set" else None,
+        changed=True,
+    )
+    validation: tuple[ConfigDiagnostic, ...] = ()
+    if not valid:
+        validation = (
+            ConfigDiagnostic(
+                severity="error",
+                code="bad",
+                message="bad value",
+                path="llm_provider.model_aliases.builtin.coder",
+                layer="user",
+            ),
+        )
+    return EditPlanResult(
+        schema_version=1,
+        write_plan=write_plan,
+        candidate_config={},
+        effective_preview=preview,
+        validation=validation,
+        diagnostics=(),
+        target_path=target_path,
+        used_chezmoi=used_chezmoi,
+        current_text="coder: old\n",
+        new_text="coder: opus\n" if op == "set" else "",
+        text_diff=diff,
+    )
+
+
+async def wait_for(
+    pilot: Any, predicate: Callable[[], bool], *, tries: int = 400
+) -> None:
+    for _ in range(tries):
+        if predicate():
+            return
+        await pilot.pause()
+    raise AssertionError("condition was not satisfied in time")
 
 
 def make_bucketed_views() -> list[AliasView]:

@@ -31,6 +31,7 @@ from tests._models_panel_helpers import (
     StyledModelsPanelTestApp,
     make_alias_view,
     make_bucketed_views,
+    make_edit_plan,
     patch_alias_views,
 )
 
@@ -349,11 +350,9 @@ def test_persistent_edit_targets_user_base_and_preserves_yaml(
 async def test_edit_preview_warns_when_temporary_override_remains(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from tests.test_models_panel_edit import _make_plan
-
     monkeypatch.setattr(
         "sase.ace.tui.modals.models_panel_runner_limit_edit._plan_runner_limit_edit",
-        lambda limit: _make_plan(value=limit),
+        lambda limit: make_edit_plan(value=limit),
     )
     async with ModelsPanelTestApp().run_test() as pilot:
         pilot.app.push_screen(RunnerLimitEditPreviewModal(4, override_active=True))
