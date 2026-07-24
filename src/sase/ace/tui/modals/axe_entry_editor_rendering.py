@@ -1,4 +1,4 @@
-"""Textual composition and rendering for the AXE entry editor."""
+"""Textual composition and rendering for the AXE entry property sheet."""
 
 from __future__ import annotations
 
@@ -14,7 +14,15 @@ from textual.widgets import Label, Static
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 
-from .config_edit_helpers import format_value, format_value_for_editor
+from .axe_entry_sheet import (
+    AxeEntrySheetRow,
+    build_sheet_rows,
+    detail_dock_lines,
+    hint_text,
+    sheet_column_widths,
+    status_line_text,
+)
+from .config_edit_helpers import format_value_for_editor
 from .config_transaction_preview import (
     coerce_transaction_preview,
     render_transaction_preview,
@@ -29,6 +37,13 @@ _MODE_LABELS = {
     "normal": "NORMAL",
     "visual": "VISUAL",
     "visual_line": "V-LINE",
+}
+_BADGE_COLORS = {
+    "source": "dim",
+    "unset": "dim",
+    "edited": "bold #87D787",
+    "inherit": "bold #D7A85B",
+    "invalid": "bold #FF8787",
 }
 
 
@@ -65,203 +80,310 @@ def _display_path(path: str, width: int) -> str:
     return _middle_ellipsize(collapsed, width)
 
 
-class _AxeValueInput(SingleLineVimTextArea):
-    """Single-line AXE value editor with calm, modal-specific vim chrome."""
+def _route_cell_tab(editor: Any, event: events.Key) -> bool:
+    """Route Tab past a focused TextArea to the owning sheet."""
+    if event.key not in {"tab", "shift+tab", "backtab"}:
+        return False
+    event.stop()
+    event.prevent_default()
+    delta = -1 if event.key in {"shift+tab", "backtab"} else 1
+    try:
+        screen = editor.screen
+        callback = screen._commit_and_move_cell
+        screen.call_after_refresh(lambda: callback(delta))
+    except Exception:
+        pass
+    return True
+
+
+def _route_vim_mode(editor: Any, indicator: str = "") -> None:
+    """Send a focused editor's vim mode to the fixed detail dock."""
+    mode = _MODE_LABELS.get(editor._vim_mode, "")
+    if indicator:
+        mode = f"{mode} · {indicator}" if mode else indicator
+    try:
+        callback = editor.screen._set_editor_mode_label
+        callback(mode)
+    except Exception:
+        pass
+
+
+def _route_cell_mounted(editor: Any) -> None:
+    """Notify the sheet only after Textual has actually mounted the editor."""
+    try:
+        editor.screen._cell_editor_mounted(editor)
+    except Exception:
+        pass
+
+
+class AxeValueInput(SingleLineVimTextArea):
+    """Borderless single-line editor mounted in the active value cell."""
+
+    def __init__(self, text: str, *, field_name: str, generation: int) -> None:
+        self.axe_field_name = field_name
+        super().__init__(
+            text,
+            id=f"axe-editor-cell-input-{generation}",
+            classes="axe-editor-cell-editor",
+            placeholder="Enter a value…",
+        )
+
+    async def _on_key(self, event: events.Key) -> None:
+        # Textual continues walking the _on_key MRO for unconsumed events.
+        _route_cell_tab(self, event)
+
+    def on_mount(self) -> None:
+        super().on_mount()
+        _route_cell_mounted(self)
 
     def _update_vim_mode_display(self, indicator: str = "") -> None:
-        mode = _MODE_LABELS.get(self._vim_mode, "")
-        subtitle = mode
-        if indicator:
-            subtitle = f"{subtitle} · {indicator}" if subtitle else indicator
-        self.border_title = "Value"
-        self.border_subtitle = subtitle.replace("[", r"\[")
+        _route_vim_mode(self, indicator)
 
 
-class _AxeValueTextArea(VimTextArea):
-    """Multiline AXE value editor with a stable type title and mode subtitle."""
+class AxeValueTextArea(VimTextArea):
+    """Borderless multi-line editor mounted in the active value cell."""
 
-    _value_kind = "yaml"
+    def __init__(
+        self,
+        text: str,
+        *,
+        field_name: str,
+        value_kind: str,
+        generation: int,
+    ) -> None:
+        self.axe_field_name = field_name
+        self._value_kind = value_kind
+        super().__init__(
+            text,
+            id=f"axe-editor-cell-textarea-{generation}",
+            classes="axe-editor-cell-editor axe-editor-cell-textarea",
+            language="yaml",
+            placeholder="Enter YAML or text…",
+            show_line_numbers=False,
+        )
 
-    def set_value_kind(self, kind: str) -> None:
-        self._value_kind = {
-            "string_list": "list",
-            "text": "text",
-            "yaml": "yaml",
-        }.get(kind, kind)
-        self._update_vim_mode_display()
+    async def _on_key(self, event: events.Key) -> None:
+        # Multi-line Enter remains owned by VimTextArea; only Tab is special.
+        _route_cell_tab(self, event)
+
+    def on_mount(self) -> None:
+        super().on_mount()
+        _route_cell_mounted(self)
 
     def _update_vim_mode_display(self, indicator: str = "") -> None:
-        mode = _MODE_LABELS.get(self._vim_mode, "")
-        subtitle = mode
-        if indicator:
-            subtitle = f"{subtitle} · {indicator}" if subtitle else indicator
-        self.border_title = f"Value · {self._value_kind}"
-        self.border_subtitle = subtitle.replace("[", r"\[")
+        _route_vim_mode(self, indicator)
 
 
 class AxeEntryEditorRenderingMixin:
     """Layout and render methods shared by the AXE editor modal."""
 
     def compose(self: Any) -> ComposeResult:
-        active = self._active_field()
-        seed_text = self._field_editor_text(active) if active is not None else ""
         with Container(id="axe-editor-container"):
             yield Label("", id="axe-editor-title")
-            yield Static("", id="axe-editor-status", markup=False)
-            with Horizontal(id="axe-editor-body"):
-                with Vertical(id="axe-editor-navigation"):
-                    with Vertical(id="axe-editor-scopes"):
-                        with Horizontal(id="axe-editor-scope-row"):
+            with Horizontal(id="axe-editor-meta"):
+                yield Static("", id="axe-editor-run-status", markup=False)
+                with Horizontal(id="axe-editor-scope-row"):
+                    yield Static("Scope", id="axe-editor-scope-label", markup=False)
+                    for index, _scope in enumerate(self._seed.writable_scopes):
+                        yield Static(
+                            "",
+                            id=f"axe-editor-scope-{index}",
+                            classes="axe-editor-scope-chip",
+                            markup=False,
+                        )
+            with Horizontal(id="axe-editor-context"):
+                yield Static("", id="axe-editor-warning", markup=False)
+                yield Static("", id="axe-editor-scope-path", markup=False)
+            with VerticalScroll(id="axe-editor-sheet"):
+                for group in ("basics", "advanced"):
+                    yield Static(
+                        group.upper(),
+                        id=f"axe-editor-{group}-header",
+                        classes="axe-editor-group-header",
+                        markup=False,
+                    )
+                    for index, field in enumerate(self._form.fields):
+                        if field.group != group:
+                            continue
+                        with Horizontal(
+                            id=f"axe-editor-field-{index}",
+                            classes=f"axe-editor-field axe-editor-{field.group}",
+                        ):
                             yield Static(
-                                "Scope",
-                                id="axe-editor-scope-label",
+                                "",
+                                id=f"axe-editor-name-{index}",
+                                classes="axe-editor-field-name",
                                 markup=False,
                             )
-                            for index, _scope in enumerate(self._seed.writable_scopes):
+                            with Container(
+                                id=f"axe-editor-value-{index}",
+                                classes="axe-editor-field-value-cell",
+                            ):
                                 yield Static(
                                     "",
-                                    id=f"axe-editor-scope-{index}",
-                                    classes="axe-editor-scope-chip",
+                                    id=f"axe-editor-value-text-{index}",
+                                    classes="axe-editor-field-value",
                                     markup=False,
                                 )
                             yield Static(
-                                "· ^T",
-                                id="axe-editor-scope-hint",
-                                markup=False,
-                            )
-                        yield Static(
-                            "",
-                            id="axe-editor-scope-path",
-                            markup=False,
-                        )
-                    with VerticalScroll(id="axe-editor-properties"):
-                        for group in ("basics", "advanced"):
-                            yield Static(
-                                group.upper(),
-                                id=f"axe-editor-{group}-header",
-                                classes="axe-editor-group-header",
-                            )
-                            for index, field in enumerate(self._form.fields):
-                                if field.group == group:
-                                    yield Static(
-                                        "",
-                                        id=f"axe-editor-field-{index}",
-                                        classes=(
-                                            f"axe-editor-field axe-editor-{field.group}"
-                                        ),
-                                        markup=False,
-                                    )
-                            yield Static(
                                 "",
-                                id=f"axe-editor-{group}-add",
-                                classes="axe-editor-add",
+                                id=f"axe-editor-badge-{index}",
+                                classes="axe-editor-field-badge",
                                 markup=False,
                             )
-                with Vertical(id="axe-editor-value-pane"):
-                    yield Static("", id="axe-editor-field-info", markup=False)
-                    yield Static("", id="axe-editor-options", markup=False)
-                    yield _AxeValueInput(
-                        seed_text,
-                        id="axe-editor-input",
-                        placeholder="Enter a value…",
-                    )
-                    yield _AxeValueTextArea(
-                        seed_text,
-                        id="axe-editor-textarea",
-                        language="yaml",
-                        placeholder="Enter YAML or text…",
-                        show_line_numbers=False,
-                    )
-                    yield Static("", id="axe-editor-validation", markup=False)
+            with Vertical(id="axe-editor-dock"):
+                yield Static("", id="axe-editor-dock-header", markup=False)
+                yield Static("", id="axe-editor-dock-description", markup=False)
+                yield Static("", id="axe-editor-dock-values", markup=False)
+            yield Static("", id="axe-editor-status", markup=False)
             with VerticalScroll(id="axe-editor-preview-scroll"):
                 yield Static("", id="axe-editor-preview", markup=False)
             yield Static("", id="axe-editor-hints", markup=False)
 
     def on_mount(self: Any) -> None:
         self._set_narrow(self.app.size.width < _NARROW_BELOW)
-        # Composed children are not mounted yet, so synchronous rendering here
-        # would no-op behind _render_all's defensive is_mounted guard.
+        # Children mount after on_mount; render/focus on the next refresh.
         self.call_after_refresh(self._initialize_editor)
 
     def _initialize_editor(self: Any) -> None:
         if not self.is_mounted:
             return
-        self._render_all(force_editor=True)
-        self._focus_editor()
+        self._render_all()
+        if self._stage == "edit" and self._mode == "cell" and self._cell_editor is None:
+            field = self._active_field()
+            if field is not None:
+                self._mount_cell_editor(field)
+        else:
+            self.set_focus(None)
 
     def on_resize(self: Any, event: events.Resize) -> None:
+        was_narrow = self.has_class("-narrow")
         self._set_narrow(event.size.width < _NARROW_BELOW)
+        if self.is_mounted and was_narrow != self.has_class("-narrow"):
+            self._render_all()
 
     def _set_narrow(self: Any, narrow: bool) -> None:
         self.set_class(narrow, "-narrow")
 
-    def _render_all(self: Any, *, force_editor: bool = False) -> None:
+    def _render_all(self: Any) -> None:
         if not self.is_mounted:
             return
         self.query_one("#axe-editor-title", Static).update(self._title_text())
-        self.query_one("#axe-editor-status", Static).update(self._status_text())
+        self.query_one("#axe-editor-run-status", Static).update(self._status_text())
         self._render_scopes()
-        for index, field in enumerate(self._form.fields):
-            row = self.query_one(f"#axe-editor-field-{index}", Static)
-            row.display = field.included
-            row.set_class(field.name == self._active_name, "selected")
-            row.update(
-                self._field_row(
-                    field,
-                    width=max(24, row.content_size.width or 34),
-                )
-            )
-        for group in ("basics", "advanced"):
-            add = self.query_one(f"#axe-editor-{group}-add", Static)
-            has_addable = bool(self._form.addable_fields(group))
-            add.display = has_addable
-            add.update("+ add property  a" if has_addable else "")
-        active = self._active_field()
-        self.query_one("#axe-editor-field-info", Static).update(
-            self._field_info(active)
+        warning = self._seed.generated_warning or ""
+        warning_widget = self.query_one("#axe-editor-warning", Static)
+        warning_widget.update(
+            Text(f"! {warning}", style="bold #FFAF5F") if warning else ""
         )
-        self.query_one("#axe-editor-options", Static).update(self._option_text(active))
-        self.query_one("#axe-editor-validation", Static).update(
-            self._validation_text(active)
+        warning_widget.display = bool(warning)
+        self._render_sheet()
+        self._render_detail_dock()
+        self._render_status_line()
+        self._render_preview()
+        self.query_one("#axe-editor-hints", Static).update(self._hints())
+        self._sync_visibility()
+
+    def _render_sheet(self: Any) -> None:
+        rows = build_sheet_rows(self._form, target=self._target)
+        sheet = self.query_one("#axe-editor-sheet", VerticalScroll)
+        width = max(30, sheet.content_size.width or self.app.size.width - 10)
+        columns = sheet_column_widths(
+            rows,
+            width=width,
+            narrow=self.has_class("-narrow"),
         )
+        for index, row in enumerate(rows):
+            self._render_sheet_row(index, row, columns)
+
+    def _render_sheet_row(
+        self: Any, index: int, row: AxeEntrySheetRow, columns: Any
+    ) -> None:
+        selected = row.name == self._active_name
+        editing = selected and self._mode == "cell" and self._stage == "edit"
+        field_row = self.query_one(f"#axe-editor-field-{index}", Horizontal)
+        field_row.set_class(selected, "selected")
+        field_row.set_class(editing, "editing")
+        field_row.set_class(
+            editing and row.editor_kind in {"text", "string_list", "yaml"}, "multiline"
+        )
+        field_row.set_class(row.state == "invalid", "invalid")
+
+        name_widget = self.query_one(f"#axe-editor-name-{index}", Static)
+        name_widget.styles.width = columns.name
+        name_text = Text(row.name, style="bold #F0C674" if selected else "")
+        if row.required:
+            name_text.append(" *", style="#F0C674")
+        name_widget.update(name_text)
+
+        value_widget = self.query_one(f"#axe-editor-value-text-{index}", Static)
+        value_widget.display = not editing or not bool(
+            self.query(f"#axe-editor-value-{index} .axe-editor-cell-editor")
+        )
+        value_style = "dim" if row.dim_value else ""
+        if row.state == "invalid":
+            value_style = "#FF8787"
+        value_widget.update(
+            Text(_end_ellipsize(row.value, columns.value), style=value_style)
+        )
+
+        badge_widget = self.query_one(f"#axe-editor-badge-{index}", Static)
+        badge_widget.styles.width = columns.badge
+        badge_widget.display = columns.badge > 0
+        badge_widget.update(
+            Text(row.badge, style=_BADGE_COLORS.get(row.badge_style, "dim"))
+        )
+
+    def _render_detail_dock(self: Any) -> None:
+        field = self._active_field()
+        mode = self._editor_mode_label if self._mode == "cell" else ""
+        header, description, definitions = detail_dock_lines(
+            field,
+            target=self._target,
+            vim_mode=mode,
+        )
+        header_text = Text()
+        if field is None:
+            header_text.append(header, style="dim")
+        else:
+            required = " *" if field.required else ""
+            header_text.append(f"{field.name}{required}", style="bold #F0C674")
+            header_text.append(f"  {field.editor_kind}", style="#D7A85B")
+            if mode:
+                header_text.append(f"  {mode}", style="bold #87AFD7")
+        self.query_one("#axe-editor-dock-header", Static).update(header_text)
+        self.query_one("#axe-editor-dock-description", Static).update(description)
+        self.query_one("#axe-editor-dock-values", Static).update(
+            Text(definitions, style="dim")
+        )
+
+    def _render_status_line(self: Any) -> None:
+        value = status_line_text(
+            self._active_field(),
+            error=self._error,
+            status=self._status,
+        )
+        style = "bold #FF8787" if value.startswith("!") else "dim"
+        self.query_one("#axe-editor-status", Static).update(Text(value, style=style))
+
+    def _render_preview(self: Any) -> None:
         preview = self.query_one("#axe-editor-preview", Static)
-        if self._stage == "preview":
-            if self._busy and self._plan is None:
-                preview.update(Text("Planning…", style="#888888"))
-            elif self._plan is not None:
-                preview.update(
-                    render_transaction_preview(coerce_transaction_preview(self._plan))
-                )
-            else:
-                preview.update("")
+        if self._stage != "preview":
+            preview.update("")
+        elif self._busy and self._plan is None:
+            preview.update(Text("Planning…", style="#888888"))
+        elif self._plan is not None:
+            preview.update(
+                render_transaction_preview(coerce_transaction_preview(self._plan))
+            )
         else:
             preview.update("")
-        self.query_one("#axe-editor-hints", Static).update(self._hints())
-        self._sync_visibility(active)
-        if active is not None and (
-            force_editor or self._loaded_editor_name != active.name
-        ):
-            self._load_editor(active)
 
-    def _sync_visibility(self: Any, field: SchemaObjectField | None) -> None:
+    def _sync_visibility(self: Any) -> None:
         edit = self._stage == "edit"
-        kind = field.editor_kind if field is not None else "yaml"
-        reset = bool(field and field.reset)
-        self.query_one("#axe-editor-body").display = edit
+        self.query_one("#axe-editor-sheet").display = edit
+        self.query_one("#axe-editor-dock").display = edit
         self.query_one("#axe-editor-preview-scroll").display = not edit
-        self.query_one("#axe-editor-options").display = (
-            edit and not reset and kind in {"bool", "enum"}
-        )
-        self.query_one("#axe-editor-input").display = (
-            edit and not reset and kind in {"int", "number", "string"}
-        )
-        self.query_one("#axe-editor-textarea").display = (
-            edit and not reset and kind in {"text", "string_list", "yaml"}
-        )
-        input_editor = self.query_one("#axe-editor-input", _AxeValueInput)
-        input_editor._update_vim_mode_display()
-        text_editor = self.query_one("#axe-editor-textarea", _AxeValueTextArea)
-        text_editor.set_value_kind(kind)
 
     def _title_text(self: Any) -> Text:
         identity = self._seed.identity
@@ -278,15 +400,17 @@ class AxeEntryEditorRenderingMixin:
             text.append("● running", style="#87AF87")
         else:
             text.append("○ stopped", style="dim")
+        pending = sum(field.touched for field in self._form.fields)
+        if pending:
+            noun = "edit" if pending == 1 else "edits"
+            text.append(f" · {pending} pending {noun}", style="#D7A85B")
         if self._seed.status:
             text.append(f" · {self._seed.status}", style="dim")
         if self._seed.identity.generated_instance:
             text.append(
-                f" · instance {self._seed.identity.generated_instance}", style="dim"
+                f" · instance {self._seed.identity.generated_instance}",
+                style="dim",
             )
-        warning = self._seed.generated_warning
-        if warning:
-            text.append(f"\n! {warning}", style="bold #FFAF5F")
         return text
 
     def _render_scopes(self: Any) -> None:
@@ -308,134 +432,27 @@ class AxeEntryEditorRenderingMixin:
             path_widget.update(Text("No writable config path", style="dim"))
             return
         suffix = " · new" if not target.exists else ""
-        width = max(12, path_widget.content_size.width or 34)
+        width = max(12, path_widget.content_size.width or 36)
         path = _display_path(target.path, max(1, width - len(suffix)))
         text = Text(path, style="dim")
         if suffix:
             text.append(suffix, style="#FFAF5F")
         path_widget.update(text)
 
-    def _field_row(self: Any, field: SchemaObjectField, *, width: int = 34) -> Text:
-        selected = field.name == self._active_name
-        marker = "> " if selected else "  "
-        name = field.name
-        if field.required:
-            name += " *"
-        if field.reset:
-            badge = "inherit"
-            badge_style = "#B87333"
-        elif field.touched:
-            badge = "edited"
-            badge_style = "#87D787"
-        elif field.source:
-            badge = f"·{field.source}"
-            badge_style = "dim"
-        else:
-            badge = "·local"
-            badge_style = "dim"
-        if field.reset and field.has_inherited:
-            preview_value = field.inherited_value
-        elif field.draft_text is not None and field.parse_error is not None:
-            preview_value = field.draft_text
-        else:
-            preview_value = field.draft_value
-        fixed_width = len(marker) + len(name) + len(badge) + 2
-        preview = _end_ellipsize(
-            format_value(preview_value),
-            max(4, width - fixed_width),
-        )
-        spacing = " " * max(
-            1,
-            width - len(marker) - len(name) - len(preview) - len(badge) - 1,
-        )
-        text = Text(marker, style="#F0C674" if selected else "dim")
-        name_text = name.removesuffix(" *")
-        text.append(name_text, style="bold #F0C674" if selected else "")
-        if field.required:
-            text.append(" *", style="#F0C674")
-        text.append(spacing)
-        text.append(preview)
-        text.append(" ")
-        text.append(badge, style=badge_style)
-        return text
-
-    def _field_info(self: Any, field: SchemaObjectField | None) -> Text:
-        if field is None:
-            return Text("No editable properties.", style="dim")
-        text = Text()
-        text.append(field.name, style="bold #F0C674")
-        text.append("  ")
-        text.append(
-            f" {field.editor_kind} ",
-            style="bold #E6B450 on #3A2C1A",
-        )
-        if field.description:
-            text.append(f"\n{field.description}")
-        definitions: list[tuple[str, Any, str]] = []
-        if field.has_effective:
-            definitions.append(("Effective", field.effective_value, ""))
-        if field.has_target:
-            definitions.append(
-                (f"Layer({self._target or 'target'})", field.target_value, "#D7A85B")
-            )
-        if field.has_inherited and (field.reset or not field.has_target):
-            definitions.append(("Inherits", field.inherited_value, "#D7A85B"))
-        label_width = max(
-            (len(label) for label, _value, _style in definitions), default=0
-        )
-        for label, value, style in definitions:
-            text.append(f"\n{label:<{label_width}}  ", style="dim")
-            text.append(format_value(value), style=style)
-        if field.reset:
-            text.append(
-                "\nInherit/reset removes this target-layer field.", style="#B87333"
-            )
-        return text
-
-    def _option_text(self: Any, field: SchemaObjectField | None) -> Text:
-        if field is None:
-            return Text("")
-        if field.editor_kind == "bool":
-            values: tuple[Any, ...] = (True, False)
-        elif field.editor_kind == "enum":
-            values = field.enum_values
-        else:
-            return Text("")
-        text = Text("Value  ", style="bold #B87333")
-        for index, value in enumerate(values, start=1):
-            active = value == field.draft_value
-            if index > 1:
-                text.append("  ")
-            text.append(
-                f" {index} {format_value(value)} ",
-                style=("bold #100F0F on #F0C674" if active else "dim"),
-            )
-        return text
-
-    def _validation_text(self: Any, field: SchemaObjectField | None) -> Text:
-        if self._error:
-            return Text(f"! {self._error}", style="bold #FF8787")
-        if field is not None and field.parse_error:
-            return Text(f"! {field.parse_error}", style="bold #FF8787")
-        if field is not None and field.parse_deferred:
-            return Text("large YAML buffer; preview validates it", style="dim")
-        if self._status:
-            return Text(self._status, style="dim")
-        return Text("")
+    def _set_editor_mode_label(self: Any, value: str) -> None:
+        if value == self._editor_mode_label:
+            return
+        self._editor_mode_label = value
+        if self.is_mounted:
+            self._render_detail_dock()
 
     def _hints(self: Any) -> str:
-        if self._stage == "preview":
-            if self._busy:
-                return "Working…"
-            primary = "save & restart" if self._seed.running else "save"
-            if self.has_class("-narrow"):
-                return f"↑↓ scroll · ^D/^U page · ⏎ {primary} · esc back"
-            save_only = " · ^O save only" if self._seed.running else ""
-            return f"↑↓ scroll · ^D/^U page · ⏎ {primary}{save_only} · esc back"
-        if self.has_class("-narrow"):
-            return "↑↓  a:add  spc:toggle  ^R:inherit  ^T:scope  ⏎:preview  esc"
-        return (
-            "↑↓ field · a add · space toggle · ^R inherit · ^T scope · ⏎ preview · esc"
+        return hint_text(
+            mode=self._mode,
+            stage=self._stage,
+            running=self._seed.running,
+            busy=self._busy,
+            narrow=self.has_class("-narrow"),
         )
 
     @staticmethod
@@ -445,3 +462,12 @@ class AxeEntryEditorRenderingMixin:
         if field.draft_text is not None:
             return field.draft_text
         return format_value_for_editor(field.editor_kind, field.draft_value)
+
+
+__all__ = [
+    "AxeEntryEditorRenderingMixin",
+    "AxeValueInput",
+    "AxeValueTextArea",
+    "_HOME",
+    "_display_path",
+]

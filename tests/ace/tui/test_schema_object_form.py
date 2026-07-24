@@ -39,7 +39,6 @@ def _form() -> SchemaObjectForm:
         key_prefix=("axe", "lumber.jack", "chops", "daily"),
         basics=("description", "script", "enabled", "run.every"),
         advanced=("env",),
-        initially_included=("description",),
     )
 
 

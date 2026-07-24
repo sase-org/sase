@@ -8,7 +8,7 @@ edit from copying inherited defaults into the target layer.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any, Literal
 
@@ -116,7 +116,6 @@ class SchemaObjectField:
     provenance: tuple[str, ...]
     touched: bool = False
     reset: bool = False
-    included: bool = False
     draft_value: Any = None
     draft_text: str | None = None
     parse_error: str | None = None
@@ -187,7 +186,6 @@ class SchemaObjectForm:
         basics: Sequence[str] = (),
         advanced: Sequence[str] = (),
         groups: Mapping[str, SchemaFieldGroup] | None = None,
-        initially_included: Iterable[str] = (),
     ) -> SchemaObjectForm:
         """Build an ordered form, resolving local refs without any I/O."""
         if isinstance(object_schema, str):
@@ -210,7 +208,6 @@ class SchemaObjectForm:
         target = target_values or {}
         inherited = inherited_values or {}
         provenance_map = provenance or {}
-        included_names = set(initially_included)
         ordered_names = _order_schema_properties(
             tuple(str(name) for name in properties),
             required=required,
@@ -264,12 +261,6 @@ class SchemaObjectForm:
                     has_inherited=has_inherited,
                     inherited_value=inherited.get(name),
                     provenance=sources,
-                    included=(
-                        name in required
-                        or has_effective
-                        or has_target
-                        or name in included_names
-                    ),
                     draft_value=draft,
                 )
             )
@@ -286,33 +277,11 @@ class SchemaObjectForm:
                 return field
         raise KeyError(name)
 
-    def visible_fields(
-        self, group: SchemaFieldGroup | None = None
-    ) -> tuple[SchemaObjectField, ...]:
-        return tuple(
-            field
-            for field in self.fields
-            if field.included and (group is None or field.group == group)
-        )
-
-    def addable_fields(
-        self, group: SchemaFieldGroup | None = None
-    ) -> tuple[SchemaObjectField, ...]:
-        return tuple(
-            field
-            for field in self.fields
-            if not field.included and (group is None or field.group == group)
-        )
-
-    def include(self, name: str) -> SchemaObjectForm:
-        return self._replace(name, included=True)
-
     def set_value(self, name: str, value: Any) -> SchemaObjectForm:
         field = self.field(name)
         error = _validate_schema_value(field, value)
         return self._replace(
             name,
-            included=True,
             touched=True,
             reset=False,
             draft_value=value,
@@ -329,7 +298,6 @@ class SchemaObjectForm:
         parsed = _parse_schema_field_value(field, text, live=live)
         return self._replace(
             name,
-            included=True,
             touched=True,
             reset=False,
             draft_value=(field.draft_value if parsed.deferred else parsed.value),
@@ -344,7 +312,6 @@ class SchemaObjectForm:
     def reset_field(self, name: str) -> SchemaObjectForm:
         return self._replace(
             name,
-            included=True,
             touched=True,
             reset=True,
             parse_error=None,

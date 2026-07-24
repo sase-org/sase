@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -25,6 +26,7 @@ from sase.ace.tui.modals.config_transaction_preview import (
     TransactionEffectivePreview,
 )
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.axe.chop_inventory import ChopInventory
 from sase.vcs_log.models import LogRepo, RepoRemoteState, VcsLogResult
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -391,8 +393,7 @@ async def test_axe_chop_editor_advanced_png_snapshot(
         await wait_for_startup(page)
         modal = await _push_visual_editor(page, _visual_chop_editor_seed(advanced=True))
         modal._active_name = "for_each"
-        modal._loaded_editor_name = None
-        modal._render_all(force_editor=True)
+        modal._render_all()
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -430,8 +431,7 @@ async def test_axe_editor_validation_failure_png_snapshot(
         modal = await _push_visual_editor(page, _visual_chop_editor_seed())
         modal._active_name = "run_every"
         modal._form = modal._form.set_text("run_every", "eventually", live=True)
-        modal._loaded_editor_name = None
-        modal._render_all(force_editor=True)
+        modal._render_all()
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -451,9 +451,14 @@ async def test_axe_editor_diff_preview_png_snapshot(
         await wait_for_startup(page)
         modal = await _push_visual_editor(page, _visual_chop_editor_seed())
         modal._active_name = "description"
-        modal._loaded_editor_name = None
-        modal._render_all(force_editor=True)
-        editor = modal.query_one("#axe-editor-input", SingleLineVimTextArea)
+        modal._render_all()
+        modal.action_edit_field()
+        await wait_for_state(
+            page,
+            lambda: len(modal.query(".axe-editor-cell-editor")) == 1,
+            description="AXE in-row editor mounted",
+        )
+        editor = modal.query_one(".axe-editor-cell-editor", SingleLineVimTextArea)
         editor.text = "Run blocking hook checks before PR handoff."
         await wait_for_state(
             page,
@@ -497,4 +502,80 @@ async def test_axe_editor_constrained_width_png_snapshot(
             page,
             "axe_editor_constrained_width_70x36",
             title="ACE axe editor constrained width",
+        )
+
+
+async def test_axe_editor_single_line_cell_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scalar editor replaces only the active row's value cell."""
+    _patch_axe_editor_visual_loaders(monkeypatch)
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        modal = await _push_visual_editor(page, _visual_chop_editor_seed())
+        modal._active_name = "description"
+        modal._render_all()
+        modal.action_edit_field()
+        await wait_for_state(
+            page,
+            lambda: len(modal.query(".axe-editor-cell-editor")) == 1,
+            description="AXE scalar cell editor",
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_editor_single_line_cell_120x40",
+            title="ACE axe single-line property cell",
+        )
+
+
+async def test_axe_editor_multiline_yaml_cell_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A YAML property expands its row without moving the detail dock."""
+    _patch_axe_editor_visual_loaders(monkeypatch)
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        modal = await _push_visual_editor(
+            page,
+            _visual_chop_editor_seed(advanced=True),
+        )
+        modal._active_name = "env"
+        modal._render_all()
+        modal.action_edit_field()
+        await wait_for_state(
+            page,
+            lambda: len(modal.query(".axe-editor-cell-editor")) == 1,
+            description="AXE YAML cell editor",
+        )
+        editor = modal.query_one(".axe-editor-cell-editor", VimTextArea)
+        editor.text = "SASE_AXE_MODE: strict\nSASE_AXE_TRACE: enabled\n"
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_editor_multiline_yaml_cell_120x40",
+            title="ACE axe multi-line YAML property cell",
+        )
+
+
+async def test_axe_editor_compact_lumberjack_sheet_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A three-property lumberjack sheet shrinks to its content."""
+    _patch_axe_editor_visual_loaders(monkeypatch)
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        seed = _visual_new_lumberjack_seed()
+        seed = replace(seed, new_entry=False, initial_touched=())
+        await _push_visual_editor(page, seed)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_editor_compact_lumberjack_sheet_120x40",
+            title="ACE axe compact lumberjack property sheet",
         )

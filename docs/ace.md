@@ -1205,13 +1205,50 @@ numerical identity.
 | `X` | Clear output                                                                                         |
 | `/` | Edit the current Axe query                                                                           |
 
-The `a` flow discovers installed `sase_chop_*` executables and also accepts a custom executable. Both add and edit let
-you choose the writable source scope, keep inherited fields sparse unless you touch them, and show an exact effective
-before/after preview plus a source-file diff before writing. Compound and advanced fields open as raw YAML, with
-inherit/reset available for removing a target-layer override. Editing a generated chop row edits its immutable base chop
-and warns that every generated instance is affected. When AXE is running, the preview makes restart explicit: save and
-restart AXE to reconcile the daemon immediately, or save only and leave the current daemon configuration active until
-the next restart. `E` remains reserved for opening recorded chop output.
+The `a` flow discovers installed `sase_chop_*` executables and also accepts a custom executable. Both add and edit open
+a single-page property sheet showing every schema field, including unset and inherited fields. The active row's detail
+dock shows its schema help plus effective, target-layer, and inherited values. Edits remain sparse: an inherited field
+is not copied into the selected writable scope unless you touch it. Compound and advanced fields expand in place as raw
+YAML, with inherit/reset available for removing a target-layer override.
+
+Editing a generated chop row edits its immutable base chop and warns that every generated instance is affected. Before
+writing, the panel shows an exact effective before/after preview plus a source-file diff. When AXE is running, the
+preview makes restart explicit: save and restart AXE to reconcile the daemon immediately, or save only and leave the
+current daemon configuration active until the next restart. `E` remains reserved for opening recorded chop output.
+
+#### AXE Property Sheet
+
+The panel opens existing entries in browse mode, with no editor focused, so property navigation works immediately. A new
+entry opens in cell mode on its first required property.
+
+| Browse key            | Action                                                         |
+| --------------------- | -------------------------------------------------------------- |
+| `j` / `k` / `↑` / `↓` | Move to the next / previous property                           |
+| `g` / `G`             | Move to the first / last property                              |
+| `Enter` / `i`         | Edit the active value in place; toggle a boolean               |
+| `Space`               | Toggle a boolean or cycle an enum forward                      |
+| `h` / `l` / `←` / `→` | Cycle an enum backward / forward                               |
+| `Ctrl+R`              | Mark inherit/reset; press again to restore the original value  |
+| `1`…`9` / `Ctrl+T`    | Select a numbered writable scope / cycle scopes                |
+| `Ctrl+S`              | Build the validation and source-diff preview                   |
+| `Ctrl+L`              | Reload after a stale-write conflict while preserving the draft |
+| `Esc`                 | Close the panel                                                |
+
+| Cell key                       | Action                                                             |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `Enter`                        | Commit a single-line value; insert a newline in a multi-line value |
+| `Esc`                          | Leave INSERT for NORMAL, then commit and return to browse mode     |
+| `Tab` / `Shift+Tab`            | Commit and edit the next / previous property                       |
+| Vim keys                       | Edit through the standard `VimTextArea` layer                      |
+| `Ctrl+S` / `Ctrl+R` / `Ctrl+T` | Preview, inherit/reset, or cycle scope while the editor is focused |
+
+| Preview key                     | Action                                  |
+| ------------------------------- | --------------------------------------- |
+| `↑` / `↓` / `Ctrl+D` / `Ctrl+U` | Scroll by line or page                  |
+| `g` / `G`                       | Scroll to the top / bottom              |
+| `Enter`                         | Save, restarting AXE when it is running |
+| `Ctrl+O`                        | Save without restarting AXE             |
+| `Esc`                           | Return to the property sheet            |
 
 ### Leader Mode (`,` prefix)
 

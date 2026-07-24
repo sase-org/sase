@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from .schema_object_form import (
     SchemaFieldOperation,
+    SchemaFieldGroup,
     SchemaObjectForm,
     resolve_schema_node,
 )
@@ -23,9 +24,9 @@ _ADVANCED_BY_KIND: dict[AxeEntryKind, tuple[str, ...]] = {
     "lumberjack": ("env",),
     "chop": ("env", "inhibit_if", "trigger", "once_per", "for_each", "vars"),
 }
-_INITIAL_BY_KIND: dict[AxeEntryKind, tuple[str, ...]] = {
-    "lumberjack": ("interval",),
-    "chop": ("script", "description", "enabled"),
+_HIDDEN_BY_KIND: dict[AxeEntryKind, frozenset[str]] = {
+    "lumberjack": frozenset({"chops"}),
+    "chop": frozenset({"name"}),
 }
 
 
@@ -113,6 +114,18 @@ def build_axe_entry_form(
     object_schema = axe_entry_schema(seed.schema, seed.identity.kind)
     basics = _BASICS_BY_KIND[seed.identity.kind]
     advanced = _ADVANCED_BY_KIND[seed.identity.kind]
+    hidden = _HIDDEN_BY_KIND[seed.identity.kind]
+    properties = object_schema.get("properties", {})
+    property_names = (
+        tuple(str(name) for name in properties)
+        if isinstance(properties, Mapping)
+        else ()
+    )
+    groups: dict[str, SchemaFieldGroup] = {
+        name: "basics" if name in basics else "advanced"
+        for name in property_names
+        if name not in hidden
+    }
     target_values = seed.target_values
     if (
         seed.raw_values_by_scope is not None
@@ -130,12 +143,11 @@ def build_axe_entry_form(
         key_prefix=seed.key_prefix,
         basics=basics,
         advanced=advanced,
-        initially_included=_INITIAL_BY_KIND[seed.identity.kind],
+        groups=groups,
     )
-    allowed = {*basics, *advanced}
-    form = replace(form, fields=tuple(f for f in form.fields if f.name in allowed))
+    form = replace(form, fields=tuple(f for f in form.fields if f.name not in hidden))
     for name in seed.initial_touched:
-        if name in allowed:
+        if name not in hidden and name in property_names:
             form = form.set_value(name, form.field(name).draft_value)
     return form
 

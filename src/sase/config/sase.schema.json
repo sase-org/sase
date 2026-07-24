@@ -102,7 +102,10 @@
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string", "minLength": 1 },
-        "description": { "type": "string" },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description shown in AXE listings and notifications"
+        },
         "script": {
           "type": "string",
           "minLength": 1,
@@ -115,16 +118,22 @@
         },
         "run_every": {
           "type": "string",
+          "description": "Positive compound duration (for example '5m', '1h30m', or '1d') limiting how often this chop runs",
           "minLength": 2,
           "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
         },
         "timeout": {
           "type": "string",
+          "description": "Per-chop timeout duration overriding the lumberjack chop_timeout",
           "minLength": 2,
           "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
         },
-        "env": { "$ref": "#/definitions/axeEnv" },
+        "env": {
+          "$ref": "#/definitions/axeEnv",
+          "description": "Environment values merged over lumberjack env; accepts literals and env, file, or pass references"
+        },
         "inhibit_if": {
+          "description": "Changespec, agent-hood, or agent-clan guards evaluated before the script",
           "oneOf": [
             {
               "type": "array",
@@ -154,6 +163,7 @@
           ]
         },
         "trigger": {
+          "description": "Runner-evaluated trigger provider: always or git.commits_since",
           "oneOf": [
             { "type": "string", "enum": ["always"] },
             {
@@ -182,6 +192,7 @@
           ]
         },
         "once_per": {
+          "description": "Bounded per-proposal deduplication-key template",
           "oneOf": [
             { "type": "string", "minLength": 1 },
             {

@@ -19,7 +19,6 @@ from sase.ace.tui.modals.config_transaction_preview import (
     TransactionEffectivePreview,
 )
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.config.inventory import load_config_schema
 
 
@@ -139,6 +138,7 @@ def test_new_seed_intentionally_touches_only_declared_initial_fields() -> None:
     assert [operation.key_path for operation in modal._form.operations()] == [
         ("script",)
     ]
+    assert modal._mode == "cell"
     assert modal._title_text().plain.startswith("Add AXE chop")
 
 
@@ -170,7 +170,7 @@ def test_scope_change_refreshes_target_contribution_without_touching_draft() -> 
     assert modal._form.field("script").draft_value == "draft"
 
 
-async def test_real_mount_populates_editor_without_manual_render() -> None:
+async def test_real_mount_opens_existing_entry_in_unfocused_browse_mode() -> None:
     async with AcePage() as page:
         modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
         page.app.push_screen(modal)
@@ -179,19 +179,12 @@ async def test_real_mount_populates_editor_without_manual_render() -> None:
 
         assert "checks / lint" in (modal.query_one("#axe-editor-title").render().plain)
         assert modal.query_one("#axe-editor-scope-0").render().plain == "1 user"
-        editor = modal.query_one("#axe-editor-input", SingleLineVimTextArea)
-        assert editor.display
-        assert not modal.query_one("#axe-editor-textarea", VimTextArea).display
-        assert editor.border_title == "Value"
-        assert editor.border_subtitle == "INSERT"
-
-        await page.press("escape")
-        assert page.app.screen is modal
-        assert editor._vim_mode == "normal"
-        assert editor.border_subtitle == "NORMAL"
+        assert modal._mode == "browse"
+        assert len(modal.query(".axe-editor-cell-editor")) == 0
+        assert modal.focused is None
 
 
-async def test_chop_groups_picker_badges_warning_and_narrow_layout() -> None:
+async def test_chop_sheet_shows_every_field_scope_warning_and_narrow_layout() -> None:
     async with AcePage(size=(70, 36)) as page:
         modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
         page.app.push_screen(modal)
@@ -202,8 +195,11 @@ async def test_chop_groups_picker_badges_warning_and_narrow_layout() -> None:
         assert modal.query_one("#axe-editor-advanced-header").render().plain == (
             "ADVANCED"
         )
-        assert "·user" in modal._field_row(modal._form.field("script")).plain
-        assert "every generated instance" in modal._status_text().plain
+        assert len(modal.query(".axe-editor-field")) == len(_CHOP_SCHEMA["properties"])
+        assert modal.query_one("#axe-editor-badge-0").render().plain.strip() == "·user"
+        assert "every generated instance" in (
+            modal.query_one("#axe-editor-warning").render().plain
+        )
         await page.click("#axe-editor-scope-1")
         assert modal._target == "overlay:test"
         description_index = next(
@@ -213,14 +209,192 @@ async def test_chop_groups_picker_badges_warning_and_narrow_layout() -> None:
         )
         await page.click(f"#axe-editor-field-{description_index}")
         assert modal._active_name == "description"
-        modal.action_add_property()
-        await page.expect_modal("PropertyPickerModal")
-        picker = page.app.screen
-        assert isinstance(picker, object)
-        picker._select_index(0)  # type: ignore[attr-defined]
+        assert not hasattr(modal, "action_add_property")
+
+
+async def test_browse_navigation_works_on_open_and_after_committing_edit() -> None:
+    async with AcePage() as page:
+        modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
+        page.app.push_screen(modal)
         await page.expect_modal("AxeEntryEditorModal")
-        await page.wait_for(lambda _screen: len(modal._form.visible_fields()) == 4)
-        assert len(modal._form.visible_fields()) == 4
+        await page.pause()
+
+        assert modal._active_name == "script"
+        await page.press("down")
+        assert modal._active_name == "description"
+        await page.press("k")
+        assert modal._active_name == "script"
+        await page.press("j")
+        assert modal._active_name == "description"
+        await page.press("up")
+        assert modal._active_name == "script"
+
+        await page.press("enter")
+        await page.wait_for(
+            lambda _screen: len(modal.query(".axe-editor-cell-editor")) == 1
+        )
+        editor = modal.query_one(".axe-editor-cell-editor", SingleLineVimTextArea)
+        editor.text = "sase_check"
+        await page.wait_for(
+            lambda _screen: modal._form.field("script").draft_value == "sase_check"
+        )
+        await page.press("enter")
+        await page.wait_for(lambda _screen: modal._mode == "browse")
+        await page.press("down")
+        assert modal._active_name == "description"
+        assert modal._form.field("script").draft_value == "sase_check"
+
+
+async def test_escape_escalates_insert_normal_browse_close_with_draft_intact() -> None:
+    dismissed: list[object] = []
+    async with AcePage() as page:
+        modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
+        page.app.push_screen(modal, dismissed.append)
+        await page.expect_modal("AxeEntryEditorModal")
+        await page.press("enter")
+        await page.wait_for(
+            lambda _screen: len(modal.query(".axe-editor-cell-editor")) == 1
+        )
+        editor = modal.query_one(".axe-editor-cell-editor", SingleLineVimTextArea)
+        await page.wait_for(lambda _screen: modal.focused is editor)
+        editor.text = "sase_preserved"
+        await page.press("escape")
+        assert editor._vim_mode == "normal"
+        assert modal._mode == "cell"
+        await page.press("escape")
+        await page.wait_for(lambda _screen: modal._mode == "browse")
+        assert modal._form.field("script").draft_value == "sase_preserved"
+        assert len(modal.query(".axe-editor-cell-editor")) == 0
+        await page.press("escape")
+        await page.wait_for(lambda _screen: bool(dismissed))
+    assert dismissed == [None]
+
+
+async def test_digits_scopes_bool_toggle_and_inherit_restore() -> None:
+    async with AcePage() as page:
+        modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
+        page.app.push_screen(modal)
+        await page.expect_modal("AxeEntryEditorModal")
+
+        await page.press("2")
+        assert modal._target == "overlay:test"
+        enabled_index = next(
+            index
+            for index, field in enumerate(modal._form.fields)
+            if field.name == "enabled"
+        )
+        await page.click(f"#axe-editor-field-{enabled_index}")
+        await page.press("space")
+        assert modal._form.field("enabled").draft_value is False
+        await page.press("ctrl+r")
+        assert modal._form.field("enabled").reset
+        await page.press("ctrl+r")
+        enabled = modal._form.field("enabled")
+        assert not enabled.touched
+        assert enabled.draft_value is True
+
+
+async def test_tab_and_shift_tab_commit_and_move_focused_cell() -> None:
+    async with AcePage() as page:
+        modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
+        page.app.push_screen(modal)
+        await page.expect_modal("AxeEntryEditorModal")
+        await page.press("enter")
+        await page.wait_for(
+            lambda _screen: len(modal.query(".axe-editor-cell-editor")) == 1
+        )
+        editor = modal.query_one(".axe-editor-cell-editor", SingleLineVimTextArea)
+        await page.wait_for(lambda _screen: modal.focused is editor)
+        editor.text = "sase_tabbed"
+        await page.press("tab")
+        await page.wait_for(lambda _screen: modal._active_name == "description")
+        assert modal._form.field("script").draft_value == "sase_tabbed"
+        assert len(modal.query(".axe-editor-cell-editor")) == 1
+
+        await page.wait_for(lambda _screen: modal.focused is modal._cell_editor)
+        await page.press("shift+tab")
+        await page.wait_for(lambda _screen: modal._active_name == "script")
+        assert len(modal.query(".axe-editor-cell-editor")) == 1
+
+
+async def test_ctrl_actions_reach_modal_while_cell_editor_is_focused() -> None:
+    async with AcePage() as page:
+        modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
+        page.app.push_screen(modal)
+        await page.expect_modal("AxeEntryEditorModal")
+        await page.press("enter")
+        await page.wait_for(
+            lambda _screen: len(modal.query(".axe-editor-cell-editor")) == 1
+        )
+        editor = modal.query_one(".axe-editor-cell-editor", SingleLineVimTextArea)
+        await page.wait_for(lambda _screen: modal.focused is editor)
+        editor.text = "sase_ctrl"
+        await page.press("ctrl+t")
+        assert modal._target == "overlay:test"
+        assert modal._mode == "cell"
+        await page.press("ctrl+s")
+        await page.wait_for(
+            lambda _screen: modal._stage == "preview" and modal._plan is not None
+        )
+        assert modal._form.field("script").draft_value == "sase_ctrl"
+
+
+async def test_ctrl_reset_and_multiline_escape_work_with_focused_editor() -> None:
+    async with AcePage() as page:
+        modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
+        page.app.push_screen(modal)
+        await page.expect_modal("AxeEntryEditorModal")
+        await page.pause()
+
+        await page.press("enter")
+        await page.wait_for(lambda _screen: modal.focused is modal._cell_editor)
+        await page.press("ctrl+r")
+        await page.wait_for(lambda _screen: modal._mode == "browse")
+        assert modal._form.field("script").reset
+        assert len(modal.query(".axe-editor-cell-editor")) == 0
+
+        await page.press("ctrl+r")
+        env_index = next(
+            index
+            for index, field in enumerate(modal._form.fields)
+            if field.name == "env"
+        )
+        await page.click(f"#axe-editor-value-text-{env_index}")
+        await page.wait_for(lambda _screen: modal.focused is modal._cell_editor)
+        editor = modal._cell_editor
+        assert editor is not None
+        editor.text = "A: one\n"
+        await page.press("escape")
+        assert editor._vim_mode == "normal"
+        await page.press("escape")
+        await page.wait_for(lambda _screen: modal._mode == "browse")
+        assert modal._form.field("env").draft_value == {"A": "one"}
+
+
+async def test_invalid_draft_surfaces_in_status_and_blocks_preview() -> None:
+    async with AcePage() as page:
+        modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
+        page.app.push_screen(modal)
+        await page.expect_modal("AxeEntryEditorModal")
+        await page.pause()
+        run_every_index = next(
+            index
+            for index, field in enumerate(modal._form.fields)
+            if field.name == "run_every"
+        )
+        await page.click(f"#axe-editor-value-text-{run_every_index}")
+        await page.wait_for(
+            lambda _screen: len(modal.query(".axe-editor-cell-editor")) == 1
+        )
+        editor = modal.query_one(".axe-editor-cell-editor", SingleLineVimTextArea)
+        await page.wait_for(lambda _screen: modal.focused is editor)
+        editor.text = "eventually"
+        await page.press("enter")
+        await page.wait_for(lambda _screen: modal._mode == "browse")
+        await page.press("ctrl+s")
+        assert modal._stage == "edit"
+        assert modal._plan is None
+        assert "run_every" in modal.query_one("#axe-editor-status").render().plain
 
 
 async def test_preview_back_retains_sparse_draft_and_running_primary_restarts() -> None:
@@ -241,7 +415,7 @@ async def test_preview_back_retains_sparse_draft_and_running_primary_restarts() 
         page.app.push_screen(modal, result.append)
         await page.expect_modal("AxeEntryEditorModal")
         modal._form = modal._form.set_value("script", "sase_check")
-        modal._render_all(force_editor=True)
+        modal._render_all()
         modal.action_confirm()
         await page.wait_for(lambda _screen: modal._plan is not None)
         assert requests[0].operations[0].key_path == ("script",)
