@@ -41,7 +41,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "artifact directory."
         ),
     ),
-    "src/sase/agents_sync/incoming_cache.py:prune_project_cache": DirOpReview(
+    "src/sase/agents_sync/incoming_cache_storage.py:prune_project_cache": DirOpReview(
         exemption=(
             "Enumerates and removes only immutable incoming-sync cache objects "
             "under SASE_HOME/agents_sync/cache/objects after preserving pending, "
@@ -49,14 +49,14 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "artifact directories."
         ),
     ),
-    "src/sase/agents_sync/incoming_cache.py:publish_cache_object": DirOpReview(
+    "src/sase/agents_sync/incoming_cache_storage.py:publish_cache_object": DirOpReview(
         exemption=(
             "Atomically promotes a validated incoming-sync cache staging directory "
             "and removes only that task-owned staging path; neither path is a "
             "local agent artifact directory."
         ),
     ),
-    "src/sase/agents_sync/incoming_cache.py:validate_unpublished_cache_payload": (
+    "src/sase/agents_sync/incoming_cache_storage.py:validate_unpublished_cache_payload": (
         DirOpReview(
             exemption=(
                 "Creates and removes only a transient incoming-sync validation "
