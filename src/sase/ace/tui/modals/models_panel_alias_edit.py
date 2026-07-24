@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING
 from textual.worker import Worker, WorkerState
 
 from sase.config import ConfigEditOp
-from sase.llm_provider import AliasView
+from sase.llm_provider import AliasView, EffectiveDefaultEffortSnapshot
 from sase.llm_provider.config import validate_model_alias_selector_value
+from sase.xprompt.effort import split_model_effort
 
 from .config_commit import push_config_commit_prompt, submit_config_commit_task
 from .custom_model_input_modal import CustomModelInputModal
@@ -25,6 +26,10 @@ from .models_panel_edit_helpers import (
     alias_model_edit_path,
     alias_reset_path,
 )
+from .models_panel_effort_cards import (
+    DefaultEffortLevelChoice,
+    DefaultEffortLevelModal,
+)
 
 if TYPE_CHECKING:
     from textual.screen import ModalScreen as _MixinBase
@@ -37,13 +42,17 @@ class ModelsPanelAliasEditMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _pending_edit_view: AliasView | None
+        _pending_edit_raw_model: str
         _pending_alias_selection: AliasSelectionContext | None
         _config_commit_offer_worker: Worker[AliasCommitOffer | None] | None
         _views: list[AliasView]
+        _effort_snapshot: EffectiveDefaultEffortSnapshot
 
         def _selected_alias(self) -> AliasView | None: ...
 
         def _refresh_rows(self, *, keep: str | None = None) -> None: ...
+
+        def _models_panel_now(self) -> float: ...
 
         def _build_alias_commit_offer(
             self, path: str, *, op: str, alias: str
@@ -54,6 +63,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         if view is None:
             return
         self._pending_edit_view = view
+        self._pending_edit_raw_model = ""
         self._pending_alias_selection = AliasSelectionContext(
             views=tuple(self._views),
             target_alias=view.name,
@@ -109,15 +119,15 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                 CustomModelInputModal(
                     title="Custom Alias Value",
                     hint=(
-                        "Format: provider/model, model, @alias, A | B pool, or "
-                        "A || B fallback"
+                        "Single values may end in @effort; selectors keep "
+                        "per-member effort: A@low | B@high"
                     ),
                     placeholder=("e.g. claude/fable || codex/gpt-5.6-sol"),
                 ),
                 callback=self._on_edit_custom_picked,
             )
             return
-        self._open_model_edit_preview(view, result)
+        self._open_edit_model_effort_picker(result)
 
     def _on_edit_custom_picked(self, result: str | None) -> None:
         if result is None:
@@ -125,14 +135,51 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         view = self._pending_edit_view
         if view is None:
             return
-        rejection = alias_reference_rejection(self._pending_alias_selection, result)
+        raw_model = result.strip()
+        if "|" in raw_model:
+            self._pending_edit_raw_model = raw_model
+            self._open_model_edit_preview(view, raw_model)
+            return
+        rejection = alias_reference_rejection(self._pending_alias_selection, raw_model)
         if rejection is not None:
             self.notify(
-                f"Cannot set @{view.name} to {result.strip()}: {rejection}.",
+                f"Cannot set @{view.name} to {raw_model}: {rejection}.",
                 severity="warning",
             )
             return
-        self._open_model_edit_preview(view, result)
+        _, effort = split_model_effort(raw_model)
+        if effort is not None:
+            self._pending_edit_raw_model = raw_model
+            self._open_model_edit_preview(view, raw_model)
+            return
+        self._open_edit_model_effort_picker(raw_model)
+
+    def _open_edit_model_effort_picker(self, raw_model: str) -> None:
+        self._pending_edit_raw_model = raw_model.strip()
+        self.app.push_screen(
+            DefaultEffortLevelModal(
+                "model",
+                self._effort_snapshot,
+                now=self._models_panel_now(),
+                model=self._pending_edit_raw_model,
+            ),
+            callback=self._on_edit_model_effort_picked,
+        )
+
+    def _on_edit_model_effort_picked(
+        self,
+        result: DefaultEffortLevelChoice | None,
+    ) -> None:
+        if result is None:
+            return
+        view = self._pending_edit_view
+        if view is None:
+            return
+        raw_model = self._pending_edit_raw_model
+        if result.effort is not None:
+            raw_model = f"{raw_model}@{result.effort}"
+        self._pending_edit_raw_model = raw_model
+        self._open_model_edit_preview(view, raw_model)
 
     def _open_model_edit_preview(self, view: AliasView, model: str) -> None:
         selector_errors = validate_model_alias_selector_value(view.name, model)
@@ -176,7 +223,12 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         if outcome is None:
             return
         verb = "Reset" if outcome.applied.op == "unset" else "Updated"
-        self.notify(f"{verb} @{outcome.alias}")
+        suffix = (
+            f" to {self._pending_edit_raw_model}"
+            if outcome.applied.op != "unset" and self._pending_edit_raw_model
+            else ""
+        )
+        self.notify(f"{verb} @{outcome.alias}{suffix}")
         # Persistent edits do not touch temporary overrides. Refresh the rows
         # so the configured/effective columns reflect the new value.
         self._refresh_rows(keep=outcome.alias)

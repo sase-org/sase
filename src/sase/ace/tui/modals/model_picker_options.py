@@ -110,10 +110,9 @@ def rows_to_options(
     previous_kind: _RowKind | None = None
     for row in rows:
         if items and (
-            row.kind == "provider"
+            row.kind in {"provider", "alias_header"}
             or row.kind == "custom"
             or previous_kind == "default"
-            or (row.kind == "default" and previous_kind == "alias")
         ):
             items.append(None)
         label: str | Text

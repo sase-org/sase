@@ -22,14 +22,22 @@ from tests._model_picker_modal_helpers import (
 from tests._models_panel_helpers import make_alias_view
 
 
-def test_alias_context_builds_ordered_styled_rows_before_models() -> None:
+def test_alias_context_builds_styled_rows_after_models() -> None:
     context = make_alias_context(target="medium_phase_worker")
     rows = build_model_rows(
         include_default_option=False,
         alias_context=context,
     )
 
-    assert [row.option_id for row in rows[:15]] == [
+    provider_index = next(
+        index for index, row in enumerate(rows) if row.kind == "provider"
+    )
+    alias_index = next(
+        index for index, row in enumerate(rows) if row.kind == "alias_header"
+    )
+    assert provider_index == 0
+    assert alias_index > provider_index
+    assert [row.option_id for row in rows[alias_index : alias_index + 15]] == [
         "__header_aliases__",
         "@default",
         "@coder",
@@ -46,12 +54,10 @@ def test_alias_context_builds_ordered_styled_rows_before_models() -> None:
         "@cheaper",
         "@cheapest",
     ]
-    assert next(row for row in rows if row.kind == "provider").option_id.startswith(
-        "__header_"
-    )
+    assert rows[-1].option_id == CUSTOM_SENTINEL
     alias_options = [
         option
-        for option in rows_to_options(rows[:15])
+        for option in rows_to_options(rows[alias_index : alias_index + 15])
         if option is not None and str(option.id).startswith("@")
     ]
     assert all(isinstance(option.prompt, Text) for option in alias_options)
@@ -59,6 +65,20 @@ def test_alias_context_builds_ordered_styled_rows_before_models() -> None:
     coder = next(option for option in alias_options if option.id == "@coder")
     assert "CODEX(gpt-5.6-sol)" in coder.prompt.plain
     assert any(span.style == "bold #87D7FF" for span in coder.prompt.spans)
+
+
+def test_followup_default_stays_before_models_and_aliases() -> None:
+    rows = build_model_rows(alias_context=make_alias_context())
+
+    assert rows[0].kind == "default"
+    provider_index = next(
+        index for index, row in enumerate(rows) if row.kind == "provider"
+    )
+    alias_index = next(
+        index for index, row in enumerate(rows) if row.kind == "alias_header"
+    )
+    assert 0 < provider_index < alias_index < len(rows) - 1
+    assert rows[-1].kind == "custom"
 
 
 def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:

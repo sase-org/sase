@@ -226,8 +226,6 @@ def build_model_rows(
         provider_models.setdefault(provider, []).append(model)
 
     rows: list[ModelPickerRow] = []
-    if alias_context is not None:
-        rows.extend(_build_alias_rows(alias_context))
     if include_default_option:
         rows.append(
             ModelPickerRow(
@@ -262,6 +260,9 @@ def build_model_rows(
                     alias=alias,
                 )
             )
+
+    if alias_context is not None:
+        rows.extend(_build_alias_rows(alias_context))
 
     rows.append(
         ModelPickerRow(

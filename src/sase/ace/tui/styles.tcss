@@ -1946,8 +1946,13 @@ DefaultEffortLevelModal {
 }
 
 #default-effort-action-choices,
-#default-effort-level-choices {
+#default-effort-level-list {
     height: auto;
+}
+
+#default-effort-level-list {
+    max-height: 10;
+    margin-bottom: 1;
 }
 
 .default-effort-action-row {

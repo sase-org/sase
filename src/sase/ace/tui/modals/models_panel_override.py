@@ -6,8 +6,13 @@ from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker, WorkerState
 
-from sase.llm_provider import AliasView, TemporaryLLMOverride
+from sase.llm_provider import (
+    AliasView,
+    EffectiveDefaultEffortSnapshot,
+    TemporaryLLMOverride,
+)
 from sase.llm_provider.registry import format_provider_model_label
+from sase.xprompt.effort import split_model_effort
 
 from .custom_model_input_modal import CustomModelInputModal
 from .duration_choice_modal import DurationChoiceCancelled
@@ -24,6 +29,10 @@ from .models_panel_duration import (
     OverrideUntilCleared,
     RelativeOverrideDuration,
     format_duration_chosen,
+)
+from .models_panel_effort_cards import (
+    DefaultEffortLevelChoice,
+    DefaultEffortLevelModal,
 )
 from .models_panel_time import (
     OverrideUntilBack,
@@ -56,10 +65,13 @@ class ModelsPanelOverrideMixin(_MixinBase):
         _pending_alias_selection: AliasSelectionContext | None
         _pending_raw_model: str
         _views: list[AliasView]
+        _effort_snapshot: EffectiveDefaultEffortSnapshot
 
         def _selected_alias(self) -> AliasView | None: ...
 
         def _refresh_rows(self, *, keep: str | None = None) -> None: ...
+
+        def _models_panel_now(self) -> float: ...
 
         def _clear_alias_override(self, alias: str) -> bool: ...
 
@@ -78,6 +90,7 @@ class ModelsPanelOverrideMixin(_MixinBase):
         if view is None:
             return
         self._pending_alias = view.name
+        self._pending_raw_model = ""
         self._pending_alias_selection = AliasSelectionContext(
             views=tuple(self._views),
             target_alias=view.name,
@@ -127,14 +140,16 @@ class ModelsPanelOverrideMixin(_MixinBase):
             self.app.push_screen(
                 CustomModelInputModal(
                     title="Custom Override Model",
-                    hint="Format: provider/model  or  model",
-                    placeholder="e.g. opencode/anthropic/claude-sonnet-4-5",
+                    hint=(
+                        "Format: model, provider/model, or @alias; "
+                        "optional trailing @effort"
+                    ),
+                    placeholder="e.g. codex/gpt-5.6-sol@medium",
                 ),
                 callback=self._on_custom_picked,
             )
             return
-        self._pending_raw_model = result
-        self._open_duration_picker()
+        self._open_override_model_effort_picker(result)
 
     def _on_custom_picked(self, result: str | None) -> None:
         if result is None:
@@ -147,7 +162,34 @@ class ModelsPanelOverrideMixin(_MixinBase):
                 severity="warning",
             )
             return
-        self._pending_raw_model = result
+        raw_model = result.strip()
+        _, effort = split_model_effort(raw_model)
+        if effort is None:
+            self._open_override_model_effort_picker(raw_model)
+            return
+        self._pending_raw_model = raw_model
+        self._open_duration_picker()
+
+    def _open_override_model_effort_picker(self, raw_model: str) -> None:
+        self._pending_raw_model = raw_model.strip()
+        self.app.push_screen(
+            DefaultEffortLevelModal(
+                "model",
+                self._effort_snapshot,
+                now=self._models_panel_now(),
+                model=self._pending_raw_model,
+            ),
+            callback=self._on_override_model_effort_picked,
+        )
+
+    def _on_override_model_effort_picked(
+        self,
+        result: DefaultEffortLevelChoice | None,
+    ) -> None:
+        if result is None:
+            return
+        if result.effort is not None:
+            self._pending_raw_model = f"{self._pending_raw_model}@{result.effort}"
         self._open_duration_picker()
 
     def _open_duration_picker(self) -> None:

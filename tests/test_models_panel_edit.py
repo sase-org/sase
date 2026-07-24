@@ -30,6 +30,10 @@ from sase.ace.tui.modals.models_panel_edit_helpers import (
     AliasCommitOffer,
     AliasEditOutcome,
 )
+from sase.ace.tui.modals.models_panel_effort_cards import (
+    DefaultEffortLevelChoice,
+    DefaultEffortLevelModal,
+)
 from sase.config import AppliedResult, ConfigEditOp
 from sase.config.edit import ConfigEffectivePreview, ConfigWritePlan, EditPlanResult
 from sase.config.inventory import ConfigDiagnostic
@@ -147,7 +151,6 @@ async def test_action_edit_opens_model_picker(monkeypatch: Any) -> None:
     monkeypatch.setattr(
         models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
     )
-
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(ModelsPanel())
         await pilot.pause()
@@ -207,10 +210,13 @@ async def test_on_edit_model_picked_opens_preview_with_set_op(monkeypatch: Any) 
         panel._pending_edit_view = view
         panel._on_edit_model_picked("opus")
         await pilot.pause()
+        assert isinstance(pilot.app.screen, DefaultEffortLevelModal)
+        panel._on_edit_model_effort_picked(DefaultEffortLevelChoice("medium"))
+        await pilot.pause()
         screen = pilot.app.screen
         assert isinstance(screen, AliasEditPreviewModal)
         assert screen._op.kind == "set"
-        assert screen._op.value == "opus"
+        assert screen._op.value == "opus@medium"
 
 
 async def test_on_edit_alias_picked_persists_raw_reference(monkeypatch: Any) -> None:
@@ -232,9 +238,12 @@ async def test_on_edit_alias_picked_persists_raw_reference(monkeypatch: Any) -> 
         panel._on_edit_model_picked("@coder")
         await pilot.pause()
 
+        assert isinstance(pilot.app.screen, DefaultEffortLevelModal)
+        panel._on_edit_model_effort_picked(DefaultEffortLevelChoice("xhigh"))
+        await pilot.pause()
         screen = pilot.app.screen
         assert isinstance(screen, AliasEditPreviewModal)
-        assert screen._op.value == "@coder"
+        assert screen._op.value == "@coder@xhigh"
 
 
 async def test_on_edit_model_picked_custom_then_preview(monkeypatch: Any) -> None:
@@ -254,9 +263,12 @@ async def test_on_edit_model_picked_custom_then_preview(monkeypatch: Any) -> Non
         assert isinstance(pilot.app.screen, CustomModelInputModal)
         panel._on_edit_custom_picked("@default")
         await pilot.pause()
+        assert isinstance(pilot.app.screen, DefaultEffortLevelModal)
+        panel._on_edit_model_effort_picked(DefaultEffortLevelChoice("medium"))
+        await pilot.pause()
         screen = pilot.app.screen
         assert isinstance(screen, AliasEditPreviewModal)
-        assert screen._op.value == "@default"
+        assert screen._op.value == "@default@medium"
 
 
 async def test_on_edit_custom_rejects_unknown_and_cyclic_aliases(
@@ -282,7 +294,7 @@ async def test_on_edit_custom_rejects_unknown_and_cyclic_aliases(
         )
 
         panel._on_edit_custom_picked("@missing")
-        panel._on_edit_custom_picked("@dependent")
+        panel._on_edit_custom_picked("@dependent@medium")
         await pilot.pause()
 
         assert isinstance(pilot.app.screen, ModelsPanel)
@@ -308,11 +320,13 @@ async def test_on_edit_custom_accepts_fallback_and_rejects_mixed_selector(
         panel.notify = MagicMock()  # type: ignore[method-assign]
         panel._pending_edit_view = view
 
-        panel._on_edit_custom_picked("claude/claude-fable-5 || codex/gpt-5.6-sol")
+        panel._on_edit_custom_picked(
+            "claude/claude-fable-5@low || codex/gpt-5.6-sol@high"
+        )
         await pilot.pause()
         assert isinstance(pilot.app.screen, AliasEditPreviewModal)
         assert pilot.app.screen._op.value == (
-            "claude/claude-fable-5 || codex/gpt-5.6-sol"
+            "claude/claude-fable-5@low || codex/gpt-5.6-sol@high"
         )
 
         pilot.app.pop_screen()
@@ -321,6 +335,40 @@ async def test_on_edit_custom_accepts_fallback_and_rejects_mixed_selector(
         await pilot.pause()
         assert isinstance(pilot.app.screen, ModelsPanel)
         assert "cannot mix" in panel.notify.call_args.args[0]
+
+
+async def test_on_edit_custom_preserves_alias_selector_member_efforts(
+    monkeypatch: Any,
+) -> None:
+    view = _view(
+        "blogger",
+        "user",
+        configured=True,
+        configured_source="custom",
+    )
+    _patch_views(monkeypatch, [view])
+    monkeypatch.setattr(
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.models_panel_alias_edit."
+        "validate_model_alias_selector_value",
+        lambda *a, **k: (),
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_edit_view = view
+        value = "@default@low | @coder@high"
+        panel._on_edit_custom_picked(value)
+        await pilot.pause()
+
+        screen = pilot.app.screen
+        assert isinstance(screen, AliasEditPreviewModal)
+        assert screen._op.value == value
+        assert panel._pending_edit_raw_model == value
 
 
 async def test_on_edit_model_picked_cancel_is_noop(monkeypatch: Any) -> None:
@@ -333,6 +381,48 @@ async def test_on_edit_model_picked_cancel_is_noop(monkeypatch: Any) -> None:
         panel._on_edit_model_picked(None)
         await pilot.pause()
         assert isinstance(pilot.app.screen, ModelsPanel)
+
+
+async def test_on_edit_custom_explicit_alias_effort_skips_effort_picker(
+    monkeypatch: Any,
+) -> None:
+    view = _view("coder", "role")
+    _patch_views(monkeypatch, [view])
+    monkeypatch.setattr(
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_edit_view = view
+        panel._on_edit_custom_picked("@default@medium")
+        await pilot.pause()
+
+        screen = pilot.app.screen
+        assert isinstance(screen, AliasEditPreviewModal)
+        assert screen._op.value == "@default@medium"
+
+
+async def test_on_edit_effort_cancel_does_not_open_preview(
+    monkeypatch: Any,
+) -> None:
+    view = _view("coder", "role")
+    _patch_views(monkeypatch, [view])
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_edit_view = view
+        panel._on_edit_model_picked("opus")
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, DefaultEffortLevelModal)
+        panel._on_edit_model_effort_picked(None)
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, DefaultEffortLevelModal)
 
 
 # ---------------------------------------------------------------------------
@@ -400,6 +490,9 @@ async def test_action_edit_custom_alias_routes_to_custom_model_path(
         await pilot.pause()
         panel._pending_edit_view = view
         panel._on_edit_model_picked("claude/opus")
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, DefaultEffortLevelModal)
+        panel._on_edit_model_effort_picked(DefaultEffortLevelChoice(None))
         await pilot.pause()
         screen = pilot.app.screen
         assert isinstance(screen, AliasEditPreviewModal)
@@ -481,11 +574,12 @@ async def test_on_alias_edited_no_repo_skips_commit_offer(monkeypatch: Any) -> N
         pilot.app.push_screen(panel)
         await pilot.pause()
         panel.notify = MagicMock()  # type: ignore[method-assign]
+        panel._pending_edit_raw_model = "@default@medium"
         panel._on_alias_edited(_outcome())
         await pilot.pause()
         # The panel stays on top — no commit-confirm modal pushed.
         assert isinstance(pilot.app.screen, ModelsPanel)
-        panel.notify.assert_called_once()
+        panel.notify.assert_called_once_with("Updated @coder to @default@medium")
 
 
 async def test_on_alias_edited_offers_commit_when_in_repo(monkeypatch: Any) -> None:

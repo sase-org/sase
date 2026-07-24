@@ -10,15 +10,20 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Static
+from textual.widgets import OptionList, Static
+from textual.widgets._option_list import Option
 
 from sase.llm_provider import EffectiveDefaultEffortSnapshot
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
 
+from .base import OptionListNavigationMixin
 from .models_panel_duration import format_remaining
 
 type DefaultEffortAction = Literal["edit", "override", "clear"]
 type DefaultEffortPickerMode = Literal["edit", "override"]
+type EffortPickerMode = Literal["edit", "override", "model"]
+
+_PROVIDER_DEFAULT_ID = "__provider_default__"
 
 
 @dataclass(frozen=True)
@@ -113,8 +118,11 @@ class DefaultEffortActionModal(ModalScreen[DefaultEffortAction | None]):
         self.dismiss(None)
 
 
-class DefaultEffortLevelModal(ModalScreen[DefaultEffortLevelChoice | None]):
-    """Ordered single-key picker generated from the canonical vocabulary."""
+class DefaultEffortLevelModal(
+    OptionListNavigationMixin,
+    ModalScreen[DefaultEffortLevelChoice | None],
+):
+    """Reusable effort picker generated from the canonical vocabulary."""
 
     BINDINGS = [
         *[
@@ -122,9 +130,11 @@ class DefaultEffortLevelModal(ModalScreen[DefaultEffortLevelChoice | None]):
             for index, level in enumerate(EFFORT_LEVELS_ORDERED, start=1)
         ],
         Binding("0", "choose('0')", "Provider default", show=False),
-        Binding("escape", "cancel", "Cancel", show=False),
-        Binding("q", "cancel", "Cancel", show=False),
+        *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        Binding("enter", "confirm", "Confirm", show=False),
     ]
+
+    _option_list_id = "default-effort-level-list"
 
     _TONES = (
         "#777777",
@@ -138,45 +148,96 @@ class DefaultEffortLevelModal(ModalScreen[DefaultEffortLevelChoice | None]):
 
     def __init__(
         self,
-        mode: DefaultEffortPickerMode,
+        mode: EffortPickerMode,
         snapshot: EffectiveDefaultEffortSnapshot,
         *,
         now: float,
+        model: str | None = None,
     ) -> None:
         super().__init__()
         self._mode = mode
         self._snapshot = snapshot
         self._now = now
+        self._model = model
+        self._updating_highlight = False
 
     def compose(self) -> ComposeResult:
         with Container(id="default-effort-level-container"):
-            yield Static("Default Effort Level", id="default-effort-level-title")
-            subtitle = (
-                "Choose the persistent launch default."
-                if self._mode == "edit"
-                else "Choose a temporary launch default."
+            yield Static(self._title(), id="default-effort-level-title")
+            yield Static(self._subtitle(), id="default-effort-level-subtitle")
+            yield OptionList(
+                *self._options(),
+                id=self._option_list_id,
             )
-            yield Static(subtitle, id="default-effort-level-subtitle")
-            with Vertical(id="default-effort-level-choices"):
-                if self._mode == "edit":
-                    yield Static(
-                        self._row_text("0", None, "#777777"),
-                        classes="default-effort-level-row",
-                    )
-                for index, (level, tone) in enumerate(
-                    zip(EFFORT_LEVELS_ORDERED, self._TONES, strict=True),
-                    start=1,
-                ):
-                    yield Static(
-                        self._row_text(str(index), level, tone),
-                        classes="default-effort-level-row",
-                    )
             yield Static(
                 "Config-derived levels are best-effort; providers that cannot "
                 "honor one keep their provider behavior.",
                 id="default-effort-level-note",
             )
-            yield Static("esc / q: cancel", id="default-effort-level-footer")
+            yield Static(
+                "enter: confirm   j/k: navigate   esc / q: cancel",
+                id="default-effort-level-footer",
+            )
+
+    def on_mount(self) -> None:
+        option_list = self.query_one(f"#{self._option_list_id}", OptionList)
+        option_list.focus()
+        initial_id = self._initial_option_id()
+        try:
+            index = option_list.get_option_index(initial_id)
+        except Exception:
+            index = 0
+        self._set_highlight(option_list, index)
+
+    def _title(self) -> str:
+        if self._mode == "model":
+            return "Reasoning Effort"
+        return "Default Effort Level"
+
+    def _subtitle(self) -> str:
+        if self._mode == "edit":
+            return "Choose the persistent launch default."
+        if self._mode == "override":
+            return "Choose a temporary launch default."
+        return f"Append an effort to {self._model or 'the selected model'}."
+
+    def _include_provider_default(self) -> bool:
+        return self._mode == "edit" or (
+            self._mode == "model" and self._snapshot.configured_effort is None
+        )
+
+    def _options(self) -> list[Option]:
+        options: list[Option] = []
+        if self._include_provider_default():
+            options.append(
+                Option(
+                    self._row_text("0", None, "#777777"),
+                    id=_PROVIDER_DEFAULT_ID,
+                )
+            )
+        options.extend(
+            Option(self._row_text(str(index), level, tone), id=level)
+            for index, (level, tone) in enumerate(
+                zip(EFFORT_LEVELS_ORDERED, self._TONES, strict=True),
+                start=1,
+            )
+        )
+        return options
+
+    def _initial_option_id(self) -> str:
+        configured = self._snapshot.configured_effort
+        if configured in EFFORT_LEVELS_ORDERED:
+            return configured
+        if self._include_provider_default():
+            return _PROVIDER_DEFAULT_ID
+        return EFFORT_LEVELS_ORDERED[0]
+
+    def _set_highlight(self, option_list: OptionList, index: int | None) -> None:
+        self._updating_highlight = True
+        try:
+            option_list.highlighted = index
+        finally:
+            self._updating_highlight = False
 
     def _row_text(self, key: str, effort: str | None, tone: str) -> Text:
         label = effort or "provider default"
@@ -205,7 +266,7 @@ class DefaultEffortLevelModal(ModalScreen[DefaultEffortLevelChoice | None]):
 
     def action_choose(self, key: str) -> None:
         if key == "0":
-            if self._mode == "edit":
+            if self._include_provider_default():
                 self.dismiss(DefaultEffortLevelChoice(None))
             return
         try:
@@ -213,6 +274,29 @@ class DefaultEffortLevelModal(ModalScreen[DefaultEffortLevelChoice | None]):
         except (IndexError, ValueError):
             return
         self.dismiss(DefaultEffortLevelChoice(effort))
+
+    def action_confirm(self) -> None:
+        option_list = self.query_one(f"#{self._option_list_id}", OptionList)
+        highlighted = option_list.highlighted
+        if highlighted is None:
+            return
+        option = option_list.get_option_at_index(highlighted)
+        option_id = str(option.id)
+        self.dismiss(
+            DefaultEffortLevelChoice(
+                None if option_id == _PROVIDER_DEFAULT_ID else option_id
+            )
+        )
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        event.stop()
+        self.action_confirm()
+
+    def on_option_list_option_highlighted(
+        self, event: OptionList.OptionHighlighted
+    ) -> None:
+        if self._updating_highlight:
+            event.stop()
 
     def action_cancel(self) -> None:
         self.dismiss(None)
@@ -232,4 +316,5 @@ __all__ = [
     "DefaultEffortLevelChoice",
     "DefaultEffortLevelModal",
     "DefaultEffortPickerMode",
+    "EffortPickerMode",
 ]

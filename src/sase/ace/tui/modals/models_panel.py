@@ -142,6 +142,7 @@ class ModelsPanel(
         self._warning_toast_emitted = False
         self._pending_alias = ""
         self._pending_raw_model = ""
+        self._pending_edit_raw_model = ""
         self._pending_edit_view: AliasView | None = None
         self._pending_alias_selection: AliasSelectionContext | None = None
         self._override_worker: (

@@ -7,13 +7,14 @@ from unittest.mock import patch
 
 import pytest
 from textual.containers import Container
-from textual.widgets import Static
+from textual.widgets import OptionList, Static
 
 import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.tui.modals.models_panel import ModelsPanel
 from sase.ace.tui.modals.models_panel_duration import DurationPickerModal
 from sase.ace.tui.modals.models_panel_effort_cards import (
     DefaultEffortActionModal,
+    DefaultEffortLevelChoice,
     DefaultEffortLevelModal,
 )
 from sase.ace.tui.modals.models_panel_effort_edit import (
@@ -149,16 +150,71 @@ async def test_level_picker_uses_canonical_single_key_ladder(
             )
         )
         await pilot.pause()
-        rows = [
-            row.content.plain
-            for row in pilot.app.screen.query(".default-effort-level-row")
-        ]
+        option_list = pilot.app.screen.query_one(
+            "#default-effort-level-list", OptionList
+        )
+        rows = [option.prompt.plain for option in option_list.options]
         expected = list(EFFORT_LEVELS_ORDERED)
         if mode == "edit":
             assert "provider default" in rows[0]
             rows = rows[1:]
         assert [row.split()[1] for row in rows] == expected
         assert any("override · current" in row for row in rows)
+        highlighted = option_list.highlighted
+        assert highlighted is not None
+        assert option_list.get_option_at_index(highlighted).id == "xhigh"
+
+
+async def test_model_effort_picker_enter_uses_configured_not_temporary() -> None:
+    captured: list[DefaultEffortLevelChoice | None] = []
+    async with ModelsPanelTestApp().run_test() as pilot:
+        pilot.app.push_screen(
+            DefaultEffortLevelModal(
+                "model",
+                _snapshot("xhigh", override=_override("medium")),
+                now=_NOW,
+                model="@coder",
+            ),
+            captured.append,
+        )
+        await pilot.pause()
+        option_list = pilot.app.screen.query_one(
+            "#default-effort-level-list", OptionList
+        )
+        highlighted = option_list.highlighted
+        assert highlighted is not None
+        assert option_list.get_option_at_index(highlighted).id == "xhigh"
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert [choice.effort for choice in captured] == ["xhigh"]
+
+
+async def test_model_effort_picker_without_config_defaults_to_no_suffix() -> None:
+    captured: list[DefaultEffortLevelChoice | None] = []
+    async with ModelsPanelTestApp().run_test() as pilot:
+        pilot.app.push_screen(
+            DefaultEffortLevelModal(
+                "model",
+                _snapshot(None, override=_override("medium")),
+                now=_NOW,
+                model="codex/o3",
+            ),
+            captured.append,
+        )
+        await pilot.pause()
+        option_list = pilot.app.screen.query_one(
+            "#default-effort-level-list", OptionList
+        )
+        highlighted = option_list.highlighted
+        assert highlighted is not None
+        assert option_list.get_option_at_index(highlighted).id == (
+            "__provider_default__"
+        )
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert [choice.effort for choice in captured] == [None]
 
 
 async def test_override_flow_reuses_duration_picker_and_updates_snapshot(
