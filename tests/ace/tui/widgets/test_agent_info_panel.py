@@ -257,6 +257,7 @@ def test_status_strip_styles_running_capacity_and_positive_queue() -> None:
     panel = AgentInfoPanel()
     panel._runner_limit = 10
     panel._runner_queue_count = 7
+    panel._read_count = 19
 
     expected_running_styles = {
         8: "bold #00D7AF",
@@ -272,11 +273,22 @@ def test_status_strip_styles_running_capacity_and_positive_queue() -> None:
         limit_index = slash_index + 1
         running_label_index = text.plain.index(" running", limit_index)
         queue_index = text.plain.index("7 queued", limit_index)
+        done_index = text.plain.index("19 done", limit_index)
+        limit_styles = {
+            _style_at_plain_index(text, index)
+            for index in range(
+                limit_index,
+                limit_index + len(str(panel._runner_limit)),
+            )
+        }
+        done_style = _style_at_plain_index(text, done_index)
         assert _style_at_plain_index(text, occupancy_index) == expected_style
         assert _style_at_plain_index(text, slash_index) == "dim"
-        assert _style_at_plain_index(text, limit_index) == "bold #87D7FF"
+        assert limit_styles == {"bold #FFD700"}
         assert _style_at_plain_index(text, running_label_index) == "dim"
         assert _style_at_plain_index(text, queue_index) == "bold #AF87FF"
+        assert done_style == "bold #5FD7FF"
+        assert done_style not in limit_styles
 
     panel._running_count = 8
     panel._runner_queue_count = 0

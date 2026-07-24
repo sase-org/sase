@@ -282,6 +282,8 @@ class AgentInfoPanel(Static):
         "read": "done",
     }
 
+    _RUNNER_LIMIT_STYLE = "bold #FFD700"
+
     def _metric_counts(self) -> list[tuple[str, int]]:
         return [
             ("asking", self._asking_count),
@@ -303,7 +305,7 @@ class AgentInfoPanel(Static):
             running_style = "bold #00D7AF"
         text.append(str(self._running_count), style=running_style)
         text.append("/", style="dim")
-        text.append(str(self._runner_limit), style="bold #87D7FF")
+        text.append(str(self._runner_limit), style=self._RUNNER_LIMIT_STYLE)
         text.append(" running", style="dim")
 
         if self._runner_queue_count > 0:
