@@ -1137,17 +1137,27 @@ value is a canonical model name or configured alias; provider short aliases are 
 The parenthesized `%model` form accepts keyword arguments that temporarily replace model aliases for one launch lineage:
 
 ```text
-%model(opus, coder=codex/gpt-5.6-sol, medium_phase_worker=claude/sonnet)
+%model(opus, coder=codex/gpt-5.6-sol, small_phase_worker=@cheap)
+%model(xsmall_phase_worker=@cheaper, medium_phase_worker=codex/gpt-5.6-sol@high)
+%model(large_phase_worker=@smart, xlarge_phase_worker=@smartest)
 %model(coder=@medium_phase_worker)
-%model(large_phase_worker=@smartest)
 ```
 
 The optional positional value selects the current agent's model. Each `alias=value` entry changes how that bare alias
 resolves. Without a positional value, the current agent still starts from the normal default, but that resolution uses
-the map: `default=...` changes it directly, while a size-specific phase keyword affects only that phase size. Small,
-medium, and large phases default through `@cheaper`, `@default`, and `@smartest`, respectively. Keys must be known
-builtin or custom alias names without `@`; values may be concrete models, `provider/model` targets, quoted targets,
-xprompt references, or another alias with `@`. Per-alias reasoning-effort suffixes are not supported.
+the map: `default=...` changes it directly, while a size-specific phase keyword affects only that phase size. The
+current size-specific phase aliases and implicit fallbacks are:
+
+| Size     | Alias                 | Implicit fallback        |
+| -------- | --------------------- | ------------------------ |
+| `xsmall` | `xsmall_phase_worker` | `@cheaper`               |
+| `small`  | `small_phase_worker`  | `@cheap`                 |
+| `medium` | `medium_phase_worker` | `codex/gpt-5.6-sol@high` |
+| `large`  | `large_phase_worker`  | `@smart`                 |
+| `xlarge` | `xlarge_phase_worker` | `@smartest`              |
+
+Keys must be known builtin or custom alias names without `@`; values may be concrete models, `provider/model` targets,
+quoted targets, xprompt references, or another alias with `@`. Per-alias reasoning-effort suffixes are not supported.
 
 "Launch-scoped" describes persistence, not every subprocess the agent starts. SASE records the map in agent metadata and
 carries it through its plan/coder follow-up path. An explicit `%id(suffix, family=parent)` attachment inherits the

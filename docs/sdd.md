@@ -209,8 +209,7 @@ phases:
   - id: exercise
     title: Exercise the completed rollout
     depends_on: [implementation]
-    size: small
-    model: codex/gpt-5.6-sol
+    size: xsmall
 ```
 
 On Epic approval, SASE deterministically copies the top-level model to the epic plan bead and each phase's model and
@@ -218,14 +217,15 @@ size to its phase bead. `xsmall`, `small`, and `medium` phases implement directl
 `@small_phase_worker`, and `@medium_phase_worker`, respectively. Only `large` and `xlarge` phases receive `#plan`, after
 their work reference, and use `@large_phase_worker` and `@xlarge_phase_worker`. The size aliases fall back to
 `@cheaper`, `@cheap`, `codex/gpt-5.6-sol@high`, `@smart`, and `@smartest` for `xsmall`, `small`, `medium`, `large`, and
-`xlarge` respectively, while an explicit phase `model` is valid at every size and always wins over size-derived routing
-without changing whether the phase receives `#plan`. The standalone `@cheapest` provider fallback is available for
-explicit use but is not selected automatically. When the top-level model is omitted, the land agent uses `@epic_lander`
-below `bead.big_epic_phase_threshold` and `@big_epic_lander` at or above the threshold (default `5`). The normal role
-falls back to `@default`; the threshold-selected role falls back independently to provider-aware `@smartest`. An
-explicit top-level land model or direct role-alias override still wins. The approval preview and emitted launch prompt
-use these same rules. Routing counts every authored phase, including already-closed phases when an epic resumes, so the
-selected lander role stays stable throughout the epic.
+`xlarge` respectively. Set an explicit phase `model` only when the user's prompt requested that model; the explicit
+model is valid at every size and always wins over size-derived routing without changing whether the phase receives
+`#plan`. The standalone `@cheapest` provider fallback is available for explicit use but is not selected automatically.
+When the top-level model is omitted, the land agent uses `@epic_lander` below `bead.big_epic_phase_threshold` and
+`@big_epic_lander` at or above the threshold (default `5`). The normal role falls back to `@default`; the
+threshold-selected role falls back independently to provider-aware `@smartest`. An explicit top-level land model or
+direct role-alias override still wins. The approval preview and emitted launch prompt use these same rules. Routing
+counts every authored phase, including already-closed phases when an epic resumes, so the selected lander role stays
+stable throughout the epic.
 
 Choose `xsmall` only for the very simplest tasks that need almost no reasoning, such as launching SASE agents purely to
 observe their output while testing a SASE agent feature. Choose `small` for focused work that can be implemented
@@ -262,8 +262,8 @@ be supplied; `bug_id` requires `changespec`. The epic-only `parent_bead` associa
 which SASE creates its child epic. Each phase requires a unique slug `id`, a non-empty `title`, a `depends_on` list, and
 `size: xsmall | small | medium | large | xlarge`. Dependencies may only name earlier phases, cannot repeat, and cannot
 refer to the phase itself. Optional phase fields are `description` and `model`. Only set a phase model when the user's
-prompt requested one or the phase performs no consequential work, such as exercising the feature itself; otherwise omit
-it so size-derived routing can apply.
+prompt requested one; for a phase that only exercises or observes a SASE agent feature and does no consequential work,
+use `size: xsmall` instead of a cheap model override.
 
 ```yaml
 ---
