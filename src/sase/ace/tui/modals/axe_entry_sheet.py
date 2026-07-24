@@ -250,7 +250,7 @@ def hint_text(
             return "Working…"
         primary = "save & restart" if running else "save"
         save_only = " · ^O save only" if running and not narrow else ""
-        return f"↑↓ scroll · ^D/^U page · ⏎ {primary}{save_only} · esc back"
+        return f"↑↓ scroll · ^D/^U page · ⏎ {primary}{save_only} · q quit · esc back"
     if mode == "cell":
         if narrow:
             return "tab next · ⇧tab prev · esc normal/browse · ^S preview"
@@ -259,10 +259,10 @@ def hint_text(
             "^R inherit · ^S preview"
         )
     if narrow:
-        return "↑↓ move · ⏎/i edit · space toggle · 1-9 scope · ^S save · esc"
+        return "↑↓ move · ⏎/i edit · space toggle · 1-9 scope · ^S save · q quit · esc"
     return (
         "↑↓/jk move · ⏎/i edit · space toggle · ^R inherit · "
-        "1-9 scope · ^S preview & save · esc"
+        "1-9 scope · ^S preview & save · q quit · esc"
     )
 
 

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 from typing import Any
+from unittest.mock import AsyncMock, patch
+
+from textual.binding import Binding
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.axe_entry_editor_modal import (
@@ -170,6 +173,18 @@ def test_scope_change_refreshes_target_contribution_without_touching_draft() -> 
     assert modal._form.field("script").draft_value == "draft"
 
 
+def test_q_binding_maps_to_non_priority_editor_quit_action() -> None:
+    binding = next(
+        item
+        for item in AxeEntryEditorModal.BINDINGS
+        if isinstance(item, Binding) and item.key == "q"
+    )
+
+    assert binding.action == "quit_editor"
+    assert binding.description == "Quit"
+    assert binding.priority is False
+
+
 async def test_real_mount_opens_existing_entry_in_unfocused_browse_mode() -> None:
     async with AcePage() as page:
         modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
@@ -182,6 +197,89 @@ async def test_real_mount_opens_existing_entry_in_unfocused_browse_mode() -> Non
         assert modal._mode == "browse"
         assert len(modal.query(".axe-editor-cell-editor")) == 0
         assert modal.focused is None
+
+
+async def test_q_closes_browse_without_invoking_app_quit() -> None:
+    dismissed: list[object] = []
+    async with AcePage() as page:
+        modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
+        page.app.push_screen(modal, dismissed.append)
+        await page.expect_modal("AxeEntryEditorModal")
+
+        with patch.object(
+            page.app,
+            "action_quit",
+            new_callable=AsyncMock,
+        ) as app_quit:
+            await page.press("q")
+            await page.wait_for(lambda _screen: bool(dismissed))
+            app_quit.assert_not_awaited()
+
+        await page.expect_no_modal()
+    assert dismissed == [None]
+
+
+async def test_q_closes_preview_directly_instead_of_returning_to_edit() -> None:
+    dismissed: list[object] = []
+    async with AcePage() as page:
+        modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
+        page.app.push_screen(modal, dismissed.append)
+        await page.expect_modal("AxeEntryEditorModal")
+        modal._form = modal._form.set_value("script", "changed")
+        modal.action_confirm()
+        await page.wait_for(
+            lambda _screen: modal._stage == "preview" and modal._plan is not None
+        )
+
+        await page.press("q")
+        await page.wait_for(lambda _screen: bool(dismissed))
+
+        assert modal._stage == "preview"
+        await page.expect_no_modal()
+    assert dismissed == [None]
+
+
+async def test_q_is_insert_text_then_closes_cell_from_normal_mode() -> None:
+    dismissed: list[object] = []
+    async with AcePage() as page:
+        modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
+        page.app.push_screen(modal, dismissed.append)
+        await page.expect_modal("AxeEntryEditorModal")
+        await page.press("enter")
+        await page.wait_for(lambda _screen: modal.focused is modal._cell_editor)
+        editor = modal.query_one(".axe-editor-cell-editor", SingleLineVimTextArea)
+
+        await page.press("q")
+        await page.wait_for(lambda _screen: editor.text == "q")
+        assert modal._mode == "cell"
+        assert dismissed == []
+
+        await page.press("escape")
+        assert editor._vim_mode == "normal"
+        await page.press("q")
+        await page.wait_for(lambda _screen: bool(dismissed))
+    assert dismissed == [None]
+
+
+async def test_q_is_consumed_but_does_not_dismiss_while_busy() -> None:
+    dismissed: list[object] = []
+    async with AcePage() as page:
+        modal = AxeEntryEditorModal(_seed(), plan=lambda _request: _preview())
+        page.app.push_screen(modal, dismissed.append)
+        await page.expect_modal("AxeEntryEditorModal")
+        modal._busy = True
+
+        with patch.object(
+            page.app,
+            "action_quit",
+            new_callable=AsyncMock,
+        ) as app_quit:
+            await page.press("q")
+            await page.pause()
+            app_quit.assert_not_awaited()
+
+        assert dismissed == []
+        assert page.state["modal"] == "AxeEntryEditorModal"
 
 
 async def test_chop_sheet_shows_every_field_scope_warning_and_narrow_layout() -> None:

@@ -218,18 +218,56 @@ def test_status_and_hints_are_mode_and_stage_aware() -> None:
     form = _state_form()
     assert status_line_text(form.field("invalid")) == "! 'oops' is not an integer"
     assert status_line_text(None, error="nothing changed") == "! nothing changed"
-    assert "⏎/i edit" in hint_text(
+    assert hint_text(
         mode="browse",
         stage="edit",
         running=False,
+    ) == (
+        "↑↓/jk move · ⏎/i edit · space toggle · ^R inherit · "
+        "1-9 scope · ^S preview & save · q quit · esc"
     )
-    assert "shift+tab previous" in hint_text(
+    assert hint_text(
+        mode="browse",
+        stage="edit",
+        running=False,
+        narrow=True,
+    ) == ("↑↓ move · ⏎/i edit · space toggle · 1-9 scope · ^S save · q quit · esc")
+    assert hint_text(
         mode="cell",
         stage="edit",
         running=False,
+    ) == ("tab next · shift+tab previous · esc normal/browse · ^R inherit · ^S preview")
+    assert (
+        hint_text(
+            mode="cell",
+            stage="edit",
+            running=False,
+            narrow=True,
+        )
+        == "tab next · ⇧tab prev · esc normal/browse · ^S preview"
     )
-    assert "save & restart" in hint_text(
+    assert hint_text(
         mode="browse",
         stage="preview",
         running=True,
+    ) == (
+        "↑↓ scroll · ^D/^U page · ⏎ save & restart · ^O save only · q quit · esc back"
+    )
+    assert (
+        hint_text(
+            mode="browse",
+            stage="preview",
+            running=True,
+            narrow=True,
+        )
+        == "↑↓ scroll · ^D/^U page · ⏎ save & restart · q quit · esc back"
+    )
+    assert (
+        hint_text(
+            mode="browse",
+            stage="preview",
+            running=True,
+            busy=True,
+        )
+        == "Working…"
     )

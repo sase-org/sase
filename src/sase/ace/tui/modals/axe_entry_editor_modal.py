@@ -53,6 +53,7 @@ class AxeEntryEditorModal(
 
     AUTO_FOCUS = None
     BINDINGS = [
+        Binding("q", "quit_editor", "Quit"),
         ("escape", "back", "Back/Cancel"),
         ("ctrl+s", "confirm", "Preview/Save"),
         ("enter", "edit_or_confirm", "Edit/Save"),
@@ -437,6 +438,11 @@ class AxeEntryEditorModal(
             self._leave_cell(commit=True)
             return
         super().action_back()
+
+    def action_quit_editor(self) -> None:
+        if self._busy:
+            return
+        self.dismiss(None)
 
     def _field_index(self, name: str) -> int | None:
         return next(

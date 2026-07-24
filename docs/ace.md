@@ -1232,12 +1232,14 @@ entry opens in cell mode on its first required property.
 | `1`…`9` / `Ctrl+T`    | Select a numbered writable scope / cycle scopes                |
 | `Ctrl+S`              | Build the validation and source-diff preview                   |
 | `Ctrl+L`              | Reload after a stale-write conflict while preserving the draft |
+| `q`                   | Close the panel directly and discard unsaved edits             |
 | `Esc`                 | Close the panel                                                |
 
 | Cell key                       | Action                                                             |
 | ------------------------------ | ------------------------------------------------------------------ |
 | `Enter`                        | Commit a single-line value; insert a newline in a multi-line value |
 | `Esc`                          | Leave INSERT for NORMAL, then commit and return to browse mode     |
+| `q`                            | Type `q` in INSERT; close the panel directly from NORMAL mode      |
 | `Tab` / `Shift+Tab`            | Commit and edit the next / previous property                       |
 | Vim keys                       | Edit through the standard `VimTextArea` layer                      |
 | `Ctrl+S` / `Ctrl+R` / `Ctrl+T` | Preview, inherit/reset, or cycle scope while the editor is focused |
@@ -1248,6 +1250,7 @@ entry opens in cell mode on its first required property.
 | `g` / `G`                       | Scroll to the top / bottom              |
 | `Enter`                         | Save, restarting AXE when it is running |
 | `Ctrl+O`                        | Save without restarting AXE             |
+| `q`                             | Close the panel directly                |
 | `Esc`                           | Return to the property sheet            |
 
 ### Leader Mode (`,` prefix)
