@@ -256,19 +256,38 @@ def test_positive_queue_appears_inside_consolidated_status_strip() -> None:
 
 def test_status_strip_styles_running_capacity_and_positive_queue() -> None:
     panel = AgentInfoPanel()
-    panel._runner_limit = 10
     panel._runner_queue_count = 7
     panel._read_count = 19
 
-    expected_running_styles = {
-        8: "bold #00D7AF",
-        10: "bold #FFD700",
-        12: "bold #FF5F5F",
-    }
-    for running_count, expected_style in expected_running_styles.items():
+    cases = [
+        # Even limit: both sides of the 50%, 75%, and 100% boundaries.
+        (4, 10, "bold #00D7AF", "not bold dim"),
+        (5, 10, "bold #00D7AF", "bold #FFD700"),
+        (7, 10, "bold #00D7AF", "bold #FFD700"),
+        (8, 10, "bold #00D7AF", "bold #FF8700"),
+        (9, 10, "bold #00D7AF", "bold #FF8700"),
+        (10, 10, "bold #FFD700", "bold #FF5F5F"),
+        (12, 10, "bold #FF5F5F", "bold #FF5F5F"),
+        # Odd limit: 50% rounds up to 4 and 75% rounds up to 6.
+        (3, 7, "bold #00D7AF", "not bold dim"),
+        (4, 7, "bold #00D7AF", "bold #FFD700"),
+        (5, 7, "bold #00D7AF", "bold #FFD700"),
+        (6, 7, "bold #00D7AF", "bold #FF8700"),
+        (7, 7, "bold #FFD700", "bold #FF5F5F"),
+        # A non-positive limit has no meaningful pressure threshold.
+        (2, 0, "bold #00D7AF", "not bold dim"),
+        (2, -3, "bold #00D7AF", "not bold dim"),
+    ]
+    for (
+        running_count,
+        runner_limit,
+        expected_running_style,
+        expected_limit_style,
+    ) in cases:
         panel._running_count = running_count
+        panel._runner_limit = runner_limit
         text = _collect_rich_text(panel)
-        capacity_segment = f"{running_count}/{panel._runner_limit}"
+        capacity_segment = f"{running_count}/{runner_limit}"
         occupancy_index = text.plain.index(capacity_segment)
         slash_index = text.plain.index("/", occupancy_index)
         limit_index = slash_index + 1
@@ -279,13 +298,13 @@ def test_status_strip_styles_running_capacity_and_positive_queue() -> None:
             _style_at_plain_index(text, index)
             for index in range(
                 limit_index,
-                limit_index + len(str(panel._runner_limit)),
+                limit_index + len(str(runner_limit)),
             )
         }
         done_style = _style_at_plain_index(text, done_index)
-        assert _style_at_plain_index(text, occupancy_index) == expected_style
+        assert _style_at_plain_index(text, occupancy_index) == expected_running_style
         assert _style_at_plain_index(text, slash_index) == "dim"
-        assert limit_styles == {"bold #FFD700"}
+        assert limit_styles == {expected_limit_style}
         assert _style_at_plain_index(text, running_label_index) == "dim"
         queue_style = _style_at_plain_index(text, queue_index)
         waiting_style = panel._COUNT_STYLES["waiting"]
@@ -296,6 +315,7 @@ def test_status_strip_styles_running_capacity_and_positive_queue() -> None:
         assert done_style not in limit_styles
 
     panel._running_count = 8
+    panel._runner_limit = 10
     panel._runner_queue_count = 0
     zero_text = _collect_rich_text(panel)
     assert "queued" not in zero_text.plain

@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from rich.style import Style
 from rich.text import Text
 from textual.widgets import Static
 
@@ -13,6 +14,13 @@ class AgentInfoPanel(Static):
     """Top bar showing agent metrics and auto-refresh countdown."""
 
     _TOTAL_COUNT_STYLE = "bold #FFFFFF"
+    # Keep the neutral denominator in its own Rich span while matching adjacent
+    # dim labels.  The explicit non-bold flag prevents modal overlays from
+    # coalescing those spans and perturbing neighboring glyph antialiasing.
+    _NEUTRAL_RUNNER_LIMIT_STYLE = Style(
+        bold=False,
+        dim=True,
+    )
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the info panel."""
@@ -283,8 +291,6 @@ class AgentInfoPanel(Static):
         "read": "done",
     }
 
-    _RUNNER_LIMIT_STYLE = "bold #FFD700"
-
     def _metric_counts(self) -> list[tuple[str, int]]:
         return [
             ("asking", self._asking_count),
@@ -294,6 +300,20 @@ class AgentInfoPanel(Static):
             ("unread", self._unread_count),
             ("read", self._read_count),
         ]
+
+    def _runner_limit_style(self) -> str | Style:
+        """Return the runner-limit style for the current capacity pressure."""
+        limit = self._runner_limit
+        running = self._running_count
+        if limit <= 0:
+            return self._NEUTRAL_RUNNER_LIMIT_STYLE
+        if running >= limit:
+            return "bold #FF5F5F"
+        if running >= (3 * limit + 3) // 4:
+            return "bold #FF8700"
+        if running >= (limit + 1) // 2:
+            return "bold #FFD700"
+        return self._NEUTRAL_RUNNER_LIMIT_STYLE
 
     def _append_status_strip(self, text: Text) -> None:
         """Append the consolidated visible status and runner-capacity strip."""
@@ -306,7 +326,7 @@ class AgentInfoPanel(Static):
             running_style = "bold #00D7AF"
         text.append(str(self._running_count), style=running_style)
         text.append("/", style="dim")
-        text.append(str(self._runner_limit), style=self._RUNNER_LIMIT_STYLE)
+        text.append(str(self._runner_limit), style=self._runner_limit_style())
         text.append(" running", style="dim")
 
         if self._runner_queue_count > 0:
