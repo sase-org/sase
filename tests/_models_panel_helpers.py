@@ -69,6 +69,30 @@ def make_override(expires_at: float | None = 3600.0) -> TemporaryLLMOverride:
     )
 
 
+def make_pool_members(
+    availability: tuple[bool, ...] = (True, True),
+    *,
+    next_index: int = 0,
+) -> tuple[ModelAliasSelectorMember, ...]:
+    values = ("claude/opus@medium", "codex/gpt-5.5")
+    targets = ("claude/opus", "codex/gpt-5.5")
+    efforts = ("medium", None)
+    providers = ("claude", "codex")
+    return tuple(
+        ModelAliasSelectorMember(
+            value=value,
+            target=targets[index],
+            effort=efforts[index],
+            provider=providers[index],
+            available=available,
+            selected=index == next_index,
+        )
+        for index, (value, available) in enumerate(
+            zip(values, availability, strict=True)
+        )
+    )
+
+
 def patch_alias_views(
     monkeypatch,
     views: list[AliasView],
