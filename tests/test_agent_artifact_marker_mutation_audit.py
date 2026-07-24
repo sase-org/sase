@@ -38,7 +38,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("os.replace", "rmtree", "unlink"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/agents_sync/v2_importer.py:_prepare_transaction": Review(
+    "src/sase/agents_sync/v2_import_transactions.py:prepare_transaction": Review(
         mutation_calls=("rmtree",),
         exemption=(
             "Removes only the transaction-owned staging directory before "

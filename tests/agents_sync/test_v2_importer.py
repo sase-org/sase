@@ -10,6 +10,11 @@ from sase.ace import dismissed_agents
 from sase.ace import dismissed_agents_bundles
 from sase.ace.tui.models._loaders import _done_loaders
 from sase.agents_sync import v2_importer
+from sase.agents_sync import v2_import_history
+from sase.agents_sync import v2_import_planning
+from sase.agents_sync import v2_import_rendering
+from sase.agents_sync import v2_import_storage
+from sase.agents_sync import v2_import_transactions
 from sase.agents_sync.inventory import InventoryRun, ProjectHoodInventory
 from sase.agents_sync.models import CommitRecord, ProjectTarget
 from sase.agents_sync.publication import publish_agent_hood
@@ -128,40 +133,57 @@ def _isolate_local_state(
     groups = state / "dismissed_agent_groups"
     claims: list[tuple[object, ...]] = []
 
-    monkeypatch.setattr(v2_importer, "sase_home", lambda: state)
-    monkeypatch.setattr(v2_importer, "sase_projects_dir", lambda: projects)
+    monkeypatch.setattr(v2_import_storage, "sase_home", lambda: state)
+    monkeypatch.setattr(v2_import_storage, "sase_projects_dir", lambda: projects)
+    monkeypatch.setattr(v2_import_transactions, "sase_home", lambda: state)
+    monkeypatch.setattr(v2_import_transactions, "sase_projects_dir", lambda: projects)
+    monkeypatch.setattr(v2_import_rendering, "sase_projects_dir", lambda: projects)
     monkeypatch.setattr(
-        v2_importer,
+        v2_import_history,
         "canonical_agent_artifact_path",
         lambda _project, _workflow, timestamp: artifact_root / timestamp,
     )
     monkeypatch.setattr(
-        v2_importer,
+        v2_import_planning,
+        "canonical_agent_artifact_path",
+        lambda _project, _workflow, timestamp: artifact_root / timestamp,
+    )
+    monkeypatch.setattr(
+        v2_import_history,
         "iter_agent_artifact_dirs",
         lambda *_args, **_kwargs: iter(sorted(artifact_root.glob("*"))),
     )
     monkeypatch.setattr(
-        v2_importer,
+        v2_import_planning,
+        "iter_agent_artifact_dirs",
+        lambda *_args, **_kwargs: iter(sorted(artifact_root.glob("*"))),
+    )
+    monkeypatch.setattr(
+        v2_import_planning,
         "preflight_imported_registered_names_v2",
         lambda rows, **_kwargs: claims.append(("preflight", *rows)),
     )
     monkeypatch.setattr(
-        v2_importer,
+        v2_import_transactions,
         "claim_imported_registered_names_v2",
         lambda rows, **_kwargs: claims.append(("claim", *rows)),
     )
     monkeypatch.setattr(
-        v2_importer,
+        v2_import_transactions,
         "update_agent_artifact_index_for_marker_mutation",
         lambda _path: None,
     )
     monkeypatch.setattr(
-        v2_importer,
+        v2_import_transactions,
         "sync_dismissed_agent_artifact_index",
         lambda **_kwargs: None,
     )
-    monkeypatch.setattr(v2_importer, "_dismissed_bundles_dir", lambda: bundles)
-    monkeypatch.setattr(v2_importer, "_dismissed_groups_dir", lambda: groups)
+    monkeypatch.setattr(v2_import_storage, "dismissed_bundles_dir", lambda: bundles)
+    monkeypatch.setattr(v2_import_storage, "dismissed_groups_dir", lambda: groups)
+    monkeypatch.setattr(
+        v2_import_transactions, "dismissed_bundles_dir", lambda: bundles
+    )
+    monkeypatch.setattr(v2_import_transactions, "dismissed_groups_dir", lambda: groups)
     monkeypatch.setattr(
         dismissed_agents,
         "rebuild_dismissed_bundle_index",
@@ -181,7 +203,7 @@ def test_family_import_recovers_as_one_visible_idempotent_group(
         monkeypatch,
     )
     identity = AgentIdentitySnapshot(LOCAL_OWNER)
-    real_finalize = v2_importer._finalize_transaction
+    real_finalize = v2_import_transactions._finalize_transaction
     failures = 0
 
     def fail_first_finalize(
@@ -195,7 +217,7 @@ def test_family_import_recovers_as_one_visible_idempotent_group(
         real_finalize(target_arg, journal)
 
     monkeypatch.setattr(
-        v2_importer,
+        v2_import_transactions,
         "_finalize_transaction",
         fail_first_finalize,
     )
@@ -217,9 +239,9 @@ def test_family_import_recovers_as_one_visible_idempotent_group(
         dismissed_agents_bundles.load_bundle_file(path) is None for path in bundle_paths
     )
 
-    monkeypatch.setattr(v2_importer, "_finalize_transaction", real_finalize)
+    monkeypatch.setattr(v2_import_transactions, "_finalize_transaction", real_finalize)
     assert (
-        v2_importer._recover_v2_import_transactions(
+        v2_import_transactions.recover_v2_import_transactions(
             target,
             identity=identity,
         )

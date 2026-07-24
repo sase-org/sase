@@ -21,7 +21,7 @@ from sase.core.agent_identity_facade import (
 from sase.core.paths import sase_projects_dir
 
 if TYPE_CHECKING:
-    from sase.agents_sync.v2_importer import (
+    from sase.agents_sync.v2_import_types import (
         HoodPlan,
         PlannedContainer,
         PlannedRun,
