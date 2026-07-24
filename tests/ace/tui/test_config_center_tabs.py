@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import subprocess
 import sys
+import threading
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -17,6 +19,7 @@ from textual.widgets import ContentSwitcher, Input, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
+from sase.ace.tui.modals import config_center_state
 from sase.ace.tui.modals.config_center_modal import (
     _AdminCenterLanding,
     _AdminCenterLandingRow,
@@ -36,6 +39,10 @@ from sase.ace.tui.modals.config_center_modal import (
     CenterTab,
     ConfigCenterModal,
     validated_center_tab,
+)
+from sase.ace.tui.modals.config_center_state import (
+    load_admin_center_last_tab,
+    save_admin_center_last_tab,
 )
 from sase.ace.tui.widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
@@ -411,6 +418,115 @@ async def test_repeated_first_navigation_is_idempotent(
         assert len(modal.query("#tasks")) == 1
 
 
+async def test_activation_callback_observes_committed_success_and_not_refocus(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, _calls = _patch_stub_panes(monkeypatch)
+    activated: list[CenterTab] = []
+    async with _HostApp().run_test() as pilot:
+        modal: ConfigCenterModal
+
+        def _activated(tab: CenterTab) -> None:
+            pane = created[tab][0]
+            assert modal._active_tab == tab
+            assert (
+                modal.query_one("#config-center-switcher", ContentSwitcher).current
+                == tab
+            )
+            assert pane.visibility[-1] is True
+            assert pane.focus_count >= 1
+            activated.append(tab)
+
+        modal = ConfigCenterModal(on_tab_activated=_activated)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        assert await modal._switch_to("tasks") is True
+        assert await modal._switch_to("tasks") is True
+
+    assert activated == ["tasks"]
+
+
+async def test_activation_callback_is_silent_for_construction_and_mount_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    activated: list[CenterTab] = []
+
+    def _fail_create(_self: ConfigCenterModal, _tab: CenterTab) -> _StubPane:
+        raise RuntimeError("synthetic construction failure")
+
+    monkeypatch.setattr(ConfigCenterModal, "_create_pane", _fail_create)
+    async with _HostApp().run_test() as pilot:
+        modal = ConfigCenterModal(on_tab_activated=activated.append)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        assert await modal._switch_to("tasks") is False
+
+    assert activated == []
+
+    _patch_stub_panes(monkeypatch)
+
+    def _fail_mount(_self: ContentSwitcher, _widget: Widget, **_kwargs: Any) -> Any:
+        raise RuntimeError("synthetic mount failure")
+
+    monkeypatch.setattr(ContentSwitcher, "add_content", _fail_mount)
+    async with _HostApp().run_test() as pilot:
+        modal = ConfigCenterModal(on_tab_activated=activated.append)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        assert await modal._switch_to("tasks") is False
+
+    assert activated == []
+
+
+async def test_activation_callback_is_silent_for_switch_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_stub_panes(monkeypatch)
+    activated: list[CenterTab] = []
+    original_sync_header = ConfigCenterModal._sync_header
+
+    def _fail_target_header(modal: ConfigCenterModal, tab: CenterTab | None) -> None:
+        if tab == "tasks":
+            raise RuntimeError("synthetic switch failure")
+        original_sync_header(modal, tab)
+
+    monkeypatch.setattr(ConfigCenterModal, "_sync_header", _fail_target_header)
+    async with _HostApp().run_test() as pilot:
+        modal = ConfigCenterModal(on_tab_activated=activated.append)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        assert await modal._switch_to("tasks") is False
+        assert modal._active_tab is None
+        assert (
+            modal.query_one("#config-center-switcher", ContentSwitcher).current
+            == _HOME_ID
+        )
+
+    assert activated == []
+
+
+async def test_activation_callback_failure_does_not_fail_navigation(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _patch_stub_panes(monkeypatch)
+
+    def _fail_callback(_tab: CenterTab) -> None:
+        raise RuntimeError("synthetic callback failure")
+
+    async with _HostApp().run_test() as pilot:
+        modal = ConfigCenterModal(on_tab_activated=_fail_callback)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        assert await modal._switch_to("tasks") is True
+        assert modal._active_tab == "tasks"
+
+    assert "Admin Center tab-activation callback failed" in caplog.text
+
+
 async def test_repeated_opener_without_history_keeps_one_zero_pane_home(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -536,6 +652,8 @@ async def test_generic_reopen_is_home_first_then_repeated_opener_resumes(
         await page.press("escape")
         await page.expect_no_modal()
         assert page.app._last_admin_center_tab == "tasks"
+        generation = page.app._admin_center_tab_save_generation
+        assert generation == 1
 
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
@@ -553,6 +671,7 @@ async def test_generic_reopen_is_home_first_then_repeated_opener_resumes(
         assert page.app.screen is second
         assert len(page.app.screen_stack) == 2
         assert page.app.current_tab == "agents"
+        assert page.app._admin_center_tab_save_generation == generation
 
 
 async def test_switching_changes_resume_target_and_home_only_close_retains_it(
@@ -594,11 +713,156 @@ async def test_direct_entry_establishes_resume_target_after_success(
         modal = page.app.screen
         assert isinstance(modal, ConfigCenterModal)
         await page.wait_for(lambda _state: modal._active_tab == "tasks")
+        await page.wait_for(
+            lambda _state: page.app._admin_center_tab_completed_generation == 1
+        )
 
+        assert load_admin_center_last_tab() == "tasks"
         await page.press("escape")
         await page.expect_no_modal()
 
         assert page.app._last_admin_center_tab == "tasks"
+
+
+async def test_persisted_tab_seeds_home_and_repeated_opener_resume(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    save_admin_center_last_tab("tasks")
+    _created, calls = _patch_stub_panes(monkeypatch)
+
+    async with AcePage(initial_tab="agents") as page:
+        assert page.app._last_admin_center_tab == "tasks"
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+        assert modal._active_tab is None
+        assert modal._panes == {}
+        hint = modal.query_one("#admin-center-home-hint", Static).render().plain
+        assert "resume Tasks" in hint
+
+        await page.press("number_sign")
+        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+
+        assert calls == ["tasks"]
+        assert tuple(modal._panes) == ("tasks",)
+        assert page.app._admin_center_tab_save_generation == 0
+
+
+async def test_invalid_persisted_tab_keeps_no_history_home(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = config_center_state._admin_center_last_tab_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("missing\n")
+
+    def _fail_create(_self: ConfigCenterModal, _tab: CenterTab) -> _StubPane:
+        raise AssertionError("invalid persisted state must not construct a pane")
+
+    monkeypatch.setattr(ConfigCenterModal, "_create_pane", _fail_create)
+    async with AcePage() as page:
+        assert page.app._last_admin_center_tab is None
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+        hint = modal.query_one("#admin-center-home-hint", Static).render().plain
+        assert "resumes after your first section visit" in hint
+
+        await page.press("number_sign")
+        await page.pause()
+        assert modal._active_tab is None
+        assert modal._panes == {}
+
+
+async def test_blocked_write_keeps_navigation_responsive_and_persists_latest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_stub_panes(monkeypatch)
+    started = threading.Event()
+    release = threading.Event()
+    writes: list[CenterTab] = []
+
+    async with AcePage() as page:
+
+        def _save(tab: CenterTab) -> None:
+            started.set()
+            assert release.wait(5.0)
+            writes.append(tab)
+
+        page.app._save_admin_center_tab_now = _save  # type: ignore[method-assign]
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+
+        await page.press("2")
+        await page.wait_for(lambda _state: modal._active_tab == "logs")
+        assert await asyncio.wait_for(
+            asyncio.to_thread(started.wait, 1.0),
+            timeout=1.5,
+        )
+        try:
+            await page.press("5")
+            await page.wait_for(lambda _state: modal._active_tab == "tasks")
+            await page.press("6")
+            await page.wait_for(lambda _state: modal._active_tab == "updates")
+            assert page.app._last_admin_center_tab == "updates"
+            assert writes == []
+        finally:
+            release.set()
+
+        await page.wait_for(
+            lambda _state: (
+                page.app._admin_center_tab_completed_generation
+                == page.app._admin_center_tab_save_generation
+            )
+        )
+
+    assert writes == ["logs", "updates"]
+
+
+async def test_write_failure_is_nonfatal_and_same_tab_can_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_stub_panes(monkeypatch)
+    attempts: list[CenterTab] = []
+
+    async with AcePage() as page:
+
+        def _save(tab: CenterTab) -> None:
+            attempts.append(tab)
+            if len(attempts) == 1:
+                raise OSError("synthetic write failure")
+            save_admin_center_last_tab(tab)
+
+        page.app._save_admin_center_tab_now = _save  # type: ignore[method-assign]
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        first = page.app.screen
+        assert isinstance(first, ConfigCenterModal)
+        await page.press("2")
+        await page.wait_for(lambda _state: first._active_tab == "logs")
+        await page.wait_for(
+            lambda _state: page.app._admin_center_tab_completed_generation == 1
+        )
+        assert page.app._last_admin_center_tab == "logs"
+        assert page.app._admin_center_tab_queued is None
+
+        await page.press("escape")
+        await page.expect_no_modal()
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        second = page.app.screen
+        assert isinstance(second, ConfigCenterModal)
+        await page.press("2")
+        await page.wait_for(lambda _state: second._active_tab == "logs")
+        await page.wait_for(
+            lambda _state: page.app._admin_center_tab_completed_generation == 2
+        )
+
+        assert attempts == ["logs", "logs"]
+        assert load_admin_center_last_tab() == "logs"
 
 
 async def test_failed_resume_retains_prior_target_and_remains_retryable(

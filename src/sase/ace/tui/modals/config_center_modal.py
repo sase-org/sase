@@ -1,11 +1,12 @@
 """Home-first SASE Admin Center with lazily mounted working panes.
 
 The first unqualified ``#`` action opens a lightweight landing page. Repeating
-the configured opener resumes the last section used in this ACE process. The
-seven alphabetical working tabs are otherwise created only when the user
-explicitly enters one with ``1``-``7``, ``Tab`` / ``Shift+Tab``, or the
-clickable tab strip. Mounted panes are cached for the lifetime of the modal,
-so returning to a tab preserves its selection and other pane-local state.
+the configured opener resumes the last section used in this or a previous ACE
+process. The seven alphabetical working tabs are otherwise created only when
+the user explicitly enters one with ``1``-``7``, ``Tab`` / ``Shift+Tab``, or
+the clickable tab strip. Mounted panes are cached for the lifetime of the
+modal, so returning to a tab preserves its selection and other pane-local
+state.
 
 Direct-entry actions may still pass ``initial_tab`` to open exactly one pane.
 Pane-local sub-tabs continue to use ``]`` / ``[`` where provided.
@@ -14,6 +15,8 @@ Pane-local sub-tabs continue to use ``]`` / ``[`` where provided.
 from __future__ import annotations
 
 import asyncio
+import logging
+from collections.abc import Callable
 from typing import cast
 
 from textual import on
@@ -69,6 +72,8 @@ _home_hint_text = home_hint_text
 _home_orientation_text = home_orientation_text
 _tab_description_text = tab_description_text
 
+log = logging.getLogger(__name__)
+
 
 class ConfigCenterModal(ModalScreen[CenterTab | None]):
     """Full-screen Admin Center home and lazy working-pane host."""
@@ -101,6 +106,7 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         opener_binding: str = "number_sign",
         auto_update: bool = False,
         comprehensive_provider_names: tuple[str, ...] | None = None,
+        on_tab_activated: Callable[[CenterTab], None] | None = None,
     ) -> None:
         super().__init__()
         self._project = project
@@ -108,6 +114,7 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         self._comprehensive_provider_names = comprehensive_provider_names
         self._initial_tab = validated_center_tab(initial_tab)
         self._resume_tab = validated_center_tab(resume_tab)
+        self._on_tab_activated = on_tab_activated
         self._opener_binding = (
             opener_binding
             if isinstance(opener_binding, str) and is_valid_key(opener_binding)
@@ -303,6 +310,11 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
 
             self._set_pane_active(pane, True)
             self._focus_active_pane()
+            if self._on_tab_activated is not None:
+                try:
+                    self._on_tab_activated(tab)
+                except Exception:
+                    log.exception("Admin Center tab-activation callback failed")
             return True
 
     def action_close(self) -> None:

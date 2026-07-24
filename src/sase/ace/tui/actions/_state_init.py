@@ -80,10 +80,18 @@ class StateInitMixin:
         # overwrite it here so first paint reflects the requested tab.
         self._reactive_current_tab = initial_tab  # type: ignore[attr-defined]
         # The Admin Center always opens home-first, but a repeated opener may
-        # resume the last section that was successfully active in this ACE
-        # process.  Keep only the catalog identity here; panes and their state
-        # remain scoped to one modal lifetime.
-        self._last_admin_center_tab: CenterTab | None = None
+        # resume the last section that was successfully active in this or a
+        # previous ACE process. This is one bounded read before the event loop
+        # starts; panes and their state remain scoped to one modal lifetime.
+        from ..modals.config_center_state import load_admin_center_last_tab
+
+        self._last_admin_center_tab: CenterTab | None = load_admin_center_last_tab()
+        self._admin_center_tab_durable: CenterTab | None = self._last_admin_center_tab
+        self._admin_center_tab_queued: CenterTab | None = None
+        self._admin_center_tab_save_generation = 0
+        self._admin_center_tab_completed_generation = 0
+        self._admin_center_tab_save_pending: tuple[int, CenterTab] | None = None
+        self._admin_center_tab_save_task: asyncio.Task[None] | None = None
         self._init_task_queue()  # type: ignore[attr-defined]
         self.theme = "flexoki"
         self._auto_start_axe = auto_start_axe

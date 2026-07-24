@@ -18,6 +18,7 @@ from ..modals import (
     QueryEditModal,
     WorkflowSelectModal,
 )
+from ._admin_center_persistence import AdminCenterPersistenceMixin
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
 TabName = Literal["changespecs", "agents", "axe"]
 
 
-class BaseActionsMixin:
+class BaseActionsMixin(AdminCenterPersistenceMixin):
     """Mixin providing workflow, tool, and query actions."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
@@ -578,6 +579,7 @@ class BaseActionsMixin:
                 opener_binding=opener_binding,
                 auto_update=auto_update,
                 comprehensive_provider_names=comprehensive_provider_names,
+                on_tab_activated=self._on_admin_center_tab_activated,
             ),
             self._on_config_center_dismissed,
         )
@@ -587,7 +589,9 @@ class BaseActionsMixin:
 
         active_tab = validated_center_tab(result)
         if active_tab is not None:
-            self._last_admin_center_tab = active_tab
+            # Successful activation normally records this before dismissal.
+            # Keep the result as an idempotent fallback for narrow callers.
+            self._remember_admin_center_tab(active_tab)
         refresh = getattr(self, "_schedule_updates_indicator_revalidation", None)
         if callable(refresh):
             refresh()
