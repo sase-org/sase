@@ -18,6 +18,7 @@ wins), and the active override itself when present.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import partial
 from typing import Literal, cast
@@ -193,6 +194,11 @@ class AliasView:
         return self.configured_source == "custom" and self.kind != "user"
 
     @property
+    def is_user_owned(self) -> bool:
+        """Whether this alias exists because the user defined it."""
+        return is_user_owned(self)
+
+    @property
     def references(self) -> str | None:
         """Return the immediate alias referenced by the configured value."""
         if self.configured_value is None or not self.configured_value.startswith("@"):
@@ -238,6 +244,16 @@ class BucketView:
         return len(self.members)
 
     @property
+    def is_user_owned(self) -> bool:
+        """Whether this bucket exists because the user defined it."""
+        return is_user_owned(self)
+
+    @property
+    def user_member_count(self) -> int:
+        """Return the number of user-owned aliases folded into this bucket."""
+        return sum(member.is_user_owned for member in self.members)
+
+    @property
     def override_count(self) -> int:
         """Return the number of members with an active temporary override."""
         return sum(member.is_overridden for member in self.members)
@@ -273,6 +289,76 @@ class BucketView:
         dominant = self.model_counts[0][0]
         other_count = len(self.model_counts) - 1
         return f"{dominant} +{other_count}" if other_count else dominant
+
+
+ModelsPanelRow = AliasView | BucketView
+ModelsPanelOwnership = Literal["builtin", "user"]
+
+
+@dataclass(frozen=True)
+class ModelsPanelSection:
+    """One ownership section in an ordered Models-panel row partition."""
+
+    ownership: ModelsPanelOwnership
+    rows: tuple[ModelsPanelRow, ...]
+    alias_count: int
+    bucket_count: int
+
+    @property
+    def is_user_owned(self) -> bool:
+        """Whether this is the user-owned section."""
+        return self.ownership == "user"
+
+
+def is_user_owned(row: ModelsPanelRow) -> bool:
+    """Return the centralized Models-panel ownership classification for *row*.
+
+    Alias ownership follows the semantic alias kind, never its config-map
+    location. Bucket ownership follows whether the bucket name is part of the
+    built-in display contract.
+    """
+    if isinstance(row, AliasView):
+        return row.kind == "user"
+    return row.name not in BUILTIN_MODEL_ALIAS_BUCKET_NAMES
+
+
+def _section(
+    ownership: ModelsPanelOwnership,
+    rows: Iterable[ModelsPanelRow],
+) -> ModelsPanelSection:
+    """Build count metadata for one already-partitioned row sequence."""
+    ordered = tuple(rows)
+    return ModelsPanelSection(
+        ownership=ownership,
+        rows=ordered,
+        alias_count=sum(
+            row.alias_count if isinstance(row, BucketView) else 1 for row in ordered
+        ),
+        bucket_count=sum(isinstance(row, BucketView) for row in ordered),
+    )
+
+
+def split_models_panel_rows(
+    rows: Iterable[ModelsPanelRow],
+) -> tuple[ModelsPanelSection, ModelsPanelSection]:
+    """Partition ordered panel rows into built-in and user-owned sections.
+
+    Relative order is preserved within both sections. The current Models-panel
+    order already places user-owned rows last, so concatenating the returned
+    row tuples reproduces the input exactly.
+    """
+    builtin: list[ModelsPanelRow] = []
+    user: list[ModelsPanelRow] = []
+    for row in rows:
+        (user if is_user_owned(row) else builtin).append(row)
+    return _section("builtin", builtin), _section("user", user)
+
+
+def split_bucket_members(
+    bucket: BucketView,
+) -> tuple[ModelsPanelSection, ModelsPanelSection]:
+    """Return the ownership split for the ordered members of *bucket*."""
+    return split_models_panel_rows(bucket.members)
 
 
 def _alias_kind(name: str) -> AliasKind:

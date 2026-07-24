@@ -118,6 +118,7 @@ async def test_panel_description_strip_updates_on_highlight(monkeypatch) -> None
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+        assert panel._highlighted_row_id() == "default"
         description = panel.query_one("#models-panel-description", Static)
         assert "Default model." in description.content.plain
         await pilot.press("j")
@@ -176,7 +177,8 @@ async def test_panel_warns_once_and_keeps_bucket_warning_through_refresh(
 
         await pilot.press("j")
         option_list = panel.query_one("#models-panel-list", OptionList)
-        bucket_row = option_list.get_option_at_index(1).prompt.plain
+        bucket_index = option_list.get_option_index("bucket:coders")
+        bucket_row = option_list.get_option_at_index(bucket_index).prompt.plain
         assert "▸ ! bucket" in bucket_row
         assert "! 2 misplaced" in bucket_row
         assert "1 override" in bucket_row
@@ -188,17 +190,20 @@ async def test_panel_warns_once_and_keeps_bucket_warning_through_refresh(
         await pilot.press("l")
         await pilot.pause()
         coder_row = option_list.get_option_at_index(0).prompt.plain
-        assert coder_row.startswith("! role")
+        assert coder_row.startswith("  ! role")
         assert "override · 1h left" in coder_row
 
         panel._refresh_rows(keep="coder")
         await pilot.pause()
-        assert option_list.get_option_at_index(0).prompt.plain.startswith("! role")
+        assert option_list.get_option_at_index(0).prompt.plain.startswith("  ! role")
         panel.notify.assert_called_once()
 
         await pilot.press("h")
         await pilot.pause()
-        assert "▸ ! bucket" in option_list.get_option_at_index(1).prompt.plain
+        bucket_index = option_list.get_option_index("bucket:coders")
+        assert (
+            "▸ ! bucket" in option_list.get_option_at_index(bucket_index).prompt.plain
+        )
         panel.notify.assert_called_once()
 
         views[:] = [
@@ -221,7 +226,10 @@ async def test_panel_warns_once_and_keeps_bucket_warning_through_refresh(
         ]
         panel._refresh_rows(keep="bucket:coders")
         await pilot.pause()
-        repaired_bucket_row = option_list.get_option_at_index(1).prompt.plain
+        repaired_bucket_index = option_list.get_option_index("bucket:coders")
+        repaired_bucket_row = option_list.get_option_at_index(
+            repaired_bucket_index
+        ).prompt.plain
         assert "!" not in repaired_bucket_row
         assert "override · 1 active" in repaired_bucket_row
         panel.notify.assert_called_once()
@@ -253,7 +261,7 @@ async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> 
         assert panel._active_bucket == "research"
         assert panel._highlighted_row_id() == "research_a"
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models › research\ndefault effort: provider default"
+            "Models › ▌ research · your bucket\ndefault effort: provider default"
             "\nmax running agents: 10"
         )
         assert "h" in str(panel.query_one("#models-panel-footer", Static).content)
@@ -414,7 +422,132 @@ async def test_refresh_auto_leaves_bucket_when_last_member_disappears(
         assert panel.query_one("#models-panel-title", Static).content.plain == (
             "Models\ndefault effort: provider default\nmax running agents: 10"
         )
-        assert panel.query_one("#models-panel-list", OptionList).option_count == 3
+        assert panel.query_one("#models-panel-list", OptionList).option_count == 5
+
+
+async def test_panel_navigation_skips_headers_and_empty_hint_with_wrap(
+    monkeypatch,
+) -> None:
+    views = [
+        make_alias_view("default", "default"),
+        make_alias_view(
+            "researcher",
+            "user",
+            configured=True,
+            configured_source="custom",
+        ),
+    ]
+    patch_alias_views(monkeypatch, views)
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        option_list = panel.query_one("#models-panel-list", OptionList)
+
+        assert panel._highlighted_row_id() == "default"
+        assert option_list.get_option_at_index(0).disabled is True
+        assert option_list.get_option_at_index(2).disabled is True
+        assert set(panel._row_by_id) == {"default", "researcher"}
+
+        await pilot.press("j")
+        assert panel._highlighted_row_id() == "researcher"
+        await pilot.press("j")
+        assert panel._highlighted_row_id() == "default"
+        await pilot.press("k")
+        assert panel._highlighted_row_id() == "researcher"
+
+        views[:] = [make_alias_view("default", "default")]
+        panel._refresh_rows(keep="default")
+        await pilot.pause()
+        assert option_list.option_count == 4
+        assert option_list.get_option_at_index(3).disabled is True
+        assert "llm_provider.model_aliases.custom" in (
+            option_list.get_option_at_index(3).prompt.plain
+        )
+
+        await pilot.press("j", "k")
+        assert panel._highlighted_row_id() == "default"
+
+
+async def test_panel_decorative_option_ids_never_resolve_to_actions(
+    monkeypatch,
+) -> None:
+    patch_alias_views(monkeypatch, [make_alias_view("default", "default")])
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        option_list = panel.query_one("#models-panel-list", OptionList)
+
+        decorative_ids = [
+            str(option_list.get_option_at_index(index).id) for index in (0, 2, 3)
+        ]
+        assert all(row_id not in panel._row_by_id for row_id in decorative_ids)
+
+        for row_id in decorative_ids:
+            monkeypatch.setattr(
+                panel, "_highlighted_row_id", lambda row_id=row_id: row_id
+            )
+            assert panel._selected_row() is None
+            panel.action_enter_bucket()
+            panel.action_override()
+            panel.action_clear()
+            panel.action_edit()
+            panel.action_reset()
+
+        assert pilot.app.screen is panel
+        panel.notify.assert_not_called()
+
+
+async def test_panel_mixed_bucket_sections_title_and_restore(monkeypatch) -> None:
+    views = [
+        make_alias_view("default", "default"),
+        make_alias_view("coder", "role"),
+        make_alias_view(
+            "pair_programmer",
+            "user",
+            configured=True,
+            configured_source="custom",
+            bucket="coders",
+        ),
+    ]
+    patch_alias_views(monkeypatch, views)
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        await pilot.press("j", "l")
+        await pilot.pause()
+
+        option_list = panel.query_one("#models-panel-list", OptionList)
+        assert panel._active_bucket == "coders"
+        assert panel._highlighted_row_id() == "coder"
+        assert option_list.option_count == 4
+        assert option_list.get_option_at_index(0).disabled is True
+        assert option_list.get_option_at_index(2).disabled is True
+        assert panel.query_one("#models-panel-title", Static).content.plain == (
+            "Models › coders · built-in bucket"
+            "\ndefault effort: provider default"
+            "\nmax running agents: 10"
+        )
+
+        await pilot.press("j")
+        assert panel._highlighted_row_id() == "pair_programmer"
+        panel._refresh_rows(keep="pair_programmer")
+        await pilot.pause()
+        assert panel._highlighted_row_id() == "pair_programmer"
+        await pilot.press("j")
+        assert panel._highlighted_row_id() == "coder"
+        await pilot.press("k")
+        assert panel._highlighted_row_id() == "pair_programmer"
+
+        await pilot.press("h")
+        await pilot.pause()
+        assert panel._highlighted_row_id() == "bucket:coders"
 
 
 async def test_panel_title_shows_configured_default_effort(monkeypatch) -> None:

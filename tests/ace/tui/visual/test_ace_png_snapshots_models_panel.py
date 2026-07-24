@@ -9,6 +9,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import ModelsPanel
 from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
     FROZEN_NOW,
+    builtin_only_views,
     calm_views,
     custom_builtin_warning_views,
     effort_snapshot,
@@ -26,6 +27,31 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+async def test_models_panel_empty_yours_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        models_panel, "build_alias_views", lambda *a, **k: builtin_only_views()
+    )
+    monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(ModelsPanel())
+        await page.expect_modal("ModelsPanel")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_empty_yours_120x40",
+            title="ACE models panel (empty Yours section)",
+        )
 
 
 async def test_models_panel_default_png_snapshot(

@@ -10,8 +10,8 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import ModelsPanel
 from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
     FROZEN_NOW,
-    bucket_views,
     calm_views,
+    ownership_views,
     override_views,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -123,7 +123,7 @@ async def test_models_panel_bucket_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(
-        models_panel, "build_alias_views", lambda *a, **k: bucket_views()
+        models_panel, "build_alias_views", lambda *a, **k: ownership_views()
     )
     monkeypatch.setattr(
         "sase.llm_provider.alias_view.model_alias_bucket_description",
@@ -153,7 +153,7 @@ async def test_models_panel_bucket_drilled_in_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(
-        models_panel, "build_alias_views", lambda *a, **k: bucket_views()
+        models_panel, "build_alias_views", lambda *a, **k: ownership_views()
     )
     monkeypatch.setattr(
         "sase.llm_provider.alias_view.model_alias_bucket_description",
@@ -174,4 +174,30 @@ async def test_models_panel_bucket_drilled_in_png_snapshot(
             page,
             "models_panel_bucket_drilled_in_120x40",
             title="ACE models panel (bucket open)",
+        )
+
+
+async def test_models_panel_mixed_builtin_bucket_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        models_panel, "build_alias_views", lambda *a, **k: ownership_views()
+    )
+    monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("4")
+        await page.expect_state("artifacts_subtab", "prs")
+        page.app.push_screen(ModelsPanel())
+        await page.expect_modal("ModelsPanel")
+        await page.press("j", "l")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_mixed_builtin_bucket_120x40",
+            title="ACE models panel (mixed built-in bucket open)",
         )

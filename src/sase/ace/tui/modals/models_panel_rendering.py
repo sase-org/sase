@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from rich.text import Text
 
 from sase.ace.tui.provider_styles import provider_model_badge_markup
-from sase.llm_provider import AliasView, BucketView
+from sase.llm_provider import AliasView, BucketView, ModelsPanelSection
 from sase.llm_provider.config import DEFAULT_MODEL_ALIAS_NAME
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
 
@@ -15,6 +15,7 @@ from .models_panel_duration import format_remaining
 
 _KIND_CELL = 13
 _NAME_CELL = 22
+_OWNERSHIP_GUTTER_CELL = 2
 
 # The provider/model badge is treated as its own column so the rightmost
 # state/provenance tag lines up across rows. The column is sized to the widest
@@ -33,11 +34,13 @@ _KIND_LABELS: dict[str, str] = {
     "user": "user",
 }
 
+OWNERSHIP_ACCENT = "#D7AF87"
+
 _KIND_STYLES: dict[str, str] = {
     "default": "bold #87D7FF",
     "role": "bold #87D7AF",
     "provider_coder": "bold #AFAFFF",
-    "user": "bold #D7AF87",
+    "user": f"bold {OWNERSHIP_ACCENT}",
 }
 
 _OVERRIDE_TAG_STYLE = "bold #AF87FF"
@@ -53,6 +56,8 @@ _EFFORT_CONNECTIVE_STYLE = "#878787"
 _EFFORT_LEVEL_STYLE = "bold #AF87FF"
 _POOL_AVAILABLE_STYLE = "#87D787"
 _POOL_UNAVAILABLE_STYLE = "#D78787"
+_OWNERSHIP_STYLE = f"bold {OWNERSHIP_ACCENT}"
+_BUILTIN_SECTION_STYLE = "bold #87D7FF"
 
 _CUSTOM_ALIASES_PATH = "llm_provider.model_aliases.custom"
 _BUILTIN_ALIASES_PATH = "llm_provider.model_aliases.builtin"
@@ -63,6 +68,61 @@ def _pad(value: str, width: int) -> str:
     if len(value) > width:
         return value[: max(0, width - 1)] + "…"
     return value.ljust(width)
+
+
+def _append_ownership_gutter(text: Text, *, user_owned: bool) -> None:
+    """Append the fixed-width ownership gutter to *text*."""
+    if user_owned:
+        text.append("▌", style=_OWNERSHIP_STYLE)
+        text.append(" ")
+    else:
+        text.append(" " * _OWNERSHIP_GUTTER_CELL)
+
+
+def _count_label(count: int, singular: str) -> str:
+    """Return a correctly singularized count label."""
+    noun = (
+        singular if count == 1 else "aliases" if singular == "alias" else f"{singular}s"
+    )
+    return f"{count} {noun}"
+
+
+def _section_count_label(section: ModelsPanelSection) -> str:
+    """Return the state-column count label for a section header."""
+    label = _count_label(section.alias_count, "alias")
+    if section.bucket_count:
+        label += f" · {_count_label(section.bucket_count, 'bucket')}"
+    return label
+
+
+def render_section_header(
+    section: ModelsPanelSection,
+    *,
+    provider_model_width: int,
+) -> Text:
+    """Render a disabled section header on the same grid as data rows."""
+    text = Text(no_wrap=True, overflow="ellipsis")
+    _append_ownership_gutter(text, user_owned=section.is_user_owned)
+    label = "Yours" if section.is_user_owned else "Built-in"
+    rule_width = _KIND_CELL + 1 + _NAME_CELL + 1 + provider_model_width
+    rule_label = f"── {label} "
+    rule = rule_label + ("─" * max(0, rule_width - len(rule_label)))
+    rule_style = _OWNERSHIP_STYLE if section.is_user_owned else _BUILTIN_SECTION_STYLE
+    text.append(_pad(rule, rule_width), style=rule_style)
+    text.append(_STATE_GAP)
+    text.append(_section_count_label(section), style="dim")
+    return text
+
+
+def render_empty_yours_hint() -> Text:
+    """Render the disabled hint shown when the user section has no rows."""
+    text = Text(no_wrap=True, overflow="ellipsis")
+    _append_ownership_gutter(text, user_owned=False)
+    text.append(
+        f"No custom aliases · declare them under {_CUSTOM_ALIASES_PATH}",
+        style="dim italic",
+    )
+    return text
 
 
 def kind_label(view: AliasView) -> str:
@@ -181,7 +241,7 @@ def provider_model_column_width(views: Iterable[AliasView]) -> int:
 def render_alias_row(view: AliasView, *, now: float, provider_model_width: int) -> Text:
     """Render one alias row as a single-line Rich ``Text``.
 
-    Layout: ``<kind badge> <alias name> <PROVIDER(model) badge> <state tag>``.
+    Layout: ``<ownership> <kind> <name> <PROVIDER(model)> <state>``.
     The provider/model badge is fitted to *provider_model_width* - padded when
     short and ellipsized when it exceeds the cap - so the rightmost state tag
     starts at the same cell across every row. Building a ``Text`` (rather than
@@ -189,6 +249,7 @@ def render_alias_row(view: AliasView, *, now: float, provider_model_width: int) 
     config value can never break rendering.
     """
     text = Text(no_wrap=True, overflow="ellipsis")
+    _append_ownership_gutter(text, user_owned=view.is_user_owned)
     kind = kind_label(view)
     if view.is_custom_builtin_shadow:
         text.append(_pad(f"! {kind}", _KIND_CELL), style=_WARNING_STYLE)
@@ -208,15 +269,21 @@ def render_alias_row(view: AliasView, *, now: float, provider_model_width: int) 
 def render_bucket_row(bucket: BucketView, *, provider_model_width: int) -> Text:
     """Render one collapsed bucket using the alias-row column skeleton."""
     text = Text(no_wrap=True, overflow="ellipsis")
+    _append_ownership_gutter(text, user_owned=bucket.is_user_owned)
     bucket_label = "▸ ! bucket" if bucket.custom_builtin_shadow_count else "▸ bucket"
     bucket_style = (
-        _WARNING_STYLE if bucket.custom_builtin_shadow_count else _BUCKET_STYLE
+        _WARNING_STYLE
+        if bucket.custom_builtin_shadow_count
+        else _OWNERSHIP_STYLE
+        if bucket.is_user_owned
+        else _BUCKET_STYLE
     )
     text.append(_pad(bucket_label, _KIND_CELL), style=bucket_style)
     text.append(" ")
-    text.append(_pad(bucket.name, _NAME_CELL), style="bold")
+    name_style = _OWNERSHIP_STYLE if bucket.is_user_owned else "bold"
+    text.append(_pad(bucket.name, _NAME_CELL), style=name_style)
     text.append(" ")
-    count_label = f"{bucket.alias_count} aliases"
+    count_label = _count_label(bucket.alias_count, "alias")
     text.append(_pad(count_label, provider_model_width), style="dim")
     text.append(_STATE_GAP)
     if bucket.custom_builtin_shadow_count:
@@ -233,7 +300,16 @@ def render_bucket_row(bucket: BucketView, *, provider_model_width: int) -> Text:
             f"override · {bucket.override_count} active", style=_OVERRIDE_TAG_STYLE
         )
     else:
-        text.append("bucket", style=_BUCKET_DIM_STYLE)
+        bucket_state_style = (
+            _OWNERSHIP_STYLE if bucket.is_user_owned else _BUCKET_DIM_STYLE
+        )
+        text.append("bucket", style=bucket_state_style)
+    if not bucket.is_user_owned and bucket.user_member_count:
+        text.append(" · ", style=_IMPLICIT_TAG_STYLE)
+        text.append(
+            f"{bucket.user_member_count} yours",
+            style=_OWNERSHIP_STYLE,
+        )
     return text
 
 

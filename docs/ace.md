@@ -1429,10 +1429,15 @@ shows the launch-effective default effort. With no temporary override it says `d
 `provider default`; with an active override it shows that `@<level>`, its remaining time, and the configured value
 beside it. The third line shows the effective `max running agents` global cap; an active temporary cap shows its
 remaining time and configured value on the same line. An explicit effort suffix inherited from an alias target appears
-beside that row's model badge; rows that simply inherit the header default omit the redundant suffix. The top level is
-sorted deterministically: `default`, the built-in `coders` bucket, `epic_lander`, `big_epic_lander`, the built-in
+beside that row's model badge; rows that simply inherit the header default omit the redundant suffix.
+
+The top level is split into **Built-in** and **Yours** sections. Each header reports the aliases represented by its rows
+(including members of collapsed buckets) and its bucket count. This sectioning groups the existing deterministic order
+without changing it: `default`, the built-in `coders` bucket, `epic_lander`, `big_epic_lander`, the built-in
 `phase_worker` bucket, `smartest`, `smart`, `cheap`, `cheaper`, `cheapest`, then custom buckets and ungrouped user
-aliases in alphabetical order.
+aliases in alphabetical order. Every user-defined alias and bucket has a tan `▌` ownership gutter, and the **Yours**
+header carries the same glyph. If there are no custom aliases or buckets, the **Yours** section remains visible with a
+non-selectable hint naming `llm_provider.model_aliases.custom`.
 
 Two built-in buckets are always present. `coders` groups `coder` first and every registered `<provider>_coder` alias
 alphabetically. `phase_worker` groups `xsmall_phase_worker`, `small_phase_worker`, `medium_phase_worker`,
@@ -1441,7 +1446,11 @@ collapsed row reports the member count and active overrides, while the descripti
 models. Open any bucket with `l`, Right, or Enter; return with `h` or Left. Inside either bucket, each alias keeps its
 own configured/implicit state and can be edited, reset, overridden, or cleared independently. Configured descriptions
 under `model_aliases.buckets.coders` and `model_aliases.buckets.phase_worker` replace the defaults; custom aliases
-tagged with either bucket name coalesce into the matching row.
+tagged with either bucket name coalesce into the matching row. A built-in bucket containing custom members appends a tan
+`· <n> yours` chip after its warning and override chips. A custom bucket renders its bucket state in the ownership
+accent. The drilled-in title ends with `· built-in bucket` or, for a custom bucket, `· your bucket` plus the ownership
+glyph. A mixed built-in bucket shows **Built-in** and **Yours** headers around its members; homogeneous buckets omit
+those redundant headers.
 
 The two-line strip below the list explains the highlighted alias. Builtin aliases use fixed descriptions. User aliases
 use `llm_provider.model_aliases.custom.<name>.description`; a malformed user alias without one shows that config path as
@@ -1458,7 +1467,8 @@ warning toast listing every affected `@alias`. A gold warning glyph remains on e
 temporary override is active; a collapsed bucket containing affected members keeps the glyph and reports their count.
 Highlighting either the alias or its bucket replaces the normal description with the same actionable advice. Move each
 entry's `model` value from `llm_provider.model_aliases.custom` to `llm_provider.model_aliases.builtin`; ACE identifies
-the misplaced entry but does not rewrite the configuration automatically.
+the misplaced entry but does not rewrite the configuration automatically. Because ownership follows the alias kind, the
+misplaced alias stays in the **Built-in** section and does not receive the ownership gutter.
 
 Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlighted alias:
 

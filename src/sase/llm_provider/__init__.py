@@ -13,10 +13,16 @@ from .alias_view import (
     BucketView,
     CODERS_BUCKET_DESCRIPTION,
     CODERS_BUCKET_NAME,
+    ModelsPanelOwnership,
+    ModelsPanelRow,
+    ModelsPanelSection,
     PHASE_WORKER_BUCKET_DESCRIPTION,
     PHASE_WORKER_BUCKET_NAME,
     build_alias_views,
     build_models_panel_rows,
+    is_user_owned,
+    split_bucket_members,
+    split_models_panel_rows,
 )
 from .base import LLMProvider
 from .config import (
@@ -93,6 +99,9 @@ __all__ = [
     "MessageContent",
     "ModelTier",
     "ModelAliasConfigSource",
+    "ModelsPanelOwnership",
+    "ModelsPanelRow",
+    "ModelsPanelSection",
     "PreprocessResult",
     "ProviderRetryConfig",
     "RetryState",
@@ -115,6 +124,7 @@ __all__ = [
     "get_retry_config",
     "get_wait_time",
     "invoke_agent",
+    "is_user_owned",
     "is_retryable_error",
     "log_prompt_and_response",
     "model_alias_config_source",
@@ -133,5 +143,7 @@ __all__ = [
     "set_effort_override",
     "set_effort_override_until",
     "set_temporary_override",
+    "split_bucket_members",
+    "split_models_panel_rows",
     "stream_process_output",
 ]

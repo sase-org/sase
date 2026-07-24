@@ -21,11 +21,15 @@ from sase.ace.tui.modals.models_panel_duration import (
     RelativeOverrideDuration,
 )
 from sase.ace.tui.modals.models_panel_rendering import (
+    OWNERSHIP_ACCENT,
     custom_builtin_shadow_warning_message,
     description_text_for_row,
+    render_empty_yours_hint,
     render_bucket_row,
+    render_section_header,
+    _section_count_label,
 )
-from sase.llm_provider import BucketView
+from sase.llm_provider import BucketView, ModelsPanelSection
 from sase.llm_provider.config import ModelAliasSelectorMember
 from tests._models_panel_helpers import make_alias_view, make_override
 
@@ -189,9 +193,9 @@ def test_custom_builtin_warning_survives_active_override() -> None:
     ).plain
     description = _description_text_for_view(view).plain
 
-    assert line.startswith("! role")
+    assert line.startswith("  ! role")
     assert "configured → @default" in line
-    assert override_line.startswith("! role")
+    assert override_line.startswith("  ! role")
     assert "override · 1h left" in override_line
     assert description.splitlines() == [
         "! Misplaced builtin alias: @coder",
@@ -264,6 +268,61 @@ def test_render_alias_row_contains_name_provider_and_state() -> None:
     assert "medium_phase_worker" in line
     assert "CODEX(o3)" in line
     assert "implicit" in line
+
+
+def test_render_alias_row_ownership_gutter_is_semantic() -> None:
+    builtin = make_alias_view(
+        "smart",
+        "role",
+        configured=True,
+        configured_source="custom",
+    )
+    user = make_alias_view(
+        "researcher",
+        "user",
+        configured=True,
+        configured_source="builtin",
+    )
+
+    builtin_line = _render_alias_row(builtin, now=0.0, provider_model_width=12).plain
+    user_line = _render_alias_row(user, now=0.0, provider_model_width=12).plain
+
+    assert builtin_line.startswith("  ! role")
+    assert not builtin_line.startswith("▌")
+    assert user_line.startswith("▌ user")
+
+
+def test_render_section_header_aligns_counts_with_row_state_column() -> None:
+    view = make_alias_view(
+        "researcher",
+        "user",
+        configured=True,
+        provider="codex",
+        model="gpt-5.6-sol",
+    )
+    width = _provider_model_column_width([view])
+    section = ModelsPanelSection("user", (view,), alias_count=1, bucket_count=0)
+
+    header = render_section_header(section, provider_model_width=width).plain
+    row = _render_alias_row(view, now=0.0, provider_model_width=width).plain
+
+    assert header.startswith("▌ ── Yours ")
+    assert header.index("1 alias") == row.index("configured")
+
+
+def test_section_count_label_singularizes_and_omits_zero_buckets() -> None:
+    one = ModelsPanelSection("builtin", (), alias_count=1, bucket_count=0)
+    many = ModelsPanelSection("user", (), alias_count=3, bucket_count=1)
+
+    assert _section_count_label(one) == "1 alias"
+    assert _section_count_label(many) == "3 aliases · 1 bucket"
+
+
+def test_empty_yours_hint_names_custom_config_path() -> None:
+    hint = render_empty_yours_hint().plain
+
+    assert hint.startswith("  No custom aliases")
+    assert "llm_provider.model_aliases.custom" in hint
 
 
 def test_render_alias_row_includes_effort_in_measured_badge() -> None:
@@ -602,6 +661,46 @@ def test_render_bucket_row_and_description_surface_custom_builtin_warnings() -> 
         "Move its model value from llm_provider.model_aliases.custom to "
         "llm_provider.model_aliases.builtin.",
     ]
+
+
+def test_render_builtin_bucket_appends_yours_after_warning_and_override() -> None:
+    bucket = BucketView(
+        name="coders",
+        description="Coder roles.",
+        members=(
+            make_alias_view(
+                "coder",
+                "role",
+                configured=True,
+                configured_source="custom",
+                override=make_override(),
+            ),
+            make_alias_view("pair_programmer", "user", bucket="coders"),
+        ),
+    )
+
+    line = render_bucket_row(bucket, provider_model_width=13).plain
+
+    assert line.startswith("  ▸ ! bucket")
+    assert line.endswith("! 1 misplaced · 1 override · 1 yours")
+
+
+def test_render_user_bucket_uses_ownership_gutter_and_accent() -> None:
+    bucket = BucketView(
+        name="research",
+        description="Research roles.",
+        members=(make_alias_view("researcher", "user", bucket="research"),),
+    )
+
+    rendered = render_bucket_row(bucket, provider_model_width=13)
+    bucket_state = [
+        span
+        for span in rendered.spans
+        if rendered.plain[span.start : span.end] == "bucket"
+    ][-1]
+
+    assert rendered.plain.startswith("▌ ▸ bucket")
+    assert OWNERSHIP_ACCENT.lower() in str(bucket_state.style).lower()
 
 
 def test_description_text_for_bucket_shows_description_and_model_mix() -> None:

@@ -10,15 +10,24 @@ from textual.containers import Container
 from textual.widgets import OptionList, Static
 from textual.widgets._option_list import Option
 
-from sase.llm_provider import AliasView, BucketView
+from sase.llm_provider import (
+    AliasView,
+    BucketView,
+    ModelsPanelSection,
+    split_bucket_members,
+    split_models_panel_rows,
+)
 
 from .models_panel_effort_rendering import append_default_effort_title
 from .models_panel_rendering import (
+    OWNERSHIP_ACCENT,
     custom_builtin_shadow_warning_message,
     description_text_for_row,
     provider_model_column_width,
     render_alias_row,
     render_bucket_row,
+    render_empty_yours_hint,
+    render_section_header,
 )
 from .models_panel_runner_limit_rendering import append_runner_limit_title
 from .models_panel_types import ModelsPanelResult
@@ -27,6 +36,9 @@ if TYPE_CHECKING:
     from textual.screen import ModalScreen as _MixinBase
 else:
     _MixinBase = object
+
+_SECTION_ID_PREFIX = "__models-section__:"
+_HINT_ID_PREFIX = "__models-hint__:"
 
 
 class ModelsPanelDisplayMixin(_MixinBase):
@@ -80,8 +92,11 @@ class ModelsPanelDisplayMixin(_MixinBase):
     def on_mount(self) -> None:
         option_list = self.query_one("#models-panel-list", OptionList)
         option_list.focus()
-        if option_list.option_count and option_list.highlighted is None:
-            self._set_highlighted_index(option_list, 0)
+        highlighted = option_list.highlighted
+        if highlighted is None or self._option_is_disabled(option_list, highlighted):
+            self._set_highlighted_index(
+                option_list, self._first_enabled_option_index(option_list)
+            )
         self._update_context()
         self._emit_custom_builtin_shadow_warning()
         self._start_effort_snapshot_load()
@@ -132,7 +147,14 @@ class ModelsPanelDisplayMixin(_MixinBase):
         text = Text("Models", style="bold cyan")
         if self._active_bucket is not None:
             text.append(" › ", style="dim")
-            text.append(self._active_bucket, style="bold #FFD787")
+            bucket = self._bucket_by_name.get(self._active_bucket)
+            if bucket is not None and bucket.is_user_owned:
+                text.append("▌ ", style=f"bold {OWNERSHIP_ACCENT}")
+                text.append(bucket.name, style=f"bold {OWNERSHIP_ACCENT}")
+                text.append(" · your bucket", style="dim")
+            else:
+                text.append(self._active_bucket, style="bold #FFD787")
+                text.append(" · built-in bucket", style="dim")
         text.append("\n")
         append_default_effort_title(
             text,
@@ -172,6 +194,21 @@ class ModelsPanelDisplayMixin(_MixinBase):
         bucket = self._bucket_by_name.get(self._active_bucket)
         return list(bucket.members) if bucket is not None else []
 
+    def _current_sections(
+        self, rows: list[AliasView | BucketView]
+    ) -> tuple[tuple[ModelsPanelSection, ...], bool]:
+        """Return current ownership sections and whether to show their headers."""
+        if self._active_bucket is None:
+            builtin, user = split_models_panel_rows(rows)
+            return (builtin, user), True
+        bucket = self._bucket_by_name.get(self._active_bucket)
+        if bucket is None:
+            return (), False
+        builtin, user = split_bucket_members(bucket)
+        if builtin.rows and user.rows:
+            return (builtin, user), True
+        return ((builtin,) if builtin.rows else (user,)), False
+
     def _render_current_options(self) -> list[Option]:
         rows = self._current_rows()
         alias_rows = [row for row in rows if isinstance(row, AliasView)]
@@ -179,18 +216,60 @@ class ModelsPanelDisplayMixin(_MixinBase):
         now = self._models_panel_now()
         self._row_by_id = {self._row_id(row): row for row in rows}
         options: list[Option] = []
-        for row in rows:
-            row_id = self._row_id(row)
-            if isinstance(row, BucketView):
-                prompt = render_bucket_row(
-                    row, provider_model_width=provider_model_width
+        sections, show_headers = self._current_sections(rows)
+        for section in sections:
+            if show_headers:
+                options.append(
+                    Option(
+                        render_section_header(
+                            section,
+                            provider_model_width=provider_model_width,
+                        ),
+                        id=f"{_SECTION_ID_PREFIX}{section.ownership}",
+                        disabled=True,
+                    )
                 )
-            else:
-                prompt = render_alias_row(
-                    row, now=now, provider_model_width=provider_model_width
+            for row in section.rows:
+                row_id = self._row_id(row)
+                if isinstance(row, BucketView):
+                    prompt = render_bucket_row(
+                        row, provider_model_width=provider_model_width
+                    )
+                else:
+                    prompt = render_alias_row(
+                        row, now=now, provider_model_width=provider_model_width
+                    )
+                options.append(Option(prompt, id=row_id))
+            if (
+                show_headers
+                and self._active_bucket is None
+                and section.is_user_owned
+                and not section.rows
+            ):
+                options.append(
+                    Option(
+                        render_empty_yours_hint(),
+                        id=f"{_HINT_ID_PREFIX}empty-yours",
+                        disabled=True,
+                    )
                 )
-            options.append(Option(prompt, id=row_id))
         return options
+
+    @staticmethod
+    def _option_is_disabled(option_list: OptionList, index: int) -> bool:
+        """Return whether the option at *index* is disabled."""
+        try:
+            return option_list.get_option_at_index(index).disabled
+        except Exception:
+            return True
+
+    @classmethod
+    def _first_enabled_option_index(cls, option_list: OptionList) -> int | None:
+        """Return the first actionable option index, if one exists."""
+        for index in range(option_list.option_count):
+            if not cls._option_is_disabled(option_list, index):
+                return index
+        return None
 
     def _set_highlighted_index(
         self, option_list: OptionList, index: int | None
@@ -214,12 +293,13 @@ class ModelsPanelDisplayMixin(_MixinBase):
         if preferred is not None:
             try:
                 index = option_list.get_option_index(preferred)
-                self._set_highlighted_index(option_list, index)
-                return
+                if not self._option_is_disabled(option_list, index):
+                    self._set_highlighted_index(option_list, index)
+                    return
             except Exception:
                 pass
         self._set_highlighted_index(
-            option_list, 0 if option_list.option_count else None
+            option_list, self._first_enabled_option_index(option_list)
         )
 
     def _refresh_rows(self, *, keep: str | None = None) -> None:

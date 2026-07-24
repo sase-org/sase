@@ -376,6 +376,29 @@ def bucket_views() -> list[AliasView]:
     ]
 
 
+def ownership_views() -> list[AliasView]:
+    """Views covering a user bucket, user row, and mixed built-in bucket."""
+    return [
+        *bucket_views(),
+        _view(
+            "pair_programmer",
+            "user",
+            configured=True,
+            configured_value="claude/opus",
+            provider="claude",
+            model="opus",
+            configured_source="custom",
+            description="Custom coder-bucket member.",
+            bucket="coders",
+        ),
+    ]
+
+
+def builtin_only_views() -> list[AliasView]:
+    """Built-in rows used to exercise the empty Yours section."""
+    return [view for view in calm_views() if view.kind != "user"]
+
+
 def pool_effort_views(*, suspended: bool = False) -> list[AliasView]:
     pool_members = (
         ModelAliasSelectorMember(
