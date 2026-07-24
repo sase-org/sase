@@ -6,7 +6,11 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets import AgentsSyncIndicator
-from sase.agents_sync.models import ProjectSyncStatus, SyncStatusSnapshot
+from sase.agents_sync.models import (
+    CapturedIncomingHood,
+    ProjectSyncStatus,
+    SyncStatusSnapshot,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -40,12 +44,51 @@ async def test_agents_sync_indicator_pending_png_snapshot(
             SyncStatusSnapshot(
                 100.0,
                 (
-                    ProjectSyncStatus("alpha", "Alpha", "ready", behind=2),
+                    ProjectSyncStatus(
+                        "alpha",
+                        "Alpha",
+                        "ready",
+                        pending_updates=(
+                            CapturedIncomingHood(
+                                "alpha",
+                                "Alpha",
+                                "refs/remotes/origin/main",
+                                "a" * 40,
+                                "alpha-foo",
+                                2,
+                                "exact",
+                                "alice",
+                                "zeus",
+                                "foo",
+                                "b" * 64,
+                                2,
+                                1,
+                                1.0,
+                            ),
+                        ),
+                    ),
                     ProjectSyncStatus(
                         "beta",
                         "Beta",
                         "ready",
-                        unexported_agents=1,
+                        pending_updates=(
+                            CapturedIncomingHood(
+                                "beta",
+                                "Beta",
+                                "refs/remotes/origin/main",
+                                "c" * 40,
+                                "beta-bar",
+                                2,
+                                "exact",
+                                "bob",
+                                "hera",
+                                "bar",
+                                "d" * 64,
+                                1,
+                                0,
+                                1.0,
+                            ),
+                        ),
                     ),
                 ),
             )

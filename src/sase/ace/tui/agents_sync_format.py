@@ -4,40 +4,27 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sase.agents_sync.models import ProjectSyncStatus, SyncOutcome
+from sase.agents_sync.models import (
+    CachedIntegrationResult,
+    CapturedIncomingHood,
+    ProjectSyncStatus,
+    SyncOutcome,
+)
 
 
 def agents_sync_status_needs_attention(status: ProjectSyncStatus) -> bool:
-    """Return whether one enabled-project status belongs in pending UI."""
-    if status.state == "disabled":
-        return False
-    if status.state != "ready":
-        return True
-    return any(
-        count is not None and count > 0
-        for count in (status.behind, status.ahead, status.unexported_agents)
+    """Return whether cached foreign hoods are waiting to be imported."""
+    return status.pending_foreign_count > 0
+
+
+def captured_agent_hood_label(item: CapturedIncomingHood) -> str:
+    """Render the explicit source owner and hood without external lookups."""
+    owner = (
+        f"{item.source_username}.{item.source_machine}"
+        if item.source_username
+        else f"unknown-user.{item.source_machine}"
     )
-
-
-def agents_sync_status_detail(status: ProjectSyncStatus) -> str:
-    """Describe one immutable status without consulting external state."""
-    if status.error:
-        return f"error: {status.error}"
-    counts: list[str] = []
-    if status.behind:
-        counts.append(f"behind {status.behind}")
-    if status.ahead:
-        counts.append(f"ahead {status.ahead}")
-    if status.unexported_agents:
-        noun = "agent" if status.unexported_agents == 1 else "agents"
-        counts.append(f"{status.unexported_agents} unexported {noun}")
-    if status.detail:
-        counts.append(status.detail)
-    if counts:
-        return ", ".join(counts)
-    if status.state == "ready":
-        return "current"
-    return status.state.replace("_", " ")
+    return f"{owner}.{item.top_hood}"
 
 
 def _agents_sync_outcome_changed(outcome: SyncOutcome) -> bool:
@@ -102,9 +89,45 @@ def summarize_agents_sync_outcomes(outcomes: Sequence[SyncOutcome]) -> str:
     return ", ".join(parts) if parts else "no enabled repositories"
 
 
+def cached_agents_result_line(result: CachedIntegrationResult) -> str:
+    """Render one immutable cached-integration outcome."""
+    item = result.captured
+    label = captured_agent_hood_label(item)
+    disposition = result.disposition.replace("_", " ")
+    details: list[str] = []
+    hoods = result.hoods_imported + result.hoods_refreshed
+    if hoods:
+        noun = "hood" if hoods == 1 else "hoods"
+        details.append(f"{hoods} {noun}")
+    if result.runs_imported:
+        noun = "run" if result.runs_imported == 1 else "runs"
+        details.append(f"{result.runs_imported} {noun}")
+    if result.families_imported:
+        noun = "family" if result.families_imported == 1 else "families"
+        details.append(f"{result.families_imported} {noun}")
+    details.extend(result.diagnostics)
+    return f"{item.project}: {label} — {disposition}" + (
+        f" ({', '.join(details)})" if details else ""
+    )
+
+
+def summarize_cached_agents_results(
+    results: Sequence[CachedIntegrationResult],
+) -> str:
+    """Return compact disposition counts for cached inbound integration."""
+    counts: dict[str, int] = {}
+    for result in results:
+        label = result.disposition.replace("_", " ")
+        counts[label] = counts.get(label, 0) + 1
+    parts = [f"{count} {label}" for label, count in counts.items()]
+    return ", ".join(parts) if parts else "no cached updates"
+
+
 __all__ = [
     "agents_sync_outcome_line",
-    "agents_sync_status_detail",
     "agents_sync_status_needs_attention",
+    "cached_agents_result_line",
+    "captured_agent_hood_label",
+    "summarize_cached_agents_results",
     "summarize_agents_sync_outcomes",
 ]

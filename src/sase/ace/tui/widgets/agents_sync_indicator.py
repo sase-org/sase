@@ -7,11 +7,15 @@ from typing import Any
 from rich.text import Text
 from textual.widgets import Static
 
-from sase.agents_sync.models import ProjectSyncStatus, SyncStatusSnapshot
+from sase.agents_sync.models import (
+    CapturedIncomingHood,
+    ProjectSyncStatus,
+    SyncStatusSnapshot,
+)
 
 from ..agents_sync_format import (
-    agents_sync_status_detail,
     agents_sync_status_needs_attention,
+    captured_agent_hood_label,
 )
 
 _AGENTS_SYNC_ACCENT = "#5FD787"
@@ -28,11 +32,28 @@ class AgentsSyncIndicator(Static):
 
     @property
     def pending_count(self) -> int:
-        return len(self._pending)
+        return sum(status.pending_foreign_count for status in self._pending)
 
     @property
     def pending_projects(self) -> tuple[ProjectSyncStatus, ...]:
         return self._pending
+
+    @property
+    def pending_updates(self) -> tuple[CapturedIncomingHood, ...]:
+        """Return exactly the immutable cache items represented by the badge."""
+        return tuple(
+            item
+            for status in self._pending
+            for item in sorted(
+                status.pending_updates,
+                key=lambda row: (
+                    row.source_username or "",
+                    row.source_machine,
+                    row.top_hood,
+                    row.cache_id,
+                ),
+            )
+        )
 
     def set_status(self, snapshot: SyncStatusSnapshot) -> None:
         """Project an immutable snapshot, updating only when display state changes."""
@@ -54,15 +75,16 @@ class AgentsSyncIndicator(Static):
             self.update(self._build_content(pending))
 
     async def on_click(self) -> None:
-        """Submit the tracked agents-repository synchronization action."""
-        await self.app.run_action("sync_agents")
+        """Import the currently displayed cached updates without a fetch."""
+        await self.app.run_action("integrate_cached_agents")
 
     @staticmethod
     def _build_content(statuses: tuple[ProjectSyncStatus, ...]) -> Text:
         text = Text()
         if statuses:
+            count = sum(status.pending_foreign_count for status in statuses)
             text.append(
-                f" {_AGENTS_SYNC_GLYPH} {len(statuses)} ",
+                f" {_AGENTS_SYNC_GLYPH} {count} ",
                 style=f"bold #1a1a1a on {_AGENTS_SYNC_ACCENT}",
             )
         return text
@@ -70,15 +92,29 @@ class AgentsSyncIndicator(Static):
     @staticmethod
     def _build_tooltip(statuses: tuple[ProjectSyncStatus, ...]) -> str:
         if not statuses:
-            return "All enabled agents repositories are synchronized"
-        lines = ["Agents repositories need synchronization:"]
-        lines.extend(
-            f"{status.project}: {agents_sync_status_detail(status)}"
-            for status in statuses
-        )
+            return "No cached foreign agent updates are waiting to be imported"
+        lines = ["Cached foreign agent updates ready to import:"]
+        for status in statuses:
+            lines.append(f"{status.project}:")
+            for item in sorted(
+                status.pending_updates,
+                key=lambda row: (
+                    row.source_username or "",
+                    row.source_machine,
+                    row.top_hood,
+                    row.cache_id,
+                ),
+            ):
+                run_noun = "run" if item.run_count == 1 else "runs"
+                family_noun = "family" if item.family_count == 1 else "families"
+                lines.append(
+                    f"  {captured_agent_hood_label(item)} — "
+                    f"{item.run_count} {run_noun}, "
+                    f"{item.family_count} {family_noun}"
+                )
         lines.append(
-            "Click to synchronize agents repositories. Press ,U for the "
-            "comprehensive update."
+            "Click to import this captured cache without fetching. Press ,U "
+            "for the comprehensive cached update."
         )
         return "\n".join(lines)
 

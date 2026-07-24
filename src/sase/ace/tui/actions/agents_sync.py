@@ -8,11 +8,22 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any, cast
 
-from sase.agents_sync import get_agents_sync_status, sync_agents
-from sase.agents_sync.models import SyncOutcome, SyncStatusSnapshot
+from sase.agents_sync import (
+    get_agents_sync_status,
+    integrate_cached_agent_updates,
+    sync_agents,
+)
+from sase.agents_sync.models import (
+    CachedIntegrationResult,
+    CapturedIncomingHood,
+    SyncOutcome,
+    SyncStatusSnapshot,
+)
 
 from ..agents_sync_format import (
     agents_sync_outcome_line,
+    cached_agents_result_line,
+    summarize_cached_agents_results,
     summarize_agents_sync_outcomes,
 )
 from ._agents_sync_config import (
@@ -197,6 +208,7 @@ class AgentsSyncActionsMixin:
             _completion: TrackedTaskCompletion[tuple[SyncOutcome, ...]],
         ) -> None:
             self._schedule_agents_sync_indicator_revalidation()
+            self._schedule_agents_refresh_after_sync(source="agents_full_sync")
 
         submit = getattr(self, "_submit_tracked_task", None)
         if not callable(submit):
@@ -213,6 +225,66 @@ class AgentsSyncActionsMixin:
             on_complete=on_complete,
             reload_on_complete=False,
         )
+
+    def action_integrate_cached_agents(self) -> None:
+        """Import exactly the cache items currently represented by the badge."""
+        from ..widgets import AgentsSyncIndicator
+
+        try:
+            indicator = self.query_one(  # type: ignore[attr-defined]
+                "#agents-sync-indicator",
+                AgentsSyncIndicator,
+            )
+        except Exception:
+            return
+        captured_items: tuple[CapturedIncomingHood, ...] = indicator.pending_updates
+        if not captured_items:
+            return
+
+        def task(
+            reporter: TaskReporter,
+        ) -> TrackedTaskResult[tuple[CachedIntegrationResult, ...]]:
+            reporter.phase("Importing cached agent updates")
+            results = integrate_cached_agent_updates(captured_items)
+            reporter.section("Cached agent update results")
+            for result in results:
+                reporter.log(cached_agents_result_line(result), stream="result")
+            message = "Cached agents: " + summarize_cached_agents_results(results)
+            failed = any(not result.ok for result in results)
+            return TrackedTaskResult(
+                success=not failed,
+                message=message,
+                payload=results,
+                error=message if failed else None,
+            )
+
+        def on_complete(
+            _completion: TrackedTaskCompletion[tuple[CachedIntegrationResult, ...]],
+        ) -> None:
+            self._schedule_agents_sync_indicator_revalidation()
+            self._schedule_agents_refresh_after_sync(source="agents_cached_integration")
+
+        submit = getattr(self, "_submit_tracked_task", None)
+        if not callable(submit):
+            return
+        submit(
+            "agents-cached-integration",
+            "cached agent updates",
+            "",
+            task,
+            display_name="import cached agent updates",
+            dedup_key="agents-sync",
+            exclusive_scopes=("agents-sync",),
+            duplicate_message="An agents-repository synchronization is already running.",
+            on_complete=on_complete,
+            reload_on_complete=False,
+        )
+
+    def _schedule_agents_refresh_after_sync(self, *, source: str) -> None:
+        """Use the existing coalesced agent-list reload after sync mutations."""
+        refresh = getattr(self, "_schedule_agents_async_refresh", None)
+        if callable(refresh):
+            refresh(source=source)
 
 
 def initialize_agents_sync_state(self: Any) -> None:

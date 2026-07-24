@@ -119,6 +119,7 @@ async def test_updates_subtab_hints_share_projects_wording(
 
         assert all("[ / ] sub-tab" in hint for hint in hints)
         assert all("]/[ sub-tab" not in hint for hint in hints)
+        assert all("a sync agents" in hint for hint in hints)
 
 
 async def test_agent_cli_marks_patch_rows_and_escape_clears_first(

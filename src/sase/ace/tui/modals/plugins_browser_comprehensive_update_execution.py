@@ -19,11 +19,11 @@ from sase.agent_clis.models import (
     UpdateResultStatus,
 )
 from sase.agent_clis.runner import CommandResult, run_command
-from sase.agents_sync import sync_agents
-from sase.agents_sync.models import SyncOutcome
+from sase.agents_sync import integrate_cached_agent_updates
+from sase.agents_sync.models import CachedIntegrationResult
 from sase.ace.tui.agents_sync_format import (
-    agents_sync_outcome_line,
-    summarize_agents_sync_outcomes,
+    cached_agents_result_line,
+    summarize_cached_agents_results,
 )
 from sase.dev_update.journal import append_dev_update_journal
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
@@ -226,24 +226,22 @@ class ComprehensiveUpdateExecutionMixin:
         self,
         preview: ComprehensiveUpdatePreview,
         reporter: TaskReporter,
-    ) -> tuple[tuple[SyncOutcome, ...], str | None]:
-        """Synchronize every enabled agents repo after the CLI and SASE legs."""
+    ) -> tuple[tuple[CachedIntegrationResult, ...], str | None]:
+        """Import only the cached agent hoods captured by the preview."""
         if not preview.agents_runnable:
             return (), None
         try:
-            reporter.phase("Synchronizing agents repositories")
-            outcomes = tuple(
-                sorted(sync_agents(), key=lambda outcome: outcome.project_key)
-            )
+            reporter.phase("Importing cached agent updates")
+            outcomes = tuple(integrate_cached_agent_updates(preview.agents_updates))
         except Exception as exc:  # noqa: BLE001 - retain successful prior legs.
             error = error_text(exc)
-            reporter.section("Agents repository results")
-            reporter.log(f"Agents repository sync failed: {error}", stream="result")
+            reporter.section("Cached agent update results")
+            reporter.log(f"Cached agent update failed: {error}", stream="result")
             return (), error
 
-        reporter.section("Agents repository results")
+        reporter.section("Cached agent update results")
         for outcome in outcomes:
-            reporter.log(agents_sync_outcome_line(outcome), stream="result")
+            reporter.log(cached_agents_result_line(outcome), stream="result")
         return outcomes, None
 
 
@@ -285,9 +283,9 @@ def comprehensive_update_summary(result: ComprehensiveUpdateResult) -> str:
     provider_line = "Agent CLIs: " + (
         ", ".join(provider_parts) if provider_parts else "no captured work"
     )
-    agents_line = "Agents repos: " + summarize_agents_sync_outcomes(
+    agents_line = "Cached agents: " + summarize_cached_agents_results(
         result.agents_outcomes
     )
     if result.agents_error:
-        agents_line = f"Agents repos: failed — {result.agents_error}"
+        agents_line = f"Cached agents: failed — {result.agents_error}"
     return f"{sase_line}; {provider_line}; {agents_line}"

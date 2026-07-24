@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from sase.agent_clis.models import AgentCliUpdateResult, UpdateResultStatus
-from sase.agents_sync.models import SyncOutcome
+from sase.agents_sync.models import CachedIntegrationResult
 from sase.dev_update.models import DevUpdateResult
 from sase.main.update_types import CombinedUpdateResult
 from sase.uv_tool.render import UpdateSummary
@@ -45,7 +45,7 @@ class ComprehensiveUpdateResult:
     sase: ComprehensiveSaseUpdateResult
     provider_results: tuple[AgentCliUpdateResult, ...] = ()
     provider_error: str | None = None
-    agents_outcomes: tuple[SyncOutcome, ...] = ()
+    agents_outcomes: tuple[CachedIntegrationResult, ...] = ()
     agents_error: str | None = None
     elapsed: float = 0.0
 
@@ -65,7 +65,7 @@ class ComprehensiveUpdateResult:
                 result.status is UpdateResultStatus.FAILED
                 for result in self.provider_results
             )
-            or any(outcome.error for outcome in self.agents_outcomes)
+            or any(not outcome.ok for outcome in self.agents_outcomes)
         )
 
     @property
@@ -77,21 +77,7 @@ class ComprehensiveUpdateResult:
 
     @property
     def has_successful_agents_change(self) -> bool:
-        return any(
-            outcome.error is None
-            and outcome.skip_reason is None
-            and bool(
-                outcome.integrated
-                or outcome.refreshed
-                or outcome.exported
-                or outcome.export_refreshed
-                or outcome.hoods_published
-                or outcome.hoods_refreshed
-                or outcome.committed
-                or outcome.pushed
-            )
-            for outcome in self.agents_outcomes
-        )
+        return any(outcome.disposition == "applied" for outcome in self.agents_outcomes)
 
     @property
     def fully_failed(self) -> bool:

@@ -12,15 +12,25 @@ from sase.ace.tui.actions.agents_sync import (
     AgentsSyncActionsMixin,
     initialize_agents_sync_state,
 )
-from sase.agents_sync.models import ProjectSyncStatus, SyncOutcome, SyncStatusSnapshot
+from sase.agents_sync.models import (
+    CachedIntegrationResult,
+    CapturedIncomingHood,
+    ProjectSyncStatus,
+    SyncOutcome,
+    SyncStatusSnapshot,
+)
 
 
 class _Indicator:
     def __init__(self) -> None:
         self.snapshots: list[SyncStatusSnapshot] = []
+        self.pending_updates: tuple[CapturedIncomingHood, ...] = ()
 
     def set_status(self, snapshot: SyncStatusSnapshot) -> None:
         self.snapshots.append(snapshot)
+        self.pending_updates = tuple(
+            item for status in snapshot.projects for item in status.pending_updates
+        )
 
 
 class _Harness(AgentsSyncActionsMixin):
@@ -30,6 +40,7 @@ class _Harness(AgentsSyncActionsMixin):
         self.intervals: list[tuple[float, Callable[[], None], str]] = []
         self.workers: list[tuple[Callable[[], None], dict[str, object]]] = []
         self.submitted: tuple[tuple[Any, ...], dict[str, Any]] | None = None
+        self.refresh_sources: list[str] = []
 
     def set_interval(
         self,
@@ -58,6 +69,9 @@ class _Harness(AgentsSyncActionsMixin):
         self.submitted = (args, kwargs)
         return object()
 
+    def _schedule_agents_async_refresh(self, *, source: str) -> None:
+        self.refresh_sources.append(source)
+
 
 class _Reporter:
     def __init__(self) -> None:
@@ -78,6 +92,25 @@ def _snapshot(behind: int = 1) -> SyncStatusSnapshot:
     return SyncStatusSnapshot(
         10.0,
         (ProjectSyncStatus("alpha", "Alpha", "ready", behind=behind),),
+    )
+
+
+def _captured() -> CapturedIncomingHood:
+    return CapturedIncomingHood(
+        project_key="alpha",
+        project="Alpha",
+        fetched_ref="refs/remotes/origin/main",
+        fetched_sha="a" * 40,
+        cache_id="alpha-cache",
+        format_version=2,
+        source_owner_kind="exact",
+        source_username="alice",
+        source_machine="zeus",
+        top_hood="foo",
+        hood_digest="b" * 64,
+        run_count=2,
+        family_count=1,
+        cache_created_at=1.0,
     )
 
 
@@ -201,3 +234,47 @@ def test_manual_sync_uses_tracked_deduplicated_scope_and_refreshes_status(
     kwargs["on_complete"](None)
     assert len(app.workers) == 1
     assert app._agents_sync_check_in_flight is True
+    assert app.refresh_sources == ["agents_full_sync"]
+
+
+def test_indicator_integration_captures_items_and_uses_no_network_api(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = _captured()
+    result = CachedIntegrationResult(
+        captured,
+        "applied",
+        hoods_imported=1,
+        runs_imported=2,
+        families_imported=1,
+    )
+    calls: list[tuple[CapturedIncomingHood, ...]] = []
+
+    def integrate(
+        items: tuple[CapturedIncomingHood, ...],
+    ) -> tuple[CachedIntegrationResult, ...]:
+        calls.append(items)
+        return (result,)
+
+    monkeypatch.setattr(agents_sync, "integrate_cached_agent_updates", integrate)
+    app = _Harness()
+    app.indicator.pending_updates = (captured,)
+
+    app.action_integrate_cached_agents()
+
+    assert app.submitted is not None
+    args, kwargs = app.submitted
+    assert kwargs["dedup_key"] == "agents-sync"
+    assert kwargs["exclusive_scopes"] == ("agents-sync",)
+    reporter = _Reporter()
+    task_result = args[3](reporter)
+    assert calls == [(captured,)]
+    assert task_result.success is True
+    assert task_result.message == "Cached agents: 1 applied"
+    assert (
+        "Alpha: alice.zeus.foo — applied (1 hood, 2 runs, 1 family)" in reporter.lines
+    )
+
+    kwargs["on_complete"](None)
+    assert len(app.workers) == 1
+    assert app.refresh_sources == ["agents_cached_integration"]

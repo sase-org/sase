@@ -52,6 +52,7 @@ ADMIN_CENTER_UPDATES_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("] / [", "Next / previous sub-tab"),
         ("u", "Update SASE core + plugins"),
         ("A", "Update agent CLIs"),
+        ("a", "Full sync all enabled agents repositories"),
         ("Space", "Mark plugin / agent CLI"),
         ("r / o", "Refresh / offline mode"),
     ],

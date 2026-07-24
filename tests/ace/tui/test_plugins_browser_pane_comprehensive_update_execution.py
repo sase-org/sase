@@ -19,7 +19,30 @@ from sase.ace.tui.modals.plugins_browser_comprehensive_update import (
     _comprehensive_update_summary,
     _ComprehensiveUpdatePreview,
 )
-from sase.agents_sync.models import ProjectSyncStatus, SyncOutcome, SyncStatusSnapshot
+from sase.agents_sync.models import CachedIntegrationResult, CapturedIncomingHood
+
+
+def _captured(
+    project_key: str = "alpha",
+    project: str = "Alpha",
+    hood: str = "foo",
+) -> CapturedIncomingHood:
+    return CapturedIncomingHood(
+        project_key=project_key,
+        project=project,
+        fetched_ref="refs/remotes/origin/main",
+        fetched_sha="a" * 40,
+        cache_id=f"{project_key}-{hood}",
+        format_version=2,
+        source_owner_kind="exact",
+        source_username="alice",
+        source_machine="zeus",
+        top_hood=hood,
+        hood_digest="b" * 64,
+        run_count=2,
+        family_count=1,
+        cache_created_at=1.0,
+    )
 
 
 class _Reporter:
@@ -64,14 +87,13 @@ class _ExecutionHarness(ComprehensiveUpdateActionsMixin):
 
     def _execute_agents_leg(
         self, _preview: Any, _reporter: Any
-    ) -> tuple[tuple[SyncOutcome, ...], str | None]:
+    ) -> tuple[tuple[CachedIntegrationResult, ...], str | None]:
         self.order.append("agents")
         return (
-            SyncOutcome(
-                "alpha",
-                "Alpha",
-                pulled=True,
-                integrated=1,
+            CachedIntegrationResult(
+                _captured(),
+                "applied",
+                hoods_imported=1,
             ),
         ), None
 
@@ -103,7 +125,7 @@ def test_comprehensive_task_claims_both_scopes_and_continues_after_provider_fail
     assert task_result.success is False
     assert task_result.payload is not None
     assert task_result.payload.provider_error == "provider failed"
-    assert task_result.payload.agents_outcomes[0].project_key == "alpha"
+    assert task_result.payload.agents_outcomes[0].captured.project_key == "alpha"
 
 
 def test_comprehensive_summary_and_failures_include_agents_repos() -> None:
@@ -113,8 +135,16 @@ def test_comprehensive_summary_and_failures_include_agents_repos() -> None:
             "already current",
         ),
         agents_outcomes=(
-            SyncOutcome("alpha", "Alpha", integrated=1),
-            SyncOutcome("beta", "Beta", error="push failed"),
+            CachedIntegrationResult(
+                _captured(),
+                "applied",
+                hoods_imported=1,
+            ),
+            CachedIntegrationResult(
+                _captured("beta", "Beta", "bar"),
+                "failed",
+                diagnostics=("import failed",),
+            ),
         ),
     )
 
@@ -122,38 +152,45 @@ def test_comprehensive_summary_and_failures_include_agents_repos() -> None:
     assert result.has_successful_agents_change is True
     assert result.fully_failed is False
     assert _comprehensive_update_summary(result).endswith(
-        "Agents repos: 1 synchronized, 1 failed"
+        "Cached agents: 1 applied, 1 failed"
     )
 
 
-def test_agents_leg_preserves_project_order_and_partial_failures(
+def test_agents_leg_integrates_exact_captured_items_without_widening(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    zulu = _captured("z", "Zulu", "zeta")
+    alpha = _captured("a", "Alpha", "alpha")
     returned = (
-        SyncOutcome("z", "Zulu", error="push failed"),
-        SyncOutcome("a", "Alpha", integrated=2),
+        CachedIntegrationResult(zulu, "stale"),
+        CachedIntegrationResult(alpha, "applied", hoods_imported=1),
     )
+    calls: list[tuple[CapturedIncomingHood, ...]] = []
+
+    def integrate(
+        items: tuple[CapturedIncomingHood, ...],
+    ) -> tuple[CachedIntegrationResult, ...]:
+        calls.append(items)
+        return returned
+
     monkeypatch.setattr(
-        "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution.sync_agents",
-        lambda: returned,
+        "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
+        "integrate_cached_agent_updates",
+        integrate,
     )
     preview = _ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(()),
         sase_preview=None,
         sase_current=True,
-        agents_status=SyncStatusSnapshot(
-            100.0,
-            (ProjectSyncStatus("a", "Alpha", "ready", 0, 0, 0),),
-        ),
+        agents_updates=(zulu, alpha),
     )
     harness = ComprehensiveUpdateActionsMixin.__new__(ComprehensiveUpdateActionsMixin)
 
     outcomes, error = harness._execute_agents_leg(preview, _Reporter())
 
     assert error is None
-    assert [outcome.project_key for outcome in outcomes] == ["a", "z"]
-    assert outcomes[0].integrated == 2
-    assert outcomes[1].error == "push failed"
+    assert calls == [(zulu, alpha)]
+    assert outcomes == returned
 
 
 def test_comprehensive_completion_refreshes_both_shared_indicators() -> None:
@@ -161,12 +198,16 @@ def test_comprehensive_completion_refreshes_both_shared_indicators() -> None:
         def __init__(self) -> None:
             self.updates_refreshes = 0
             self.agents_refreshes = 0
+            self.agent_list_refreshes: list[str] = []
 
         def _schedule_updates_indicator_revalidation(self) -> None:
             self.updates_refreshes += 1
 
         def _schedule_agents_sync_indicator_revalidation(self) -> None:
             self.agents_refreshes += 1
+
+        def _schedule_agents_async_refresh(self, *, source: str) -> None:
+            self.agent_list_refreshes.append(source)
 
     class _Harness(ComprehensiveUpdateActionsMixin):
         def __init__(self) -> None:
@@ -184,6 +225,13 @@ def test_comprehensive_completion_refreshes_both_shared_indicators() -> None:
             SaseUpdateResultStatus.ALREADY_CURRENT,
             "already current",
         ),
+        agents_outcomes=(
+            CachedIntegrationResult(
+                _captured(),
+                "applied",
+                hoods_imported=1,
+            ),
+        ),
     )
     harness = _Harness()
 
@@ -193,3 +241,4 @@ def test_comprehensive_completion_refreshes_both_shared_indicators() -> None:
 
     assert harness.app.updates_refreshes == 1
     assert harness.app.agents_refreshes == 1
+    assert harness.app.agent_list_refreshes == ["comprehensive_cached_agents"]

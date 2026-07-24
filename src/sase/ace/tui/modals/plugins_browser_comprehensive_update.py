@@ -15,6 +15,7 @@ from sase.ace.tui.task_subprocess import TaskReporter
 from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
 from sase.agent_clis.models import AgentCliStatus
 from sase.agents_sync import get_agents_sync_status
+from sase.agents_sync.models import CapturedIncomingHood
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
 from sase.uv_tool.detect import NotUvToolInstall
 from sase.uv_tool.errors import NotAUvToolInstallError
@@ -125,10 +126,26 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         sase_current = self._sase_up_to_date()
 
         def task() -> ComprehensiveUpdatePreview:
-            agents_status = None
+            agents_updates: tuple[CapturedIncomingHood, ...] = ()
             agents_error = None
             try:
                 agents_status = get_agents_sync_status(revalidate_only=True)
+                agents_updates = tuple(
+                    sorted(
+                        (
+                            item
+                            for status in agents_status.projects
+                            for item in status.pending_updates
+                        ),
+                        key=lambda item: (
+                            item.project_key,
+                            item.source_username or "",
+                            item.source_machine,
+                            item.top_hood,
+                            item.cache_id,
+                        ),
+                    )
+                )
             except Exception as exc:  # noqa: BLE001 - preserve other preview legs.
                 agents_error = error_text(exc)
             provider_plan, dropped, provider_error = plan_captured_providers(
@@ -145,7 +162,7 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
                     provider_plan=provider_plan,
                     provider_dropped=dropped,
                     provider_error=provider_error,
-                    agents_status=agents_status,
+                    agents_updates=agents_updates,
                     agents_error=agents_error,
                 )
             if isinstance(install, NotUvToolInstall):
@@ -156,7 +173,7 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
                     provider_plan=provider_plan,
                     provider_dropped=dropped,
                     provider_error=provider_error,
-                    agents_status=agents_status,
+                    agents_updates=agents_updates,
                     agents_error=agents_error,
                 )
             try:
@@ -184,7 +201,7 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
                 provider_plan=provider_plan,
                 provider_dropped=dropped,
                 provider_error=provider_error,
-                agents_status=agents_status,
+                agents_updates=agents_updates,
                 agents_error=agents_error,
             )
 
@@ -221,7 +238,8 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
             title="Comprehensive update",
             intro=(
                 "Confirm the snapshot-gated SASE, provider, and agents-repository "
-                "work below. Agent CLI commands run first and sequentially."
+                "work below. Agent CLI commands run first and sequentially; "
+                "agent updates use only the captured cache."
             ),
             variants=(
                 PluginActionVariant(
@@ -362,6 +380,10 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
                 severity="error",
             )
             return
+        if result.agents_outcomes:
+            reload_agents = getattr(self.app, "_schedule_agents_async_refresh", None)
+            if callable(reload_agents):
+                reload_agents(source="comprehensive_cached_agents")
 
         for provider_result in result.provider_results:
             self._agent_cli_results[provider_result.name] = provider_result

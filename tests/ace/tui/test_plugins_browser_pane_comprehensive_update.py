@@ -26,7 +26,11 @@ from sase.agent_clis.models import (
     AgentCliUpdatesReady,
     UpdateStrategy,
 )
-from sase.agents_sync.models import ProjectSyncStatus, SyncStatusSnapshot
+from sase.agents_sync.models import (
+    CapturedIncomingHood,
+    ProjectSyncStatus,
+    SyncStatusSnapshot,
+)
 from sase.uv_tool.render import PlannedPackage
 from sase.updates.incoming_commits import (
     CommitSummary,
@@ -48,6 +52,34 @@ def _incoming_core_versions() -> Any:
         sase_latest="0.6.0",
         core_installed="0.4.0",
         core_latest="0.5.0",
+    )
+
+
+def _captured(
+    project_key: str,
+    project: str,
+    hood: str,
+    *,
+    username: str = "alice",
+    machine: str = "zeus",
+    runs: int = 2,
+    families: int = 1,
+) -> CapturedIncomingHood:
+    return CapturedIncomingHood(
+        project_key=project_key,
+        project=project,
+        fetched_ref="refs/remotes/origin/main",
+        fetched_sha="a" * 40,
+        cache_id=f"{project_key}-{hood}",
+        format_version=2,
+        source_owner_kind="exact",
+        source_username=username,
+        source_machine=machine,
+        top_hood=hood,
+        hood_digest="b" * 64,
+        run_count=runs,
+        family_count=families,
+        cache_created_at=1.0,
     )
 
 
@@ -290,38 +322,23 @@ def test_comprehensive_provider_preview_marks_current_and_manual_rows() -> None:
     )
 
 
-def test_comprehensive_agents_preview_is_truthful_and_enabled_current_is_runnable() -> (
-    None
-):
+def test_comprehensive_agents_preview_captures_exact_projects_and_hoods() -> None:
     preview = _ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(()),
         sase_preview=None,
         sase_current=True,
-        agents_status=SyncStatusSnapshot(
-            100.0,
-            (
-                ProjectSyncStatus("current", "Current", "ready", 0, 0, 0),
-                ProjectSyncStatus(
-                    "pending",
-                    "Pending",
-                    "ready",
-                    ahead=1,
-                    behind=2,
-                    unexported_agents=3,
-                ),
-                ProjectSyncStatus(
-                    "broken",
-                    "Broken",
-                    "error",
-                    error="manifest invalid",
-                ),
-                ProjectSyncStatus(
-                    "disabled",
-                    "Disabled",
-                    "disabled",
-                    detail="project is disabled",
-                ),
+        agents_updates=(
+            _captured("alpha", "Alpha", "foo"),
+            _captured(
+                "alpha",
+                "Alpha",
+                "bar",
+                username="bob",
+                machine="hera",
+                runs=1,
+                families=0,
             ),
+            _captured("beta", "Beta", "baz", runs=3, families=2),
         ),
     )
 
@@ -330,37 +347,31 @@ def test_comprehensive_agents_preview_is_truthful_and_enabled_current_is_runnabl
     assert preview.agents_runnable is True
     assert preview.runnable is True
     assert section.title == "Agents repos"
-    assert section.counts == ("2 pending", "1 current", "1 skipped")
+    assert section.counts == ("2 projects", "3 hoods")
+    assert section.summary == (
+        "Imports 3 captured foreign hoods across 2 projects without network access."
+    )
     assert [
         (component.name, component.detail, component.state)
         for component in section.components
     ] == [
-        ("Broken", "error: manifest invalid", "update"),
-        ("Current", "current", "current"),
-        ("Disabled", "project is disabled", "skipped"),
-        (
-            "Pending",
-            "behind 2, ahead 1, 3 unexported agents",
-            "update",
-        ),
+        ("Alpha", "alice.zeus.foo · 2 runs · 1 family", "update"),
+        ("Alpha", "bob.hera.bar · 1 run · 0 families", "update"),
+        ("Beta", "alice.zeus.baz · 3 runs · 2 families", "update"),
     ]
 
 
-def test_comprehensive_agents_preview_disabled_only_is_noop() -> None:
+def test_comprehensive_agents_preview_without_cache_items_is_noop() -> None:
     preview = _ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(()),
         sase_preview=None,
         sase_current=True,
-        agents_status=SyncStatusSnapshot(
-            100.0,
-            (ProjectSyncStatus("off", "Off", "disabled"),),
-        ),
     )
 
     assert preview.agents_runnable is False
     assert preview.runnable is False
     assert _agents_preview_section(preview).summary == (
-        "All agents repositories in the inventory are disabled."
+        "No cached foreign agent hood updates were captured."
     )
 
 
@@ -384,13 +395,21 @@ def test_sase_blocker_does_not_suppress_runnable_provider_plan() -> None:
     assert preview.runnable is True
 
 
-def test_comprehensive_preview_captures_no_network_agents_status(
+def test_comprehensive_preview_captures_no_network_agents_items(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[dict[str, object]] = []
+    captured = _captured("alpha", "Alpha", "foo")
     snapshot = SyncStatusSnapshot(
         100.0,
-        (ProjectSyncStatus("alpha", "Alpha", "ready", 0, 0, 0),),
+        (
+            ProjectSyncStatus(
+                "alpha",
+                "Alpha",
+                "ready",
+                pending_updates=(captured,),
+            ),
+        ),
     )
 
     def get_status(**kwargs: object) -> SyncStatusSnapshot:
@@ -424,5 +443,5 @@ def test_comprehensive_preview_captures_no_network_agents_status(
     preview = harness.worker()
 
     assert calls == [{"revalidate_only": True}]
-    assert preview.agents_status is snapshot
+    assert preview.agents_updates == (captured,)
     assert preview.agents_runnable is True

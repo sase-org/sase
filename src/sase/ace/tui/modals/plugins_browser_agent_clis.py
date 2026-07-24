@@ -193,6 +193,7 @@ class AgentCliBrowserMixin:
             [
                 "A update",
                 "u core+plugins",
+                "a sync agents",
                 "r reload",
                 "ctrl+d/u scroll",
                 f"o{offline}",

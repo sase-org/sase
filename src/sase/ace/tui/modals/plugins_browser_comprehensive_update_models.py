@@ -10,7 +10,7 @@ from sase.agent_clis.models import (
     AgentCliUpdatesReady,
     UpdateStrategy,
 )
-from sase.agents_sync.models import SyncStatusSnapshot
+from sase.agents_sync.models import CapturedIncomingHood
 
 from .plugins_browser_dev_update import DevUpdatePreview
 
@@ -41,7 +41,7 @@ class ComprehensiveUpdatePreview:
     provider_plan: AgentCliUpdatePlan | None = None
     provider_dropped: tuple[DroppedProviderCandidate, ...] = ()
     provider_error: str | None = None
-    agents_status: SyncStatusSnapshot | None = None
+    agents_updates: tuple[CapturedIncomingHood, ...] = ()
     agents_error: str | None = None
 
     @property
@@ -64,17 +64,8 @@ class ComprehensiveUpdatePreview:
 
     @property
     def agents_runnable(self) -> bool:
-        """Every represented non-disabled project remains runnable.
-
-        A current local status does not make the mutation a no-op: the
-        confirmed sync still pulls and integrates remote agent bundles.
-        """
-        return bool(
-            self.agents_status is not None
-            and any(
-                status.state != "disabled" for status in self.agents_status.projects
-            )
-        )
+        """Only the immutable cache items captured for confirmation may run."""
+        return bool(self.agents_updates)
 
     @property
     def manual_provider_entries(self) -> tuple[Any, ...]:

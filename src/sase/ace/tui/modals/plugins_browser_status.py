@@ -235,6 +235,7 @@ class PluginsBrowserStatusMixin:
         if self._can_update_sase():
             parts.append("u update core + plugins")
         parts.append("A update agent CLIs")
+        parts.append("a sync agents")
         if self._can_switch_mode():
             parts.append("m switch")
         if self._can_update_highlighted():

@@ -69,6 +69,7 @@ def test_plugins_pane_binds_detail_scroll_keys() -> None:
     assert _binding_action("g") == "scroll_to_top"
     assert _binding_action("G") == "scroll_to_bottom"
     assert _binding_action("shift+g") == "scroll_to_bottom"
+    assert _binding_action("a") == "sync_agents"
 
 
 async def test_plugins_pane_detail_follows_highlight(

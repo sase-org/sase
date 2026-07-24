@@ -208,6 +208,7 @@ class PluginsBrowserPane(
         ("m", "switch_mode", "Switch mode"),
         ("u", "update_sase", "Update core + plugins"),
         ("A", "update_agent_clis", "Update agent CLIs"),
+        ("a", "sync_agents", "Sync agents"),
         ("U", "update", "Update plugin"),
         ("r", "refresh", "Refresh"),
         ("ctrl+d", "scroll_detail_down", "Scroll Down"),
@@ -373,6 +374,8 @@ class PluginsBrowserPane(
             return self._can_update_sase()
         if action == "update_agent_clis":
             return not self._loading and self._agent_cli_plan_worker is None
+        if action == "sync_agents":
+            return callable(getattr(self.app, "action_sync_agents", None))
         plugin_only = {
             "install",
             "toggle_install_mark",
@@ -432,12 +435,19 @@ class PluginsBrowserPane(
             (
                 "u core+plugins",
                 "A agent CLIs",
+                "a sync agents",
                 "r reload",
                 f"o{offline}",
                 _SUBTAB_NAV_HINT,
                 "esc",
             )
         )
+
+    def action_sync_agents(self) -> None:
+        """Delegate ``a`` to ACE's shared tracked full-sync action."""
+        action = getattr(self.app, "action_sync_agents", None)
+        if callable(action):
+            action()
 
     def _start_load(self, *, force: bool) -> None:
         self._loading = True
