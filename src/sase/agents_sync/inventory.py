@@ -72,6 +72,8 @@ class InventoryRun:
     clan_name: str | None
     relationships: tuple[_InventoryRelationship, ...]
     timestamp: str
+    embedded_workflows_bytes: bytes | None = None
+    prompt_steps_bytes: bytes | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,6 +160,12 @@ def build_project_hood_inventory(
             ),
             prompt_bytes=preferred.prompt_bytes or existing.prompt_bytes,
             chat_bytes=preferred.chat_bytes or existing.chat_bytes,
+            embedded_workflows_bytes=(
+                preferred.embedded_workflows_bytes or existing.embedded_workflows_bytes
+            ),
+            prompt_steps_bytes=(
+                preferred.prompt_steps_bytes or existing.prompt_steps_bytes
+            ),
         )
     return ProjectHoodInventory(
         owner,
@@ -261,6 +269,10 @@ def _run_from_artifact(
         meta.get("chat_path"),
         (done or {}).get("response_path"),
     )
+    embedded_workflows = _embedded_workflows_payload(
+        artifact / "embedded_workflows.json"
+    )
+    prompt_steps = _prompt_steps_payload(artifact)
     state = _artifact_state(record, done)
     metadata = _portable_metadata(meta)
     family = _canonical_optional_name(meta.get("agent_family"), identity)
@@ -282,6 +294,8 @@ def _run_from_artifact(
         clan,
         relationships,
         timestamp,
+        embedded_workflows,
+        prompt_steps,
     )
 
 
@@ -530,6 +544,108 @@ def _read_text_bytes(path: Path) -> bytes | None:
         raise
     except (OSError, UnicodeDecodeError) as exc:
         raise AgentsSyncFormatError(f"could not read {path.name}: {exc}") from exc
+
+
+def _embedded_workflows_payload(path: Path) -> bytes | None:
+    """Return bounded canonical embedded-workflow restart metadata."""
+
+    value = _read_json_value(path)
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise AgentsSyncFormatError("embedded_workflows.json must contain a JSON list")
+    portable: list[dict[str, object]] = []
+    for index, raw in enumerate(value):
+        if not isinstance(raw, dict):
+            raise AgentsSyncFormatError(
+                f"embedded_workflows.json entry {index} must be an object"
+            )
+        name = raw.get("name")
+        args = raw.get("args")
+        tags = raw.get("tags")
+        if (
+            not isinstance(name, str)
+            or not name
+            or not isinstance(args, dict)
+            or not isinstance(tags, list)
+            or not all(isinstance(tag, str) for tag in tags)
+        ):
+            raise AgentsSyncFormatError(
+                f"embedded_workflows.json entry {index} has an invalid shape"
+            )
+        portable.append({"name": name, "args": args, "tags": tags})
+    payload = (
+        json.dumps(
+            portable,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        + b"\n"
+    )
+    if len(payload) > MAX_JSON_BYTES:
+        raise AgentsSyncFormatError("embedded_workflows.json exceeds the byte limit")
+    return payload
+
+
+def _read_json_value(path: Path) -> object | None:
+    try:
+        if not path.is_file():
+            return None
+        if path.stat().st_size > MAX_JSON_BYTES:
+            raise AgentsSyncFormatError(f"{path.name} exceeds the byte limit")
+        return json.loads(path.read_text(encoding="utf-8"))
+    except AgentsSyncFormatError:
+        raise
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise AgentsSyncFormatError(f"could not read {path.name}: {exc}") from exc
+
+
+def _prompt_steps_payload(artifact: Path) -> bytes | None:
+    """Archive restart-relevant prompt-step markers without host paths."""
+
+    rows: list[dict[str, object]] = []
+    for path in sorted(artifact.glob("prompt_step_*.json"), key=lambda item: item.name):
+        value = _read_json_object(path)
+        assert value is not None
+        portable = {
+            key: value[key]
+            for key in (
+                "status",
+                "workflow_name",
+                "step_name",
+                "step_type",
+                "step_source",
+                "output",
+                "step_index",
+                "total_steps",
+                "parent_step_index",
+                "parent_total_steps",
+                "hidden",
+                "embedded_workflow_name",
+                "is_pre_prompt_step",
+            )
+            if key in value
+        }
+        rows.append({"file_name": path.name, "marker": portable})
+    if not rows:
+        return None
+    payload = (
+        json.dumps(
+            rows,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        + b"\n"
+    )
+    if len(payload) > MAX_JSON_BYTES:
+        raise AgentsSyncFormatError(
+            "prompt-step restart payload exceeds the byte limit"
+        )
+    return payload
 
 
 def _read_referenced_text(*values: object) -> bytes | None:

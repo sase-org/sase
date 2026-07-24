@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +26,19 @@ from sase.core.agent_identity_facade import (
     current_owner_agent_name_lookup_candidates,
     localize_imported_agent_name,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ImportedV2RegistryClaim:
+    """One run or container claim in an atomic v2 import batch."""
+
+    source_owner: AgentOwnerIdentity
+    canonical_global_name: str
+    localized_name: str
+    claiming_dir: str | Path
+    digest: str
+    container_kind: str | None = None
+    clan_generation: str | None = None
 
 
 def claim_imported_registered_name(
@@ -101,109 +116,201 @@ def claim_imported_registered_name_v2(
     The caller supplies both global and localized spellings so the registry can
     validate the boundary instead of deriving provenance from dotted text.
     """
-    identity = AgentIdentitySnapshot.current()
-    source = AgentSourceOwnerIdentity.v2(source_owner)
+    claim_imported_registered_names_v2(
+        operations,
+        (
+            ImportedV2RegistryClaim(
+                source_owner,
+                canonical_global_name,
+                localized_name,
+                claiming_dir,
+                digest,
+            ),
+        ),
+    )
+
+
+def preflight_imported_registered_names_v2(
+    operations: RegistryMutationOperations,
+    claims: Sequence[ImportedV2RegistryClaim],
+    *,
+    identity: AgentIdentitySnapshot | None = None,
+) -> None:
+    """Validate a complete v2 claim batch without saving registry state."""
+
+    if not claims:
+        return
+    snapshot = identity or AgentIdentitySnapshot.current()
+    with operations.lock():
+        entries = dict(operations.load()["entries"])
+        for claim in claims:
+            _apply_imported_v2_registry_claim(
+                operations,
+                entries,
+                claim,
+                snapshot,
+            )
+
+
+def claim_imported_registered_names_v2(
+    operations: RegistryMutationOperations,
+    claims: Sequence[ImportedV2RegistryClaim],
+    *,
+    identity: AgentIdentitySnapshot | None = None,
+) -> None:
+    """Validate and persist every v2 run/container claim in one registry write."""
+
+    if not claims:
+        return
+    snapshot = identity or AgentIdentitySnapshot.current()
+    with operations.lock():
+        entries = dict(operations.load()["entries"])
+        for claim in claims:
+            _apply_imported_v2_registry_claim(
+                operations,
+                entries,
+                claim,
+                snapshot,
+            )
+        operations.save_entries(entries)
+
+
+def _apply_imported_v2_registry_claim(
+    operations: RegistryMutationOperations,
+    entries: dict[str, Any],
+    claim: ImportedV2RegistryClaim,
+    identity: AgentIdentitySnapshot,
+) -> None:
+    source = AgentSourceOwnerIdentity.v2(claim.source_owner)
     expected_name = localize_imported_agent_name(
-        canonical_global_name,
+        claim.canonical_global_name,
         source,
         identity,
     )
-    if expected_name != localized_name:
+    if expected_name != claim.localized_name:
         raise ValueError(
             "localized imported name does not match explicit source ownership: "
-            f"expected '{expected_name}', got '{localized_name}'"
+            f"expected '{expected_name}', got '{claim.localized_name}'"
         )
+    if claim.container_kind not in {None, "family", "clan"}:
+        raise ValueError(f"invalid imported container kind {claim.container_kind!r}")
 
-    artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
+    artifact_dir = Path(claim.claiming_dir).expanduser().resolve(strict=False)
     classification = classify_imported_agent_owner(source, identity)
     source_root: str | None
     if classification is AgentOwnershipClassification.EXACT_OWNER:
         source_root = None
         candidates = current_owner_agent_name_lookup_candidates(
-            localized_name,
+            claim.localized_name,
             identity,
         )
     elif classification is AgentOwnershipClassification.SAME_USER_OTHER_MACHINE:
-        source_root = source_owner.machine_name
-        candidates = (localized_name,)
+        source_root = claim.source_owner.machine_name
+        candidates = (claim.localized_name,)
     else:
-        source_root = source_owner.username
-        candidates = (localized_name,)
+        source_root = claim.source_owner.username
+        candidates = (claim.localized_name,)
 
-    with operations.lock():
-        entries = dict(operations.load()["entries"])
-        existing_name: str | None = None
-        existing: dict[str, Any] | None = None
-        for candidate in candidates:
-            value = entries.get(candidate)
-            if isinstance(value, dict):
-                existing_name = candidate
-                existing = value
-                break
-        if existing is not None:
-            exact_local_refresh = (
-                classification is AgentOwnershipClassification.EXACT_OWNER
-                and existing.get("origin") == "local"
-                and existing.get("canonical_global_name") == canonical_global_name
-                and operations.entry_belongs_to_artifact(existing, artifact_dir)
-            )
-            same_claim = (
-                existing.get("origin") == "import_v2"
-                and existing.get("canonical_global_name") == canonical_global_name
-                and entry_source_owner(existing) == source_owner
-                and operations.entry_belongs_to_artifact(existing, artifact_dir)
-            )
-            if exact_local_refresh:
-                return
-            if not same_claim:
-                from sase.agent.names._common import ImportedNameCollisionError
-
-                raise ImportedNameCollisionError(
-                    localized_name,
-                    reason=(
-                        "owner, global identity, or artifact owner differs from "
-                        "the existing claim"
-                    ),
-                    existing=existing,
-                )
-        if source_root is not None:
-            ensure_import_namespace_available(
-                entries,
-                source_root=source_root,
-                source_owner=source_owner,
-                destination_name=localized_name,
-            )
-
-        entry = operations.owner_from_artifact_name(
-            artifact_dir,
-            localized_name,
-            reservation_kind="imported",
+    existing_name: str | None = None
+    existing: dict[str, Any] | None = None
+    for candidate in candidates:
+        value = entries.get(candidate)
+        if isinstance(value, dict):
+            existing_name = candidate
+            existing = value
+            break
+    if existing is not None:
+        exact_local_refresh = (
+            classification is AgentOwnershipClassification.EXACT_OWNER
+            and existing.get("origin") == "local"
+            and existing.get("canonical_global_name") == claim.canonical_global_name
+            and operations.entry_belongs_to_artifact(existing, artifact_dir)
         )
-        entry.update(
-            imported_v2_entry_provenance(
-                source_owner,
-                canonical_global_name,
-                digest,
+        same_claim = (
+            existing.get("origin") == "import_v2"
+            and existing.get("canonical_global_name") == claim.canonical_global_name
+            and entry_source_owner(existing) == claim.source_owner
+            and (
+                claim.container_kind is not None
+                or operations.entry_belongs_to_artifact(existing, artifact_dir)
+            )
+            and (
+                claim.container_kind is None
+                or existing.get("container_kind") == claim.container_kind
             )
         )
-        if existing_name is not None and existing_name != localized_name:
-            entries.pop(existing_name, None)
-        if source_root is not None:
-            namespace_kind = (
-                "sibling_machine"
-                if classification
-                is AgentOwnershipClassification.SAME_USER_OTHER_MACHINE
-                else "foreign_username"
+        exact_local_container = (
+            classification is AgentOwnershipClassification.EXACT_OWNER
+            and claim.container_kind is not None
+            and existing.get("origin") == "local"
+            and existing.get("canonical_global_name") == claim.canonical_global_name
+            and existing.get("container_kind") == claim.container_kind
+        )
+        # A family may have a concrete source run whose global name is also
+        # the container identity. Keep the container reservation as the single
+        # registry row when both claims share the same artifact owner.
+        same_family_root = (
+            claim.container_kind is None
+            and existing.get("container_kind") == "family"
+            and existing.get("origin") == "import_v2"
+            and existing.get("canonical_global_name") == claim.canonical_global_name
+            and entry_source_owner(existing) == claim.source_owner
+            and operations.entry_belongs_to_artifact(existing, artifact_dir)
+        )
+        if exact_local_refresh or exact_local_container or same_family_root:
+            return
+        if not same_claim:
+            from sase.agent.names._common import ImportedNameCollisionError
+
+            raise ImportedNameCollisionError(
+                claim.localized_name,
+                reason=(
+                    "owner, global identity, container kind, or artifact owner "
+                    "differs from the existing claim"
+                ),
+                existing=existing,
             )
-            existing_root = entries.get(source_root)
-            if not isinstance(existing_root, dict) or (
-                existing_root.get("container_kind") == "owner_namespace"
-                and existing_root.get("source_owner") is None
-            ):
-                entries[source_root] = owner_namespace_entry(
-                    source_root,
-                    namespace_kind=namespace_kind,
-                    source_owner=source_owner,
-                )
-        entries[localized_name] = entry
-        operations.save_entries(entries)
+    if source_root is not None:
+        ensure_import_namespace_available(
+            entries,
+            source_root=source_root,
+            source_owner=claim.source_owner,
+            destination_name=claim.localized_name,
+        )
+
+    reservation_kind = claim.container_kind or "imported"
+    entry = operations.owner_from_artifact_name(
+        artifact_dir,
+        claim.localized_name,
+        reservation_kind=reservation_kind,
+    )
+    entry.update(
+        imported_v2_entry_provenance(
+            claim.source_owner,
+            claim.canonical_global_name,
+            claim.digest,
+        )
+    )
+    if claim.container_kind is not None:
+        entry["container_kind"] = claim.container_kind
+    if claim.container_kind == "clan":
+        entry["clan_generation"] = claim.clan_generation or claim.digest[:16]
+    if existing_name is not None and existing_name != claim.localized_name:
+        entries.pop(existing_name, None)
+    if source_root is not None:
+        namespace_kind = (
+            "sibling_machine"
+            if classification is AgentOwnershipClassification.SAME_USER_OTHER_MACHINE
+            else "foreign_username"
+        )
+        existing_root = entries.get(source_root)
+        if not isinstance(existing_root, dict) or (
+            existing_root.get("container_kind") == "owner_namespace"
+            and existing_root.get("source_owner") is None
+        ):
+            entries[source_root] = owner_namespace_entry(
+                source_root,
+                namespace_kind=namespace_kind,
+                source_owner=claim.source_owner,
+            )
+    entries[claim.localized_name] = entry

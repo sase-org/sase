@@ -16,7 +16,11 @@ from sase.core.agent_group_archive_wire import (
 if TYPE_CHECKING:
     from ...models import Agent
 
-SavedAgentGroupSource = Literal["marked_agents", "recent_dismissal"]
+SavedAgentGroupSource = Literal[
+    "agents_sidecar",
+    "marked_agents",
+    "recent_dismissal",
+]
 _PROMPT_PREVIEW_MAX_CHARS = 120
 
 
@@ -207,4 +211,5 @@ def _saved_group_ref_for_agent(
         llm_provider=agent.llm_provider,
         tribe=agent.tribe,
         prompt_preview=_prompt_preview_for_agent(agent),
+        reasoning_effort=agent.reasoning_effort,
     )

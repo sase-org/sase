@@ -46,6 +46,22 @@ def test_preview_rendering_includes_stable_time_and_status_text() -> None:
     assert "codex/gpt-5" in text
 
 
+def test_preview_labels_agents_sidecar_groups() -> None:
+    summary = SavedAgentGroupSummaryWire(
+        group_id="agents-sidecar-family",
+        created_at="2026-05-27T12:00:00Z",
+        source="agents_sidecar",
+        title="2 agents in family",
+        agent_count=2,
+        top_level_agent_count=2,
+        status_counts={"DONE": 2},
+    )
+
+    text = build_saved_group_preview(summary).plain
+
+    assert "Source       Agents sidecar" in text
+
+
 def test_preview_rendering_shows_only_roots_with_prompt_preview() -> None:
     summary = SavedAgentGroupSummaryWire(
         group_id="group-root-preview",

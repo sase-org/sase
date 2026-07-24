@@ -10,6 +10,7 @@ views.
 """
 
 from concurrent.futures import CancelledError
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +46,22 @@ _DONE_AGENT_WORKFLOW_DIRS = [
 _DONE_AGENT_WORKFLOW_PREFIXES = [
     "mentor-",
 ]
+
+
+@lru_cache(maxsize=1_024)
+def _completed_import_transaction(project_key: str, transaction_key: str) -> bool:
+    from sase.agents_sync.v2_importer import import_transaction_is_complete
+
+    return import_transaction_is_complete(project_key, transaction_key)
+
+
+def _import_transaction_is_visible(
+    project_key: str,
+    transaction_key: object,
+) -> bool:
+    if not isinstance(transaction_key, str) or not transaction_key:
+        return True
+    return _completed_import_transaction(project_key, transaction_key)
 
 
 def _enrich_agent_revert_state(agent: Agent, artifact_dir: str | Path | None) -> None:
@@ -208,6 +225,12 @@ def _load_done_agent_for_dir(
 
     try:
         data = load_json_cached(done_file)
+        project_key = artifact_dir.parents[2].name
+        if not _import_transaction_is_visible(
+            project_key,
+            data.get("imported_transaction_key"),
+        ):
+            return None
 
         # Parse timestamp from artifact dir name (YYYYmmddHHMMSS)
         timestamp_str = artifact_dir.name
@@ -340,6 +363,7 @@ def load_done_agents(
     from ._json_cache import get_loader_executor, is_loader_executor_shutdown_error
 
     projects_dir = sase_projects_dir()
+    _completed_import_transaction.cache_clear()
 
     if not projects_dir.exists():
         return []
@@ -402,6 +426,11 @@ def _build_done_agent_from_record(
         return None
     done = record.done
     if done is None:
+        return None
+    if not _import_transaction_is_visible(
+        record.project_name,
+        done.imported_transaction_key,
+    ):
         return None
     timestamp_str = record.timestamp
     start_time = parse_timestamp_14_digit(timestamp_str)
@@ -508,6 +537,7 @@ def load_done_agents_from_snapshot(
     Iterates pre-walked artifact records from a single
     :class:`AgentArtifactScanWire` instead of re-walking the filesystem.
     """
+    _completed_import_transaction.cache_clear()
     agents: list[Agent] = []
     for record in snapshot.records:
         if not _is_done_record(record):

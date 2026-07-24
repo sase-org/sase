@@ -50,7 +50,15 @@ _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _STATES = {"active", "waiting", "completed", "failed", "stopped", "dismissed"}
 _CONTAINER_KINDS = {"family", "clan"}
 _RELATIONSHIP_KINDS = {"parent", "workflow_parent", "retry", "wait"}
-_FILE_KINDS = {"meta", "state", "commits", "prompt", "chat"}
+_FILE_KINDS = {
+    "meta",
+    "state",
+    "commits",
+    "prompt",
+    "chat",
+    "embedded_workflows",
+    "prompt_steps",
+}
 V2_METADATA_FIELDS = frozenset(
     {
         "agent_clan",

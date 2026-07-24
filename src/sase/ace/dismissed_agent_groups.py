@@ -35,6 +35,8 @@ _WIRE_CAPABILITY_PROBE = {
     "source": "marked_agents",
     "title": "1 agent in cl",
     "name": "Probe group",
+    "canonical_global_family": "alice.athena.probe",
+    "source_snapshot_digest": "a" * 64,
     "agent_count": 1,
     "top_level_agent_count": 1,
     "status_counts": {"DONE": 1},
@@ -47,6 +49,8 @@ _WIRE_CAPABILITY_PROBE = {
             "raw_suffix": "ts-1",
             "tribe": "backend",
             "prompt_preview": "Restore this backend worker.",
+            "reasoning_effort": "high",
+            "source_run_id": "run-probe-1",
         }
     ],
 }
@@ -91,6 +95,10 @@ def _rust_group_archive_supports_current_wire() -> bool:
         result.get("name") == "Probe group"
         and first_ref.get("tribe") == "backend"
         and first_ref.get("prompt_preview") == "Restore this backend worker."
+        and first_ref.get("reasoning_effort") == "high"
+        and first_ref.get("source_run_id") == "run-probe-1"
+        and result.get("canonical_global_family") == "alice.athena.probe"
+        and result.get("source_snapshot_digest") == "a" * 64
     )
 
 

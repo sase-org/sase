@@ -56,18 +56,34 @@ def integrate_foreign_bundles(
     manifest: AgentsManifest,
     machine: str,
 ) -> IntegrationCounts:
-    """Validate every foreign bundle before materializing any local artifact."""
+    """Validate every selected v1 bundle before materializing local history.
+
+    A machine token matching the configured machine is only treated as a
+    current-owner observation when a matching local artifact and source
+    commit prove it. Every other entry retains unknown-username v1 import
+    provenance, including ambiguous same-machine entries.
+    """
 
     validated: list[tuple[ManifestEntry, AgentBundle]] = []
     for entry in manifest.entries:
-        if entry.machine == machine:
-            continue
         validated.append((entry, read_bundle(repo_root, entry)))
 
     integrated = 0
     refreshed = 0
     unchanged = 0
     for entry, bundle in validated:
+        if (
+            entry.machine == machine
+            and _find_proven_current_v1_artifact(
+                target,
+                entry,
+                bundle,
+                machine,
+            )
+            is not None
+        ):
+            unchanged += 1
+            continue
         existing = _find_imported_artifact(target, entry)
         if existing is not None:
             existing_meta = _read_json_object(existing / "agent_meta.json") or {}
@@ -80,6 +96,50 @@ def integrate_foreign_bundles(
         _create_imported_artifact(target, bundle, entry)
         integrated += 1
     return IntegrationCounts(integrated, refreshed, unchanged)
+
+
+def _find_proven_current_v1_artifact(
+    target: ProjectTarget,
+    entry: ManifestEntry,
+    bundle: AgentBundle,
+    machine: str,
+) -> Path | None:
+    """Return a local artifact only when name, timestamp, and commit agree."""
+
+    source_shas = {commit.sha.lower() for commit in bundle.commits}
+    if not source_shas:
+        return None
+    for artifact_dir in iter_agent_artifact_dirs(
+        target.project_key,
+        ACE_RUN_WORKFLOW_DIR,
+        newest_first=False,
+    ):
+        if artifact_dir.name != entry.artifact_timestamp:
+            continue
+        meta = _read_json_object(artifact_dir / "agent_meta.json")
+        done = _read_json_object(artifact_dir / "done.json")
+        if meta is None or done is None:
+            continue
+        if meta.get("imported_from_machine") is not None:
+            continue
+        raw_name = _text(meta.get("name")) or _text(done.get("name"))
+        if raw_name is None:
+            continue
+        if machine_qualify_v1_transport_agent_name(raw_name, machine) != entry.name:
+            continue
+        local_shas = {
+            sha.lower()
+            for marker in commit_markers(artifact_dir)
+            if (
+                sha := _text(marker.get("result"))
+                or _text(marker.get("commit_result"))
+                or _text(marker.get("sha"))
+            )
+            is not None
+        }
+        if source_shas & local_shas:
+            return artifact_dir
+    return None
 
 
 def _build_local_bundles(
@@ -462,6 +522,7 @@ def _imported_markers(
         "artifact_layout_version": bundle.metadata.artifact_layout_version,
         "chat_path": local_chat_path,
         "imported_from_machine": entry.machine,
+        "imported_owner_kind": "username_unknown_v1",
         "imported_digest": entry.digest,
     }
     done = {
@@ -472,6 +533,7 @@ def _imported_markers(
         "outcome": "completed",
         "response_path": local_chat_path,
         "imported_from_machine": entry.machine,
+        "imported_owner_kind": "username_unknown_v1",
         "imported_digest": entry.digest,
         "model": fields.get("model"),
         "llm_provider": fields.get("llm_provider"),

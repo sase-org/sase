@@ -29,6 +29,8 @@ class SavedAgentGroupRefWire:
     llm_provider: str | None = None
     tribe: str | None = None
     prompt_preview: str | None = None
+    reasoning_effort: str | None = None
+    source_run_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,8 @@ class SavedAgentGroupWire:
     agent_refs: tuple[SavedAgentGroupRefWire, ...] = ()
     revived_at: str | None = None
     times_revived: int = 0
+    canonical_global_family: str | None = None
+    source_snapshot_digest: str | None = None
 
 
 @dataclass(frozen=True)
@@ -121,6 +125,14 @@ def _saved_agent_group_ref_from_dict(data: dict[str, Any]) -> SavedAgentGroupRef
         prompt_preview=(
             None if data.get("prompt_preview") is None else str(data["prompt_preview"])
         ),
+        reasoning_effort=(
+            None
+            if data.get("reasoning_effort") is None
+            else str(data["reasoning_effort"])
+        ),
+        source_run_id=(
+            None if data.get("source_run_id") is None else str(data["source_run_id"])
+        ),
     )
 
 
@@ -147,6 +159,12 @@ def saved_agent_group_from_dict(data: dict[str, Any]) -> SavedAgentGroupWire:
         ),
         revived_at=None if data.get("revived_at") is None else str(data["revived_at"]),
         times_revived=int(data.get("times_revived", 0)),
+        canonical_global_family=_optional_nonblank_str(
+            data.get("canonical_global_family")
+        ),
+        source_snapshot_digest=_optional_nonblank_str(
+            data.get("source_snapshot_digest")
+        ),
     )
 
 

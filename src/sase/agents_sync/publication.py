@@ -292,6 +292,12 @@ def _published_run(
         ("commits", "commits.json", v2_json_bytes(commits.to_json_dict())),
         ("prompt", "prompt.md", run.prompt_bytes),
         ("chat", "chat.md", run.chat_bytes),
+        (
+            "embedded_workflows",
+            "embedded_workflows.json",
+            run.embedded_workflows_bytes,
+        ),
+        ("prompt_steps", "prompt_steps.json", run.prompt_steps_bytes),
     ):
         if content is None:
             continue

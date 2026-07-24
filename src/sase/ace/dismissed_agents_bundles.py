@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import CancelledError
+from functools import lru_cache
 import json
 import os
 import sqlite3
@@ -12,6 +13,27 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .tui.models.agent import Agent
+
+
+@lru_cache(maxsize=1_024)
+def _completed_import_transaction(project_key: str, transaction_key: str) -> bool:
+    from sase.agents_sync.v2_importer import import_transaction_is_complete
+
+    return import_transaction_is_complete(project_key, transaction_key)
+
+
+def _imported_bundle_is_visible(data: dict[str, Any]) -> bool:
+    transaction_key = data.get("imported_transaction_key")
+    if not isinstance(transaction_key, str) or not transaction_key:
+        return True
+    project_file = data.get("project_file")
+    if not isinstance(project_file, str) or not project_file:
+        return False
+    project_key = Path(project_file).expanduser().parent.name
+    return bool(project_key) and _completed_import_transaction(
+        project_key,
+        transaction_key,
+    )
 
 
 def has_dismissed_bundle(ctx: Any, raw_suffix: str) -> bool:
@@ -337,6 +359,7 @@ def _load_bundle_paths(ctx: Any, bundle_paths: list[Path]) -> list[Agent]:
     """Load dismissed agents from already-resolved bundle paths."""
     from sase.project_display_names import attach_project_display_names
 
+    _completed_import_transaction.cache_clear()
     from .tui.models._loaders._json_cache import (
         get_loader_executor,
         is_loader_executor_shutdown_error,
@@ -356,6 +379,8 @@ def _load_bundle_paths(ctx: Any, bundle_paths: list[Path]) -> list[Agent]:
             attach_project_display_names(agents)
             return agents
         raise
+    finally:
+        _completed_import_transaction.cache_clear()
     attach_project_display_names(agents)
     return agents
 
@@ -416,6 +441,8 @@ def load_bundle_file(filepath: Path) -> Agent | None:
     except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(data, dict):
+        return None
+    if not _imported_bundle_is_visible(data):
         return None
     try:
         agent = Agent.from_bundle_dict(data)

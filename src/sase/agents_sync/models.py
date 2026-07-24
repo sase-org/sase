@@ -131,6 +131,13 @@ class IntegrationCounts:
     integrated: int = 0
     refreshed: int = 0
     unchanged: int = 0
+    hoods_imported: int = 0
+    hoods_refreshed: int = 0
+    hoods_unchanged: int = 0
+    hoods_quarantined: int = 0
+    families_imported: int = 0
+    runs_imported: int = 0
+    diagnostics: tuple[str, ...] = ()
 
     @property
     def changed(self) -> int:
@@ -184,6 +191,12 @@ class SyncOutcome:
     hoods_unchanged: int = 0
     families_published: int = 0
     runs_published: int = 0
+    hoods_imported: int = 0
+    hoods_import_refreshed: int = 0
+    hoods_import_unchanged: int = 0
+    hoods_quarantined: int = 0
+    families_imported: int = 0
+    runs_imported: int = 0
     schema_version: int = SYNC_RESULT_SCHEMA_VERSION
 
     @property
@@ -205,6 +218,12 @@ class SyncOutcome:
             "hoods_unchanged": self.hoods_unchanged,
             "families_published": self.families_published,
             "runs_published": self.runs_published,
+            "hoods_imported": self.hoods_imported,
+            "hoods_import_refreshed": self.hoods_import_refreshed,
+            "hoods_import_unchanged": self.hoods_import_unchanged,
+            "hoods_quarantined": self.hoods_quarantined,
+            "families_imported": self.families_imported,
+            "runs_imported": self.runs_imported,
             "committed": self.committed,
             "pushed": self.pushed,
             "push_attempts": self.push_attempts,

@@ -15,9 +15,7 @@ from typing import Any
 
 from sase.agents_sync.bundles import integrate_foreign_bundles
 from sase.agents_sync.git import GitRunner, run_git
-from sase.agents_sync.io import read_manifest
 from sase.agents_sync.models import (
-    AgentsManifest,
     ExportCounts,
     IntegrationCounts,
     ProjectTarget,
@@ -25,6 +23,9 @@ from sase.agents_sync.models import (
 )
 from sase.agents_sync.publication import reconcile_agent_hoods
 from sase.agents_sync.targets import resolve_sync_targets
+from sase.agents_sync.v2_import_package import discover_agent_imports
+from sase.agents_sync.v2_importer import integrate_v2_hoods
+from sase.agents_sync.v2_models import V2ProjectIdentity
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
@@ -157,7 +158,12 @@ def _sync_project_locked(
 
     committed_result = commit_agents_payload_if_dirty(repo, owner, git_runner)
     if isinstance(committed_result, str):
-        return _error(target, committed_result, pulled=True)
+        return _error(
+            target,
+            committed_result,
+            pulled=True,
+            **_v2_import_outcome_counts(integrated),
+        )
     committed = committed_result
     should_push = committed or agents_ahead_count(repo, git_runner) > 0
     if not should_push:
@@ -174,6 +180,12 @@ def _sync_project_locked(
             hoods_unchanged=exported.hoods_unchanged,
             families_published=exported.families_published,
             runs_published=exported.runs_published,
+            hoods_imported=integrated.hoods_imported,
+            hoods_import_refreshed=integrated.hoods_refreshed,
+            hoods_import_unchanged=integrated.hoods_unchanged,
+            hoods_quarantined=integrated.hoods_quarantined,
+            families_imported=integrated.families_imported,
+            runs_imported=integrated.runs_imported,
             committed=False,
             diagnostics=exported.diagnostics,
         )
@@ -198,6 +210,12 @@ def _sync_project_locked(
             hoods_unchanged=exported.hoods_unchanged,
             families_published=exported.families_published,
             runs_published=exported.runs_published,
+            hoods_imported=integrated.hoods_imported,
+            hoods_import_refreshed=integrated.hoods_refreshed,
+            hoods_import_unchanged=integrated.hoods_unchanged,
+            hoods_quarantined=integrated.hoods_quarantined,
+            families_imported=integrated.families_imported,
+            runs_imported=integrated.runs_imported,
             committed=committed,
             pushed=True,
             push_attempts=1,
@@ -220,6 +238,7 @@ def _sync_project_locked(
             committed=committed,
             push_attempts=1,
             diagnostics=exported.diagnostics,
+            **_v2_import_outcome_counts(integrated),
         )
 
     if committed:
@@ -236,6 +255,7 @@ def _sync_project_locked(
                 ),
                 pulled=True,
                 push_attempts=1,
+                **_v2_import_outcome_counts(integrated),
             )
 
     repulled = pull_agents_rebase(repo, git_runner, "agents_sync.retry_pull")
@@ -246,6 +266,7 @@ def _sync_project_locked(
             agents_git_error("git pull --rebase retry failed", repulled, cleanup),
             pulled=True,
             push_attempts=1,
+            **_v2_import_outcome_counts(integrated),
         )
     try:
         retry_integrated, retry_exported = _integrate_export_pass(
@@ -257,6 +278,7 @@ def _sync_project_locked(
             f"sync recompute after push rejection failed: {exc}",
             pulled=True,
             push_attempts=1,
+            **_v2_import_outcome_counts(integrated),
         )
     retry_commit_result = commit_agents_payload_if_dirty(repo, owner, git_runner)
     if isinstance(retry_commit_result, str):
@@ -265,6 +287,7 @@ def _sync_project_locked(
             retry_commit_result,
             pulled=True,
             push_attempts=1,
+            **_v2_import_outcome_counts(integrated),
         )
     retry_committed = retry_commit_result
     retry_push = git_runner(
@@ -302,6 +325,22 @@ def _sync_project_locked(
             committed=retry_committed,
             push_attempts=2,
             diagnostics=all_diagnostics,
+            hoods_imported=max(
+                integrated.hoods_imported, retry_integrated.hoods_imported
+            ),
+            hoods_import_refreshed=max(
+                integrated.hoods_refreshed, retry_integrated.hoods_refreshed
+            ),
+            hoods_import_unchanged=max(
+                integrated.hoods_unchanged, retry_integrated.hoods_unchanged
+            ),
+            hoods_quarantined=max(
+                integrated.hoods_quarantined, retry_integrated.hoods_quarantined
+            ),
+            families_imported=max(
+                integrated.families_imported, retry_integrated.families_imported
+            ),
+            runs_imported=max(integrated.runs_imported, retry_integrated.runs_imported),
         )
     return SyncOutcome(
         target.project_key,
@@ -322,6 +361,20 @@ def _sync_project_locked(
         pushed=True,
         push_attempts=2,
         diagnostics=all_diagnostics,
+        hoods_imported=max(integrated.hoods_imported, retry_integrated.hoods_imported),
+        hoods_import_refreshed=max(
+            integrated.hoods_refreshed, retry_integrated.hoods_refreshed
+        ),
+        hoods_import_unchanged=max(
+            integrated.hoods_unchanged, retry_integrated.hoods_unchanged
+        ),
+        hoods_quarantined=max(
+            integrated.hoods_quarantined, retry_integrated.hoods_quarantined
+        ),
+        families_imported=max(
+            integrated.families_imported, retry_integrated.families_imported
+        ),
+        runs_imported=max(integrated.runs_imported, retry_integrated.runs_imported),
     )
 
 
@@ -331,26 +384,57 @@ def _integrate_export_pass(
     owner: AgentOwnerIdentity,
     git_runner: GitRunner,
 ) -> tuple[IntegrationCounts, ExportCounts]:
-    legacy_manifest_path = repo / "manifest.json"
-    legacy_manifest = (
-        read_manifest(legacy_manifest_path)
-        if legacy_manifest_path.is_file()
-        else AgentsManifest()
-    )
-    integrated = integrate_foreign_bundles(
-        target,
+    identity = AgentIdentitySnapshot(owner)
+    discovery = discover_agent_imports(
         repo,
-        legacy_manifest,
-        owner.machine_name,
+        V2ProjectIdentity(target.project_key, target.project),
+    )
+    v2_integrated = integrate_v2_hoods(
+        target,
+        discovery.v2_packages,
+        identity=identity,
+    )
+    legacy_diagnostics: tuple[str, ...] = ()
+    try:
+        legacy_integrated = integrate_foreign_bundles(
+            target,
+            repo,
+            discovery.legacy_manifest,
+            owner.machine_name,
+        )
+    except Exception as exc:  # noqa: BLE001 - isolate the legacy compatibility tier
+        legacy_integrated = IntegrationCounts()
+        legacy_diagnostics = (f"quarantined legacy v1 import batch: {exc}",)
+    integrated = IntegrationCounts(
+        integrated=legacy_integrated.integrated,
+        refreshed=legacy_integrated.refreshed,
+        unchanged=legacy_integrated.unchanged,
+        hoods_imported=v2_integrated.hoods_imported,
+        hoods_refreshed=v2_integrated.hoods_refreshed,
+        hoods_unchanged=v2_integrated.hoods_unchanged,
+        hoods_quarantined=v2_integrated.hoods_quarantined,
+        families_imported=v2_integrated.families_imported,
+        runs_imported=v2_integrated.runs_imported,
+        diagnostics=tuple(
+            dict.fromkeys(
+                (
+                    *discovery.diagnostics,
+                    *v2_integrated.diagnostics,
+                    *legacy_diagnostics,
+                )
+            )
+        ),
     )
     published = reconcile_agent_hoods(
         target,
         repo,
-        identity=AgentIdentitySnapshot(owner),
+        identity=identity,
         git_runner=git_runner,
     )
     return integrated, ExportCounts(
-        diagnostics=published.diagnostics,
+        diagnostics=tuple(
+            dict.fromkeys((*integrated.diagnostics, *published.diagnostics))
+        ),
         hoods_published=published.hoods_published,
         hoods_refreshed=published.hoods_refreshed,
         hoods_unchanged=published.hoods_unchanged,
@@ -557,6 +641,17 @@ def agents_git_error(
 
 def _error(target: ProjectTarget, error: str, **kwargs: Any) -> SyncOutcome:
     return SyncOutcome(target.project_key, target.project, error=error, **kwargs)
+
+
+def _v2_import_outcome_counts(integrated: IntegrationCounts) -> dict[str, int]:
+    return {
+        "hoods_imported": integrated.hoods_imported,
+        "hoods_import_refreshed": integrated.hoods_refreshed,
+        "hoods_import_unchanged": integrated.hoods_unchanged,
+        "hoods_quarantined": integrated.hoods_quarantined,
+        "families_imported": integrated.families_imported,
+        "runs_imported": integrated.runs_imported,
+    }
 
 
 def _skip(target: ProjectTarget, reason: str) -> SyncOutcome:

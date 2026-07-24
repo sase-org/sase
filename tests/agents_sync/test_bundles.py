@@ -156,6 +156,93 @@ def test_import_probes_forward_on_artifact_timestamp_collision(
     assert (artifact_root / "20260722123457" / "done.json").is_file()
 
 
+def test_same_machine_v1_requires_local_commit_proof(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    ambiguous = _bundle()
+    ambiguous_meta = PortableAgentMetadata(
+        "athena.worker",
+        "athena",
+        ambiguous.metadata.artifact_timestamp,
+        ambiguous.metadata.artifact_layout_version,
+        ambiguous.metadata.fields,
+    )
+    ambiguous = AgentBundle(
+        ambiguous_meta,
+        ambiguous.commits,
+        ambiguous.chat_bytes,
+        compute_bundle_digest(
+            ambiguous_meta,
+            ambiguous.commits,
+            ambiguous.chat_bytes,
+        ),
+    )
+    entry = _entry(ambiguous)
+    write_bundle(repo, ambiguous)
+    artifact_root = tmp_path / "artifacts"
+    local = artifact_root / entry.artifact_timestamp
+    local.mkdir(parents=True)
+    (local / "agent_meta.json").write_text(
+        json.dumps({"name": "worker"}),
+        encoding="utf-8",
+    )
+    (local / "done.json").write_text(
+        json.dumps({"name": "worker", "outcome": "completed"}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(bundles, "sase_home", lambda: tmp_path / "state")
+    monkeypatch.setattr(
+        bundles,
+        "canonical_agent_artifact_path",
+        lambda _project, _workflow, timestamp: artifact_root / timestamp,
+    )
+    monkeypatch.setattr(
+        bundles,
+        "iter_agent_artifact_dirs",
+        lambda *_args, **_kwargs: iter(sorted(artifact_root.glob("*"))),
+    )
+    monkeypatch.setattr(
+        bundles, "claim_imported_registered_name", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        bundles,
+        "update_agent_artifact_index_for_marker_mutation",
+        lambda _path: None,
+    )
+
+    imported = bundles.integrate_foreign_bundles(
+        target,
+        repo,
+        AgentsManifest((entry,)),
+        "athena",
+    )
+    assert imported.integrated == 1
+    imported_meta = json.loads(
+        (artifact_root / "20260722123457" / "agent_meta.json").read_text()
+    )
+    assert imported_meta["imported_owner_kind"] == "username_unknown_v1"
+
+    # Once the original artifact carries matching durable commit evidence,
+    # the same v1 entry is only observed and is not duplicated again.
+    (local / "commit_results.json").write_text(
+        json.dumps([{"result": ambiguous.commits[0].sha}]),
+        encoding="utf-8",
+    )
+    (artifact_root / "20260722123457" / "agent_meta.json").unlink()
+    (artifact_root / "20260722123457" / "done.json").unlink()
+    observed = bundles.integrate_foreign_bundles(
+        target,
+        repo,
+        AgentsManifest((entry,)),
+        "athena",
+    )
+    assert observed.unchanged == 1
+    assert observed.integrated == 0
+
+
 def test_local_bundle_uses_legacy_footer_backfill_and_allowlists_meta(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

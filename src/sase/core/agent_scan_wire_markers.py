@@ -59,6 +59,8 @@ class DoneMarkerWire:
             but the TUI surfaces a distinct ``STOPPED`` status.
         stopped_by: Name of the chain predecessor that set ``STOP``, when
             recorded.
+        imported_transaction_key: Project-scoped journal key used to keep
+            transactional imports hidden until their whole hood is complete.
     """
 
     outcome: str | None = None
@@ -89,6 +91,7 @@ class DoneMarkerWire:
     hidden: bool = False
     repeat_stopped: bool = False
     stopped_by: str | None = None
+    imported_transaction_key: str | None = None
 
 
 @dataclass(frozen=True)

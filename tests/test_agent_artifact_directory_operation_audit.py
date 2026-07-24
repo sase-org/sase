@@ -48,6 +48,24 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "rollback directories, never a local agent artifact directory."
         ),
     ),
+    "src/sase/agents_sync/v2_importer.py:_apply_and_finalize_transaction": DirOpReview(
+        exemption=(
+            "Removes only the completed transaction's staging directory after "
+            "artifact and dismissed-index lifecycle updates have finished."
+        ),
+    ),
+    "src/sase/agents_sync/v2_importer.py:_prepare_transaction": DirOpReview(
+        exemption=(
+            "Removes only a stale transaction-owned staging directory before "
+            "restaging; it does not remove a local agent artifact directory."
+        ),
+    ),
+    "src/sase/agents_sync/v2_importer.py:_recover_v2_import_transactions": DirOpReview(
+        exemption=(
+            "Rolls back only the transaction-owned staging directory for a "
+            "prepared journal; applied transactions resume normal finalization."
+        ),
+    ),
     "src/sase/agent/names/_wipe.py:_remove_artifact_dirs": DirOpReview(
         batched_by=(
             BatchedCoverage(

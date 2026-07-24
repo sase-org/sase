@@ -20,7 +20,10 @@ from sase.agent.names._registry_entries import (
     entry_has_other_owner as _entry_has_other_owner,
     owner_from_artifact_name as _owner_from_artifact_name,
 )
-from sase.agent.names._registry_mutations import RegistryMutationOperations
+from sase.agent.names._registry_mutations import (
+    ImportedV2RegistryClaim,
+    RegistryMutationOperations,
+)
 from sase.agent.names._registry_scan import (
     collect_artifact_entries as _collect_artifact_entries,
     collect_dismissed_bundle_entries as _collect_dismissed_bundle_entries,
@@ -148,6 +151,34 @@ def claim_imported_registered_name_v2(
         localized_name,
         claiming_dir,
         digest=digest,
+    )
+
+
+def preflight_imported_registered_names_v2(
+    claims: Sequence[ImportedV2RegistryClaim],
+    *,
+    identity: AgentIdentitySnapshot | None = None,
+) -> None:
+    """Validate an entire imported v2 claim batch without registry writes."""
+
+    _registry_mutations.preflight_imported_registered_names_v2(
+        _mutation_operations(),
+        claims,
+        identity=identity,
+    )
+
+
+def claim_imported_registered_names_v2(
+    claims: Sequence[ImportedV2RegistryClaim],
+    *,
+    identity: AgentIdentitySnapshot | None = None,
+) -> None:
+    """Persist an entire imported v2 run/container claim batch atomically."""
+
+    _registry_mutations.claim_imported_registered_names_v2(
+        _mutation_operations(),
+        claims,
+        identity=identity,
     )
 
 

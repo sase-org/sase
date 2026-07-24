@@ -142,6 +142,11 @@ def build_saved_group_preview(
     _append_status_counts(preview, summary.status_counts)
     preview.append("\n")
 
+    if summary.source == "agents_sidecar":
+        preview.append("Source       ", style="bold")
+        preview.append("Agents sidecar", style="dim")
+        preview.append("\n")
+
     if summary.project_names:
         preview.append("Projects     ", style="bold")
         preview.append(_join_limited(summary.project_names), style="dim")

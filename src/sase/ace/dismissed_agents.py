@@ -81,7 +81,7 @@ def dismissed_bundles_dir() -> Path:
     return _DISMISSED_BUNDLES_DIR or sase_subdir("dismissed_bundles")
 
 
-def _dismissed_agent_groups_dir() -> Path:
+def dismissed_agent_groups_dir() -> Path:
     return _DISMISSED_AGENT_GROUPS_DIR or sase_subdir("dismissed_agent_groups")
 
 
@@ -234,7 +234,7 @@ def ensure_dismissed_archive_ready() -> None:
 
 def save_dismissed_agent_group(group: Any) -> Any:
     return _save_dismissed_agent_group_impl(
-        group, groups_dir=_dismissed_agent_groups_dir()
+        group, groups_dir=dismissed_agent_groups_dir()
     )
 
 
@@ -244,13 +244,13 @@ def list_dismissed_agent_groups(
     cursor: int | None = None,
 ) -> Any:
     return _list_dismissed_agent_groups_impl(
-        limit=limit, cursor=cursor, groups_dir=_dismissed_agent_groups_dir()
+        limit=limit, cursor=cursor, groups_dir=dismissed_agent_groups_dir()
     )
 
 
 def load_dismissed_agent_group(group_id: str) -> Any:
     return _load_dismissed_agent_group_impl(
-        group_id, groups_dir=_dismissed_agent_groups_dir()
+        group_id, groups_dir=dismissed_agent_groups_dir()
     )
 
 
@@ -262,14 +262,14 @@ def mark_dismissed_agent_group_revived(
     return _mark_dismissed_agent_group_revived_impl(
         group_id,
         revived_at=revived_at,
-        groups_dir=_dismissed_agent_groups_dir(),
+        groups_dir=dismissed_agent_groups_dir(),
     )
 
 
 def delete_dismissed_agent_group(group_id: str) -> bool:
     return _delete_dismissed_agent_group_impl(
         group_id,
-        groups_dir=_dismissed_agent_groups_dir(),
+        groups_dir=dismissed_agent_groups_dir(),
     )
 
 

@@ -13,8 +13,11 @@ from sase.agent.names._registry_group_mutations import (
     reserve_registered_clan_name as reserve_registered_clan_name,
 )
 from sase.agent.names._registry_import_mutations import (
+    ImportedV2RegistryClaim as ImportedV2RegistryClaim,
     claim_imported_registered_name as claim_imported_registered_name,
     claim_imported_registered_name_v2 as claim_imported_registered_name_v2,
+    claim_imported_registered_names_v2 as claim_imported_registered_names_v2,
+    preflight_imported_registered_names_v2 as preflight_imported_registered_names_v2,
 )
 from sase.agent.names._registry_mutation_support import (
     RegistryMutationOperations as RegistryMutationOperations,
@@ -25,13 +28,16 @@ from sase.agent.names._registry_template_mutations import (
 )
 
 __all__ = [
+    "ImportedV2RegistryClaim",
     "RegistryMutationOperations",
     "claim_imported_registered_name",
     "claim_imported_registered_name_v2",
+    "claim_imported_registered_names_v2",
     "claim_registered_clan_name",
     "claim_registered_name",
     "convert_registered_agent_to_family",
     "delete_registered_name",
+    "preflight_imported_registered_names_v2",
     "release_planned_registered_clan_name",
     "release_planned_registered_name",
     "reserve_registered_clan_name",
