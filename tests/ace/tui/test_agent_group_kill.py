@@ -391,6 +391,23 @@ def test_group_kill_standard_mode_is_scoped_to_focused_panel() -> None:
     assert [agent.identity for agent in app._agents] == [epic.identity]
 
 
+def test_focused_running_kill_subject_uses_agent_lane() -> None:
+    agent = _make_agent(
+        cl_name="focused-change",
+        raw_suffix="20260713100500",
+        agent_name="focused-lane",
+        workspace_num=17,
+        pid=7123,
+    )
+    app = _FakeGroupKillApp([agent])
+
+    app.action_kill_agent()
+
+    assert app.pushed_modals[0].agent_description == (
+        "Agent lane:\n  focused-lane\nType: run\nWorkspace: #17\nPID: 7123"
+    )
+
+
 def test_cleanup_group_count_is_scoped_to_focused_panel() -> None:
     """Cleanup-panel group stats exclude same-key groups in other panels."""
     epic_a = _make_agent(

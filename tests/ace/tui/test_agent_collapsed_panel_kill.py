@@ -262,7 +262,7 @@ def test_collapsed_panel_adds_loaded_workflow_children_but_not_neighbors() -> No
         description = app.pushed_modals[0].agent_description
         assert "Panel: @chop (2 agents)" in description
         assert "demo-flow" in description
-        assert "workflow-child" in description
+        assert "workflow-child" not in description
         assert "neighbor" not in description
         assert "unrelated-child" not in description
         app.pushed_callbacks[0](True)

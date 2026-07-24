@@ -248,11 +248,28 @@ class EntryRelaunchMixin:
             )
             return
 
-        # Build description for confirmation dialog
-        desc_parts = [f"Type: {agent.agent_type.value}"]
-        desc_parts.append(
-            f"ChangeSpec: {agent.display_name or humanize_cl_name(agent.cl_name)}"
+        # Build description for confirmation dialog.
+        from ..agents._confirmation_lanes import (
+            confirmation_lane_entries,
+            format_confirmation_entries,
         )
+
+        loaded_agents = tuple(
+            getattr(self, "_agents_with_children", None)
+            or getattr(self, "_agents", None)
+            or (agent,)
+        )
+        desc_parts = ["Agent lane:"]
+        desc_parts.extend(
+            format_confirmation_entries(
+                confirmation_lane_entries(
+                    [agent],
+                    loaded_agents,
+                    include_running_family_members=True,
+                )
+            )
+        )
+        desc_parts.append(f"Type: {agent.agent_type.value}")
         if agent.workspace_num is not None:
             desc_parts.append(f"Workspace: #{agent.workspace_num}")
         desc_parts.append(f"PID: {agent.pid}")

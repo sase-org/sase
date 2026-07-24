@@ -206,6 +206,10 @@ def test_bulk_kill_and_edit_mounts_panes_in_mark_order() -> None:
     _mark_in_order(app, done, running)
 
     app._bulk_kill_marked_agents_and_edit()
+    description = app.pushed_modals[0].agent_description
+    assert "  run" in description
+    assert "  done" in description
+    assert "Work run" not in description
     _confirm(app)
 
     # Kill split: running is killable, done is dismissable.
@@ -309,6 +313,28 @@ def test_bulk_kill_and_edit_rewrites_exact_marked_family_member() -> None:
     assert app.edit_calls[0]["prompts"] == [
         "%id(!code, family=sase-8u.4.2, bead=sase-8u.4.2)\nImplement the plan"
     ]
+
+
+def test_bulk_kill_and_edit_running_family_member_names_lane_and_member() -> None:
+    family_member = _FakeAgent(
+        cl_name="family-change",
+        raw_suffix="20260723120000",
+        raw_prompt="Implement the plan",
+        agent_name="sase-8u.4.2--code",
+        agent_family="sase-8u.4.2",
+        role_suffix="--code",
+        phase_bead_id="sase-8u.4.2",
+        status="RUNNING",
+        pid=222,
+    )
+    app = _FakeBulkEditApp([family_member])
+    _mark_in_order(app, family_member)
+
+    app._bulk_kill_marked_agents_and_edit()
+
+    assert app.pushed_modals[0].agent_description == (
+        "Kill: 1 running agent\n  sase-8u.4.2 @sase-8u.4.2--code"
+    )
 
 
 def test_bulk_kill_and_edit_does_not_split_embedded_separator() -> None:

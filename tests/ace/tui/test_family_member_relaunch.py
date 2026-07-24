@@ -179,6 +179,9 @@ async def test_running_family_member_relaunch_cancel_is_non_destructive(
             lambda: isinstance(app.screen, ConfirmKillModal),
         )
         assert isinstance(app.screen, ConfirmKillModal)
+        assert app.screen.agent_description == (
+            "Agent lane:\n  sase-8u.4.2 @sase-8u.4.2--code\nType: run\nPID: 12345"
+        )
 
         await pilot.press("n")
         await _wait_until(

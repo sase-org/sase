@@ -92,12 +92,22 @@ class AgentKillActionFlowMixin:
             )
             return
 
-        from ._kill_action import humanize_cl_name
-
-        desc_parts = [f"Type: {agent.agent_type.value}"]
-        desc_parts.append(
-            f"ChangeSpec: {agent.display_name or humanize_cl_name(agent.cl_name)}"
+        from ._confirmation_lanes import (
+            confirmation_lane_entries,
+            format_confirmation_entries,
         )
+
+        desc_parts = ["Agent lane:"]
+        desc_parts.extend(
+            format_confirmation_entries(
+                confirmation_lane_entries(
+                    [agent],
+                    self._agents_with_children,
+                    include_running_family_members=True,
+                )
+            )
+        )
+        desc_parts.append(f"Type: {agent.agent_type.value}")
         if agent.workspace_num is not None:
             desc_parts.append(f"Workspace: #{agent.workspace_num}")
         desc_parts.append(f"PID: {agent.pid}")

@@ -92,18 +92,15 @@ class _FakeApp(AgentsMixin):
 
 
 def _names_in_modal(app: _FakeApp) -> list[str]:
-    """Extract agent names from the description of the most recent pushed modal.
-
-    Each agent line looks like ``"  <display_name> @<agent_name>"``.
-    """
+    """Extract lane names from the most recent confirmation description."""
     assert app._pushed, "no modal was pushed"
     screen, _ = app._pushed[-1]
     desc = screen.agent_description
     names: list[str] = []
     for line in desc.splitlines():
-        if not line.startswith("  ") or "@" not in line:
+        if not line.startswith("  "):
             continue
-        names.append(line.rsplit("@", 1)[1].strip())
+        names.append(line.strip().split(maxsplit=1)[0])
     return names
 
 
@@ -160,12 +157,12 @@ def test_workflow_child_inherits_parent_panel_for_bulk_dismiss() -> None:
 
     app_focus_fix = _FakeApp([parent, child], focused_key="fix")
     app_focus_fix._dismiss_all_done_agents()
-    assert set(_names_in_modal(app_focus_fix)) == {"parent", "child"}
+    assert _names_in_modal(app_focus_fix) == ["parent"]
 
     app_default_focus = _FakeApp([parent, child], focused_key=None)
     assert app_default_focus._panel_group.focused_key == "fix"
     app_default_focus._dismiss_all_done_agents()
-    assert set(_names_in_modal(app_default_focus)) == {"parent", "child"}
+    assert _names_in_modal(app_default_focus) == ["parent"]
 
 
 def test_missing_focused_key_falls_back_to_first_tribe_for_dismiss() -> None:

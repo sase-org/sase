@@ -122,13 +122,16 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
         count = len(dismissable)
         s = "s" if count != 1 else ""
         desc_parts = [f"Count: {count} agent{s}"]
-        for agent in dismissable:
-            name = agent.display_name
-            prompt_name = getattr(agent, "presented_agent_name", None) or getattr(
-                agent, "agent_name", None
+        from ._confirmation_lanes import (
+            confirmation_lane_entries,
+            format_confirmation_entries,
+        )
+
+        desc_parts.extend(
+            format_confirmation_entries(
+                confirmation_lane_entries(dismissable, self._agents_with_children)
             )
-            suffix = f" @{prompt_name}" if prompt_name else ""
-            desc_parts.append(f"  {name}{suffix}")
+        )
         agent_description = "\n".join(desc_parts)
 
         from ...modals import ConfirmDismissAllModal

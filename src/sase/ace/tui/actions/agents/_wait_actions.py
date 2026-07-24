@@ -377,12 +377,27 @@ class AgentWaitActionsMixin:
             return
 
         from ...modals import ConfirmKillModal
+        from ._confirmation_lanes import (
+            confirmation_lane_entries,
+            format_confirmation_entries,
+        )
 
         desc_parts = [f"Kill and restart {wait_spec_label(result)}"]
-        if agent.cl_name:
-            desc_parts.append(
-                f"ChangeSpec: {agent.display_name or humanize_cl_name(agent.cl_name)}"
+        desc_parts.append("Agent lane:")
+        loaded_agents = (
+            getattr(self, "_agents_with_children", None)
+            or getattr(self, "_agents", None)
+            or [agent]
+        )
+        desc_parts.extend(
+            format_confirmation_entries(
+                confirmation_lane_entries(
+                    [agent],
+                    loaded_agents,
+                    include_running_family_members=True,
+                )
             )
+        )
         if agent.pid:
             desc_parts.append(f"PID: {agent.pid}")
         agent_description = "\n".join(desc_parts)
