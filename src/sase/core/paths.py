@@ -216,6 +216,11 @@ def _shard_name(ts: datetime) -> str:
     return ts.strftime("%Y%m")
 
 
+def is_shard_dir_name(name: str) -> bool:
+    """Return whether *name* is a YYYYMM shard directory name."""
+    return _SHARD_DIR_RE.match(name) is not None
+
+
 def sharded_path(
     subdir: str,
     filename: str,
@@ -265,7 +270,7 @@ def iter_sharded_files(
     if not base.is_dir():
         return
     for entry in sorted(base.iterdir()):
-        if entry.is_dir() and _SHARD_DIR_RE.match(entry.name):
+        if entry.is_dir() and is_shard_dir_name(entry.name):
             yield from entry.glob(pattern)
     if include_legacy:
         for p in base.glob(pattern):
@@ -298,7 +303,7 @@ def find_sharded_file(
     if legacy.is_file():
         return str(legacy)
     for entry in base.iterdir():
-        if entry.is_dir() and _SHARD_DIR_RE.match(entry.name):
+        if entry.is_dir() and is_shard_dir_name(entry.name):
             candidate = entry / filename
             if candidate.is_file():
                 return str(candidate)

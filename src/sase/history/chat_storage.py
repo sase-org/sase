@@ -1,13 +1,15 @@
 """Storage and serialization helpers for chat history files."""
 
 import os
+from collections.abc import Iterable, Iterator
 from datetime import datetime
 from pathlib import Path
 
 from sase.core.paths import (
     find_sharded_file,
-    iter_sharded_files,
+    is_shard_dir_name,
     make_safe_filename,
+    sase_subdir,
     sharded_path,
 )
 from sase.core.time import get_timezone
@@ -48,12 +50,111 @@ def resolve_chat_file_path(basename: str) -> str | None:
     """Find an existing chat history file by basename.
 
     Checks the expected shard (from the filename timestamp), legacy
-    top-level, and finally scans all shards. Returns ``None`` if no
-    matching file exists.
+    top-level, all shards, and finally imported non-shard chat directories.
+    Returns ``None`` if no matching file exists.
     """
     if not basename.endswith(".md"):
         basename = f"{basename}.md"
-    return find_sharded_file("chats", basename)
+    resolved = find_sharded_file("chats", basename)
+    if resolved is not None:
+        return resolved
+    for path in _iter_non_shard_chat_files():
+        if path.name == basename:
+            return str(path)
+    return None
+
+
+def _safe_sorted_paths(paths: Iterable[Path]) -> list[Path]:
+    """Return paths sorted by name, ignoring entries that vanish mid-scan."""
+    try:
+        return sorted(paths, key=lambda path: path.name)
+    except OSError:
+        return []
+
+
+def _iter_files_in_dir(directory: Path, pattern: str) -> Iterator[Path]:
+    """Yield matching files in one directory, tolerating per-entry failures."""
+    for path in _safe_sorted_paths(directory.glob(pattern)):
+        try:
+            if path.is_file():
+                yield path
+        except OSError:
+            continue
+
+
+def _iter_chat_base_entries() -> Iterator[Path]:
+    base = sase_subdir("chats")
+    try:
+        if not base.is_dir():
+            return
+        entries = sorted(base.iterdir(), key=lambda path: path.name)
+    except OSError:
+        return
+    yield from entries
+
+
+def _iter_non_shard_chat_files() -> Iterator[Path]:
+    """Yield one-level-deep chat markdown files from non-YYYYMM directories."""
+    for entry in _iter_chat_base_entries():
+        try:
+            if not entry.is_dir() or is_shard_dir_name(entry.name):
+                continue
+        except OSError:
+            continue
+        yield from _iter_files_in_dir(entry, "*.md")
+
+
+def _yield_unique_basenames(
+    paths: Iterable[Path],
+    seen_basenames: set[str],
+) -> Iterator[Path]:
+    for path in paths:
+        basename = path.name
+        if basename in seen_basenames:
+            continue
+        seen_basenames.add(basename)
+        yield path
+
+
+def iter_chat_files() -> Iterator[Path]:
+    """Yield known chat markdown files across local and imported layouts.
+
+    The canonical chat layout uses ``YYYYMM/`` shards, with legacy
+    top-level ``*.md`` files still accepted. Imported remote transcripts
+    are stored one level deeper in non-shard directories such as
+    ``v2-.../``. Results are stable-sorted within each layout tier and
+    deduplicated by basename, with the established sharded/legacy paths
+    winning over imported duplicates.
+    """
+    seen_basenames: set[str] = set()
+    entries = list(_iter_chat_base_entries())
+
+    for entry in entries:
+        try:
+            if entry.is_dir() and is_shard_dir_name(entry.name):
+                shard_files = _iter_files_in_dir(entry, "*.md")
+                yield from _yield_unique_basenames(shard_files, seen_basenames)
+        except OSError:
+            continue
+
+    legacy_files = (
+        entry
+        for entry in entries
+        if entry.name.endswith(".md") and _safe_is_file(entry)
+    )
+    yield from _yield_unique_basenames(legacy_files, seen_basenames)
+
+    yield from _yield_unique_basenames(
+        _iter_non_shard_chat_files(),
+        seen_basenames,
+    )
+
+
+def _safe_is_file(path: Path) -> bool:
+    try:
+        return path.is_file()
+    except OSError:
+        return False
 
 
 def _clean_metadata_field(value: str | None) -> str | None:
@@ -184,7 +285,7 @@ def load_chat_history(file_ref: str, increment_headings: bool = False) -> str:
 def list_chat_histories() -> list[str]:
     """List chat basenames by modification time, most recent first."""
     entries: list[tuple[str, float]] = []
-    for path in iter_sharded_files("chats", pattern="*.md"):
+    for path in iter_chat_files():
         try:
             mtime = path.stat().st_mtime
         except OSError:
@@ -197,7 +298,7 @@ def list_chat_histories() -> list[str]:
 def find_chat_by_timestamp(timestamp: str) -> str | None:
     """Find a chat by timestamp suffix and return its home-relative path."""
     suffix = f"-{timestamp}.md"
-    for path in iter_sharded_files("chats", pattern="*.md"):
+    for path in iter_chat_files():
         if path.name.endswith(suffix):
             return str(path).replace(str(Path.home()), "~")
     return None

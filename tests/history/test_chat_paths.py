@@ -8,10 +8,13 @@ import pytest
 from sase.history.chat import (
     _get_branch_or_workspace_name,
     _load_chat_history,
+    find_chat_by_timestamp,
     generate_chat_filename,
     get_chat_file_path,
     list_chat_histories,
+    resolve_chat_file_path,
 )
+from sase.history.chat_storage import iter_chat_files
 
 from tests.conftest import redirect_sase_home
 
@@ -131,6 +134,65 @@ def test_list_chat_histories_with_files(
     assert len(result) == 2
     assert "test-run-251128_120000" in result
     assert "test-run-251128_130000" in result
+
+
+def test_iter_chat_files_includes_imported_non_shard_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path)
+    chats = tmp_path / "chats"
+    sharded = chats / "202511" / "test-run-251128_120000.md"
+    legacy = chats / "legacy-run-251128_120001.md"
+    imported = chats / "v2-abc" / "imported-v2-alpha-v2-abcdef.md"
+    sharded.parent.mkdir(parents=True)
+    imported.parent.mkdir(parents=True)
+    sharded.write_text("sharded", encoding="utf-8")
+    legacy.write_text("legacy", encoding="utf-8")
+    imported.write_text("imported", encoding="utf-8")
+
+    assert [path.name for path in iter_chat_files()] == [
+        "test-run-251128_120000.md",
+        "legacy-run-251128_120001.md",
+        "imported-v2-alpha-v2-abcdef.md",
+    ]
+
+
+def test_list_chat_histories_deduplicates_by_basename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path)
+    sharded = tmp_path / "chats" / "202511" / "same-run-251128_120000.md"
+    imported = tmp_path / "chats" / "v2-abc" / "same-run-251128_120000.md"
+    sharded.parent.mkdir(parents=True)
+    imported.parent.mkdir(parents=True)
+    sharded.write_text("sharded", encoding="utf-8")
+    imported.write_text("imported", encoding="utf-8")
+
+    assert list_chat_histories() == ["same-run-251128_120000"]
+
+
+def test_find_chat_by_timestamp_finds_imported_chat(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path)
+    imported = tmp_path / "chats" / "v2-abc" / "imported-run-251128_120000.md"
+    imported.parent.mkdir(parents=True)
+    imported.write_text("imported", encoding="utf-8")
+
+    assert find_chat_by_timestamp("251128_120000") == str(imported).replace(
+        str(Path.home()), "~"
+    )
+
+
+def test_resolve_chat_file_path_finds_imported_basename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path)
+    imported = tmp_path / "chats" / "v2-abc" / "imported-v2-alpha-v2-abcdef.md"
+    imported.parent.mkdir(parents=True)
+    imported.write_text("imported", encoding="utf-8")
+
+    assert resolve_chat_file_path("imported-v2-alpha-v2-abcdef") == str(imported)
 
 
 def test__load_chat_history_with_increment_headings() -> None:

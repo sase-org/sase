@@ -100,11 +100,32 @@ def test_list_finds_sharded_and_legacy(
     home = _setup_fake_home(monkeypatch, tmp_path)
     sharded = _write_chat(home, "branch-run-260429_101500", shard="202604")
     legacy = _write_chat(home, "old-run-251128_120000", shard=None)
+    imported = _write_chat(
+        home,
+        "imported-v2-alpha-v2-abcdef",
+        shard="v2-abc",
+        prompt="from a synced machine",
+    )
 
     infos = list_chat_transcripts()
     paths = {info.absolute_path for info in infos}
     assert str(sharded) in paths
     assert str(legacy) in paths
+    assert str(imported) in paths
+
+
+def test_list_deduplicates_imported_duplicate_basename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = _setup_fake_home(monkeypatch, tmp_path)
+    sharded = _write_chat(home, "same-run-260429_101500", shard="202604")
+    imported = _write_chat(home, "same-run-260429_101500", shard="v2-abc")
+    os.utime(sharded, (1_700_000_000, 1_700_000_000))
+    os.utime(imported, (1_800_000_000, 1_800_000_000))
+
+    infos = list_chat_transcripts()
+
+    assert [info.absolute_path for info in infos] == [str(sharded)]
 
 
 def test_list_newest_first(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

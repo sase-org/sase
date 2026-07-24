@@ -18,9 +18,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from sase.core.paths import iter_sharded_files
 from sase.core.time import get_timezone
-from sase.history.chat import resolve_chat_file_path
+from sase.history.chat_storage import iter_chat_files, resolve_chat_file_path
 
 # ---------------------------------------------------------------------------
 # Parsing helpers
@@ -158,8 +157,9 @@ def list_chat_transcripts(
 ) -> list[ChatTranscriptInfo]:
     """List chat transcripts, newest first.
 
-    Iterates ``~/.sase/chats`` (sharded ``YYYYMM/`` plus legacy top-level)
-    and returns one :class:`ChatTranscriptInfo` per readable ``*.md`` file.
+    Iterates ``~/.sase/chats`` (sharded ``YYYYMM/``, legacy top-level, plus
+    imported non-shard directories) and returns one
+    :class:`ChatTranscriptInfo` per readable ``*.md`` file.
 
     Args:
         limit: If set, return at most this many entries after sorting.
@@ -170,7 +170,7 @@ def list_chat_transcripts(
         Newest-first list of :class:`ChatTranscriptInfo`.
     """
     entries: list[tuple[Path, float]] = []
-    for p in iter_sharded_files("chats", pattern="*.md"):
+    for p in iter_chat_files():
         try:
             mtime = p.stat().st_mtime
         except OSError:
