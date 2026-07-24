@@ -411,6 +411,8 @@ def _entry_provenance(
     source_owner = _source_owner_from_payload(payload)
     canonical_global_name = payload.get("canonical_global_name")
     digest = payload.get("imported_digest")
+    if not isinstance(digest, str):
+        digest = payload.get("imported_snapshot_digest")
     if (
         source_owner is not None
         and isinstance(canonical_global_name, str)

@@ -275,12 +275,12 @@ def test_registry_rebuild_preserves_explicit_import_provenance(
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     meta.update(
         {
-            "source_owner": {
+            "imported_source_owner": {
                 "username": "alice",
                 "machine_name": "zeus",
             },
             "canonical_global_name": "alice.zeus.worker",
-            "imported_digest": "a" * 64,
+            "imported_snapshot_digest": "a" * 64,
         }
     )
     meta_path.write_text(json.dumps(meta), encoding="utf-8")

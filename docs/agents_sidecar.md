@@ -87,7 +87,9 @@ A valid remote run becomes a terminal historical artifact and dismissed-agent bu
 `active`, `waiting`, and `stopped` states appear locally as `STOPPED`; a source failure remains `FAILED`; other terminal
 states appear as `DONE`. Available prompts, chats, commits, restart metadata, and family/clan/wait/retry relationships
 are retained. A sequential family is also recorded as one stable saved-family group, so the normal ACE family-revival
-flow can relaunch it. Refreshing that family preserves its existing revival timestamp and count.
+flow can relaunch it directly: press `R` in the Agents tab and choose the group labeled **Agents sidecar**. The preview
+retains role order, parent mapping, raw prompts, model/provider/reasoning settings, and conditional localized names.
+Refreshing that family preserves its existing revival timestamp and count.
 
 Imports are transactional per hood. SASE prepares the complete local artifact, dismissed bundle, saved-family record,
 and permanent-name claims as a staged transaction, then applies and finalizes it under a project import lock. Loaders
@@ -98,17 +100,20 @@ commit evidence, it treats that run as already observed instead of creating a du
 
 ## Commands and status
 
-Run a mutating reconciliation for all enabled projects:
+There are three deliberately separate modes.
+
+Run a full-duplex network reconciliation for all enabled projects:
 
 ```bash
 sase agent sync
 sase agent sync -p project-alias -p another-project
 ```
 
-The repository transaction acquires a bounded lock, pulls with rebase, imports validated shared v2 history and optional
-legacy v1 bundles, performs v2 publication for locally owned hoods, stages the complete shared payload, commits with the
-full owner identity, and pushes. A non-fast-forward rejection triggers one pull/recompute/commit/push retry. Conflicted
-rebases are aborted and reported; a failure in one project does not prevent the others from running.
+The repository transaction acquires a bounded lock, fetches and pulls with rebase, imports validated shared v2 history
+and optional legacy v1 bundles, drains commit-publication outbox entries, performs v2 publication for locally owned
+hoods, rebuilds deterministic indexes, commits with the full owner identity, and pushes. A non-fast-forward rejection
+triggers one pull/recompute/commit/push retry. Conflicted rebases are aborted and reported; a failure in one project
+does not prevent the others from running. The Updates pane's `a` action is the ACE equivalent for all enabled projects.
 
 Use `--json` to audit the complete schema-version-2 result. In addition to the legacy `integrated`, `refreshed`,
 `exported`, and `export_refreshed` fields, each project reports `hoods_imported`, `hoods_import_refreshed`,
@@ -118,8 +123,8 @@ import count, `V1` is the changed legacy-v1 publication count, and `HOODS` / `RU
 totals. ACE's tracked-task lines likewise do not currently include the v2 import fields, so a project that only imports
 or refreshes v2 history can be summarized there as `current`; use the CLI's `--json` result to audit those imports.
 
-Status checks maintain `~/.sase/agents_sync/status_snapshot.json` and, after a refreshed check, validated incoming-hood
-cache objects:
+Periodic detection and the equivalent CLI status checks maintain `~/.sase/agents_sync/status_snapshot.json` and
+validated incoming-hood cache objects:
 
 ```bash
 sase agent sync --check
@@ -128,28 +133,39 @@ sase agent sync --check --json
 ```
 
 Neither check mode imports agent history, publishes local hoods, changes the sidecar worktree, commits, or pushes.
-Without `--refresh`, `--check` does not run Git or scan local agent artifacts: it resolves the current project
-inventory, reconciles persisted incoming-hood entries against import receipts, and rewrites the status snapshot with the
-previously recorded Git and unexported-agent counts. Those counts can therefore be absent or stale.
+Without `--refresh`, `--check` does not run Git or scan local agent artifacts: it reconciles persisted incoming-hood
+entries against import receipts and rewrites the status snapshot while carrying forward previously recorded Git and
+unexported-agent counts. Those diagnostic counts can therefore be absent or stale.
 
-`--check --refresh` is the networked status path. It fetches remote refs, validates the fetched agents commit, stores
-independently valid foreign hoods in the local incoming cache, and recomputes ahead, behind, and legacy unexported-agent
-counts. `--refresh` is rejected unless `--check` is also present. Use `--json` to inspect cached `pending_updates`,
-quarantine diagnostics, and the fetched ref and commit.
+`--check --refresh` is the networked detection path. It fetches remote refs, validates the fetched agents commit without
+checking it out, stores independently valid foreign hoods in the local incoming cache, and recomputes ahead, behind, and
+legacy unexported-agent counts. Exact-current-owner hoods are observed but do not become pending updates. `--refresh` is
+rejected unless `--check` is also present. Use `--json` to inspect cached `pending_updates`, quarantine diagnostics, and
+the fetched ref and commit.
 
 ## ACE integration
 
-ACE performs a networked status check after first paint and then checks enabled agents repositories periodically. When
-the cached status says a project is behind, ahead, has a nonzero legacy unexported-agent count, or is otherwise not
-ready, the top bar shows a green `⇅ N` badge. Hover it for per-project details or click it to run the same
-all-enabled-project sync as a tracked background task. The `,U` comprehensive update preview includes an **Agents
-repos** section and synchronizes every represented enabled project after its agent-CLI and SASE/core/plugin legs.
-Lifecycle-disabled projects are excluded from this all-project inventory rather than displayed as skipped.
+ACE performs a networked detection check after first paint and then checks enabled agents repositories periodically. The
+green `⇅ N` badge counts only validated foreign hoods already captured in the incoming cache and not covered by an
+import receipt. Same-user/other-machine and other-user/same-machine hoods are foreign; exact-current-owner changes are
+not. Local ahead/unexported work, missing or disabled sidecars, Git behind counts, and errors remain available in CLI
+diagnostics but do not light the badge.
+
+Hover the badge for the project, source owner, hood, run, and family counts represented by that immutable snapshot.
+Clicking it imports exactly those displayed cache items as a tracked task. That path does not fetch, pull, push, export,
+or mutate the sidecar checkout; successful receipts clear the corresponding badge entries. The `,U` comprehensive update
+preview likewise captures only the cache items visible when the preview is built, lists their exact project and hood
+counts under **Agents repos**, and imports them after its other legs without network access. A later periodic fetch
+cannot widen an already confirmed preview.
+
+For an explicit full network reconciliation, open SASE Admin Center's Updates pane and press `a` (**Sync agents**). That
+tracked action covers every enabled project, drains publication retries, continues after project-local failures, and
+refreshes the agent list, status, badge, and indexes when it completes. It is equivalent to unscoped `sase agent sync`,
+not to clicking the badge or running `,U`.
 
 Configure that status loop under `ace.agents_sync`. By default, ACE reconciles cached entries and receipts every 10
-minutes and, once at least 30 minutes have elapsed, performs the remote-fetching recomputation on the next status tick.
-It shows the indicator. The immediate post-sync recheck is also cache-only, so a badge based on previously recorded
-ahead, behind, or unexported counts can remain visible until the next remote recomputation. See
+minutes and, once at least 30 minutes have elapsed, performs the remote-fetching detection pass on the next status tick.
+All Git, validation, cache import, and full-sync work runs outside the Textual event loop. See
 [ACE agents-sync configuration](configuration.md#aceagents_sync).
 
 ## Recovery
@@ -162,6 +178,17 @@ ahead, behind, or unexported counts can remain visible until the next remote rec
 - An interrupted v2 local import stays invisible until complete. A subsequent v2 import pass performs journal recovery;
   in the normal case, rerunning a mutating sync supplies that pass. Use `--json` to inspect recovery or quarantine
   diagnostics.
-- A push or fetch failure leaves local agent history intact. Fix credentials/connectivity and retry.
+- A post-commit sidecar push failure leaves the primary commit successful and a durable retry request under the
+  project's SASE state. Fix credentials/connectivity and run `sase agent sync -p <project>` (or Updates-pane `a`) to
+  drain it. Repeating the original commit workflow does not create another primary commit.
+- A general push or fetch failure leaves local agent history intact. Fix credentials/connectivity and retry.
 - A rebase conflict is aborted before the command returns. Resolve unexpected state in the hidden clone, then rerun
   `sase agent sync`.
+
+## Legacy v1 limitations
+
+V1's top-level manifest and `agents/<machine-qualified-name>` files remain in place and read-only. A v1 row has no
+trustworthy username owner. SASE therefore treats it as foreign/unknown by default, imports it through the compatibility
+path when valid, and never republishes it as locally owned v2 data. Only matching local artifact or commit evidence can
+promote a current-machine v1 row to the configured v2 identity. A shared machine token alone is never proof of
+ownership, and v1 cannot reconstruct the complete transactional family and relationship state guaranteed by v2.

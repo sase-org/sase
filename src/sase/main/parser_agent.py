@@ -70,13 +70,23 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase agent sync
     sync_parser = agents_sub.add_parser(
         "sync",
-        help="Synchronize complete commit-eligible agent hoods through sidecars",
+        help="Run full-duplex agent-sidecar sync or inspect cached incoming status",
+        description=(
+            "Without flags, fetch and reconcile enabled agents sidecars, import "
+            "foreign history, drain publication retries, publish locally "
+            "commit-eligible hoods, and push. --check is local and network-free; "
+            "--check --refresh fetches and validates incoming remote hoods without "
+            "importing or publishing them."
+        ),
     )
     sync_parser.add_argument(
         "-c",
         "--check",
         action="store_true",
-        help="Read sync status without importing, exporting, committing, or pushing",
+        help=(
+            "Reconcile cached incoming status and receipts without network, "
+            "import, publication, commit, or push"
+        ),
     )
     sync_parser.add_argument(
         "-j",
@@ -95,7 +105,10 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         "-r",
         "--refresh",
         action="store_true",
-        help="With --check, force network fetches before recomputing status",
+        help=(
+            "With --check, fetch remote refs and validate/cache incoming hoods "
+            "without importing them"
+        ),
     )
 
     # sase agent tribe {list,set,unset}

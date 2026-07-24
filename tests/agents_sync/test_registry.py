@@ -123,3 +123,57 @@ def test_v2_claim_batch_preflights_without_write_and_saves_once(
             identity=identity,
         )
     assert len(saves) == 1
+
+
+def test_foreign_username_namespace_accepts_multiple_source_machines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored: dict[str, object] = {"entries": {}}
+    monkeypatch.setattr(_registry, "_registry_mutation_lock", nullcontext)
+    monkeypatch.setattr(_registry, "load_name_registry", lambda: stored)
+    monkeypatch.setattr(
+        _registry,
+        "_owner_from_artifact_name",
+        lambda path, name, reservation_kind: {
+            "source": "artifact",
+            "name": name,
+            "artifacts_dir": str(Path(path).resolve()),
+            "reservation_kind": reservation_kind,
+        },
+    )
+    monkeypatch.setattr(
+        _registry,
+        "_save_entries",
+        lambda entries: stored.__setitem__("entries", entries),
+    )
+    identity = AgentIdentitySnapshot(AgentOwnerIdentity("alice", "hera"))
+    athena = AgentOwnerIdentity("bbugyi200", "athena")
+    zeus = AgentOwnerIdentity("bbugyi200", "zeus")
+    claims = (
+        ImportedV2RegistryClaim(
+            athena,
+            "bbugyi200.athena.worker",
+            "bbugyi200.athena.worker",
+            tmp_path / "worker",
+            "a" * 64,
+        ),
+        ImportedV2RegistryClaim(
+            zeus,
+            "bbugyi200.zeus.builder",
+            "bbugyi200.zeus.builder",
+            tmp_path / "builder",
+            "b" * 64,
+        ),
+    )
+
+    _registry.preflight_imported_registered_names_v2(claims, identity=identity)
+    _registry.claim_imported_registered_names_v2(claims, identity=identity)
+
+    entries = stored["entries"]
+    assert isinstance(entries, dict)
+    assert {
+        "bbugyi200",
+        "bbugyi200.athena.worker",
+        "bbugyi200.zeus.builder",
+    } <= set(entries)

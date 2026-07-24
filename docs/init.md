@@ -296,8 +296,11 @@ sets `default_linked_repos: false`, or supplies an explicit replacement. Its mis
 agent-specific, default-no creation prompt; `--yes` never authorizes publishing agent history. Declining that prompt
 continues initialization without the agents sidecar, while another missing sidecar can still make initialization
 incomplete. Before accepting, review the transported prompt, chat, commit, and relationship data and set a project-local
-`visibility: private` override when appropriate. The initialized README explains the privacy implications, layout, and
-synchronization command. See [Agent Hood Synchronization](agents_sidecar.md).
+`visibility: private` override when appropriate. Publication requires the selected overlay's complete `id.username` /
+`id.machine_name` identity; run `sase config init` first to migrate a legacy top-level `machine_name`. The initialized
+README explains the full project-scoped hood privacy implications, owner-sharded v2 browsing layout, active/optional
+transcript behavior, and synchronization/recovery commands. Existing v1 payload remains read-only during migration. See
+[Agent Hood Synchronization](agents_sidecar.md).
 
 Plans and research sidecars retain their illustrated README and directory-map templates. Custom sidecar roles receive a
 deterministic generic README using their configured description. Initialized guide files are committed and pushed in

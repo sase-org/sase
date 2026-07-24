@@ -32,6 +32,27 @@ def test_parser_rejects_refresh_without_check() -> None:
     assert exc_info.value.code == 2
 
 
+def test_sync_help_distinguishes_full_cached_and_refresh_modes() -> None:
+    parser = create_parser()
+    root_action = next(
+        action
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    agent_parser = root_action.choices["agent"]
+    agent_action = next(
+        action
+        for action in agent_parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+
+    help_text = " ".join(agent_action.choices["sync"].format_help().split())
+
+    assert "drain publication retries" in help_text
+    assert "--check is local and network-free" in help_text
+    assert "validate/cache incoming hoods without importing them" in help_text
+
+
 def test_agent_help_keeps_bare_list_delegation_and_sorted_commands() -> None:
     parser = create_parser()
     agent_action = next(

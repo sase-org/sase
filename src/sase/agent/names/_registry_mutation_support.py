@@ -88,6 +88,11 @@ def ensure_import_namespace_available(
     """Reject a foreign hood if any existing spelling belongs elsewhere."""
     from sase.agent.names._common import ImportedNameCollisionError
 
+    foreign_username = (
+        source_owner.username
+        if source_owner is not None and source_owner.username == source_root
+        else None
+    )
     for stored_name, raw_entry in entries.items():
         if stored_name != source_root and not stored_name.startswith(f"{source_root}."):
             continue
@@ -101,6 +106,13 @@ def ensure_import_namespace_available(
             if existing_owner == source_owner:
                 continue
             if (
+                foreign_username is not None
+                and existing_owner is not None
+                and existing_owner.username == foreign_username
+                and raw_entry.get("namespace_kind") == "foreign_username"
+            ):
+                continue
+            if (
                 existing_owner is None
                 and raw_entry.get("namespace_kind") == "sibling_machine"
                 and (source_owner is None or source_owner.machine_name == source_root)
@@ -111,8 +123,14 @@ def ensure_import_namespace_available(
                 "sibling_machine",
             }:
                 continue
-        elif source_owner is not None and entry_source_owner(raw_entry) == source_owner:
-            continue
+        elif source_owner is not None:
+            existing_owner = entry_source_owner(raw_entry)
+            if existing_owner == source_owner or (
+                foreign_username is not None
+                and existing_owner is not None
+                and existing_owner.username == foreign_username
+            ):
+                continue
         elif source_owner is None and (
             raw_entry.get("origin") == "import_v1"
             and raw_entry.get("legacy_source_machine") == source_root
