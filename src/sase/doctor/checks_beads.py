@@ -6,8 +6,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
+from sase.bead.model import Issue, Status
 from sase.bead.sync import bead_state_is_clean
 from sase.core import bead_read_facade as rust_beads
+from sase.core.agent_scan_facade import scan_agent_artifacts
+from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
 from sase.doctor.checks_project import resolve_current_project_record
 
@@ -15,6 +18,14 @@ if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
 
 _MAX_DETAIL_ROWS = 10
+_CLAIM_OWNER_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
+    only_workflow_dirs=("ace-run",),
+    include_prompt_step_markers=False,
+    include_raw_prompt_snippets=False,
+    include_done_markers=False,
+    include_workflow_state=False,
+    include_waiting=False,
+)
 
 
 def bead_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
@@ -48,6 +59,18 @@ def _check_project_beads(context: DoctorContext) -> DiagnosticCheck:
         )
 
     messages = rust_beads.doctor(beads_dir)
+    orphaned_claims = _claimed_beads_without_artifacts(
+        beads_dir,
+        context.sase_home / "projects",
+    )
+    if orphaned_claims:
+        if len(messages) == 1 and messages[0].strip().upper().startswith("OK:"):
+            messages = []
+        bead_ids = ", ".join(issue.id for issue in orphaned_claims)
+        messages.append(
+            "WARNING: claimed beads have no resolvable agent artifact: "
+            f"{bead_ids}; run `sase bead open <id>` to reopen them"
+        )
     sync_clean = _bead_sync_clean(beads_dir)
     if sync_clean is False:
         ok_message = "OK: no issues found"
@@ -77,6 +100,30 @@ def _check_project_beads(context: DoctorContext) -> DiagnosticCheck:
             "sync_clean": sync_clean,
         },
     )
+
+
+def _claimed_beads_without_artifacts(
+    beads_dir: Path,
+    projects_root: Path,
+) -> list[Issue]:
+    """Return claimed issues whose assignees have no artifact anywhere."""
+    try:
+        claimed = rust_beads.list_issues(beads_dir, statuses=[Status.CLAIMED])
+    except Exception:  # noqa: BLE001 - advisory failure must not break doctor.
+        return []
+    if not claimed:
+        return []
+
+    try:
+        snapshot = scan_agent_artifacts(projects_root, _CLAIM_OWNER_SCAN_OPTIONS)
+    except Exception:  # noqa: BLE001 - failed resolution proves nothing.
+        return []
+    artifact_owners = {
+        record.agent_meta.name
+        for record in snapshot.records
+        if record.agent_meta is not None and record.agent_meta.name
+    }
+    return [issue for issue in claimed if issue.assignee not in artifact_owners]
 
 
 def _bead_sync_clean(beads_dir: Path) -> bool | None:

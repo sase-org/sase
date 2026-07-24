@@ -424,6 +424,9 @@ axe:
     waits:
       interval: 10
       chops:
+        - name: bead_claim_checks
+          script: sase_chop_bead_claim_checks
+          description: "Release bead claims held by dead pre-launch agents"
         - name: wait_checks
           script: sase_chop_wait_checks
           description: "Resolve agent wait dependencies and write ready.json when satisfied"
