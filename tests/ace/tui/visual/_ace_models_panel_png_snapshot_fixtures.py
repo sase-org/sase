@@ -395,7 +395,7 @@ def ownership_views() -> list[AliasView]:
 
 
 def builtin_only_views() -> list[AliasView]:
-    """Built-in rows used to exercise the empty Yours section."""
+    """Built-in rows used to exercise the empty Custom section."""
     return [view for view in calm_views() if view.kind != "user"]
 
 

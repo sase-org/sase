@@ -26,7 +26,7 @@ from .models_panel_rendering import (
     provider_model_column_width,
     render_alias_row,
     render_bucket_row,
-    render_empty_yours_hint,
+    render_empty_custom_hint,
     render_section_header,
 )
 from .models_panel_runner_limit_rendering import append_runner_limit_title
@@ -151,7 +151,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
             if bucket is not None and bucket.is_user_owned:
                 text.append("▌ ", style=f"bold {OWNERSHIP_ACCENT}")
                 text.append(bucket.name, style=f"bold {OWNERSHIP_ACCENT}")
-                text.append(" · your bucket", style="dim")
+                text.append(" · custom bucket", style="dim")
             else:
                 text.append(self._active_bucket, style="bold #FFD787")
                 text.append(" · built-in bucket", style="dim")
@@ -248,8 +248,8 @@ class ModelsPanelDisplayMixin(_MixinBase):
             ):
                 options.append(
                     Option(
-                        render_empty_yours_hint(),
-                        id=f"{_HINT_ID_PREFIX}empty-yours",
+                        render_empty_custom_hint(),
+                        id=f"{_HINT_ID_PREFIX}empty-custom",
                         disabled=True,
                     )
                 )

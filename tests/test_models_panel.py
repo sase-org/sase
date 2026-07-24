@@ -24,7 +24,7 @@ from sase.ace.tui.modals.models_panel_rendering import (
     OWNERSHIP_ACCENT,
     custom_builtin_shadow_warning_message,
     description_text_for_row,
-    render_empty_yours_hint,
+    render_empty_custom_hint,
     render_bucket_row,
     render_section_header,
     _section_count_label,
@@ -306,7 +306,7 @@ def test_render_section_header_aligns_counts_with_row_state_column() -> None:
     header = render_section_header(section, provider_model_width=width).plain
     row = _render_alias_row(view, now=0.0, provider_model_width=width).plain
 
-    assert header.startswith("▌ ── Yours ")
+    assert header.startswith("▌ ── Custom ")
     assert header.index("1 alias") == row.index("configured")
 
 
@@ -318,8 +318,8 @@ def test_section_count_label_singularizes_and_omits_zero_buckets() -> None:
     assert _section_count_label(many) == "3 aliases · 1 bucket"
 
 
-def test_empty_yours_hint_names_custom_config_path() -> None:
-    hint = render_empty_yours_hint().plain
+def test_empty_custom_hint_names_custom_config_path() -> None:
+    hint = render_empty_custom_hint().plain
 
     assert hint.startswith("  No custom aliases")
     assert "llm_provider.model_aliases.custom" in hint
@@ -663,7 +663,7 @@ def test_render_bucket_row_and_description_surface_custom_builtin_warnings() -> 
     ]
 
 
-def test_render_builtin_bucket_appends_yours_after_warning_and_override() -> None:
+def test_render_builtin_bucket_appends_custom_after_warning_and_override() -> None:
     bucket = BucketView(
         name="coders",
         description="Coder roles.",
@@ -682,7 +682,7 @@ def test_render_builtin_bucket_appends_yours_after_warning_and_override() -> Non
     line = render_bucket_row(bucket, provider_model_width=13).plain
 
     assert line.startswith("  ▸ ! bucket")
-    assert line.endswith("! 1 misplaced · 1 override · 1 yours")
+    assert line.endswith("! 1 misplaced · 1 override · 1 custom")
 
 
 def test_render_user_bucket_uses_ownership_gutter_and_accent() -> None:

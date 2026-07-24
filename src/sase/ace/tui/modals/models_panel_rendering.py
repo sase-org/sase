@@ -103,7 +103,7 @@ def render_section_header(
     """Render a disabled section header on the same grid as data rows."""
     text = Text(no_wrap=True, overflow="ellipsis")
     _append_ownership_gutter(text, user_owned=section.is_user_owned)
-    label = "Yours" if section.is_user_owned else "Built-in"
+    label = "Custom" if section.is_user_owned else "Built-in"
     rule_width = _KIND_CELL + 1 + _NAME_CELL + 1 + provider_model_width
     rule_label = f"── {label} "
     rule = rule_label + ("─" * max(0, rule_width - len(rule_label)))
@@ -114,7 +114,7 @@ def render_section_header(
     return text
 
 
-def render_empty_yours_hint() -> Text:
+def render_empty_custom_hint() -> Text:
     """Render the disabled hint shown when the user section has no rows."""
     text = Text(no_wrap=True, overflow="ellipsis")
     _append_ownership_gutter(text, user_owned=False)
@@ -307,7 +307,7 @@ def render_bucket_row(bucket: BucketView, *, provider_model_width: int) -> Text:
     if not bucket.is_user_owned and bucket.user_member_count:
         text.append(" · ", style=_IMPLICIT_TAG_STYLE)
         text.append(
-            f"{bucket.user_member_count} yours",
+            f"{bucket.user_member_count} custom",
             style=_OWNERSHIP_STYLE,
         )
     return text

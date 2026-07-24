@@ -261,7 +261,7 @@ async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> 
         assert panel._active_bucket == "research"
         assert panel._highlighted_row_id() == "research_a"
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models › ▌ research · your bucket\ndefault effort: provider default"
+            "Models › ▌ research · custom bucket\ndefault effort: provider default"
             "\nmax running agents: 10"
         )
         assert "h" in str(panel.query_one("#models-panel-footer", Static).content)

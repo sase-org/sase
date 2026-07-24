@@ -1431,12 +1431,12 @@ beside it. The third line shows the effective `max running agents` global cap; a
 remaining time and configured value on the same line. An explicit effort suffix inherited from an alias target appears
 beside that row's model badge; rows that simply inherit the header default omit the redundant suffix.
 
-The top level is split into **Built-in** and **Yours** sections. Each header reports the aliases represented by its rows
-(including members of collapsed buckets) and its bucket count. This sectioning groups the existing deterministic order
-without changing it: `default`, the built-in `coders` bucket, `epic_lander`, `big_epic_lander`, the built-in
+The top level is split into **Built-in** and **Custom** sections. Each header reports the aliases represented by its
+rows (including members of collapsed buckets) and its bucket count. This sectioning groups the existing deterministic
+order without changing it: `default`, the built-in `coders` bucket, `epic_lander`, `big_epic_lander`, the built-in
 `phase_worker` bucket, `smartest`, `smart`, `cheap`, `cheaper`, `cheapest`, then custom buckets and ungrouped user
-aliases in alphabetical order. Every user-defined alias and bucket has a tan `▌` ownership gutter, and the **Yours**
-header carries the same glyph. If there are no custom aliases or buckets, the **Yours** section remains visible with a
+aliases in alphabetical order. Every user-defined alias and bucket has a tan `▌` ownership gutter, and the **Custom**
+header carries the same glyph. If there are no custom aliases or buckets, the **Custom** section remains visible with a
 non-selectable hint naming `llm_provider.model_aliases.custom`.
 
 Two built-in buckets are always present. `coders` groups `coder` first and every registered `<provider>_coder` alias
@@ -1447,9 +1447,9 @@ models. Open any bucket with `l`, Right, or Enter; return with `h` or Left. Insi
 own configured/implicit state and can be edited, reset, overridden, or cleared independently. Configured descriptions
 under `model_aliases.buckets.coders` and `model_aliases.buckets.phase_worker` replace the defaults; custom aliases
 tagged with either bucket name coalesce into the matching row. A built-in bucket containing custom members appends a tan
-`· <n> yours` chip after its warning and override chips. A custom bucket renders its bucket state in the ownership
-accent. The drilled-in title ends with `· built-in bucket` or, for a custom bucket, `· your bucket` plus the ownership
-glyph. A mixed built-in bucket shows **Built-in** and **Yours** headers around its members; homogeneous buckets omit
+`· <n> custom` chip after its warning and override chips. A custom bucket renders its bucket state in the ownership
+accent. The drilled-in title ends with `· built-in bucket` or `· custom bucket`, plus the ownership glyph for custom
+buckets. A mixed built-in bucket shows **Built-in** and **Custom** headers around its members; homogeneous buckets omit
 those redundant headers.
 
 The two-line strip below the list explains the highlighted alias. Builtin aliases use fixed descriptions. User aliases

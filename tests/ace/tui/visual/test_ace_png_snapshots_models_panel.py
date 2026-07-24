@@ -29,7 +29,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-async def test_models_panel_empty_yours_png_snapshot(
+async def test_models_panel_empty_custom_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -49,8 +49,8 @@ async def test_models_panel_empty_yours_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "models_panel_empty_yours_120x40",
-            title="ACE models panel (empty Yours section)",
+            "models_panel_empty_custom_120x40",
+            title="ACE models panel (empty Custom section)",
         )
 
 
