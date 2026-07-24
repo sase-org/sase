@@ -15,6 +15,7 @@ from sase.ace.tui.widgets._paired_text_editing import (
     plan_pair_delete_right,
 )
 from sase.ace.tui.widgets._prompt_bullet_editing import (
+    is_prompt_bullet_marker_only,
     normalize_prompt_bullet_replay_text,
     prompt_bullet_sibling_prefix,
 )
@@ -319,11 +320,16 @@ class PromptTextAreaActionsMixin(_MixinBase):
         )
 
     def action_insert_newline(self) -> None:
-        """Insert a newline, continuing a containing prompt hyphen bullet."""
+        """Insert a newline, continuing or exiting a prompt hyphen bullet."""
         row = self.cursor_location[0]
+        start, end = self.selection
+        line = self.document.get_line(row)
+        if start == end and is_prompt_bullet_marker_only(line):
+            self._replace_via_keyboard("\n", (row, 0), (row, len(line)))
+            return
+
         prefix = prompt_bullet_sibling_prefix(self.document.lines, row)
         insert = f"\n{prefix}" if prefix is not None else "\n"
-        start, end = self.selection
         self._replace_via_keyboard(insert, start, end)
 
     def _refresh_completion_after_cursor_move(self) -> None:

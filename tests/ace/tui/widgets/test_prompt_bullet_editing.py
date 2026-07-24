@@ -7,9 +7,49 @@ from textual.widgets.text_area import Selection
 
 from sase.ace.testing import PromptPage, VimEditorPage
 from sase.ace.tui.widgets._prompt_bullet_editing import (
+    is_prompt_bullet_marker_only,
     normalize_prompt_bullet_replay_text,
     prompt_bullet_sibling_prefix,
 )
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("- ", True),
+        ("  - ", True),
+        ("- item", False),
+        ("  - item", False),
+        ("-", False),
+        ("-  ", False),
+        ("", False),
+        ("   ", False),
+        ("* ", False),
+        ("+ ", False),
+        ("1. ", False),
+        ("> ", False),
+        ("\t- ", False),
+        (" \t- ", False),
+    ],
+    ids=[
+        "top-level",
+        "nested",
+        "content",
+        "nested-content",
+        "tight-dash",
+        "extra-space",
+        "empty",
+        "whitespace",
+        "asterisk",
+        "plus",
+        "ordered",
+        "blockquote",
+        "tab",
+        "space-tab",
+    ],
+)
+def test_is_prompt_bullet_marker_only(line: str, expected: bool) -> None:
+    assert is_prompt_bullet_marker_only(line) is expected
 
 
 @pytest.mark.parametrize(
@@ -151,6 +191,51 @@ async def test_prompt_insert_ctrl_j_selection_uses_cursor_row() -> None:
         assert page.text == "in\n- let tail"
         assert page.cursor == (1, 2)
         assert page.mode == "insert"
+
+
+async def test_prompt_insert_ctrl_j_marker_selection_uses_replacement_path() -> None:
+    async with PromptPage("- item\n- ", mode="insert") as page:
+        page.ta.selection = Selection((1, 0), (1, 2))
+        await page.press("ctrl+j")
+
+        assert page.text == "- item\n\n- "
+        assert page.cursor == (2, 2)
+        assert page.mode == "insert"
+
+
+@pytest.mark.parametrize(
+    ("text", "cursor", "expected_text", "expected_cursor", "marker_text"),
+    [
+        ("- item", (0, 6), "- item\n\n", (2, 0), "- item\n- "),
+        (
+            "- outer\n  - nested",
+            (1, 10),
+            "- outer\n  - nested\n\n",
+            (3, 0),
+            "- outer\n  - nested\n  - ",
+        ),
+    ],
+    ids=["top-level", "nested"],
+)
+async def test_prompt_insert_ctrl_j_twice_exits_bullet_and_undoes_separately(
+    text: str,
+    cursor: tuple[int, int],
+    expected_text: str,
+    expected_cursor: tuple[int, int],
+    marker_text: str,
+) -> None:
+    async with PromptPage(text, cursor=cursor, mode="insert") as page:
+        await page.press("ctrl+j", "ctrl+j")
+
+        assert page.text == expected_text
+        assert page.cursor == expected_cursor
+        assert page.mode == "insert"
+
+        await page.press("escape", "u")
+        assert page.text == marker_text
+
+        await page.press("u")
+        assert page.text == text
 
 
 async def test_prompt_insert_ctrl_j_prefix_is_its_own_undo_checkpoint() -> None:

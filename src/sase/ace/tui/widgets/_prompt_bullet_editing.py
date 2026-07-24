@@ -6,6 +6,7 @@ import re
 from collections.abc import Sequence
 
 __all__ = [
+    "is_prompt_bullet_marker_only",
     "normalize_prompt_bullet_replay_text",
     "prompt_bullet_sibling_prefix",
 ]
@@ -41,6 +42,11 @@ def _is_bullet_boundary(line: str) -> bool:
         or _UNSUPPORTED_MARKER_RE.match(line)
         or _TIGHT_DASH_RE.match(line)
     )
+
+
+def is_prompt_bullet_marker_only(line: str) -> bool:
+    """Return whether *line* is exactly a spaces-only hyphen bullet marker."""
+    return _BULLET_MARKER_RE.fullmatch(line) is not None
 
 
 def normalize_prompt_bullet_replay_text(
