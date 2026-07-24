@@ -238,6 +238,6 @@ def test_agents_info_panel_update_uses_cached_neighbor_count() -> None:
 
     assert info_panel.kwargs["neighbor_count"] == 2
     assert info_panel.kwargs["runner_limit"] == 10
-    assert info_panel.kwargs["runner_slots_in_use"] == 3
     assert info_panel.kwargs["runner_queue_count"] == 2
+    assert "runner_slots_in_use" not in info_panel.kwargs
     assert app.visible_walk_count == 1

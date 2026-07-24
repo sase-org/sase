@@ -27,7 +27,6 @@ class AgentInfoPanel(Static):
         self._read_count = 0
         self._agent_lane_count = 0
         self._runner_limit = 0
-        self._runner_slots_in_use = 0
         self._runner_queue_count = 0
         self._neighbor_count = 0
         self._countdown = 0
@@ -112,12 +111,10 @@ class AgentInfoPanel(Static):
 
     def update_runner_capacity(
         self,
-        slots_in_use: int,
         effective_limit: int,
         queue_count: int,
     ) -> None:
         """Update the cached global user-agent runner capacity snapshot."""
-        self._runner_slots_in_use = slots_in_use
         self._runner_limit = effective_limit
         self._runner_queue_count = queue_count
         self._update_display()
@@ -174,7 +171,6 @@ class AgentInfoPanel(Static):
         grouping_mode: str,
         search_query: str,
         runner_limit: int = 0,
-        runner_slots_in_use: int = 0,
         runner_queue_count: int = 0,
     ) -> None:
         """Batch all logical info-panel state into one render.
@@ -196,7 +192,6 @@ class AgentInfoPanel(Static):
             read,
             agent_lane_count,
             runner_limit,
-            runner_slots_in_use,
             runner_queue_count,
             max(0, neighbor_count),
             view_mode,
@@ -215,7 +210,6 @@ class AgentInfoPanel(Static):
             self._read_count,
             self._agent_lane_count,
             self._runner_limit,
-            self._runner_slots_in_use,
             self._runner_queue_count,
             self._neighbor_count,
             self._view_mode,
@@ -237,7 +231,6 @@ class AgentInfoPanel(Static):
             self._read_count,
             self._agent_lane_count,
             self._runner_limit,
-            self._runner_slots_in_use,
             self._runner_queue_count,
             self._neighbor_count,
             self._view_mode,
@@ -293,44 +286,39 @@ class AgentInfoPanel(Static):
         return [
             ("asking", self._asking_count),
             ("starting", self._starting_count),
-            ("running", self._running_count),
             ("waiting", self._waiting_count),
             ("failed", self._failed_count),
             ("unread", self._unread_count),
             ("read", self._read_count),
         ]
 
-    def _append_metric_strip(self, text: Text) -> None:
-        metrics = [(label, count) for label, count in self._metric_counts() if count]
-        if not metrics:
-            return
+    def _append_status_strip(self, text: Text) -> None:
+        """Append the consolidated visible status and runner-capacity strip."""
         text.append("  [", style="dim")
-        for index, (label, count) in enumerate(metrics):
-            if index:
-                text.append(" · ", style="dim")
+        if self._runner_limit > 0 and self._running_count > self._runner_limit:
+            running_style = "bold #FF5F5F"
+        elif self._runner_limit > 0 and self._running_count == self._runner_limit:
+            running_style = "bold #FFD700"
+        else:
+            running_style = "bold #00D7AF"
+        text.append(str(self._running_count), style=running_style)
+        text.append("/", style="dim")
+        text.append(str(self._runner_limit), style="bold #87D7FF")
+        text.append(" running", style="dim")
+
+        if self._runner_queue_count > 0:
+            text.append(" · ", style="dim")
+            text.append(str(self._runner_queue_count), style="bold #AF87FF")
+            text.append(" queued", style="dim")
+
+        metrics = [(label, count) for label, count in self._metric_counts() if count]
+        for label, count in metrics:
+            text.append(" · ", style="dim")
             count_style = self._COUNT_STYLES[label]
             text.append(f"{count}", style=count_style)
             suffix = f" {self._COUNT_LABELS.get(label, label)}"
             label_style = count_style if label in {"starting", "unread"} else "dim"
             text.append(suffix, style=label_style)
-        text.append("]", style="dim")
-
-    def _append_runner_capacity(self, text: Text) -> None:
-        """Append the always-visible cached global runner-capacity chip."""
-        text.append("  [", style="dim")
-        if self._runner_limit > 0 and self._runner_slots_in_use > self._runner_limit:
-            occupancy_style = "bold #FF5F5F"
-        elif self._runner_limit > 0 and self._runner_slots_in_use == self._runner_limit:
-            occupancy_style = "bold #FFD700"
-        else:
-            occupancy_style = "bold #00D7AF"
-        text.append(str(self._runner_slots_in_use), style=occupancy_style)
-        text.append("/", style="dim")
-        text.append(str(self._runner_limit), style="bold #87D7FF")
-        text.append(" · ", style="dim")
-        queue_style = "bold #AF87FF" if self._runner_queue_count else "dim"
-        text.append(str(self._runner_queue_count), style=queue_style)
-        text.append(" queued", style="dim")
         text.append("]", style="dim")
 
     def _append_neighbor_badge(self, text: Text) -> None:
@@ -353,8 +341,7 @@ class AgentInfoPanel(Static):
             text.append("…", style="dim italic")
             return text
         text.append(f"{self._agent_lane_count}", style=self._TOTAL_COUNT_STYLE)
-        self._append_runner_capacity(text)
-        self._append_metric_strip(text)
+        self._append_status_strip(text)
         self._append_neighbor_badge(text)
         if self._search_query:
             text.append("   ")

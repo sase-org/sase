@@ -149,7 +149,7 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
         assert_page_svg_contains(page, "eligible")
         info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
         assert info._build_display_text().plain.startswith(
-            "2  [0/10 · 1 queued]  [2 waiting]"
+            "2  [0/10 running · 1 queued · 2 waiting]"
         )
         ace_png_visual.assert_page_png(
             page,

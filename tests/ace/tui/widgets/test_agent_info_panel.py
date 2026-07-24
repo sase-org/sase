@@ -83,8 +83,7 @@ def test_agent_lane_headline_renders_before_concrete_metrics() -> None:
     plain = _collect_text(panel)
 
     assert plain.startswith(
-        "12  [0/0 · 0 queued]  "
-        "[2 stopped · 5 running · 2 waiting · 1 failed · 3 unread]"
+        "12  [5/0 running · 2 stopped · 2 waiting · 1 failed · 3 unread]"
     )
     assert "Agents: 2/12" not in plain
 
@@ -106,8 +105,7 @@ def test_agent_count_strip_reports_starting_separately() -> None:
     plain = _collect_text(panel)
 
     assert plain.startswith(
-        "12  [0/0 · 0 queued]  "
-        "[2 stopped · 7 starting · 3 running · "
+        "12  [3/0 running · 2 stopped · 7 starting · "
         "4 waiting · 5 failed · 1 unread · 6 done]"
     )
 
@@ -180,8 +178,7 @@ def test_update_agent_counts_uses_plain_metric_text() -> None:
     plain = captured[-1]
 
     assert (
-        "10  [0/0 · 0 queued]  "
-        "[2 stopped · 3 running · 4 waiting · 5 failed · 1 unread · 6 done]"
+        "10  [3/0 running · 2 stopped · 4 waiting · 5 failed · 1 unread · 6 done]"
     ) in plain
     assert "Agents(" not in plain
     assert "#FFAF5F" not in plain
@@ -204,13 +201,13 @@ def test_agent_count_strip_omits_zero_metric_types() -> None:
     plain = _collect_text(panel)
     counts_prefix = plain.split("   [group:", 1)[0]
 
-    assert plain.startswith("9  [0/0 · 0 queued]  [3 running · 1 failed · 2 unread]")
+    assert plain.startswith("9  [3/0 running · 1 failed · 2 unread]")
     assert "stopped" not in counts_prefix
     assert "waiting" not in counts_prefix
     assert " done" not in counts_prefix
 
 
-def test_agent_count_strip_omits_metrics_section_when_all_counts_are_zero() -> None:
+def test_agent_count_strip_keeps_zero_running_when_all_counts_are_zero() -> None:
     panel = AgentInfoPanel()
     with patch.object(panel, "update"):
         panel.update_agent_counts(
@@ -226,61 +223,76 @@ def test_agent_count_strip_omits_metrics_section_when_all_counts_are_zero() -> N
     plain = _collect_text(panel)
     counts_prefix = plain.split("   [group:", 1)[0]
 
-    assert counts_prefix == "5  [0/0 · 0 queued]"
+    assert counts_prefix == "5  [0/0 running]"
 
 
-def test_runner_capacity_chip_exact_copy_and_zero_queue_visibility() -> None:
+def test_status_strip_uses_visible_running_count_and_omits_zero_queue() -> None:
     panel = AgentInfoPanel()
     panel._agent_lane_count = 12
-    panel._runner_slots_in_use = 8
+    panel._running_count = 8
     panel._runner_limit = 10
     panel._runner_queue_count = 0
 
     plain = _collect_text(panel)
 
-    assert plain.startswith("12  [8/10 · 0 queued]")
+    assert plain.startswith("12  [8/10 running]")
+    assert "queued" not in plain
 
 
-def test_runner_capacity_chip_uses_plural_neutral_queue_wording() -> None:
+def test_positive_queue_appears_inside_consolidated_status_strip() -> None:
     panel = AgentInfoPanel()
-    panel._runner_slots_in_use = 10
+    panel._running_count = 10
     panel._runner_limit = 10
     panel._runner_queue_count = 1
+    panel._waiting_count = 4
 
     plain = _collect_text(panel)
 
-    assert "[10/10 · 1 queued]" in plain
+    assert "[10/10 running · 1 queued · 4 waiting]" in plain
+    assert plain.count("[10/10 running") == 1
     assert "1 queue" not in plain.replace("1 queued", "")
 
 
-def test_runner_capacity_chip_styles_below_at_and_above_limit() -> None:
+def test_status_strip_styles_running_capacity_and_positive_queue() -> None:
     panel = AgentInfoPanel()
     panel._runner_limit = 10
     panel._runner_queue_count = 7
 
-    expected_occupancy_styles = {
+    expected_running_styles = {
         8: "bold #00D7AF",
         10: "bold #FFD700",
         12: "bold #FF5F5F",
     }
-    for slots_in_use, expected_style in expected_occupancy_styles.items():
-        panel._runner_slots_in_use = slots_in_use
+    for running_count, expected_style in expected_running_styles.items():
+        panel._running_count = running_count
         text = _collect_rich_text(panel)
-        capacity_segment = f"{slots_in_use}/{panel._runner_limit}"
+        capacity_segment = f"{running_count}/{panel._runner_limit}"
         occupancy_index = text.plain.index(capacity_segment)
         slash_index = text.plain.index("/", occupancy_index)
         limit_index = slash_index + 1
+        running_label_index = text.plain.index(" running", limit_index)
         queue_index = text.plain.index("7 queued", limit_index)
         assert _style_at_plain_index(text, occupancy_index) == expected_style
         assert _style_at_plain_index(text, slash_index) == "dim"
         assert _style_at_plain_index(text, limit_index) == "bold #87D7FF"
+        assert _style_at_plain_index(text, running_label_index) == "dim"
         assert _style_at_plain_index(text, queue_index) == "bold #AF87FF"
 
-    panel._runner_slots_in_use = 8
+    panel._running_count = 8
     panel._runner_queue_count = 0
     zero_text = _collect_rich_text(panel)
-    zero_queue_index = zero_text.plain.index("0 queued")
-    assert _style_at_plain_index(zero_text, zero_queue_index) == "dim"
+    assert "queued" not in zero_text.plain
+
+
+def test_update_runner_capacity_caches_only_limit_and_queue() -> None:
+    panel = AgentInfoPanel()
+
+    with patch.object(panel, "update"):
+        panel.update_runner_capacity(10, 2)
+
+    assert panel._runner_limit == 10
+    assert panel._runner_queue_count == 2
+    assert not hasattr(panel, "_runner_slots_in_use")
 
 
 def test_neighbor_badge_is_omitted_without_visible_neighbors() -> None:
@@ -398,7 +410,6 @@ def _stable_state_kwargs(**overrides: object) -> dict[str, object]:
         "grouping_mode": "by project",
         "search_query": "",
         "runner_limit": 10,
-        "runner_slots_in_use": 2,
         "runner_queue_count": 0,
     }
     base.update(overrides)
@@ -418,7 +429,7 @@ def test_update_state_renders_supplied_agent_lane_count_unchanged() -> None:
 
     plain = _collect_text(panel)
 
-    assert plain.startswith("4  [2/10 · 0 queued]  [3 running · 3 done]")
+    assert plain.startswith("4  [3/10 running · 3 done]")
 
 
 def test_update_countdown_only_passes_layout_false() -> None:
