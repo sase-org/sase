@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 from sase.chat.cli_list import handle_chat_list
 from sase.chat.cli_show import handle_chat_show
-from sase.history.chat_catalog import ChatTranscriptInfo
+from sase.history.chat_catalog import ChatTranscriptInfo, chat_info_to_json
 from sase.history.chat_catalog_provenance import (
     CHAT_PROVENANCE_VALUES,
     ChatCatalogEntry,
@@ -89,6 +89,8 @@ def _entry(**overrides: Any) -> ChatCatalogEntry:
         "publication_pending": False,
         "publication_last_error": None,
         "publication_quarantined": False,
+        "publication_attempts": None,
+        "publication_disposition": None,
     }
     provenance_keys = set(defaults)
     defaults.update({k: v for k, v in overrides.items() if k in provenance_keys})
@@ -333,6 +335,8 @@ def test_list_json_shape_and_key_order(
         "publication_pending",
         "publication_last_error",
         "publication_quarantined",
+        "publication_attempts",
+        "publication_disposition",
     ]
     assert row["provenance"] in CHAT_PROVENANCE_VALUES
     assert row["basename"] == "branch-run-planner-260429_101500"
@@ -340,6 +344,26 @@ def test_list_json_shape_and_key_order(
     assert row["agent"] == "planner"
     assert row["prompt_snippet"] == "Can you help"
     assert row["response_snippet"] == "Implemented"
+    assert row["publication_attempts"] is None
+    assert row["publication_disposition"] is None
+
+
+def test_catalog_json_appends_attempts_and_mixed_disposition() -> None:
+    row = chat_info_to_json(
+        _entry(
+            publication_pending=True,
+            publication_quarantined=False,
+            publication_attempts=8,
+            publication_disposition="mixed",
+        )
+    )
+
+    assert list(row)[-2:] == [
+        "publication_attempts",
+        "publication_disposition",
+    ]
+    assert row["publication_attempts"] == 8
+    assert row["publication_disposition"] == "mixed"
 
 
 def test_list_projects_only_local_machine_hood(

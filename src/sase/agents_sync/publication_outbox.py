@@ -8,10 +8,10 @@ from dataclasses import dataclass, replace
 import fcntl
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import time
-from typing import Any
 
 from sase.agents_sync.io import atomic_write_json
 from sase.core.paths import sase_projects_dir, validate_sase_project_name
@@ -144,6 +144,20 @@ def list_agent_publications(
     if include_quarantined:
         return items
     return tuple(item for item in items if not item.quarantined)
+
+
+def snapshot_agent_publications(
+    project_key: str,
+) -> tuple[AgentPublicationOutboxItem, ...]:
+    """Read one immutable typed outbox snapshot without taking its lock.
+
+    Writers atomically replace the complete JSON document with ``os.replace``,
+    so a reader observes either the previous complete document or the next
+    complete document. This read-only path neither creates a lock file nor
+    writes to the project directory.
+    """
+
+    return _read_outbox(_outbox_path(project_key), project_key)
 
 
 def update_agent_publications(
@@ -315,12 +329,19 @@ def _read_outbox(
         raise RuntimeError(f"could not read agents publication outbox: {exc}") from exc
     if not isinstance(payload, dict):
         raise RuntimeError("agents publication outbox must be a JSON object")
-    if payload.get("schema_version") not in {1, PUBLICATION_OUTBOX_SCHEMA_VERSION}:
+    schema_version = payload.get("schema_version")
+    if (
+        not isinstance(schema_version, int)
+        or isinstance(schema_version, bool)
+        or schema_version not in {1, PUBLICATION_OUTBOX_SCHEMA_VERSION}
+    ):
         raise RuntimeError("unsupported agents publication outbox schema")
     rows = payload.get("items")
     if not isinstance(rows, list):
         raise RuntimeError("agents publication outbox items must be a list")
-    items = tuple(_item_from_json(row, project_key) for row in rows)
+    items = tuple(
+        _item_from_json(row, project_key, schema_version=schema_version) for row in rows
+    )
     if len({item.logical_key for item in items}) != len(items):
         raise RuntimeError("agents publication outbox contains duplicate requests")
     return items
@@ -329,30 +350,30 @@ def _read_outbox(
 def _item_from_json(
     value: object,
     project_key: str,
+    *,
+    schema_version: int,
 ) -> AgentPublicationOutboxItem:
     if not isinstance(value, dict):
         raise RuntimeError("agents publication outbox item must be an object")
-    row: dict[str, Any] = value
+    row = value
     item = AgentPublicationOutboxItem(
-        project_key=str(row.get("project_key") or ""),
-        project=str(row.get("project") or ""),
-        local_agent=str(row.get("local_agent") or ""),
-        global_agent=str(row.get("global_agent") or ""),
-        primary_revision=str(row.get("primary_revision") or ""),
-        local_hood=str(row.get("local_hood") or ""),
-        hood_digest=str(row.get("hood_digest") or "pending"),
-        attempts=int(row.get("attempts") or 0),
-        last_error=(
-            str(row["last_error"]) if row.get("last_error") is not None else None
+        project_key=_json_text(row, "project_key"),
+        project=_json_text(row, "project"),
+        local_agent=_json_text(row, "local_agent"),
+        global_agent=_json_text(row, "global_agent"),
+        primary_revision=_json_text(row, "primary_revision"),
+        local_hood=_json_text(row, "local_hood"),
+        hood_digest=_json_text(row, "hood_digest", default="pending"),
+        attempts=_json_nonnegative_int(row, "attempts", default=0),
+        last_error=_json_optional_text(row, "last_error"),
+        quarantined=_json_boolean(
+            row,
+            "quarantined",
+            default=False if schema_version == 1 else None,
         ),
-        quarantined=bool(row.get("quarantined", False)),
-        quarantined_at=(
-            float(row["quarantined_at"])
-            if row.get("quarantined_at") is not None
-            else None
-        ),
-        created_at=float(row.get("created_at") or 0.0),
-        updated_at=float(row.get("updated_at") or 0.0),
+        quarantined_at=_json_optional_number(row, "quarantined_at"),
+        created_at=_json_number(row, "created_at", default=0.0),
+        updated_at=_json_number(row, "updated_at", default=0.0),
     )
     if item.project_key != project_key:
         raise RuntimeError("agents publication outbox project identity mismatch")
@@ -369,6 +390,90 @@ def _item_from_json(
     return item
 
 
+def _json_text(
+    row: dict[object, object],
+    field: str,
+    *,
+    default: str = "",
+) -> str:
+    value = row.get(field, default)
+    if not isinstance(value, str):
+        raise RuntimeError(f"agents publication outbox {field} must be a string")
+    return value
+
+
+def _json_optional_text(
+    row: dict[object, object],
+    field: str,
+) -> str | None:
+    value = row.get(field)
+    if value is not None and not isinstance(value, str):
+        raise RuntimeError(
+            f"agents publication outbox {field} must be a string or null"
+        )
+    return value
+
+
+def _json_boolean(
+    row: dict[object, object],
+    field: str,
+    *,
+    default: bool | None,
+) -> bool:
+    value = row.get(field, default)
+    if not isinstance(value, bool):
+        raise RuntimeError(f"agents publication outbox {field} must be a boolean")
+    return value
+
+
+def _json_nonnegative_int(
+    row: dict[object, object],
+    field: str,
+    *,
+    default: int,
+) -> int:
+    value = row.get(field, default)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise RuntimeError(
+            f"agents publication outbox {field} must be a non-negative integer"
+        )
+    return value
+
+
+def _json_number(
+    row: dict[object, object],
+    field: str,
+    *,
+    default: float,
+) -> float:
+    value = row.get(field, default)
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(value)
+    ):
+        raise RuntimeError(f"agents publication outbox {field} must be a number")
+    return float(value)
+
+
+def _json_optional_number(
+    row: dict[object, object],
+    field: str,
+) -> float | None:
+    value = row.get(field)
+    if value is None:
+        return None
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(value)
+    ):
+        raise RuntimeError(
+            f"agents publication outbox {field} must be a number or null"
+        )
+    return float(value)
+
+
 __all__ = [
     "DEFAULT_PUBLICATION_MAX_ATTEMPTS",
     "PUBLICATION_OUTBOX_SCHEMA_VERSION",
@@ -379,5 +484,6 @@ __all__ = [
     "enqueue_agent_publication",
     "list_agent_publications",
     "publication_quarantine_diagnostics",
+    "snapshot_agent_publications",
     "update_agent_publications",
 ]

@@ -49,7 +49,8 @@ def load_chat_catalog(
             cache,
             force=force,
         )
-    backlog = load_publication_backlog()
+    backlog, backlog_diagnostics = load_publication_backlog()
+    diagnostics = tuple(dict.fromkeys((*diagnostics, *backlog_diagnostics)))
     owner_username, owner_machine = _current_owner()
 
     entries = [
@@ -139,7 +140,7 @@ def _catalog_entry(
     ):
         sidecar_repo = owning_index.sidecar_path
     sidecar_relpath = published_agent.relpath if published_agent is not None else None
-    publication = _publication_status(link, backlog)
+    publication = None if provenance == "remote" else _publication_status(link, backlog)
     return ChatCatalogEntry(
         path=transcript.path,
         absolute_path=transcript.absolute_path,
@@ -160,7 +161,7 @@ def _catalog_entry(
         agent_global_name=link.global_name if link is not None else None,
         sidecar_repo=sidecar_repo,
         sidecar_relpath=sidecar_relpath,
-        publication_pending=(publication is not None and not publication.quarantined),
+        publication_pending=(publication is not None and publication.pending),
         publication_last_error=(
             publication.last_error if publication is not None else None
         ),
@@ -169,6 +170,9 @@ def _catalog_entry(
         ),
         publication_attempts=(
             publication.attempts if publication is not None else None
+        ),
+        publication_disposition=(
+            publication.disposition if publication is not None else None
         ),
     )
 

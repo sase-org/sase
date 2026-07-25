@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
     acknowledge_agent_publications,
     clear_quarantined_agent_publications,
     enqueue_agent_publication,
     list_agent_publications,
+    snapshot_agent_publications,
     update_agent_publications,
 )
 
@@ -120,3 +122,73 @@ def test_schema_v1_backlog_is_read_and_upgraded_without_data_loss(
     assert upgraded["schema_version"] == 2
     assert upgraded["items"][0]["quarantined"] is False
     assert upgraded["items"][0]["quarantined_at"] is None
+
+
+def test_lock_free_snapshot_reads_schema_v1_without_writing(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    path = tmp_path / "projects" / "proj" / "agents-publication-outbox.json"
+    path.parent.mkdir(parents=True)
+    row = _item().to_json_dict()
+    row.pop("quarantined")
+    row.pop("quarantined_at")
+    payload = json.dumps({"schema_version": 1, "items": [row]})
+    path.write_text(payload, encoding="utf-8")
+
+    [loaded] = snapshot_agent_publications("proj")
+
+    assert loaded.logical_key == _item().logical_key
+    assert loaded.attempts == 0
+    assert loaded.quarantined is False
+    assert path.read_text(encoding="utf-8") == payload
+    assert not path.with_suffix(".json.lock").exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("attempts", True),
+        ("attempts", "3"),
+        ("attempts", -1),
+        ("quarantined", 1),
+        ("quarantined", "false"),
+    ],
+)
+def test_typed_snapshot_rejects_malformed_consumed_fields(
+    tmp_path,
+    monkeypatch,
+    field,
+    value,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    path = tmp_path / "projects" / "proj" / "agents-publication-outbox.json"
+    path.parent.mkdir(parents=True)
+    row = _item().to_json_dict()
+    row[field] = value
+    path.write_text(
+        json.dumps({"schema_version": 2, "items": [row]}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match=field):
+        snapshot_agent_publications("proj")
+
+
+def test_schema_v2_snapshot_requires_quarantine_state(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    path = tmp_path / "projects" / "proj" / "agents-publication-outbox.json"
+    path.parent.mkdir(parents=True)
+    row = _item().to_json_dict()
+    row.pop("quarantined")
+    path.write_text(
+        json.dumps({"schema_version": 2, "items": [row]}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="quarantined"):
+        snapshot_agent_publications("proj")

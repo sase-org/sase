@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 ChatProvenance = Literal["local", "shared", "remote", "unknown"]
+PublicationDisposition = Literal["queued", "quarantined", "mixed"]
 CHAT_PROVENANCE_VALUES: tuple[ChatProvenance, ...] = (
     "local",
     "shared",
@@ -41,6 +42,7 @@ class ChatCatalogEntry:
     publication_last_error: str | None
     publication_quarantined: bool
     publication_attempts: int | None = None
+    publication_disposition: PublicationDisposition | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,9 +101,21 @@ class SidecarProjectIndex:
 class PublicationBacklogItem:
     """Read-only publication state attached to a catalog entry."""
 
-    attempts: int | None
+    attempts: int
     last_error: str | None
-    quarantined: bool
+    disposition: PublicationDisposition
+
+    @property
+    def pending(self) -> bool:
+        """Whether at least one matching request will retry automatically."""
+
+        return self.disposition in {"queued", "mixed"}
+
+    @property
+    def quarantined(self) -> bool:
+        """Whether every matching request has stopped retrying."""
+
+        return self.disposition == "quarantined"
 
 
 __all__ = [
@@ -111,6 +125,7 @@ __all__ = [
     "ChatCatalogSnapshot",
     "ChatProvenance",
     "PublicationBacklogItem",
+    "PublicationDisposition",
     "SidecarAgent",
     "SidecarProjectIndex",
 ]

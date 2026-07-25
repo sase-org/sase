@@ -56,6 +56,7 @@ def test_local_publication_backlog_and_truncation_are_explained() -> None:
     entry = replace(
         chat_entry("pending"),
         publication_pending=True,
+        publication_disposition="queued",
         publication_attempts=28,
         publication_last_error="network down",
     )
@@ -75,6 +76,7 @@ def test_quarantined_publication_is_never_described_as_queued() -> None:
         chat_entry("quarantined"),
         publication_pending=False,
         publication_quarantined=True,
+        publication_disposition="quarantined",
         publication_attempts=3,
         publication_last_error="remote rejected update",
     )
@@ -88,6 +90,74 @@ def test_quarantined_publication_is_never_described_as_queued() -> None:
     assert "3 attempts" in rendered
     assert "last error: remote rejected update" in rendered
     assert "sase agent sync --retry-quarantined" in rendered
+    assert "Queued to publish" not in rendered
+
+
+def test_shared_publication_states_keep_committed_provenance_visible() -> None:
+    cases = (
+        (
+            replace(
+                chat_entry("shared-queued", provenance="shared"),
+                publication_pending=True,
+                publication_disposition="queued",
+                publication_attempts=2,
+            ),
+            "publication completion remains queued",
+        ),
+        (
+            replace(
+                chat_entry("shared-quarantined", provenance="shared"),
+                publication_quarantined=True,
+                publication_disposition="quarantined",
+                publication_attempts=3,
+            ),
+            "publication retry is quarantined",
+        ),
+        (
+            replace(
+                chat_entry("shared-mixed", provenance="shared"),
+                publication_pending=True,
+                publication_disposition="mixed",
+                publication_attempts=5,
+            ),
+            "retryable and quarantined requests coexist",
+        ),
+    )
+
+    for entry, state_copy in cases:
+        rendered = build_chat_detail(entry, _detail(entry.absolute_path)).plain
+        assert "also published to the agents sidecar" in rendered
+        assert "Published chat:" in rendered
+        assert state_copy in rendered
+        assert "attempts" in rendered
+
+    assert (
+        "Queued to publish"
+        not in build_chat_detail(
+            cases[1][0],
+            _detail(cases[1][0].absolute_path),
+        ).plain
+    )
+
+
+def test_local_mixed_publication_explains_both_retry_modes() -> None:
+    entry = replace(
+        chat_entry("local-mixed"),
+        publication_pending=True,
+        publication_quarantined=False,
+        publication_disposition="mixed",
+        publication_attempts=8,
+        publication_last_error="latest failure",
+    )
+
+    rendered = build_chat_detail(entry, _detail(entry.absolute_path)).plain
+
+    assert "Only on this machine" in rendered
+    assert "retryable and quarantined requests coexist" in rendered
+    assert "Active requests will retry automatically" in rendered
+    assert "sase agent sync --retry-quarantined" in rendered
+    assert "8 attempts" in rendered
+    assert "last error: latest failure" in rendered
     assert "Queued to publish" not in rendered
 
 

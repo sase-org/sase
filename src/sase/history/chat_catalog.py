@@ -219,6 +219,8 @@ def chat_info_to_json(
                 "publication_pending": info.publication_pending,
                 "publication_last_error": info.publication_last_error,
                 "publication_quarantined": info.publication_quarantined,
+                "publication_attempts": info.publication_attempts,
+                "publication_disposition": info.publication_disposition,
             }
         )
     return payload

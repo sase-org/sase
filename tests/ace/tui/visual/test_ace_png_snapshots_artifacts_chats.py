@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -107,6 +108,11 @@ async def test_artifacts_chats_populated_png_snapshot(
         chats_pane,
         "load_chat_catalog",
         lambda **_kwargs: catalog_snapshot,
+    )
+    monkeypatch.setattr(
+        chats_pane,
+        "local_now",
+        lambda: datetime.fromisoformat("2026-07-24T20:00:00-04:00"),
     )
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:

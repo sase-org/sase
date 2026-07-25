@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import asdict
 import json
 from pathlib import Path
@@ -9,13 +10,23 @@ import sqlite3
 
 from sase.agents_sync.git import run_git
 from sase.agents_sync.models import ProjectTarget
+from sase.agents_sync.publication_outbox import (
+    AgentPublicationOutboxItem,
+    snapshot_agent_publications,
+)
 from sase.agents_sync.targets import resolve_sync_targets
+from sase.agents_sync.v2_io import validate_component
 from sase.core.paths import sase_projects_dir
 
 from .cache import load_cached_json, store_cached_json
-from .models import PublicationBacklogItem, SidecarAgent, SidecarProjectIndex
+from .models import (
+    PublicationBacklogItem,
+    PublicationDisposition,
+    SidecarAgent,
+    SidecarProjectIndex,
+)
 
-_CACHE_NAMESPACE = "sidecar"
+_CACHE_NAMESPACE = "sidecar-committed-tree-v2"
 
 
 def load_sidecar_indexes(
@@ -58,51 +69,68 @@ def load_sidecar_indexes(
     return indexes, tuple(dict.fromkeys(diagnostics)), False
 
 
-def load_publication_backlog() -> dict[tuple[str, str], PublicationBacklogItem]:
-    """Read pending global/local agent names without mutating outbox locks."""
+def load_publication_backlog() -> tuple[
+    dict[tuple[str, str], PublicationBacklogItem],
+    tuple[str, ...],
+]:
+    """Read and aggregate typed outbox snapshots without mutating locks."""
 
-    result: dict[tuple[str, str], PublicationBacklogItem] = {}
+    groups: dict[
+        tuple[str, str],
+        list[AgentPublicationOutboxItem],
+    ] = defaultdict(list)
+    diagnostics: list[str] = []
     projects_root = sase_projects_dir()
     try:
-        projects = projects_root.iterdir()
+        projects = sorted(projects_root.iterdir(), key=lambda path: path.name)
     except OSError:
-        return result
+        return {}, ()
     for project_dir in projects:
         path = project_dir / "agents-publication-outbox.json"
+        if not path.is_file():
+            continue
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
-            continue
-        for item in payload["items"]:
-            if not isinstance(item, dict):
-                continue
-            error = item.get("last_error")
-            last_error = str(error) if isinstance(error, str) else None
-            attempts_value = item.get("attempts")
-            attempts = (
-                attempts_value
-                if isinstance(attempts_value, int)
-                and not isinstance(attempts_value, bool)
-                else None
+            items = snapshot_agent_publications(project_dir.name)
+        except (OSError, RuntimeError, ValueError) as exc:
+            diagnostics.append(
+                f"{project_dir.name}: could not load publication backlog: {exc}"
             )
-            backlog_item = PublicationBacklogItem(
-                attempts=attempts,
-                last_error=last_error,
-                quarantined=_strict_boolean(item.get("quarantined", False)),
-            )
-            for field in ("global_agent", "local_agent"):
-                name = item.get(field)
-                if isinstance(name, str) and name:
-                    result[(project_dir.name, name)] = backlog_item
-    return result
+            continue
+        for item in items:
+            for name in {item.global_agent, item.local_agent}:
+                groups[(project_dir.name, name)].append(item)
+    result = {
+        key: _aggregate_publications(tuple(items))
+        for key, items in sorted(groups.items())
+    }
+    return result, tuple(diagnostics)
 
 
-def _strict_boolean(value: object) -> bool:
-    """Decode JSON booleans without treating integers or strings as truthy."""
-
-    return value if isinstance(value, bool) else False
+def _aggregate_publications(
+    items: tuple[AgentPublicationOutboxItem, ...],
+) -> PublicationBacklogItem:
+    active = sum(not item.quarantined for item in items)
+    disposition: PublicationDisposition
+    if active == len(items):
+        disposition = "queued"
+    elif active == 0:
+        disposition = "quarantined"
+    else:
+        disposition = "mixed"
+    most_recent = max(
+        items,
+        key=lambda item: (
+            item.updated_at,
+            item.created_at,
+            item.primary_revision,
+            item.id,
+        ),
+    )
+    return PublicationBacklogItem(
+        attempts=max(item.attempts for item in items),
+        last_error=most_recent.last_error,
+        disposition=disposition,
+    )
 
 
 def _load_project_sidecar(
@@ -113,7 +141,7 @@ def _load_project_sidecar(
 ) -> SidecarProjectIndex:
     path = target.sidecar_path.expanduser()
     agents_dir = path / "agents"
-    if not path.is_dir() or not agents_dir.is_dir():
+    if not path.is_dir():
         diagnostic = (
             f"{target.project}: agents sidecar checkout is missing or unreadable "
             f"at {path}"
@@ -125,7 +153,25 @@ def _load_project_sidecar(
             agents={},
             diagnostic=diagnostic,
         )
-    token = _sidecar_token(path, agents_dir)
+    is_git = (path / ".git").exists()
+    head: str | None = None
+    token: str | None
+    if is_git:
+        head = _git_head(path)
+        if head is None:
+            diagnostic = (
+                f"{target.project}: could not read agents sidecar HEAD at {path}"
+            )
+            return SidecarProjectIndex(
+                project_key=target.project_key,
+                sidecar_path=str(path),
+                readable=False,
+                agents={},
+                diagnostic=diagnostic,
+            )
+        token = f"git:{head}"
+    else:
+        token = _directory_token(agents_dir)
     if token is None:
         diagnostic = f"{target.project}: could not read agents sidecar HEAD at {path}"
         return SidecarProjectIndex(
@@ -152,9 +198,21 @@ def _load_project_sidecar(
                 agents=decoded,
             )
 
-    agents = _scan_agents_dir(agents_dir)
+    if is_git:
+        assert head is not None
+        agents, tree_error = _scan_committed_agents(path, head)
+    else:
+        agents = _scan_agents_dir(agents_dir)
+        tree_error = None
     if agents is None:
-        diagnostic = f"{target.project}: agents sidecar is unreadable at {path}"
+        diagnostic = (
+            f"{target.project}: could not read committed agents sidecar tree at {path}"
+            if tree_error is None
+            else (
+                f"{target.project}: could not read committed agents sidecar tree "
+                f"at {path}: {tree_error}"
+            )
+        )
         return SidecarProjectIndex(
             project_key=target.project_key,
             sidecar_path=str(path),
@@ -177,22 +235,62 @@ def _load_project_sidecar(
     )
 
 
-def _sidecar_token(path: Path, agents_dir: Path) -> str | None:
-    if (path / ".git").exists():
-        result = run_git(
-            path,
-            ["rev-parse", "HEAD"],
-            op="chat_catalog.sidecar_head",
-        )
-        head = result.stdout.strip()
-        if result.returncode != 0 or not head:
-            return None
-        return f"git:{head}"
+def _git_head(path: Path) -> str | None:
+    result = run_git(
+        path,
+        ["rev-parse", "HEAD"],
+        op="chat_catalog.sidecar_head",
+    )
+    head = result.stdout.strip()
+    return head if result.returncode == 0 and head else None
+
+
+def _directory_token(agents_dir: Path) -> str | None:
     try:
         stat = agents_dir.stat()
     except OSError:
         return None
     return f"tree:{stat.st_mtime_ns}:{stat.st_size}"
+
+
+def _scan_committed_agents(
+    path: Path,
+    head: str,
+) -> tuple[dict[str, SidecarAgent] | None, str | None]:
+    result = run_git(
+        path,
+        [
+            "ls-tree",
+            "-r",
+            "--name-only",
+            "-z",
+            head,
+            "--",
+            "agents",
+        ],
+        op="chat_catalog.sidecar_tree",
+    )
+    if result.returncode != 0:
+        return None, result.stderr.strip() or "git ls-tree failed"
+    agents: dict[str, SidecarAgent] = {}
+    for raw_path in result.stdout.split("\x00"):
+        if not raw_path:
+            continue
+        parts = raw_path.split("/")
+        if len(parts) != 3 or parts[0] != "agents" or parts[2] != "chat.md":
+            continue
+        try:
+            name = validate_component(parts[1], label="published agent name")
+        except ValueError:
+            continue
+        username, machine = _owner_from_global_name(name)
+        agents[name] = SidecarAgent(
+            global_name=name,
+            machine=machine,
+            username=username,
+            relpath=raw_path,
+        )
+    return dict(sorted(agents.items())), None
 
 
 def _scan_agents_dir(agents_dir: Path) -> dict[str, SidecarAgent] | None:

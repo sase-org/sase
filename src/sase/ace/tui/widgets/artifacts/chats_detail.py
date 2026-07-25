@@ -164,16 +164,6 @@ def _provenance_section(
     text.append(f"{glyph} {label}\n", style=f"bold {color}")
     if entry.provenance == "local":
         text.append("Only on this machine. Not published to the agents sidecar.\n")
-        if entry.publication_quarantined:
-            text.append("Publication quarantined", style="bold #FFAF5F")
-            _publication_diagnostics(text, entry, color="#FFAF5F")
-            text.append(
-                "Run `sase agent sync --retry-quarantined` to retry.\n",
-                style="#FFAF5F",
-            )
-        elif entry.publication_pending:
-            text.append("Queued to publish", style="bold #FFD75F")
-            _publication_diagnostics(text, entry, color="#FFD75F")
     elif entry.provenance == "shared":
         text.append("From this machine; also published to the agents sidecar.\n")
         _field(text, "Sidecar repo", entry.sidecar_repo)
@@ -194,6 +184,51 @@ def _provenance_section(
     else:
         diagnostic = diagnostics[0] if diagnostics else "sidecar data was unavailable"
         text.append(f"Sync state unknown — {diagnostic}.\n")
+    if entry.provenance in {"local", "shared"}:
+        _publication_section(text, entry)
+
+
+def _publication_section(text: Text, entry: ChatCatalogEntry) -> None:
+    disposition = entry.publication_disposition
+    if disposition is None:
+        if entry.publication_pending and entry.publication_quarantined:
+            disposition = "mixed"
+        elif entry.publication_pending:
+            disposition = "queued"
+        elif entry.publication_quarantined:
+            disposition = "quarantined"
+    if disposition == "queued":
+        message = (
+            "Committed sidecar chat exists; publication completion remains queued"
+            if entry.provenance == "shared"
+            else "Queued to publish"
+        )
+        text.append(message, style="bold #FFD75F")
+        _publication_diagnostics(text, entry, color="#FFD75F")
+    elif disposition == "quarantined":
+        message = (
+            "Committed sidecar chat exists; publication retry is quarantined"
+            if entry.provenance == "shared"
+            else "Publication quarantined"
+        )
+        text.append(message, style="bold #FFAF5F")
+        _publication_diagnostics(text, entry, color="#FFAF5F")
+        text.append(
+            "Run `sase agent sync --retry-quarantined` to retry.\n",
+            style="#FFAF5F",
+        )
+    elif disposition == "mixed":
+        text.append(
+            "Publication state mixed: retryable and quarantined requests coexist",
+            style="bold #FFAF5F",
+        )
+        _publication_diagnostics(text, entry, color="#FFAF5F")
+        text.append(
+            "Active requests will retry automatically; run "
+            "`sase agent sync --retry-quarantined` to release quarantined "
+            "requests.\n",
+            style="#FFAF5F",
+        )
 
 
 def _publication_diagnostics(

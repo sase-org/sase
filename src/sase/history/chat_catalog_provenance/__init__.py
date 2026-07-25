@@ -11,6 +11,7 @@ from .models import (
     ChatCatalogEntry,
     ChatCatalogSnapshot,
     ChatProvenance,
+    PublicationDisposition,
 )
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "ChatCatalogSnapshot",
     "ChatProvenance",
     "ChatProvenanceBadge",
+    "PublicationDisposition",
     "chat_provenance_badge",
     "load_chat_catalog",
 ]
