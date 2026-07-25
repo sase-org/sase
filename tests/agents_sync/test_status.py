@@ -8,7 +8,10 @@ import pytest
 
 from sase.agents_sync import status
 from sase.agents_sync.git_objects import FetchedAgentsCommit
-from sase.agents_sync.incoming_detection import _IncomingCaptureReport
+from sase.agents_sync.incoming_detection import (
+    _IncomingCaptureReport,
+    capture_fetched_agent_updates,
+)
 from sase.agents_sync.io import atomic_write_json
 from sase.agents_sync.models import (
     STATUS_SCHEMA_VERSION,
@@ -221,6 +224,95 @@ def test_explicit_refresh_fetches_once_and_updates_cached_diagnostics(
     assert current.fetched_sha == "a" * 40
     assert current.validated_foreign_count == 2
     assert current.exact_owner_count == 1
+
+
+def test_refresh_aborts_before_git_when_shutdown_is_requested(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target = _target(tmp_path)
+    owner = AgentOwnerIdentity("alice", "athena")
+    prior = ProjectSyncStatus(
+        "proj",
+        "Project",
+        "ready",
+        2,
+        3,
+        last_fetch_time=90.0,
+    )
+    calls: list[tuple[str, ...]] = []
+
+    def runner(
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        calls.append(tuple(args))
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    refreshed = status._refresh_project_status(
+        target,
+        owner,
+        prior=prior,
+        checked_at=1000.0,
+        git_runner=runner,
+        lock_timeout_seconds=0.0,
+        shutdown_requested=lambda: True,
+    )
+
+    assert calls == []
+    assert refreshed == status._reconcile_project_status(target, owner, prior)
+
+
+def test_capture_aborts_before_next_object_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agents_sync import incoming_detection
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr(incoming_detection, "read_project_receipts", lambda _key: ())
+    target = _target(tmp_path)
+    checks = 0
+    object_reads: list[str] = []
+
+    class _Reader:
+        def resolve_fetched_commit(self) -> FetchedAgentsCommit:
+            return FetchedAgentsCommit("refs/remotes/origin/main", "a" * 40)
+
+        def manifest_paths(self, _sha: str) -> tuple[str, ...]:
+            return ("manifest.json",)
+
+        def read_bytes(
+            self,
+            _sha: str,
+            relative: str,
+            *,
+            maximum: int,
+        ) -> bytes:
+            del maximum
+            object_reads.append(relative)
+            return b"{}"
+
+    def shutdown_requested() -> bool:
+        nonlocal checks
+        checks += 1
+        return checks >= 4
+
+    report = capture_fetched_agent_updates(
+        target,
+        AgentOwnerIdentity("alice", "athena"),
+        reader=_Reader(),  # type: ignore[arg-type]
+        now=1000.0,
+        shutdown_requested=shutdown_requested,
+    )
+
+    assert report is None
+    assert object_reads == []
 
 
 def test_revalidate_only_never_runs_git(

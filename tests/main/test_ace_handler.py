@@ -1,8 +1,12 @@
 """Tests for the ``sase ace`` command handler."""
 
 import argparse
+import asyncio
 from datetime import datetime
+import logging
 from pathlib import Path
+import threading
+import time
 from unittest.mock import patch
 
 import pytest
@@ -18,6 +22,85 @@ class _FakeProfiler:
         assert color is False
         assert show_all is True
         return "profile text"
+
+
+def test_run_ace_app_does_not_join_default_executor_worker() -> None:
+    started = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+
+    def block() -> None:
+        started.set()
+        release.wait(timeout=5.0)
+        finished.set()
+
+    class _App:
+        async def run_async(self) -> None:
+            asyncio.get_running_loop().run_in_executor(None, block)
+            while not started.is_set():
+                await asyncio.sleep(0)
+
+    start = time.monotonic()
+    ace_handler._run_ace_app(_App())
+    elapsed = time.monotonic() - start
+
+    try:
+        assert elapsed < 0.5
+    finally:
+        release.set()
+        assert finished.wait(timeout=1.0)
+
+
+def test_hard_exit_flushes_before_bypassing_interpreter_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase import telemetry
+
+    calls: list[str] = []
+
+    class _Stream:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def flush(self) -> None:
+            calls.append(self.name)
+
+    monkeypatch.setattr(
+        ace_handler,
+        "_log_live_exit_threads",
+        lambda: calls.append("threads"),
+    )
+    monkeypatch.setattr(telemetry, "flush_metrics", lambda: calls.append("telemetry"))
+    monkeypatch.setattr(ace_handler.sys, "stdout", _Stream("stdout"))
+    monkeypatch.setattr(ace_handler.sys, "stderr", _Stream("stderr"))
+    monkeypatch.setattr(
+        ace_handler.os,
+        "_exit",
+        lambda code: calls.append(f"exit:{code}"),
+    )
+
+    ace_handler._hard_exit_ace(7)
+
+    assert calls == ["threads", "telemetry", "stdout", "stderr", "exit:7"]
+
+
+def test_live_exit_thread_warning_names_known_non_daemon_workers(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    threads = [
+        threading.Thread(name="asyncio_3", daemon=False),
+        threading.Thread(name="sase-loader_1", daemon=False),
+        threading.Thread(name="asyncio-daemon", daemon=True),
+        threading.Thread(name="unrelated", daemon=False),
+    ]
+    monkeypatch.setattr(ace_handler.threading, "enumerate", lambda: threads)
+
+    with caplog.at_level(logging.WARNING, logger=ace_handler.__name__):
+        ace_handler._log_live_exit_threads()
+
+    assert len(caplog.records) == 1
+    assert "asyncio_3, sase-loader_1" in caplog.text
 
 
 def test_write_profile_output_shortens_home_and_copies_path(

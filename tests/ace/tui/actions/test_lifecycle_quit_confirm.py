@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from sase.ace.tui.util import shutdown
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
 from sase.ace.tui.modals import QuitConfirmModal
 from sase.ace.tui.task_queue import TaskInfo, TaskQueue
@@ -168,6 +169,7 @@ async def test_controlled_exit_waits_for_admin_center_flush() -> None:
     quitting = asyncio.create_task(app.action_quit())
     await asyncio.wait_for(entered.wait(), timeout=0.5)
 
+    assert shutdown.is_shutdown_requested() is True
     assert app.did_quit is False
     release.set()
     await quitting

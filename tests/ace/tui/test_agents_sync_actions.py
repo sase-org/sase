@@ -177,7 +177,13 @@ def test_ordinary_tick_revalidates_without_network_and_applies_on_ui_thread(
     app._on_periodic_agents_sync_check()
     app.workers[0][0]()
 
-    assert calls == [{"refresh": False, "revalidate_only": True}]
+    assert calls == [
+        {
+            "refresh": False,
+            "revalidate_only": True,
+            "shutdown_requested": agents_sync.is_shutdown_requested,
+        }
+    ]
     assert app.indicator.snapshots == [_snapshot()]
     assert app._agents_sync_check_in_flight is False
     assert app._agents_sync_last_recompute_mono == 100.0
@@ -202,7 +208,13 @@ def test_long_cadence_recompute_uses_own_last_recompute_state(
     app._on_periodic_agents_sync_check()
     app.workers[0][0]()
 
-    assert calls == [{"refresh": True, "revalidate_only": False}]
+    assert calls == [
+        {
+            "refresh": True,
+            "revalidate_only": False,
+            "shutdown_requested": agents_sync.is_shutdown_requested,
+        }
+    ]
     assert app._agents_sync_last_recompute_mono == 2000.0
 
 

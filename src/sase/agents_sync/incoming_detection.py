@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 import json
 import math
@@ -58,6 +58,19 @@ from sase.core.machine_hood_facade import machine_qualify_v1_transport_agent_nam
 _MAX_V1_MANIFEST_BYTES = 4 * 1024 * 1024
 
 
+class _CaptureShutdown(Exception):
+    """Internal control flow used to abandon a partially inspected commit."""
+
+
+def _shutdown_not_requested() -> bool:
+    return False
+
+
+def _raise_if_shutdown(shutdown_requested: Callable[[], bool]) -> None:
+    if shutdown_requested():
+        raise _CaptureShutdown
+
+
 @dataclass(frozen=True, slots=True)
 class _IncomingCaptureReport:
     """Result of inspecting one exact fetched commit."""
@@ -78,18 +91,44 @@ def capture_fetched_agent_updates(
     reader: LocalGitObjectReader,
     previous_items: Sequence[CapturedIncomingHood] = (),
     now: float | None = None,
-) -> _IncomingCaptureReport:
+    shutdown_requested: Callable[[], bool] = _shutdown_not_requested,
+) -> _IncomingCaptureReport | None:
     """Capture every independently valid foreign hood at one fetched commit."""
+    try:
+        return _capture_fetched_agent_updates(
+            target,
+            owner,
+            reader=reader,
+            previous_items=previous_items,
+            now=now,
+            shutdown_requested=shutdown_requested,
+        )
+    except _CaptureShutdown:
+        return None
+
+
+def _capture_fetched_agent_updates(
+    target: ProjectTarget,
+    owner: AgentOwnerIdentity,
+    *,
+    reader: LocalGitObjectReader,
+    previous_items: Sequence[CapturedIncomingHood],
+    now: float | None,
+    shutdown_requested: Callable[[], bool],
+) -> _IncomingCaptureReport:
+    """Implement capture while checking for shutdown between object reads."""
 
     captured_at = time.time() if now is None else now
     if not math.isfinite(captured_at) or captured_at < 0:
         raise ValueError("cache creation time must be finite and non-negative")
+    _raise_if_shutdown(shutdown_requested)
     fetched = reader.resolve_fetched_commit()
     diagnostics: list[str] = []
     validated_foreign = 0
     exact_owner = 0
     pending = {item.source_hood_key: item for item in previous_items}
     try:
+        _raise_if_shutdown(shutdown_requested)
         receipts = {
             receipt.source_hood_key: receipt
             for receipt in read_project_receipts(target.project_key)
@@ -98,11 +137,13 @@ def capture_fetched_agent_updates(
         receipts = {}
         diagnostics.append(f"quarantined import receipts: {exc}")
 
+    _raise_if_shutdown(shutdown_requested)
     paths = reader.manifest_paths(fetched.sha)
     legacy: AgentsManifest | None = None
     parsed_v2: list[tuple[str, V2OwnerManifest, AgentOwnershipClassification]] = []
     owner_v2_hoods: set[str] = set()
     for relative in paths:
+        _raise_if_shutdown(shutdown_requested)
         if relative == "manifest.json":
             try:
                 legacy = manifest_from_bytes(
@@ -143,9 +184,11 @@ def capture_fetched_agent_updates(
     discarded_hood_keys: list[tuple[str, str | None, str, str]] = []
     if legacy is not None:
         groups = legacy_manifest_groups(legacy)
+        _raise_if_shutdown(shutdown_requested)
         artifact_rows = bundles.v1_artifact_rows(target)
         rows_by_timestamp = _artifact_rows_by_timestamp(artifact_rows)
         for group in groups:
+            _raise_if_shutdown(shutdown_requested)
             key = _legacy_group_key(group)
             machine, hood = legacy_group_machine_hood(group)
             try:
@@ -155,6 +198,7 @@ def capture_fetched_agent_updates(
                         fetched.sha,
                         group,
                         rows_by_timestamp,
+                        shutdown_requested,
                     )
                     if machine == owner.machine_name and hood not in owner_v2_hoods
                     else 0
@@ -173,7 +217,12 @@ def capture_fetched_agent_updates(
                     pending.pop(key, None)
                     discarded_hood_keys.append(key)
                     continue
-                payload = _capture_legacy_payload(reader, fetched.sha, group)
+                payload = _capture_legacy_payload(
+                    reader,
+                    fetched.sha,
+                    group,
+                    shutdown_requested,
+                )
                 item = legacy_captured_item(
                     target,
                     fetched,
@@ -189,14 +238,17 @@ def capture_fetched_agent_updates(
                 diagnostics.append(f"{key[2]}.{key[3]}: quarantined legacy hood: {exc}")
 
     for _relative, manifest, classification in parsed_v2:
+        _raise_if_shutdown(shutdown_requested)
         if classification is AgentOwnershipClassification.EXACT_OWNER:
             for hood, _entry in manifest.hoods:
+                _raise_if_shutdown(shutdown_requested)
                 try:
                     payload = _capture_v2_payload(
                         reader,
                         fetched.sha,
                         manifest,
                         hood,
+                        shutdown_requested,
                     )
                     item = v2_captured_item(
                         target,
@@ -219,6 +271,7 @@ def capture_fetched_agent_updates(
                     )
             continue
         for hood, _entry in manifest.hoods:
+            _raise_if_shutdown(shutdown_requested)
             key = ("exact", manifest.owner.username, manifest.owner.machine_name, hood)
             try:
                 payload = _capture_v2_payload(
@@ -226,6 +279,7 @@ def capture_fetched_agent_updates(
                     fetched.sha,
                     manifest,
                     hood,
+                    shutdown_requested,
                 )
                 item = v2_captured_item(
                     target,
@@ -255,6 +309,7 @@ def capture_fetched_agent_updates(
             row[0][3],
         ),
     ):
+        _raise_if_shutdown(shutdown_requested)
         if receipt_matches(receipts.get(key), item):
             continue
         if not cached_item_is_available(item):
@@ -263,6 +318,7 @@ def capture_fetched_agent_updates(
             )
             continue
         reconciled.append(item)
+    _raise_if_shutdown(shutdown_requested)
     prune_project_cache(
         target.project_key,
         pending_items=tuple(reconciled),
@@ -338,15 +394,18 @@ def _capture_v2_payload(
     sha: str,
     manifest: V2OwnerManifest,
     hood: str,
+    shutdown_requested: Callable[[], bool],
 ) -> dict[str, bytes]:
     entry = manifest.by_hood()[hood]
     total = 0
     payload: dict[str, bytes] = {}
     for relative in entry.files:
+        _raise_if_shutdown(shutdown_requested)
         maximum = MAX_JSON_BYTES if relative.endswith(".json") else MAX_TEXT_BYTES
         try:
             content = reader.read_bytes(sha, relative, maximum=maximum)
         except AgentsSyncFormatError as exc:
+            _raise_if_shutdown(shutdown_requested)
             diagnostic = reader.owner_manifest_divergence_diagnostic(sha, relative)
             if diagnostic is not None:
                 raise AgentsSyncFormatError(diagnostic) from exc
@@ -368,6 +427,7 @@ def _capture_legacy_payload(
     reader: LocalGitObjectReader,
     sha: str,
     manifest: AgentsManifest,
+    shutdown_requested: Callable[[], bool],
 ) -> dict[str, bytes]:
     payload = {
         "manifest.json": (
@@ -388,6 +448,7 @@ def _capture_legacy_payload(
             ("commits.json", MAX_JSON_BYTES),
             ("chat.md", MAX_TEXT_BYTES),
         ):
+            _raise_if_shutdown(shutdown_requested)
             relative = f"agents/{entry.name}/{name}"
             content = reader.read_bytes(sha, relative, maximum=maximum)
             total += len(content)
@@ -434,13 +495,16 @@ def _legacy_proven_entry_count(
         str,
         tuple[tuple[Path, dict[str, Any], dict[str, Any]], ...],
     ],
+    shutdown_requested: Callable[[], bool],
 ) -> int:
     proven = 0
     for entry in group.entries:
+        _raise_if_shutdown(shutdown_requested)
         source_shas = _legacy_source_commit_shas(
             reader,
             fetched_sha,
             entry.name,
+            shutdown_requested,
         )
         if not source_shas:
             continue
@@ -476,9 +540,11 @@ def _legacy_source_commit_shas(
     reader: LocalGitObjectReader,
     fetched_sha: str,
     entry_name: str,
+    shutdown_requested: Callable[[], bool],
 ) -> tuple[str, ...]:
     relative = f"agents/{entry_name}/commits.json"
     try:
+        _raise_if_shutdown(shutdown_requested)
         value = json.loads(
             reader.read_bytes(
                 fetched_sha,

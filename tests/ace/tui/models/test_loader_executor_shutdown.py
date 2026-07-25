@@ -15,6 +15,7 @@ from sase.ace.tui.models._loaders import (
     _json_cache,
     _workflow_step_loaders,
 )
+from sase.ace.tui.util import shutdown
 
 
 def test_shutdown_loader_executor_cancels_pending_and_resets() -> None:
@@ -75,6 +76,7 @@ def test_lifecycle_do_quit_shuts_down_loader_executor(monkeypatch) -> None:
 
     app._do_quit()
 
+    assert shutdown.is_shutdown_requested() is True
     assert calls.count("loader") == 1
     assert calls.index("loader") < calls.index("exit")
 

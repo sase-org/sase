@@ -6,6 +6,8 @@ import asyncio
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal
 
+from ..util.shutdown import request_shutdown
+
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
 
@@ -230,6 +232,7 @@ class LifecycleMixin:
 
     async def _begin_controlled_exit(self) -> None:
         """Start the shared flush-and-exit sequence at most once."""
+        request_shutdown()
         if getattr(self, "_controlled_exit_started", False):
             return
         self._controlled_exit_started = True  # type: ignore[attr-defined]
@@ -237,6 +240,7 @@ class LifecycleMixin:
 
     def _request_controlled_exit(self) -> None:
         """Schedule the shared async exit sequence from a sync callback."""
+        request_shutdown()
         if getattr(self, "_controlled_exit_started", False):
             return
         self._controlled_exit_started = True  # type: ignore[attr-defined]
@@ -262,6 +266,7 @@ class LifecycleMixin:
 
     def _do_quit(self) -> None:
         """Run the quit cleanup sequence and exit."""
+        request_shutdown()
 
         def cleanup(step: Callable[[], None]) -> None:
             try:

@@ -31,6 +31,7 @@ from ._agents_sync_config import (
     DEFAULT_AGENTS_SYNC_RECOMPUTE_INTERVAL_SECONDS,
 )
 from .task_actions import TrackedTaskCompletion, TrackedTaskResult
+from ..util.shutdown import is_shutdown_requested
 
 if TYPE_CHECKING:
     from textual.timer import Timer
@@ -129,6 +130,7 @@ class AgentsSyncActionsMixin:
             snapshot = get_agents_sync_status(
                 refresh=recompute,
                 revalidate_only=not recompute,
+                shutdown_requested=is_shutdown_requested,
             )
         except Exception:
             log.debug("Agents-sync status check failed", exc_info=True)

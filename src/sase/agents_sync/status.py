@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 import json
 import math
 from pathlib import Path
@@ -38,6 +38,10 @@ DEFAULT_STATUS_TTL_SECONDS = 10 * 60
 _SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 
 
+def _shutdown_not_requested() -> bool:
+    return False
+
+
 def _status_snapshot_path() -> Path:
     return sase_home() / "agents_sync" / "status_snapshot.json"
 
@@ -52,6 +56,7 @@ def get_agents_sync_status(
     git_runner: GitRunner = run_git,
     path: Path | None = None,
     lock_timeout_seconds: float | None = None,
+    shutdown_requested: Callable[[], bool] = _shutdown_not_requested,
 ) -> SyncStatusSnapshot:
     """Return status from cache, fetching only when explicitly requested.
 
@@ -101,6 +106,7 @@ def get_agents_sync_status(
                         checked_at=checked_at,
                         git_runner=git_runner,
                         lock_timeout_seconds=lock_timeout_seconds,
+                        shutdown_requested=shutdown_requested,
                     )
                 )
             else:
@@ -122,9 +128,12 @@ def _refresh_project_status(
     checked_at: float,
     git_runner: GitRunner,
     lock_timeout_seconds: float | None,
+    shutdown_requested: Callable[[], bool],
 ) -> ProjectSyncStatus:
     repo = target.sidecar_path
     if not (repo / ".git").exists():
+        return _reconcile_project_status(target, owner, prior)
+    if shutdown_requested():
         return _reconcile_project_status(target, owner, prior)
 
     from sase.agents_sync import git_sync
@@ -144,12 +153,16 @@ def _refresh_project_status(
                 _reconcile_project_status(target, owner, prior),
                 "agents sync lock is busy; retry the refresh",
             )
+        if shutdown_requested():
+            return _reconcile_project_status(target, owner, prior)
         fetched = git_runner(
             repo,
             ["fetch", "--prune", "origin"],
             network=True,
             op="agents_sync.status_fetch",
         )
+        if shutdown_requested():
+            return _reconcile_project_status(target, owner, prior)
         if fetched.returncode != 0:
             detail = (fetched.stderr or fetched.stdout or "unknown git error").strip()
             return _status_error(
@@ -163,13 +176,18 @@ def _refresh_project_status(
                 reader=LocalGitObjectReader(repo, git_runner=git_runner),
                 previous_items=prior.pending_updates if prior is not None else (),
                 now=checked_at,
+                shutdown_requested=shutdown_requested,
             )
+            if report is None:
+                return _reconcile_project_status(target, owner, prior)
         except (AgentsSyncFormatError, OSError, RuntimeError, ValueError) as exc:
             return _status_error(
                 _reconcile_project_status(target, owner, prior),
                 f"could not inspect fetched agents commit: {exc}",
                 last_fetch_time=checked_at,
             )
+        if shutdown_requested():
+            return _reconcile_project_status(target, owner, prior)
         diagnostics = _revalidate_project_diagnostics(
             target,
             last_fetch_time=checked_at,

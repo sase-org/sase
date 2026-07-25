@@ -1,10 +1,13 @@
 """Handler for the 'sase ace' command."""
 
 import argparse
+import asyncio
+import logging
 import os
 import sys
+import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, cast
 
 from sase.ace.query import QueryParseError
 from sase.core.clipboard import copy_to_system_clipboard
@@ -13,6 +16,8 @@ from sase.core.time import local_now
 
 if TYPE_CHECKING:
     from sase.ace.tui.exit_action import AceExitAction
+
+log = logging.getLogger(__name__)
 
 _RESTART_FILTER_FLAGS = frozenset(("-R", "--restart-axe", "-T", "--tmux"))
 
@@ -94,6 +99,53 @@ def _exec_ace_restart_if_requested(exit_action: "AceExitAction | None") -> None:
         sys.exit(1)
 
 
+def _run_ace_app(app: Any) -> None:
+    """Run ACE without waiting for asyncio's default executor at teardown.
+
+    Textual's ``run_async`` restores the terminal before returning. Owning the
+    loop here lets the command bypass ``asyncio.run``'s mandatory executor
+    join, which can otherwise trap the process behind a blocking worker after
+    the TUI has already disappeared.
+    """
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(app.run_async())
+    finally:
+        asyncio.set_event_loop(None)
+        loop.close()
+
+
+def _log_live_exit_threads() -> None:
+    """Warn when ACE must abandon known non-daemon worker threads."""
+    worker_names = sorted(
+        thread.name
+        for thread in threading.enumerate()
+        if not thread.daemon
+        and (
+            thread.name.startswith("asyncio_") or thread.name.startswith("sase-loader")
+        )
+    )
+    if worker_names:
+        log.warning(
+            "ACE exiting with live worker threads: %s",
+            ", ".join(worker_names),
+        )
+
+
+def _hard_exit_ace(exit_code: int) -> NoReturn:
+    """Flush durable state, then exit without interpreter thread joins."""
+    from sase.telemetry import flush_metrics
+
+    _log_live_exit_threads()
+    for flush in (flush_metrics, sys.stdout.flush, sys.stderr.flush):
+        try:
+            flush()
+        except Exception:
+            log.debug("ACE exit flush failed", exc_info=True)
+    os._exit(exit_code)
+
+
 def handle_ace_command(args: argparse.Namespace) -> None:
     """Handle the 'sase ace' command."""
     if getattr(args, "tmux", False):
@@ -160,13 +212,13 @@ def handle_ace_command(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     if profiler is not None:
-        app.run()
+        _run_ace_app(app)
         profiler.stop()
         _write_profile_output(profiler, args.profile)
     else:
-        app.run()
+        _run_ace_app(app)
 
     _exec_ace_restart_if_requested(
         getattr(app, "exit_action", None),
     )
-    sys.exit(0)
+    _hard_exit_ace(0)
