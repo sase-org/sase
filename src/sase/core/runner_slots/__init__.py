@@ -5,6 +5,9 @@ from __future__ import annotations
 from ._admission import (
     DEFAULT_WAIT_PRIORITY,
     RunnerSlotWaiter,
+    better_priority_agent_pending,
+    deference_satisfied,
+    deference_window_seconds,
     is_root_user_agent_record,
     is_runner_slot_user_agent_record,
     live_runner_slot_waiters,
@@ -16,6 +19,9 @@ from ._admission import (
 __all__ = [
     "DEFAULT_WAIT_PRIORITY",
     "RunnerSlotWaiter",
+    "better_priority_agent_pending",
+    "deference_satisfied",
+    "deference_window_seconds",
     "is_root_user_agent_record",
     "is_runner_slot_user_agent_record",
     "live_runner_slot_waiters",

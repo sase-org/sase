@@ -1785,6 +1785,24 @@
       "minimum": 1,
       "default": 10
     },
+    "runner_slots": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deference_seconds_per_step": {
+          "type": "integer",
+          "description": "Seconds a waiter defers per priority step above the default priority of 10.",
+          "minimum": 0,
+          "default": 3
+        },
+        "deference_max_seconds": {
+          "type": "integer",
+          "description": "Maximum continuous-eligibility delay for a waiter with priority above the default.",
+          "minimum": 0,
+          "default": 60
+        }
+      }
+    },
     "tasks": {
       "type": "object",
       "additionalProperties": false,

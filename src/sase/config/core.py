@@ -252,6 +252,8 @@ def require_machine_name() -> str:
 
 
 DEFAULT_MAX_RUNNING_AGENTS = 10
+DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP = 3
+DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS = 60
 DEFAULT_TASK_HISTORY_LIMIT = 100
 
 
@@ -265,6 +267,52 @@ def get_configured_max_running_agents() -> int:
     if type(value) is int and value >= 1:
         return value
     return DEFAULT_MAX_RUNNING_AGENTS
+
+
+def get_runner_slot_deference_seconds_per_step() -> int:
+    """Return the configured per-priority-step delay, falling back on errors.
+
+    Unlike the effective runner limit, deference is a politeness optimization:
+    malformed or unavailable configuration must never strand a runner.
+    """
+    try:
+        runner_slots = load_merged_config().get("runner_slots", {})
+    except Exception:  # noqa: BLE001 - deference configuration is fail-open.
+        return DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP
+    value = (
+        runner_slots.get(
+            "deference_seconds_per_step",
+            DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP,
+        )
+        if isinstance(runner_slots, dict)
+        else DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP
+
+
+def get_runner_slot_deference_max_seconds() -> int:
+    """Return the configured deference cap, falling back on errors.
+
+    Unlike the effective runner limit, deference is a politeness optimization:
+    malformed or unavailable configuration must never strand a runner.
+    """
+    try:
+        runner_slots = load_merged_config().get("runner_slots", {})
+    except Exception:  # noqa: BLE001 - deference configuration is fail-open.
+        return DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS
+    value = (
+        runner_slots.get(
+            "deference_max_seconds",
+            DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS,
+        )
+        if isinstance(runner_slots, dict)
+        else DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS
 
 
 def get_task_history_limit() -> int:

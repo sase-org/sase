@@ -23,6 +23,12 @@ repos:
 # excluded; axe ChangeSpec runners use their separate axe.max_* limits.
 max_running_agents: 10
 
+runner_slots:
+  # Lower priority numbers start first; the default is 10. Only priorities
+  # above the default defer, scaled per step and bounded by the maximum.
+  deference_seconds_per_step: 3
+  deference_max_seconds: 60
+
 tasks:
   # Maximum number of finished background tasks kept in ~/.sase/tasks. Running
   # tasks are never pruned. Lower values trim history sooner; the oldest

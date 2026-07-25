@@ -19,6 +19,49 @@ def normalize_wait_priority(value: object) -> int:
     return DEFAULT_WAIT_PRIORITY
 
 
+def deference_window_seconds(
+    priority: int,
+    *,
+    seconds_per_step: int,
+    max_seconds: int,
+) -> float:
+    """Return the bounded admission delay for a deprioritized waiter."""
+    if priority <= DEFAULT_WAIT_PRIORITY:
+        return 0.0
+    return float(
+        min(
+            (priority - DEFAULT_WAIT_PRIORITY) * seconds_per_step,
+            max_seconds,
+        )
+    )
+
+
+def deference_satisfied(
+    eligible_since: str | None,
+    now: datetime,
+    window_seconds: float,
+) -> bool:
+    """Return whether continuous eligibility has lasted for the full window."""
+    if window_seconds <= 0:
+        return True
+    if not eligible_since:
+        return False
+    try:
+        started = datetime.fromisoformat(eligible_since.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=UTC)
+    else:
+        started = started.astimezone(UTC)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    else:
+        now = now.astimezone(UTC)
+    elapsed = (now - started).total_seconds()
+    return elapsed >= 0 and elapsed >= window_seconds
+
+
 @dataclass(frozen=True)
 class RunnerSlotWaiter:
     """One live user agent waiting in the global runner-slot queue."""
@@ -50,6 +93,31 @@ def is_runner_slot_user_agent_record(record: AgentArtifactRecordWire) -> bool:
         return False
     state = record.workflow_state
     return state is None or state.appears_as_agent
+
+
+def better_priority_agent_pending(
+    records: Iterable[AgentArtifactRecordWire],
+    is_live: RecordLiveness,
+    *,
+    priority: int,
+    me: str,
+) -> bool:
+    """Return whether a live unparked agent could soon outrank *me*."""
+    for record in records:
+        meta = record.agent_meta
+        waiting = record.waiting
+        if (
+            not is_runner_slot_user_agent_record(record)
+            or record.artifact_dir == me
+            or meta is None
+            or not is_live(record)
+            or bool(meta.run_started_at)
+            or (waiting is not None and bool(waiting.slot_requested_at))
+        ):
+            continue
+        if normalize_wait_priority(meta.wait_priority) < priority:
+            return True
+    return False
 
 
 def running_root_agent_count(

@@ -13,7 +13,11 @@ from typing import Any
 from sase.agent.names import is_process_alive
 from sase.axe.run_agent_markers import write_agent_meta
 from sase.axe.runner_signals import was_killed
-from sase.config.core import get_max_running_agents
+from sase.config.core import (
+    get_max_running_agents,
+    get_runner_slot_deference_max_seconds,
+    get_runner_slot_deference_seconds_per_step,
+)
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -24,6 +28,9 @@ from sase.core.agent_scan_wire import (
 from sase.core.paths import sase_home, sase_projects_dir
 from sase.core.runner_slots import (
     DEFAULT_WAIT_PRIORITY,
+    better_priority_agent_pending,
+    deference_satisfied,
+    deference_window_seconds,
     live_runner_slot_waiters,
     may_start,
     running_root_agent_count,
@@ -280,6 +287,29 @@ def _remove_waiting_marker(artifacts_dir: str) -> None:
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
 
+def _continuous_eligibility_start(
+    eligible_since: object,
+    now: datetime,
+) -> tuple[str, bool]:
+    """Return a valid non-future start and whether it had to be reset."""
+    if isinstance(eligible_since, str) and eligible_since:
+        try:
+            started = datetime.fromisoformat(eligible_since.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+        else:
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=UTC)
+            else:
+                started = started.astimezone(UTC)
+            normalized_now = (
+                now.replace(tzinfo=UTC) if now.tzinfo is None else now.astimezone(UTC)
+            )
+            if started <= normalized_now:
+                return eligible_since, False
+    return now.isoformat(), True
+
+
 def _try_claim_runner_slot(
     *,
     artifacts_dir: str,
@@ -337,10 +367,49 @@ def _try_claim_runner_slot(
             is_live = _record_liveness_probe()
             queue = live_runner_slot_waiters(records, is_live)
             running_count = running_root_agent_count(records, is_live)
-            if may_start(running_count, threshold, queue, artifacts_dir):
-                run_started_at = claim()
-                _remove_waiting_marker(artifacts_dir)
-                return run_started_at, False
+            eligible = may_start(running_count, threshold, queue, artifacts_dir)
+            eligible_since: str | None = None
+            entered_deference = False
+            deference_window = 0.0
+            if eligible:
+                if priority <= DEFAULT_WAIT_PRIORITY:
+                    run_started_at = claim()
+                    _remove_waiting_marker(artifacts_dir)
+                    return run_started_at, False
+                deference_window = deference_window_seconds(
+                    priority,
+                    seconds_per_step=get_runner_slot_deference_seconds_per_step(),
+                    max_seconds=get_runner_slot_deference_max_seconds(),
+                )
+                if deference_window <= 0 or not better_priority_agent_pending(
+                    records,
+                    is_live,
+                    priority=priority,
+                    me=artifacts_dir,
+                ):
+                    run_started_at = claim()
+                    _remove_waiting_marker(artifacts_dir)
+                    return run_started_at, False
+                now = datetime.now(UTC)
+                marker_eligible_since = (
+                    waiting_data.get("eligible_since")
+                    if waiting_data is not None
+                    else None
+                )
+                if deference_satisfied(
+                    marker_eligible_since
+                    if isinstance(marker_eligible_since, str)
+                    else None,
+                    now,
+                    deference_window,
+                ):
+                    run_started_at = claim()
+                    _remove_waiting_marker(artifacts_dir)
+                    return run_started_at, False
+                eligible_since, entered_deference = _continuous_eligibility_start(
+                    marker_eligible_since,
+                    now,
+                )
 
             requested_at = (
                 waiting_data.get("slot_requested_at")
@@ -351,6 +420,10 @@ def _try_claim_runner_slot(
                 requested_at = datetime.now(UTC).isoformat()
             marker = dict(waiting_data or {})
             marker.pop("runner_limit_unavailable", None)
+            if eligible_since is None:
+                marker.pop("eligible_since", None)
+            else:
+                marker["eligible_since"] = eligible_since
             marker.update(
                 {
                     "cl_name": cl_name,
@@ -364,6 +437,10 @@ def _try_claim_runner_slot(
             parked = waiting_data is None or "slot_requested_at" not in waiting_data
             if waiting_data != marker:
                 _write_waiting_marker(artifacts_dir, marker)
+            if entered_deference:
+                print(
+                    f"Deferring for up to {deference_window:g}s (priority {priority})"
+                )
             return None, parked
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
