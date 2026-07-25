@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -47,6 +50,155 @@ def _commit_count(repo: Path) -> int:
         text=True,
     )
     return int(result.stdout.strip())
+
+
+def _install_claim_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+    attempts: list[object],
+) -> tuple[list[tuple[str, str]], list[Path], list[tuple[Path, str, str]]]:
+    claim_calls: list[tuple[str, str]] = []
+    refresh_calls: list[Path] = []
+    commit_calls: list[tuple[Path, str, str]] = []
+    beads_dir = Path("/canonical/beads")
+
+    class _Project:
+        def claim_for_agent_wait(self, bead_id: str, agent_name: str) -> object:
+            claim_calls.append((bead_id, agent_name))
+            outcome = attempts.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+    @contextmanager
+    def open_project(_beads_dir: Path) -> Iterator[_Project]:
+        yield _Project()
+
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+    monkeypatch.setattr(
+        "sase.bead.store_locator.open_bead_project_for_beads_dir",
+        open_project,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.refresh_bead_store",
+        lambda path: refresh_calls.append(path),
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_claim",
+        lambda path, bead_id, agent_name: commit_calls.append(
+            (path, bead_id, agent_name)
+        ),
+    )
+    monkeypatch.setattr("sase.bead.claims.time.sleep", lambda _delay: None)
+    return claim_calls, refresh_calls, commit_calls
+
+
+def _issue(status: Status, assignee: str) -> SimpleNamespace:
+    return SimpleNamespace(status=status, assignee=assignee)
+
+
+def test_wait_claim_hit_performs_no_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    claim_calls, refresh_calls, commit_calls = _install_claim_attempts(
+        monkeypatch,
+        [(_issue(Status.CLAIMED, "worker"), True)],
+    )
+
+    assert claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id="sase-1",
+        agent_name="worker",
+    )
+
+    assert claim_calls == [("sase-1", "worker")]
+    assert refresh_calls == []
+    assert commit_calls == [(Path("/canonical/beads"), "sase-1", "worker")]
+
+
+def test_wait_claim_not_found_refreshes_once_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    claim_calls, refresh_calls, _commit_calls = _install_claim_attempts(
+        monkeypatch,
+        [
+            KeyError("Issue not found: sase-1"),
+            (_issue(Status.CLAIMED, "worker"), True),
+        ],
+    )
+
+    assert claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id="sase-1",
+        agent_name="worker",
+    )
+
+    assert claim_calls == [("sase-1", "worker"), ("sase-1", "worker")]
+    assert refresh_calls == [Path("/canonical/beads")]
+
+
+def test_wait_claim_lock_timeout_retries_without_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    claim_calls, refresh_calls, _commit_calls = _install_claim_attempts(
+        monkeypatch,
+        [
+            ValueError("lock_timeout: timed out waiting for bead mutation lock"),
+            (_issue(Status.CLAIMED, "worker"), True),
+        ],
+    )
+
+    assert claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id="sase-1",
+        agent_name="worker",
+    )
+
+    assert claim_calls == [("sase-1", "worker"), ("sase-1", "worker")]
+    assert refresh_calls == []
+
+
+def test_wait_claim_legitimate_decline_does_not_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    claim_calls, refresh_calls, commit_calls = _install_claim_attempts(
+        monkeypatch,
+        [(_issue(Status.IN_PROGRESS, "active"), False)],
+    )
+
+    assert not claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id="sase-1",
+        agent_name="worker",
+    )
+
+    assert claim_calls == [("sase-1", "worker")]
+    assert refresh_calls == []
+    assert commit_calls == []
+
+
+def test_wait_claim_exhausted_budget_warns_without_raising(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    claim_calls, refresh_calls, _commit_calls = _install_claim_attempts(
+        monkeypatch,
+        [
+            KeyError("Issue not found: sase-1"),
+            KeyError("Issue not found: sase-1"),
+            KeyError("Issue not found: sase-1"),
+        ],
+    )
+
+    assert not claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id="sase-1",
+        agent_name="worker",
+    )
+
+    assert len(claim_calls) == 3
+    assert refresh_calls == [Path("/canonical/beads")]
+    assert "Warning: Failed to claim bead 'sase-1'" in capsys.readouterr().err
 
 
 def test_claim_reclaim_and_release_use_canonical_store_without_commit_churn(

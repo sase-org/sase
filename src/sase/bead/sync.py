@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -495,18 +496,58 @@ def refresh_current_bead_store() -> None:
     ):
         return
 
+    refresh_bead_store(location.beads_dir)
+
+
+def refresh_bead_store(beads_dir: Path) -> None:
+    """Synchronously integrate one remote-backed project bead store.
+
+    A recovery refresh is serialized with other store writers. The integration
+    marker lets waiters skip work when another process completed the same
+    recovery after they started waiting for the lock.
+    """
+    beads_dir = beads_dir.expanduser().resolve()
+    if _is_in_tree_beads_dir(beads_dir):
+        return
+
+    repo_root = _find_git_root(beads_dir)
+    if repo_root is None or not _has_push_remote(repo_root):
+        return
+
+    from sase.sdd._git_contention import store_git_write_lock
+    from sase.sdd._integration_marker import integration_marker_generation
     from sase.sdd._repository_transaction import integrate_sdd_repository
 
-    outcome = integrate_sdd_repository(
-        location.root,
-        beads_dir=location.beads_dir,
-        op_prefix="bead.refresh",
-    )
+    observed_generation = integration_marker_generation(repo_root)
+    with store_git_write_lock(repo_root) as acquired:
+        current_generation = integration_marker_generation(repo_root)
+        if current_generation is not None and current_generation != observed_generation:
+            return
+        if not acquired:
+            raise _BeadStoreRefreshError(
+                f"could not acquire the bead-store refresh lock for {repo_root}"
+            )
+        outcome = integrate_sdd_repository(
+            repo_root,
+            beads_dir=beads_dir,
+            op_prefix="bead.refresh",
+            lock_factory=lambda _repo_root: nullcontext(True),
+        )
     if outcome.succeeded:
         return
 
     detail = outcome.error or f"SDD integration ended with {outcome.status.value}"
     raise _BeadStoreRefreshError(detail)
+
+
+def _is_in_tree_beads_dir(beads_dir: Path) -> bool:
+    """Return whether *beads_dir* is the primary repo's ``sdd/beads`` store."""
+    parts = beads_dir.parts
+    return (
+        len(parts) >= 2
+        and parts[-2:] == ("sdd", "beads")
+        and not (len(parts) >= 3 and parts[-3:] == (".sase", "sdd", "beads"))
+    )
 
 
 def bead_sync_diagnostics(beads_dir: Path) -> list[str]:

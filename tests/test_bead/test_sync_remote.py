@@ -14,6 +14,7 @@ from sase.bead.sync import (
     commit_bead_work_launch,
     git_sync,
     push_bead_work_launch,
+    refresh_bead_store,
     refresh_current_bead_store,
 )
 from sase.bead.sync_worker import run_managed_sync_worker
@@ -55,7 +56,14 @@ def test_refresh_current_bead_store_skips_non_remote_locations(
 
 
 def test_refresh_current_bead_store_integrates_without_push(tmp_path, monkeypatch):
+    init_git_repo(tmp_path)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "git@example.test:plans.git"],
+        cwd=tmp_path,
+        check=True,
+    )
     beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
     location = SimpleNamespace(
         root=tmp_path,
         beads_dir=beads_dir,
@@ -79,21 +87,29 @@ def test_refresh_current_bead_store_integrates_without_push(tmp_path, monkeypatc
 
     refresh_current_bead_store()
 
-    assert calls == [
-        (
-            tmp_path,
-            {"beads_dir": beads_dir, "op_prefix": "bead.refresh"},
-        )
-    ]
+    assert len(calls) == 1
+    repo_root, kwargs = calls[0]
+    assert repo_root == tmp_path
+    assert kwargs["beads_dir"] == beads_dir
+    assert kwargs["op_prefix"] == "bead.refresh"
+    assert callable(kwargs["lock_factory"])
 
 
 def test_refresh_current_bead_store_raises_on_failed_integration(
     tmp_path,
     monkeypatch,
 ):
+    init_git_repo(tmp_path)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "git@example.test:plans.git"],
+        cwd=tmp_path,
+        check=True,
+    )
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
     location = SimpleNamespace(
         root=tmp_path,
-        beads_dir=tmp_path / "beads",
+        beads_dir=beads_dir,
         is_in_tree=False,
         store=SimpleNamespace(remote_url="git@example.test:plans.git"),
     )
@@ -113,6 +129,18 @@ def test_refresh_current_bead_store_raises_on_failed_integration(
 
     with pytest.raises(RuntimeError, match="git fetch failed"):
         refresh_current_bead_store()
+
+
+def test_refresh_bead_store_skips_in_tree_store(tmp_path, monkeypatch):
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+
+    monkeypatch.setattr(
+        "sase.bead.sync._find_git_root",
+        lambda _beads_dir: pytest.fail("in-tree store must not inspect git"),
+    )
+
+    refresh_bead_store(beads_dir)
 
 
 def test_git_sync_retries_transient_index_lock(tmp_path, monkeypatch):

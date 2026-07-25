@@ -63,6 +63,15 @@ def integration_is_fresh(repo_root: Path) -> bool:
     return age < bead_refresh_ttl_seconds()
 
 
+def integration_marker_generation(repo_root: Path) -> int | None:
+    """Return the integration marker generation used to coalesce refreshes."""
+    marker = git_state_path(repo_root, _INTEGRATION_MARKER)
+    try:
+        return marker.stat().st_mtime_ns
+    except OSError:
+        return None
+
+
 def git_state_path(repo_root: Path, name: str) -> Path:
     result = subprocess.run(
         ["git", "rev-parse", "--git-dir"],
