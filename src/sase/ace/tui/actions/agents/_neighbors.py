@@ -271,10 +271,13 @@ class AgentNeighborMixin:
             build_agent_lane_neighbor_projection,
         )
 
+        from ...models.agent_hoods import agent_lane_name
+
         dismissed_descendants = self._dismissed_descendant_agents(selected)
         projection = build_agent_lane_neighbor_projection(
             lane_identity=selected_target.identity,
-            lane_name=selected.presented_identity_name,
+            lane_name=agent_lane_name(selected),
+            lane_row_names=(selected.presented_identity_name or "",),
             index=index,
             dismissed_descendants=dismissed_descendants,
             hood_labels=self._agent_neighbor_display_hoods(selected),
@@ -538,7 +541,7 @@ class AgentNeighborMixin:
     ) -> AgentLaneNeighborProjection | None:
         """Return the lane-relative neighbor projection for a lane-owning row."""
         from ...models.agent_family_members import concrete_family_member_rows
-        from ...models.agent_hoods import agent_owns_lane
+        from ...models.agent_hoods import agent_lane_name, agent_owns_lane
         from ...models.agent_lane_neighbors import (
             build_agent_lane_neighbor_projection,
         )
@@ -553,7 +556,8 @@ class AgentNeighborMixin:
         )
         return build_agent_lane_neighbor_projection(
             lane_identity=agent.identity,
-            lane_name=agent.presented_identity_name,
+            lane_name=agent_lane_name(agent),
+            lane_row_names=(agent.presented_identity_name or "",),
             index=self._agent_neighbor_index(),
             dismissed_descendants=self._dismissed_descendant_agents(agent),
             suppressed_identities=suppressed_identities,
@@ -562,9 +566,13 @@ class AgentNeighborMixin:
 
     def _dismissed_descendant_agents(self, selected: Agent) -> tuple[Agent, ...]:
         """Return active dismissed descendants of ``selected`` sorted by name."""
-        from ...models.agent_hoods import agent_name_key, is_agent_descendant
+        from ...models.agent_hoods import (
+            agent_lane_name,
+            agent_name_key,
+            is_agent_descendant,
+        )
 
-        selected_name = selected.presented_identity_name
+        selected_name = agent_lane_name(selected)
         if selected_name is None:
             return ()
 
@@ -585,7 +593,9 @@ class AgentNeighborMixin:
 
     def _agent_neighbor_display_hoods(self, agent: Agent) -> dict[str, str]:
         """Map selected-agent hood keys to labels preserving displayed case."""
-        parts = (agent.presented_identity_name or "").split(".")
+        from ...models.agent_hoods import agent_lane_name
+
+        parts = (agent_lane_name(agent) or "").split(".")
         return {
             ".".join(parts[:depth]).casefold(): ".".join(parts[:depth])
             for depth in range(1, len(parts) + 1)

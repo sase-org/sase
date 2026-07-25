@@ -8,10 +8,12 @@ SASE uses three different kinds of agent grouping:
 | **Agent family** | `%i(<suffix>, family=<parent>)`           | A strictly sequential chain named `<family>--<suffix>`               |
 | **Agent tribe**  | `%id([<id>], tribe=<name>)` / `#tribe`    | A user-managed label displayed with an `@` prefix, such as `@review` |
 
-Dot-separated names also define an agent _hood_: `foo.bar` and `foo.baz` are neighbors in hood `foo`. A deeper name
-belongs to every hood along its dotted path, so ACE can group `foo.bar.worker` with peers under `foo.bar` and cousins
-under `foo`. Clans use that namespace rule deliberately, while dotted names alone do not create clan or family
-membership.
+Dot-separated names also define an agent _hood_: `foo.bar` and `foo.baz` are neighbors in hood `foo`, and the agent
+named `foo` belongs to hood `foo` as well. A deeper name belongs to every hood along its dotted path, so ACE can group
+`foo.bar.worker` with peers under `foo.bar` and cousins under `foo`. A family lane joins hoods under its bare family
+name, not its root member's `--` name, so a family `foo` and a single agent `foo.bar` are related in both directions
+exactly as two single agents with those names would be. Clans use that namespace rule deliberately, while dotted names
+alone do not create clan or family membership.
 
 ## Parallel Agent Clans
 
@@ -270,9 +272,11 @@ level. The numbered roster and its digit jumps remain present at both effective 
 sections are omitted, while reply rows for members that have not responded yet remain visible with their pending state.
 
 A family root is an agent lane, so its panel also carries a `NEIGHBORS` section listing the lane's ancestors,
-descendants, and hood neighbors; it sits below `FAMILY MEMBERS` and above `SASE CONTEXT`. Both rosters draw their digits
-from one continuous ladder, so family members are numbered first and neighbors after, with a single shared number width.
-Lane members already shown under `FAMILY MEMBERS` are never repeated in `NEIGHBORS`; they are reported as a dim
+descendants, and hood neighbors; it sits below `FAMILY MEMBERS` and above `SASE CONTEXT`. The lane participates under
+its bare family name rather than the root member's `--` name, so a family `fam` lists `fam.helper` as a descendant and
+`fam.helper` lists the family lane back as its ancestor. Both rosters draw their digits from one continuous ladder, so
+family members are numbered first and neighbors after, with a single shared number width. Lane members already shown
+under `FAMILY MEMBERS` are never repeated in `NEIGHBORS`; they are reported as a dim
 `… +N also listed under FAMILY MEMBERS` tail. The family's two-level scale drives the section too: level 1 shows the
 first three neighbors plus a hidden-count tail, and level 2 shows all of them. See
 [Lane Neighbors Section](ace.md#lane-neighbors-section) for the full behavior, which single agents share through their

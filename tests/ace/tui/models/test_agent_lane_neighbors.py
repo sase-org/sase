@@ -34,6 +34,16 @@ def _agent(
     return Agent(**values)  # type: ignore[arg-type]
 
 
+def _family_root(family: str, *, role: str = "plan") -> Agent:
+    """Return a family root entry that renders under its bare family base."""
+    root = _agent(f"{family}--{role}")
+    root.agent_family = family
+    root.agent_family_role = "root"
+    root.plan_chain_root = True
+    root.refresh_raw_presented_agent_name()
+    return root
+
+
 def _index(*agents: Agent) -> AgentNeighborIndex:
     return AgentNeighborIndex.from_visible_rows(
         [
@@ -159,6 +169,62 @@ def test_projection_never_lists_the_lane_as_its_own_neighbor() -> None:
     assert duplicate.identity != source.identity
     assert [row.agent for row in projection.rows] == [peer]
     assert projection.suppressed_lane_member_count == 0
+
+
+def test_projection_drops_the_duplicate_root_member_row_of_a_family_lane() -> None:
+    source = _family_root("myclan.worker")
+    # Once the lane keys on the bare family base, the expanded family's second
+    # root-member row is only reachable through ``lane_row_names``.
+    duplicate = _agent("myclan.worker--plan", raw_suffix=None)
+    peer = _agent("myclan.helper")
+
+    projection = build_agent_lane_neighbor_projection(
+        lane_identity=source.identity,
+        lane_name="myclan.worker",
+        lane_row_names=("myclan.worker--plan",),
+        index=_index(source, duplicate, peer),
+        suppressed_identities={source.identity},
+    )
+
+    assert duplicate.identity != source.identity
+    assert [row.agent for row in projection.rows] == [peer]
+    assert projection.suppressed_lane_member_count == 0
+
+
+def test_projection_without_lane_row_names_leaks_the_duplicate_root_member() -> None:
+    source = _family_root("myclan.worker")
+    duplicate = _agent("myclan.worker--plan", raw_suffix=None)
+    peer = _agent("myclan.helper")
+
+    projection = build_agent_lane_neighbor_projection(
+        lane_identity=source.identity,
+        lane_name="myclan.worker",
+        index=_index(source, duplicate, peer),
+        suppressed_identities={source.identity},
+    )
+
+    assert [row.agent for row in projection.rows] == [duplicate, peer]
+
+
+def test_top_level_family_lane_projects_its_dotted_hood_mates() -> None:
+    root = _family_root("fam")
+    helper = _agent("fam.helper")
+    other = _agent("fam.other")
+
+    projection = build_agent_lane_neighbor_projection(
+        lane_identity=root.identity,
+        lane_name="fam",
+        lane_row_names=("fam--plan",),
+        index=_index(root, helper, other),
+        hood_labels={"fam": "fam"},
+    )
+
+    assert [row.agent for row in projection.rows] == [helper, other]
+    assert [row.relation for row in projection.rows] == [
+        "descendant",
+        "descendant",
+    ]
+    assert [row.label_prefix for row in projection.rows] == ["fam", "fam"]
 
 
 def test_projection_preserves_prospective_neighbor_flag() -> None:

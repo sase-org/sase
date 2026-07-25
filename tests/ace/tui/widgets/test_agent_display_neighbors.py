@@ -8,9 +8,15 @@ import pytest
 from rich.text import Text
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_hoods import (
+    AgentNeighborIndex,
+    AgentNeighborRow,
+    agent_lane_name,
+)
 from sase.ace.tui.models.agent_lane_neighbors import (
     AgentLaneNeighborProjection,
     LaneNeighborRow,
+    build_agent_lane_neighbor_projection,
 )
 from sase.ace.tui.models.fold_scale import AGENT_FOLD_SCALE, FAMILY_FOLD_SCALE
 from sase.ace.tui.models.fold_state import FoldLevel
@@ -261,6 +267,56 @@ def test_family_header_publishes_one_contiguous_shared_width_jump_map() -> None:
         child.identity,
     ]
     assert [target.role for target in published[0].targets[2:]] == ["neighbor"] * 9
+
+
+def test_neighbors_section_renders_for_a_top_level_family_lane() -> None:
+    root = _agent(
+        "fam--plan",
+        agent_family="fam",
+        agent_family_role="root",
+        role_suffix="--plan",
+        plan_chain_root=True,
+    )
+    member = _agent(
+        "fam--code",
+        parent_timestamp=root.raw_suffix,
+        agent_family="fam",
+        agent_family_role="code",
+        role_suffix="--code",
+    )
+    root.followup_agents = [member]
+    helper = _agent("fam.helper")
+    other = _agent("fam.other")
+    index = AgentNeighborIndex.from_visible_rows(
+        [
+            AgentNeighborRow(idx, 0, agent, display_order=idx)
+            for idx, agent in enumerate((root, member, helper, other))
+        ]
+    )
+
+    projection = build_agent_lane_neighbor_projection(
+        lane_identity=root.identity,
+        lane_name=agent_lane_name(root),
+        lane_row_names=(root.presented_identity_name or "",),
+        index=index,
+        suppressed_identities={member.identity},
+        hood_labels={"fam": "fam"},
+    )
+    header, _ = build_header_text(
+        root,
+        cheap=True,
+        lane_fold_level=FoldLevel.FULLY_EXPANDED,
+        lane_neighbors=projection,
+    )
+
+    assert projection.is_empty is False
+    assert [row.agent.identity for row in projection.rows] == [
+        helper.identity,
+        other.identity,
+    ]
+    assert "NEIGHBORS · 2" in header.plain
+    assert ".helper" in header.plain
+    assert ".other" in header.plain
 
 
 def test_neighbors_are_absent_for_empty_projection_and_non_lane_rows() -> None:

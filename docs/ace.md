@@ -396,7 +396,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                |
 | `0`–`9`                   | Jump from a selected clan, lane, or whole-panel roster to its numbered member or neighbor            |
 | `o` / `O`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                         |
-| `~`                       | Jump among dotted-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)           |
+| `~`                       | Jump among lane-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)             |
 | `g`                       | Scroll to top (file, tools, or metadata panel)                                                       |
 | `G`                       | Scroll to bottom (file, tools, or metadata panel)                                                    |
 | `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                          |
@@ -406,13 +406,16 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 > surface keeps its own in-session selection independently); on the AXE tab it is a silent no-op. `g`/`G` keep their
 > conventional vim-style scroll-to-top/bottom meaning on every tab. See [Grouping Modes](#grouping-modes) below.
 
-On the Agents tab, `~` uses dotted agent-name relationships rather than ChangeSpec sibling families. It includes visible
-ancestors and descendants plus neighbors from every dotted hood that contains the selected name. For example,
-`foo.bar.worker` can offer peers under `foo.bar` and cousins elsewhere under `foo`, grouped deepest hood first. Dotless
-names can still have descendants such as `foo.child`. If there is exactly one related visible row and no dismissed
-descendant to offer, ACE jumps directly. Otherwise it opens a chooser that can also revive same-session dismissed
-descendants. A chosen target is resolved by stable identity and revealed through any clan, family, workflow, or grouping
-folds before focus moves.
+On the Agents tab, `~` uses dotted agent-name relationships rather than ChangeSpec sibling families. Relations are keyed
+on the name a row presents as its **lane** name, so a family lane participates under its bare family name rather than
+its root member's `--` name. It includes visible ancestors and descendants plus neighbors from every dotted hood that
+contains the selected lane name — including the hood that matches that name exactly. For example, `foo.bar.worker` can
+offer peers under `foo.bar` and cousins elsewhere under `foo`, grouped deepest hood first, and a family lane `fam`
+offers `fam.helper` as a descendant while `fam.helper` offers the family lane back as its ancestor. Dotless names can
+still have descendants such as `foo.child`. If there is exactly one related visible row and no dismissed descendant to
+offer, ACE jumps directly. Otherwise it opens a chooser that can also revive same-session dismissed descendants. A
+chosen target is resolved by stable identity and revealed through any clan, family, workflow, or grouping folds before
+focus moves.
 
 When a clan or an agent lane is selected, its metadata panel assigns a fixed number to each numbered row, up to 100
 targets. A lane is a multi-member family container or a single agent that owns its own lane; lane panels number their
@@ -600,11 +603,13 @@ and workflow aggregate rows have no `NEIGHBORS` section.
 
 The rows are exactly the rows the `~` chooser offers for that lane — ancestors, descendants including same-session
 dismissed descendants, then hood neighbors grouped by hood, nearest hood first — under dim `ancestors`, `descendants`,
-and `<hood> hood` group labels. Row labels are shortened relative to their group, so a `myclan` hood neighbor reads
-`.code` and a descendant reads `--impl.helper`. A `⊘` glyph and a `dismissed` annotation mark dismissed rows, and
-`folded` marks a prospective row that currently lives inside a collapsed clan. The section sits directly below
-`WORKFLOW VARIABLES` and immediately above `SASE CONTEXT`, so a lane's numbered neighbors stay reachable without
-scrolling past the context, slow-call, and error sections.
+and `<hood> hood` group labels. A lane joins the hood that matches its own name, and a family lane uses its bare family
+name for that match, so a family lane `visual.worker` and a single agent `visual.worker.notes` relate as ancestor and
+descendant exactly as two single agents with those names would. Row labels are shortened relative to their group, so a
+`myclan` hood neighbor reads `.code` and a descendant reads `--impl.helper`. A `⊘` glyph and a `dismissed` annotation
+mark dismissed rows, and `folded` marks a prospective row that currently lives inside a collapsed clan. The section sits
+directly below `WORKFLOW VARIABLES` and immediately above `SASE CONTEXT`, so a lane's numbered neighbors stay reachable
+without scrolling past the context, slow-call, and error sections.
 
 The row count follows the lane's fold scale by position, not by level name: the first position shows 3 rows, the last
 position shows all of them, and any middle position shows 10. A family lane therefore shows 3 rows at level 1 and every

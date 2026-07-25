@@ -49,6 +49,7 @@ def build_agent_lane_neighbor_projection(
     *,
     lane_identity: AgentIdentity,
     lane_name: str | None,
+    lane_row_names: Collection[str] = (),
     index: AgentNeighborIndex,
     dismissed_descendants: Sequence[Agent] = (),
     suppressed_identities: Collection[AgentIdentity] = (),
@@ -122,16 +123,22 @@ def build_agent_lane_neighbor_projection(
             )
 
     suppressed = set(suppressed_identities)
-    lane_key = lane_name.casefold() if lane_name else None
+    lane_keys = {name.casefold() for name in lane_row_names if name}
+    if lane_name:
+        lane_keys.add(lane_name.casefold())
     retained: list[LaneNeighborRow] = []
     suppressed_count = 0
     for row in rows:
-        if row.agent.identity == lane_identity or (
-            lane_key is not None and agent_name_key(row.agent) == lane_key
+        if (
+            row.agent.identity == lane_identity
+            or agent_name_key(row.agent) in lane_keys
         ):
             # A lane is never its own neighbor. An expanded family renders its
             # root member as a second row with a synthetic identity, so drop by
-            # name key too rather than trusting identity alone.
+            # name key too rather than trusting identity alone. ``lane_row_names``
+            # carries the owner's raw ``--<suffix>`` name, which is how that
+            # duplicate root-member row is keyed once the lane itself keys on
+            # the bare family base.
             continue
         if row.agent.identity in suppressed:
             suppressed_count += 1

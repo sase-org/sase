@@ -17,11 +17,23 @@ if TYPE_CHECKING:
 type AgentIdentity = tuple["AgentType", str, str | None]
 
 
-def agent_name_key(agent: Agent) -> str | None:
-    """Return a case-folded valid dotted agent name key."""
+def agent_lane_name(agent: Agent) -> str | None:
+    """Return the lane name a row presents on the Agents tab.
+
+    A family root entry renders under its bare family base while its raw name
+    keeps the ``--<suffix>`` member part, so kinship must key on the lane name
+    to agree with ``sase.core.agent_identity_facade.agent_name_in_hood``.
+    """
     if agent.is_clan_container:
         return None
-    name = agent.presented_identity_name
+    if agent.is_family_root_entry:
+        return agent.presented_agent_name or agent.presented_identity_name
+    return agent.presented_identity_name
+
+
+def agent_name_key(agent: Agent) -> str | None:
+    """Return a case-folded valid dotted agent name key."""
+    name = agent_lane_name(agent)
     if not name:
         return None
     parts = name.split(".")

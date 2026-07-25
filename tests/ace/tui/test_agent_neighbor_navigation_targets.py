@@ -40,6 +40,24 @@ def _fold_clans(
     return app
 
 
+def _family_lane(family: str, *roles: str) -> list[Agent]:
+    """Return a family root entry plus its member rows, root first."""
+    root = make_agent(f"{family}--plan", status="DONE")
+    root.agent_family = family
+    root.agent_family_role = "root"
+    root.plan_chain_root = True
+    root.refresh_raw_presented_agent_name()
+    members = []
+    for role in roles:
+        member = make_agent(f"{family}--{role}", status="DONE")
+        member.agent_family = family
+        member.agent_family_role = role
+        member.parent_timestamp = root.raw_suffix
+        members.append(member)
+    root.followup_agents = list(members)
+    return [root, *members]
+
+
 def _clan_member(
     name: str,
     *,
@@ -108,6 +126,61 @@ def test_agent_neighbor_navigation_revives_dismissed_family_descendant() -> None
     app.pushed_callbacks[0](0)
 
     assert app.revived_agents == [dismissed]
+
+
+def test_top_level_family_lane_offers_its_dotted_hood_mates() -> None:
+    root, member = _family_lane("fam", "code")
+    helper = make_agent("fam.helper")
+    other = make_agent("fam.other")
+    app = NeighborApp([root, member, helper, other])
+
+    app.action_start_sibling_mode()
+
+    modal = app.pushed_screens[0]
+    assert isinstance(modal, AgentNeighborModal)
+    # The lane's own member row stays listed individually here; the NEIGHBORS
+    # panel section folds it into the FAMILY MEMBERS tail instead.
+    assert [choice.agent_name for choice in modal._choices] == [
+        "fam--code",
+        "fam.helper",
+        "fam.other",
+    ]
+
+    app.pushed_callbacks[0](2)
+
+    assert app._agents[app.current_idx].identity == other.identity
+    assert app.acknowledged == [other]
+
+    panel = app.lane_neighbor_projection_for(root)
+    assert panel is not None
+    assert [row.agent.identity for row in panel.rows] == [
+        helper.identity,
+        other.identity,
+    ]
+    assert panel.suppressed_lane_member_count == 1
+    assert member.identity not in {row.agent.identity for row in panel.rows}
+
+
+def test_hood_mate_of_a_family_lane_lands_on_the_family_container_row() -> None:
+    root, member = _family_lane("fam", "code")
+    helper = make_agent("fam.helper")
+    other = make_agent("fam.other")
+    app = NeighborApp([root, member, helper, other], current_idx=2)
+
+    app.action_start_sibling_mode()
+
+    modal = app.pushed_screens[0]
+    assert isinstance(modal, AgentNeighborModal)
+    assert [(choice.agent_name, choice.group) for choice in modal._choices] == [
+        ("fam", "ancestor"),
+        ("fam.other", "neighbor"),
+    ]
+
+    app.pushed_callbacks[0](0)
+
+    assert app._agents[app.current_idx].identity == root.identity
+    assert app._agents[app.current_idx].is_family_container_row is True
+    assert app.acknowledged == [root]
 
 
 def test_agent_neighbor_navigation_switches_focused_panel() -> None:
