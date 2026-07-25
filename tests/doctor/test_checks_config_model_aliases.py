@@ -60,6 +60,34 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
     assert "model_aliases.builtin.epic_lander" not in by_key
 
 
+def test_model_aliases_accepts_reference_effort_and_parses_problem_aliases(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "builtin": {
+                    "medium_phase_worker": "@default@high",
+                    "coder": "@nope@high",
+                    "epic_lander": "@phase_worker@high",
+                }
+            }
+        },
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "WARN"
+    by_key = {row["key"]: row["message"] for row in check.data["problems"]}
+    assert "model_aliases.builtin.medium_phase_worker" not in by_key
+    assert "references unknown alias '@nope'" in by_key["model_aliases.builtin.coder"]
+    assert (
+        "references the retired '@phase_worker' alias"
+        in by_key["model_aliases.builtin.epic_lander"]
+    )
+
+
 def test_model_aliases_warns_on_nested_schema_misuse(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

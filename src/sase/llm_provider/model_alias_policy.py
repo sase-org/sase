@@ -15,10 +15,11 @@ from __future__ import annotations
 #     ``cheap`` / ``cheaper`` / ``cheapest``: bead/epic roles.
 #
 # Most roles fall back to another alias (ultimately ``@default``) when they are
-# not explicitly configured. ``smartest`` and ``cheapest`` instead own ordered
-# provider fallbacks, while ``cheap`` and ``cheaper`` own load-balanced pools.
-# ``default`` itself falls back to the configured or autodetected provider's
-# tier default.
+# not explicitly configured. A fallback reference may carry an effort overlay,
+# such as ``@default@high``; an outer effort still wins. ``smartest`` and
+# ``cheapest`` instead own ordered provider fallbacks, while ``cheap`` and
+# ``cheaper`` own load-balanced pools. ``default`` itself falls back to the
+# configured or autodetected provider's tier default.
 
 #: The implicit "default" alias name (used for no-``%model`` launches).
 DEFAULT_MODEL_ALIAS_NAME = "default"
@@ -48,8 +49,13 @@ SMALL_PHASE_WORKER_MODEL_ALIAS_NAME = "small_phase_worker"
 #: The implicit medium-phase role alias.
 MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME = "medium_phase_worker"
 
-#: Concrete default for the implicit medium-phase role alias.
-MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT = "codex/gpt-5.6-sol@high"
+#: Reasoning-effort overlay for the implicit medium-phase role alias.
+MEDIUM_PHASE_WORKER_MODEL_ALIAS_EFFORT = "high"
+
+#: Default alias reference for the implicit medium-phase role alias.
+MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT = (
+    f"@{DEFAULT_MODEL_ALIAS_NAME}@{MEDIUM_PHASE_WORKER_MODEL_ALIAS_EFFORT}"
+)
 
 #: The implicit large-phase role alias.
 LARGE_PHASE_WORKER_MODEL_ALIAS_NAME = "large_phase_worker"
@@ -84,14 +90,17 @@ CHEAPEST_MODEL_ALIAS_NAME = "cheapest"
 #: Provider-aware ordered fallback for :data:`CHEAPEST_MODEL_ALIAS_NAME`.
 CHEAPEST_MODEL_ALIAS_DEFAULT = "claude/haiku || codex/gpt-5.3-codex-spark"
 
-#: Fixed implicit role aliases (besides ``default``) mapped to the alias each
-#: falls back to when the user has not configured it explicitly.
+#: Fixed implicit role aliases (besides ``default``) mapped to the ``@<alias>``
+#: reference each falls back to when not explicitly configured. A reference may
+#: carry a trailing ``@<effort>`` overlay; it does not form a separate target,
+#: and an outer effort still wins.
 ROLE_ALIAS_FALLBACKS: dict[str, str] = {
     CODER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     EPIC_LANDER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME: f"@{SMARTEST_MODEL_ALIAS_NAME}",
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{CHEAPER_MODEL_ALIAS_NAME}",
     SMALL_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{CHEAP_MODEL_ALIAS_NAME}",
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME: MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT,
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{SMART_MODEL_ALIAS_NAME}",
     XLARGE_PHASE_WORKER_MODEL_ALIAS_NAME: f"@{SMARTEST_MODEL_ALIAS_NAME}",
     SMART_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
@@ -99,7 +108,6 @@ ROLE_ALIAS_FALLBACKS: dict[str, str] = {
 
 #: Concrete/selector defaults for implicit aliases that do not alias a role.
 IMPLICIT_ALIAS_TARGETS: dict[str, str] = {
-    MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME: MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT,
     SMARTEST_MODEL_ALIAS_NAME: SMARTEST_MODEL_ALIAS_DEFAULT,
     CHEAP_MODEL_ALIAS_NAME: CHEAP_MODEL_ALIAS_DEFAULT,
     CHEAPER_MODEL_ALIAS_NAME: CHEAPER_MODEL_ALIAS_DEFAULT,

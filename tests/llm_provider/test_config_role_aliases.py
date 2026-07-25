@@ -11,10 +11,13 @@ from sase.llm_provider.config import (
     CHEAPER_MODEL_ALIAS_DEFAULT,
     CHEAPEST_MODEL_ALIAS_DEFAULT,
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT,
+    MEDIUM_PHASE_WORKER_MODEL_ALIAS_EFFORT,
     SMARTEST_MODEL_ALIAS_DEFAULT,
     coder_model_alias_for_provider,
     default_model_alias_name,
     implicit_model_alias_fallback,
+    implicit_model_alias_fallback_effort,
+    implicit_model_alias_fallback_reference,
     implicit_model_alias_value,
     resolve_model_alias,
     resolve_model_alias_with_effort,
@@ -35,11 +38,14 @@ def test_role_alias_helpers() -> None:
     assert implicit_model_alias_fallback("epic_lander") == "default"
     assert implicit_model_alias_fallback("xsmall_phase_worker") == "cheaper"
     assert implicit_model_alias_fallback("small_phase_worker") == "cheap"
-    assert implicit_model_alias_fallback("medium_phase_worker") is None
-    assert implicit_model_alias_value("medium_phase_worker") == (
-        MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT
+    assert implicit_model_alias_fallback("medium_phase_worker") == "default"
+    assert implicit_model_alias_fallback_reference("medium_phase_worker") == (
+        "@default@high"
     )
-    assert MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT == "codex/gpt-5.6-sol@high"
+    assert implicit_model_alias_fallback_effort("medium_phase_worker") == "high"
+    assert implicit_model_alias_value("medium_phase_worker") is None
+    assert MEDIUM_PHASE_WORKER_MODEL_ALIAS_EFFORT == "high"
+    assert MEDIUM_PHASE_WORKER_MODEL_ALIAS_DEFAULT == "@default@high"
     assert implicit_model_alias_fallback("large_phase_worker") == "smart"
     assert implicit_model_alias_fallback("xlarge_phase_worker") == "smartest"
     assert implicit_model_alias_fallback("smart") == "default"
@@ -54,6 +60,9 @@ def test_role_alias_helpers() -> None:
     assert CHEAPER_MODEL_ALIAS_DEFAULT == ("claude/sonnet | codex/gpt-5.3-codex-spark")
     assert implicit_model_alias_value("cheapest") == CHEAPEST_MODEL_ALIAS_DEFAULT
     assert CHEAPEST_MODEL_ALIAS_DEFAULT == ("claude/haiku || codex/gpt-5.3-codex-spark")
+    assert implicit_model_alias_fallback("codex_coder") == "coder"
+    assert implicit_model_alias_fallback_reference("codex_coder") == "@coder"
+    assert implicit_model_alias_fallback_effort("codex_coder") is None
     assert implicit_model_alias_fallback("default") is None
 
 
@@ -83,14 +92,32 @@ def test_default_alias_falls_back_to_provider_tier_default(
     assert resolve_model_provider("default") == ("claude", "opus")
 
 
-def test_medium_phase_worker_owns_concrete_high_effort_default(
+def test_medium_phase_worker_follows_provider_default_at_high_effort(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
     resolved = resolve_model_alias_with_effort("medium_phase_worker")
 
+    assert (resolved.target, resolved.effort) == ("claude/opus", "high")
+
+
+def test_medium_phase_worker_follows_configured_default_with_outer_effort_winning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.6-sol@medium"}},
+        },
+    )
+
+    resolved = resolve_model_alias_with_effort("@medium_phase_worker")
+    outer = resolve_model_alias_with_effort("@medium_phase_worker@low")
+
     assert (resolved.target, resolved.effort) == ("codex/gpt-5.6-sol", "high")
+    assert (outer.target, outer.effort) == ("codex/gpt-5.6-sol", "low")
 
 
 def test_alias_reference_effort_overrides_target_and_chain_effort(

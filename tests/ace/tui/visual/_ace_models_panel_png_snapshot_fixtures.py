@@ -135,8 +135,8 @@ def calm_views() -> list[AliasView]:
         _view(
             "medium_phase_worker",
             "role",
-            provider="codex",
-            model="gpt-5.6-sol",
+            provider="claude",
+            model="claude-fable-4-10",
             effort="high",
             description="Medium phases that implement directly.",
         ),

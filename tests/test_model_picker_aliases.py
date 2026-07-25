@@ -127,6 +127,9 @@ def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
     assert _alias_disabled_reason(default_context, "large_phase_worker") == (
         "would create a cycle"
     )
+    assert _alias_disabled_reason(default_context, "medium_phase_worker") == (
+        "would create a cycle"
+    )
     assert _alias_disabled_reason(smartest_context, "big_epic_lander") == (
         "would create a cycle"
     )

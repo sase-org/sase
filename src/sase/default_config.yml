@@ -483,7 +483,8 @@ llm_provider:
   # fallback; do not mix the operators.
   # Values may be a bare known model (opus), an explicit
   # provider/model (codex/gpt-5.6-sol), a nested provider-local path
-  # (opencode/anthropic/claude-sonnet-4-5), or an @<alias> reference.
+  # (opencode/anthropic/claude-sonnet-4-5), or an @<alias> reference. An alias
+  # reference may carry a trailing @<effort> that overrides its target's effort.
   # User-invented aliases live under custom and must include a description for
   # completions and the Models panel. Bucket membership is display-only: ACE
   # always supplies `coders` and `phase_worker`, and custom aliases assigned to
@@ -498,7 +499,7 @@ llm_provider:
   #     big_epic_lander: "@smartest" # threshold-selected epic land agents
   #     xsmall_phase_worker: "@cheaper" # extra-small bead phase agents
   #     small_phase_worker: "@cheap"    # small bead phase agents
-  #     medium_phase_worker: codex/gpt-5.6-sol@high # medium bead phase agents
+  #     medium_phase_worker: "@default@high" # follows @default at high effort
   #     large_phase_worker: "@smart"    # large bead phase agents
   #     xlarge_phase_worker: "@smartest" # extra-large bead phase agents
   #     smart: "@default"          # high-capability alias

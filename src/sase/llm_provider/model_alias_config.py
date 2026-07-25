@@ -6,6 +6,7 @@ from functools import lru_cache
 from typing import Any, Literal
 
 from sase.config.core import current_config_token
+from sase.xprompt.effort import split_model_effort
 
 from .model_alias_policy import (
     CODER_MODEL_ALIAS_NAME,
@@ -270,11 +271,29 @@ def strip_model_alias_prefix(value: str) -> str:
 
 def implicit_model_alias_fallback(name: str) -> str | None:
     """Return the immediate implicit fallback alias for *name*, if any."""
+    fallback = implicit_model_alias_fallback_reference(name)
+    if fallback is None:
+        return None
+    reference, _ = split_model_effort(fallback)
+    return strip_model_alias_prefix(reference)
+
+
+def implicit_model_alias_fallback_reference(name: str) -> str | None:
+    """Return the raw immediate implicit fallback reference for *name*."""
     alias = name.strip()
     fallback = ROLE_ALIAS_FALLBACKS.get(alias)
     if fallback is None and is_provider_coder_alias(alias):
         fallback = f"@{CODER_MODEL_ALIAS_NAME}"
-    return strip_model_alias_prefix(fallback) if fallback is not None else None
+    return fallback
+
+
+def implicit_model_alias_fallback_effort(name: str) -> str | None:
+    """Return the effort overlay on *name*'s implicit fallback, if any."""
+    fallback = implicit_model_alias_fallback_reference(name)
+    if fallback is None:
+        return None
+    _, effort = split_model_effort(fallback)
+    return effort
 
 
 def implicit_model_alias_value(name: str) -> str | None:

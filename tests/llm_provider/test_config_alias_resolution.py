@@ -218,7 +218,7 @@ def test_launch_phase_worker_override_has_no_builtin_effect(
 
     overrides = {"phase_worker": "codex/o3"}
     assert resolve_model_alias("@small_phase_worker", overrides) == "claude/opus"
-    assert resolve_model_alias("@medium_phase_worker", overrides) == "codex/gpt-5.6-sol"
+    assert resolve_model_alias("@medium_phase_worker", overrides) == "claude/opus"
     assert resolve_model_alias("@large_phase_worker", overrides) == "claude/opus"
     assert resolve_model_alias("@phase_worker", overrides) == "phase_worker"
 

@@ -1464,9 +1464,10 @@ alias: the implicit role aliases (`default`, `coder`, `<provider>_coder`, `epic_
 `smartest`, `smart`, `cheap`, `cheaper`, `cheapest`) and any user-defined `llm_provider.model_aliases.custom` entry.
 
 Each row shows the alias name with a small kind badge (`default` / `role` / `<provider> coder` / `user`), its effective
-provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @<fallback>`, or an
-`override · <time> left` / `override · until cleared` chip when a temporary override is active. A model-specific effort
-carried by that override appears beside the effective provider/model badge. The title's second line shows the
+provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @<fallback>` /
+`implicit → @<fallback> @ <effort>`, or an `override · <time> left` / `override · until cleared` chip when a temporary
+override is active. Configured references use the same `configured → @<target> @ <effort>` form. A model-specific effort
+carried by an override appears beside the effective provider/model badge. The title's second line shows the
 launch-effective default effort. With no temporary override it says `default effort: @ <level>` or `provider default`;
 with an active override it shows that `@<level>`, its remaining time, and the configured value beside it. The third line
 shows the effective `max running agents` global cap; an active temporary cap shows its remaining time and configured
@@ -1615,10 +1616,10 @@ temporary override is independent of `SASE_MODEL_TIER_OVERRIDE`; a concrete over
 while the tier override only applies when no concrete override is active.
 
 Delegated launches (plan coder follow-ups and `sase bead work` phase/land agents) resolve through
-[role aliases](llms.md#role-aliases-for-delegated-work) configured under `llm_provider.model_aliases.builtin`. Most fall
-back to `@default`; the size-specific phase aliases instead route through `@cheaper`, `@cheap`,
-`codex/gpt-5.6-sol@high`, `@smart`, and `@smartest`, so a `default` override does not move them unless their
-size-specific alias is configured back to `@default`.
+[role aliases](llms.md#role-aliases-for-delegated-work) configured under `llm_provider.model_aliases.builtin`. The
+size-specific phase aliases route through `@cheaper`, `@cheap`, `@default@high`, `@smart`, and `@smartest`. Nested
+`@default` references intentionally ignore a temporary `default` override, so change or override the size-specific alias
+itself to move that lane.
 
 ### Persistent edits
 

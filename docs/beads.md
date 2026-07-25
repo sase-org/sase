@@ -426,7 +426,7 @@ Once an epic bead exists, the shared launch path:
    `@epic_lander` to `@default`, while landers selected by the threshold fall through `@big_epic_lander` to
    provider-aware `@smartest`. `xsmall` phases fall through `@xsmall_phase_worker` to the load-balanced `@cheaper` pool,
    `small` phases through `@small_phase_worker` to the `@cheap` pool, `medium` phases through `@medium_phase_worker` to
-   `codex/gpt-5.6-sol@high`, `large` phases through `@large_phase_worker` to `@smart`, and `xlarge` phases through
+   `@default@high`, `large` phases through `@large_phase_worker` to `@smart`, and `xlarge` phases through
    `@xlarge_phase_worker` to `@smartest`. The independent `@cheapest` provider fallback is available for explicit use
    but has no automatic consumer. Builtin aliases can be configured under `llm_provider.model_aliases.builtin`. Each
    phase segment and the final land-epic segment carries bare `%auto`, so submitted implementation and landing plans are

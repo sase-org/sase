@@ -258,12 +258,12 @@ def _resolve_model_alias_result(
                     selector_owner,
                 )
 
-            fallback = config.implicit_model_alias_fallback(bare)
-            if fallback is not None:
+            fallback_reference = config.implicit_model_alias_fallback_reference(bare)
+            if fallback_reference is not None:
                 if bare in seen:
                     return fail()
                 seen.add(bare)
-                current = f"@{fallback}"
+                current = fallback_reference
                 steps += 1
                 continue
 
@@ -432,8 +432,7 @@ def validate_model_alias_selector_value(name: str, value: str) -> tuple[str, ...
             if target is None:
                 target = IMPLICIT_ALIAS_TARGETS.get(referenced)
             if target is None:
-                fallback = config.implicit_model_alias_fallback(referenced)
-                target = f"@{fallback}" if fallback is not None else None
+                target = config.implicit_model_alias_fallback_reference(referenced)
             if target is None:
                 errors.append(
                     f"{member_label} {position} references unknown alias "

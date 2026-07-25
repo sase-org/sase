@@ -41,8 +41,9 @@ from .config import (
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,
     ModelAliasSelectorMember,
     get_model_aliases,
-    implicit_model_alias_value,
     implicit_model_alias_fallback,
+    implicit_model_alias_fallback_effort,
+    implicit_model_alias_value,
     model_alias_bucket,
     model_alias_bucket_description,
     model_alias_config_source,
@@ -154,6 +155,8 @@ class AliasView:
             while its machine-wide temporary override is active: nested
             ``@default`` references intentionally ignore that override.
         reference_model: Model represented by an explicit ``@name`` reference.
+        reference_effort: Effort overlay carried by the row's immediate
+            ``@name`` reference, or ``None`` for a concrete pinned target.
         implicit_value: Raw concrete/selector value supplied by an implicit alias.
         selector_mode: ``round_robin`` or ``fallback`` when the alias owns a
             selector expression.
@@ -218,6 +221,16 @@ class AliasView:
         if self.configured:
             return None
         return implicit_model_alias_fallback(self.name)
+
+    @property
+    def reference_effort(self) -> str | None:
+        """Return the effort overlay carried by the immediate alias reference."""
+        if self.configured:
+            if self.configured_value is None:
+                return None
+            alias, effort = normalize_model_alias_reference(self.configured_value)
+            return effort if alias is not None else None
+        return implicit_model_alias_fallback_effort(self.name)
 
     @property
     def selection_provider(self) -> str | None:

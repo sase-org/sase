@@ -65,7 +65,7 @@ def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> Non
                     "codex_coder": "claude/opus",
                     "xsmall_phase_worker": "@cheaper",
                     "small_phase_worker": "@cheap",
-                    "medium_phase_worker": "codex/gpt-5.6-sol@high",
+                    "medium_phase_worker": "@default@high",
                     "large_phase_worker": "@smart",
                     "xlarge_phase_worker": "@smartest",
                     "smart": "@default",

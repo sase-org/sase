@@ -95,16 +95,16 @@ async def test_models_panel_alias_picker_reordered_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await _open_alias_edit_picker(page)
         picker_input = page.app.screen.query_one("#model-picker-filter", Input)
-        picker_input.value = "gpt-5.6-sol"
+        picker_input.value = "fable"
         picker_list = page.app.screen.query_one("#model-picker-list", OptionList)
         await wait_for_state(
             page,
             lambda: (
-                "__header_codex__" in {option.id for option in picker_list.options}
+                "__header_claude__" in {option.id for option in picker_list.options}
                 and "@medium_phase_worker"
                 in {option.id for option in picker_list.options}
             ),
-            description="codex provider rows and aliases visible",
+            description="claude provider rows and aliases visible",
         )
         await wait_for_visual_idle(page)
 
@@ -130,7 +130,7 @@ async def test_models_panel_alias_picker_reordered_narrow_png_snapshot(
     ) as page:
         await _open_alias_edit_picker(page)
         picker_input = page.app.screen.query_one("#model-picker-filter", Input)
-        picker_input.value = "gpt-5.6-sol"
+        picker_input.value = "fable"
         await wait_for_svg_contains(page, "ALIASES")
         await wait_for_visual_idle(page)
 

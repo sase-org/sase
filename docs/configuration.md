@@ -801,7 +801,7 @@ llm_provider:
       cheap: claude/opus@medium | codex/gpt-5.5 # small-phase pool
       cheaper: claude/sonnet | codex/gpt-5.3-codex-spark # xsmall-phase pool
       cheapest: claude/haiku || codex/gpt-5.3-codex-spark # explicit-use fallback
-      medium_phase_worker: codex/gpt-5.6-sol@high # medium phase agents
+      medium_phase_worker: "@default@high" # follows @default at high effort
       large_phase_worker: "@smart"
       smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # ordered fallback
     custom:
@@ -826,17 +826,18 @@ llm_provider:
 
 Model aliases are resolved when an agent launches, so reusable xprompts can point at names such as `%model:@default` or
 `%model:@blogger` while each user's `sase.yml` controls the concrete provider/model. Alias config keys stay bare; the
-`@` marker is only used in `%model`/`%m` directive values. Alias values may reference another alias with `@<alias>`
-(chains are followed with cycle/depth protection). Unknown non-alias model values keep the existing fallback behavior
-and run on the default provider. Use `model_aliases.builtin` for builtin role overrides and `model_aliases.custom` for
-user-defined aliases with descriptions. `A | B` round-robins across real launches, skips providers whose CLI is
-unavailable, and stores its machine-global cursor in `~/.sase/llm_lb.json`; display and preview surfaces only peek.
-`A || B` always selects the first installed provider CLI and never reads or advances that cursor. Ordered fallback is
-based on CLI installation, not later model/runtime success, and preserves its first candidate for normal diagnostics
-when none are installed. Members may carry a trailing effort. The operators cannot be mixed, selectors cannot be nested,
-and selectors are not accepted in `%model` directives or launch-scoped/temporary overrides. In the ACE Models panel, the
-pool row reports the available/total count, selector member lists mark the current selection with `→`, and active
-temporary overrides label selection suspended.
+`@` marker is only used in `%model`/`%m` directive values. Alias values may reference another alias with `@<alias>`; the
+reference may carry a trailing effort such as `@default@high`, which overrides the referenced alias's effort (chains are
+followed with cycle/depth protection). Unknown non-alias model values keep the existing fallback behavior and run on the
+default provider. Use `model_aliases.builtin` for builtin role overrides and `model_aliases.custom` for user-defined
+aliases with descriptions. `A | B` round-robins across real launches, skips providers whose CLI is unavailable, and
+stores its machine-global cursor in `~/.sase/llm_lb.json`; display and preview surfaces only peek. `A || B` always
+selects the first installed provider CLI and never reads or advances that cursor. Ordered fallback is based on CLI
+installation, not later model/runtime success, and preserves its first candidate for normal diagnostics when none are
+installed. Members may carry a trailing effort. The operators cannot be mixed, selectors cannot be nested, and selectors
+are not accepted in `%model` directives or launch-scoped/temporary overrides. In the ACE Models panel, the pool row
+reports the available/total count, selector member lists mark the current selection with `→`, and active temporary
+overrides label selection suspended.
 
 ACE automatically supplies two display-only built-in buckets while alias resolution and configuration remain flat:
 `coders` groups `@coder` with every registered `@<provider>_coder`, and `phase_worker` groups `@xsmall_phase_worker`,
@@ -849,12 +850,12 @@ On top of any configured aliases, SASE exposes a fixed set of **implicit role al
 `@epic_lander`, `@big_epic_lander`, the five `<size>_phase_worker` aliases, `@smartest`, `@smart`, `@cheap`, `@cheaper`,
 and `@cheapest` (bead/epic role launches). `@epic_lander` falls back to `@default`, while `@big_epic_lander` falls back
 independently to `@smartest`; xsmall phases fall back to `@cheaper`, small phases to `@cheap`, medium phases to
-`codex/gpt-5.6-sol@high`, large phases to `@smart` (which itself falls back to `@default`), and xlarge phases to
-`@smartest`. The implicit `@smartest` value is `claude/claude-fable-5 || codex/gpt-5.6-sol`, preferring Claude when its
-CLI is installed. `@cheaper` owns the automatic xsmall-phase pool and `@cheap` the small-phase pool, while `@cheapest`
-owns an independent explicit-use provider fallback. Override only threshold-sized epic landers with
-`model_aliases.builtin.big_epic_lander`; override only large phases with `model_aliases.builtin.large_phase_worker`.
-`@smartest` is selected automatically through the threshold-sized epic and xlarge-phase fallback chains. See
+`@default@high`, large phases to `@smart` (which itself falls back to `@default`), and xlarge phases to `@smartest`. The
+implicit `@smartest` value is `claude/claude-fable-5 || codex/gpt-5.6-sol`, preferring Claude when its CLI is installed.
+`@cheaper` owns the automatic xsmall-phase pool and `@cheap` the small-phase pool, while `@cheapest` owns an independent
+explicit-use provider fallback. Override only threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`;
+override only large phases with `model_aliases.builtin.large_phase_worker`. `@smartest` is selected automatically
+through the threshold-sized epic and xlarge-phase fallback chains. See
 [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
 [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role.
 

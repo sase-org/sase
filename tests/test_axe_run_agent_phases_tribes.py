@@ -469,5 +469,5 @@ def test_medium_phase_worker_directive_metadata_resolves_concrete_lane(
 
     meta = _extract_medium_phase_worker_model_meta(tmp_path)
 
-    assert (meta["llm_provider"], meta["model"]) == ("codex", "gpt-5.6-sol")
+    assert (meta["llm_provider"], meta["model"]) == ("claude", "opus")
     assert meta["reasoning_effort"] == "high"

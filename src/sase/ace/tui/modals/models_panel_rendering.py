@@ -166,10 +166,16 @@ def _override_chip(override: TemporaryLLMOverride, now: float) -> str:
     return f"override · {format_remaining(override.expires_at - now)} left"
 
 
-def _append_reference(text: Text, target: str) -> None:
+def _append_reference(
+    text: Text,
+    target: str,
+    effort: str | None = None,
+) -> None:
     """Append a consistently styled alias-reference suffix to *text*."""
     text.append(" → ", style=_IMPLICIT_TAG_STYLE)
     text.append(f"@{target}", style=_REFERENCE_TAG_STYLE)
+    if effort is not None:
+        _append_effort_suffix(text, effort)
 
 
 def state_tag(view: AliasView, now: float) -> Text:
@@ -181,13 +187,13 @@ def state_tag(view: AliasView, now: float) -> Text:
         if view.selector_mode == "round_robin" and view.selector_members:
             _append_pool_chip(text, view)
         elif view.references is not None:
-            _append_reference(text, view.references)
+            _append_reference(text, view.references, view.reference_effort)
         return text
     text = Text("implicit", style=_IMPLICIT_TAG_STYLE)
     if view.selector_mode == "round_robin" and view.selector_members:
         _append_pool_chip(text, view)
     elif view.name != DEFAULT_MODEL_ALIAS_NAME and view.implicit_fallback is not None:
-        _append_reference(text, view.implicit_fallback)
+        _append_reference(text, view.implicit_fallback, view.reference_effort)
     return text
 
 
@@ -373,6 +379,13 @@ def description_text_for_view(
         if text:
             text.append("\n")
         text.append(f"effort: {view.effort}", style="dim")
+        if view.override is None and view.reference_effort is not None:
+            reference = view.references or view.implicit_fallback
+            if reference is not None:
+                text.append(
+                    f" (via @{reference}@{view.reference_effort})",
+                    style="dim",
+                )
         if default_effort is None:
             text.append(" · no default configured", style="dim")
         elif view.effort == default_effort:

@@ -226,7 +226,11 @@ def make_phase_worker_bucket_views() -> list[AliasView]:
         ),
         make_alias_view("small_phase_worker", "role", provider="claude", model="opus"),
         make_alias_view(
-            "medium_phase_worker", "role", provider="codex", model="gpt-5.6-sol"
+            "medium_phase_worker",
+            "role",
+            provider="claude",
+            model="opus",
+            effort="high",
         ),
         make_alias_view("large_phase_worker", "role", provider="claude", model="opus"),
         make_alias_view(

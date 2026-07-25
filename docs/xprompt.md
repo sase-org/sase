@@ -1138,7 +1138,7 @@ The parenthesized `%model` form accepts keyword arguments that temporarily repla
 
 ```text
 %model(opus, coder=codex/gpt-5.6-sol, small_phase_worker=@cheap)
-%model(xsmall_phase_worker=@cheaper, medium_phase_worker=codex/gpt-5.6-sol@high)
+%model(xsmall_phase_worker=@cheaper, medium_phase_worker=@default@high)
 %model(large_phase_worker=@smart, xlarge_phase_worker=@smartest)
 %model(coder=@medium_phase_worker)
 ```
@@ -1148,16 +1148,17 @@ resolves. Without a positional value, the current agent still starts from the no
 the map: `default=...` changes it directly, while a size-specific phase keyword affects only that phase size. The
 current size-specific phase aliases and implicit fallbacks are:
 
-| Size     | Alias                 | Implicit fallback        |
-| -------- | --------------------- | ------------------------ |
-| `xsmall` | `xsmall_phase_worker` | `@cheaper`               |
-| `small`  | `small_phase_worker`  | `@cheap`                 |
-| `medium` | `medium_phase_worker` | `codex/gpt-5.6-sol@high` |
-| `large`  | `large_phase_worker`  | `@smart`                 |
-| `xlarge` | `xlarge_phase_worker` | `@smartest`              |
+| Size     | Alias                 | Implicit fallback |
+| -------- | --------------------- | ----------------- |
+| `xsmall` | `xsmall_phase_worker` | `@cheaper`        |
+| `small`  | `small_phase_worker`  | `@cheap`          |
+| `medium` | `medium_phase_worker` | `@default@high`   |
+| `large`  | `large_phase_worker`  | `@smart`          |
+| `xlarge` | `xlarge_phase_worker` | `@smartest`       |
 
 Keys must be known builtin or custom alias names without `@`; values may be concrete models, `provider/model` targets,
-quoted targets, xprompt references, or another alias with `@`. Per-alias reasoning-effort suffixes are not supported.
+quoted targets, xprompt references, or another alias with `@`. A trailing reasoning-effort suffix is supported on a
+single-target value, including an alias reference such as `@default@high`.
 
 "Launch-scoped" describes persistence, not every subprocess the agent starts. SASE records the map in agent metadata and
 carries it through its plan/coder follow-up path. An explicit `%id(suffix, family=parent)` attachment inherits the

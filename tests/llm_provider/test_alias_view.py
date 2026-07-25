@@ -61,6 +61,9 @@ def test_includes_default_role_provider_coder_and_user_aliases(
     assert by_name["xsmall_phase_worker"].kind == "role"
     assert by_name["small_phase_worker"].kind == "role"
     assert by_name["medium_phase_worker"].kind == "role"
+    assert by_name["medium_phase_worker"].configured is False
+    assert by_name["medium_phase_worker"].implicit_fallback == "default"
+    assert by_name["medium_phase_worker"].reference_effort == "high"
     assert by_name["large_phase_worker"].kind == "role"
     assert by_name["xlarge_phase_worker"].kind == "role"
     assert by_name["smart"].kind == "role"
@@ -364,6 +367,30 @@ def test_alias_view_references(
     )
 
     assert view.references == expected
+
+
+@pytest.mark.parametrize(
+    ("configured_value", "expected"),
+    [
+        ("@default@high", "high"),
+        ("claude/opus@high", None),
+    ],
+)
+def test_alias_view_reference_effort_is_only_for_alias_edges(
+    configured_value: str,
+    expected: str | None,
+) -> None:
+    view = AliasView(
+        name="coder",
+        kind="role",
+        configured=True,
+        configured_value=configured_value,
+        provider="claude",
+        model="opus",
+        override=None,
+    )
+
+    assert view.reference_effort == expected
 
 
 def test_big_epic_alias_view_exposes_smartest_implicit_fallback() -> None:

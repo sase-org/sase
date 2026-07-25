@@ -78,6 +78,20 @@ def test_state_tag_configured_reference_uses_shared_reference_accent() -> None:
     assert "#87d7ff" in str(configured_target.style).lower()
 
 
+def test_state_tag_configured_reference_includes_effort_overlay() -> None:
+    text = _state_tag(
+        make_alias_view(
+            "medium_phase_worker",
+            "role",
+            configured=True,
+            configured_value="@default@high",
+        ),
+        now=0.0,
+    )
+
+    assert text.plain == "configured → @default @ high"
+
+
 def test_state_tag_implicit_default() -> None:
     text = _state_tag(make_alias_view("default", "default"), now=0.0)
     assert text.plain == "implicit"
@@ -95,7 +109,7 @@ def test_state_tag_implicit_big_epic_lander() -> None:
 
 def test_state_tag_implicit_size_phase_worker() -> None:
     text = _state_tag(make_alias_view("medium_phase_worker", "role"), now=0.0)
-    assert text.plain == "implicit"
+    assert text.plain == "implicit → @default @ high"
 
 
 def test_state_tag_implicit_provider_coder() -> None:
@@ -370,3 +384,38 @@ def test_render_alias_row_ellipsizes_combined_badge_and_effort() -> None:
     assert width == models_panel._PROVIDER_MODEL_CELL_MAX
     assert "…" in line
     assert "configured" in line
+
+
+@pytest.mark.parametrize(
+    ("default_effort", "comparison"),
+    [
+        (None, "no default configured"),
+        ("medium", "overrides default medium"),
+    ],
+)
+def test_reference_effort_description_names_implicit_source(
+    default_effort: str | None,
+    comparison: str,
+) -> None:
+    view = make_alias_view(
+        "medium_phase_worker",
+        "role",
+        effort="high",
+    )
+
+    text = _description_text_for_view(view, default_effort).plain
+
+    assert text == f"effort: high (via @default@high) · {comparison}"
+
+
+def test_reference_effort_description_is_suppressed_during_override() -> None:
+    view = make_alias_view(
+        "medium_phase_worker",
+        "role",
+        override=make_override(),
+        effort="medium",
+    )
+
+    text = _description_text_for_view(view, "low").plain
+
+    assert text == "effort: medium · overrides default low"

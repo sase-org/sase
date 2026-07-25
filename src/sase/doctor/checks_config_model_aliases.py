@@ -7,6 +7,7 @@ from sase.doctor.checks_config_common import (
     MAX_DETAIL_ROWS,
     REMOVED_IMPLICIT_ALIAS_GUIDANCE,
 )
+from sase.xprompt.effort import split_model_effort
 
 
 def check_config_model_aliases() -> DiagnosticCheck:
@@ -334,7 +335,8 @@ def check_config_model_aliases() -> DiagnosticCheck:
             continue
         if not target.startswith("@"):
             continue
-        referenced = strip_model_alias_prefix(target).strip()
+        target_reference, _ = split_model_effort(target.strip())
+        referenced = strip_model_alias_prefix(target_reference).strip()
         if (
             referenced not in known_aliases
             and referenced in REMOVED_IMPLICIT_ALIAS_GUIDANCE

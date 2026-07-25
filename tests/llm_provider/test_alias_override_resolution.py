@@ -99,7 +99,7 @@ def test_stale_override_on_phase_worker_has_no_builtin_effect(
     assert resolve_model_alias("@phase_worker") == "phase_worker"
     assert resolve_model_provider("xsmall_phase_worker") == ("claude", "sonnet")
     assert resolve_model_provider("small_phase_worker") == ("claude", "opus")
-    assert resolve_model_provider("medium_phase_worker") == ("codex", "gpt-5.6-sol")
+    assert resolve_model_provider("medium_phase_worker") == ("claude", "opus")
     assert resolve_model_provider("large_phase_worker") == ("claude", "opus")
     assert resolve_model_provider("xlarge_phase_worker") == (
         "claude",
@@ -175,6 +175,11 @@ def test_default_override_preserves_two_path_semantics(
     # Explicit @default still resolves to the configured default.
     assert resolve_model_alias("default") == "claude/opus"
     assert resolve_model_alias("@default") == "claude/opus"
+    assert resolve_model_provider_with_effort("@medium_phase_worker") == (
+        "claude",
+        "opus",
+        "high",
+    )
     # The effective launch default applies the override.
     assert resolve_effective_default_provider_model() == ("codex", "o3")
 

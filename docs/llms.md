@@ -567,7 +567,7 @@ llm_provider:
       cheapest: claude/haiku || codex/gpt-5.3-codex-spark # explicit-use fallback
       xsmall_phase_worker: "@cheaper"
       small_phase_worker: "@cheap"
-      medium_phase_worker: codex/gpt-5.6-sol@high
+      medium_phase_worker: "@default@high"
       large_phase_worker: "@smart"
       xlarge_phase_worker: "@smartest"
       smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # ordered fallback
@@ -633,10 +633,11 @@ Then prompts can use the alias with a leading `@`:
 
 Alias values may point at another alias (for example `@default` or `@coder`), a bare known model such as `opus`, an
 explicit provider/model string such as `claude/opus`, or a nested provider-local path such as
-`opencode/anthropic/claude-sonnet-4-5`. Alias-to-alias chains are followed with cycle and depth protection; a cyclic or
-unresolved reference falls back to the raw input rather than crashing a launch. The `@` marker is only directive surface
-syntax: alias keys and xprompt values stay bare. A bare configured/implicit alias raises with a migration hint, and `@`
-in front of a non-alias raises.
+`opencode/anthropic/claude-sonnet-4-5`. An alias reference may carry a trailing effort such as `@default@high`, which
+overrides the referenced alias's effort; an effort on the outer reference still wins. Alias-to-alias chains are followed
+with cycle and depth protection; a cyclic or unresolved reference falls back to the raw input rather than crashing a
+launch. The `@` marker is only directive surface syntax: alias keys and xprompt values stay bare. A bare
+configured/implicit alias raises with a migration hint, and `@` in front of a non-alias raises.
 
 An alias value can instead use one of two selector operators. `A | B` is an availability-filtered round-robin pool: real
 launches advance machine-global state in `~/.sase/llm_lb.json`, while display, completion, doctor, dry-run, and preview
@@ -692,7 +693,7 @@ provider fallbacks, while `@cheap` and `@cheaper` own independent built-in pools
 | `@big_epic_lander`     | Epic land agent selected when the authored phase count meets the configured threshold.                  | `@smartest`                                                                             |
 | `@xsmall_phase_worker` | Extra-small bead phase agent with no explicit per-bead model.                                           | `@cheaper`                                                                              |
 | `@small_phase_worker`  | Small bead phase agent with no explicit per-bead model.                                                 | `@cheap`                                                                                |
-| `@medium_phase_worker` | Medium bead phase agent with no explicit per-bead model.                                                | `codex/gpt-5.6-sol@high`                                                                |
+| `@medium_phase_worker` | Medium bead phase agent with no explicit per-bead model.                                                | `@default@high`                                                                         |
 | `@large_phase_worker`  | Large bead phase agent with no explicit per-bead model.                                                 | `@smart`                                                                                |
 | `@xlarge_phase_worker` | Extra-large bead phase agent with no explicit per-bead model.                                           | `@smartest`                                                                             |
 | `@smart`               | High-capability model selected automatically for large phases.                                          | `@default`                                                                              |
@@ -705,10 +706,10 @@ Override any role by configuring an alias of the same name. A common setup route
 while normal epic landers track `@default`. Threshold-selected epic landers deliberately diverge through
 `@big_epic_lander` → `@smartest`, so an `epic_lander` override affects only below-threshold epics; configure
 `big_epic_lander` directly to replace the large-epic policy. Phase sizes likewise diverge: xsmall uses `@cheaper`, small
-uses `@cheap`, medium uses `codex/gpt-5.6-sol@high`, large uses `@smart`, and xlarge uses `@smartest`. The implicit
-`@smartest` value prefers Claude Fable 5 whenever the Claude CLI is installed and otherwise selects Codex GPT-5.6 SOL; a
-configured or temporary override bypasses that fallback. The standalone `@cheapest` fallback has no automatic consumer
-and is available for explicit launches:
+uses `@cheap`, medium uses `@default@high`, large uses `@smart`, and xlarge uses `@smartest`. The implicit `@smartest`
+value prefers Claude Fable 5 whenever the Claude CLI is installed and otherwise selects Codex GPT-5.6 SOL; a configured
+or temporary override bypasses that fallback. The standalone `@cheapest` fallback has no automatic consumer and is
+available for explicit launches:
 
 ```yaml
 llm_provider:
@@ -721,7 +722,7 @@ llm_provider:
       cheap: claude/opus@medium | codex/gpt-5.5
       cheaper: claude/sonnet | codex/gpt-5.3-codex-spark
       cheapest: claude/haiku || codex/gpt-5.3-codex-spark
-      medium_phase_worker: codex/gpt-5.6-sol@high
+      medium_phase_worker: "@default@high"
       xsmall_phase_worker: "@cheaper"
       small_phase_worker: "@cheap"
       large_phase_worker: "@smart"
@@ -920,7 +921,7 @@ Delegated launches do not use a separate "worker lane". Instead, each delegated 
   `@claude_coder`), falling back to `@coder` and then `@default`.
 - **`sase bead work` phase agents** without an explicit per-bead model use the alias matching their normalized size:
   `@xsmall_phase_worker`, `@small_phase_worker`, `@medium_phase_worker`, `@large_phase_worker`, or
-  `@xlarge_phase_worker`. Their defaults are respectively `@cheaper`, `@cheap`, `codex/gpt-5.6-sol@high`, `@smart`, and
+  `@xlarge_phase_worker`. Their defaults are respectively `@cheaper`, `@cheap`, `@default@high`, `@smart`, and
   `@smartest`. `xsmall`, `small`, and `medium` phases implement directly; only `large` and `xlarge` phases receive
   `#plan`. An explicit per-bead model is accepted at every size and always wins without changing the size-based planning
   policy.
@@ -944,15 +945,15 @@ llm_provider:
       cheap: claude/opus@medium | codex/gpt-5.5
       cheaper: claude/sonnet | codex/gpt-5.3-codex-spark
       cheapest: claude/haiku || codex/gpt-5.3-codex-spark
-      medium_phase_worker: codex/gpt-5.6-sol@high # medium bead phases run on Codex
+      medium_phase_worker: codex/gpt-5.6-sol@high # explicitly route medium phases to Codex
       smartest: claude/claude-fable-5 || codex/gpt-5.6-sol # xlarge phase/epic fallback
       big_epic_lander: codex/gpt-5.6-sol # threshold-selected epic landers run on Codex
 ```
 
 Normal epic landers fall back to `@default`; xsmall phases use the `@cheaper` pool, small phases the `@cheap` pool,
-medium phases `codex/gpt-5.6-sol@high`, large phases `@smart`, and xlarge phases and threshold-selected epic landers
-`@smartest`. Explicit `%model` directives, approval-picker model choices, direct alias overrides, and per-bead/land
-model metadata always win over role defaults.
+medium phases `@default@high`, large phases `@smart`, and xlarge phases and threshold-selected epic landers `@smartest`.
+Explicit `%model` directives, approval-picker model choices, direct alias overrides, and per-bead/land model metadata
+always win over role defaults.
 
 > The previous `llm_provider.worker_models` map and the `~/.sase/llm_worker_override.json` worker temporary override
 > were removed in epic sase-5d. See the [migration note](#implicit-role-aliases) above.
