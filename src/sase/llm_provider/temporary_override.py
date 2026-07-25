@@ -14,12 +14,10 @@ self-cleaning — expired or malformed entries are pruned and the file is
 removed once no override remains.
 
 Each entry snapshots the resolved provider/model and optional canonical effort
-while retaining the original raw reference. The ``default`` override keeps its
-existing behavior: it only changes the no-``%model`` launch default (explicit
-``%model`` directives and an explicit ``provider_name`` argument to
-:func:`invoke_agent` still win, and an explicit ``@default`` reference ignores
-it). Overrides on any other alias take effect wherever that alias is resolved
-(see :func:`sase.llm_provider.config.resolve_model_alias`).
+while retaining the original raw reference. Every override, including
+``default``, takes effect wherever that alias is resolved. Explicit ``%model``
+directives and an explicit ``provider_name`` argument to :func:`invoke_agent`
+still win (see :func:`sase.llm_provider.config.resolve_model_alias`).
 """
 
 from __future__ import annotations

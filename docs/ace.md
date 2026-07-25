@@ -1597,8 +1597,8 @@ offset-qualified ISO value such as `2026-11-01T01:30-04:00`. Invalid input stays
 `Esc` goes back to the duration picker, where a second `Esc` cancels the override flow. Overrides are per-alias and
 independent:
 
-- An override on **`default`** drives the no-`%model` launch default and renders in a gold top-bar pill as
-  `PROVIDER(model)[@<effort>] <time-left>`.
+- An override on **`default`** drives the no-`%model` launch default and every alias that resolves through `@default`.
+  It renders in a gold top-bar pill as `PROVIDER(model)[@<effort>] <time-left>`.
 - An override on **any other alias** takes effect wherever that alias is resolved. A size-specific phase override
   affects only that alias. Overrides on `@smartest`, `@cheaper`, and `@cheapest` suspend their ordered fallback or
   independent load-balanced rotation until the override expires or is cleared. It is surfaced by a distinct, concise
@@ -1607,11 +1607,10 @@ independent:
   "override" meaning while the effort suffix and time use a recessive tone; `∞` means until cleared. Hover either pill
   for full target and expiry details, or click it to open the Models panel.
 
-Overrides apply only to default selection: explicit prompt directives (`%model:codex/o3`,
+Overrides do not displace explicit launch intent: explicit prompt directives (`%model:codex/o3`,
 `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win, already-running
-agents keep their current provider/model, and an explicit `@default` reference always resolves to the configured default
-(ignoring the `default` override). Override state is persisted to `~/.sase/llm_override.json` — shared across all sase
-processes on the machine — and is best-effort self-cleaning: expired or malformed entries are pruned on next read.
+agents keep their current provider/model. Override state is persisted to `~/.sase/llm_override.json` — shared across all
+sase processes on the machine — and is best-effort self-cleaning: expired or malformed entries are pruned on next read.
 `Until cleared` is a no-expiry mode — convenient, but still a _temporary_ state, not a permanent config edit. The
 temporary override is independent of `SASE_MODEL_TIER_OVERRIDE`; a concrete override takes the full provider/model path,
 while the tier override only applies when no concrete override is active.
@@ -1619,8 +1618,9 @@ while the tier override only applies when no concrete override is active.
 Delegated launches (plan coder follow-ups and `sase bead work` phase/land agents) resolve through
 [role aliases](llms.md#role-aliases-for-delegated-work) configured under `llm_provider.model_aliases.builtin`. The
 size-specific phase aliases route through `@cheaper`, `@cheap`, `@default@high`, `@smart`, and `@smartest`. Nested
-`@default` references intentionally ignore a temporary `default` override, so change or override the size-specific alias
-itself to move that lane.
+`@default` references follow a temporary `default` override. Selector-backed aliases (`@smartest`, `@cheap`, `@cheaper`,
+and `@cheapest`) pin concrete targets and therefore do not follow it; override the selector-owning or size-specific
+alias itself to move one of those lanes.
 
 ### Persistent edits
 

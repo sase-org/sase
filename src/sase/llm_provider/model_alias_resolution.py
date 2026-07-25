@@ -53,10 +53,8 @@ def active_alias_overrides() -> dict[str, Any]:
 def resolve_default_alias_target() -> str:
     """Return the implicit ``@default`` target as a ``provider/model`` string.
 
-    Only reached when ``default`` is not user-configured. Temporary overrides
-    are intentionally not consulted: an explicit ``@default`` reference means
-    "the configured default", while the no-``%model`` launch path applies an
-    active override separately.
+    Only reached when ``default`` is neither temporarily overridden nor
+    user-configured.
     """
     try:
         # Lazy import to avoid an import cycle: registry imports config.
@@ -182,8 +180,9 @@ def _resolve_model_alias_result(
                 steps += 1
                 continue
 
-            # A temporary override suspends selector behavior for that alias.
-            if known_alias and bare != DEFAULT_MODEL_ALIAS_NAME:
+            # A temporary override suspends selector behavior for that alias,
+            # including ``default``.
+            if known_alias:
                 if overrides is None:
                     overrides = config._active_alias_overrides()
                 override = overrides.get(bare)

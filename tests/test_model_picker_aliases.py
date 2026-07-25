@@ -19,7 +19,7 @@ from tests._model_picker_modal_helpers import (
     StyledModelPickerTestApp,
     make_alias_context,
 )
-from tests._models_panel_helpers import make_alias_view
+from tests._models_panel_helpers import make_alias_view, make_override
 
 
 def test_alias_context_builds_styled_rows_after_models() -> None:
@@ -79,6 +79,36 @@ def test_followup_default_stays_before_models_and_aliases() -> None:
     )
     assert 0 < provider_index < alias_index < len(rows) - 1
     assert rows[-1].kind == "custom"
+
+
+def test_default_override_alias_row_labels_snapshot_semantics() -> None:
+    context = make_alias_context(
+        target="coder",
+        operation="temporary",
+        views=[
+            make_alias_view(
+                "default",
+                "default",
+                provider="codex",
+                model="o3",
+                override=make_override(),
+            )
+        ],
+    )
+
+    row = next(
+        row
+        for row in build_model_rows(
+            include_default_option=False,
+            alias_context=context,
+        )
+        if row.option_id == "@default"
+    )
+
+    assert row.provider == "codex"
+    assert row.model_id == "o3"
+    assert row.rendered_label is not None
+    assert "override now · snapshot" in row.rendered_label.plain
 
 
 def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:

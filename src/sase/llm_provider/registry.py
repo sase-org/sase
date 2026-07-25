@@ -363,14 +363,18 @@ def resolve_default_alias_provider_model(
 ) -> tuple[str, str]:
     """Resolve the implicit ``@default`` alias to ``(provider, model)``.
 
-    Honors a configured ``llm_provider.model_aliases.builtin.default`` target
-    (which may itself chain through other aliases via ``@``); otherwise falls
-    back to the configured or autodetected provider's *model_tier* default. This
-    is the no-``%model`` launch default, minus any temporary override — callers
-    that want the override to win (the new-launch default behavior) go through
-    :func:`sase.llm_provider.temporary_override.resolve_effective_default_provider_model`,
-    which applies the override first and then delegates here.
+    An active temporary ``default`` override wins and ignores *model_tier*.
+    Otherwise, honors a configured
+    ``llm_provider.model_aliases.builtin.default`` target (which may itself
+    chain through other aliases via ``@``), then falls back to the configured
+    or autodetected provider's *model_tier* default.
     """
+    from .temporary_override import get_active_alias_override
+
+    override = get_active_alias_override("default")
+    if override is not None:
+        return override.provider, override.model
+
     from .config import default_model_alias_name, get_model_aliases
 
     configured = get_model_aliases().get(default_model_alias_name())
@@ -396,7 +400,16 @@ def resolve_default_alias_provider_model_with_effort(
     *,
     consume: bool = False,
 ) -> tuple[str, str, str | None]:
-    """Resolve ``@default`` including pool consumption and alias effort."""
+    """Resolve ``@default`` including temporary overrides and alias effort.
+
+    An active temporary override wins and ignores *model_tier*.
+    """
+    from .temporary_override import get_active_alias_override
+
+    override = get_active_alias_override("default")
+    if override is not None:
+        return override.provider, override.model, override.effort
+
     from .config import default_model_alias_name, get_model_aliases
 
     configured = get_model_aliases().get(default_model_alias_name())

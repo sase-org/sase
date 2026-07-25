@@ -973,18 +973,18 @@ effort and current effective `max_running_agents` cap; active temporary values i
 configured provenance. Non-pool aliases that explicitly carry an effort explain its provenance on the second description
 line.
 
-Overrides are **per-alias** and independent. The `default` override only changes the _default_ provider/model selection
-for new agent launches; an override on any other alias takes effect wherever that alias is resolved. For example, an
-override on `@medium_phase_worker` affects only that size alias. Active overrides on selector-owning aliases such as
-`@smartest`, `@cheap`, `@cheaper`, and `@cheapest` suspend their ordered fallback or independent rotation for the
-override's duration. Machine-wide temporary overrides do not change:
+Overrides are **per-alias** and independent. An override takes effect wherever that alias is resolved, including a
+`default` override at every direct or nested `@default` hop. For example, an override on `@medium_phase_worker` affects
+only that size alias. Active overrides on selector-owning aliases such as `@smartest`, `@cheap`, `@cheaper`, and
+`@cheapest` suspend their ordered fallback or independent rotation for the override's duration. Those selectors pin
+concrete targets rather than referencing `@default`, so a `default` override does not move them or their dependent size
+lanes; override the selector-owning or size alias itself to move one of those lanes. Machine-wide temporary overrides do
+not change:
 
 - Already-running agents — they keep whatever provider/model they were launched with.
 - Explicit concrete `%model` prompt targets — they still take precedence. A `%model(...)` alias keyword is a separate,
   higher-precedence launch-scoped override.
 - An explicit `provider_name=` argument to `invoke_agent()` — it still wins.
-- An explicit `@default` reference — it ignores the machine-wide `default` override. A launch-scoped `default` still
-  applies within the propagated launch lineage.
 
 An override may carry a canonical reasoning-effort suffix, such as `codex/gpt-5.6-sol@medium` or `@coder@medium`. The
 write resolves and snapshots the clean provider/model plus `medium`, while preserving the original `raw_model`. That
@@ -1003,11 +1003,11 @@ When no positional `%model` target and no explicit `provider_name` are present, 
 2. **Active machine-wide `default` temporary override** at `~/.sase/llm_override.json` (if not expired).
 3. The configured `@default` alias, otherwise the configured/autodetected provider's requested-tier model.
 
-For any **non-`default`** alias, `resolve_model_alias()` consults the launch-scoped map first, then that alias's active
-machine-wide override, then its configured/implicit value. A launch-scoped generic `coder` value also applies at a
-provider-specific `<provider>_coder` hop unless the launch map supplies that more-specific key. Without a launch-scoped
-`default`, the default alias keeps the two-path behavior above, and an explicit `@default` reference is not
-short-circuited by the machine-wide temporary default.
+For every alias, including `default`, `resolve_model_alias()` consults the launch-scoped map first, then that alias's
+active machine-wide override, then its configured/implicit value. The implicit `default` value is the configured or
+autodetected provider's requested-tier model. This order applies at every nested alias hop. A launch-scoped generic
+`coder` value also applies at a provider-specific `<provider>_coder` hop unless the launch map supplies that
+more-specific key.
 
 A concrete temporary override sets both the default provider and a concrete `model_override` for the next launch — so
 the agent metadata (running marker, plan review badge, agent rows) reflects the actual model that will run, not just the

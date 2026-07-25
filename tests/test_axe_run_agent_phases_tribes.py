@@ -462,12 +462,12 @@ def test_medium_phase_worker_directive_metadata_resolves_concrete_lane(
 ) -> None:
     """A medium phase records its concrete high-effort model.
 
-    As an explicit alias reference it is not swayed by a primary override.
+    Its nested ``@default`` hop follows the primary override.
     """
     _mock_provider_config(monkeypatch, {"provider": "claude"})
     set_temporary_override("codex/o3", 3600.0, source="test")
 
     meta = _extract_medium_phase_worker_model_meta(tmp_path)
 
-    assert (meta["llm_provider"], meta["model"]) == ("claude", "opus")
+    assert (meta["llm_provider"], meta["model"]) == ("codex", "o3")
     assert meta["reasoning_effort"] == "high"

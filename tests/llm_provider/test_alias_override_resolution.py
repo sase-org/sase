@@ -1,9 +1,7 @@
 """Resolution precedence for per-alias temporary overrides (epic sase-5e phase 1).
 
-An active temporary override on a non-``default`` alias must win over the
-configured/implicit lookup for that alias, while the ``default`` lane keeps its
-existing two-path semantics (explicit ``@default`` ignores the override; the
-no-``%model`` launch lane applies it).
+An active temporary override on any alias, including ``default``, must win over
+the configured/implicit lookup wherever that alias is resolved.
 """
 
 from __future__ import annotations
@@ -151,17 +149,17 @@ def test_nondefault_override_leaves_default_lane_unchanged(
 
     set_alias_override("coder", "codex/o3", None, source="panel")
 
-    # Explicit @default ignores a coder override...
+    # A coder override does not affect @default...
     assert resolve_model_alias("default") == "claude/opus"
     assert resolve_model_alias("@default") == "claude/opus"
     # ...and the no-%model launch lane is untouched (no default override set).
     assert resolve_effective_default_provider_model() == ("claude", "opus")
 
 
-def test_default_override_preserves_two_path_semantics(
+def test_default_override_propagates_to_references(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A ``default`` override drives the launch lane but not explicit ``@default``."""
+    """A ``default`` override drives direct and nested ``@default`` hops."""
     mock_provider_config(
         monkeypatch,
         {
@@ -172,15 +170,15 @@ def test_default_override_preserves_two_path_semantics(
 
     set_alias_override("default", "codex/o3", None, source="panel")
 
-    # Explicit @default still resolves to the configured default.
-    assert resolve_model_alias("default") == "claude/opus"
-    assert resolve_model_alias("@default") == "claude/opus"
+    assert resolve_model_alias("default") == "codex/o3"
+    assert resolve_model_alias("@default") == "codex/o3"
+    assert resolve_model_provider("@coder") == ("codex", "o3")
+    assert resolve_model_provider("@smart") == ("codex", "o3")
     assert resolve_model_provider_with_effort("@medium_phase_worker") == (
-        "claude",
-        "opus",
+        "codex",
+        "o3",
         "high",
     )
-    # The effective launch default applies the override.
     assert resolve_effective_default_provider_model() == ("codex", "o3")
 
 
@@ -202,9 +200,14 @@ def test_default_override_effort_drives_no_directive_launch_lane(
         "medium",
     )
     assert resolve_model_provider_with_effort("@default") == (
-        "claude",
-        "opus",
-        "high",
+        "codex",
+        "gpt-5.6-sol",
+        "medium",
+    )
+    assert resolve_model_provider_with_effort("@default@xhigh") == (
+        "codex",
+        "gpt-5.6-sol",
+        "xhigh",
     )
 
 
@@ -247,3 +250,35 @@ def test_launch_default_override_beats_machine_default_override(
     assert resolve_effective_default_provider_model(
         model_alias_overrides={"default": "claude/sonnet"}
     ) == ("claude", "sonnet")
+
+
+def test_launch_default_override_beats_machine_override_at_nested_hop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    set_alias_override("default", "codex/o3", None, source="panel")
+
+    assert resolve_model_provider("@smart", {"default": "claude/sonnet"}) == (
+        "claude",
+        "sonnet",
+    )
+
+
+def test_default_override_does_not_move_selector_backed_lanes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        lambda *_args, **_kwargs: 0,
+    )
+    set_alias_override("default", "codex/o3", None, source="panel")
+
+    assert resolve_model_alias("@smartest") == "claude/claude-fable-5"
+    assert resolve_model_alias("@xlarge_phase_worker") == "claude/claude-fable-5"
+    assert resolve_model_alias("@cheap") == "claude/opus"
+    assert resolve_model_alias("@small_phase_worker") == "claude/opus"

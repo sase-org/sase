@@ -161,9 +161,7 @@ def _alias_row_text(
         alias_token = alias_token[: _ALIAS_NAME_CELL - 1] + "…"
     text.append(alias_token.ljust(_ALIAS_NAME_CELL), style="bold #87D7FF")
     text.append("  →  ", style="dim #5F8787")
-    badge = Text.from_markup(
-        provider_model_badge_markup(view.selection_provider, view.selection_model)
-    )
+    badge = Text.from_markup(provider_model_badge_markup(view.provider, view.model))
     badge.truncate(_ALIAS_TARGET_CELL, overflow="ellipsis", pad=True)
     text.append_text(badge)
     text.append("  ")
@@ -171,7 +169,7 @@ def _alias_row_text(
         text.append(disabled_reason, style="bold #FF875F")
     else:
         semantic = "dynamic ref" if operation == "persistent" else "snapshot"
-        if view.override is not None and view.name != "default":
+        if view.override is not None:
             semantic = f"override now · {semantic}"
         text.append(semantic, style="dim #A8A8A8")
     return text
@@ -196,8 +194,8 @@ def _build_alias_rows(context: AliasSelectionContext) -> list[ModelPickerRow]:
                 kind="alias",
                 label=f"@{view.name}",
                 option_id=f"@{view.name}",
-                provider=view.selection_provider,
-                model_id=view.selection_model,
+                provider=view.provider,
+                model_id=view.model,
                 alias_name=view.name,
                 alias_kind=view.kind,
                 description=view.description,

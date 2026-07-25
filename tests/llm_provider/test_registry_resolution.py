@@ -8,6 +8,7 @@ import pytest
 
 from sase.llm_provider.registry import (
     resolve_default_alias_provider_model,
+    resolve_default_alias_provider_model_with_effort,
     resolve_model_provider,
 )
 from sase.llm_provider.temporary_override import (
@@ -43,10 +44,10 @@ def test_effective_default_falls_back_to_provider_tier_default(
     assert resolve_effective_default_provider_model() == ("claude", "opus")
 
 
-def test_active_override_wins_over_configured_default_alias(
+def test_active_override_replaces_configured_default_alias(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An active primary override still wins the new-launch-default slot."""
+    """An active override wins both launch and explicit default resolution."""
     from sase.llm_provider.config import resolve_model_alias
     from sase.llm_provider.temporary_override import set_temporary_override
 
@@ -60,12 +61,26 @@ def test_active_override_wins_over_configured_default_alias(
 
     set_temporary_override("agy/Gemini 3.5 Pro", 3600.0, source="test")
 
-    # The override wins for the effective launch default ...
     assert resolve_effective_default_provider_model() == ("agy", "Gemini 3.5 Pro")
-    # ... but an explicit @default reference still resolves to the configured
-    # target (the override only wins the no-directive slot).
-    assert resolve_default_alias_provider_model() == ("codex", "gpt-5.6-sol")
-    assert resolve_model_alias("default") == "codex/gpt-5.6-sol"
+    assert resolve_default_alias_provider_model() == ("agy", "Gemini 3.5 Pro")
+    assert resolve_model_alias("default") == "agy/Gemini 3.5 Pro"
+
+
+def test_active_override_replaces_unconfigured_provider_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registry honors an override even without configured ``default``."""
+    from sase.llm_provider.temporary_override import set_temporary_override
+
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    set_temporary_override("codex/o3@medium", 3600.0, source="test")
+
+    assert resolve_default_alias_provider_model("small") == ("codex", "o3")
+    assert resolve_default_alias_provider_model_with_effort("small") == (
+        "codex",
+        "o3",
+        "medium",
+    )
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")

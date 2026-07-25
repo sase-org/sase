@@ -150,11 +150,6 @@ class AliasView:
             does not override the configured/provider default.
         override: The active temporary override for this alias, or ``None``.
         bucket: The optional Models-panel bucket for a custom alias.
-        reference_provider: Provider represented by an explicit ``@name``
-            reference. This differs from ``provider`` only for ``@default``
-            while its machine-wide temporary override is active: nested
-            ``@default`` references intentionally ignore that override.
-        reference_model: Model represented by an explicit ``@name`` reference.
         reference_effort: Effort overlay carried by the row's immediate
             ``@name`` reference, or ``None`` for a concrete pinned target.
         implicit_value: Raw concrete/selector value supplied by an implicit alias.
@@ -174,8 +169,6 @@ class AliasView:
     configured_source: str | None = None
     description: str | None = None
     bucket: str | None = None
-    reference_provider: str | None = None
-    reference_model: str | None = None
     implicit_value: str | None = None
     selector_mode: ModelAliasSelectorMode | None = None
     selector_members: tuple[ModelAliasSelectorMember, ...] = ()
@@ -231,18 +224,6 @@ class AliasView:
             alias, effort = normalize_model_alias_reference(self.configured_value)
             return effort if alias is not None else None
         return implicit_model_alias_fallback_effort(self.name)
-
-    @property
-    def selection_provider(self) -> str | None:
-        """Return the provider represented by selecting ``@name``."""
-        if self.reference_model is not None:
-            return self.reference_provider
-        return self.provider
-
-    @property
-    def selection_model(self) -> str:
-        """Return the model represented by selecting ``@name``."""
-        return self.reference_model if self.reference_model is not None else self.model
 
 
 @dataclass(frozen=True)
@@ -465,19 +446,6 @@ def build_alias_views(now: float | None = None) -> list[AliasView]:
             )
         else:
             provider, model, effort = _effective_provider_model(name, override)
-        reference_provider: str | None = None
-        reference_model: str | None = None
-        if name == DEFAULT_MODEL_ALIAS_NAME and override is not None:
-            # The panel shows the active no-``%model`` default override, but an
-            # explicit nested ``@default`` token follows the configured/provider
-            # default instead. Capture that second truth in the same snapshot so
-            # picker rendering never needs to resolve aliases while the user
-            # types or navigates.
-            from .registry import resolve_model_provider
-
-            reference_provider, reference_model = resolve_model_provider(
-                f"@{DEFAULT_MODEL_ALIAS_NAME}"
-            )
         views.append(
             AliasView(
                 name=name,
@@ -490,8 +458,6 @@ def build_alias_views(now: float | None = None) -> list[AliasView]:
                 configured_source=model_alias_config_source(name),
                 description=model_alias_description(name),
                 bucket=model_alias_bucket(name),
-                reference_provider=reference_provider,
-                reference_model=reference_model,
                 implicit_value=implicit_model_alias_value(name),
                 selector_mode=selector.mode if selector is not None else None,
                 selector_members=selector.members if selector is not None else (),
