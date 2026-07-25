@@ -46,6 +46,18 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
     ],
 )
 
+ADMIN_CENTER_TASKS_SECTION: tuple[str, list[tuple[str, str]]] = (
+    "Admin Center Tasks",
+    [
+        ("j / k", "Move through tasks"),
+        ("a", "Scope: this session / all"),
+        ("K", "Kill selected running task"),
+        ("d / D", "Dismiss done / all done"),
+        ("e / y", "Edit / copy task output"),
+        ("Ctrl+D / Ctrl+U, g / G", "Scroll output"),
+    ],
+)
+
 ADMIN_CENTER_UPDATES_SECTION: tuple[str, list[tuple[str, str]]] = (
     "Admin Center Updates",
     [

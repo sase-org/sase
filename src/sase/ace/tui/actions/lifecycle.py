@@ -53,6 +53,9 @@ class LifecycleMixin:
         from sase.logs import flush_toasts
 
         flush_toasts(timeout=1.0)
+        stop_task_mirror = getattr(self, "_stop_task_mirror", None)
+        if stop_task_mirror is not None:
+            stop_task_mirror()
         shutdown_loader_executor()
         restore_artifact_decoration = getattr(
             self, "_restore_artifact_file_tmux_decoration", None
@@ -316,6 +319,11 @@ class LifecycleMixin:
 
             flush_toasts(timeout=1.0)
 
+        def stop_durable_task_mirror() -> None:
+            stop_mirror = getattr(self, "_stop_task_mirror", None)
+            if stop_mirror is not None:
+                stop_mirror()
+
         def unregister_live_session() -> None:
             from ..util.session_registration import unregister_ace_session
 
@@ -343,6 +351,7 @@ class LifecycleMixin:
             cleanup(cancel_artifact_discovery)
             cleanup(cancel_content_search_refresh)
             cleanup(flush_tui_toasts)
+            cleanup(stop_durable_task_mirror)
             cleanup(unregister_live_session)
             cleanup(shutdown_loader_executor)
             cleanup(restore_artifact_file_tmux_decoration)

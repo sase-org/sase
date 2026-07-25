@@ -38,6 +38,26 @@ def open_task_log(task_id: str) -> io.TextIOBase:
     return _BoundedTaskLogPipe(task_log_path(task_id), _task_log_max_bytes())
 
 
+def append_task_log_text(task_id: str, text: str) -> None:
+    """Append *text* to a task's bounded combined log.
+
+    Used by producers that already own their output in memory — the ACE task
+    mirror flushes newly retained lines this way — instead of handing the
+    task log to a child process as a file descriptor.
+    """
+    if not text:
+        return
+    path = task_log_path(task_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with log_file_lock(path):
+        append_bytes_locked(
+            path,
+            text.encode("utf-8"),
+            max_bytes=_task_log_max_bytes(),
+            truncate_oversized=True,
+        )
+
+
 def read_task_log_tail(task_id: str, lines: int) -> str:
     """Return the newest *lines* retained across the active and rotated log."""
     if lines <= 0:
@@ -154,6 +174,7 @@ class _BoundedTaskLogPipe(io.TextIOBase):
 
 __all__ = [
     "ENV_MAX_BYTES",
+    "append_task_log_text",
     "delete_task_logs",
     "open_task_log",
     "read_task_log_tail",

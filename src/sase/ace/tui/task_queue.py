@@ -156,6 +156,15 @@ class TaskInfo:
     command: list[str] | None = None
     phase: str | None = None
     exit_code: int | None = None
+    # Durable-store attribution. ``durable_task_id`` is minted when the task
+    # mirror starts tracking an in-TUI task; store-backed rows (tasks this
+    # process does not own) carry ``store_backed=True`` plus the session they
+    # came from, so the pane can render a chip and route ``K`` correctly.
+    durable_task_id: str | None = None
+    store_backed: bool = False
+    session_id: str | None = None
+    session_label: str | None = None
+    session_live: bool = True
     cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
     _live_buffer: io.StringIO | None = field(default=None, repr=False)
     _processes: dict[int, subprocess.Popen[str]] = field(

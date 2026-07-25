@@ -3083,6 +3083,27 @@ keyless **Open tasks panel** command from the command palette. The tab shows bac
 executions, agent launches, plugin operations, etc.) with live output for running tasks and completed output for
 finished ones.
 
+### Durability and Scope
+
+Tasks the TUI runs itself are **mirrored** into the durable background-task store (`~/.sase/tasks/tasks.jsonl`, with one
+combined output log per task under `~/.sase/tasks/logs/`), so their outcome survives the session that produced them and
+is visible from `sase task list` / `sase task show`. Detached tasks — anything submitted with `sase task run`, plus epic
+launches started from a gate approval — are read back out of that store and rendered here, so work that this process
+never owned still shows up on the tab.
+
+The pane defaults to **this session** plus unattributed tasks; press `a` to widen it to every session. The pane title
+names the active scope, e.g. `Tasks · this session  [2 running · 5 done]`. Rows read from the store carry a colored
+session chip (`ace·sase#14 4f2a`) that matches the one `sase task list` prints; a session that has since exited renders
+dim with a `†`, and an unattributed task renders a dim `—`.
+
+Store reads happen on a worker thread and are revalidated by store mtime about once a second, so the tab never stats,
+reads, or locks the store from a render or keystroke path. Retention is governed by `tasks.history_limit` (see
+[configuration](configuration.md)): finished rows and their logs age out oldest-first, and running tasks are never
+pruned. Because the store owns that retention, `d` / `D` only dismiss this session's in-memory rows.
+
+The top-bar task indicator counts this session's running tasks **including detached ones**, so an epic approved from
+Telegram is reflected in the TUI you are looking at.
+
 ### Layout
 
 The tab uses a two-panel layout: a task list on the left and an output pane on the right. Running tasks refresh their
@@ -3090,27 +3111,30 @@ output every second while the Tasks tab is visible.
 
 ### Task Status Icons
 
-| Icon | Color | Meaning |
-| ---- | ----- | ------- |
-| `●`  | Green | Running |
-| `✓`  | Cyan  | Success |
-| `✗`  | Red   | Error   |
-| `?`  | Dim   | Unknown |
+| Icon | Color  | Meaning                       |
+| ---- | ------ | ----------------------------- |
+| `◌`  | Dim    | Pending (supervisor starting) |
+| `●`  | Green  | Running                       |
+| `✓`  | Cyan   | Success                       |
+| `✗`  | Red    | Error                         |
+| `⊘`  | Yellow | Killed                        |
+| `?`  | Dim    | Unknown                       |
 
 ### Keybindings
 
-| Key                 | Action                          |
-| ------------------- | ------------------------------- |
-| `j` / `k`           | Navigate task list              |
-| `K`                 | Kill selected running task      |
-| `d`                 | Dismiss selected completed task |
-| `D`                 | Dismiss all completed tasks     |
-| `e`                 | Open task output in `$EDITOR`   |
-| `y`                 | Copy task output to clipboard   |
-| `Ctrl+D` / `Ctrl+U` | Scroll output pane down / up    |
-| `g` / `G`           | Jump output pane to top/bottom  |
-| `Tab` / `Shift+Tab` | Switch Admin Center tabs        |
-| `q` / `Esc`         | Close SASE Admin Center         |
+| Key                 | Action                                       |
+| ------------------- | -------------------------------------------- |
+| `j` / `k`           | Navigate task list                           |
+| `a`                 | Toggle scope: this session / all sessions    |
+| `K`                 | Kill selected running task (durable or live) |
+| `d`                 | Dismiss selected completed task              |
+| `D`                 | Dismiss all completed tasks                  |
+| `e`                 | Open task output in `$EDITOR`                |
+| `y`                 | Copy task output to clipboard                |
+| `Ctrl+D` / `Ctrl+U` | Scroll output pane down / up                 |
+| `g` / `G`           | Jump output pane to top/bottom               |
+| `Tab` / `Shift+Tab` | Switch Admin Center tabs                     |
+| `q` / `Esc`         | Close SASE Admin Center                      |
 
 ## Updates Tab
 

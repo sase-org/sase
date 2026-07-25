@@ -300,6 +300,46 @@ class _TaskActionsHarness(TaskActionsMixin):
         self.reloads += 1
 
 
+class _IndicatorHarness(_TaskActionsHarness):
+    """Harness whose top-bar indicator records every painted count."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.indicator_counts: list[int] = []
+
+    def query_one(self, *_args: Any, **_kwargs: Any) -> Any:
+        harness = self
+
+        class _Indicator:
+            def set_count(self, count: int) -> None:
+                harness.indicator_counts.append(count)
+
+        return _Indicator()
+
+
+def test_task_indicator_counts_detached_tasks_for_this_session() -> None:
+    app = _IndicatorHarness()
+
+    app._submit_tracked_task(
+        "launch",
+        "foo",
+        "/proj.sase",
+        lambda: TrackedTaskResult(True, "done"),
+        dedup_key="launch:foo",
+        reload_on_complete=False,
+        notify_on_complete=False,
+    )
+
+    assert app.indicator_counts[-1] == 1
+
+    # A detached store task attributed to this session joins the count.
+    app._apply_detached_task_count(2)
+    assert app.indicator_counts[-1] == 3
+
+    app._on_task_worker_completed(app.workers[0])
+    assert app.indicator_counts[-1] == 2
+
+
 def test_submit_tracked_task_completes_queue_and_typed_callback() -> None:
     app = _TaskActionsHarness()
     completions: list[TrackedTaskCompletion[str]] = []

@@ -12,6 +12,7 @@ from textual.worker import Worker, WorkerState
 
 from sase.project_display_names import humanize_cl_name, humanize_cl_names_in_text
 
+from ..task_mirror import TaskMirror
 from ..task_queue import TaskInfo, TaskQueue, redirect_print_to
 from ..task_subprocess import TaskReporter
 from ..widgets.task_indicator import TaskIndicator
@@ -66,19 +67,47 @@ class TaskActionsMixin:
     current_idx: int
 
     def _init_task_queue(self) -> None:
-        """Initialize the task queue and worker tracking map.
+        """Initialize the task queue, worker tracking map, and durable mirror.
 
         Must be called during AceApp.__init__().
         """
         self._task_queue = TaskQueue()
         self._task_workers: dict[str, Worker[Any]] = {}
         self._task_completion_callbacks: dict[str, _TaskCallbackConfig] = {}
+        self._detached_task_count = 0
+        self._task_mirror = TaskMirror(
+            on_detached_count=self._on_detached_task_count,
+        )
+        self._task_mirror.start()
+
+    def _stop_task_mirror(self) -> None:
+        """Drain and retire the durable task mirror on the way out."""
+        mirror = getattr(self, "_task_mirror", None)
+        if mirror is not None:
+            mirror.stop(timeout=1.0)
+
+    def _on_detached_task_count(self, count: int) -> None:
+        """Receive a detached-task count from the mirror's writer thread."""
+        try:
+            self.call_from_thread(self._apply_detached_task_count, count)  # type: ignore[attr-defined]
+        except Exception:
+            log.debug("detached task count delivery failed", exc_info=True)
+
+    def _apply_detached_task_count(self, count: int) -> None:
+        """Record the detached-task count and repaint the indicator."""
+        self._detached_task_count = count
+        self._update_task_indicator()
 
     def _update_task_indicator(self) -> None:
-        """Update the top-bar task indicator with the current running count."""
+        """Update the top-bar task indicator with the current running count.
+
+        Counts this session's detached store tasks too, so an epic launch
+        approved from Telegram shows up here as well.
+        """
         try:
             indicator = self.query_one("#task-indicator", TaskIndicator)  # type: ignore[attr-defined]
-            indicator.set_count(self._task_queue.running_count)
+            detached = getattr(self, "_detached_task_count", 0)
+            indicator.set_count(self._task_queue.running_count + detached)
         except Exception:
             pass
 
@@ -145,6 +174,10 @@ class TaskActionsMixin:
             self._task_completion_callbacks = {}
         if not hasattr(self, "_task_workers"):
             self._task_workers = {}
+        if not hasattr(self, "_task_mirror"):
+            # An unstarted mirror is inert, so callers that skipped
+            # _init_task_queue() simply do not mirror.
+            self._task_mirror = TaskMirror()
 
         existing = (
             self._task_queue.get_running_for_key(dedup_key)
@@ -196,6 +229,8 @@ class TaskActionsMixin:
             notify_on_complete=notify_on_complete,
         )
 
+        self._task_mirror.track(task_info, cl_name=cl_name or None)
+
         worker: Worker[Any] = self.run_worker(  # type: ignore[attr-defined]
             _wrapped, thread=True
         )
@@ -242,6 +277,12 @@ class TaskActionsMixin:
         task_info = self._task_queue.get(task_id)
         if task_info is None:
             return
+        self._task_mirror.finish(
+            task_info,
+            status="success" if task_result.success else "error",
+            message=task_result.message,
+            exit_code=task_info.exit_code,
+        )
         config = self._task_completion_callbacks.pop(
             task_id,
             _TaskCallbackConfig(
@@ -321,6 +362,13 @@ class TaskActionsMixin:
             )
             if task_info is None:
                 task_info = self._task_queue.get(task_id)
+            if task_info is not None:
+                self._task_mirror.finish(
+                    task_info,
+                    status="error",
+                    message=error_msg,
+                    exit_code=task_info.exit_code,
+                )
             config = self._task_completion_callbacks.pop(
                 task_id,
                 config,
@@ -375,6 +423,14 @@ class TaskActionsMixin:
             output=task_info.get_live_output() if task_info is not None else "",
             error="Killed by user",
         )
+
+        if task_info is not None:
+            self._task_mirror.finish(
+                task_info,
+                status="killed",
+                message="Killed by user",
+                exit_code=task_info.exit_code,
+            )
 
         # Clean up tracking
         self._task_workers.pop(task_id, None)

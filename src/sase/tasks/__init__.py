@@ -2,6 +2,7 @@
 
 from .ids import TaskRefError, new_task_id, resolve_task_ref, short_task_id
 from .logs import (
+    append_task_log_text,
     delete_task_logs,
     open_task_log,
     read_task_log_tail,
@@ -56,6 +57,7 @@ __all__ = [
     "TaskUpdate",
     "TaskUpdateOutcome",
     "append_task",
+    "append_task_log_text",
     "delete_task_logs",
     "filter_tasks",
     "get_task",

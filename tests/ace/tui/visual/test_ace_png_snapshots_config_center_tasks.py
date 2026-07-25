@@ -6,6 +6,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import tasks_pane as tp
+from sase.ace.tui.modals import tasks_pane_render as tpr
 from sase.ace.tui.task_queue import TaskQueue
 from textual.widgets import OptionList, Static
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
@@ -35,15 +36,15 @@ async def test_config_center_tasks_tab_png_snapshot(
     _patch_xprompt_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, None)
-    original_relative_time = tp._relative_time
+    original_relative_time = tpr._relative_time
     monkeypatch.setattr(
-        tp,
+        tpr,
         "_relative_time",
         lambda dt: original_relative_time(dt, now=_FIXED_TASK_NOW),
     )
-    original_elapsed = tp._elapsed
+    original_elapsed = tpr._elapsed
     monkeypatch.setattr(
-        tp,
+        tpr,
         "_elapsed",
         lambda task, *, now=None: original_elapsed(
             task,
@@ -52,7 +53,14 @@ async def test_config_center_tasks_tab_png_snapshot(
     )
     # Freeze the running-task spinner so the status token is byte-stable; the
     # 0.25s refresh timer would otherwise advance it between runs.
-    monkeypatch.setattr(tp, "_SPINNER_FRAMES", ("|",))
+    monkeypatch.setattr(tpr, "_SPINNER_FRAMES", ("|",))
+    # Keep the durable store out of the frame: this snapshot covers in-TUI
+    # rows, and store rows would vary with whatever the machine has run.
+    monkeypatch.setattr(
+        tp,
+        "load_store_task_rows",
+        lambda **_kwargs: tp.StoreTasksSnapshot(),
+    )
     monkeypatch.setattr(TaskQueue, "prune_old", lambda self: None)
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
