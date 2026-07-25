@@ -19,13 +19,12 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
 )
 from sase.core.paths import sase_projects_dir
-from sase.core.runner_slots import normalize_wait_priority
+from sase.core.runner_slots import runner_slot_waiter_sort_key
 from sase.core.time import get_timezone
 
 from ._agent_list_entry_builder import (
     artifact_timestamp,
     build_agent_list_entry as _build_agent_list_entry,
-    parse_iso_datetime,
     record_status_bucket,
 )
 from ._agent_list_entry_models import (
@@ -154,13 +153,11 @@ def _is_globally_queued(entry: AgentListEntry) -> bool:
 def _runner_slot_waiter_sort_key(
     entry: AgentListEntry,
 ) -> tuple[int, int, datetime, str, str]:
-    requested_at = parse_iso_datetime(entry.wait.slot_requested_at)
-    return (
-        normalize_wait_priority(entry.wait.wait_priority),
-        1 if requested_at is None else 0,
-        requested_at or datetime.max.replace(tzinfo=get_timezone()),
-        entry.timestamp or "",
-        entry.artifacts_dir or "",
+    return runner_slot_waiter_sort_key(
+        priority=entry.wait.wait_priority,
+        slot_requested_at=entry.wait.slot_requested_at,
+        timestamp=entry.timestamp,
+        artifact_dir=entry.artifacts_dir,
     )
 
 

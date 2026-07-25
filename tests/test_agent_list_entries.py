@@ -26,6 +26,7 @@ from sase.core.agent_scan_wire import (
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
 )
+from sase.core.runner_slots import live_runner_slot_waiters
 from sase.core.time import get_timezone
 from sase.integrations.agent_list_entries import (
     _AgentChildrenSummary,
@@ -253,6 +254,8 @@ def test_runner_slot_queue_rank_matches_tui_projection() -> None:
     specs = (
         ("older", "20260712120001", "2026-07-12T12:00:01Z", 20),
         ("default", "20260712120002", "2026-07-12T12:00:02Z", None),
+        ("tie-later", "20260712120005", "2026-07-12T12:00:02Z", 10),
+        ("tie-earlier", "20260712120004", "2026-07-12T12:00:02Z", 10),
         ("urgent", "20260712120003", "2026-07-12T12:00:03Z", 1),
     )
     entries = [
@@ -294,6 +297,22 @@ def test_runner_slot_queue_rank_matches_tui_projection() -> None:
 
     entries = _attach_runner_slot_context(entries, 10)
     refresh_runner_slot_context(tui_agents, effective_limit=10)
+    core_queue = live_runner_slot_waiters(
+        (
+            _record(
+                timestamp=timestamp,
+                artifact_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
+                agent_meta=AgentMetaWire(),
+                waiting=WaitingMarkerWire(
+                    wait_runners=9,
+                    wait_priority=priority,
+                    slot_requested_at=requested_at,
+                ),
+            )
+            for _name, timestamp, requested_at, priority in specs
+        ),
+        lambda _record: True,
+    )
 
     integration_positions = {
         entry.name: entry.wait.runner_slot_queue_position for entry in entries
@@ -301,12 +320,30 @@ def test_runner_slot_queue_rank_matches_tui_projection() -> None:
     tui_positions = {
         agent.cl_name: agent.runner_slot_queue_position for agent in tui_agents
     }
+    integration_order = [
+        entry.timestamp
+        for entry in sorted(
+            entries,
+            key=lambda entry: entry.wait.runner_slot_queue_position or 0,
+        )
+    ]
+    tui_order = [
+        agent.raw_suffix
+        for agent in sorted(
+            tui_agents,
+            key=lambda agent: agent.runner_slot_queue_position or 0,
+        )
+    ]
+    core_order = [waiter.timestamp for waiter in core_queue]
+    assert integration_order == tui_order == core_order
     assert (
         integration_positions
         == tui_positions
         == {
-            "older": 3,
+            "older": 5,
             "default": 2,
+            "tie-later": 4,
+            "tie-earlier": 3,
             "urgent": 1,
         }
     )

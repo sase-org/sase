@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 
 from sase.agent.status_buckets import (
@@ -12,9 +12,25 @@ from sase.agent.status_buckets import (
     runner_slot_display_status,
     status_bucket_for_values,
 )
-from sase.core.runner_slots import normalize_wait_priority
+from sase.core.runner_slots import (
+    normalize_wait_priority,
+    runner_slot_waiter_sort_key,
+)
 
-from .agent import Agent
+from .agent import Agent, AgentType
+
+
+@dataclass(frozen=True, slots=True)
+class RunnerQueueEntry:
+    """Presentation facts for one waiter in canonical admission order."""
+
+    identity: tuple[AgentType, str, str | None]
+    presented_name: str
+    threshold: int | None
+    wait_runners_explicit: bool
+    priority: int
+    slot_requested_at: str | None
+    status: str
 
 
 @dataclass(frozen=True)
@@ -24,6 +40,7 @@ class RunnerCapacitySnapshot:
     effective_limit: int = 0
     slots_in_use: int = 0
     global_cap_queue_count: int = 0
+    queue: tuple[RunnerQueueEntry, ...] = ()
 
 
 def refresh_runner_slot_context(
@@ -45,6 +62,7 @@ def refresh_runner_slot_context(
         key=_waiter_sort_key,
     )
     queue_positions: dict[int, int] = {}
+    queue_entries: list[RunnerQueueEntry] = []
     queue_size = len(waiters)
     queued_count = 0
 
@@ -58,6 +76,22 @@ def refresh_runner_slot_context(
         agent.status = runner_slot_display_status(
             agent.status,
             globally_queued=_agent_is_globally_queued(agent),
+        )
+        queue_entries.append(
+            RunnerQueueEntry(
+                identity=agent.identity,
+                presented_name=(
+                    agent.presented_agent_name
+                    or agent.agent_name
+                    or agent.cl_name
+                    or "unassigned"
+                ),
+                threshold=agent.wait_runners,
+                wait_runners_explicit=agent.wait_runners_explicit,
+                priority=normalize_wait_priority(agent.wait_priority),
+                slot_requested_at=agent.slot_requested_at,
+                status=agent.status,
+            )
         )
         if status_bucket_for_values(agent.status) == QUEUED_STATUS_BUCKET:
             queued_count += 1
@@ -88,11 +122,12 @@ def refresh_runner_slot_context(
             )
 
     if effective_limit is None:
-        return RunnerCapacitySnapshot()
+        return RunnerCapacitySnapshot(queue=tuple(queue_entries))
     return RunnerCapacitySnapshot(
         effective_limit=effective_limit,
         slots_in_use=running_count,
         global_cap_queue_count=queued_count,
+        queue=tuple(queue_entries),
     )
 
 
@@ -141,27 +176,18 @@ def _agent_is_globally_queued(agent: Agent) -> bool:
 
 
 def _waiter_sort_key(agent: Agent) -> tuple[int, int, datetime, str, str]:
-    requested_at = agent.slot_requested_at or ""
-    try:
-        parsed = datetime.fromisoformat(requested_at.replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=UTC)
-        parsed = parsed.astimezone(UTC)
-        invalid = 0
-    except ValueError:
-        parsed = datetime.max.replace(tzinfo=UTC)
-        invalid = 1
-    artifacts_dir = agent.artifacts_dir or ""
-    return (
-        normalize_wait_priority(agent.wait_priority),
-        invalid,
-        parsed,
-        agent.raw_suffix or "",
-        artifacts_dir,
+    # Snapshot-backed running rows use the source record timestamp as
+    # ``raw_suffix``; claim-backed rows normalize the same artifact timestamp.
+    return runner_slot_waiter_sort_key(
+        priority=agent.wait_priority,
+        slot_requested_at=agent.slot_requested_at,
+        timestamp=agent.raw_suffix,
+        artifact_dir=agent.artifacts_dir,
     )
 
 
 __all__ = [
     "RunnerCapacitySnapshot",
+    "RunnerQueueEntry",
     "refresh_runner_slot_context",
 ]

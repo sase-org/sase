@@ -35,6 +35,7 @@ from ._agent_display_clan import (
     clan_disk_sections_for_fold_state,
     panel_fold_state_from_widget,
 )
+from ._agent_display_context import runner_capacity_for_app
 from ._agent_display_family_render import AgentFamilyDisplayMixin
 from ._agent_display_header import build_header_text
 from ._agent_display_header_summary import (
@@ -244,6 +245,7 @@ class AgentDisplayRenderMixin(
                 lane_fold_overrides if lane_summary_enabled else None
             ),
             lane_neighbors=lane_neighbors,
+            runner_capacity=runner_capacity_for_app(app),
             member_jump_map_publisher=(
                 member_jump_map_publisher_for(app) if lane_summary_enabled else None
             ),

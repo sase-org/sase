@@ -505,8 +505,10 @@ class TestRunnerSlotWaitRendering:
         assert "▶" not in left.plain
         assert "bold #5F87FF" in _styles_covering(left, "QUEUED")
         assert _styles_covering(left, "#2/3") == {"#5F87FF"}
-        assert "Queue: #2 of 3 · requested " in header.plain
-        assert "10/10 runners" in header.plain
+        assert "Queue: #2 of 3 · " in header.plain
+        assert " in queue" in header.plain
+        assert "requested " not in header.plain
+        assert "10/10 runners" not in header.plain
         assert "completed-dependency" not in header.plain
 
     def test_explicit_priority_renders_on_row_slot_marker(self) -> None:

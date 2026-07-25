@@ -19,6 +19,7 @@ from ._agent_display_content import (
     render_timestamp_divider,
 )
 from ._agent_display_clan import panel_fold_state_from_widget
+from ._agent_display_context import runner_capacity_for_app
 from ._agent_display_header import AgentHeader, build_header_text
 from ._agent_display_header_summary import (
     get_cached_detail_header_summary,
@@ -186,6 +187,7 @@ class AgentHintsDisplayMixin:
                 lane_fold_overrides if lane_summary_enabled else None
             ),
             lane_neighbors=lane_neighbors,
+            runner_capacity=runner_capacity_for_app(app),
             member_jump_map_publisher=(
                 member_jump_map_publisher_for(app) if lane_summary_enabled else None
             ),

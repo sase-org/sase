@@ -31,6 +31,17 @@ def _agent(name: str, **overrides: object) -> Agent:
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
+def _assert_capacity_metrics(
+    capacity: RunnerCapacitySnapshot,
+    expected: tuple[int, int, int],
+) -> None:
+    assert (
+        capacity.effective_limit,
+        capacity.slots_in_use,
+        capacity.global_cap_queue_count,
+    ) == expected
+
+
 def test_refresh_runner_slot_context_ranks_all_waiters_while_pool_is_full() -> None:
     running = _agent(
         "running",
@@ -53,7 +64,7 @@ def test_refresh_runner_slot_context_ranks_all_waiters_while_pool_is_full() -> N
 
     capacity = refresh_runner_slot_context([running, second, first], effective_limit=10)
 
-    assert capacity == RunnerCapacitySnapshot(10, 1, 1)
+    _assert_capacity_metrics(capacity, (10, 1, 1))
     assert first.runner_slots_in_use == 1
     assert first.status == "QUEUED"
     assert first.runner_slot_queue_position == 2
@@ -148,7 +159,7 @@ def test_drain_waiter_joins_fifo_order_when_running_count_reaches_zero() -> None
 
     capacity = refresh_runner_slot_context([second, first], effective_limit=10)
 
-    assert capacity == RunnerCapacitySnapshot(10, 0, 1)
+    _assert_capacity_metrics(capacity, (10, 0, 1))
     assert first.runner_slot_queue_position == 1
     assert first.runner_slot_queue_size == 2
     assert second.runner_slot_queue_position == 2
@@ -185,7 +196,7 @@ def test_refresh_runner_slot_context_counts_parallel_family_children_only() -> N
         [serial_child, parallel_child, axe, waiter], effective_limit=10
     )
 
-    assert capacity == RunnerCapacitySnapshot(10, 1, 1)
+    _assert_capacity_metrics(capacity, (10, 1, 1))
     assert waiter.runner_slots_in_use == 1
 
 
@@ -214,7 +225,7 @@ def test_question_paused_root_is_excluded_from_displayed_occupancy() -> None:
         [running, paused, answered_waiter], effective_limit=10
     )
 
-    assert capacity == RunnerCapacitySnapshot(10, 1, 1)
+    _assert_capacity_metrics(capacity, (10, 1, 1))
     assert answered_waiter.runner_slots_in_use == 1
     assert answered_waiter.runner_slot_queue_position == 1
 
@@ -251,7 +262,7 @@ def test_runner_capacity_excludes_non_slot_and_explicit_waits_from_global_queue(
         [explicit, dependency_wait, implicit], effective_limit=10
     )
 
-    assert capacity == RunnerCapacitySnapshot(10, 0, 1)
+    _assert_capacity_metrics(capacity, (10, 0, 1))
     assert implicit.runner_slot_queue_position == 1
     assert explicit.runner_slot_queue_position == 2
     assert implicit.runner_slot_queue_size == 2
@@ -340,7 +351,7 @@ def test_runner_slot_status_promotion_demotion_and_idempotence() -> None:
     )
 
     first = refresh_runner_slot_context([implicit, explicit], effective_limit=10)
-    assert first == RunnerCapacitySnapshot(10, 0, 1)
+    _assert_capacity_metrics(first, (10, 0, 1))
     assert (implicit.status, explicit.status) == ("QUEUED", "WAITING")
     assert (
         implicit.runner_slot_queue_position,
@@ -363,7 +374,7 @@ def test_runner_slot_status_promotion_demotion_and_idempotence() -> None:
 
     implicit.wait_runners_explicit = True
     third = refresh_runner_slot_context([implicit, explicit], effective_limit=10)
-    assert third == RunnerCapacitySnapshot(10, 0, 0)
+    _assert_capacity_metrics(third, (10, 0, 0))
     assert implicit.status == "WAITING"
 
 
@@ -388,7 +399,7 @@ def test_first_refresh_promotes_all_queued_clan_aggregate() -> None:
 
     capacity = refresh_runner_slot_context(projected, effective_limit=10)
 
-    assert capacity == RunnerCapacitySnapshot(10, 0, 1)
+    _assert_capacity_metrics(capacity, (10, 0, 1))
     assert [agent.status for agent in projected] == ["QUEUED", "QUEUED"]
 
 

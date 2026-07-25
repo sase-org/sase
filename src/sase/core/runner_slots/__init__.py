@@ -13,6 +13,7 @@ from ._admission import (
     live_runner_slot_waiters,
     may_start,
     normalize_wait_priority,
+    runner_slot_waiter_sort_key,
     running_root_agent_count,
 )
 
@@ -27,5 +28,6 @@ __all__ = [
     "live_runner_slot_waiters",
     "may_start",
     "normalize_wait_priority",
+    "runner_slot_waiter_sort_key",
     "running_root_agent_count",
 ]

@@ -19,6 +19,33 @@ def normalize_wait_priority(value: object) -> int:
     return DEFAULT_WAIT_PRIORITY
 
 
+def runner_slot_waiter_sort_key(
+    *,
+    priority: object,
+    slot_requested_at: str | None,
+    timestamp: str | None,
+    artifact_dir: str | None,
+) -> tuple[int, int, datetime, str, str]:
+    """Return the canonical priority/FIFO ordering key for one slot waiter."""
+    requested_at = slot_requested_at or ""
+    try:
+        parsed = datetime.fromisoformat(requested_at.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        parsed = parsed.astimezone(UTC)
+        invalid = 0
+    except ValueError:
+        parsed = datetime.max.replace(tzinfo=UTC)
+        invalid = 1
+    return (
+        normalize_wait_priority(priority),
+        invalid,
+        parsed,
+        timestamp or "",
+        artifact_dir or "",
+    )
+
+
 def deference_window_seconds(
     priority: int,
     *,
@@ -199,21 +226,9 @@ def may_start(
 def _waiter_sort_key(
     waiter: RunnerSlotWaiter,
 ) -> tuple[int, int, datetime, str, str]:
-    try:
-        requested_at = datetime.fromisoformat(
-            waiter.slot_requested_at.replace("Z", "+00:00")
-        )
-        if requested_at.tzinfo is None:
-            requested_at = requested_at.replace(tzinfo=UTC)
-        requested_at = requested_at.astimezone(UTC)
-        invalid = 0
-    except ValueError:
-        requested_at = datetime.max.replace(tzinfo=UTC)
-        invalid = 1
-    return (
-        waiter.priority,
-        invalid,
-        requested_at,
-        waiter.timestamp,
-        waiter.artifact_dir,
+    return runner_slot_waiter_sort_key(
+        priority=waiter.priority,
+        slot_requested_at=waiter.slot_requested_at,
+        timestamp=waiter.timestamp,
+        artifact_dir=waiter.artifact_dir,
     )

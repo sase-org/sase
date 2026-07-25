@@ -247,7 +247,11 @@ def test_runner_capacity_installs_atomically_and_survives_local_refilters() -> N
         effective_runner_limit=10,
     )
 
-    assert boundary.runner_capacity == RunnerCapacitySnapshot(10, 1, 1)
+    assert (
+        boundary.runner_capacity.effective_limit,
+        boundary.runner_capacity.slots_in_use,
+        boundary.runner_capacity.global_cap_queue_count,
+    ) == (10, 1, 1)
     assert implicit_waiter.status == "QUEUED"
     assert explicit_waiter.status == "WAITING"
     assert implicit_waiter.runner_slot_queue_position == 1
@@ -265,7 +269,7 @@ def test_runner_capacity_installs_atomically_and_survives_local_refilters() -> N
         precomputed_boundary=boundary,
         precomputed_fold_levels=snapshot.fold_levels,
     )
-    expected_capacity = RunnerCapacitySnapshot(10, 1, 1)
+    expected_capacity = boundary.runner_capacity
     assert app._agent_runner_capacity == expected_capacity
 
     app._agent_search_query = "status:waiting"

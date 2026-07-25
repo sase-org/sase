@@ -13,9 +13,12 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
+from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
+from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
     output_variable_family_agents,
     plan_handoff_status_agents,
+    runner_slot_queue_window_agents,
     runner_slot_wait_agents,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
@@ -152,7 +155,11 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
         assert_page_svg_contains(page, "dependency-wait")
         assert_page_svg_contains(page, "Queue:")
         assert_page_svg_contains(page, "of 2")
-        assert_page_svg_contains(page, "requested 3m ago")
+        assert_page_svg_contains(page, "at the front")
+        prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        prompt_text = renderable_to_text(prompt.content) or ""
+        assert "3m in queue" in prompt_text
+        assert "QUEUE · 2 waiting · 0/10 runners" in prompt_text
         info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
         assert info._build_display_text().plain.startswith(
             "3  [0/10 running · 1 queued · 2 waiting]"
@@ -171,6 +178,50 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
             page,
             "agents_runner_slot_waits_by_status_120x40",
             title="ACE agents runner slot waits by status",
+        )
+
+
+async def test_runner_slot_queue_window_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = runner_slot_queue_window_agents()
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 25, 12, 12, 0))
+    monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 10)
+    patch_startup_loaders(monkeypatch, agents=rows)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 9)
+        await wait_for_visual_idle(page)
+
+        for _ in range(len(rows) + 1):
+            selected = (
+                page.app._agents[page.app.current_idx]
+                if 0 <= page.app.current_idx < len(page.app._agents)
+                else None
+            )
+            if selected is not None and selected.agent_name == "queue-middle":
+                break
+            await page.press("j")
+            await wait_for_visual_idle(page)
+        selected = page.app._agents[page.app.current_idx]
+        assert selected.agent_name == "queue-middle"
+        assert selected.runner_slot_queue_position == 6
+        prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        prompt_text = renderable_to_text(prompt.content) or ""
+        assert "4 ahead" in prompt_text
+        assert "QUEUE · 9 waiting · 0/10 runners" in prompt_text
+        assert "≤0" in prompt_text
+        assert "p1" in prompt_text
+        assert "… +2 more" in prompt_text
+        assert "… +1 more" in prompt_text
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_runner_slot_queue_window_120x40",
+            title="ACE agents runner slot queue window",
         )
 
 

@@ -341,6 +341,40 @@ def runner_slot_wait_agents() -> list[Agent]:
     ]
 
 
+def runner_slot_queue_window_agents() -> list[Agent]:
+    """Return a long queue with both ladder gaps and visible ordering clues."""
+    rows: list[Agent] = []
+    for rank in range(1, 10):
+        name = (
+            "drain-barrier"
+            if rank == 1
+            else ("queue-middle" if rank == 6 else f"waiter-{rank:02d}")
+        )
+        rows.append(
+            Agent(
+                agent_type=AgentType.RUNNING,
+                cl_name=f"visual-queue-{rank:02d}",
+                project_file="/workspace/sase/visual_project.sase",
+                status="WAITING",
+                start_time=datetime(2026, 7, 25, 12, rank, 0),
+                raw_suffix=f"2026072512{rank:02d}00",
+                artifacts_dir=(
+                    f"/workspace/sase/artifacts/ace-run/2026072512{rank:02d}00"
+                ),
+                agent_name=name,
+                pid=4200 + rank,
+                wait_runners=0 if rank == 1 else 9,
+                wait_runners_explicit=rank == 1,
+                wait_priority=1 if rank == 1 else None,
+                wait_priority_explicit=rank == 1,
+                slot_requested_at=f"2026-07-25T12:{rank:02d}:00Z",
+                llm_provider="codex",
+                model="gpt-5",
+            )
+        )
+    return rows
+
+
 def output_variable_family_agents() -> list[Agent]:
     parent = Agent(
         agent_type=AgentType.RUNNING,

@@ -276,7 +276,7 @@ def _remaining_wait_seconds(
     wait_until: str | None,
     now: datetime,
 ) -> int | None:
-    target = parse_iso_datetime(wait_until)
+    target = _parse_iso_datetime(wait_until)
     if target is None and wait_duration is not None and agent.started_at is not None:
         target = agent.started_at.astimezone(get_timezone()) + _seconds_delta(
             wait_duration
@@ -349,7 +349,7 @@ def _finished_at(done: DoneMarkerWire | None) -> datetime | None:
         return None
 
 
-def parse_iso_datetime(value: str | None) -> datetime | None:
+def _parse_iso_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
     try:

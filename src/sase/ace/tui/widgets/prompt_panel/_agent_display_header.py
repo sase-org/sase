@@ -51,6 +51,7 @@ from ._helpers import (
 if TYPE_CHECKING:
     from ...models._agent_clan_sections import ClanSectionSnapshot
     from ...models.agent_lane_neighbors import AgentLaneNeighborProjection
+    from ...models.agent_runner_slots import RunnerCapacitySnapshot
     from ._member_roster import MemberJumpMap
 
 
@@ -71,6 +72,7 @@ def build_header_text(
     lane_fold_level: FoldLevel | None = None,
     lane_section_fold_overrides: Mapping[str, FoldLevel] | None = None,
     lane_neighbors: AgentLaneNeighborProjection | None = None,
+    runner_capacity: RunnerCapacitySnapshot | None = None,
     member_jump_map_publisher: Callable[[MemberJumpMap], None] | None = None,
 ) -> tuple[AgentHeader, Syntax | None]:
     """Build the agent metadata section with trailing separator.
@@ -127,6 +129,12 @@ def build_header_text(
             total=len(family_entries) + shown_neighbor_count
         )
     family_map = None
+    from ._agent_queue_section import (
+        append_runner_queue_section,
+        runner_queue_selection,
+    )
+
+    queue_selection = runner_queue_selection(agent, runner_capacity)
 
     meta_fields = append_agent_metadata_fields(
         header_text,
@@ -139,7 +147,12 @@ def build_header_text(
         # callers can patch the cache boundary without touching internals.
         cached_bead_display=cached_bead_display,
         clan_wait_member_statuses=clan_wait_member_statuses,
+        runner_queue_ahead_count=(
+            queue_selection.ahead_count if queue_selection is not None else None
+        ),
     )
+
+    append_runner_queue_section(header_text, agent, queue_selection)
 
     if family_fold_enabled:
         append_fold_header_line(

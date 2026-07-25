@@ -6,10 +6,7 @@ import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
-from sase.ace.tui.models.agent_runner_slots import (
-    RunnerCapacitySnapshot,
-    refresh_runner_slot_context,
-)
+from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
@@ -96,7 +93,11 @@ def test_live_family_root_survives_shared_pid_for_runner_slot_context() -> None:
 
     capacity = refresh_runner_slot_context(result, effective_limit=1)
 
-    assert capacity == RunnerCapacitySnapshot(1, 1, 1)
+    assert (
+        capacity.effective_limit,
+        capacity.slots_in_use,
+        capacity.global_cap_queue_count,
+    ) == (1, 1, 1)
     assert waiter.status == "QUEUED"
     assert waiter.runner_slots_in_use == 1
     assert waiter.runner_slot_queue_position == 1

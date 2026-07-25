@@ -19,6 +19,14 @@ later launch whose higher threshold currently permits it to run. Parallel family
 renders them as nested rows. Serial family follow-ups are exempt so a running parent can safely wait for child work;
 workflow Python/bash steps and axe ChangeSpec runners are exempt as well.
 
+Selecting a ranked waiter in ACE also shows a bounded `QUEUE` ladder. Its `N ahead` count includes only earlier entries
+whose runner threshold is greater than or equal to the selected waiter's threshold—the entries that become eligible no
+later and therefore really can start first. Earlier, stricter drain waits are shown in the `WAITING` amethyst instead of
+being counted as ahead. The ladder includes the front, up to two entries on either side of the selected waiter, and gap
+counts; short queues show all entries, while long queues show at most seven actual queue entries. Explicit thresholds
+and non-default priorities appear as `≤N` and `pN`. This is current admission context, not an ETA or a prediction that
+no new waiter will arrive, and its entries are not digit-jump targets.
+
 A deprioritized waiter — one whose priority is numerically worse than the `10` default — is additionally held back for a
 bounded deference window before it may claim a freed slot, because the sort above only compares waiters already parked
 at that instant. Dependency-chained work joins the queue seconds after its predecessor exits, so without the window a
@@ -40,9 +48,9 @@ carries `eligible_since` for the window currently in progress.
 
 An explicit priority is also visible in ACE, which is usually the fastest way to confirm which value the queue actually
 used. `WAITING` rows suffix the slot marker with it (`▶10→9 p20`), and the agent detail pane appends `· priority N` to
-its `runners: N/M in use · queue #P of Q` line. Both appear only when the priority was explicitly requested rather than
-defaulted; a `QUEUED` row instead shows the resulting rank directly as `#N/M`. Press `w` on the agent to open the wait
-modal and edit the priority in place.
+its `runners: N/M in use · queue #P of Q` line. The queue ladder shows any normalized non-default value as `pN` beside
+the entry it reordered. A `QUEUED` row shows the resulting rank directly as `#N/M`. Press `w` on the agent to open the
+wait modal and edit the priority in place.
 
 To diagnose a wait:
 

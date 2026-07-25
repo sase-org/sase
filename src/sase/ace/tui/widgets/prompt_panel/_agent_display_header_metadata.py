@@ -211,6 +211,7 @@ def _append_wait_field(
     agent: Agent,
     agent_status_buckets: Mapping[str, str] | None,
     clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None,
+    runner_queue_ahead_count: int | None,
 ) -> None:
     """Append dependency, time-floor, and runner-slot wait details."""
     from sase.ace.tui.models.agent import (
@@ -231,24 +232,19 @@ def _append_wait_field(
                 text.append(f" of {queue_size}", style=QUEUED_STATUS_COLOR)
         else:
             text.append("pending", style=f"bold {QUEUED_STATUS_COLOR}")
+        if runner_queue_ahead_count is not None:
+            text.append(" · ", style="dim")
+            if runner_queue_ahead_count:
+                text.append(
+                    f"{runner_queue_ahead_count} ahead",
+                    style=QUEUED_STATUS_COLOR,
+                )
+            else:
+                text.append("at the front", style=QUEUED_STATUS_COLOR)
         queued_for = _queued_for_label(wait_agent.slot_requested_at)
         if queued_for is not None:
             text.append(" · ", style="dim")
-            text.append(f"requested {queued_for} ago", style=QUEUED_STATUS_COLOR)
-        in_use = wait_agent.runner_slots_in_use
-        threshold = wait_agent.wait_runners
-        if in_use is not None:
-            text.append(" · ", style="dim")
-            if threshold is not None:
-                text.append(
-                    f"{in_use}/{threshold + 1} runners",
-                    style=f"dim {QUEUED_STATUS_COLOR}",
-                )
-            else:
-                text.append(
-                    f"{in_use} runner{'s' if in_use != 1 else ''} in use",
-                    style=f"dim {QUEUED_STATUS_COLOR}",
-                )
+            text.append(f"{queued_for} in queue", style=QUEUED_STATUS_COLOR)
         text.append("\n")
         return
 
@@ -426,6 +422,7 @@ def append_agent_metadata_fields(
     agent_status_buckets: Mapping[str, str] | None,
     cached_bead_display: Callable[[Agent], object],
     clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None = None,
+    runner_queue_ahead_count: int | None = None,
 ) -> list[tuple[str, str]]:
     """Append the core agent metadata rows and return workflow meta fields."""
     _append_identity_fields(text, agent, summary, cached_bead_display)
@@ -477,6 +474,7 @@ def append_agent_metadata_fields(
         agent,
         agent_status_buckets,
         clan_wait_member_statuses,
+        runner_queue_ahead_count,
     )
     _append_retry_fields(text, agent)
     _append_timestamp_fields(text, agent, hint_state)
