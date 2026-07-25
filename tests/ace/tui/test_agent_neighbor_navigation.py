@@ -178,6 +178,47 @@ def test_agent_neighbor_navigation_opens_modal_with_ancestors_first() -> None:
     assert app.acknowledged == [agents[0]]
 
 
+def test_agent_neighbor_modal_matches_shared_lane_projection() -> None:
+    agents = [
+        make_agent("A"),
+        make_agent("A.B"),
+        make_agent("A.B.C"),
+        make_agent("A.B.C.child"),
+        make_agent("A.B.peer"),
+        make_agent("A.other"),
+    ]
+    dismissed = make_agent("A.B.C.dismissed", status="DONE")
+    app = NeighborApp(agents, current_idx=2)
+    app._dismissed_agent_objects = [dismissed]
+    app._dismissed_agents = {dismissed.identity}
+    app._dismiss_revive_epoch += 1
+
+    projection = app.lane_neighbor_projection_for(agents[2])
+    assert projection is not None
+
+    app.action_start_sibling_mode()
+
+    modal = app.pushed_screens[0]
+    assert isinstance(modal, AgentNeighborModal)
+    assert [
+        (
+            choice.agent_name,
+            choice.group,
+            choice.hood,
+            choice.dismissed,
+        )
+        for choice in modal._choices
+    ] == [
+        (
+            row.agent.presented_agent_name or row.agent.display_name,
+            row.relation,
+            row.hood,
+            row.is_dismissed,
+        )
+        for row in projection.rows
+    ]
+
+
 def test_selected_agent_neighbor_count_includes_ancestors() -> None:
     agents = [make_agent("foo"), make_agent("foo.bar")]
     app = NeighborApp(agents, current_idx=1)

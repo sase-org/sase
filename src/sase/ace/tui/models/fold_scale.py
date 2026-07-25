@@ -15,6 +15,7 @@ CLAN_FOLD_SCALE: FoldScale = (
     FoldLevel.EXPANDED,
     FoldLevel.FULLY_EXPANDED,
 )
+AGENT_FOLD_SCALE: FoldScale = CLAN_FOLD_SCALE
 TRIBE_FOLD_SCALE: FoldScale = (
     FoldLevel.COLLAPSED,
     FoldLevel.EXPANDED,
@@ -44,16 +45,23 @@ def resolve_summary_fold_scale(
     group_focused: bool = False,
     agent: object | None,
 ) -> FoldScale | None:
-    """Return the Agents summary scale selected by the current UI context."""
+    """Return the lane or aggregate scale selected by the current UI context."""
     if whole_panel_focused:
         return TRIBE_FOLD_SCALE
     if group_focused or agent is None:
         return None
-    if getattr(agent, "is_family_container_row", False):
-        return FAMILY_FOLD_SCALE
-    # Clan containers and regular-agent session scope share the legacy
-    # three-level scale.
-    return CLAN_FOLD_SCALE
+    if getattr(agent, "is_clan_container", False):
+        return CLAN_FOLD_SCALE
+    return lane_fold_scale(agent)
+
+
+def lane_fold_scale(agent: object) -> FoldScale:
+    """Return the fold scale owned by one agent lane's summary document."""
+    return (
+        FAMILY_FOLD_SCALE
+        if getattr(agent, "is_family_container_row", False)
+        else AGENT_FOLD_SCALE
+    )
 
 
 def effective_fold_level(level: FoldLevel, scale: FoldScale) -> FoldLevel:
@@ -109,6 +117,7 @@ def toggle_fold_level(level: FoldLevel, scale: FoldScale) -> FoldLevel:
 
 
 __all__ = [
+    "AGENT_FOLD_SCALE",
     "CLAN_FOLD_SCALE",
     "FAMILY_FOLD_SCALE",
     "TRIBE_FOLD_SCALE",
@@ -117,6 +126,7 @@ __all__ = [
     "effective_fold_level",
     "fold_level_at_position",
     "fold_scale_position",
+    "lane_fold_scale",
     "resolve_summary_fold_scale",
     "toggle_fold_scale_extreme",
     "toggle_fold_level",

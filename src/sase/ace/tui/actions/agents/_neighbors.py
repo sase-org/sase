@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.agent_groups import GroupingMode
     from ...models.agent_hoods import AgentNeighborIndex, AgentNeighborRow
+    from ...models.agent_lane_neighbors import AgentLaneNeighborProjection
     from ...models.agent_panels import AgentPanelGroup
     from ...modals.agent_neighbor_modal import AgentNeighborChoice
 
@@ -266,39 +267,29 @@ class AgentNeighborMixin:
         selected_target = index.target_for_global_idx(self.current_idx)
         if selected_target is None:
             return
-        ancestors = index.ancestor_targets_for(selected_target.identity)
-        descendants = index.descendant_targets_for(selected_target.identity)
-        hood_neighbor_groups = index.hood_neighbor_target_groups_for(
-            selected_target.identity
+        from ...models.agent_lane_neighbors import (
+            build_agent_lane_neighbor_projection,
         )
-        neighbors = index.neighbor_targets_for(selected_target.identity)
+
         dismissed_descendants = self._dismissed_descendant_agents(selected)
-        if (
-            not ancestors
-            and not neighbors
-            and not descendants
-            and not dismissed_descendants
-        ):
+        projection = build_agent_lane_neighbor_projection(
+            lane_identity=selected_target.identity,
+            lane_name=selected.presented_identity_name,
+            index=index,
+            dismissed_descendants=dismissed_descendants,
+            hood_labels=self._agent_neighbor_display_hoods(selected),
+        )
+        if projection.is_empty:
             return
 
         guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
         if callable(guard) and guard():
             return
 
-        related_count = (
-            len(ancestors)
-            + len(neighbors)
-            + len(descendants)
-            + len(dismissed_descendants)
-        )
-        if related_count == 1 and not dismissed_descendants:
-            target = (
-                ancestors[0]
-                if ancestors
-                else descendants[0]
-                if descendants
-                else neighbors[0]
-            )
+        if len(projection.rows) == 1 and not projection.rows[0].is_dismissed:
+            target = projection.rows[0].index_row
+            if target is None:
+                return
             self._focus_agent_neighbor_by_identity(
                 target.identity,
                 source_identity=selected.identity,
@@ -307,10 +298,7 @@ class AgentNeighborMixin:
             return
 
         choices, payloads = self._agent_neighbor_choices(
-            ancestors,
-            descendants,
-            dismissed_descendants,
-            hood_neighbor_groups,
+            projection,
             selected,
         )
         if not choices:
@@ -505,62 +493,18 @@ class AgentNeighborMixin:
 
     def _agent_neighbor_choices(
         self,
-        ancestors: tuple[AgentNeighborRow, ...],
-        descendants: tuple[AgentNeighborRow, ...],
-        dismissed_descendants: tuple[Agent, ...],
-        hood_neighbor_groups: tuple[tuple[str, tuple[AgentNeighborRow, ...]], ...],
+        projection: AgentLaneNeighborProjection,
         selected: Agent,
     ) -> tuple[list[AgentNeighborChoice], list[_AgentNeighborPayload]]:
         """Build modal choices and action payloads for related rows."""
-        from ...models.agent_hoods import agent_name_key
         from ...modals.agent_neighbor_modal import AgentNeighborChoice
 
         choices: list[AgentNeighborChoice] = []
         payloads: list[_AgentNeighborPayload] = []
 
-        for target in ancestors:
-            agent = target.agent
-            choices.append(
-                AgentNeighborChoice(
-                    agent_name=agent.presented_agent_name or agent.display_name,
-                    display_name=agent.display_name,
-                    status=agent.status,
-                    panel_label=self._agent_neighbor_panel_label(target),
-                    time_hint=self._agent_neighbor_time_hint(agent),
-                    group="ancestor",
-                    dismissed=False,
-                    global_idx=target.global_idx,
-                )
-            )
-            payloads.append(
-                _AgentNeighborPayload(
-                    target_identity=agent.identity,
-                    source_identity=selected.identity,
-                    global_idx=target.global_idx,
-                )
-            )
-
-        descendant_items: list[tuple[str, bool, Agent, AgentNeighborRow | None]] = []
-        for target in descendants:
-            agent = target.agent
-            key = agent_name_key(agent)
-            if key is None:
-                continue
-            descendant_items.append((key, False, agent, target))
-        for agent in dismissed_descendants:
-            key = agent_name_key(agent)
-            if key is None:
-                continue
-            descendant_items.append((key, True, agent, None))
-
-        for _key, dismissed, agent, descendant_target in sorted(
-            descendant_items,
-            key=lambda item: (
-                item[0],
-                item[1],
-                (item[2].display_name or "").casefold(),
-            ),
-        ):
+        for row in projection.rows:
+            agent = row.agent
+            target = row.index_row
             choices.append(
                 AgentNeighborChoice(
                     agent_name=agent.presented_agent_name or agent.display_name,
@@ -568,58 +512,53 @@ class AgentNeighborMixin:
                     status=agent.status,
                     panel_label=(
                         self._agent_neighbor_dismissed_panel_label(agent)
-                        if dismissed
-                        else self._agent_neighbor_panel_label(descendant_target)
+                        if row.is_dismissed
+                        else self._agent_neighbor_panel_label(target)
                     ),
                     time_hint=self._agent_neighbor_time_hint(agent),
-                    group="descendant",
-                    dismissed=dismissed,
-                    global_idx=(
-                        descendant_target.global_idx
-                        if descendant_target is not None
-                        else None
-                    ),
+                    group=row.relation,
+                    hood=row.hood,
+                    dismissed=row.is_dismissed,
+                    global_idx=target.global_idx if target is not None else None,
                 )
             )
             payloads.append(
                 _AgentNeighborPayload(
-                    target_identity=(agent.identity if not dismissed else None),
-                    source_identity=(selected.identity if not dismissed else None),
-                    global_idx=(
-                        descendant_target.global_idx
-                        if descendant_target is not None
-                        else None
-                    ),
-                    dismissed_agent=agent if dismissed else None,
+                    target_identity=(None if row.is_dismissed else agent.identity),
+                    source_identity=(None if row.is_dismissed else selected.identity),
+                    global_idx=target.global_idx if target is not None else None,
+                    dismissed_agent=agent if row.is_dismissed else None,
                 )
             )
-
-        raw_hood_by_key = self._agent_neighbor_display_hoods(selected)
-        for hood, neighbor_targets in hood_neighbor_groups:
-            hood_label = raw_hood_by_key.get(hood, hood)
-            for target in neighbor_targets:
-                agent = target.agent
-                choices.append(
-                    AgentNeighborChoice(
-                        agent_name=agent.presented_agent_name or agent.display_name,
-                        display_name=agent.display_name,
-                        status=agent.status,
-                        panel_label=self._agent_neighbor_panel_label(target),
-                        time_hint=self._agent_neighbor_time_hint(agent),
-                        group="neighbor",
-                        hood=hood_label,
-                        dismissed=False,
-                        global_idx=target.global_idx,
-                    )
-                )
-                payloads.append(
-                    _AgentNeighborPayload(
-                        target_identity=agent.identity,
-                        source_identity=selected.identity,
-                        global_idx=target.global_idx,
-                    )
-                )
         return choices, payloads
+
+    def lane_neighbor_projection_for(
+        self,
+        agent: Agent,
+    ) -> AgentLaneNeighborProjection | None:
+        """Return the lane-relative neighbor projection for a lane-owning row."""
+        from ...models.agent_family_members import concrete_family_member_rows
+        from ...models.agent_hoods import agent_owns_lane
+        from ...models.agent_lane_neighbors import (
+            build_agent_lane_neighbor_projection,
+        )
+
+        if not agent_owns_lane(agent):
+            return None
+
+        suppressed_identities = (
+            {member.identity for member in concrete_family_member_rows(agent)}
+            if agent.is_family_container_row
+            else ()
+        )
+        return build_agent_lane_neighbor_projection(
+            lane_identity=agent.identity,
+            lane_name=agent.presented_identity_name,
+            index=self._agent_neighbor_index(),
+            dismissed_descendants=self._dismissed_descendant_agents(agent),
+            suppressed_identities=suppressed_identities,
+            hood_labels=self._agent_neighbor_display_hoods(agent),
+        )
 
     def _dismissed_descendant_agents(self, selected: Agent) -> tuple[Agent, ...]:
         """Return active dismissed descendants of ``selected`` sorted by name."""

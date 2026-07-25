@@ -30,6 +30,17 @@ def agent_name_key(agent: Agent) -> str | None:
     return name.casefold()
 
 
+def agent_owns_lane(agent: Agent) -> bool:
+    """Return whether ``agent`` owns an agent-lane metadata document."""
+    if agent.is_clan_container:
+        return False
+    if agent.is_workflow_child or agent.is_hidden_step:
+        return False
+    if agent.is_family_member_child:
+        return False
+    return agent_name_key(agent) is not None
+
+
 def is_agent_descendant(name: str | None, ancestor: str | None) -> bool:
     """Return True when ``name`` follows ``ancestor`` at a name boundary."""
     if not name or not ancestor:

@@ -3,6 +3,7 @@
 import pytest
 
 from sase.ace.tui.models.fold_scale import (
+    AGENT_FOLD_SCALE,
     CLAN_FOLD_SCALE,
     FAMILY_FOLD_SCALE,
     TRIBE_FOLD_SCALE,
@@ -10,6 +11,7 @@ from sase.ace.tui.models.fold_scale import (
     effective_fold_level,
     fold_level_at_position,
     fold_scale_position,
+    lane_fold_scale,
     resolve_summary_fold_scale,
     toggle_fold_scale_extreme,
     toggle_fold_level,
@@ -127,8 +129,16 @@ def test_family_direct_level_one_is_expanded_not_global_collapsed() -> None:
 
 
 def test_summary_selection_resolves_kind_specific_scale() -> None:
-    family = type("Family", (), {"is_family_container_row": True})()
-    clan = type("Clan", (), {"is_family_container_row": False})()
+    family = type(
+        "Family",
+        (),
+        {"is_family_container_row": True, "is_clan_container": False},
+    )()
+    clan = type(
+        "Clan",
+        (),
+        {"is_family_container_row": False, "is_clan_container": True},
+    )()
 
     assert (
         resolve_summary_fold_scale(whole_panel_focused=False, agent=family)
@@ -151,3 +161,12 @@ def test_summary_selection_resolves_kind_specific_scale() -> None:
         )
         is None
     )
+
+
+def test_lane_fold_scale_uses_family_or_shared_agent_scale() -> None:
+    family = type("Family", (), {"is_family_container_row": True})()
+    plain = type("Plain", (), {"is_family_container_row": False})()
+
+    assert AGENT_FOLD_SCALE is CLAN_FOLD_SCALE
+    assert lane_fold_scale(family) is FAMILY_FOLD_SCALE
+    assert lane_fold_scale(plain) is AGENT_FOLD_SCALE
