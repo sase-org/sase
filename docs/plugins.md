@@ -427,6 +427,13 @@ repeat the identical value on every member that shares the raw clan template. Ax
 clan allocation and emits the summary only on the surviving declarer's `%clan` directive. Do not combine `clan` with
 `tribe`.
 
+A member ID may itself end in (or contain) one `@` auto-name marker, so `clan` and `agent_name` carry at most one marker
+each. Axe picks the clan token for the whole group first and then allocates each templated member inside that concrete
+clan, so `clan="toobig-@"` with `agent_name="split_file.src.pkg.large.@"` becomes `toobig-0.split_file.src.pkg.large.0`.
+Prefer a trailing `.@` over hashing a discriminator into the member ID: two members that would otherwise collide land on
+`.0` and `.1` instead of failing the run. See [Axe launch proposals](axe.md#structured-results-and-launch-proposals) for
+the full allocation rule.
+
 ## Disabling Plugins
 
 Resource plugins can be disabled via environment variables:
