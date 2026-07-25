@@ -23,11 +23,13 @@ def test_agent_dedup_preserves_wait_priority() -> None:
         status="WAITING",
         start_time=None,
         wait_priority=3,
+        wait_priority_explicit=True,
     )
 
     _merge_agent_fields(target, source)
 
     assert target.wait_priority == 3
+    assert target.wait_priority_explicit is True
 
 
 def test_load_all_agents_dedup_preserves_workspace_num() -> None:

@@ -119,8 +119,15 @@ def test_repeated_start_axe_daemon_spawns_once_after_pid_appears(
         assert start_axe_daemon(axe_config) == 22222
         assert start_axe_daemon(axe_config) == 22222
 
-    assert mock_popen.call_count == 1
-    kwargs = mock_popen.call_args.kwargs
+    daemon_calls = [
+        call
+        for call in mock_popen.call_args_list
+        if call.args
+        and isinstance(call.args[0], list)
+        and call.args[0][1:3] == ["axe", "start"]
+    ]
+    assert len(daemon_calls) == 1
+    kwargs = daemon_calls[0].kwargs
     assert kwargs["pass_fds"]
     assert "SASE_AXE_LIFECYCLE_LOCK_FD" in kwargs["env"]
     assert kwargs["cwd"] == os.path.expanduser("~")

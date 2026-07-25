@@ -302,6 +302,11 @@ def _append_wait_field(
             )
         elif in_use is not None and in_use > threshold:
             text.append(" · not currently eligible", style="dim #AF87FF")
+        if wait_agent.wait_priority_explicit and wait_agent.wait_priority is not None:
+            text.append(
+                f" · priority {wait_agent.wait_priority}",
+                style="dim #AF87FF",
+            )
     text.append("\n")
 
 

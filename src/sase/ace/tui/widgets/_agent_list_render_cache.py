@@ -197,6 +197,8 @@ def agent_render_key(
         has_missing_wait_target,
         wait_agent.wait_runners,
         wait_agent.wait_runners_explicit,
+        wait_agent.wait_priority,
+        wait_agent.wait_priority_explicit,
         wait_agent.slot_requested_at,
         wait_agent.runner_slots_in_use,
         wait_agent.runner_slot_queue_position,

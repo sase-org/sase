@@ -218,6 +218,7 @@ class AgentState:
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
     wait_priority: int | None = None
+    wait_priority_explicit: bool = False
     slot_requested_at: str | None = None
 
     # Snapshot-derived display context. These values are recomputed from the

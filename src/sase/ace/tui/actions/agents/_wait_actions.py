@@ -269,6 +269,7 @@ class AgentWaitActionsMixin:
             agent.wait_runners = None
             agent.wait_runners_explicit = False
             agent.wait_priority = None
+            agent.wait_priority_explicit = False
             agent.slot_requested_at = None
             self.notify(f"Wait: {display_name}")  # type: ignore[attr-defined]
             self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]

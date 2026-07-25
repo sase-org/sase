@@ -78,6 +78,7 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.wait_runners_explicit = source.wait_runners_explicit
     if target.wait_priority is None and source.wait_priority is not None:
         target.wait_priority = source.wait_priority
+        target.wait_priority_explicit = source.wait_priority_explicit
     if target.slot_requested_at is None and source.slot_requested_at is not None:
         target.slot_requested_at = source.slot_requested_at
     if target.approve is False and source.approve is True:

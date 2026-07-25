@@ -498,6 +498,37 @@ class TestRunnerSlotWaitRendering:
 
         assert "test_cl (WAITING ▶10/10)" in left.plain
 
+    def test_explicit_priority_renders_on_row_slot_marker(self) -> None:
+        agent = make_agent(
+            status="WAITING",
+            wait_runners=9,
+            wait_runners_explicit=False,
+            wait_priority=20,
+            wait_priority_explicit=True,
+            slot_requested_at="2026-07-12T12:00:00Z",
+            runner_slots_in_use=10,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "test_cl (WAITING ▶10/10 p20)" in left.plain
+
+    def test_implicit_priority_is_hidden_on_row_slot_marker(self) -> None:
+        agent = make_agent(
+            status="WAITING",
+            wait_runners=9,
+            wait_runners_explicit=False,
+            wait_priority=20,
+            wait_priority_explicit=False,
+            slot_requested_at="2026-07-12T12:00:00Z",
+            runner_slots_in_use=10,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "test_cl (WAITING ▶10/10)" in left.plain
+        assert "p20" not in left.plain
+
     def test_ineligible_explicit_barrier_detail_is_unambiguous(self) -> None:
         agent = make_agent(
             status="WAITING",
@@ -532,6 +563,44 @@ class TestRunnerSlotWaitRendering:
         header, _ = build_header_text(agent, cheap=True)
 
         assert " · eligible #2 of 3" in header.plain
+
+    def test_explicit_priority_renders_in_detail_wait_line(self) -> None:
+        agent = make_agent(
+            status="WAITING",
+            wait_runners=9,
+            wait_runners_explicit=False,
+            wait_priority=20,
+            wait_priority_explicit=True,
+            slot_requested_at="2026-07-12T12:00:00Z",
+            runner_slots_in_use=10,
+            runner_slot_queue_position=2,
+            runner_slot_queue_size=3,
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert (
+            "Wait: runners: 10/10 in use · eligible #2 of 3 · priority 20"
+            in header.plain
+        )
+        assert "dim #AF87FF" in _styles_covering(header, "priority 20")
+
+    def test_implicit_priority_is_hidden_in_detail_wait_line(self) -> None:
+        agent = make_agent(
+            status="WAITING",
+            wait_runners=9,
+            wait_runners_explicit=False,
+            wait_priority=20,
+            wait_priority_explicit=False,
+            slot_requested_at="2026-07-12T12:00:00Z",
+            runner_slots_in_use=10,
+            runner_slot_queue_position=2,
+            runner_slot_queue_size=3,
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "priority 20" not in header.plain
 
 
 class TestStartingStatusRendering:

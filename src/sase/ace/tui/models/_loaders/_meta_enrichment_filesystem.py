@@ -297,6 +297,9 @@ def enrich_agent_from_meta(
                 raw_priority = waiting_data.get("wait_priority")
                 if type(raw_priority) is int and raw_priority >= 0:
                     agent.wait_priority = raw_priority
+                agent.wait_priority_explicit = (
+                    waiting_data.get("wait_priority_explicit") is True
+                )
                 raw_requested_at = waiting_data.get("slot_requested_at")
                 if isinstance(raw_requested_at, str) and raw_requested_at:
                     agent.slot_requested_at = raw_requested_at
@@ -324,6 +327,7 @@ def enrich_agent_from_meta(
         raw_priority = data.get("wait_priority")
         if type(raw_priority) is int and raw_priority >= 0:
             agent.wait_priority = raw_priority
+            agent.wait_priority_explicit = True
 
     # Check for pending_question.json to set QUESTION/ANSWERED status. The
     # marker is written by handle_questions_flow() before the response-wait

@@ -35,6 +35,7 @@ def test_runner_slot_fields_from_waiting_json(tmp_path: Path) -> None:
                 "wait_runners": 0,
                 "wait_runners_explicit": True,
                 "wait_priority": 3,
+                "wait_priority_explicit": True,
                 "slot_requested_at": "2026-07-12T12:00:00Z",
             }
         )
@@ -46,6 +47,7 @@ def test_runner_slot_fields_from_waiting_json(tmp_path: Path) -> None:
     assert agent.wait_runners == 0
     assert agent.wait_runners_explicit is True
     assert agent.wait_priority == 3
+    assert agent.wait_priority_explicit is True
     assert agent.slot_requested_at == "2026-07-12T12:00:00Z"
 
 
@@ -67,7 +69,9 @@ def test_wait_priority_falls_back_to_agent_meta_in_filesystem_and_wire(
     )
 
     assert filesystem_agent.wait_priority == 6
+    assert filesystem_agent.wait_priority_explicit is True
     assert wire_agent.wait_priority == 6
+    assert wire_agent.wait_priority_explicit is True
 
 
 def test_linked_repos_from_agent_meta(tmp_path: Path) -> None:
@@ -433,6 +437,7 @@ def test_runner_slot_fields_from_waiting_marker_wire() -> None:
             wait_runners=9,
             wait_runners_explicit=False,
             wait_priority=4,
+            wait_priority_explicit=True,
             slot_requested_at="2026-07-12T12:00:00Z",
         ),
         None,
@@ -441,6 +446,7 @@ def test_runner_slot_fields_from_waiting_marker_wire() -> None:
     assert agent.wait_runners == 9
     assert agent.wait_runners_explicit is False
     assert agent.wait_priority == 4
+    assert agent.wait_priority_explicit is True
     assert agent.slot_requested_at == "2026-07-12T12:00:00Z"
 
 

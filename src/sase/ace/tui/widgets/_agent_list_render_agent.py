@@ -294,6 +294,11 @@ def format_agent_option(
                 slot_label = (
                     f" ▶{wait_agent.runner_slots_in_use}/{wait_agent.wait_runners + 1}"
                 )
+            if (
+                wait_agent.wait_priority_explicit
+                and wait_agent.wait_priority is not None
+            ):
+                slot_label = f"{slot_label} p{wait_agent.wait_priority}"
             text.append(slot_label, style="dim #AF87FF")
         deps_satisfied = (
             not wait_agent.waiting_for and not wait_agent.waiting_for_beads
