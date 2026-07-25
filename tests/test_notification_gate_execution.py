@@ -8,12 +8,13 @@ from pathlib import Path
 import pytest
 
 from sase.notification_gates.durability import request_sha256
-from sase.notification_gates.executor import execute_gate_selection
+from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.models import GateError
 from sase.notification_gates.poller import poll_gate
 from sase.notification_gates.service import create_gate
 from sase.notifications import pending_actions
+from sase.notifications.store import load_notifications
 from tests._notification_gates_fixtures import custom_gate_spec, gate_spec
 
 
@@ -112,6 +113,66 @@ def test_execute_selection_validates_input_and_writes_response_once(
     assert second.response == first.response
     entry = next(iter(pending_actions.read_pending_action_store()["actions"].values()))
     assert entry["state"] == "already_handled"
+
+
+def test_custom_gate_answer_dismisses_notification_and_settles_pending_action(
+    gate_home: Path,
+) -> None:
+    created = create_gate(custom_gate_spec(request_id="dismiss-custom"))
+
+    execute_gate_selection(created.bundle_path, ["proceed", "audit"])
+
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.id == created.notification_id
+    assert notification.dismissed is True
+    assert load_notifications() == []
+    entry = next(iter(pending_actions.read_pending_action_store()["actions"].values()))
+    assert entry["state"] == "already_handled"
+
+
+def test_neutral_hitl_answer_dismisses_notification(gate_home: Path) -> None:
+    created = create_gate(gate_spec(request_id="dismiss-hitl"))
+
+    execute_gate_selection(created.bundle_path, ["accept"])
+
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.id == created.notification_id
+    assert notification.dismissed is True
+    assert load_notifications() == []
+
+
+def test_cancel_gate_dismisses_notification(gate_home: Path) -> None:
+    created = create_gate(gate_spec(request_id="dismiss-cancelled"))
+
+    cancellation = cancel_gate(created.bundle_path, source="test")
+
+    assert cancellation["source"] == "test"
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.id == created.notification_id
+    assert notification.dismissed is True
+    assert load_notifications() == []
+
+
+def test_notification_dismissal_failure_does_not_break_persisted_answer(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created = create_gate(gate_spec(request_id="dismissal-failure"))
+
+    def fail_dismissal(_notification_id: str) -> bool:
+        raise OSError("notification store unavailable")
+
+    monkeypatch.setattr(
+        "sase.notifications.store.mark_dismissed",
+        fail_dismissal,
+    )
+
+    execution = execute_gate_selection(created.bundle_path, ["accept"])
+
+    assert execution.response["selected_option_ids"] == ["accept"]
+    assert created.response_path.is_file()
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.dismissed is False
 
 
 def test_hash_mismatch_and_malformed_output_leave_gate_answerable(

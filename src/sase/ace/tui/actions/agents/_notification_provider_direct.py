@@ -67,10 +67,17 @@ def direct_unread_notification_page(
     limit: int,
 ) -> AceNotificationPage:
     from sase.notifications import read_notification_snapshot
+    from sase.notifications.gate_reconcile import (
+        reconcile_terminal_gate_notifications,
+    )
 
     snapshot = notification_snapshot_from_direct(
         read_notification_snapshot(include_dismissed=include_dismissed)
     )
+    if reconcile_terminal_gate_notifications(snapshot.notifications):
+        snapshot = notification_snapshot_from_direct(
+            read_notification_snapshot(include_dismissed=include_dismissed)
+        )
     unread = [
         n
         for n in snapshot.notifications

@@ -23,6 +23,9 @@ from sase.ace.tui.actions.agents._notification_hitl_modal import (
 from sase.ace.tui.actions.agents._notification_modal_flow import (
     AgentNotificationModalMixin,
 )
+from sase.ace.tui.actions.agents._notification_provider_direct import (
+    direct_unread_notification_page,
+)
 from sase.notification_gates.service import create_gate
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
@@ -327,6 +330,32 @@ def test_notification_flow_warns_for_unknown_action(
 
     assert marked_read == [notification.id]
     assert app.notices == [("Unsupported notification action: FutureGate", "warning")]
+
+
+def test_unread_page_repairs_terminal_gate_notification(gate_home: Path) -> None:
+    del gate_home
+    created = create_gate(_spec())
+    created.response_path.write_text("{}\n", encoding="utf-8")
+
+    page = direct_unread_notification_page(include_dismissed=False, limit=50)
+
+    assert page.notifications == []
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.id == created.notification_id
+    assert notification.dismissed is True
+
+
+def test_unread_page_keeps_unanswered_gate_notification(gate_home: Path) -> None:
+    del gate_home
+    created = create_gate(_spec())
+
+    page = direct_unread_notification_page(include_dismissed=False, limit=50)
+
+    assert [notification.id for notification in page.notifications] == [
+        created.notification_id
+    ]
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.dismissed is False
 
 
 def test_neutral_hitl_loader_and_accept_alias_use_gate_choice(gate_home: Path) -> None:

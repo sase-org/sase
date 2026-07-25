@@ -428,7 +428,9 @@ Manual creation succeeds only after the bundle, notification row, and pending-ac
 failure is compensated, and retries are idempotent by request ID. Manual and automatic selections use the same hash,
 input, result, and write-once response validation. The pending-action 24-hour stale threshold is transport-only; it may
 hide remote controls but does not terminate a waiting producer. Only cancellation or an explicit per-request gate
-timeout is terminal.
+timeout is terminal. Every terminal response or cancellation marks the pending action handled and dismisses the
+notification row, regardless of gate kind or client surface. When ACE opens the notification modal, it also repairs live
+gate rows whose bundles became terminal without a corresponding dismissal.
 
 ACE, Telegram, and mobile render branches in query order from the same normalized envelope structure. Singleton branches
 are buttons. AND branches expose one toggle per option and a configurable submit control; the primary AND branch starts

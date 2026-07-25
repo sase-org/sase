@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -36,6 +37,8 @@ from sase.notification_gates.paths import (
     owned_resource_path,
 )
 
+log = logging.getLogger(__name__)
+
 
 def execute_gate_selection(
     bundle_path: Path,
@@ -62,7 +65,7 @@ def execute_gate_selection(
         selected = _resolve_selection(envelope, options, selected_option_ids)
         if response_path.exists():
             existing_response = read_json_object(response_path)
-            _mark_pending_handled(envelope, existing_response, source=source)
+            _settle_gate_notification(envelope, existing_response, source=source)
             return GateExecutionResult(
                 response=existing_response,
                 already_completed=True,
@@ -198,9 +201,9 @@ def execute_gate_selection(
             atomic_write_json(response_path, response, exclusive=True)
         except FileExistsError:
             existing = read_json_object(response_path)
-            _mark_pending_handled(envelope, existing, source=source)
+            _settle_gate_notification(envelope, existing, source=source)
             return GateExecutionResult(response=existing, already_completed=True)
-        _mark_pending_handled(envelope, response, source=source)
+        _settle_gate_notification(envelope, response, source=source)
         try:
             adapter.apply_side_effects(bundle_path=bundle_path, response=response)
         except Exception as exc:
@@ -246,7 +249,7 @@ def cancel_gate(
             "cancelled_at_unix": time.time(),
         }
         atomic_write_json(path, cancellation, exclusive=True)
-        _mark_pending_handled(envelope, {}, source=source, action="cancelled")
+        _settle_gate_notification(envelope, {}, source=source, action="cancelled")
         return cancellation
 
 
@@ -560,13 +563,18 @@ def _record_execution_error(
     atomic_write_json(errors / f"{time.time_ns()}-{uuid4().hex}.json", payload)
 
 
-def _mark_pending_handled(
+def _settle_gate_notification(
     envelope: Mapping[str, Any],
     response: Mapping[str, Any],
     *,
     source: str,
     action: str | None = None,
 ) -> None:
+    """Mark one gate's notification handled and dismiss its inbox row.
+
+    Runs for every terminal transition of every gate kind, from every client,
+    so no surface has to remember to dismiss the row itself.
+    """
     notification_id = envelope.get("notification_id")
     if not isinstance(notification_id, str) or not notification_id:
         return
@@ -583,6 +591,17 @@ def _mark_pending_handled(
         source=source,
         action=action or "+".join(selected) or "resolved",
     )
+    _dismiss_gate_notification_best_effort(notification_id)
+
+
+def _dismiss_gate_notification_best_effort(notification_id: str) -> None:
+    """Hide a settled gate row without ever failing a persisted response."""
+    try:
+        from sase.notifications.store import mark_dismissed
+
+        mark_dismissed(notification_id)
+    except Exception:
+        log.warning("Failed to dismiss notification for settled gate", exc_info=True)
 
 
 __all__ = ["cancel_gate", "execute_gate_selection"]

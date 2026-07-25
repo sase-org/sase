@@ -289,7 +289,7 @@ def _state_for_notification(
 ) -> str:
     if notification.action not in _ACTION_KIND_BY_NOTIFICATION_ACTION:
         return "unsupported"
-    if _externally_handled(notification):
+    if gate_notification_is_terminal(notification):
         return "already_handled"
     if _required_target_missing(notification):
         return "missing_target"
@@ -318,7 +318,8 @@ def _notification_is_stale(notification: Notification, now: float) -> bool:
     return timestamp.timestamp() + STALE_THRESHOLD_SECONDS <= now
 
 
-def _externally_handled(notification: Notification) -> bool:
+def gate_notification_is_terminal(notification: Notification) -> bool:
+    """Return whether a gate notification's bundle reached a terminal state."""
     from sase.notification_gates.paths import resolve_notification_bundle
 
     bundle = resolve_notification_bundle(notification)
@@ -515,6 +516,7 @@ __all__ = [
     "LEGACY_TELEGRAM_PENDING_ACTIONS_PATH",
     "PENDING_ACTIONS_PATH",
     "action_state_for_notification",
+    "gate_notification_is_terminal",
     "mark_already_handled",
     "mark_plan_approval_auto_handled",
     "merge_transport_record",
