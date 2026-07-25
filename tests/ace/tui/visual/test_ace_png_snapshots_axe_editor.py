@@ -20,6 +20,7 @@ from sase.ace.tui.modals.axe_entry_editor_modal import (
     AxeEntryIdentity,
     AxeWritableScope,
 )
+from sase.ace.tui.modals.axe_entry_editor_rendering import _HOME
 from sase.ace.tui.modals.config_transaction_preview import (
     ConfigTransactionPreview,
     TransactionDiagnostic,
@@ -39,6 +40,13 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+# The editor abbreviates paths under ``_HOME`` (a ``$HOME`` snapshot the
+# renderer takes at import time) to ``~``, so this scope path is built from that
+# same value and renders as ``~/.config/sase/sase.yml`` on every host. A
+# hard-coded ``/home/<user>`` literal would abbreviate only on the host that
+# generated the goldens and render in full everywhere else.
+_USER_SCOPE_PATH = f"{_HOME}/.config/sase/sase.yml"
 
 _VISUAL_CHOP_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -198,7 +206,7 @@ def _visual_chop_editor_seed(
         ),
         schema=_VISUAL_CHOP_SCHEMA,
         writable_scopes=(
-            AxeWritableScope("user", "/home/bryan/.config/sase/sase.yml", "user"),
+            AxeWritableScope("user", _USER_SCOPE_PATH, "user"),
             AxeWritableScope(
                 "overlay:project",
                 "/workspace/sase/sase.yml",

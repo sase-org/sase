@@ -34,7 +34,7 @@ async def test_jump_action_modal_png_snapshot(
                 title="#review",
                 kind_label="xprompt",
                 icon="#",
-                source_display="/home/bryan/.config/sase/xprompts/review.md:4:1",
+                source_display="/home/visual/.config/sase/xprompts/review.md:4:1",
                 choices=["tmux", "editor", "load"],
             )
         )
