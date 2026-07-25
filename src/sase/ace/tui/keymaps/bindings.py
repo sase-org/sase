@@ -4,13 +4,15 @@ from textual.binding import Binding
 
 from sase.ace.tui.artifact_tabs import ARTIFACTS_SUBTAB_ORDER
 from sase.ace.tui.keymaps.display import key_display_name
-from sase.ace.tui.keymaps.types import (
-    _BINDING_META,
-    _GATE_BINDING_META,
-    _STATISTICS_BINDING_META,
+from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
     GateModalKeymaps,
     StatisticsPaneKeymaps,
+)
+from sase.ace.tui.keymaps.metadata import (
+    _BINDING_META,
+    _GATE_BINDING_META,
+    _STATISTICS_BINDING_META,
 )
 
 

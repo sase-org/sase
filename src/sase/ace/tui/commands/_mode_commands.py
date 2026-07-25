@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from sase.ace.tui.commands._formatting import format_key_sequence
 from sase.ace.tui.commands._tabs import ALL_TABS, CL_AGENTS, CL_ONLY, AGENTS_ONLY
 from sase.ace.tui.commands.types import CommandExecutor, CommandSpec, CommandTab
-from sase.ace.tui.keymaps.types import BUILTIN_MODE_NAMES
+from sase.ace.tui.keymaps.mode_keymaps import BUILTIN_MODE_NAMES
 
 if TYPE_CHECKING:
     from sase.ace.tui.keymaps import KeymapRegistry

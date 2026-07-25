@@ -8,9 +8,11 @@ from sase.ace.tui.keymaps.defaults import (
     load_builtin_gate_defaults,
     load_builtin_statistics_defaults,
 )
-from sase.ace.tui.keymaps.types import (
+from sase.ace.tui.keymaps.app_keymaps import (
     GateModalKeymaps,
     StatisticsPaneKeymaps,
+)
+from sase.ace.tui.keymaps.key_validation import (
     canonicalize_key_binding,
     is_valid_key,
     normalize_key_binding,

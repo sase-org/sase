@@ -5,17 +5,16 @@ from dataclasses import fields
 
 from sase.ace.tui.keymaps.defaults import load_builtin_app_defaults
 from sase.ace.tui.keymaps.scopes import load_gate_keymaps, load_statistics_keymaps
-from sase.ace.tui.keymaps.types import (
-    _BUILTIN_MODE_CLASSES,
-    _MODE_PREFIX_ACTIONS,
-    AppKeymaps,
-    KeymapRegistry,
-    ModeKeymaps,
+from sase.ace.tui.keymaps.app_keymaps import AppKeymaps
+from sase.ace.tui.keymaps.key_validation import (
     canonicalize_key_binding,
     is_valid_key,
     normalize_key_binding,
     split_key_alternatives,
 )
+from sase.ace.tui.keymaps.metadata import _MODE_PREFIX_ACTIONS
+from sase.ace.tui.keymaps.mode_keymaps import _BUILTIN_MODE_CLASSES, ModeKeymaps
+from sase.ace.tui.keymaps.types import KeymapRegistry
 
 log = logging.getLogger(__name__)
 

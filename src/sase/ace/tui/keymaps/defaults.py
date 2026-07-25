@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.ace.tui.keymaps.types import canonicalize_key_binding
+from sase.ace.tui.keymaps.key_validation import canonicalize_key_binding
 
 
 @functools.cache

@@ -1,11 +1,11 @@
 """Human-readable formatting for configured Textual key names."""
 
-from sase.ace.tui.keymaps.types import (
+from sase.ace.tui.keymaps.key_validation import (
     _KEY_DISPLAY,
-    KeymapRegistry,
     canonicalize_single_key,
     split_key_alternatives,
 )
+from sase.ace.tui.keymaps.types import KeymapRegistry
 
 
 def key_display_name(textual_key: str) -> str:

@@ -1,0 +1,199 @@
+"""Dataclasses for app-level and focused-pane keymaps."""
+
+from dataclasses import dataclass
+
+
+@dataclass
+class AppKeymaps:
+    """One field per configurable app-level action.
+
+    No defaults -- all values must come from configuration files
+    (``default_config.yml`` or user/plugin overrides). This ensures
+    ``default_config.yml`` is the single source of truth for default
+    keybindings and that adding a new field without a config entry is
+    caught immediately at startup.
+    """
+
+    # Navigation
+    next_changespec: str
+    prev_changespec: str
+    scroll_to_top: str
+    scroll_to_bottom: str
+    scroll_detail_down: str
+    scroll_detail_up: str
+    scroll_prompt_down: str
+    scroll_prompt_up: str
+    next_agent_metadata_section: str
+    prev_agent_metadata_section: str
+    next_agent_file: str
+    prev_agent_file: str
+    # Tab switching
+    next_tab: str
+    prev_tab: str
+    cycle_artifacts_subtab: str
+    cycle_artifacts_subtab_reverse: str
+    pick_artifacts_project: str
+    # Commits sub-tab
+    commits_next: str
+    commits_prev: str
+    commits_view_selected: str
+    commits_copy_sha: str
+    commits_filters: str
+    commits_toggle_sdd: str
+    commits_toggle_all_projects: str
+    commits_fetch: str
+    commits_refresh: str
+    # Plans sub-tab
+    plans_next: str
+    plans_prev: str
+    plans_view_selected: str
+    plans_filters: str
+    plans_expand: str
+    plans_collapse: str
+    plans_cycle_status: str
+    plans_edit_bead: str
+    plans_launch_epic: str
+    plans_approve: str
+    plans_reject: str
+    plans_open_bug: str
+    plans_refresh: str
+    # Chats sub-tab
+    chats_next: str
+    chats_prev: str
+    chats_view_selected: str
+    chats_filters: str
+    chats_cycle_provenance: str
+    chats_open_agent: str
+    chats_open_external: str
+    chats_copy_path: str
+    chats_refresh: str
+    # Bugs sub-tab
+    next_bug: str
+    prev_bug: str
+    cycle_bug_filter: str
+    create_bug: str
+    edit_bug: str
+    toggle_bug_state: str
+    open_bug: str
+    copy_bug: str
+    start_agent_from_bug: str
+    focus_bug_links: str
+    activate_bug_link: str
+    refresh_bugs: str
+    # ChangeSpec actions
+    quit: str
+    change_status: str
+    run_workflow: str
+    mail: str
+    show_diff: str
+    reword: str
+    add_tag: str
+    view_files: str
+    jump_to_entry: str
+    jump_to_entry_fast: str
+    jump_to_entry_forward: str
+    jump_to_all_entries: str
+    edit_spec: str
+    add_axe_item: str
+    rename_cl: str
+    # ChangeSpec edits
+    edit_hooks: str
+    # Proposals & sync
+    accept_proposal: str
+    rebase: str
+    start_rewind: str
+    sync: str
+    refresh: str
+    # Fold / collapse
+    hooks_or_collapse: str
+    hooks_or_collapse_all: str
+    expand_or_layout: str
+    expand_all_folds: str
+    toggle_layout: str
+    # Marking
+    toggle_mark: str
+    clear_marks: str
+    bulk_change_status: str
+    save_marked_agents: str
+    # Agent / axe
+    kill_agent: str
+    open_agent_cleanup_panel: str
+    stop_axe_and_quit: str
+    start_custom_agent: str
+    start_agent_home: str
+    start_agent_from_changespec: str
+    start_last_vcs_xprompt_in_editor: str
+    restore_prompt_stash: str
+    jump_to_agent_changespec: str
+    edit_panel: str
+    show_agent_run_log: str
+    open_artifact_files: str
+    toggle_attempt_view: str
+    toggle_agent_unread: str
+    edit_agent_tribe: str
+    focus_next_agent_panel: str
+    focus_prev_agent_panel: str
+    # Grouping mode cycle (agents tab)
+    cycle_grouping_mode: str
+    cycle_grouping_mode_reverse: str
+    # Tools panel
+    toggle_thinking: str
+    toggle_thinking_reverse: str
+    # Queries
+    search_forward: str
+    edit_query: str
+    search_reverse: str
+    open_saved_query_picker: str
+    prev_query: str
+    next_query: str
+    # Display / misc
+    toggle_hide_reverted: str
+    toggle_hide_submitted: str
+    show_notifications: str
+    open_config_center: str
+    open_command_palette: str
+    dismiss_toasts: str
+    # Workspace mode prefixes
+    checkout: str
+    start_checkout_mode: str
+    open_tmux: str
+    start_tmux_mode: str
+    # Tree navigation prefixes
+    start_ancestor_mode: str
+    start_child_mode: str
+    start_sibling_mode: str
+    # Mode activation prefixes
+    start_fold_mode: str
+    zoom_panel: str
+    start_leader_mode: str
+    start_bang_mode: str
+    copy_tab_content: str
+
+
+@dataclass
+class StatisticsPaneKeymaps:
+    """Focused-pane actions for the Admin Center Statistics tab."""
+
+    prev_view: str = "left_square_bracket"
+    next_view: str = "right_square_bracket"
+    cycle_range: str = "t"
+    cycle_range_reverse: str = "T"
+    custom_range: str = "c"
+    cycle_group: str = "g"
+    cycle_project_filter: str = "p"
+    cycle_project_filter_reverse: str = "P"
+    scroll_down: str = "ctrl+d"
+    scroll_up: str = "ctrl+u"
+    refresh: str = "r"
+    help: str = "question_mark"
+
+
+@dataclass
+class GateModalKeymaps:
+    """Focused actions shared by plan and custom gate modals."""
+
+    next_control: str = "j"
+    previous_control: str = "k"
+    toggle_option: str = "space"
+    submit_primary: str = "enter"
+    submit_branch: str = "ctrl+s"

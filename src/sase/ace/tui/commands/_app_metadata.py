@@ -14,7 +14,7 @@ from sase.ace.tui.commands._tabs import (
     CL_ONLY,
 )
 from sase.ace.tui.commands.types import CommandCategory, CommandTab
-from sase.ace.tui.keymaps.types import AppKeymaps
+from sase.ace.tui.keymaps.app_keymaps import AppKeymaps
 
 type AppCommandMeta = tuple[
     str, str, CommandCategory, tuple[CommandTab, ...], tuple[str, ...]

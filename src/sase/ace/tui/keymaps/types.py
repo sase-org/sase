@@ -1,663 +1,70 @@
-"""Keymap dataclasses, constants, and key validation for the ace TUI.
+"""Keymap configuration types and compatibility exports.
 
-Defines the dataclass hierarchy for all configurable keymaps (app-level
-bindings and prefix-key modes) along with the constant metadata tables
-that describe binding order, display names, and mode associations.
+Concrete keymap types, metadata, and key validation live in focused sibling
+modules. Imports from this historical module remain supported.
 """
 
 from dataclasses import dataclass, field, fields
 
+from sase.ace.tui.keymaps.app_keymaps import (
+    AppKeymaps,
+    GateModalKeymaps,
+    StatisticsPaneKeymaps,
+)
+from sase.ace.tui.keymaps.key_validation import (
+    _CTRL_SPACE_KEY,
+    _KEY_ALIASES,
+    _KEY_DISPLAY,
+    _NAMED_KEYS,
+    canonicalize_key_binding,
+    canonicalize_single_key,
+    is_valid_key,
+    normalize_key_binding,
+    split_key_alternatives,
+)
+from sase.ace.tui.keymaps.metadata import (
+    _BINDING_META,
+    _GATE_BINDING_META,
+    _MODE_PREFIX_ACTIONS,
+    _STATISTICS_BINDING_META,
+)
+from sase.ace.tui.keymaps.mode_keymaps import (
+    BUILTIN_MODE_NAMES,
+    _BUILTIN_MODE_CLASSES,
+    BangModeKeymaps,
+    CopyModeKeymaps,
+    FoldModeKeymaps,
+    LeaderModeKeymaps,
+    ModeKeymaps,
+)
 
-# Known Textual named keys (beyond what's in _KEY_DISPLAY).
-_NAMED_KEYS: set[str] = {
-    "escape",
-    "enter",
-    "tab",
-    "backspace",
-    "delete",
-    "up",
-    "down",
-    "left",
-    "right",
-    "home",
-    "end",
-    "pageup",
-    "pagedown",
-    "insert",
-    *(f"f{n}" for n in range(1, 25)),
-}
-
-# ---------------------------------------------------------------------------
-# Binding metadata: (action_name, description, priority)
-# Order matches the original hardcoded BINDINGS in app.py.
-# ---------------------------------------------------------------------------
-_BINDING_META: list[tuple[str, str, bool]] = [
-    ("next_changespec", "Next", False),
-    ("prev_changespec", "Previous", False),
-    ("quit", "Quit", False),
-    ("change_status", "Status", False),
-    ("run_workflow", "Run", False),
-    ("mail", "Mail", False),
-    ("show_diff", "Diff", False),
-    ("reword", "Reword", False),
-    ("add_tag", "Add Tag", False),
-    ("view_files", "View", False),
-    ("jump_to_entry", "Jump to Entry", False),
-    ("jump_to_entry_fast", "Fast Jump", False),
-    ("jump_to_entry_forward", "Forward Jump", False),
-    ("jump_to_all_entries", "Jump All", False),
-    ("hooks_or_collapse", "Parent / Collapse or Jump Panel/Fold", False),
-    (
-        "hooks_or_collapse_all",
-        "Collapse Scoped Houses/Clans/Groups/Panel / Compact Tools / All",
-        False,
-    ),
-    ("edit_hooks", "Edit Hooks", False),
-    ("start_fold_mode", "Fold", False),
-    ("zoom_panel", "Zoom Detail / Only/Restore Panels", False),
-    ("plans_approve", "Approve Plan", False),
-    ("accept_proposal", "Accept", False),
-    ("rebase", "Rebase", False),
-    ("start_rewind", "Rewind", False),
-    ("open_tmux", "Tmux", False),
-    ("start_tmux_mode", "Tmux Mode", False),
-    ("checkout", "Checkout", False),
-    ("start_checkout_mode", "Checkout Mode", False),
-    ("refresh", "Refresh", False),
-    ("sync", "Sync", False),
-    ("search_forward", "Search Forward", False),
-    ("edit_query", "Edit Query", False),
-    ("search_reverse", "Search Reverse", False),
-    ("open_saved_query_picker", "Saved Queries", False),
-    ("edit_spec", "Edit Spec", False),
-    ("add_axe_item", "Add AXE Item", False),
-    ("scroll_detail_down", "Scroll Down", False),
-    ("scroll_detail_up", "Scroll Up", False),
-    ("scroll_prompt_down", "Scroll Prompt Down", False),
-    ("scroll_prompt_up", "Scroll Prompt Up", False),
-    ("next_agent_metadata_section", "Next Metadata Section", False),
-    ("prev_agent_metadata_section", "Previous Metadata Section", False),
-    ("next_tab", "Next Tab", True),
-    ("prev_tab", "Prev Tab", True),
-    ("cycle_artifacts_subtab", "Next Artifact", False),
-    ("cycle_artifacts_subtab_reverse", "Previous Artifact", False),
-    ("pick_artifacts_project", "Project Scope", False),
-    ("commits_next", "Next Commit", False),
-    ("commits_prev", "Previous Commit", False),
-    ("commits_view_selected", "View Commit", False),
-    ("commits_copy_sha", "Copy Commit SHA", False),
-    ("commits_filters", "Commit Filters", False),
-    ("commits_toggle_sdd", "Toggle Commit Sidecars", False),
-    ("commits_toggle_all_projects", "Toggle All Projects", False),
-    ("commits_fetch", "Fetch Commits", False),
-    ("commits_refresh", "Refresh Commits", False),
-    ("plans_next", "Next Plan", False),
-    ("plans_prev", "Previous Plan", False),
-    ("plans_view_selected", "View Plan", False),
-    ("plans_filters", "Plan Filters", False),
-    ("plans_expand", "Expand Epic", False),
-    ("plans_collapse", "Collapse Epic", False),
-    ("plans_cycle_status", "Bead Status", False),
-    ("plans_edit_bead", "Edit Bead", False),
-    ("plans_launch_epic", "Launch Epic", False),
-    ("plans_reject", "Reject Plan", False),
-    ("plans_open_bug", "Open Bug", False),
-    ("plans_refresh", "Refresh Plans", False),
-    ("chats_next", "Next Chat", False),
-    ("chats_prev", "Previous Chat", False),
-    ("chats_view_selected", "View Chat", False),
-    ("chats_filters", "Chat Filters", False),
-    ("chats_cycle_provenance", "Cycle Sync State", False),
-    ("chats_open_agent", "Open Chat Agent", False),
-    ("chats_open_external", "Open Chat in Editor", False),
-    ("chats_copy_path", "Copy Chat Path", False),
-    ("chats_refresh", "Refresh Chats", False),
-    ("next_bug", "Next Bug", False),
-    ("prev_bug", "Previous Bug", False),
-    ("cycle_bug_filter", "Bug State Filter", False),
-    ("create_bug", "Create Bug", False),
-    ("edit_bug", "Edit Bug", False),
-    ("toggle_bug_state", "Close / Reopen Bug", False),
-    ("open_bug", "Open Bug", False),
-    ("copy_bug", "Copy Bug", False),
-    ("start_agent_from_bug", "Run Agent (Bug)", False),
-    ("focus_bug_links", "Bug Links", False),
-    ("activate_bug_link", "Open Bug Link", True),
-    ("refresh_bugs", "Refresh Bugs", False),
-    ("open_agent_cleanup_panel", "Agent Cleanup", False),
-    ("stop_axe_and_quit", "Quit / Restart", False),
-    ("start_custom_agent", "Run Agent", False),
-    ("start_agent_home", "Run Agent (Home)", False),
-    ("start_agent_from_changespec", "Run Agent (PR)", False),
-    ("start_last_vcs_xprompt_in_editor", "Edit Last VCS XPrompt", False),
-    ("restore_prompt_stash", "Restore Prompt Stash", False),
-    ("start_bang_mode", "Bang Mode", False),
-    ("toggle_mark", "Mark", False),
-    ("rename_cl", "Rename", False),
-    ("clear_marks", "Unmark All", False),
-    ("bulk_change_status", "Bulk Status", False),
-    ("save_marked_agents", "Save Marked Agents", False),
-    ("show_notifications", "Notifications", False),
-    ("kill_agent", "Kill", False),
-    ("expand_or_layout", "Expand / Enter Panel", False),
-    ("expand_all_folds", "Select Folds / Expand All", False),
-    ("toggle_layout", "Layout", False),
-    ("toggle_thinking", "Tools", False),
-    ("toggle_thinking_reverse", "Tools Rev", False),
-    ("copy_tab_content", "Copy", False),
-    ("scroll_to_top", "Top", False),
-    ("scroll_to_bottom", "Bottom", False),
-    ("open_config_center", "SASE Admin Center", False),
-    ("prev_query", "Prev Query", False),
-    ("next_query", "Next Query", False),
-    ("start_ancestor_mode", "Ancestor", False),
-    ("start_child_mode", "Child", False),
-    ("start_sibling_mode", "Sibling", False),
-    ("toggle_hide_reverted", "Toggle Reverted", False),
-    ("toggle_hide_submitted", "Toggle Submitted", False),
-    ("start_leader_mode", "Leader", False),
-    ("next_agent_file", "Next File", False),
-    ("prev_agent_file", "Prev File", False),
-    ("edit_panel", "Edit Panel", False),
-    ("jump_to_agent_changespec", "Go to PR", False),
-    ("open_artifact_files", "Artifact Files", False),
-    ("toggle_attempt_view", "Toggle Attempt View", False),
-    ("toggle_agent_unread", "Toggle Agent Unread", False),
-    ("edit_agent_tribe", "Edit Agent Tribe", False),
-    ("focus_next_agent_panel", "Next Panel", False),
-    ("focus_prev_agent_panel", "Prev Panel", False),
-    ("cycle_grouping_mode", "Cycle Grouping", False),
-    ("cycle_grouping_mode_reverse", "Cycle Grouping Rev", False),
-    ("show_agent_run_log", "Agent Run Log", False),
-    ("open_command_palette", "Command Palette", False),
-    ("dismiss_toasts", "Dismiss Toasts", False),
+__all__ = [
+    "AppKeymaps",
+    "BUILTIN_MODE_NAMES",
+    "BangModeKeymaps",
+    "CopyModeKeymaps",
+    "FoldModeKeymaps",
+    "GateModalKeymaps",
+    "KeymapRegistry",
+    "LeaderModeKeymaps",
+    "ModeKeymaps",
+    "StatisticsPaneKeymaps",
+    "_BINDING_META",
+    "_BUILTIN_MODE_CLASSES",
+    "_CTRL_SPACE_KEY",
+    "_GATE_BINDING_META",
+    "_KEY_ALIASES",
+    "_KEY_DISPLAY",
+    "_MODE_PREFIX_ACTIONS",
+    "_NAMED_KEYS",
+    "_STATISTICS_BINDING_META",
+    "canonicalize_key_binding",
+    "canonicalize_single_key",
+    "is_valid_key",
+    "normalize_key_binding",
+    "split_key_alternatives",
 ]
 
-# Scoped bindings owned by the focused Admin Center Statistics pane.  These
-# are deliberately excluded from ``AppKeymaps`` so common keys such as ``t``
-# and ``r`` never become globally active.
-_STATISTICS_BINDING_META: tuple[tuple[str, str], ...] = (
-    ("prev_view", "Previous View"),
-    ("next_view", "Next View"),
-    ("cycle_range", "Time Range"),
-    ("cycle_range_reverse", "Previous Time Range"),
-    ("custom_range", "Custom Range"),
-    ("cycle_group", "Group By"),
-    ("cycle_project_filter", "Project Filter"),
-    ("cycle_project_filter_reverse", "Previous Project Filter"),
-    ("scroll_down", "Scroll Down"),
-    ("scroll_up", "Scroll Up"),
-    ("refresh", "Refresh"),
-    ("help", "Help"),
-)
-
-# Shared bindings owned by the branch renderer inside gate-review modals.
-_GATE_BINDING_META: tuple[tuple[str, str], ...] = (
-    ("next_control", "Next control"),
-    ("previous_control", "Previous control"),
-    ("toggle_option", "Toggle option"),
-    ("submit_primary", "Submit primary"),
-    ("submit_branch", "Submit"),
-)
-
-# Maps mode name -> the app-level action that activates it.
-_MODE_PREFIX_ACTIONS: dict[str, str] = {
-    "fold_mode": "start_fold_mode",
-    "copy_mode": "copy_tab_content",
-    "leader_mode": "start_leader_mode",
-    "bang_mode": "start_bang_mode",
-}
-
-# Textual special key names -> display characters.
-_KEY_DISPLAY: dict[str, str] = {
-    "full_stop": ".",
-    "exclamation_mark": "!",
-    "percent_sign": "%",
-    "comma": ",",
-    "less_than_sign": "<",
-    "greater_than_sign": ">",
-    "circumflex_accent": "^",
-    "underscore": "_",
-    "number_sign": "#",
-    "right_square_bracket": "]",
-    "left_square_bracket": "[",
-    "equals_sign": "=",
-    "minus": "-",
-    "question_mark": "?",
-    "apostrophe": "'",
-    "grave_accent": "`",
-    "slash": "/",
-    "asterisk": "*",
-    "at": "@",
-    "plus": "+",
-    "space": "Space",
-    "tab": "Tab",
-    "shift+tab": "Shift+Tab",
-    "enter": "Enter",
-    "tilde": "~",
-    "semicolon": ";",
-    "colon": ":",
-}
-
-_CTRL_SPACE_KEY = "ctrl+@"
-_KEY_ALIASES: dict[str, str] = {
-    "ctrl+space": _CTRL_SPACE_KEY,
-    "ctrl+at": _CTRL_SPACE_KEY,
-    # Textual normalizes the printable ``+`` key to the name ``plus``; accept
-    # the raw glyph and the Unicode name as friendly config spellings for it.
-    "+": "plus",
-    "plus_sign": "plus",
-}
-
-
-def split_key_alternatives(key: str) -> tuple[str, ...]:
-    """Split a Textual binding string into its comma-separated alternatives."""
-    return tuple(part.strip() for part in key.split(","))
-
-
-def canonicalize_single_key(key: str) -> str:
-    """Return the internal Textual key spelling for one configured key."""
-    key = key.strip()
-    return _KEY_ALIASES.get(key.lower(), key)
-
-
-def canonicalize_key_binding(key: str) -> str:
-    """Canonicalize every alternative in a Textual key binding string."""
-    return ",".join(
-        canonicalize_single_key(alternative)
-        for alternative in split_key_alternatives(key)
-    )
-
-
-def normalize_key_binding(key: str) -> str:
-    """Normalize whitespace and aliases around comma-separated key alternatives."""
-    return canonicalize_key_binding(key)
-
-
-def _canonical_key_alternatives(key: str) -> tuple[str, ...]:
-    """Split and canonicalize a Textual binding string."""
-    return tuple(canonicalize_single_key(part) for part in split_key_alternatives(key))
-
-
-def _is_valid_single_key(key: str) -> bool:
-    """Check whether *key* is a recognised single Textual key name."""
-    if not key:
-        return False
-    if key == _CTRL_SPACE_KEY:
-        return True
-    # Single alphanumeric character.
-    if len(key) == 1 and key.isalnum():
-        return True
-    # Entry in _KEY_DISPLAY (known Textual special names).
-    if key in _KEY_DISPLAY:
-        return True
-    # Known named keys.
-    if key in _NAMED_KEYS:
-        return True
-    # ctrl+ or shift+ prefix with a valid suffix.
-    if key.startswith(("ctrl+", "shift+")):
-        suffix = key.split("+", 1)[1]
-        return _is_valid_single_key(suffix)
-    return False
-
-
-def is_valid_key(key: str) -> bool:
-    """Check whether *key* is a recognised Textual key binding.
-
-    Textual ``Binding`` accepts comma-separated alternatives such as
-    ``"colon,semicolon"``. Treat those as a single configurable binding
-    whose individual alternatives must each be valid Textual keys.
-    """
-    alternatives = _canonical_key_alternatives(key)
-    return (
-        bool(alternatives)
-        and len(set(alternatives)) == len(alternatives)
-        and all(_is_valid_single_key(alternative) for alternative in alternatives)
-    )
-
-
-# ---------------------------------------------------------------------------
-# Dataclasses
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class AppKeymaps:
-    """One field per configurable app-level action.
-
-    No defaults -- all values must come from configuration files
-    (``default_config.yml`` or user/plugin overrides).  This ensures
-    ``default_config.yml`` is the single source of truth for default
-    keybindings and that adding a new field without a config entry is
-    caught immediately at startup.
-    """
-
-    # Navigation
-    next_changespec: str
-    prev_changespec: str
-    scroll_to_top: str
-    scroll_to_bottom: str
-    scroll_detail_down: str
-    scroll_detail_up: str
-    scroll_prompt_down: str
-    scroll_prompt_up: str
-    next_agent_metadata_section: str
-    prev_agent_metadata_section: str
-    next_agent_file: str
-    prev_agent_file: str
-    # Tab switching
-    next_tab: str
-    prev_tab: str
-    cycle_artifacts_subtab: str
-    cycle_artifacts_subtab_reverse: str
-    pick_artifacts_project: str
-    # Commits sub-tab
-    commits_next: str
-    commits_prev: str
-    commits_view_selected: str
-    commits_copy_sha: str
-    commits_filters: str
-    commits_toggle_sdd: str
-    commits_toggle_all_projects: str
-    commits_fetch: str
-    commits_refresh: str
-    # Plans sub-tab
-    plans_next: str
-    plans_prev: str
-    plans_view_selected: str
-    plans_filters: str
-    plans_expand: str
-    plans_collapse: str
-    plans_cycle_status: str
-    plans_edit_bead: str
-    plans_launch_epic: str
-    plans_approve: str
-    plans_reject: str
-    plans_open_bug: str
-    plans_refresh: str
-    # Chats sub-tab
-    chats_next: str
-    chats_prev: str
-    chats_view_selected: str
-    chats_filters: str
-    chats_cycle_provenance: str
-    chats_open_agent: str
-    chats_open_external: str
-    chats_copy_path: str
-    chats_refresh: str
-    # Bugs sub-tab
-    next_bug: str
-    prev_bug: str
-    cycle_bug_filter: str
-    create_bug: str
-    edit_bug: str
-    toggle_bug_state: str
-    open_bug: str
-    copy_bug: str
-    start_agent_from_bug: str
-    focus_bug_links: str
-    activate_bug_link: str
-    refresh_bugs: str
-    # ChangeSpec actions
-    quit: str
-    change_status: str
-    run_workflow: str
-    mail: str
-    show_diff: str
-    reword: str
-    add_tag: str
-    view_files: str
-    jump_to_entry: str
-    jump_to_entry_fast: str
-    jump_to_entry_forward: str
-    jump_to_all_entries: str
-    edit_spec: str
-    add_axe_item: str
-    rename_cl: str
-    # ChangeSpec edits
-    edit_hooks: str
-    # Proposals & sync
-    accept_proposal: str
-    rebase: str
-    start_rewind: str
-    sync: str
-    refresh: str
-    # Fold / collapse
-    hooks_or_collapse: str
-    hooks_or_collapse_all: str
-    expand_or_layout: str
-    expand_all_folds: str
-    toggle_layout: str
-    # Marking
-    toggle_mark: str
-    clear_marks: str
-    bulk_change_status: str
-    save_marked_agents: str
-    # Agent / axe
-    kill_agent: str
-    open_agent_cleanup_panel: str
-    stop_axe_and_quit: str
-    start_custom_agent: str
-    start_agent_home: str
-    start_agent_from_changespec: str
-    start_last_vcs_xprompt_in_editor: str
-    restore_prompt_stash: str
-    jump_to_agent_changespec: str
-    edit_panel: str
-    show_agent_run_log: str
-    open_artifact_files: str
-    toggle_attempt_view: str
-    toggle_agent_unread: str
-    edit_agent_tribe: str
-    focus_next_agent_panel: str
-    focus_prev_agent_panel: str
-    # Grouping mode cycle (agents tab)
-    cycle_grouping_mode: str
-    cycle_grouping_mode_reverse: str
-    # Tools panel
-    toggle_thinking: str
-    toggle_thinking_reverse: str
-    # Queries
-    search_forward: str
-    edit_query: str
-    search_reverse: str
-    open_saved_query_picker: str
-    prev_query: str
-    next_query: str
-    # Display / misc
-    toggle_hide_reverted: str
-    toggle_hide_submitted: str
-    show_notifications: str
-    open_config_center: str
-    open_command_palette: str
-    dismiss_toasts: str
-    # Workspace mode prefixes
-    checkout: str
-    start_checkout_mode: str
-    open_tmux: str
-    start_tmux_mode: str
-    # Tree navigation prefixes
-    start_ancestor_mode: str
-    start_child_mode: str
-    start_sibling_mode: str
-    # Mode activation prefixes
-    start_fold_mode: str
-    zoom_panel: str
-    start_leader_mode: str
-    start_bang_mode: str
-    copy_tab_content: str
-
-
-@dataclass
-class StatisticsPaneKeymaps:
-    """Focused-pane actions for the Admin Center Statistics tab."""
-
-    prev_view: str = "left_square_bracket"
-    next_view: str = "right_square_bracket"
-    cycle_range: str = "t"
-    cycle_range_reverse: str = "T"
-    custom_range: str = "c"
-    cycle_group: str = "g"
-    cycle_project_filter: str = "p"
-    cycle_project_filter_reverse: str = "P"
-    scroll_down: str = "ctrl+d"
-    scroll_up: str = "ctrl+u"
-    refresh: str = "r"
-    help: str = "question_mark"
-
-
-@dataclass
-class GateModalKeymaps:
-    """Focused actions shared by plan and custom gate modals."""
-
-    next_control: str = "j"
-    previous_control: str = "k"
-    toggle_option: str = "space"
-    submit_primary: str = "enter"
-    submit_branch: str = "ctrl+s"
-
-
-@dataclass
-class ModeKeymaps:
-    """Generic container for a prefix-key mode."""
-
-    prefix: str = ""
-    keys: dict[str, str | dict[str, str]] = field(default_factory=dict)
-
-
-@dataclass
-class FoldModeKeymaps(ModeKeymaps):
-    """Typed fields for the built-in fold mode."""
-
-    prefix: str = "z"
-    keys: dict[str, str | dict[str, str]] = field(
-        default_factory=lambda: {
-            "cycle_commits": "c",
-            "cycle_hooks": "h",
-            "cycle_mentors": "m",
-            "cycle_timestamps": "t",
-            "cycle_deltas": "d",
-            "toggle_commits": "C",
-            "toggle_hooks": "H",
-            "toggle_mentors": "M",
-            "toggle_timestamps": "T",
-            "toggle_deltas": "D",
-            "cycle_all": "z",
-            "toggle_all": "Z",
-            "set_level_1": "1",
-            "set_level_2": "2",
-            "set_level_3": "3",
-            "agents": {
-                "cycle_level": "z",
-                "toggle_all": "Z",
-                "cycle_section": "a",
-                "toggle_section": "A",
-                "set_level_1": "1",
-                "set_level_2": "2",
-                "set_level_3": "3",
-                "set_level_4": "4",
-            },
-        }
-    )
-
-
-@dataclass
-class CopyModeKeymaps(ModeKeymaps):
-    """Typed fields for the built-in copy mode (nested per-tab keys)."""
-
-    prefix: str = "percent_sign"
-    keys: dict[str, str | dict[str, str]] = field(
-        default_factory=lambda: {
-            "changespecs": {
-                "raw": "percent_sign",
-                "with_snapshot": "exclamation_mark",
-                "bug": "b",
-                "pr_number": "c",
-                "name": "n",
-                "spec": "p",
-                "snapshot": "s",
-            },
-            "agents": {
-                "chat": "c",
-                "file_path": "E",
-                "name": "n",
-                "prompt": "p",
-                "snapshot": "s",
-            },
-            "axe": {
-                "visible": "o",
-                "full": "O",
-                "snapshot": "s",
-            },
-        }
-    )
-
-
-@dataclass
-class LeaderModeKeymaps(ModeKeymaps):
-    """Typed fields for the built-in leader mode."""
-
-    prefix: str = "comma"
-    keys: dict[str, str | dict[str, str]] = field(
-        default_factory=lambda: {
-            "repeat_last": "comma",
-            "edit_query": "slash",
-            "show_help": "question_mark",
-            "run_cmd": "exclamation_mark",
-            "runners": "R",
-            "revert_agent": "r",
-            "kill_mentors": "M",
-            "review_mentors": "C",
-            "agent_home": "h",
-            "agent_from_cl": "space",
-            "toggle_agent_panel_grouping": "g",
-            "jump_to_next_unread_done_agent": "j",
-            "jump_to_next_stopped_agent": "J",
-            "full_history_refresh": "y",
-            "mark_all_unread_done_agents_read": "u",
-            "kill_and_edit": "x",
-            "clear_comments": "c",
-            "open_prompt_stash": "at",
-            "prompt_history": "full_stop",
-            "prompt_history_edit_first": "ctrl+g",
-            "prompt_history_cancelled": "greater_than_sign",
-            "agent_run_log": "A",
-            "models_panel": "m",
-            "update_sase": "U",
-            "capture_agents_repro": "B",
-            "toggle_agents_repro_checks": "T",
-            "jump_to_notification": "n",
-        }
-    )
-
-
-@dataclass
-class BangModeKeymaps(ModeKeymaps):
-    """Typed fields for the built-in bang mode."""
-
-    prefix: str = "exclamation_mark"
-    keys: dict[str, str | dict[str, str]] = field(
-        default_factory=lambda: {
-            "run_cmd": "exclamation_mark",
-            "toggle_axe": "x",
-        }
-    )
-
-
-# Map of built-in mode names to their typed dataclass constructors.
-_BUILTIN_MODE_CLASSES: dict[str, type[ModeKeymaps]] = {
-    "fold_mode": FoldModeKeymaps,
-    "copy_mode": CopyModeKeymaps,
-    "leader_mode": LeaderModeKeymaps,
-    "bang_mode": BangModeKeymaps,
-}
-
-BUILTIN_MODE_NAMES: frozenset[str] = frozenset(_BUILTIN_MODE_CLASSES)
-
-
-# ---------------------------------------------------------------------------
-# Module-level consistency check
-# ---------------------------------------------------------------------------
 
 # Every AppKeymaps field must have a _BINDING_META entry and vice versa.
 _BINDING_META_ACTIONS: frozenset[str] = frozenset(a for a, _, _ in _BINDING_META)
@@ -691,24 +98,24 @@ class KeymapRegistry:
 
     @property
     def fold_mode(self) -> FoldModeKeymaps:
-        m = self.modes["fold_mode"]
-        assert isinstance(m, FoldModeKeymaps)
-        return m
+        mode = self.modes["fold_mode"]
+        assert isinstance(mode, FoldModeKeymaps)
+        return mode
 
     @property
     def copy_mode(self) -> CopyModeKeymaps:
-        m = self.modes["copy_mode"]
-        assert isinstance(m, CopyModeKeymaps)
-        return m
+        mode = self.modes["copy_mode"]
+        assert isinstance(mode, CopyModeKeymaps)
+        return mode
 
     @property
     def leader_mode(self) -> LeaderModeKeymaps:
-        m = self.modes["leader_mode"]
-        assert isinstance(m, LeaderModeKeymaps)
-        return m
+        mode = self.modes["leader_mode"]
+        assert isinstance(mode, LeaderModeKeymaps)
+        return mode
 
     @property
     def bang_mode(self) -> BangModeKeymaps:
-        m = self.modes["bang_mode"]
-        assert isinstance(m, BangModeKeymaps)
-        return m
+        mode = self.modes["bang_mode"]
+        assert isinstance(mode, BangModeKeymaps)
+        return mode

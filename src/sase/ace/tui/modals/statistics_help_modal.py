@@ -18,7 +18,7 @@ from sase.ace.tui.keymaps import (
     key_display_name,
     statistics_help_bindings,
 )
-from sase.ace.tui.keymaps.types import _STATISTICS_BINDING_META
+from sase.ace.tui.keymaps.metadata import _STATISTICS_BINDING_META
 from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import StatsRange
 
