@@ -1,6 +1,7 @@
 """Artifacts tab widgets."""
 
 from .bugs import ArtifactsBugsPane, BugIssueList, BugLinkList
+from .chats_pane import ArtifactsChatsPane
 from .commits import CommitsPane, CommitsTimeline
 from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
 from .lifecycle import ArtifactsPaneLifecycle
@@ -26,6 +27,7 @@ __all__ = [
     "ArtifactEntryNavigator",
     "ArtifactEntryTarget",
     "ArtifactsBugsPane",
+    "ArtifactsChatsPane",
     "ArtifactsPaneLifecycle",
     "ArtifactsPlansPane",
     "ArtifactsPrsPane",

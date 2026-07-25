@@ -123,6 +123,20 @@ _PLANS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
+_CHATS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
+    {
+        "app.chats_next",
+        "app.chats_prev",
+        "app.chats_view_selected",
+        "app.chats_filters",
+        "app.chats_cycle_provenance",
+        "app.chats_open_agent",
+        "app.chats_open_external",
+        "app.chats_copy_path",
+        "app.chats_refresh",
+    }
+)
+
 _COMMITS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     {
         "app.commits_next",
@@ -214,6 +228,8 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.artifacts_subtab == "commits"
     if spec.id in _PLANS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "plans"
+    if spec.id in _CHATS_ARTIFACT_COMMANDS:
+        return ctx.artifacts_subtab == "chats"
     if ctx.artifacts_subtab != "prs":
         return spec.id.startswith("artifacts.") or spec.id in _NON_PRS_ARTIFACT_COMMANDS
     if spec.id == "app.pick_artifacts_project":

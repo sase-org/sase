@@ -103,6 +103,15 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("plans_reject", "Reject Plan", False),
     ("plans_open_bug", "Open Bug", False),
     ("plans_refresh", "Refresh Plans", False),
+    ("chats_next", "Next Chat", False),
+    ("chats_prev", "Previous Chat", False),
+    ("chats_view_selected", "View Chat", False),
+    ("chats_filters", "Chat Filters", False),
+    ("chats_cycle_provenance", "Cycle Sync State", False),
+    ("chats_open_agent", "Open Chat Agent", False),
+    ("chats_open_external", "Open Chat in Editor", False),
+    ("chats_copy_path", "Copy Chat Path", False),
+    ("chats_refresh", "Refresh Chats", False),
     ("next_bug", "Next Bug", False),
     ("prev_bug", "Previous Bug", False),
     ("cycle_bug_filter", "Bug State Filter", False),
@@ -366,6 +375,16 @@ class AppKeymaps:
     plans_reject: str
     plans_open_bug: str
     plans_refresh: str
+    # Chats sub-tab
+    chats_next: str
+    chats_prev: str
+    chats_view_selected: str
+    chats_filters: str
+    chats_cycle_provenance: str
+    chats_open_agent: str
+    chats_open_external: str
+    chats_copy_path: str
+    chats_refresh: str
     # Bugs sub-tab
     next_bug: str
     prev_bug: str

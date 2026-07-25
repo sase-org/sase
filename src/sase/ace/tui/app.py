@@ -344,6 +344,7 @@ class AceApp(
             return False
         from .actions.artifact_bugs import BUG_ARTIFACT_ACTIONS
         from .actions.artifacts import (
+            CHATS_ARTIFACT_ACTIONS,
             COMMITS_ARTIFACT_ACTIONS,
             NON_PRS_ARTIFACT_ACTIONS,
             PLANS_ARTIFACT_ACTIONS,
@@ -384,6 +385,7 @@ class AceApp(
             "show_artifacts_commits",
             "show_artifacts_bugs",
             "show_artifacts_plans",
+            "show_artifacts_chats",
         }:
             if self.current_tab != ARTIFACTS_TAB:
                 return False
@@ -397,6 +399,12 @@ class AceApp(
             if (
                 self.current_tab != ARTIFACTS_TAB
                 or self.current_artifacts_subtab != "plans"
+            ):
+                return False
+        if action in CHATS_ARTIFACT_ACTIONS:
+            if (
+                self.current_tab != ARTIFACTS_TAB
+                or self.current_artifacts_subtab != "chats"
             ):
                 return False
         if action == "pick_artifacts_project":

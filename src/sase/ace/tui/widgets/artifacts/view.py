@@ -13,6 +13,7 @@ from ...keymaps import KeymapRegistry
 from ...tab_order import ARTIFACTS_TAB
 from ..panel_tab_strip import PanelTab, PanelTabStrip
 from .bugs import ArtifactsBugsPane
+from .chats_pane import ArtifactsChatsPane
 from .commits import CommitsPane
 from sase.vcs_log.filter_query import CommitLogFilterValues
 from .entry_navigation import ArtifactEntryNavigator
@@ -38,6 +39,7 @@ _ARTIFACT_LABELS: dict[ArtifactsSubTab, str] = {
     "commits": "Commits",
     "bugs": "Bugs",
     "plans": "Plans",
+    "chats": "Chats",
 }
 _ARTIFACT_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(tab, _ARTIFACT_LABELS[tab], ARTIFACTS_ACCENTS[tab])
@@ -47,6 +49,7 @@ _DETAIL_SCROLL_IDS: dict[ArtifactsSubTab, str] = {
     "commits": "commits-detail-scroll",
     "bugs": "bugs-body-scroll",
     "plans": "plans-detail-scroll",
+    "chats": "chats-detail-scroll",
 }
 
 
@@ -82,6 +85,7 @@ class ArtifactsView(Vertical):
             )
             yield ArtifactsBugsPane(id=ARTIFACTS_PANE_IDS["bugs"])
             yield ArtifactsPlansPane(id=ARTIFACTS_PANE_IDS["plans"])
+            yield ArtifactsChatsPane(id=ARTIFACTS_PANE_IDS["chats"])
 
     def on_mount(self) -> None:
         # Pane work stays lazy while Artifacts is hidden. Direct-on-Artifacts
@@ -145,6 +149,8 @@ class ArtifactsView(Vertical):
             pane.set_keymap_registry(registry)
         for plans_pane in self.query(ArtifactsPlansPane):
             plans_pane.set_keymap_registry(registry)
+        for chats_pane in self.query(ArtifactsChatsPane):
+            chats_pane.set_keymap_registry(registry)
         self.query_one(CommitsPane).set_keymap_registry(registry)
         self.query_one(ArtifactsBugsPane).set_keymap_registry(registry)
 
@@ -165,6 +171,8 @@ class ArtifactsView(Vertical):
             pane.set_project_scope(project, display_name=display_name)
         for plans_pane in self.query(ArtifactsPlansPane):
             plans_pane.set_project_scope(project, display_name=display_name)
+        for chats_pane in self.query(ArtifactsChatsPane):
+            chats_pane.set_project_scope(project, display_name=display_name)
         self.query_one(ArtifactsBugsPane).set_project_scope(
             project,
             display_name=display_name,

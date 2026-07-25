@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-ArtifactsSubTab = Literal["prs", "commits", "bugs", "plans"]
+ArtifactsSubTab = Literal["prs", "commits", "bugs", "plans", "chats"]
 
 DEFAULT_ARTIFACTS_SUBTAB: ArtifactsSubTab = "commits"
 ARTIFACTS_SUBTAB_ORDER: tuple[ArtifactsSubTab, ...] = (
@@ -16,18 +16,21 @@ ARTIFACTS_SUBTAB_ORDER: tuple[ArtifactsSubTab, ...] = (
     "plans",
     "bugs",
     "prs",
+    "chats",
 )
 ARTIFACTS_PANE_IDS: dict[ArtifactsSubTab, str] = {
     "prs": "artifacts-prs-pane",
     "commits": "artifacts-commits-pane",
     "bugs": "artifacts-bugs-pane",
     "plans": "artifacts-plans-pane",
+    "chats": "artifacts-chats-pane",
 }
 ARTIFACTS_ACCENTS: dict[ArtifactsSubTab, str] = {
     "prs": "#00D7AF",
     "commits": "#FFD700",
     "bugs": "#FF5F5F",
     "plans": "#AF87FF",
+    "chats": "#5FAFFF",
 }
 
 __all__ = [

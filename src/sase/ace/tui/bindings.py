@@ -123,6 +123,16 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("X", "plans_reject", "Reject Plan", show=False),
     Binding("o", "plans_open_bug", "Open Bug", show=False),
     Binding("R", "plans_refresh", "Refresh Plans", show=False),
+    # Chats sub-tab actions.
+    Binding("j", "chats_next", "Next Chat", show=False),
+    Binding("k", "chats_prev", "Previous Chat", show=False),
+    Binding("enter", "chats_view_selected", "View Chat", show=False),
+    Binding("f", "chats_filters", "Chat Filters", show=False),
+    Binding("s", "chats_cycle_provenance", "Cycle Sync State", show=False),
+    Binding("a", "chats_open_agent", "Open Chat Agent", show=False),
+    Binding("o", "chats_open_external", "Open Chat in Editor", show=False),
+    Binding("y", "chats_copy_path", "Copy Chat Path", show=False),
+    Binding("R", "chats_refresh", "Refresh Chats", show=False),
     # Bugs sub-tab actions (context-gated; keys intentionally overlap PRs).
     Binding("j", "next_bug", "Next Bug", show=False),
     Binding("k", "prev_bug", "Previous Bug", show=False),

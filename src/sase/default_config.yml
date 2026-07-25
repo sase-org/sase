@@ -182,6 +182,16 @@ ace:
       plans_reject: "X"
       plans_open_bug: "o"
       plans_refresh: "R"
+      # Chats sub-tab
+      chats_next: "j"
+      chats_prev: "k"
+      chats_view_selected: "enter"
+      chats_filters: "f"
+      chats_cycle_provenance: "s"
+      chats_open_agent: "a"
+      chats_open_external: "o"
+      chats_copy_path: "y"
+      chats_refresh: "R"
       # Bugs sub-tab
       next_bug: "j"
       prev_bug: "k"

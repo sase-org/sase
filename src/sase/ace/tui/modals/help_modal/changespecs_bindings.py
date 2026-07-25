@@ -45,16 +45,16 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             "Artifact Sub-tabs",
             [
                 (
-                    "1 / 2 / 3 / 4",
-                    "Jump: Commits, Plans, Bugs, PRs",
+                    "1 / 2 / 3 / 4 / 5",
+                    "Jump all five artifact panes",
                 ),
                 (
                     f"{d(a.cycle_artifacts_subtab_reverse)} / {d(a.cycle_artifacts_subtab)}",
-                    "Cycle: Commits, Plans, Bugs, PRs",
+                    "Cycle all five artifact panes",
                 ),
                 (
                     d(a.pick_artifacts_project),
-                    "Pick scope for Commits, Plans, or Bugs",
+                    "Pick project scope for panes",
                 ),
                 (
                     d(a.open_command_palette),
@@ -140,6 +140,20 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.plans_reject), "Reject selected proposal"),
                 (d(a.plans_open_bug), "Open linked external bug"),
                 (d(a.plans_refresh), "Refresh plans and beads"),
+                *artifact_list_navigation,
+            ],
+        ),
+        (
+            "Chats Pane",
+            [
+                (f"{d(a.chats_next)} / {d(a.chats_prev)}", "Next / previous row"),
+                (d(a.chats_view_selected), "Open selected chat transcript"),
+                (d(a.chats_filters), "Open chat filter bar"),
+                (d(a.chats_cycle_provenance), "Cycle chat sync provenance"),
+                (d(a.chats_open_agent), "Open associated agent"),
+                (d(a.chats_open_external), "Open chat in editor"),
+                (d(a.chats_copy_path), "Copy chat transcript path"),
+                (d(a.chats_refresh), "Refresh chat transcripts"),
                 *artifact_list_navigation,
             ],
         ),

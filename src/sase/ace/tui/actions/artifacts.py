@@ -21,6 +21,7 @@ from .artifacts_commits import (
     COMMITS_ARTIFACT_ACTIONS,
     ArtifactsCommitsActionsMixin,
 )
+from .artifacts_chats import ArtifactsChatsActionsMixin, CHATS_ARTIFACT_ACTIONS
 from .artifacts_plans import ArtifactsPlansActionsMixin, PLANS_ARTIFACT_ACTIONS
 
 if TYPE_CHECKING:
@@ -36,6 +37,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         *BUG_ARTIFACT_ACTIONS,
         *COMMITS_ARTIFACT_ACTIONS,
         *PLANS_ARTIFACT_ACTIONS,
+        *CHATS_ARTIFACT_ACTIONS,
         "cycle_artifacts_subtab",
         "cycle_artifacts_subtab_reverse",
         *{f"show_artifacts_{subtab}" for subtab in ARTIFACTS_SUBTAB_ORDER},
@@ -126,7 +128,11 @@ def _collect_artifacts_project_choices() -> _ArtifactsProjectChoices:
     )
 
 
-class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
+class ArtifactsMixin(
+    ArtifactsCommitsActionsMixin,
+    ArtifactsPlansActionsMixin,
+    ArtifactsChatsActionsMixin,
+):
     """Actions shared by the Artifacts scaffold and future concrete panes."""
 
     current_tab: Any
@@ -154,6 +160,7 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
             "commits",
             "bugs",
             "plans",
+            "chats",
         }
 
     def _sync_active_artifacts_entry_state(self) -> None:
@@ -176,7 +183,7 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
         subtab: ArtifactsSubTab | None = None,
     ) -> ArtifactEntryNavigator | None:
         target_subtab = subtab or self.current_artifacts_subtab
-        if target_subtab not in {"commits", "bugs", "plans"}:
+        if target_subtab not in {"commits", "bugs", "plans", "chats"}:
             return None
         view = self._artifacts_view()
         if view is None:
@@ -395,6 +402,9 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
     def action_show_artifacts_plans(self) -> None:
         self._switch_artifacts_subtab("plans")
 
+    def action_show_artifacts_chats(self) -> None:
+        self._switch_artifacts_subtab("chats")
+
     def _resolve_initial_artifacts_scope(self) -> str | None:
         return get_sole_project_filter(self.parsed_query)
 
@@ -518,6 +528,7 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
 
 __all__ = [
     "ArtifactsMixin",
+    "CHATS_ARTIFACT_ACTIONS",
     "COMMITS_ARTIFACT_ACTIONS",
     "NON_PRS_ARTIFACT_ACTIONS",
     "PLANS_ARTIFACT_ACTIONS",

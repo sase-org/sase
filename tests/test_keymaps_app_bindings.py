@@ -8,9 +8,9 @@ from tests._keymaps_helpers import default_app_keymaps
 
 
 def test_build_app_bindings_count() -> None:
-    """Bindings contain every configurable action plus four fixed tab jumps."""
+    """Bindings contain every configurable action plus five fixed tab jumps."""
     bindings = build_app_bindings(default_app_keymaps())
-    assert len(bindings) == len(fields(AppKeymaps)) + 4
+    assert len(bindings) == len(fields(AppKeymaps)) + 5
 
 
 def test_file_trim_actions_are_not_configurable_bindings() -> None:
@@ -91,6 +91,7 @@ def test_default_lowercase_s_bindings_are_tab_scoped_and_ordered() -> None:
     assert [b.action for b in bindings if b.key == "s"] == [
         "change_status",
         "plans_cycle_status",
+        "chats_cycle_provenance",
         "toggle_bug_state",
         "save_marked_agents",
     ]
@@ -160,14 +161,20 @@ def test_build_app_bindings_number_artifacts_and_prefix_saved_queries() -> None:
 
     assert {
         by_action[f"show_artifacts_{subtab}"].key: subtab
-        for subtab in ("commits", "plans", "bugs", "prs")
-    } == {"1": "commits", "2": "plans", "3": "bugs", "4": "prs"}
+        for subtab in ("commits", "plans", "bugs", "prs", "chats")
+    } == {
+        "1": "commits",
+        "2": "plans",
+        "3": "bugs",
+        "4": "prs",
+        "5": "chats",
+    }
     assert by_action["open_saved_query_picker"].key == "asterisk"
     assert {
         binding.key
         for binding in bindings
         if len(binding.key) == 1 and binding.key.isdigit()
-    } == {"1", "2", "3", "4"}
+    } == {"1", "2", "3", "4", "5"}
     assert not any(
         binding.action.startswith("load_saved_query") for binding in bindings
     )
@@ -179,14 +186,20 @@ def test_fallback_bindings_match_numbered_artifacts_and_saved_query_picker() -> 
 
     assert [
         (by_action[f"show_artifacts_{subtab}"].key, subtab)
-        for subtab in ("commits", "plans", "bugs", "prs")
-    ] == [("1", "commits"), ("2", "plans"), ("3", "bugs"), ("4", "prs")]
+        for subtab in ("commits", "plans", "bugs", "prs", "chats")
+    ] == [
+        ("1", "commits"),
+        ("2", "plans"),
+        ("3", "bugs"),
+        ("4", "prs"),
+        ("5", "chats"),
+    ]
     assert by_action["open_saved_query_picker"].key == "asterisk"
     assert {
         binding.key
         for binding in DEFAULT_BINDINGS
         if len(binding.key) == 1 and binding.key.isdigit()
-    } == {"1", "2", "3", "4"}
+    } == {"1", "2", "3", "4", "5"}
     assert not any(
         binding.action.startswith("load_saved_query") for binding in DEFAULT_BINDINGS
     )
