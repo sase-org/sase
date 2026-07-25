@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -37,6 +38,7 @@ def _artifact(
     name: str = "sase-1.1",
     bead_id: str = "sase-1.1",
     promoted: bool | None = False,
+    has_marker: bool = True,
     timestamp: str = "20260724120000",
 ) -> claim_checks._ClaimArtifact:
     return claim_checks._ClaimArtifact(
@@ -48,6 +50,7 @@ def _artifact(
         stopped_at=None,
         bead_id=bead_id,
         bead_claim_promoted=promoted,
+        has_bead_claim_marker=has_marker,
     )
 
 
@@ -63,6 +66,48 @@ def _claimed_issue(
         parent_id="sase-1",
         assignee=assignee,
     )
+
+
+def test_artifact_scan_records_claim_marker_presence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "20260724120000"
+    artifact_dir.mkdir()
+    (artifact_dir / "agent_meta.json").write_text(
+        '{"bead_claim_promoted": false}\n',
+        encoding="utf-8",
+    )
+    snapshot = SimpleNamespace(
+        records=[
+            SimpleNamespace(
+                project_name="sase",
+                workflow_dir_name="ace-run",
+                artifact_dir=str(artifact_dir),
+                timestamp=artifact_dir.name,
+                agent_meta=SimpleNamespace(
+                    name="sase-1.1",
+                    bead_id="sase-1.1",
+                    pid=123,
+                    stopped_at=None,
+                ),
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        claim_checks,
+        "scan_agent_artifacts",
+        lambda _root, _options: snapshot,
+    )
+
+    assert not claim_checks._scan_claim_artifacts(tmp_path)[0].has_bead_claim_marker
+
+    (artifact_dir / claim_checks.BEAD_CLAIM_MARKER).write_text(
+        "{}\n",
+        encoding="utf-8",
+    )
+
+    assert claim_checks._scan_claim_artifacts(tmp_path)[0].has_bead_claim_marker
 
 
 def test_dead_unpromoted_owner_is_released_after_bead_snapshot(
@@ -101,6 +146,7 @@ def test_dead_unpromoted_owner_is_released_after_bead_snapshot(
         "projects_scanned": 1,
         "claims_examined": 1,
         "claims_released": 1,
+        "claims_acquired": 0,
     }
 
 
@@ -129,10 +175,15 @@ def test_live_promoted_or_unreadable_owner_is_untouched_in_prepass(
         raise AssertionError("steady-state prepass opened a bead store")
 
     monkeypatch.setattr(claim_checks, "_read_claimed_issues", unexpected_read)
+    monkeypatch.setattr(
+        claim_checks,
+        "claim_bead_for_waiting_agent",
+        lambda **_kwargs: pytest.fail("ineligible agent entered acquire pass"),
+    )
 
     result = claim_checks._run(_runtime(tmp_path))
 
-    assert result.reason == "no_dead_unpromoted_agents"
+    assert result.reason == "no_claim_reconciliation_candidates"
     assert result.counters["projects_scanned"] == 0
 
 
@@ -178,4 +229,164 @@ def test_empty_steady_state_never_reads_a_bead_store(
 
     result = claim_checks._run(_runtime(tmp_path))
 
-    assert result.reason == "no_dead_unpromoted_agents"
+    assert result.reason == "no_claim_reconciliation_candidates"
+
+
+def test_live_unpromoted_unmarked_agent_is_claimed_and_marked(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    record = _artifact(tmp_path, has_marker=False)
+    monkeypatch.setattr(
+        claim_checks,
+        "_scan_claim_artifacts",
+        lambda _root: [record],
+    )
+    monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: True)
+    monkeypatch.setattr(
+        claim_checks,
+        "_read_claimed_issues",
+        lambda _project: pytest.fail("acquire-only tick used the release read path"),
+    )
+
+    acquired: list[tuple[str, str, str]] = []
+    marked: list[tuple[Path, str, str, str]] = []
+
+    def claim(*, project_name: str, bead_id: str, agent_name: str) -> bool:
+        acquired.append((project_name, bead_id, agent_name))
+        return True
+
+    def mark(
+        artifacts_dir: Path,
+        *,
+        project_name: str,
+        bead_id: str,
+        agent_name: str,
+    ) -> bool:
+        marked.append((artifacts_dir, project_name, bead_id, agent_name))
+        return True
+
+    monkeypatch.setattr(claim_checks, "claim_bead_for_waiting_agent", claim)
+    monkeypatch.setattr(claim_checks, "write_bead_claim_marker", mark)
+
+    result = claim_checks._run(_runtime(tmp_path))
+
+    assert acquired == [("sase", "sase-1.1", "sase-1.1")]
+    assert marked == [(record.artifact_dir, "sase", "sase-1.1", "sase-1.1")]
+    assert result.reason is None
+    assert result.counters == {
+        "projects_scanned": 1,
+        "claims_examined": 1,
+        "claims_released": 0,
+        "claims_acquired": 1,
+    }
+
+
+@pytest.mark.parametrize("status", [Status.IN_PROGRESS, Status.CLOSED])
+def test_live_candidate_declined_by_terminal_bead_state_is_not_marked(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    status: Status,
+) -> None:
+    record = _artifact(tmp_path, has_marker=False)
+    monkeypatch.setattr(
+        claim_checks,
+        "_scan_claim_artifacts",
+        lambda _root: [record],
+    )
+    monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: True)
+    monkeypatch.setattr(
+        claim_checks,
+        "claim_bead_for_waiting_agent",
+        lambda **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        claim_checks,
+        "write_bead_claim_marker",
+        lambda *_args, **_kwargs: pytest.fail(
+            f"{status.value} bead must not receive a marker"
+        ),
+    )
+
+    result = claim_checks._run(_runtime(tmp_path))
+
+    assert result.reason == "no_claims_reconciled"
+    assert result.counters["claims_acquired"] == 0
+
+
+def test_dead_agent_is_never_acquired(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    record = _artifact(tmp_path, has_marker=False)
+    scans = iter(([record], [record]))
+    monkeypatch.setattr(
+        claim_checks,
+        "_scan_claim_artifacts",
+        lambda _root: next(scans),
+    )
+    monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: False)
+    monkeypatch.setattr(claim_checks, "_read_claimed_issues", lambda _project: [])
+    monkeypatch.setattr(
+        claim_checks,
+        "claim_bead_for_waiting_agent",
+        lambda **_kwargs: pytest.fail("dead agent must not acquire a claim"),
+    )
+
+    result = claim_checks._run(_runtime(tmp_path))
+
+    assert result.reason == "no_claims_reconciled"
+    assert result.counters["claims_acquired"] == 0
+
+
+def test_acquire_then_die_is_released_on_following_tick(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alive_record = _artifact(tmp_path, has_marker=False)
+    dead_record = _artifact(tmp_path, has_marker=True)
+    current_record = alive_record
+    alive = True
+
+    monkeypatch.setattr(
+        claim_checks,
+        "_scan_claim_artifacts",
+        lambda _root: [current_record],
+    )
+    monkeypatch.setattr(
+        claim_checks,
+        "_claim_owner_is_alive",
+        lambda _record: alive,
+    )
+    monkeypatch.setattr(
+        claim_checks,
+        "claim_bead_for_waiting_agent",
+        lambda **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        claim_checks,
+        "write_bead_claim_marker",
+        lambda *_args, **_kwargs: True,
+    )
+
+    first = claim_checks._run(_runtime(tmp_path))
+    assert first.counters["claims_acquired"] == 1
+
+    current_record = dead_record
+    alive = False
+    monkeypatch.setattr(
+        claim_checks,
+        "_read_claimed_issues",
+        lambda _project: [_claimed_issue()],
+    )
+    released: list[str] = []
+    monkeypatch.setattr(
+        claim_checks,
+        "release_bead_claim_for_agent",
+        lambda **kwargs: released.append(kwargs["bead_id"]) or True,
+    )
+
+    second = claim_checks._run(_runtime(tmp_path))
+
+    assert released == ["sase-1.1"]
+    assert second.counters["claims_released"] == 1

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Release bead claims held by dead pre-launch agents."""
+"""Reconcile bead claims for live and dead pre-launch agents."""
 
 from __future__ import annotations
 
@@ -9,7 +9,12 @@ from pathlib import Path
 from typing import Any
 
 from sase.agent.names import is_process_alive
-from sase.bead.claims import release_bead_claim_for_agent
+from sase.bead.claims import (
+    BEAD_CLAIM_MARKER,
+    claim_bead_for_waiting_agent,
+    release_bead_claim_for_agent,
+    write_bead_claim_marker,
+)
 from sase.bead.model import Issue, Status
 from sase.bead.store_locator import canonical_beads_dir_for_project
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
@@ -39,6 +44,7 @@ class _ClaimArtifact:
     stopped_at: str | None
     bead_id: str
     bead_claim_promoted: bool | None
+    has_bead_claim_marker: bool
 
 
 def _read_json_dict(path: Path) -> dict[str, Any] | None:
@@ -83,6 +89,7 @@ def _scan_claim_artifacts(projects_root: Path) -> list[_ClaimArtifact]:
                 stopped_at=meta.stopped_at,
                 bead_id=meta.bead_id,
                 bead_claim_promoted=promoted,
+                has_bead_claim_marker=(artifact_dir / BEAD_CLAIM_MARKER).exists(),
             )
         )
     return claims
@@ -120,27 +127,35 @@ def _latest_owner_records(
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     projects_root = sase_projects_dir()
 
-    # Cheap pre-pass: do not touch bead stores unless a dead, unpromoted
-    # claim-bearing artifact gives us a concrete project to reconcile.
-    prepass = _scan_claim_artifacts(projects_root)
-    candidate_projects = {
-        record.project_name
-        for record in prepass
-        if record.bead_claim_promoted is False and not _claim_owner_is_alive(record)
-    }
-    if not candidate_projects:
+    # Cheap pre-pass: do not touch bead stores unless an unpromoted record is
+    # either a dead claim owner or a live agent that still lacks a claim marker.
+    prepass = _latest_owner_records(_scan_claim_artifacts(projects_root))
+    release_candidates: list[_ClaimArtifact] = []
+    acquire_candidates: list[_ClaimArtifact] = []
+    for record in prepass.values():
+        if record.bead_claim_promoted is not False:
+            continue
+        if _claim_owner_is_alive(record):
+            if not record.has_bead_claim_marker:
+                acquire_candidates.append(record)
+        else:
+            release_candidates.append(record)
+
+    if not release_candidates and not acquire_candidates:
         return runtime.emit_summary(
             {
                 "projects_scanned": 0,
                 "claims_examined": 0,
                 "claims_released": 0,
+                "claims_acquired": 0,
             },
-            reason="no_dead_unpromoted_agents",
+            reason="no_claim_reconciliation_candidates",
         )
 
     # Ordering invariant: collect the authoritative bead snapshot before
     # re-scanning artifacts. Agent metadata is written before the claim event,
     # so this order cannot mistake a fresh live claim for an ownerless one.
+    candidate_projects = {record.project_name for record in release_candidates}
     claimed_by_project: dict[str, list[Issue]] = {}
     for project_name in sorted(candidate_projects):
         try:
@@ -154,33 +169,64 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         if issues is not None:
             claimed_by_project[project_name] = issues
 
-    authoritative = _latest_owner_records(_scan_claim_artifacts(projects_root))
     examined = 0
     released = 0
-    for project_name, issues in claimed_by_project.items():
-        for issue in issues:
-            examined += 1
-            owner = authoritative.get((project_name, issue.assignee))
-            if (
-                owner is None
-                or owner.bead_id != issue.id
-                or owner.bead_claim_promoted is not False
-                or _claim_owner_is_alive(owner)
-            ):
-                continue
-            if release_bead_claim_for_agent(
-                project_name=project_name,
-                bead_id=issue.id,
-                agent_name=issue.assignee,
-            ):
-                released += 1
+    if claimed_by_project:
+        authoritative = _latest_owner_records(_scan_claim_artifacts(projects_root))
+        for project_name, issues in claimed_by_project.items():
+            for issue in issues:
+                examined += 1
+                owner = authoritative.get((project_name, issue.assignee))
+                if (
+                    owner is None
+                    or owner.bead_id != issue.id
+                    or owner.bead_claim_promoted is not False
+                    or _claim_owner_is_alive(owner)
+                ):
+                    continue
+                if release_bead_claim_for_agent(
+                    project_name=project_name,
+                    bead_id=issue.id,
+                    agent_name=issue.assignee,
+                ):
+                    released += 1
 
-    reason = None if released else "no_stale_claims_released"
+    acquired = 0
+    acquisition_projects: set[str] = set()
+    for record in acquire_candidates:
+        examined += 1
+        acquisition_projects.add(record.project_name)
+        try:
+            held = claim_bead_for_waiting_agent(
+                project_name=record.project_name,
+                bead_id=record.bead_id,
+                agent_name=record.agent_name,
+            )
+        except Exception as exc:  # noqa: BLE001 - one agent must not stop the chop.
+            runtime.log.warning(
+                f"[bead_claim_checks] Failed to acquire bead claim for "
+                f"{record.agent_name}: {exc}"
+            )
+            continue
+        if not held:
+            continue
+        acquired += 1
+        write_bead_claim_marker(
+            record.artifact_dir,
+            project_name=record.project_name,
+            bead_id=record.bead_id,
+            agent_name=record.agent_name,
+        )
+
+    reason = None if released or acquired else "no_claims_reconciled"
     return runtime.emit_summary(
         {
-            "projects_scanned": len(claimed_by_project),
+            "projects_scanned": len(
+                set(claimed_by_project).union(acquisition_projects)
+            ),
             "claims_examined": examined,
             "claims_released": released,
+            "claims_acquired": acquired,
         },
         reason=reason,
     )
