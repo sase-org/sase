@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import os
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
@@ -349,6 +351,115 @@ def test_sanitizes_commit_workflow_environment(
     assert runner.os.environ["SASE_AGENT_NAME"] == "agent"
 
 
+def test_configured_pytest_tmpdir_defaults_to_disk_backed_workspace_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.delenv(runner.PYTEST_TMPDIR_ENV, raising=False)
+
+    scratch_root = runner._configured_pytest_tmpdir()
+    workspace_key = hashlib.sha256(os.fsencode(ROOT)).hexdigest()[:8]
+
+    assert scratch_root == Path("/var/tmp") / f"sase-{workspace_key}"
+    assert ROOT not in scratch_root.parents
+
+
+def test_prepare_pytest_tmpdir_honors_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = _load_run_pytest()
+    scratch_root = tmp_path / "pytest scratch"
+    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(scratch_root))
+
+    assert runner._prepare_pytest_tmpdir() == scratch_root
+    assert scratch_root.is_dir()
+    assert runner.os.environ["TMPDIR"] == str(scratch_root)
+
+
+def test_configured_pytest_tmpdir_resolves_relative_override_from_repo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, "build/pytest-scratch")
+
+    assert runner._configured_pytest_tmpdir() == ROOT / "build" / "pytest-scratch"
+
+
+def test_configured_pytest_tmpdir_rejects_empty_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, "")
+
+    with pytest.raises(pytest.UsageError, match="must not be empty"):
+        runner._configured_pytest_tmpdir()
+
+
+def test_reaper_removes_only_stale_pytest_run_directories(tmp_path: Path) -> None:
+    runner = _load_run_pytest()
+    user_root = tmp_path / "pytest-of-user"
+    stale_run = user_root / "pytest-1"
+    fresh_run = user_root / "pytest-2"
+    stale_garbage = user_root / "garbage-deadbeef"
+    unrelated = user_root / "other"
+    for directory in (stale_run, fresh_run, stale_garbage, unrelated):
+        directory.mkdir(parents=True)
+
+    now = 100_000.0
+    stale_time = now - runner.PYTEST_TMP_REAP_HORIZON_SECONDS - 1
+    stale_lock = stale_run / ".lock"
+    stale_lock.touch()
+    os.utime(stale_lock, (stale_time, stale_time))
+    os.utime(stale_run, (stale_time, stale_time))
+    os.utime(stale_garbage, (stale_time, stale_time))
+    os.utime(unrelated, (stale_time, stale_time))
+    os.utime(fresh_run, (now, now))
+
+    runner._reap_stale_pytest_runs(tmp_path, now=now)
+
+    assert not stale_run.exists()
+    assert not stale_garbage.exists()
+    assert fresh_run.is_dir()
+    assert unrelated.is_dir()
+
+
+def test_reaper_preserves_run_with_fresh_lock(tmp_path: Path) -> None:
+    runner = _load_run_pytest()
+    run_directory = tmp_path / "pytest-of-user" / "pytest-1"
+    run_directory.mkdir(parents=True)
+    lock_path = run_directory / ".lock"
+    lock_path.touch()
+
+    now = 100_000.0
+    stale_time = now - runner.PYTEST_TMP_REAP_HORIZON_SECONDS - 1
+    os.utime(run_directory, (stale_time, stale_time))
+    os.utime(lock_path, (now, now))
+
+    runner._reap_stale_pytest_runs(tmp_path, now=now)
+
+    assert run_directory.is_dir()
+
+
+def test_reaper_ignores_cleanup_races(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = _load_run_pytest()
+    run_directory = tmp_path / "pytest-of-user" / "pytest-1"
+    run_directory.mkdir(parents=True)
+    now = 100_000.0
+    stale_time = now - runner.PYTEST_TMP_REAP_HORIZON_SECONDS - 1
+    os.utime(run_directory, (stale_time, stale_time))
+    monkeypatch.setattr(
+        runner.shutil,
+        "rmtree",
+        lambda _path: (_ for _ in ()).throw(OSError("lost cleanup race")),
+    )
+
+    runner._reap_stale_pytest_runs(tmp_path, now=now)
+
+    assert run_directory.is_dir()
+
+
 def test_main_prepares_governed_environment_and_descriptors_before_exec(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -363,6 +474,8 @@ def test_main_prepares_governed_environment_and_descriptors_before_exec(
     monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
     monkeypatch.delenv("SASE_TEST_GATE_GOVERNED", raising=False)
     monkeypatch.setenv("SASE_COMMIT_METHOD", "create_pull_request")
+    scratch_root = tmp_path / "scratch"
+    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(scratch_root))
     observed: dict[str, object] = {}
 
     class ExecCalled(Exception):
@@ -373,6 +486,7 @@ def test_main_prepares_governed_environment_and_descriptors_before_exec(
         observed["disabled"] = runner.os.environ.get("SASE_TEST_GATE_DISABLED")
         observed["governed"] = runner.os.environ.get("SASE_TEST_GATE_GOVERNED")
         observed["workflow"] = runner.os.environ.get("SASE_COMMIT_METHOD")
+        observed["tmpdir"] = runner.os.environ.get("TMPDIR")
         observed["inheritable"] = [
             runner.os.get_inheritable(fd) for fd in _token_descriptors(tmp_path)
         ]
@@ -389,6 +503,8 @@ def test_main_prepares_governed_environment_and_descriptors_before_exec(
     assert observed["disabled"] == "1"
     assert observed["governed"] == "1"
     assert observed["workflow"] is None
+    assert observed["tmpdir"] == str(scratch_root)
+    assert scratch_root.is_dir()
     assert observed["inheritable"] == [True, True, True]
     assert "SASE_TEST_GATE_DISABLED" not in runner.os.environ
     assert "SASE_TEST_GATE_GOVERNED" not in runner.os.environ

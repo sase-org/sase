@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
+import shutil
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -38,6 +41,13 @@ EXCLUDE_VISUAL_ENV = "SASE_PYTEST_EXCLUDE_VISUAL"
 PYTEST_DIST_ENV = "SASE_PYTEST_DIST"
 DEFAULT_PYTEST_DIST = "worksteal"
 SUPPORTED_PYTEST_DIST_MODES = ("loadfile", "worksteal")
+PYTEST_TMPDIR_ENV = "SASE_PYTEST_TMPDIR"
+# Stay outside repository/workspace-store ancestry without making tmp_path so deep
+# that AF_UNIX socket tests exceed Linux's 108-byte path limit.
+DEFAULT_PYTEST_TMPDIR = Path("/var/tmp") / (
+    "sase-" + hashlib.sha256(os.fsencode(REPO_ROOT)).hexdigest()[:8]
+)
+PYTEST_TMP_REAP_HORIZON_SECONDS = 12 * 60 * 60
 INLINE_SNAPSHOT_OPTION = "--inline-snapshot"
 INLINE_SNAPSHOT_SERIAL_SHORTCUTS = frozenset({"--fix", "--review"})
 NON_PATH_VALUE_OPTIONS = frozenset(
@@ -227,6 +237,83 @@ def _sanitize_pytest_environment() -> None:
         os.environ.pop(key, None)
 
 
+def _configured_pytest_tmpdir() -> Path:
+    override = os.environ.get(PYTEST_TMPDIR_ENV)
+    if override is None:
+        return DEFAULT_PYTEST_TMPDIR
+    if not override:
+        raise pytest.UsageError(f"{PYTEST_TMPDIR_ENV} must not be empty")
+    scratch_root = Path(override).expanduser()
+    if not scratch_root.is_absolute():
+        scratch_root = REPO_ROOT / scratch_root
+    return scratch_root.resolve()
+
+
+def _is_pytest_run_directory(path: Path) -> bool:
+    name = path.name
+    return name.startswith("garbage-") or (
+        name.startswith("pytest-") and name.removeprefix("pytest-").isdigit()
+    )
+
+
+def _reap_stale_pytest_runs(
+    scratch_root: Path,
+    *,
+    now: float | None = None,
+    horizon_seconds: float = PYTEST_TMP_REAP_HORIZON_SECONDS,
+) -> None:
+    cutoff = (time.time() if now is None else now) - horizon_seconds
+    try:
+        user_roots = list(scratch_root.glob("pytest-of-*"))
+    except OSError:
+        return
+
+    for user_root in user_roots:
+        try:
+            run_directories = list(user_root.iterdir())
+        except OSError:
+            continue
+        for run_directory in run_directories:
+            if not _is_pytest_run_directory(run_directory):
+                continue
+            try:
+                run_stat = run_directory.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            if run_directory.is_symlink() or not run_directory.is_dir():
+                continue
+
+            lock_path = run_directory / ".lock"
+            try:
+                lock_mtime = lock_path.stat().st_mtime
+            except FileNotFoundError:
+                lock_mtime = None
+            except OSError:
+                continue
+            if lock_mtime is not None and lock_mtime >= cutoff:
+                continue
+            if run_stat.st_mtime >= cutoff:
+                continue
+
+            try:
+                shutil.rmtree(run_directory)
+            except OSError:
+                pass
+
+
+def _prepare_pytest_tmpdir() -> Path:
+    scratch_root = _configured_pytest_tmpdir()
+    try:
+        scratch_root.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise pytest.UsageError(
+            f"cannot prepare {PYTEST_TMPDIR_ENV} directory {scratch_root}: {error}"
+        ) from error
+    _reap_stale_pytest_runs(scratch_root)
+    os.environ["TMPDIR"] = str(scratch_root)
+    return scratch_root
+
+
 def _configured_worker_count() -> int | None:
     raw_value = os.environ.get("SASE_PYTEST_WORKERS")
     if raw_value is None:
@@ -313,6 +400,7 @@ def main(argv: list[str] | None = None) -> int:
             distribution_mode=distribution_mode,
         )
 
+        _prepare_pytest_tmpdir()
         _sanitize_pytest_environment()
         os.chdir(REPO_ROOT)
         os.execv(sys.executable, command)
