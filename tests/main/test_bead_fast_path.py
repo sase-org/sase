@@ -284,6 +284,44 @@ def test_fast_path_guards_mutations_but_not_reads(tmp_path: Path, monkeypatch) -
     assert calls == [["search", "needle"]]
 
 
+def test_fast_path_refuses_unsafe_resolved_location_before_rust(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from sase.bead.cli_common import _BeadsLocation
+
+    unsafe_root = tmp_path / "production"
+    unsafe_beads_dir = unsafe_root / "sdd/beads"
+    unsafe_beads_dir.mkdir(parents=True)
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+
+    def fake_resolve_beads_location(*_args, **_kwargs):
+        return _BeadsLocation(root=unsafe_root, beads_dirname="sdd/beads")
+
+    def fail_binding(_name: str):
+        raise AssertionError("unsafe bead write reached Rust binding")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sase.bead.cli_common.resolve_beads_location",
+        fake_resolve_beads_location,
+    )
+    monkeypatch.setattr("sase.bead.sync.bead_refresh_mode", lambda: "background")
+    monkeypatch.setattr("sase.core.rust.require_rust_binding", fail_binding)
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "fast-path unsafe resolver")
+    monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(sandbox))
+
+    with pytest.raises(RuntimeError) as exc_info:
+        try_handle_bead_fast_path(
+            ["create", "--title", "Unsafe", "--type", "plan(plan.md)"]
+        )
+
+    message = str(exc_info.value)
+    assert "fast-path create" in message
+    assert str(unsafe_beads_dir.resolve()) in message
+    assert str(sandbox.resolve()) in message
+
+
 def test_fast_path_defers_list_to_argparse(monkeypatch) -> None:
     def fail_context(argv: list[str]):
         raise AssertionError(f"context should not resolve for list: {argv}")

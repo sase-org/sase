@@ -329,6 +329,13 @@ test-cov *args: _setup-visual (_header "test-cov")
     @printf "\n---------- Running pytest with coverage... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest cov "$@"
 
+# Run the default test suite and fail if it mutates the production sidecar
+# bead store.
+[positional-arguments]
+test-bead-store-soak *args: _setup-visual (_header "test-bead-store-soak")
+    @printf "\n---------- Running bead-store soak check... ----------\n"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/check_bead_store_soak -- {{ venv_bin }}/python tools/run_pytest fast "$@"
+
 # Run tests across all Python versions
 test-tox: _setup
     {{ venv_bin }}/tox

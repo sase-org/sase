@@ -145,6 +145,34 @@ def test_remove_many_facade_returns_unique_expanded_removals(
     assert outcome["issue_ids"] == [child.id, epic.id, independent.id]
 
 
+def test_mutation_facade_refuses_unsandboxed_pytest_store_before_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    unsafe_beads_dir = tmp_path / "production" / "sdd/beads"
+    unsafe_beads_dir.mkdir(parents=True)
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+
+    def fail_binding(_name: str):
+        raise AssertionError("unsafe bead write reached Rust binding")
+
+    monkeypatch.setattr(rust_beads, "require_rust_binding", fail_binding)
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "mutation facade write guard")
+    monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(sandbox))
+
+    with pytest.raises(RuntimeError) as exc_info:
+        rust_beads.create(
+            unsafe_beads_dir,
+            title="Unsafe",
+            issue_type=IssueType.PLAN,
+        )
+
+    message = str(exc_info.value)
+    assert "create" in message
+    assert str(unsafe_beads_dir.resolve()) in message
+    assert str(sandbox.resolve()) in message
+
+
 def test_ready_to_work_errors_map_to_python_exceptions(tmp_path: Path) -> None:
     root = tmp_path / "rust"
     _init_store(root)

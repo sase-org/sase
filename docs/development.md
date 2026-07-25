@@ -47,10 +47,15 @@ just build         # Build wheel and sdist
 SASE places a pytest safety boundary around its telemetry mutations and common axe state/log writers when they target
 the OS account's real `~/.sase` tree. Telemetry flushes and deletions fail with an actionable error; guarded best-effort
 daemon writes are suppressed and warn once per target and category; and axe start, stop, and restart requests are
-refused unless their test-only override is set. SASE preserves pytest's isolation marker when it starts runner and
-daemon subprocesses. This guard is not a substitute for isolation: tests that exercise persistence should point
-`SASE_HOME` at a per-test temporary directory or otherwise direct each target outside the real tree. If an older test
-run already polluted the telemetry store, preview the exact-label cleanup with
+refused unless their test-only override is set. The pytest harness also publishes `SASE_PYTEST_SANDBOX_DIR`; while that
+marker is present, bead-store writes through the Python mutation facade or Rust CLI fast path are refused unless the
+target store is at or below the sandbox root. `SASE_ALLOW_UNSANDBOXED_BEAD_WRITES=1` is the deliberate test-only escape
+hatch for a genuine exception. SASE preserves pytest's isolation marker when it starts runner and daemon subprocesses.
+These guards are not a substitute for isolation: tests that exercise persistence should point `SASE_HOME` at a per-test
+temporary directory and create bead stores under `tmp_path` or another path inside the published sandbox. Run
+`just test-bead-store-soak` when changing bead resolution or mutation paths; it runs the default suite and verifies the
+production plans sidecar's `beads/issues.jsonl` digest, bead-state git status, and git HEAD are unchanged. If an older
+test run already polluted the telemetry store, preview the exact-label cleanup with
 `sase telemetry cleanup-test-data --dry-run` before deciding whether to rerun it with `--yes`.
 
 `just test`, `just test-slow`, `just test-visual`, and `just test-cov` share a host-global pytest-xdist worker-token
