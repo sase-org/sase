@@ -7,6 +7,7 @@ from sase.core.agent_scan_wire import (
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
 )
+from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
 from sase.sdd.plan_tiers import cached_plan_tier
 
 from ._meta_enrichment_common import (
@@ -201,7 +202,10 @@ def enrich_agent_from_meta_wire(
         agent.wait_runners = waiting.wait_runners
         agent.wait_runners_explicit = waiting.wait_runners_explicit
         agent.wait_priority = waiting.wait_priority
-        agent.wait_priority_explicit = waiting.wait_priority_explicit
+        agent.wait_priority_explicit = waiting.wait_priority_explicit or (
+            waiting.wait_priority is not None
+            and waiting.wait_priority != DEFAULT_WAIT_PRIORITY
+        )
         agent.slot_requested_at = waiting.slot_requested_at
 
     if agent.wait_duration is None and meta.wait_duration is not None:

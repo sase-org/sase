@@ -17,11 +17,16 @@ class PromptWaitDirective:
     agents: tuple[str, ...] = ()
     time_token: str | None = None
     runners: int | None = None
+    priority: int | None = None
     beads: tuple[str, ...] = ()
 
     def __bool__(self) -> bool:
         return bool(
-            self.agents or self.time_token or self.runners is not None or self.beads
+            self.agents
+            or self.time_token
+            or self.runners is not None
+            or self.priority is not None
+            or self.beads
         )
 
 
@@ -58,6 +63,8 @@ def _format_wait_directive(wait_spec: PromptWaitDirective | None) -> str | None:
         parts.append(f"time={wait_spec.time_token}")
     if wait_spec.runners is not None:
         parts.append(f"runners={wait_spec.runners}")
+    if wait_spec.priority is not None:
+        parts.append(f"priority={wait_spec.priority}")
     directives = [f"%wait({', '.join(parts)})"] if parts else []
     directives.extend(
         f"%wait(bead={format_directive_arg(bead)})" for bead in wait_spec.beads

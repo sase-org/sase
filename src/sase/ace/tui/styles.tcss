@@ -4321,7 +4321,7 @@ WaitModal {
 WaitModal > Container {
     width: 76;
     height: auto;
-    max-height: 94%;
+    max-height: 100%;
     border: thick $primary;
     background: $surface;
     padding: 1 2;
@@ -4367,22 +4367,26 @@ WaitModal #agent-completion > .option-list--option-highlighted {
 }
 
 WaitModal #time-preview,
-WaitModal #runners-preview {
+WaitModal #runners-preview,
+WaitModal #priority-preview {
     height: 1;
 }
 
 WaitModal #time-preview.wait-time-neutral,
-WaitModal #runners-preview.wait-time-neutral {
+WaitModal #runners-preview.wait-time-neutral,
+WaitModal #priority-preview.wait-time-neutral {
     color: $text-muted;
 }
 
 WaitModal #time-preview.wait-time-valid,
-WaitModal #runners-preview.wait-time-valid {
+WaitModal #runners-preview.wait-time-valid,
+WaitModal #priority-preview.wait-time-valid {
     color: $success;
 }
 
 WaitModal #time-preview.wait-time-error,
-WaitModal #runners-preview.wait-time-error {
+WaitModal #runners-preview.wait-time-error,
+WaitModal #priority-preview.wait-time-error {
     color: $error;
 }
 

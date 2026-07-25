@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
+from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
 from sase.sdd.plan_tiers import cached_plan_tier
 
 from ._json_cache import load_json_cached
@@ -297,9 +298,16 @@ def enrich_agent_from_meta(
                 raw_priority = waiting_data.get("wait_priority")
                 if type(raw_priority) is int and raw_priority >= 0:
                     agent.wait_priority = raw_priority
-                agent.wait_priority_explicit = (
-                    waiting_data.get("wait_priority_explicit") is True
-                )
+                if "wait_priority_explicit" in waiting_data:
+                    agent.wait_priority_explicit = (
+                        waiting_data.get("wait_priority_explicit") is True
+                    )
+                else:
+                    agent.wait_priority_explicit = (
+                        type(raw_priority) is int
+                        and raw_priority >= 0
+                        and raw_priority != DEFAULT_WAIT_PRIORITY
+                    )
                 raw_requested_at = waiting_data.get("slot_requested_at")
                 if isinstance(raw_requested_at, str) and raw_requested_at:
                     agent.slot_requested_at = raw_requested_at

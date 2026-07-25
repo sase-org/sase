@@ -11,6 +11,7 @@ from sase.ace.tui.actions.agents._directive_persistence import (
     AgentMetaPatch,
     AgentTribeStorePatch,
     persist_agent_directive_update,
+    wait_meta_patch_for_token,
     waiting_marker_patch_for_token,
 )
 from sase.ace.tui.models.agent import AgentType
@@ -172,6 +173,90 @@ def test_persist_agent_directive_update_writes_waiting_marker_and_meta(
     assert json.loads((artifacts / "waiting.json").read_text())["waiting_for"] == [
         "dep"
     ]
+
+
+def test_waiting_marker_edit_preserves_priority_unless_explicitly_updated(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": ["old"],
+                "wait_priority": 20,
+                "wait_priority_explicit": True,
+                "slot_requested_at": "2026-07-25T12:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    persist_agent_directive_update(
+        AgentDirectivePersistenceSpec(
+            artifacts_dir=artifacts,
+            waiting_marker=waiting_marker_patch_for_token(
+                wait_names=("new",),
+                update_wait_runners=True,
+                wait_runners=0,
+            ),
+        )
+    )
+
+    waiting = json.loads((artifacts / "waiting.json").read_text())
+    assert waiting["waiting_for"] == ["new"]
+    assert waiting["wait_runners"] == 0
+    assert waiting["wait_priority"] == 20
+    assert waiting["wait_priority_explicit"] is True
+    assert waiting["slot_requested_at"] == "2026-07-25T12:00:00Z"
+
+
+def test_waiting_marker_and_meta_priority_can_be_set_and_unset(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text("{}\n", encoding="utf-8")
+    (artifacts / "waiting.json").write_text(
+        json.dumps({"waiting_for": []}),
+        encoding="utf-8",
+    )
+
+    persist_agent_directive_update(
+        AgentDirectivePersistenceSpec(
+            artifacts_dir=artifacts,
+            meta_patch=wait_meta_patch_for_token(
+                update_wait_priority=True,
+                wait_priority=20,
+            ),
+            waiting_marker=waiting_marker_patch_for_token(
+                update_wait_priority=True,
+                wait_priority=20,
+            ),
+        )
+    )
+    assert (
+        json.loads((artifacts / "agent_meta.json").read_text())["wait_priority"] == 20
+    )
+    waiting = json.loads((artifacts / "waiting.json").read_text())
+    assert waiting["wait_priority"] == 20
+    assert waiting["wait_priority_explicit"] is True
+
+    persist_agent_directive_update(
+        AgentDirectivePersistenceSpec(
+            artifacts_dir=artifacts,
+            meta_patch=wait_meta_patch_for_token(update_wait_priority=True),
+            waiting_marker=waiting_marker_patch_for_token(
+                update_wait_priority=True,
+            ),
+        )
+    )
+    assert "wait_priority" not in json.loads(
+        (artifacts / "agent_meta.json").read_text()
+    )
+    waiting = json.loads((artifacts / "waiting.json").read_text())
+    assert "wait_priority" not in waiting
+    assert waiting["wait_priority_explicit"] is False
 
 
 def test_persist_agent_directive_update_sets_and_unsets_tribe_store(

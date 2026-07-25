@@ -127,8 +127,14 @@ def test_apply_wait_run_now_projects_notification_but_keeps_agent_identity(
 
 
 def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> None:
-    (tmp_path / "raw_xprompt.md").write_text("Do work", encoding="utf-8")
-    (tmp_path / "agent_meta.json").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "raw_xprompt.md").write_text(
+        "%wait(priority=20)\nDo work",
+        encoding="utf-8",
+    )
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"wait_priority": 20}),
+        encoding="utf-8",
+    )
     (tmp_path / "waiting.json").write_text(
         json.dumps(
             {
@@ -137,6 +143,8 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
                 "timestamp": "20240101120000",
                 "wait_runners": 9,
                 "wait_runners_explicit": False,
+                "wait_priority": 20,
+                "wait_priority_explicit": True,
                 "slot_requested_at": "2026-07-12T12:00:00Z",
             }
         ),
@@ -149,6 +157,8 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
         wait_until=None,
         wait_runners=9,
         wait_runners_explicit=False,
+        wait_priority=20,
+        wait_priority_explicit=True,
         slot_requested_at="2026-07-12T12:00:00Z",
     )
     app = FakeWaitResumeApp()
@@ -166,13 +176,19 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
     waiting = json.loads((tmp_path / "waiting.json").read_text(encoding="utf-8"))
     assert waiting["wait_runners"] == 0
     assert waiting["wait_runners_explicit"] is True
+    assert waiting["wait_priority"] == 20
+    assert waiting["wait_priority_explicit"] is True
     assert waiting["slot_requested_at"] == "2026-07-12T12:00:00Z"
     assert (tmp_path / "raw_xprompt.md").read_text(encoding="utf-8") == (
-        "%wait(runners=0)\nDo work"
+        "%wait(runners=0, priority=20)\nDo work"
     )
-    assert json.loads((tmp_path / "agent_meta.json").read_text())["wait_runners"] == 0
+    assert json.loads((tmp_path / "agent_meta.json").read_text()) == (
+        {"wait_runners": 0, "wait_priority": 20}
+    )
     assert agent.wait_runners == 0
     assert agent.wait_runners_explicit is True
+    assert agent.wait_priority == 20
+    assert agent.wait_priority_explicit is True
     assert app.killed_agents == []
 
 
@@ -193,6 +209,7 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
                 "wait_runners": 0,
                 "wait_runners_explicit": True,
                 "wait_priority": 3,
+                "wait_priority_explicit": True,
                 "slot_requested_at": "2026-07-12T12:00:00Z",
             }
         ),
@@ -206,6 +223,7 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
         wait_runners=0,
         wait_runners_explicit=True,
         wait_priority=3,
+        wait_priority_explicit=True,
         slot_requested_at="2026-07-12T12:00:00Z",
     )
     app = FakeWaitResumeApp()
@@ -271,17 +289,16 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
         waiting = json.loads((tmp_path / "waiting.json").read_text())
         assert "wait_runners" not in waiting
         assert waiting["wait_runners_explicit"] is False
-        assert waiting["wait_priority"] == 3
+        assert "wait_priority" not in waiting
+        assert waiting["wait_priority_explicit"] is False
         assert waiting["slot_requested_at"] == "2026-07-12T12:00:00Z"
         assert not (tmp_path / "ready.json").exists()
-        assert json.loads((tmp_path / "agent_meta.json").read_text()) == {
-            "pid": 100,
-            "wait_priority": 3,
-        }
+        assert json.loads((tmp_path / "agent_meta.json").read_text()) == {"pid": 100}
         assert (tmp_path / "raw_xprompt.md").read_text() == "Do work"
         assert agent.wait_runners is None
         assert agent.wait_runners_explicit is False
-        assert agent.wait_priority == 3
+        assert agent.wait_priority is None
+        assert agent.wait_priority_explicit is False
         assert agent.slot_requested_at == "2026-07-12T12:00:00Z"
 
         claimed, parked = run_agent_wait._try_claim_runner_slot(
@@ -289,7 +306,7 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
             cl_name="test_cl",
             timestamp="20240101120000",
             directive_threshold=0,
-            directive_priority=3,
+            directive_priority=None,
             claim=lambda: "started",
         )
 
@@ -322,9 +339,80 @@ def test_prompt_wait_spec_builds_canonical_forms() -> None:
         WaitModalResult(
             agents=["alice"],
             time_token=None,
+            priority=20,
             beads=["sase-87.2"],
         )
-    ) == PromptWaitDirective(agents=("alice",), beads=("sase-87.2",))
+    ) == PromptWaitDirective(
+        agents=("alice",),
+        priority=20,
+        beads=("sase-87.2",),
+    )
+
+
+def test_apply_wait_updates_parked_priority_in_place(tmp_path: Path) -> None:
+    (tmp_path / "raw_xprompt.md").write_text(
+        "%wait(runners=0, priority=20)\nDo work",
+        encoding="utf-8",
+    )
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"wait_runners": 0, "wait_priority": 20}),
+        encoding="utf-8",
+    )
+    (tmp_path / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": [],
+                "wait_runners": 0,
+                "wait_runners_explicit": True,
+                "wait_priority": 20,
+                "wait_priority_explicit": True,
+                "slot_requested_at": "2026-07-12T12:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    agent = make_waiting_agent(
+        artifacts_dir=str(tmp_path),
+        waiting_for=[],
+        wait_duration=None,
+        wait_until=None,
+        wait_runners=0,
+        wait_runners_explicit=True,
+        wait_priority=20,
+        wait_priority_explicit=True,
+        slot_requested_at="2026-07-12T12:00:00Z",
+    )
+    app = FakeWaitResumeApp()
+
+    with patch(
+        "sase.ace.tui.actions.agents._directive_persistence."
+        "update_agent_artifact_index_for_marker_mutation"
+    ):
+        app._apply_wait(
+            str(tmp_path),
+            agent,
+            WaitModalResult(
+                agents=[],
+                time_token=None,
+                runners=0,
+                priority=2,
+            ),
+        )
+
+    assert (tmp_path / "raw_xprompt.md").read_text() == (
+        "%wait(runners=0, priority=2)\nDo work"
+    )
+    assert json.loads((tmp_path / "agent_meta.json").read_text()) == {
+        "wait_runners": 0,
+        "wait_priority": 2,
+    }
+    waiting = json.loads((tmp_path / "waiting.json").read_text())
+    assert waiting["wait_priority"] == 2
+    assert waiting["wait_priority_explicit"] is True
+    assert waiting["slot_requested_at"] == "2026-07-12T12:00:00Z"
+    assert agent.wait_priority == 2
+    assert agent.wait_priority_explicit is True
+    assert app.killed_agents == []
 
 
 def test_apply_wait_preserves_bead_conditions(tmp_path: Path) -> None:

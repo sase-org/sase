@@ -48,6 +48,8 @@ class WaitModalResult:
     agents: list[str]
     time_token: str | None
     runners: int | None = None
+    priority: int | None = None
+    update_priority: bool = False
     beads: list[str] = field(default_factory=list)
     run_now: bool = False
 
@@ -62,6 +64,14 @@ class _TimeValidation:
 
 @dataclass(frozen=True)
 class _RunnersValidation:
+    valid: bool
+    value: int | None
+    message: str
+    css_class: str
+
+
+@dataclass(frozen=True)
+class _PriorityValidation:
     valid: bool
     value: int | None
     message: str
@@ -215,6 +225,32 @@ def _validate_runners_token(token: str) -> _RunnersValidation:
     )
 
 
+def _validate_priority_token(token: str) -> _PriorityValidation:
+    """Validate a runner-slot priority for live preview."""
+    token = token.strip()
+    if not token:
+        return _PriorityValidation(
+            valid=True,
+            value=None,
+            message="lower values start first; default is 10",
+            css_class="wait-time-neutral",
+        )
+    if not token.isdigit():
+        return _PriorityValidation(
+            valid=False,
+            value=None,
+            message="priority must be a non-negative integer",
+            css_class="wait-time-error",
+        )
+    value = int(token)
+    return _PriorityValidation(
+        valid=True,
+        value=value,
+        message=f"runner-slot priority {value}; lower values start first",
+        css_class="wait-time-valid",
+    )
+
+
 def _truncate(value: str, width: int) -> str:
     """Truncate *value* to a fixed display width."""
     if len(value) <= width:
@@ -275,6 +311,7 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         current_wait_duration: float | None = None,
         current_wait_until: str | None = None,
         current_wait_runners: int | None = None,
+        current_wait_priority: int | None = None,
         candidates: list[WaitAgentCandidate] | None = None,
         is_running: bool = False,
     ) -> None:
@@ -289,6 +326,10 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         self._runners_prefill = (
             str(current_wait_runners) if current_wait_runners is not None else ""
         )
+        self._priority_prefill = (
+            str(current_wait_priority) if current_wait_priority is not None else ""
+        )
+        self._current_wait_priority = current_wait_priority
         self._candidates = candidates or []
         self._filtered_candidates: list[WaitAgentCandidate] = []
         self._is_running = is_running
@@ -330,6 +371,13 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
                 id="runners-input",
             )
             yield Static("", id="runners-preview")
+            yield Label("Priority", classes="wait-field-label")
+            yield _WaitInput(
+                value=self._priority_prefill,
+                placeholder="10",
+                id="priority-input",
+            )
+            yield Static("", id="priority-preview")
             footer = "enter apply | tab complete | ^r run now | esc cancel"
             if self._is_running:
                 footer = f"{footer} | active agents restart"
@@ -340,6 +388,7 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         self._refresh_completion()
         self._update_time_preview()
         self._update_runners_preview()
+        self._update_priority_preview()
         agents_input = self.query_one("#agents-input", _WaitInput)
         agents_input.focus()
         agents_input.cursor_position = len(agents_input.value)
@@ -361,6 +410,9 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
             return
         if event.input.id == "runners-input":
             self._update_runners_preview()
+            return
+        if event.input.id == "priority-input":
+            self._update_priority_preview()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter in either input."""
@@ -460,6 +512,17 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         preview.add_class(validation.css_class)
         return validation
 
+    def _update_priority_preview(self) -> _PriorityValidation:
+        """Update runner-priority preview and return validation state."""
+        priority_input = self.query_one("#priority-input", _WaitInput)
+        preview = self.query_one("#priority-preview", Static)
+        validation = _validate_priority_token(priority_input.value)
+        preview.update(validation.message)
+        for css_class in self._TIME_CLASSES:
+            preview.remove_class(css_class)
+        preview.add_class(validation.css_class)
+        return validation
+
     def _accept_highlighted_candidate(self) -> bool:
         """Accept the currently highlighted candidate."""
         option_list = self.query_one("#agent-completion", _AgentCompletionList)
@@ -493,18 +556,27 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         if not runners_validation.valid:
             self.query_one("#runners-input", _WaitInput).focus()
             return
+        priority_validation = self._update_priority_preview()
+        if not priority_validation.valid:
+            self.query_one("#priority-input", _WaitInput).focus()
+            return
         agents = _parse_agents_value(self.query_one("#agents-input", _WaitInput).value)
         run_now = (
             not agents
             and not self._current_waiting_for_beads
             and validation.token is None
             and runners_validation.value is None
+            and priority_validation.value is None
         )
         self.dismiss(
             WaitModalResult(
                 agents=agents,
                 time_token=validation.token,
                 runners=runners_validation.value,
+                priority=priority_validation.value,
+                update_priority=(
+                    priority_validation.value != self._current_wait_priority
+                ),
                 beads=list(self._current_waiting_for_beads),
                 run_now=run_now,
             )

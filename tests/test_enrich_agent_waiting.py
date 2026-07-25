@@ -450,6 +450,27 @@ def test_runner_slot_fields_from_waiting_marker_wire() -> None:
     assert agent.slot_requested_at == "2026-07-12T12:00:00Z"
 
 
+def test_legacy_wait_priority_marker_uses_default_value_heuristic() -> None:
+    explicit_agent = make_agent(status="STARTING")
+    default_agent = make_agent(status="STARTING")
+
+    enrich_agent_from_meta_wire(
+        explicit_agent,
+        AgentMetaWire(),
+        WaitingMarkerWire(wait_priority=20),
+        None,
+    )
+    enrich_agent_from_meta_wire(
+        default_agent,
+        AgentMetaWire(),
+        WaitingMarkerWire(wait_priority=10),
+        None,
+    )
+
+    assert explicit_agent.wait_priority_explicit is True
+    assert default_agent.wait_priority_explicit is False
+
+
 def test_run_started_at_wire_promotes_starting_to_running() -> None:
     """Snapshot metadata promotes STARTING rows when run_started_at exists."""
     agent = make_agent(status="STARTING")

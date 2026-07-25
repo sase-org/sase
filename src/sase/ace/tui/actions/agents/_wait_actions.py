@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.agent_completion import (
@@ -91,6 +92,9 @@ class AgentWaitActionsMixin:
                 current_wait_runners=(
                     agent.wait_runners if agent.wait_runners_explicit else None
                 ),
+                current_wait_priority=(
+                    agent.wait_priority if agent.wait_priority_explicit else None
+                ),
                 candidates=candidates,
                 is_running=is_running,
             ),
@@ -142,9 +146,18 @@ class AgentWaitActionsMixin:
 
         wait_names = list(result.agents)
         wait_beads = list(result.beads)
-        if wait_names or wait_beads:
+        if wait_names or wait_beads or result.priority is not None:
+            update_wait_priority = result.priority is not None or result.update_priority
+            effective_priority = (
+                result.priority
+                if update_wait_priority
+                else agent.wait_priority
+                if agent.wait_priority_explicit
+                else None
+            )
             wait_spec = PromptWaitDirective(
                 agents=tuple(wait_names),
+                priority=effective_priority,
                 beads=tuple(wait_beads),
             )
             spec = AgentDirectivePersistenceSpec(
@@ -153,16 +166,22 @@ class AgentWaitActionsMixin:
                 meta_patch=wait_meta_patch_for_token(
                     wait_names=tuple(wait_names),
                     wait_beads=tuple(wait_beads),
+                    update_wait_priority=update_wait_priority,
+                    wait_priority=result.priority,
                 ),
                 waiting_marker=waiting_marker_patch_for_token(
                     wait_names=tuple(wait_names),
                     wait_beads=tuple(wait_beads),
+                    update_wait_priority=update_wait_priority,
+                    wait_priority=result.priority,
                 ),
             )
             prior_waiting_for = list(agent.waiting_for)
             prior_waiting_for_beads = list(agent.waiting_for_beads)
             prior_wait_duration = agent.wait_duration
             prior_wait_until = agent.wait_until
+            prior_priority = agent.wait_priority
+            prior_priority_explicit = agent.wait_priority_explicit
 
             def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
                 payload = persist_agent_directive_update(spec)
@@ -181,6 +200,8 @@ class AgentWaitActionsMixin:
                 agent.waiting_for_beads = prior_waiting_for_beads
                 agent.wait_duration = prior_wait_duration
                 agent.wait_until = prior_wait_until
+                agent.wait_priority = prior_priority
+                agent.wait_priority_explicit = prior_priority_explicit
                 self.notify(  # type: ignore[attr-defined]
                     f"Wait persist failed: {completion.message}",
                     severity="error",
@@ -207,9 +228,14 @@ class AgentWaitActionsMixin:
             agent.waiting_for_beads = wait_beads
             agent.wait_duration = None
             agent.wait_until = None
+            if update_wait_priority:
+                agent.wait_priority = result.priority
+                agent.wait_priority_explicit = result.priority is not None
             wait_label_parts = [", ".join(wait_names)] if wait_names else []
             if wait_beads:
                 wait_label_parts.append("beads: " + ", ".join(wait_beads))
+            if result.priority is not None:
+                wait_label_parts.append(f"priority: {result.priority}")
             wait_label = "; ".join(wait_label_parts)
             self.notify(f"Now waiting for: {wait_label}")  # type: ignore[attr-defined]
             self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
@@ -217,7 +243,10 @@ class AgentWaitActionsMixin:
             spec = AgentDirectivePersistenceSpec(
                 artifacts_dir=artifacts_dir,
                 prompt_mutator=lambda prompt: set_prompt_wait(prompt, None),
-                meta_patch=wait_meta_patch_for_token(update_wait_runners=True),
+                meta_patch=wait_meta_patch_for_token(
+                    update_wait_runners=True,
+                    update_wait_priority=True,
+                ),
                 ready_marker=ReadyMarkerPatch(
                     resolved_deps=tuple(agent.waiting_for),
                     unwait=True,
@@ -281,7 +310,19 @@ class AgentWaitActionsMixin:
         result: WaitModalResult,
     ) -> None:
         """Update a parked slot wait in place for the next runner poll."""
+        update_wait_priority = (
+            result.run_now or result.priority is not None or result.update_priority
+        )
+        effective_priority = (
+            result.priority
+            if update_wait_priority
+            else agent.wait_priority
+            if agent.wait_priority_explicit
+            else None
+        )
         wait_spec = prompt_wait_spec(result)
+        if wait_spec is not None and effective_priority is not None:
+            wait_spec = replace(wait_spec, priority=effective_priority)
         spec = AgentDirectivePersistenceSpec(
             artifacts_dir=artifacts_dir,
             prompt_mutator=lambda prompt: set_prompt_wait(prompt, wait_spec),
@@ -289,11 +330,15 @@ class AgentWaitActionsMixin:
                 wait_beads=tuple(result.beads),
                 update_wait_runners=True,
                 wait_runners=result.runners,
+                update_wait_priority=update_wait_priority,
+                wait_priority=result.priority,
             ),
             waiting_marker=waiting_marker_patch_for_token(
                 wait_beads=tuple(result.beads),
                 update_wait_runners=True,
                 wait_runners=result.runners,
+                update_wait_priority=update_wait_priority,
+                wait_priority=result.priority,
             ),
         )
         prior_runners = agent.wait_runners
@@ -302,6 +347,8 @@ class AgentWaitActionsMixin:
         prior_waiting_for_beads = list(agent.waiting_for_beads)
         prior_wait_duration = agent.wait_duration
         prior_wait_until = agent.wait_until
+        prior_priority = agent.wait_priority
+        prior_priority_explicit = agent.wait_priority_explicit
 
         def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
             payload = persist_agent_directive_update(spec)
@@ -322,6 +369,8 @@ class AgentWaitActionsMixin:
             agent.waiting_for_beads = prior_waiting_for_beads
             agent.wait_duration = prior_wait_duration
             agent.wait_until = prior_wait_until
+            agent.wait_priority = prior_priority
+            agent.wait_priority_explicit = prior_priority_explicit
             self.notify(  # type: ignore[attr-defined]
                 f"Runner wait persist failed: {completion.message}",
                 severity="error",
@@ -350,11 +399,16 @@ class AgentWaitActionsMixin:
         agent.wait_until = None
         agent.wait_runners = result.runners
         agent.wait_runners_explicit = result.runners is not None
+        if update_wait_priority:
+            agent.wait_priority = result.priority
+            agent.wait_priority_explicit = result.priority is not None
         label = (
             f"runners ≤ {result.runners}"
             if result.runners is not None
             else "global runner cap"
         )
+        if result.priority is not None:
+            label = f"{label}, priority {result.priority}"
         self.notify(f"Runner wait: {label}")  # type: ignore[attr-defined]
         self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
 

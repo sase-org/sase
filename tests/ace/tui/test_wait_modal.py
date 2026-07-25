@@ -12,6 +12,7 @@ from sase.ace.tui.modals.wait_modal import (
     _active_fragment,
     _prefill_time_token,
     _replace_active_fragment,
+    _validate_priority_token,
     _validate_runners_token,
     _validate_time_token,
 )
@@ -87,6 +88,21 @@ def test_runners_validation_accepts_zero_and_rejects_non_integers() -> None:
 
     assert _validate_runners_token("-1").valid is False
     assert _validate_runners_token("1.5").valid is False
+
+
+def test_priority_validation_accepts_zero_and_rejects_non_integers() -> None:
+    default = _validate_priority_token("")
+    assert default.valid is True
+    assert default.value is None
+    assert "default is 10" in default.message
+
+    highest = _validate_priority_token("0")
+    assert highest.valid is True
+    assert highest.value == 0
+    assert "lower values start first" in highest.message
+
+    assert _validate_priority_token("-1").valid is False
+    assert _validate_priority_token("1.5").valid is False
 
 
 async def test_modal_filters_and_accepts_candidate_with_tab() -> None:
@@ -190,6 +206,79 @@ async def test_modal_returns_explicit_runner_threshold() -> None:
         await pilot.pause()
 
     assert result == WaitModalResult(agents=[], time_token=None, runners=0)
+
+
+async def test_modal_prefills_and_returns_explicit_priority() -> None:
+    result: WaitModalResult | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: WaitModalResult | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = WaitModal(current_wait_priority=20)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        priority_input = modal.query_one("#priority-input", Input)
+        assert priority_input.value == "20"
+        priority_input.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert result == WaitModalResult(agents=[], time_token=None, priority=20)
+
+
+async def test_modal_invalid_priority_does_not_dismiss() -> None:
+    dismiss_count = 0
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(_value: WaitModalResult | None) -> None:
+            nonlocal dismiss_count
+            dismiss_count += 1
+
+        modal = WaitModal()
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        priority_input = modal.query_one("#priority-input", Input)
+        priority_input.value = "-1"
+        priority_input.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert priority_input.has_focus
+
+    assert dismiss_count == 0
+
+
+async def test_modal_marks_cleared_priority_for_update() -> None:
+    result: WaitModalResult | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: WaitModalResult | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = WaitModal(current_wait_priority=20)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        priority_input = modal.query_one("#priority-input", Input)
+        priority_input.value = ""
+        priority_input.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert result == WaitModalResult(
+        agents=[],
+        time_token=None,
+        update_priority=True,
+        run_now=True,
+    )
 
 
 async def test_modal_displays_and_preserves_read_only_bead_waits() -> None:

@@ -47,6 +47,8 @@ class _WaitingMarkerPatch:
     wait_until: str | None = None
     update_wait_runners: bool = False
     wait_runners: int | None = None
+    update_wait_priority: bool = False
+    wait_priority: int | None = None
 
 
 @dataclass(frozen=True)
@@ -131,6 +133,8 @@ def wait_meta_patch_for_token(
     time_token: str | None = None,
     update_wait_runners: bool = False,
     wait_runners: int | None = None,
+    update_wait_priority: bool = False,
+    wait_priority: int | None = None,
 ) -> AgentMetaPatch:
     """Build an ``agent_meta.json`` patch for a wait directive payload."""
     set_values: dict[str, object] = {}
@@ -151,6 +155,10 @@ def wait_meta_patch_for_token(
         remove_keys.append("wait_runners")
         if wait_runners is not None:
             set_values["wait_runners"] = wait_runners
+    if update_wait_priority:
+        remove_keys.append("wait_priority")
+        if wait_priority is not None:
+            set_values["wait_priority"] = wait_priority
     return AgentMetaPatch(set_values=set_values, remove_keys=tuple(remove_keys))
 
 
@@ -161,6 +169,8 @@ def waiting_marker_patch_for_token(
     time_token: str | None = None,
     update_wait_runners: bool = False,
     wait_runners: int | None = None,
+    update_wait_priority: bool = False,
+    wait_priority: int | None = None,
 ) -> _WaitingMarkerPatch:
     """Build a ``waiting.json`` replacement for a wait directive payload."""
     wait_duration: float | None = None
@@ -176,6 +186,8 @@ def waiting_marker_patch_for_token(
         wait_until=wait_until,
         update_wait_runners=update_wait_runners,
         wait_runners=wait_runners,
+        update_wait_priority=update_wait_priority,
+        wait_priority=wait_priority,
     )
 
 
@@ -279,6 +291,11 @@ def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> N
             existing["wait_runners_explicit"] = patch.wait_runners is not None
             if patch.wait_runners is not None:
                 existing["wait_runners"] = patch.wait_runners
+        if patch.update_wait_priority:
+            existing.pop("wait_priority", None)
+            existing["wait_priority_explicit"] = patch.wait_priority is not None
+            if patch.wait_priority is not None:
+                existing["wait_priority"] = patch.wait_priority
         _write_json_file(waiting_path, existing)
     update_agent_artifact_index_for_marker_mutation(str(artifacts_path))
 
