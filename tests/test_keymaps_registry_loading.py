@@ -70,7 +70,7 @@ def test_empty_config_uses_builtin_defaults() -> None:
 def test_app_query_override_is_honored_while_retired_help_is_dropped(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    with caplog.at_level(logging.DEBUG):
+    with caplog.at_level(logging.DEBUG, logger="sase.ace.tui.keymaps.registry"):
         reg = load_keymap_registry(
             {"keymaps": {"app": {"edit_query": "f5", "show_help": "f6"}}}
         )

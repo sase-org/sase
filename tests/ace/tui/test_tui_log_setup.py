@@ -14,14 +14,16 @@ from sase.logs import launch_log, tui_log_path
 
 @pytest.fixture(autouse=True)
 def _cleanup_sase_handler() -> Iterator[None]:
-    """Remove the installed handler after each test (global logger state)."""
+    """Restore handlers and level after each test (global logger state)."""
     logger = logging.getLogger("sase")
     before = list(logger.handlers)
+    before_level = logger.level
     yield
     for handler in list(logger.handlers):
         if handler not in before:
             logger.removeHandler(handler)
             handler.close()
+    logger.setLevel(before_level)
 
 
 def _sase_handlers() -> list[logging.Handler]:
