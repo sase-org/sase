@@ -7,8 +7,9 @@ agent history.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping, Sequence
-from contextlib import AbstractContextManager
+from collections.abc import Collection, Iterator, Mapping, Sequence
+from contextlib import AbstractContextManager, contextmanager
+from contextvars import ContextVar
 import os
 from pathlib import Path
 from typing import Any, NoReturn
@@ -50,6 +51,10 @@ from sase.core.agent_identity_facade import (
 _CACHE_PATH: Path | None = None
 _CACHE_SIGNATURE: tuple[int, int] | None = None
 _CACHE_DATA: dict[str, Any] | None = None
+_LOAD_SESSION_ACTIVE: ContextVar[bool] = ContextVar(
+    "agent_name_registry_load_session_active",
+    default=False,
+)
 
 
 def _registry_path() -> Path:
@@ -372,6 +377,17 @@ def load_name_registry() -> dict[str, Any]:
     return data
 
 
+@contextmanager
+def name_registry_load_session() -> Iterator[None]:
+    """Reuse one validated registry snapshot during a bounded import loop."""
+
+    token = _LOAD_SESSION_ACTIVE.set(True)
+    try:
+        yield
+    finally:
+        _LOAD_SESSION_ACTIVE.reset(token)
+
+
 def rebuild_name_registry() -> dict[str, Any]:
     """Rebuild the registry by scanning existing artifacts and dismissed bundles."""
     with _registry_mutation_lock():
@@ -406,6 +422,8 @@ def _cached_registry(path: Path) -> dict[str, Any] | None:
         return None
     if signature != _CACHE_SIGNATURE:
         return None
+    if _LOAD_SESSION_ACTIVE.get():
+        return _CACHE_DATA
     if _registry_file_is_stale(_CACHE_DATA):
         return None
     return _CACHE_DATA

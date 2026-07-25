@@ -5,11 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.agent.names._registry import name_registry_load_session
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.incoming_integration import (
     integrate_agent_imports_with_receipts,
 )
 from sase.agents_sync.models import ProjectTarget
+from sase.agents_sync.inventory import (
+    ProjectHoodInventory,
+    build_project_hood_inventory,
+)
 from sase.agents_sync.publication import publish_agent_hood
 from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
@@ -140,7 +145,28 @@ def _publish_queued_locked(
         cleanup = git_sync.abort_agents_rebase(target.sidecar_path, git_runner)
         return git_sync.agents_git_error("git pull --rebase failed", pulled, cleanup)
 
-    error = _prepare_publications(target, owner, requests, git_runner)
+    identity = AgentIdentitySnapshot(owner)
+    with name_registry_load_session():
+        integrate_agent_imports_with_receipts(
+            target,
+            target.sidecar_path,
+            owner,
+            git_runner=git_runner,
+        )
+        inventory = build_project_hood_inventory(
+            target,
+            identity,
+            git_runner=git_runner,
+        )
+
+    error = _prepare_publications(
+        target,
+        owner,
+        requests,
+        identity,
+        inventory,
+        git_runner,
+    )
     if error is not None:
         return error
     commit_result = git_sync.commit_agents_payload_if_dirty(
@@ -186,7 +212,14 @@ def _publish_queued_locked(
         return git_sync.agents_git_error(
             "git pull --rebase retry failed", repulled, cleanup
         )
-    error = _prepare_publications(target, owner, requests, git_runner)
+    error = _prepare_publications(
+        target,
+        owner,
+        requests,
+        identity,
+        inventory,
+        git_runner,
+    )
     if error is not None:
         return error
     retry_commit = git_sync.commit_agents_payload_if_dirty(
@@ -210,41 +243,45 @@ def _prepare_publications(
     target: ProjectTarget,
     owner: AgentOwnerIdentity,
     requests: tuple[AgentPublicationOutboxItem, ...],
+    identity: AgentIdentitySnapshot,
+    inventory: ProjectHoodInventory,
     git_runner: GitRunner,
 ) -> str | None:
     repo = target.sidecar_path
-    integrate_agent_imports_with_receipts(
-        target,
-        repo,
-        owner,
-        git_runner=git_runner,
-    )
-    identity = AgentIdentitySnapshot(owner)
+    requests_by_hood: dict[str, list[AgentPublicationOutboxItem]] = {}
     for request in requests:
+        requests_by_hood.setdefault(request.local_hood, []).append(request)
+
+    for hood_requests in requests_by_hood.values():
+        request = hood_requests[0]
         try:
             publish_agent_hood(
                 target,
                 repo,
                 request.local_agent,
                 identity=identity,
+                inventory=inventory,
                 git_runner=git_runner,
-            )
-            manifest = read_owner_manifest(
-                repo,
-                owner,
-                V2ProjectIdentity(target.project_key, target.project),
-            )
-            entry = manifest.by_hood().get(request.local_hood)
-            if entry is None:
-                return f"published hood {request.local_hood!r} is absent from manifest"
-            update_agent_publications(
-                target.project_key,
-                (request.logical_key,),
-                hood_digest=entry.digest,
-                error=None,
             )
         except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
             return f"could not publish agent hood {request.local_hood!r}: {exc}"
+
+    manifest = read_owner_manifest(
+        repo,
+        owner,
+        V2ProjectIdentity(target.project_key, target.project),
+    )
+    entries = manifest.by_hood()
+    for hood, hood_requests in requests_by_hood.items():
+        entry = entries.get(hood)
+        if entry is None:
+            return f"published hood {hood!r} is absent from manifest"
+        update_agent_publications(
+            target.project_key,
+            (request.logical_key for request in hood_requests),
+            hood_digest=entry.digest,
+            error=None,
+        )
     return None
 
 

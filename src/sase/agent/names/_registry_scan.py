@@ -24,11 +24,23 @@ from sase.core.paths import sase_home, sase_projects_dir, sase_subdir
 
 
 def source_signature_paths() -> list[Path]:
+    """Return registry-relevant source entries, excluding live run contents.
+
+    Artifact directory names are durable registry inputs. Files created inside a
+    running artifact directory are not, so including that directory's mtime in
+    the signature makes the registry permanently stale.
+    """
+
     paths = [
-        sase_projects_dir(),
         sase_home() / "dismissed_agents.json",
-        sase_subdir("dismissed_bundles"),
     ]
+    dismissed_bundles = sase_subdir("dismissed_bundles")
+    try:
+        paths.extend(
+            path for path in dismissed_bundles.rglob("*.json") if path.is_file()
+        )
+    except OSError:
+        pass
     projects_dir = sase_projects_dir()
     try:
         project_dirs = [p for p in projects_dir.iterdir() if p.is_dir()]
@@ -36,30 +48,22 @@ def source_signature_paths() -> list[Path]:
         project_dirs = []
     for project_dir in project_dirs:
         artifacts_dir = project_dir / "artifacts"
-        paths.append(artifacts_dir)
         try:
             workflow_dirs = [p for p in artifacts_dir.iterdir() if p.is_dir()]
         except OSError:
             workflow_dirs = []
-        paths.extend(workflow_dirs)
         for workflow_dir in workflow_dirs:
             try:
-                children = [p for p in workflow_dir.iterdir() if p.is_dir()]
+                paths.extend(
+                    iter_agent_artifact_dirs(
+                        project_dir.name,
+                        workflow_dir.name,
+                        projects_root=projects_dir,
+                    )
+                )
             except OSError:
                 continue
-            paths.extend(children)
-            for child in children:
-                if not _looks_like_month_shard(child.name):
-                    continue
-                try:
-                    paths.extend(p for p in child.iterdir() if p.is_dir())
-                except OSError:
-                    continue
     return paths
-
-
-def _looks_like_month_shard(name: str) -> bool:
-    return len(name) == 6 and name.isdigit()
 
 
 def collect_planned_reservation_entries(

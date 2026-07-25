@@ -25,6 +25,10 @@ from sase.agents_sync.v2_models import V2PublicationCounts
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 
+def test_default_sync_lock_timeout_waits_briefly() -> None:
+    assert git_sync.DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS == 10.0
+
+
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args], cwd=cwd, check=True, capture_output=True, text=True

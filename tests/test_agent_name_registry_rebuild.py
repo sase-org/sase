@@ -91,8 +91,7 @@ def test_registry_rebuild_collects_sharded_agent_and_tracks_day_dir(
     first = _make_sharded_agent(tmp_path, "proj", "20260613120000", "sharded")
     with patch.object(Path, "home", return_value=tmp_path):
         paths = _registry_store._registry_source_signature_paths()
-        assert first.parent in paths
-        assert first not in paths
+        assert first in paths
 
         data = rebuild_name_registry()
         assert data["entries"]["sharded"]["project_name"] == "proj"
@@ -104,6 +103,22 @@ def test_registry_rebuild_collects_sharded_agent_and_tracks_day_dir(
         _make_sharded_agent(tmp_path, "proj", "20260613120100", "sharded-later")
         after = _registry_store._source_signature()
         assert after != before
+
+
+def test_registry_signature_ignores_live_artifact_output(tmp_path: Path) -> None:
+    artifact = _make_sharded_agent(
+        tmp_path,
+        "proj",
+        "20260613120000",
+        "sharded",
+    )
+    with patch.object(Path, "home", return_value=tmp_path):
+        before = _registry_store._source_signature()
+        (artifact / "reply.md").write_text("still running\n", encoding="utf-8")
+        (artifact / "tool-output.json").write_text("{}\n", encoding="utf-8")
+        after = _registry_store._source_signature()
+
+    assert after == before
 
 
 def test_registry_rebuild_collects_numeric_auto_prefix(tmp_path: Path) -> None:
@@ -259,3 +274,19 @@ def test_cached_registry_avoids_repeated_tree_walks(tmp_path: Path) -> None:
             side_effect=AssertionError("unexpected rebuild"),
         ):
             assert "name499" in get_reserved_agent_names()
+
+
+def test_registry_load_session_reuses_validated_cache(tmp_path: Path) -> None:
+    _make_agent(tmp_path, "proj", "run1", "foo")
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        with patch.object(
+            _registry,
+            "_registry_file_is_stale",
+            wraps=_registry._registry_file_is_stale,
+        ) as is_stale:
+            with _registry.name_registry_load_session():
+                for _ in range(20):
+                    assert "foo" in load_name_registry()["entries"]
+
+    assert is_stale.call_count == 0

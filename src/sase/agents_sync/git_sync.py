@@ -31,7 +31,7 @@ from sase.core.agent_identity_facade import (
     AgentOwnerIdentity,
 )
 
-DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS = 2.0
+DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS = 10.0
 _LOCK_TIMEOUT_ENV = "SASE_AGENTS_SYNC_LOCK_TIMEOUT"
 
 

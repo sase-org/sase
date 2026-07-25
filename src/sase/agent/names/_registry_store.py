@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -105,18 +106,26 @@ def registry_file_is_stale(data: dict[str, Any]) -> bool:
     return False
 
 
-def _source_signature() -> dict[str, int]:
-    """Summarize all paths whose changes can affect a registry rebuild."""
-    count = 0
-    max_mtime_ns = 0
-    for path in _registry_source_signature_paths():
+def _source_signature() -> dict[str, int | str]:
+    """Fingerprint registry sources without observing live run output mtimes."""
+
+    digest = hashlib.sha256()
+    paths = sorted(
+        set(_registry_source_signature_paths()),
+        key=lambda path: str(path),
+    )
+    for path in paths:
+        digest.update(os.fsencode(path))
+        digest.update(b"\0")
+        if not path.is_file():
+            continue
         try:
             stat = path.stat()
         except OSError:
             continue
-        count += 1
-        max_mtime_ns = max(max_mtime_ns, stat.st_mtime_ns)
-    return {"count": count, "max_mtime_ns": max_mtime_ns}
+        digest.update(f"{stat.st_mtime_ns}:{stat.st_size}".encode())
+        digest.update(b"\0")
+    return {"count": len(paths), "path_digest": digest.hexdigest()}
 
 
 def _registry_source_signature_paths() -> list[Path]:
