@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import io
+import subprocess
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -303,6 +307,51 @@ async def test_tasks_tab_empty_state_and_empty_output_guards() -> None:
         pane.action_edit_output()
         pane.action_copy_output()
         assert cast(_TasksTestApp, pilot.app).notifications == []
+
+
+async def test_tasks_tab_edit_output_unlinks_temp_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    running = _task(
+        "run",
+        label="sync sase-42",
+        status="running",
+        age_seconds=3,
+        live_output="Syncing...\nDone.\n",
+    )
+    edited_paths: list[Path] = []
+
+    def fake_run(
+        args: list[str],
+        *,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        del check
+        path = Path(args[-1])
+        assert path.read_text(encoding="utf-8") == "Syncing...\nDone.\n"
+        edited_paths.append(path)
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setenv("EDITOR", "cat")
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.tasks_pane.subprocess.run",
+        fake_run,
+    )
+
+    @contextmanager
+    def fake_suspend(self: _TasksTestApp) -> Iterator[None]:
+        del self
+        yield
+
+    monkeypatch.setattr(_TasksTestApp, "suspend", fake_suspend)
+
+    async with _TasksTestApp(_queue(running)).run_test() as pilot:
+        _, pane = await _open_tasks_pane(pilot)
+
+        pane.action_edit_output()
+
+    assert edited_paths
+    assert not edited_paths[0].exists()
 
 
 async def test_tasks_tab_scroll_actions_do_not_move_selection() -> None:

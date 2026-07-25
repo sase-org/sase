@@ -143,17 +143,26 @@ def _open_editor_with_content(content: str, console: "Console") -> str | None:
     Returns:
         The edited content string, or None if the editor failed.
     """
-    from sase.core.paths import get_sase_tmpdir
+    from sase.core.paths import get_sase_managed_tmpdir
 
     fd, temp_path = tempfile.mkstemp(
-        suffix=".md", prefix="sase_reword_", dir=get_sase_tmpdir()
+        suffix=".md",
+        prefix="sase_reword_",
+        dir=get_sase_managed_tmpdir("editors"),
     )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
     except Exception as e:
         console.print(f"[red]Failed to write temp file: {_esc(str(e))}[/red]")
-        os.close(fd)
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
         return None
 
     editor_argv = get_editor_argv()

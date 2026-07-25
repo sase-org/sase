@@ -51,19 +51,21 @@ def handle_show_diff(self: "WorkflowContext", changespec: ChangeSpec) -> None:
             return
 
         # Write diff to a temp file and display with bat/less
-        from sase.core.paths import get_sase_tmpdir
+        from sase.core.paths import get_sase_managed_tmpdir
 
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            suffix=".diff",
-            delete=False,
-            encoding="utf-8",
-            dir=get_sase_tmpdir(),
-        ) as tmp:
-            tmp.write(diff_text)
-            tmp_path = tmp.name
-
+        tmp_path: str | None = None
         try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                suffix=".diff",
+                delete=False,
+                encoding="utf-8",
+                dir=get_sase_managed_tmpdir("viewers"),
+            ) as tmp:
+                tmp_path = tmp.name
+                tmp.write(diff_text)
+
+            assert tmp_path is not None
             if shutil.which("bat"):
                 cmd = (
                     f"bat --color=always --style=numbers --language=diff"
@@ -76,6 +78,10 @@ def handle_show_diff(self: "WorkflowContext", changespec: ChangeSpec) -> None:
         finally:
             import os
 
-            os.unlink(tmp_path)
+            if tmp_path is not None:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
     except Exception as e:
         self.console.print(f"[red]Error showing diff: {_esc(str(e))}[/red]")

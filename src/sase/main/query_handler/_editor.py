@@ -19,10 +19,12 @@ def open_editor_for_prompt() -> str | None:
         The prompt content, or None if the user didn't write anything
         or the editor failed.
     """
-    from sase.core.paths import get_sase_tmpdir
+    from sase.core.paths import get_sase_managed_tmpdir
 
     fd, temp_path = tempfile.mkstemp(
-        suffix=".md", prefix="sase_prompt_", dir=get_sase_tmpdir()
+        suffix=".md",
+        prefix="sase_prompt_",
+        dir=get_sase_managed_tmpdir("editors"),
     )
     os.close(fd)
 
@@ -61,19 +63,21 @@ def _open_editor_with_content(initial_content: str) -> str | None:
     Returns:
         The edited content, or None if the user left it empty or the editor failed.
     """
-    from sase.core.paths import get_sase_tmpdir
+    from sase.core.paths import get_sase_managed_tmpdir
 
     fd, temp_path = tempfile.mkstemp(
-        suffix=".md", prefix="sase_prompt_", dir=get_sase_tmpdir()
+        suffix=".md",
+        prefix="sase_prompt_",
+        dir=get_sase_managed_tmpdir("editors"),
     )
-
-    # Write initial content to temp file
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(initial_content)
 
     editor_argv = _get_editor_argv()
 
     try:
+        # Write initial content to temp file
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(initial_content)
+
         result = subprocess.run([*editor_argv, temp_path], check=False)
         if result.returncode != 0:
             print("Editor exited with non-zero status.")

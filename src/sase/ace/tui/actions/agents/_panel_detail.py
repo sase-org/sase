@@ -315,10 +315,12 @@ class AgentPanelDetailMixin:
                 subprocess.run([editor, expanded], check=False)
         elif content is not None:
             editor = os.environ.get("EDITOR") or "nvim"
-            from sase.core.paths import get_sase_tmpdir
+            from sase.core.paths import get_sase_managed_tmpdir
 
             fd, tmp_path = tempfile.mkstemp(
-                suffix=suffix, prefix="sase_ace_panel_", dir=get_sase_tmpdir()
+                suffix=suffix,
+                prefix="sase_ace_panel_",
+                dir=get_sase_managed_tmpdir("editors"),
             )
             try:
                 with os.fdopen(fd, "w") as f:
@@ -333,7 +335,10 @@ class AgentPanelDetailMixin:
                 ):
                     subprocess.run([editor, tmp_path], check=False)
             finally:
-                os.unlink(tmp_path)
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
         else:
             self.notify("No content to edit", severity="warning")  # type: ignore[attr-defined]
 

@@ -171,11 +171,11 @@ def execute_standalone_steps(
             # Create temp artifacts dir if not provided
             step_artifacts_dir = artifacts_dir
             if step_artifacts_dir is None:
-                from sase.core.paths import get_sase_tmpdir
+                from sase.core.paths import get_sase_managed_tmpdir
 
                 step_artifacts_dir = tempfile.mkdtemp(
                     prefix=f"embedded-{workflow_name}-",
-                    dir=get_sase_tmpdir(),
+                    dir=get_sase_managed_tmpdir("embedded-artifacts"),
                 )
 
             try:

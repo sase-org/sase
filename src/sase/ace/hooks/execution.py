@@ -127,14 +127,27 @@ rm -f "$0"
 exit $exit_code
 """
     # Write wrapper script to temp file (don't delete - background process needs it)
-    from sase.core.paths import get_sase_tmpdir
+    from sase.core.paths import get_sase_managed_tmpdir
 
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".sh", delete=False, dir=get_sase_tmpdir()
-    ) as wrapper_file:
-        wrapper_file.write(wrapper_script)
-        wrapper_path = wrapper_file.name
+    wrapper_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".sh",
+            delete=False,
+            dir=get_sase_managed_tmpdir("wrappers"),
+        ) as wrapper_file:
+            wrapper_path = wrapper_file.name
+            wrapper_file.write(wrapper_script)
+    except Exception:
+        if wrapper_path is not None:
+            try:
+                os.unlink(wrapper_path)
+            except OSError:
+                pass
+        raise
 
+    assert wrapper_path is not None
     os.chmod(wrapper_path, 0o755)
 
     # Start as background process and capture PID

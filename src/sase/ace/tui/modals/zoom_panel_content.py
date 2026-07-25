@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
-from sase.core.paths import get_sase_tmpdir
+from sase.core.paths import get_sase_managed_tmpdir
 
 from ..actions.clipboard import copy_to_system_clipboard
 from ..widgets.prompt_panel import AgentPromptPanel
@@ -203,7 +203,7 @@ def open_in_editor(
     fd, tmp_path = tempfile.mkstemp(
         suffix=suffix,
         prefix="sase_ace_zoom_",
-        dir=get_sase_tmpdir(),
+        dir=get_sase_managed_tmpdir("editors"),
     )
     try:
         with os.fdopen(fd, "w") as f:

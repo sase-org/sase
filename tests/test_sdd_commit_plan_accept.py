@@ -20,6 +20,7 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
         (plans / "my_plan.md").write_text("plan", encoding="utf-8")
 
         captured_msg_content: list[str] = []
+        captured_msg_paths: list[Path] = []
 
         def fake_run(
             cmd: list[str], **kwargs: object
@@ -28,6 +29,7 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
             msg_path = Path(cmd[m_idx + 1])
             assert msg_path.is_file(), f"-M should point to a file, got: {msg_path}"
             captured_msg_content.append(msg_path.read_text(encoding="utf-8"))
+            captured_msg_paths.append(msg_path)
             return subprocess.CompletedProcess(cmd, 0)
 
         with patch(
@@ -36,6 +38,8 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
             assert _commit_sdd_files(ws, "my_plan") is True
 
         assert len(captured_msg_content) == 1
+        assert captured_msg_paths
+        assert not captured_msg_paths[0].exists()
         assert (
             captured_msg_content[0]
             == "chore: Add SDD prompt and plan for my_plan\n\nSASE_TYPE=sdd"
@@ -181,10 +185,14 @@ def test_commit_sdd_files_logs_failure() -> None:
         prompts = Path(ws) / "prompts" / "202603"
         prompts.mkdir(parents=True)
         (prompts / "fail.md").write_text("prompt", encoding="utf-8")
+        captured_msg_paths: list[Path] = []
 
         def fake_run(
             cmd: list[str], **kwargs: object
         ) -> subprocess.CompletedProcess[str]:
+            msg_path = Path(cmd[cmd.index("-M") + 1])
+            assert msg_path.is_file()
+            captured_msg_paths.append(msg_path)
             return subprocess.CompletedProcess(cmd, 1, stderr="boom")
 
         with (
@@ -197,6 +205,8 @@ def test_commit_sdd_files_logs_failure() -> None:
             assert _commit_sdd_files(ws, "fail") is False
 
         mock_logger.warning.assert_called_once()
+        assert captured_msg_paths
+        assert not captured_msg_paths[0].exists()
         assert (
             "exit 1"
             in mock_logger.warning.call_args[0][0]

@@ -535,20 +535,30 @@ class TasksPane(Vertical):
             self.notify("No output available", severity="warning")
             return
 
+        from sase.core.paths import get_sase_managed_tmpdir
+
         safe_label = task.label.replace("/", "_").replace(" ", "_")
         fd, path = tempfile.mkstemp(
-            suffix=".log", prefix=f"task_{task.task_type}_{safe_label}_"
+            suffix=".log",
+            prefix=f"task_{task.task_type}_{safe_label}_",
+            dir=get_sase_managed_tmpdir("editors"),
         )
         try:
-            os.write(fd, output.encode())
+            try:
+                os.write(fd, output.encode())
+            finally:
+                os.close(fd)
+
+            editor = os.environ.get("EDITOR") or "nvim"
+            editor_args = build_editor_args(editor, [path])
+
+            with self.app.suspend():  # type: ignore[attr-defined]
+                subprocess.run(editor_args, check=False)
         finally:
-            os.close(fd)
-
-        editor = os.environ.get("EDITOR") or "nvim"
-        editor_args = build_editor_args(editor, [path])
-
-        with self.app.suspend():  # type: ignore[attr-defined]
-            subprocess.run(editor_args, check=False)
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
 
         self._display_output(self._get_selected_task())
 

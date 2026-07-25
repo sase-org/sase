@@ -84,7 +84,7 @@ def serialize_local_xprompts(xprompts: dict[str, XPrompt]) -> str:
 
     Returns the path to the temp file.
     """
-    from sase.core.paths import get_sase_tmpdir
+    from sase.core.paths import get_sase_managed_tmpdir
 
     def serialize_xprompt(xp: XPrompt) -> dict[str, object]:
         return {
@@ -112,7 +112,9 @@ def serialize_local_xprompts(xprompts: dict[str, XPrompt]) -> str:
     }
 
     fd, path = tempfile.mkstemp(
-        suffix=".json", prefix="sase_local_xprompts_", dir=get_sase_tmpdir()
+        suffix=".json",
+        prefix="sase_local_xprompts_",
+        dir=get_sase_managed_tmpdir("handoff"),
     )
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(data, f)

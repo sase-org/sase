@@ -37,26 +37,30 @@ class AgentWorkflowHITLMixin:
         yaml_content = dump_yaml(data, sort_keys=False)
 
         # Create temp file
-        from sase.core.paths import get_sase_tmpdir
+        from sase.core.paths import get_sase_managed_tmpdir
 
         fd, temp_path = tempfile.mkstemp(
-            suffix=".yml", prefix="workflow_edit_", dir=get_sase_tmpdir()
+            suffix=".yml",
+            prefix="workflow_edit_",
+            dir=get_sase_managed_tmpdir("editors"),
         )
-        os.close(fd)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(yaml_content)
 
-        with open(temp_path, "w", encoding="utf-8") as f:
-            f.write(yaml_content)
+            # Open in editor with TUI suspended
+            editor = os.environ.get("EDITOR", "nvim")
+            with self.suspend():  # type: ignore[attr-defined]
+                subprocess.run([editor, temp_path], check=False)
 
-        # Open in editor with TUI suspended
-        editor = os.environ.get("EDITOR", "nvim")
-        with self.suspend():  # type: ignore[attr-defined]
-            subprocess.run([editor, temp_path], check=False)
-
-        # Read edited content
-        with open(temp_path, encoding="utf-8") as f:
-            edited_content = f.read()
-
-        os.unlink(temp_path)
+            # Read edited content
+            with open(temp_path, encoding="utf-8") as f:
+                edited_content = f.read()
+        finally:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
 
         if not edited_content.strip():
             return None

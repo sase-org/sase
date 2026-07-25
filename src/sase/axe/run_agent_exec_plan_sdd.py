@@ -68,7 +68,13 @@ def commit_sdd_files_for_exec_plan(
     )
     # -M / --message-file expects a file path, not a raw string.
     # handle_commit_command deletes the file after reading it.
-    msg_fd, msg_path = tempfile.mkstemp(suffix=".txt", prefix="sase_sdd_msg_")
+    from sase.core.paths import get_sase_managed_tmpdir
+
+    msg_fd, msg_path = tempfile.mkstemp(
+        suffix=".txt",
+        prefix="sase_sdd_msg_",
+        dir=get_sase_managed_tmpdir("commit-messages"),
+    )
     try:
         os.write(msg_fd, message.encode())
     finally:
@@ -76,13 +82,19 @@ def commit_sdd_files_for_exec_plan(
     cmd = ["sase", "commit", "-M", msg_path]
     for f in files:
         cmd.extend(["-f", f])
-    result = subprocess_run(
-        cmd,
-        cwd=workspace_dir,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess_run(
+            cmd,
+            cwd=workspace_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    finally:
+        try:
+            os.unlink(msg_path)
+        except OSError:
+            pass
     if result.returncode != 0:
         logger.warning(
             "sase commit for SDD files failed (exit %d): %s",

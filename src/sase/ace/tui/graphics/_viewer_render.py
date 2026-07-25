@@ -95,10 +95,17 @@ def render_artifact_file_pages(
     if mode == "image":
         return ArtifactRenderResult((expanded,))
 
+    from sase.core.paths import get_sase_managed_tmpdir
+
     render_root = (
         Path(cache_dir).expanduser()
         if cache_dir is not None
-        else Path(tempfile.mkdtemp(prefix="sase-artifact-pages-"))
+        else Path(
+            tempfile.mkdtemp(
+                prefix="sase-artifact-pages-",
+                dir=get_sase_managed_tmpdir("artifact-pages"),
+            )
+        )
     )
     return _render_paginated_artifact(
         expanded,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.resources
 import logging
+import os
 import shutil
 import subprocess
 import tempfile
@@ -51,12 +52,25 @@ def build_xprompts_catalog(output_dir: Path | None = None) -> CatalogArtifact:
     html = render_html(document)
 
     if output_dir is None:
-        output_dir = Path(tempfile.mkdtemp(prefix="sase_xprompts_catalog_"))
+        from sase.core.paths import get_sase_managed_tmpdir
+
+        output_dir = Path(get_sase_managed_tmpdir("xprompts_catalog"))
     output_dir.mkdir(parents=True, exist_ok=True)
     date_suffix = stats.generated_at.strftime("%Y-%m-%d")
     pdf_path = output_dir / f"xprompts_catalog_{date_suffix}.pdf"
 
-    render_pdf(html, pdf_path)
+    fd, temporary_pdf_name = tempfile.mkstemp(
+        prefix=f".{pdf_path.name}.",
+        suffix=".tmp.pdf",
+        dir=output_dir,
+    )
+    os.close(fd)
+    temporary_pdf_path = Path(temporary_pdf_name)
+    try:
+        render_pdf(html, temporary_pdf_path)
+        os.replace(temporary_pdf_path, pdf_path)
+    finally:
+        temporary_pdf_path.unlink(missing_ok=True)
     return CatalogArtifact(pdf_path=pdf_path, stats=stats)
 
 
@@ -159,13 +173,18 @@ def render_pdf(html: str, pdf_path: Path) -> None:
     """
     pdf_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".html", delete=False, encoding="utf-8"
-    ) as tmp:
-        tmp.write(html)
-        html_path = Path(tmp.name)
-
+    html_path: Path | None = None
     try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".html",
+            dir=pdf_path.parent,
+            delete=False,
+            encoding="utf-8",
+        ) as tmp:
+            html_path = Path(tmp.name)
+            tmp.write(html)
+
         wkhtmltopdf = shutil.which("wkhtmltopdf")
         if wkhtmltopdf:
             cmd = [
@@ -218,10 +237,11 @@ def render_pdf(html: str, pdf_path: Path) -> None:
             "No PDF engine available. Install wkhtmltopdf or pandoc."
         )
     finally:
-        try:
-            html_path.unlink()
-        except OSError:
-            pass
+        if html_path is not None:
+            try:
+                html_path.unlink()
+            except OSError:
+                pass
 
 
 _compute_stats = compute_stats

@@ -34,46 +34,46 @@ class EditorMixin:
         import tempfile
 
         def run_editor() -> str | None:
-            from sase.core.paths import get_sase_tmpdir
+            from sase.core.paths import get_sase_managed_tmpdir
 
             fd, temp_path = tempfile.mkstemp(
-                suffix=".md", prefix="sase_ace_prompt_", dir=get_sase_tmpdir()
+                suffix=".md",
+                prefix="sase_ace_prompt_",
+                dir=get_sase_managed_tmpdir("editors"),
             )
-            # Write initial content if provided
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(initial_content)
-
-            editor = resolve_editor()
-            cmd: list[str] = list(editor.argv)
-            # Position cursor in nvim to match the input bar cursor position
-            if editor.command_name == "nvim":
-                if cursor_row > 0 or cursor_col > 0:
-                    # nvim's cursor() is 1-indexed
-                    cmd.extend(
-                        ["-c", f"call cursor({cursor_row + 1}, {cursor_col + 1})"]
-                    )
-                elif cursor_position > 0:
-                    cmd.extend(["-c", f"call cursor(1, {cursor_position + 1})"])
-            cmd.append(temp_path)
-
-            result = subprocess.run(cmd, check=False)
-            if result.returncode != 0:
-                try:
-                    os.unlink(temp_path)
-                except OSError:
-                    pass
-                return None
-
             try:
+                # Write initial content if provided
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(initial_content)
+
+                editor = resolve_editor()
+                cmd: list[str] = list(editor.argv)
+                # Position cursor in nvim to match the input bar cursor position
+                if editor.command_name == "nvim":
+                    if cursor_row > 0 or cursor_col > 0:
+                        # nvim's cursor() is 1-indexed
+                        cmd.extend(
+                            [
+                                "-c",
+                                f"call cursor({cursor_row + 1}, {cursor_col + 1})",
+                            ]
+                        )
+                    elif cursor_position > 0:
+                        cmd.extend(["-c", f"call cursor(1, {cursor_position + 1})"])
+                cmd.append(temp_path)
+
+                result = subprocess.run(cmd, check=False)
+                if result.returncode != 0:
+                    return None
+
                 with open(temp_path, encoding="utf-8") as f:
                     content = f.read().strip()
+                return content if content else None
             finally:
                 try:
                     os.unlink(temp_path)
                 except OSError:
                     pass
-
-            return content if content else None
 
         with self.suspend():  # type: ignore[attr-defined]
             return run_editor()
@@ -107,24 +107,22 @@ class EditorMixin:
         )
 
         def run_editor() -> tuple[str, str] | None:
-            from sase.core.paths import get_sase_tmpdir
+            from sase.core.paths import get_sase_managed_tmpdir
 
             fd, temp_path = tempfile.mkstemp(
-                suffix=".yml", prefix="sase_ace_workflow_", dir=get_sase_tmpdir()
+                suffix=".yml",
+                prefix="sase_ace_workflow_",
+                dir=get_sase_managed_tmpdir("editors"),
             )
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(template)
-
-            editor = resolve_editor()
-            result = subprocess.run([*editor.argv, temp_path], check=False)
-            if result.returncode != 0:
-                try:
-                    os.unlink(temp_path)
-                except OSError:
-                    pass
-                return None
-
             try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(template)
+
+                editor = resolve_editor()
+                result = subprocess.run([*editor.argv, temp_path], check=False)
+                if result.returncode != 0:
+                    return None
+
                 with open(temp_path, encoding="utf-8") as f:
                     content = f.read()
             finally:

@@ -53,6 +53,21 @@ def get_sase_tmpdir() -> str | None:
     return None
 
 
+def get_sase_managed_tmpdir(*parts: str) -> str:
+    """Return a managed SASE temp directory.
+
+    Honors $SASE_TMPDIR when explicitly configured; otherwise uses
+    ``~/.sase/tmp`` so production handoff files do not land in the system temp
+    dir. Optional *parts* create deterministic children under that root.
+    """
+    sase_tmpdir = os.environ.get("SASE_TMPDIR")
+    root = Path(sase_tmpdir).expanduser() if sase_tmpdir else sase_subdir("tmp")
+    for part in parts:
+        root /= part
+    root.mkdir(parents=True, exist_ok=True)
+    return str(root)
+
+
 def sase_home() -> Path:
     """Return the root directory for SASE state."""
     return Path(os.environ.get("SASE_HOME") or Path.home() / ".sase").expanduser()

@@ -226,13 +226,19 @@ class XPromptBrowserActionsMixin:
         else:
             template = "Your xprompt content here.\n"
 
+        from sase.core.paths import get_sase_managed_tmpdir
+
         safe_name = entry.name.replace("/", "_")
         tmp_fd, tmp_path = tempfile.mkstemp(
-            suffix=".md", prefix=f"xprompt_{safe_name}_"
+            suffix=".md",
+            prefix=f"xprompt_{safe_name}_",
+            dir=get_sase_managed_tmpdir("editors"),
         )
         try:
-            os.write(tmp_fd, template.encode("utf-8"))
-            os.close(tmp_fd)
+            try:
+                os.write(tmp_fd, template.encode("utf-8"))
+            finally:
+                os.close(tmp_fd)
 
             editor = os.environ.get("EDITOR") or "nvim"
             editor_args = build_editor_args(editor, [tmp_path])

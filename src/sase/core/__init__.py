@@ -34,6 +34,7 @@ from sase.core.changespec import (
 from sase.core.clipboard import copy_to_system_clipboard
 from sase.core.paths import (
     ensure_sase_directory,
+    get_sase_managed_tmpdir,
     get_sase_directory,
     get_sase_tmpdir,
     make_safe_filename,
@@ -54,6 +55,7 @@ __all__ = [
     "ensure_sase_directory",
     "generate_timestamp",
     "get_next_suffix_number",
+    "get_sase_managed_tmpdir",
     "get_sase_directory",
     "get_sase_tmpdir",
     "get_timezone",

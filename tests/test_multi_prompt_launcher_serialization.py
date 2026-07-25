@@ -1,11 +1,15 @@
 """Tests for multi-prompt local xprompt serialization."""
 
 import os
+from pathlib import Path
+
+import pytest
 
 from sase.agent.multi_prompt_launcher import (
     _serialize_local_xprompts,
     deserialize_local_xprompts,
 )
+from sase.core.paths import sase_subdir
 from sase.xprompt.models import InputArg, InputType, XPrompt
 
 
@@ -27,6 +31,28 @@ def test_serialize_deserialize_roundtrip_simple() -> None:
         assert xp.content == "Focus on correctness"
         assert xp.source_path == "user-prompt"
         assert xp.inputs == []
+    finally:
+        os.unlink(path)
+
+
+def test_serialize_local_xprompts_uses_managed_tmpdir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    xprompts = {
+        "_review": XPrompt(
+            name="_review",
+            content="Focus on correctness",
+            source_path="user-prompt",
+        ),
+    }
+
+    monkeypatch.delenv("SASE_TMPDIR", raising=False)
+    path = _serialize_local_xprompts(xprompts)
+    try:
+        assert Path(path).parent == sase_subdir("tmp") / "handoff"
+        assert deserialize_local_xprompts(path)["_review"].content == (
+            "Focus on correctness"
+        )
     finally:
         os.unlink(path)
 
