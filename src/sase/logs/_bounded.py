@@ -88,6 +88,26 @@ def append_encoded_line_locked(
     """Append *encoded* with one ``O_APPEND`` write while the sibling lock is held."""
     if not encoded.endswith(b"\n"):
         raise ValueError("durable log records must end with a newline")
+    append_bytes_locked(path, encoded, max_bytes=max_bytes)
+
+
+def append_bytes_locked(
+    path: Path,
+    encoded: bytes,
+    *,
+    max_bytes: int = DEFAULT_MAX_BYTES,
+    truncate_oversized: bool = False,
+) -> None:
+    """Append arbitrary bytes while holding the caller-managed sibling lock.
+
+    Rotation preserves one prior segment. Callers handling free-form streams
+    may opt into trimming a single oversized chunk; structured-record callers
+    keep their atomic record intact even when it exceeds the nominal limit.
+    """
+    if not encoded:
+        return
+    if truncate_oversized and max_bytes > 0 and len(encoded) > max_bytes:
+        encoded = encoded[-max_bytes:]
     _rotate_if_needed_locked(path, incoming_bytes=len(encoded), max_bytes=max_bytes)
     fd = os.open(path, os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600)
     try:
@@ -124,6 +144,7 @@ def _rotate_if_needed_locked(
 
 __all__ = [
     "DEFAULT_MAX_BYTES",
+    "append_bytes_locked",
     "append_encoded_line_locked",
     "append_jsonl_record",
     "encode_jsonl_record",

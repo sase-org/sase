@@ -1785,6 +1785,18 @@
       "minimum": 1,
       "default": 10
     },
+    "tasks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "history_limit": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 100,
+          "description": "Maximum number of finished background tasks kept in ~/.sase/tasks. Running tasks are never pruned. Lower values trim history sooner; the oldest finished tasks (and their logs) are removed first."
+        }
+      }
+    },
     "timezone": {
       "type": "string",
       "description": "IANA timezone name governing all SASE wall-clock display and timestamp generation (e.g., 'America/New_York', 'US/Pacific'). Defaults to the system timezone when unset.",

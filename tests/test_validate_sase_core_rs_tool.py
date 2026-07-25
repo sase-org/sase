@@ -86,6 +86,22 @@ def test_validate_sase_core_rs_requires_telemetry_bindings() -> None:
         )
 
 
+def test_validate_sase_core_rs_requires_task_store_bindings() -> None:
+    validator = _load_validate_sase_core_rs()
+    task_bindings = {
+        "read_tasks_snapshot",
+        "append_task",
+        "update_task",
+        "prune_tasks",
+    }
+
+    assert task_bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in task_bindings:
+        assert not validator._validate_bindings(
+            _module_with_required_bindings(validator, missing={binding})
+        )
+
+
 def test_validate_sase_core_rs_requires_agent_stats_work_bindings() -> None:
     validator = _load_validate_sase_core_rs()
     stats_bindings = {

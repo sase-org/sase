@@ -33,6 +33,7 @@ and CLI flags.
   - [use_chezmoi](#use_chezmoi)
   - [commit_hooks](#commit_hooks)
   - [max_running_agents](#max_running_agents)
+  - [tasks](#tasks)
   - [timezone](#timezone)
   - [chat_install](#chat_install)
   - [telegram](#telegram)
@@ -1589,6 +1590,21 @@ non-preemptive, so existing agents continue and new implicit-cap launches wait f
 waiters and question continuations reread the effective cap on each normal poll. An explicit `%wait(runners=N)` keeps
 its own initial-admission threshold and may be either stricter or looser than the global cap.
 
+### tasks
+
+Durable background-task records live in `~/.sase/tasks/tasks.jsonl`, with combined output logs under
+`~/.sase/tasks/logs/`. Retention keeps every pending or running task plus the newest configured number of finished
+tasks. Lowering the limit trims the oldest finished rows and their logs; active work is never pruned.
+
+```yaml
+tasks:
+  history_limit: 100
+```
+
+| Field                 | Type | Default | Minimum | Description                                      |
+| --------------------- | ---- | ------- | ------- | ------------------------------------------------ |
+| `tasks.history_limit` | int  | `100`   | `1`     | Number of finished background tasks to preserve. |
+
 ### timezone
 
 The timezone that governs all SASE wall-clock display and timestamp generation (notifications, agent logs,
@@ -1961,9 +1977,10 @@ entry points directly.
 
 ### State Root
 
-| Variable    | Description                                                                                                                                                          |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_HOME` | Override the SASE state root. Defaults to `~/.sase`; project files, chats, artifacts, notifications, dismissed bundles, saved groups, and logs move under this root. |
+| Variable                  | Description                                                                                                                                                          |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_HOME`               | Override the SASE state root. Defaults to `~/.sase`; project files, chats, artifacts, notifications, dismissed bundles, saved groups, and logs move under this root. |
+| `SASE_TASK_LOG_MAX_BYTES` | Maximum active task-log segment size in bytes (default: 2 MiB); `0` disables rotation.                                                                               |
 
 ### General
 

@@ -252,6 +252,7 @@ def require_machine_name() -> str:
 
 
 DEFAULT_MAX_RUNNING_AGENTS = 10
+DEFAULT_TASK_HISTORY_LIMIT = 100
 
 
 def get_configured_max_running_agents() -> int:
@@ -264,6 +265,19 @@ def get_configured_max_running_agents() -> int:
     if type(value) is int and value >= 1:
         return value
     return DEFAULT_MAX_RUNNING_AGENTS
+
+
+def get_task_history_limit() -> int:
+    """Return the validated configured finished-task retention limit."""
+    tasks = load_merged_config().get("tasks", {})
+    value = (
+        tasks.get("history_limit", DEFAULT_TASK_HISTORY_LIMIT)
+        if isinstance(tasks, dict)
+        else DEFAULT_TASK_HISTORY_LIMIT
+    )
+    if type(value) is int and value >= 1:
+        return value
+    return DEFAULT_TASK_HISTORY_LIMIT
 
 
 def get_max_running_agents(now: float | None = None) -> int:
