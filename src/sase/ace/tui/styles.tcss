@@ -426,6 +426,28 @@ MarkdownBlock > .code_inline {
     border: round #5FAFFF;
 }
 
+#chats-status {
+    width: 100%;
+    height: 2;
+    max-height: 2;
+    padding: 0 1;
+    background: $surface;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+#chats-list {
+    width: 100%;
+    height: 1fr;
+    scrollbar-gutter: stable;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+#chats-list > .option-list--option-highlighted {
+    background: #5FAFFF 30%;
+}
+
 #chats-empty {
     width: 100%;
     height: 1fr;

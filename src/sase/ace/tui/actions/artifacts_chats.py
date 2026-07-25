@@ -1,6 +1,13 @@
-"""App actions for the Artifacts Chats pane scaffold."""
+"""App actions for the Artifacts Chats pane."""
 
 from __future__ import annotations
+
+import asyncio
+import os
+import subprocess
+
+from sase.ace.hints import build_editor_args
+from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
 
 from ..widgets.artifacts.chats_pane import ArtifactsChatsPane
 
@@ -60,10 +67,43 @@ class ArtifactsChatsActionsMixin:
         """Open the associated agent once chat-to-agent links are available."""
 
     def action_chats_open_external(self) -> None:
-        """Open the selected transcript once chat rows are available."""
+        """Open the selected transcript in the configured editor."""
+        pane = self._chats_pane()
+        entry = pane.selected_entry if pane is not None else None
+        if entry is None:
+            return
+        editor = os.environ.get("EDITOR") or "nvim"
+        editor_args = build_editor_args(editor, [entry.absolute_path])
+        with self.suspend():  # type: ignore[attr-defined]
+            subprocess.run(editor_args, check=False)
 
     def action_chats_copy_path(self) -> None:
-        """Copy the selected transcript path once chat rows are available."""
+        """Copy the selected transcript path without blocking key handling."""
+        pane = self._chats_pane()
+        entry = pane.selected_entry if pane is not None else None
+        if entry is None:
+            return
+
+        async def copy_path() -> None:
+            from .clipboard import copy_to_system_clipboard
+
+            copied = await asyncio.to_thread(
+                copy_to_system_clipboard,
+                entry.absolute_path,
+            )
+            self.notify(  # type: ignore[attr-defined]
+                "Copied chat path"
+                if copied
+                else "Copy failed — clipboard tool not available",
+                severity="information" if copied else "error",
+            )
+
+        spawn_pump_free_task(
+            self,
+            copy_path(),
+            name="sase-chat-copy-path",
+            registry_attr="_pump_free_async_tasks",
+        )
 
     def action_chats_refresh(self) -> None:
         pane = self._chats_pane()
