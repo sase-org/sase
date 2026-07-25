@@ -105,7 +105,7 @@ async def test_artifacts_subtabs_jk_p95(
         initial_tab="changespecs",
     ) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
 
         await _press_burst(page, "j")

@@ -172,7 +172,7 @@ async def test_models_panel_edit_preview_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
 
         modal = AliasEditPreviewModal("coder", ConfigEditOp.set_value("claude/opus"))
@@ -201,7 +201,7 @@ async def test_models_panel_default_effort_edit_preview_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
 
         modal = DefaultEffortEditPreviewModal("xhigh", override_active=True)
@@ -230,7 +230,7 @@ async def test_models_panel_runner_limit_edit_preview_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
 
         modal = RunnerLimitEditPreviewModal(4, override_active=True)

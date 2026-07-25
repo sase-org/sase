@@ -180,7 +180,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
 
         # Slash remains inert on Bugs rather than opening the commit bar or
         # historical PR query modal. Plans owns its own filter-bar route.
-        await page.press("3")
+        await page.press("4")
         await page.expect_state("artifacts_subtab", "bugs")
         await page.press("slash")
         await page.pause()

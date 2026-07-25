@@ -170,7 +170,7 @@ async def test_plans_filter_bar_live_filters_tree_commits_and_survives_refresh(
         await page.press("escape")
 
         # Slash is still intentionally inert on Bugs.
-        await page.press("3", "slash")
+        await page.press("4", "slash")
         await page.expect_state("artifacts_subtab", "bugs")
         await page.pause()
         assert bar.display is False

@@ -223,7 +223,7 @@ _Prompt history and stashes make useful launches recoverable instead of leaving 
 ## The Agents Tab In ACE
 
 `sase ace` opens ACE, the Agentic ChangeSpec Explorer. It has three top-level tabs: **Agents**, **Artifacts**, and
-**Axe**. Agents is the startup default. Artifacts has focused Commits, Plans, Bugs, PRs, and Chats sub-tabs; its PRs
+**Axe**. Agents is the startup default. Artifacts has focused Commits, Plans, Chats, Bugs, and PRs sub-tabs; its PRs
 view owns durable PR-sized ChangeSpec records. Axe is the background daemon view. This post stays on Agents because that
 is the tmux-window-farm replacement.
 

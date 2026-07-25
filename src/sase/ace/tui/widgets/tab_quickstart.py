@@ -211,7 +211,7 @@ class TabQuickStart(VerticalScroll):
                 3,
                 (
                     ("1", "2", "3", "4", "5"),
-                    "Jump: Commits · Plans · Bugs · PRs · Chats.",
+                    "Jump: Commits · Plans · Chats · Bugs · PRs.",
                 ),
             )
             rows.insert(
@@ -221,7 +221,7 @@ class TabQuickStart(VerticalScroll):
                         key_display_name(app.cycle_artifacts_subtab_reverse),
                         key_display_name(app.cycle_artifacts_subtab),
                     ),
-                    "Cycle Artifacts: Commits · Plans · Bugs · PRs · Chats.",
+                    "Cycle Artifacts: Commits · Plans · Chats · Bugs · PRs.",
                 ),
             )
 

@@ -149,7 +149,7 @@ class ChangeSpecOnboarding(VerticalScroll):
         )
         text.append("  *\n", style="bold #FFD700")
         text.append(
-            "Browse commits, plans, bugs, PRs & chats without leaving Artifacts",
+            "Browse commits, plans, chats, bugs & PRs without leaving Artifacts",
             style=f"dim {_ACCENT}",
         )
         return text

@@ -48,7 +48,7 @@ async def test_config_center_plugins_tab_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         await page.wait_for(lambda _s: pane._detail_name == "github")
@@ -76,7 +76,7 @@ async def test_config_center_updates_core_update_available_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         pane._switch_to_subtab("core")
@@ -106,7 +106,7 @@ async def test_config_center_updates_all_current_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         pane._switch_to_subtab("core")
@@ -131,7 +131,7 @@ async def test_config_center_agent_clis_marked_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         pane._switch_to_subtab("agent-clis")
@@ -158,7 +158,7 @@ async def test_config_center_agent_clis_update_preview_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         pane._switch_to_subtab("agent-clis")
@@ -208,7 +208,7 @@ async def test_config_center_plugins_dev_update_available_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         await page.wait_for(lambda _s: pane._detail_name == "github")
@@ -233,7 +233,7 @@ async def test_config_center_plugins_community_detail_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         # Walk down to the lone community plugin (acme).
@@ -283,7 +283,7 @@ async def test_config_center_plugins_long_description_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         await page.wait_for(lambda _s: pane._detail_name == "megasync")
@@ -308,7 +308,7 @@ async def test_config_center_plugins_offline_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         pane.action_toggle_offline()
@@ -335,7 +335,7 @@ async def test_config_center_plugins_verbose_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         _, pane = await _open_plugins_modal(page)
         pane.action_toggle_verbose()
@@ -371,7 +371,7 @@ async def test_config_center_plugins_empty_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         await _open_plugins_modal(page)
 
@@ -397,7 +397,7 @@ async def test_config_center_plugins_loading_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         await _open_modal(page, "updates")
 

@@ -56,7 +56,7 @@ async def test_first_page_paints_before_full_extension(
 
     try:
         async with AcePage(initial_tab="changespecs") as page:
-            await page.press("5")
+            await page.press("3")
             pane = page.query_one_widget(
                 "#artifacts-chats-pane",
                 ArtifactsChatsPane,
@@ -110,7 +110,7 @@ async def test_jk_navigation_skips_headers_without_highlight_echoes(
     )
 
     async with AcePage(initial_tab="changespecs") as page:
-        await page.press("5")
+        await page.press("3")
         pane = page.query_one_widget("#artifacts-chats-pane", ArtifactsChatsPane)
         await page.wait_for(lambda _state: pane.selected_entry is entries[0])
         option_list = pane.query_one("#chats-list", OptionList)

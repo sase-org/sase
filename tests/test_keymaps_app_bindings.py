@@ -161,13 +161,13 @@ def test_build_app_bindings_number_artifacts_and_prefix_saved_queries() -> None:
 
     assert {
         by_action[f"show_artifacts_{subtab}"].key: subtab
-        for subtab in ("commits", "plans", "bugs", "prs", "chats")
+        for subtab in ("commits", "plans", "chats", "bugs", "prs")
     } == {
         "1": "commits",
         "2": "plans",
-        "3": "bugs",
-        "4": "prs",
-        "5": "chats",
+        "3": "chats",
+        "4": "bugs",
+        "5": "prs",
     }
     assert by_action["open_saved_query_picker"].key == "asterisk"
     assert {
@@ -186,13 +186,13 @@ def test_fallback_bindings_match_numbered_artifacts_and_saved_query_picker() -> 
 
     assert [
         (by_action[f"show_artifacts_{subtab}"].key, subtab)
-        for subtab in ("commits", "plans", "bugs", "prs", "chats")
+        for subtab in ("commits", "plans", "chats", "bugs", "prs")
     ] == [
         ("1", "commits"),
         ("2", "plans"),
-        ("3", "bugs"),
-        ("4", "prs"),
-        ("5", "chats"),
+        ("3", "chats"),
+        ("4", "bugs"),
+        ("5", "prs"),
     ]
     assert by_action["open_saved_query_picker"].key == "asterisk"
     assert {

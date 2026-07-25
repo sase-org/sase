@@ -14,9 +14,9 @@ DEFAULT_ARTIFACTS_SUBTAB: ArtifactsSubTab = "commits"
 ARTIFACTS_SUBTAB_ORDER: tuple[ArtifactsSubTab, ...] = (
     "commits",
     "plans",
+    "chats",
     "bugs",
     "prs",
-    "chats",
 )
 ARTIFACTS_PANE_IDS: dict[ArtifactsSubTab, str] = {
     "prs": "artifacts-prs-pane",

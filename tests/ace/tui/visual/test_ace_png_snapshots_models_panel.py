@@ -41,7 +41,7 @@ async def test_models_panel_empty_custom_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -64,7 +64,7 @@ async def test_models_panel_default_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
 
         page.app.push_screen(ModelsPanel())
@@ -93,7 +93,7 @@ async def test_models_panel_default_effort_override_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -122,7 +122,7 @@ async def test_models_panel_runner_limit_override_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -146,7 +146,7 @@ async def test_models_panel_smartest_fallback_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -174,7 +174,7 @@ async def test_models_panel_pool_effort_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -201,7 +201,7 @@ async def test_models_panel_effort_provenance_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -230,7 +230,7 @@ async def test_models_panel_pool_suspended_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
@@ -256,7 +256,7 @@ async def test_models_panel_overrides_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
 
         page.app.push_screen(ModelsPanel())
@@ -284,7 +284,7 @@ async def test_models_panel_custom_builtin_warning_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")

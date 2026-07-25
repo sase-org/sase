@@ -80,7 +80,7 @@ ACE has three top-level tabs:
 
 - **Agents** — live and recent agent records. Find the run you just launched: prompt, reply transcript, workspace path,
   status, retry chain.
-- **Artifacts** — five focused sub-tabs for commits, plans, bugs, PRs, and chat transcripts. The PRs view contains every
+- **Artifacts** — five focused sub-tabs for commits, plans, chat transcripts, bugs, and PRs. The PRs view contains every
   ChangeSpec on the project. A **ChangeSpec** is SASE's durable record of one PR-sized unit of work; think of it as the
   long-lived sibling of a pull request that holds the description, parent, status (WIP → Draft → Ready → Mailed →
   Submitted), commits, hooks, comments, and mentor activity all in one place. The [ChangeSpec guide](change_spec.md)

@@ -65,7 +65,7 @@ async def test_alias_overrides_indicator_single_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await wait_for_visual_idle(page)
@@ -103,7 +103,7 @@ async def test_alias_overrides_indicator_multi_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("4")
+        await page.press("5")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("tab", "changespecs")
         await wait_for_visual_idle(page)

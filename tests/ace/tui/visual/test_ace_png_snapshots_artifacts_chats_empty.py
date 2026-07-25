@@ -39,7 +39,7 @@ async def test_artifacts_chats_empty_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("3")
         await page.expect_state("artifacts_subtab", "chats")
         pane = page.query_one_widget("#artifacts-chats-pane", ArtifactsChatsPane)
         await page.wait_for(
