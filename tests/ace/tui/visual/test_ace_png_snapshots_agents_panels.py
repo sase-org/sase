@@ -6,7 +6,6 @@ from datetime import datetime
 
 import pytest
 from rich.text import Text
-from textual.widgets import Input
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.agents._panel_fold_intent import (
@@ -18,7 +17,6 @@ from sase.ace.tui.widgets import (
     AgentDetail,
     AgentInfoPanel,
     AgentList,
-    HintInputBar,
     KeybindingFooter,
 )
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
@@ -301,43 +299,82 @@ async def test_agents_collapsed_panel_png_snapshot(
         )
         assert collapsed_widget._requested_width == normal_width
 
+        await page.press("l")
+        await page.wait_for(
+            lambda _screen: (
+                "chop"
+                not in effective_panel_collapses(
+                    page.app, page.app._panel_group.panel_keys
+                )
+            )
+        )
         await page.press("L")
         await page.wait_for(lambda _screen: page.app._panel_fold_hint_mode_active)
-        hint_bar = page.app.query_one("#hint-input-bar", HintInputBar)
-        hint_input = hint_bar.query_one("#hint-input", Input)
         panel_titles = [
             Text.from_markup(widget.border_title).plain
             for widget in container.query("AgentList")
         ]
         fold_hints = page.app._panel_fold_target_to_hint
-        for panel_idx, panel_key in enumerate(page.app._panel_group.panel_keys):
-            hint = fold_hints[("panel", panel_key)]
-            collapsed_marker = (
-                "▸ "
-                if panel_key
-                in effective_panel_collapses(page.app, page.app._panel_group.panel_keys)
-                else ""
-            )
-            assert panel_titles[panel_idx].startswith(f"[{hint}] {collapsed_marker}")
-        await wait_for_svg_contains(page, "Folds:")
+        assert fold_hints
+        assert all(not title.startswith("[") for title in panel_titles)
+        assert all(
+            target[0] in {"group", "agent"} and target[1] == "chop"
+            for target in fold_hints
+        )
+        chop_idx = page.app._panel_group.panel_keys.index("chop")
+        chop_widget = page.app.query_one(f"#agent-list-panel-{chop_idx}")
+        chop_render = "\n".join(
+            str(chop_widget.get_option_at_index(index).prompt)
+            for index in range(chop_widget.option_count)
+        )
+        assert all(f"[{hint}]" in chop_render for hint in fold_hints.values())
+        assert footer._last_layout_inputs is not None
+        footer_bindings, mode_label = footer._last_layout_inputs
+        assert footer_bindings == [("<esc>", "cancel")]
+        assert mode_label == "FOLDS"
         await wait_for_visual_idle(page)
-        _assert_collapsed_panel_summary(page)
 
         ace_png_visual.assert_page_png(
             page,
             "agents_panel_fold_selection_120x40",
-            title="ACE agents unified fold hints",
+            title="ACE agents selected tribe fold hints",
         )
 
-        hint_input.value = " ".join(
-            str(fold_hints[target]) for target in (("panel", None), ("panel", "chop"))
-        )
-        await page.press("enter")
+        group_target = next(target for target in fold_hints if target[0] == "group")
+        await page.press(fold_hints[group_target])
         await page.wait_for(lambda _screen: not page.app._panel_fold_hint_mode_active)
+        assert page.app._group_fold_registry.for_panel("chop").is_collapsed(
+            group_target[2]
+        )
         await wait_for_visual_idle(page)
 
+        # Move to @default with panel keys, climb to whole-panel focus, and
+        # collapse it through the ordinary lowercase panel-fold path.
+        for _ in page.app._panel_group.panel_keys:
+            if page.app._panel_group.focused_key is None:
+                break
+            await page.press("K")
+        assert page.app._panel_group.focused_key is None
+        for _ in range(6):
+            focus = page.app._resolve_focused_panel()
+            if focus is not None and not focus.collapsed:
+                break
+            await page.press("h")
+        focus = page.app._resolve_focused_panel()
+        assert focus is not None and not focus.collapsed
+        await page.press("h")
+        await page.wait_for(
+            lambda _screen: (
+                None
+                in effective_panel_collapses(page.app, page.app._panel_group.panel_keys)
+            )
+        )
         assert page.app._collapsed_panel_keys == {None}
         assert page.app._panel_group.panel_keys == ["chop", "keep", None]
+        await page.press("h")
+        await page.wait_for(lambda _screen: page.app._panel_group.focused_key == "keep")
+        await page.press("K")
+        await page.wait_for(lambda _screen: page.app._panel_group.focused_key == "chop")
         assert page.app._panel_group.focused_key == "chop"
         assert page.app._agents[page.app.current_idx].tribe == "chop"
         # A collapsed panel has no selectable rows, so mouse focus itself must

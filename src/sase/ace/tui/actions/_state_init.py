@@ -536,13 +536,14 @@ class StateInitMixin:
         self._panel_selection_memory: dict[
             PanelKey, tuple[str, int | tuple[str, ...]]
         ] = {}
-        # Numeric, set-oriented fold mode (app-level ``L``). Its maps cover
-        # panel titles, group banners, and structural/workflow row owners and
-        # are deliberately separate from file hints and apostrophe jump hints.
+        # Tribe-scoped single-key fold mode (app-level ``L``). Its maps cover
+        # group banners and structural/workflow row owners in the focused
+        # panel, separately from file hints and apostrophe jump hints.
         self._panel_fold_hint_mode_active = False
         self._panel_fold_hint_snapshot: tuple[FoldHintTarget, ...] = ()
-        self._panel_fold_hint_to_target: dict[int, FoldHintTarget] = {}
-        self._panel_fold_target_to_hint: dict[FoldHintTarget, int] = {}
+        self._panel_fold_hint_to_target: dict[str, FoldHintTarget] = {}
+        self._panel_fold_target_to_hint: dict[FoldHintTarget, str] = {}
+        self._panel_fold_hint_pending_prefix: str = ""
         self._agents_fold_state_load_started = False
         self._agents_fold_state_load_resolved = False
         self._agents_fold_state_loaded_snapshot: AgentsFoldStateSnapshot | None = None

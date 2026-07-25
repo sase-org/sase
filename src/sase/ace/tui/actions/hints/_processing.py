@@ -102,10 +102,6 @@ class InputProcessingMixin(HintMixinBase):
 
     def on_hint_input_bar_submitted(self, event: HintInputBar.Submitted) -> None:
         """Handle hint input submission."""
-        if event.mode == "panels":
-            self._process_panel_fold_hint_input(event.value)  # type: ignore[attr-defined]
-            return
-
         self._remove_hint_input_bar()
 
         if event.mode == "view":
@@ -129,9 +125,6 @@ class InputProcessingMixin(HintMixinBase):
     def on_hint_input_bar_cancelled(self, event: HintInputBar.Cancelled) -> None:
         """Handle hint input cancellation."""
         del event  # unused
-        if getattr(self, "_panel_fold_hint_mode_active", False):
-            self._teardown_panel_fold_hint_mode()  # type: ignore[attr-defined]
-            return
         self._remove_hint_input_bar()
 
     def _remove_hint_input_bar(self) -> None:

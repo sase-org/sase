@@ -413,8 +413,9 @@ def test_visible_agent_folds_use_contextual_app_command() -> None:
     assert not any(c.id == "leader.toggle_selected_agent_panels" for c in catalog)
     spec = next(c for c in catalog if c.id == "app.expand_all_folds")
 
-    assert spec.label == (
-        "Select visible Agents folds by number / expand all folds on other tabs"
+    assert (
+        spec.label
+        == "Toggle a fold in the selected tribe / expand all folds on other tabs"
     )
     assert spec.key_display == "L"
     assert spec.tabs == ("changespecs", "agents", "axe")

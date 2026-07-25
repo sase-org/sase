@@ -102,11 +102,6 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         resolve_panel = getattr(self, "_resolve_focused_panel", None)
         panel_focus = resolve_panel() if callable(resolve_panel) else None
         panel_selected = bool(panel_focus is not None and panel_focus.panel_key == key)
-        selection_hint = None
-        if getattr(self, "_panel_fold_hint_mode_active", False):
-            selection_hint = getattr(self, "_panel_fold_target_to_hint", {}).get(
-                ("panel", key)
-            )
         counts = agent_panel_counts(panel_agents, unread)
         from ...models.tribe_display import tribe_display_for
 
@@ -122,7 +117,6 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             jump_hint=(
                 panel_jump_hints.get(("panel", key)) if panel_jump_hints else None
             ),
-            selection_hint=selection_hint,
             icon=tribe_display.icon,
             color=tribe_display.color,
         )

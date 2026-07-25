@@ -235,11 +235,9 @@ class AgentDetailRenderMixin:
         self._apply_agent_footer_update(agent_detail, footer_widget, current_agent)
 
     def _should_render_agent_detail_with_hints(self) -> bool:
-        """Return whether Agents-tab detail repaints must preserve view hints."""
-        return (
-            self.current_tab == "agents"
-            and bool(getattr(self, "_hint_mode_active", False))
-            and getattr(self, "_hint_mode_hints_for", None) not in {"panels", "folds"}
+        """Return whether Agents-tab detail repaints preserve active hints."""
+        return self.current_tab == "agents" and bool(
+            getattr(self, "_hint_mode_active", False)
         )
 
     def _render_agent_detail_with_hints(

@@ -43,6 +43,10 @@ class EventKeyboardMixin(EventHandlersBase):
             if self._handle_entry_jump_key(key):  # type: ignore[attr-defined]
                 event.prevent_default()
                 event.stop()
+        elif getattr(self, "_panel_fold_hint_mode_active", False):
+            if self._handle_panel_fold_hint_key(key):  # type: ignore[attr-defined]
+                event.prevent_default()
+                event.stop()
         elif self._fold_mode_active:
             if self._handle_fold_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()

@@ -11,9 +11,7 @@ from textual.widgets import Input, Label, Static
 if TYPE_CHECKING:
     from ..app import AceApp
 
-HintInputMode = Literal[
-    "view", "hooks", "accept", "failed_hooks", "rewind", "mentors", "panels"
-]
+HintInputMode = Literal["view", "hooks", "accept", "failed_hooks", "rewind", "mentors"]
 
 
 class _HintInput(Input):
@@ -150,12 +148,6 @@ class HintInputBar(Static):
                     placeholder="1-5 or 1 3 5 (delete entries/lines, kills running)",
                     id="hint-input",
                 )
-            elif self.mode == "panels":
-                yield Label("Folds: ", id="hint-label")
-                yield _HintInput(
-                    placeholder="1-3 or 1 3 (toggle folds)",
-                    id="hint-input",
-                )
             elif self.mode == "rewind":
                 yield Label("Rewind: ", id="hint-label")
                 placeholder = self._custom_placeholder or ""
@@ -188,8 +180,6 @@ class HintInputBar(Static):
             text.append("View: ", style="bold #87D7FF")
         elif self.mode == "failed_hooks":
             text.append("Failed Hooks: ", style="bold #87D7FF")
-        elif self.mode == "panels":
-            text.append("Folds: ", style="bold #87D7FF")
         else:
             text.append("Hooks: ", style="bold #87D7FF")
         return text

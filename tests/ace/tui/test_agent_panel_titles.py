@@ -362,24 +362,6 @@ def test_panel_title_renders_two_character_jump_hint() -> None:
     )
 
 
-def test_panel_title_renders_multi_digit_numeric_selection_hint() -> None:
-    title = agent_panel_border_title(
-        None,
-        2,
-        counts=AgentPanelCounts(running=2),
-        selection_hint=12,
-    )
-
-    assert title.plain == "[12] @default · 2 [R2]"
-    _assert_title_span(
-        title,
-        start=0,
-        end=5,
-        style="bold #FFFF00",
-        text="[12] ",
-    )
-
-
 def test_panel_counts_use_lanes_for_total_and_statuses() -> None:
     standalone = _agent(
         name="standalone",

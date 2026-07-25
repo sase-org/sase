@@ -83,6 +83,20 @@ def test_jump_footer_shows_apostrophe_back_with_history() -> None:
     assert captured == [([("'", "back"), ("<esc>", "cancel")], "JUMP")]
 
 
+def test_fold_hint_footer_shows_cancel_binding() -> None:
+    footer = KeybindingFooter()
+    captured: list[tuple[list[tuple[str, str]], str | None]] = []
+
+    def _capture(bindings: Any, mode_label: Any = None) -> None:
+        captured.append((list(bindings), mode_label))
+
+    footer._update_display = _capture  # type: ignore[method-assign]
+
+    footer.update_fold_hint_bindings()
+
+    assert captured == [([("<esc>", "cancel")], "FOLDS")]
+
+
 def test_bgcmd_list_hint_marker_rendered() -> None:
     widget = BgCmdList()
     info = BackgroundCommandInfo(

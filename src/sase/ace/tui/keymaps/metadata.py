@@ -111,7 +111,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("show_notifications", "Notifications", False),
     ("kill_agent", "Kill", False),
     ("expand_or_layout", "Expand / Enter Panel", False),
-    ("expand_all_folds", "Select Folds / Expand All", False),
+    ("expand_all_folds", "Tribe Folds / Expand All", False),
     ("toggle_layout", "Layout", False),
     ("toggle_thinking", "Tools", False),
     ("toggle_thinking_reverse", "Tools Rev", False),

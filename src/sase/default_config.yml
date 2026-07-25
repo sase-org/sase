@@ -249,9 +249,10 @@ ace:
       # and group. On whole-panel focus it collapses every open house, then
       # every open clan in that panel, then the last expanded top-level group
       # per press, and finally the panel.
-      # l expands or enters a selected panel; L selects visible folds by
-      # numeric hint. Z zooms agent detail or isolates/restores a selected
-      # panel. Other tabs retain their fold behavior.)
+      # l expands or enters a selected panel; L hints the selected tribe's
+      # folds, and one key toggles one fold. Z zooms agent detail or
+      # isolates/restores a selected panel. Other tabs retain their fold
+      # behavior.)
       hooks_or_collapse: "h"
       hooks_or_collapse_all: "H"
       expand_or_layout: "l"

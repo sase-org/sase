@@ -328,7 +328,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "expand_all_folds",
-        "Select visible Agents folds by number / expand all folds on other tabs",
+        "Toggle a fold in the selected tribe / expand all folds on other tabs",
         "Folding",
         ALL_TABS,
         (),

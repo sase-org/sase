@@ -187,6 +187,8 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
             return
         if getattr(self, "_entry_jump_mode_active", False):
             return
+        if getattr(self, "_panel_fold_hint_mode_active", False):
+            return
         if getattr(self, "_accept_mode_active", False):
             return
 

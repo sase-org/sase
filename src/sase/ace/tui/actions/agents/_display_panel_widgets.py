@@ -266,8 +266,8 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
             (
                 jump_hints,
                 banner_jump_hints,
-                panel_jump_hints,
             ) = self._panel_fold_hint_display_maps()  # type: ignore[attr-defined]
+            panel_jump_hints = None
 
         focused_idx = self._panel_group.focused_idx
         marked = self._marked_agents

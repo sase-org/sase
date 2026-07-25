@@ -116,7 +116,12 @@ async def test_watcher_active_clean_tick_skips_attempt_pinned_detail() -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "flag_name",
-    ["_hint_mode_active", "_entry_jump_mode_active", "_accept_mode_active"],
+    [
+        "_hint_mode_active",
+        "_entry_jump_mode_active",
+        "_panel_fold_hint_mode_active",
+        "_accept_mode_active",
+    ],
 )
 async def test_watcher_active_clean_tick_skips_file_refresh_in_transient_modes(
     flag_name: str,

@@ -126,7 +126,7 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_expand_all_folds(self) -> None:
-        """Select visible Agents folds or expand all folds on other tabs."""
+        """Toggle a selected-tribe fold or expand all folds on other tabs."""
         if self.current_tab == "agents":
             self.action_toggle_selected_agent_panels()  # type: ignore[attr-defined]
             return

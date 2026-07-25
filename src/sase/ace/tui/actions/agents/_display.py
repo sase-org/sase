@@ -519,8 +519,8 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
                 (
                     jump_hints,
                     banner_jump_hints,
-                    panel_jump_hints,
                 ) = self._panel_fold_hint_display_maps()  # type: ignore[attr-defined]
+                panel_jump_hints = None
 
             self._refresh_panel_widgets(
                 jump_hints=jump_hints,

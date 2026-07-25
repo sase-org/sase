@@ -146,7 +146,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.expand_all_folds),
-                    "Select visible folds by number",
+                    "Toggle tribe fold by hint key",
                 ),
                 (
                     d(a.hooks_or_collapse_all),

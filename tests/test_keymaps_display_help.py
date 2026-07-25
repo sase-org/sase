@@ -64,9 +64,9 @@ def test_agents_help_uses_configured_direct_visible_fold_selector_key() -> None:
         for key, label in bindings
     }
 
-    assert ("P", "Select visible folds by number") in pairs
+    assert ("P", "Toggle tribe fold by hint key") in pairs
     assert not any(
-        key.startswith(",") and "visible folds" in label.lower() for key, label in pairs
+        key.startswith(",") and "tribe fold" in label.lower() for key, label in pairs
     )
 
 
