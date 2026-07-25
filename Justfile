@@ -460,6 +460,7 @@ docs-deploy-artifact-check:
 
 # Validate SASE initialization and SDD prompt/plan frontmatter links.
 validate: _setup
+    {{ venv_bin }}/python tools/validate_sase_core_rs_version --pyproject pyproject.toml --published-minimum
     {{ venv_bin }}/sase validate
 
 # Validate committed plans with the month-based schema cutover policy.
