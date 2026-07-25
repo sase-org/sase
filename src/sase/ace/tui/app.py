@@ -10,6 +10,7 @@ from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import Header
 
+from sase.ace.tui.util.session_registration import register_ace_session
 from sase.logs import current_toast_session, record_toast
 
 if TYPE_CHECKING:
@@ -245,6 +246,7 @@ class AceApp(
 
         self.title = format_app_title(initial_app_version())
         current_toast_session()
+        register_ace_session(self.title)
         self._jk_perf = JKPerfTimer() if _perf_enabled() else None
         self._init_app_state(
             query=query,

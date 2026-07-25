@@ -311,6 +311,11 @@ class LifecycleMixin:
 
             flush_toasts(timeout=1.0)
 
+        def unregister_live_session() -> None:
+            from ..util.session_registration import unregister_ace_session
+
+            unregister_ace_session()
+
         def restore_artifact_file_tmux_decoration() -> None:
             restore_artifact_decoration = getattr(
                 self, "_restore_artifact_file_tmux_decoration", None
@@ -333,6 +338,7 @@ class LifecycleMixin:
             cleanup(cancel_artifact_discovery)
             cleanup(cancel_content_search_refresh)
             cleanup(flush_tui_toasts)
+            cleanup(unregister_live_session)
             cleanup(shutdown_loader_executor)
             cleanup(restore_artifact_file_tmux_decoration)
             cleanup(restore_artifact_file_viewer_signal_handler)
