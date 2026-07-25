@@ -10,6 +10,9 @@ from sase.doctor.checks_config_common import (
 from sase.xprompt.effort import split_model_effort
 
 
+_RETIRED_BUILTIN_ALIAS_NAMES = {"epic_creator", "phase_worker"}
+
+
 def check_config_model_aliases() -> DiagnosticCheck:
     """Surface model-alias config that needs migrating (epic sase-5d).
 
@@ -25,7 +28,8 @@ def check_config_model_aliases() -> DiagnosticCheck:
     - names present in both nested maps;
     - custom alias objects missing a usable ``model`` or ``description``;
     - bucket metadata entries that have no member aliases;
-    - stale ``model_aliases.builtin.phase_worker`` entries and alias values that
+    - stale ``model_aliases.builtin.phase_worker`` and
+      ``model_aliases.builtin.epic_creator`` entries, plus alias values that
       reference a retired implicit alias;
     - merged alias values that reference an ``@<alias>`` name that resolves to
       nothing, which would silently fall through at launch.
@@ -189,6 +193,16 @@ def check_config_model_aliases() -> DiagnosticCheck:
                     ),
                 }
             )
+        elif alias == "epic_creator":
+            problems.append(
+                {
+                    "key": "model_aliases.builtin.epic_creator",
+                    "message": (
+                        "model_aliases.builtin.epic_creator is retired; SASE no "
+                        "longer launches an epic-creator role, so remove this entry"
+                    ),
+                }
+            )
         elif model_alias_kind(alias) == "user":
             problems.append(
                 {
@@ -264,7 +278,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
             )
 
     for alias, target in sorted(get_model_aliases().items()):
-        if alias == "phase_worker" and alias in builtin_aliases:
+        if alias in _RETIRED_BUILTIN_ALIAS_NAMES and alias in builtin_aliases:
             # The focused migration warning above is the actionable truth for
             # this stale key; validating its retired target would only add
             # noisy or contradictory follow-on advice.

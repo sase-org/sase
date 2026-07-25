@@ -8,7 +8,11 @@ import pytest
 
 from sase.config import core as config_core
 from sase.llm_provider import config as llm_config
-from sase.llm_provider.config import resolve_model_alias
+from sase.llm_provider.config import (
+    model_alias_description,
+    model_alias_kind,
+    resolve_model_alias,
+)
 from sase.llm_provider.registry import resolve_model_provider
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
@@ -175,12 +179,29 @@ def test_worker_other_and_phase_worker_are_not_special_aliases(
 def test_unconfigured_retired_aliases_resolve_to_bare_input(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Without explicit config, ``worker``/``other`` are plain unknown tokens."""
+    """Without explicit config, retired aliases are plain unknown tokens."""
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
     assert resolve_model_alias("worker") == "worker"
     assert resolve_model_alias("other") == "other"
     assert resolve_model_alias("phase_worker") == "phase_worker"
+    assert resolve_model_alias("epic_creator") == "epic_creator"
+
+
+def test_configured_epic_creator_has_no_builtin_presentation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stale configured epic-creator key is treated as an ordinary user alias."""
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"epic_creator": "@default"}},
+        },
+    )
+
+    assert model_alias_kind("epic_creator") == "user"
+    assert model_alias_description("epic_creator") is None
 
 
 def test_launch_alias_override_wins_and_follows_alias_chains(

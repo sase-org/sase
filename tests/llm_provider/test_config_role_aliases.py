@@ -247,7 +247,6 @@ def test_epic_execution_role_aliases_follow_size_specific_fallbacks(
         },
     )
 
-    assert resolve_model_alias("epic_creator") == "epic_creator"
     for role in ("epic_lander", "medium_phase_worker"):
         assert resolve_model_alias(role) == "codex/gpt-5.6-sol"
     monkeypatch.setattr(

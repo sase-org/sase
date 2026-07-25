@@ -8,6 +8,8 @@
   `~/.sase/agent_tribes.json` and `tribe`; agent metadata, archives, cleanup and scan wires, and CLI JSON emit only
   tribe-shaped fields; the Agents query uses `tribe:` instead of `tag:`; and ACE keymap/config actions use tribe names.
   Existing tag-shaped persisted state remains readable through explicit legacy migration paths.
+- **llm-provider:** configured `llm_provider.model_aliases.builtin.epic_creator` entries are no longer accepted as
+  builtin overrides and should be deleted.
 
 ### Features
 

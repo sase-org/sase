@@ -30,7 +30,6 @@ from .config import (
     CHEAPEST_MODEL_ALIAS_NAME,
     CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
-    EPIC_CREATOR_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     LARGE_PHASE_WORKER_MODEL_ALIAS_NAME,
     MEDIUM_PHASE_WORKER_MODEL_ALIAS_NAME,
@@ -62,7 +61,6 @@ AliasKind = Literal["default", "role", "provider_coder", "user"]
 #: Canonical display order for the implicit role aliases (after ``default``).
 _ROLE_ALIAS_ORDER: tuple[str, ...] = (
     CODER_MODEL_ALIAS_NAME,
-    EPIC_CREATOR_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
     XSMALL_PHASE_WORKER_MODEL_ALIAS_NAME,

@@ -12,7 +12,6 @@ from .model_alias_policy import (
     CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
     IMPLICIT_ALIAS_TARGETS,
-    LEGACY_BUILTIN_ALIAS_NAMES,
     PROVIDER_CODER_ALIAS_SUFFIX,
     ROLE_ALIAS_DESCRIPTIONS,
     ROLE_ALIAS_FALLBACKS,
@@ -240,8 +239,6 @@ def model_alias_kind(name: str) -> str:
         return "default"
     if name in ROLE_ALIAS_FALLBACKS or name in IMPLICIT_ALIAS_TARGETS:
         return "role"
-    if name in LEGACY_BUILTIN_ALIAS_NAMES and name in get_builtin_model_aliases():
-        return "role"
     if is_provider_coder_alias(name):
         return "provider_coder"
     return "user"
@@ -254,8 +251,6 @@ def model_alias_description(name: str) -> str | None:
         return None
     if alias in ROLE_ALIAS_DESCRIPTIONS:
         return ROLE_ALIAS_DESCRIPTIONS[alias]
-    if alias in LEGACY_BUILTIN_ALIAS_NAMES and alias in get_builtin_model_aliases():
-        return "Legacy compatibility alias; SASE no longer launches this role."
     if is_provider_coder_alias(alias):
         provider = alias[: -len(PROVIDER_CODER_ALIAS_SUFFIX)]
         return f"Coder follow-up agents for plans authored by {provider}."

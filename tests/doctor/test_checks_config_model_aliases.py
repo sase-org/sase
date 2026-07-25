@@ -56,7 +56,9 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
     assert "model_aliases.builtin.phase_worker" in by_key
     assert "medium_phase_worker" in by_key["model_aliases.builtin.phase_worker"]
     assert "remove it" in by_key["model_aliases.builtin.phase_worker"]
-    assert "model_aliases.builtin.epic_creator" not in by_key
+    assert "model_aliases.builtin.epic_creator" in by_key
+    assert "retired" in by_key["model_aliases.builtin.epic_creator"]
+    assert "remove this entry" in by_key["model_aliases.builtin.epic_creator"]
     assert "model_aliases.builtin.epic_lander" not in by_key
 
 

@@ -30,10 +30,6 @@ CODER_MODEL_ALIAS_NAME = "coder"
 #: Suffix that turns a provider name into its ``<provider>_coder`` alias.
 PROVIDER_CODER_ALIAS_SUFFIX = "_coder"
 
-#: Legacy epic-creator alias name. It is no longer implicit or used by SASE,
-#: but configured builtin entries remain accepted for compatibility.
-EPIC_CREATOR_MODEL_ALIAS_NAME = "epic_creator"
-
 #: The implicit "epic_lander" role alias (epic land follow-up default).
 EPIC_LANDER_MODEL_ALIAS_NAME = "epic_lander"
 
@@ -113,9 +109,6 @@ IMPLICIT_ALIAS_TARGETS: dict[str, str] = {
     CHEAPER_MODEL_ALIAS_NAME: CHEAPER_MODEL_ALIAS_DEFAULT,
     CHEAPEST_MODEL_ALIAS_NAME: CHEAPEST_MODEL_ALIAS_DEFAULT,
 }
-
-#: Configured builtin names that retain role presentation for compatibility.
-LEGACY_BUILTIN_ALIAS_NAMES = {EPIC_CREATOR_MODEL_ALIAS_NAME}
 
 #: User-facing descriptions for implicit aliases.
 ROLE_ALIAS_DESCRIPTIONS: dict[str, str] = {
