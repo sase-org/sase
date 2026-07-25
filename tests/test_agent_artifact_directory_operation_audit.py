@@ -34,7 +34,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
     "src/sase/agents_sync/bundles.py:_create_imported_artifact": DirOpReview(
         lifecycle_calls=("update_agent_artifact_index_for_marker_mutation",),
     ),
-    "src/sase/agents_sync/git_sync.py:ensure_agents_clone": DirOpReview(
+    "src/sase/agents_sync/git_sync_ops.py:ensure_agents_clone": DirOpReview(
         exemption=(
             "Atomically publishes a freshly cloned agents sidecar checkout and "
             "removes only its temporary clone staging directory, not an agent "
