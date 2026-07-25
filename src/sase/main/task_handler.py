@@ -182,11 +182,16 @@ def _handle_task_run(args: argparse.Namespace) -> int:
 
     as_json = bool(getattr(args, "json", False))
     wait = bool(getattr(args, "wait", False))
-    if as_json and not wait:
-        _print_task_json(task)
+    if as_json:
+        # ``--json`` owns stdout: the envelope is the whole document. Without
+        # ``--wait`` that is the created task; with it, the finished task
+        # printed below. Nothing else — not even ``--quiet``'s bare id — may
+        # precede it, or the caller cannot parse what it reads.
+        if not wait:
+            _print_task_json(task)
     elif bool(getattr(args, "quiet", False)):
         print(task.task_id)
-    elif not as_json and not wait:
+    elif not wait:
         # Waiting prints the task's own output instead: keep stdout clean.
         print(task.task_id)
         print(f"monitor with: sase task show {short_task_id(task.task_id)} --follow")

@@ -565,6 +565,18 @@ def test_run_wait_json_keeps_stdout_parseable(
     assert json.loads(captured.out)["task"]["status"] == "success"
 
 
+def test_run_wait_json_quiet_still_emits_only_the_envelope(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """``--quiet`` must not prepend a bare id to the ``--json --wait`` document."""
+    exit_code = _dispatch(
+        ["task", "run", "-j", "-w", "-q", "-c", str(tmp_path), "--", *_NOOP]
+    )
+
+    assert exit_code == 0
+    assert json.loads(capsys.readouterr().out)["task"]["status"] == "success"
+
+
 def test_run_attributes_the_task_to_the_resolved_session(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
