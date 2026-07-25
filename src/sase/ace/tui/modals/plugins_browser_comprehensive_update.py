@@ -341,7 +341,7 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
             return False
         task_info = submit(
             "comprehensive-update",
-            "sase + agent CLIs + agents repos",
+            "sase + agent CLIs + cached hoods",
             "",
             task,
             display_name="comprehensive update",

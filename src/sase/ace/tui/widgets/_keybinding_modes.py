@@ -333,7 +333,7 @@ class KeybindingModesMixin:
             if has_notification:
                 bindings.append((k("jump_to_notification"), "notification"))
         bindings.append((k("models_panel"), "models panel"))
-        bindings.append((k("update_sase"), "update SASE + CLIs + agents repos"))
+        bindings.append((k("update_sase"), "update SASE + CLIs + hood cache"))
         self._update_display(bindings, mode_label="LEADER")
 
     def update_bang_bindings(self) -> None:

@@ -231,15 +231,17 @@ class ComprehensiveUpdateExecutionMixin:
         if not preview.agents_runnable:
             return (), None
         try:
-            reporter.phase("Importing cached agent updates")
+            reporter.phase("Importing cached incoming agent hoods")
             outcomes = tuple(integrate_cached_agent_updates(preview.agents_updates))
         except Exception as exc:  # noqa: BLE001 - retain successful prior legs.
             error = error_text(exc)
-            reporter.section("Cached agent update results")
-            reporter.log(f"Cached agent update failed: {error}", stream="result")
+            reporter.section("Cached incoming hood results")
+            reporter.log(
+                f"Cached incoming hood import failed: {error}", stream="result"
+            )
             return (), error
 
-        reporter.section("Cached agent update results")
+        reporter.section("Cached incoming hood results")
         for outcome in outcomes:
             reporter.log(cached_agents_result_line(outcome), stream="result")
         return outcomes, None

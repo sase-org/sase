@@ -248,9 +248,9 @@ CLI segments, and the tooltip spells out both counts plus any manual-only CLI up
 without mutating anything.
 
 The global `,U` action captures the provider names from the latest completed automatic snapshot at keypress time,
-revalidates those names against the live inventory, and captures the exact pending foreign hood cache items from a
-no-network agents-repository status snapshot. Its foreground load cannot add a newly discovered provider or a
-subsequently fetched hood to that invocation. Safe commands run sequentially; Homebrew, non-writable npm, and
+revalidates those names against the live inventory, and captures the exact pending incoming hood cache items from other
+owners from a no-network agents-repository status snapshot. Its foreground load cannot add a newly discovered provider
+or a subsequently fetched hood to that invocation. Safe commands run sequentially; Homebrew, non-writable npm, and
 unknown-provenance installs remain visible with manual guidance. The pane-wide `u` remains SASE/core/plugins-only,
 pane-wide `A` remains the deliberate action for the current agent-CLI inventory, and pane-wide `a` performs an explicit
 full-network sync of all enabled agents repositories.
@@ -259,16 +259,16 @@ Every mutation **previews first**, and long confirmation panes scroll with `Ctrl
 show the exact `uv` command or editable-checkout plan. When commit previews are enabled and a comparable range is
 available, confirmations for core and installed-plugin **updates** load incoming commits by repository in the
 background; install, uninstall, and mode-switch confirmations do not claim a commit range. The global `,U` comprehensive
-confirmation groups SASE, Agent CLI, and **Agents repos** work into labeled sections with update/current/skipped glyphs,
-counts, and commands (home paths display as `~/`). The Agents section is runnable only when captured foreign hoods
-exist, and it lists their exact projects and hood counts. The tracked task runs Agent CLI commands first, the
-SASE/core/plugin leg second, and cached agents integration last, reporting independent partial failures. `A` previews
-every exact agent-CLI command and every skip with its reason and docs URL; on the Agent CLIs sub-tab it uses the marked
-subset, otherwise it targets every safely updatable installed CLI. Agent-CLI commands execute sequentially as one
-tracked task and refresh the browser without restarting ACE; new agent launches naturally use the updated binaries.
-Installable plugins use `I` / `Space` marks, while updatable agent CLIs use `Space`; `Esc` clears marks in the active
-sub-tab before closing. All slow work runs off the event loop. Core/plugin code changes retain the existing automatic
-ACE/axe restart behavior after the other legs finish. The context-sensitive keymaps are:
+confirmation groups SASE, Agent CLI, and **Cached agent hoods** work into labeled sections with update/current/skipped
+glyphs, counts, and commands (home paths display as `~/`). The cached-hood section is runnable only when captured
+incoming hoods from other owners exist, and it lists their exact projects and hood counts. The tracked task runs Agent
+CLI commands first, the SASE/core/plugin leg second, and cached agents integration last, reporting independent partial
+failures. `A` previews every exact agent-CLI command and every skip with its reason and docs URL; on the Agent CLIs
+sub-tab it uses the marked subset, otherwise it targets every safely updatable installed CLI. Agent-CLI commands execute
+sequentially as one tracked task and refresh the browser without restarting ACE; new agent launches naturally use the
+updated binaries. Installable plugins use `I` / `Space` marks, while updatable agent CLIs use `Space`; `Esc` clears
+marks in the active sub-tab before closing. All slow work runs off the event loop. Core/plugin code changes retain the
+existing automatic ACE/axe restart behavior after the other legs finish. The context-sensitive keymaps are:
 
 | Key                 | Action                                                                                                      |
 | ------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -478,7 +478,7 @@ ace:
   agents_sync:
     check_interval_minutes: 10 # local/cached agents-repository status cadence
     recompute_interval_minutes: 30 # minimum remote-fetching status cadence
-    indicator: true # show ⇅ N only for cached, unapplied foreign hoods
+    indicator: true # show ⇅ N only for cached, unapplied hoods from other owners
   keymaps:
     statistics:
       prev_view: "left_square_bracket" # active only while Statistics is focused
@@ -559,20 +559,21 @@ is independent of the `sase vcs log` CLI's sidecar opt-in and limit contract.
 
 #### `ace.agents_sync`
 
-| Field                        | Type   | Default | Description                                                                                   |
-| ---------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------- |
-| `check_interval_minutes`     | number | `10`    | Interval between cache-and-receipt status reconciliations in a running ACE session.           |
-| `recompute_interval_minutes` | number | `30`    | Minimum cadence between status checks that fetch remote refs before recomputing the snapshot. |
-| `indicator`                  | bool   | `true`  | Show the top-bar `⇅ N` badge only for validated foreign hoods cached and not yet imported.    |
+| Field                        | Type   | Default | Description                                                                                          |
+| ---------------------------- | ------ | ------- | ---------------------------------------------------------------------------------------------------- |
+| `check_interval_minutes`     | number | `10`    | Interval between cache-and-receipt status reconciliations in a running ACE session.                  |
+| `recompute_interval_minutes` | number | `30`    | Minimum cadence between status checks that fetch remote refs before recomputing the snapshot.        |
+| `indicator`                  | bool   | `true`  | Show the top-bar `⇅ N` badge only for validated hoods from other owners cached and not yet imported. |
 
 Both intervals must be greater than zero. ACE schedules the first check after its initial paint, coalesces overlapping
 checks, and keeps the network-fetch cadence separate from the cheaper cache/receipt reconciliation cadence. Only a
 remote recomputation runs Git and refreshes ahead, behind, and legacy unexported-agent counts; the cheaper pass carries
-those diagnostic values forward. Neither value controls the badge. The badge counts only validated foreign hoods in the
-immutable incoming cache whose digests are not covered by import receipts. Clicking it imports exactly the displayed
-cache items without any fetch, pull, push, export, or sidecar-checkout mutation. Hiding the indicator also disables the
-periodic ACE status scheduler, but it does not disable `sase agent sync`, Updates-pane `a`, commit-triggered hood
-publication, or the `,U` cached-integration leg. See [Agent Hood Synchronization](agents_sidecar.md).
+those diagnostic values forward. Neither value controls the badge. The badge counts only validated incoming hoods from
+other owners in the immutable incoming cache whose digests are not covered by import receipts. Clicking it imports
+exactly the displayed cache items without any fetch, pull, push, export, or sidecar-checkout mutation. Hiding the
+indicator also disables the periodic ACE status scheduler, but it does not disable `sase agent sync`, Updates-pane `a`,
+commit-triggered hood publication, or the `,U` cached-integration leg. See
+[Agent Hood Synchronization](agents_sidecar.md).
 
 #### `ace.tribes`
 

@@ -13,7 +13,7 @@ from sase.agents_sync.models import (
 
 
 def agents_sync_status_needs_attention(status: ProjectSyncStatus) -> bool:
-    """Return whether cached foreign hoods are waiting to be imported."""
+    """Return whether cached incoming hoods are waiting to be imported."""
     return status.pending_foreign_count > 0
 
 
@@ -120,7 +120,7 @@ def summarize_cached_agents_results(
         label = result.disposition.replace("_", " ")
         counts[label] = counts.get(label, 0) + 1
     parts = [f"{count} {label}" for label, count in counts.items()]
-    return ", ".join(parts) if parts else "no cached updates"
+    return ", ".join(parts) if parts else "no cached agent hoods"
 
 
 __all__ = [

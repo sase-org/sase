@@ -57,7 +57,7 @@ async def test_config_center_handoff_confirms_only_captured_live_provider(
         assert [section.title for section in sections] == [
             "SASE, core & plugins",
             "Agent CLIs",
-            "Agents repos",
+            "Cached agent hoods",
         ]
         assert sections[1].commands == (
             "Claude Code: /home/dev/.local/bin/claude update",

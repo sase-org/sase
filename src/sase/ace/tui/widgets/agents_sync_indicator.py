@@ -23,7 +23,7 @@ _AGENTS_SYNC_GLYPH = "⇅"
 
 
 class AgentsSyncIndicator(Static):
-    """Actionable badge for enabled agents repositories needing attention."""
+    """Actionable badge for cached incoming agent hoods."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(self._build_content(()), **kwargs)
@@ -75,7 +75,7 @@ class AgentsSyncIndicator(Static):
             self.update(self._build_content(pending))
 
     async def on_click(self) -> None:
-        """Import the currently displayed cached updates without a fetch."""
+        """Import the currently displayed cached hoods without a fetch."""
         await self.app.run_action("integrate_cached_agents")
 
     @staticmethod
@@ -92,8 +92,8 @@ class AgentsSyncIndicator(Static):
     @staticmethod
     def _build_tooltip(statuses: tuple[ProjectSyncStatus, ...]) -> str:
         if not statuses:
-            return "No cached foreign agent updates are waiting to be imported"
-        lines = ["Cached foreign agent updates ready to import:"]
+            return "No cached incoming agent hoods from other owners are waiting"
+        lines = ["Cached incoming agent hoods from other owners:"]
         for status in statuses:
             lines.append(f"{status.project}:")
             for item in sorted(
@@ -113,8 +113,8 @@ class AgentsSyncIndicator(Static):
                     f"{item.family_count} {family_noun}"
                 )
         lines.append(
-            "Click to import this captured cache without fetching. Press ,U "
-            "for the comprehensive cached update."
+            "Click to import these cached hoods without fetching. Press ,U "
+            "to include them in the comprehensive update."
         )
         return "\n".join(lines)
 

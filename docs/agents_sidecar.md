@@ -183,18 +183,18 @@ entries against import receipts and rewrites the status snapshot while carrying 
 unexported-agent counts. Those diagnostic counts can therefore be absent or stale.
 
 `--check --refresh` is the networked detection path. It fetches remote refs, validates the fetched agents commit without
-checking it out, stores independently valid foreign hoods in the local incoming cache, and recomputes ahead, behind, and
-legacy unexported-agent counts. Exact-current-owner hoods are observed but do not become pending updates. `--refresh` is
-rejected unless `--check` is also present. Use `--json` to inspect cached `pending_updates`, quarantine diagnostics, and
-the fetched ref and commit.
+checking it out, stores independently valid incoming hoods from other owners in the local incoming cache, and recomputes
+ahead, behind, and legacy unexported-agent counts. Exact-current-owner hoods are observed but do not become pending
+updates. `--refresh` is rejected unless `--check` is also present. Use `--json` to inspect cached `pending_updates`,
+quarantine diagnostics, and the fetched ref and commit.
 
 ## ACE integration
 
 ACE performs a networked detection check after first paint and then checks enabled agents repositories periodically. The
-green `⇅ N` badge counts only validated foreign hoods already captured in the incoming cache and not covered by an
-import receipt. Same-user/other-machine and other-user/same-machine hoods are foreign; exact-current-owner changes are
-not. Local ahead/unexported work, missing or disabled sidecars, Git behind counts, and errors remain available in CLI
-diagnostics but do not light the badge.
+green `⇅ N` badge counts only validated incoming hoods from other owners already captured in the incoming cache and not
+covered by an import receipt. Same-user/other-machine and other-user/same-machine hoods are incoming from another owner;
+exact-current-owner changes are not. Local ahead/unexported work, missing or disabled sidecars, Git behind counts, and
+errors remain available in CLI diagnostics but do not light the badge.
 
 Hover the badge for the project, source owner, hood, run, and family counts represented by that immutable snapshot.
 Clicking it imports exactly those displayed cache items as a tracked task. That path does not fetch, pull, push, export,

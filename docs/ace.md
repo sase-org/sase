@@ -323,7 +323,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,C`       | Review mentors (opens Mentor Review modal)                                           |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`              |
 | `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel)) |
-| `,U`       | Update SASE/agent CLIs and synchronize enabled agents repositories                   |
+| `,U`       | Update SASE/agent CLIs and import cached agent hoods                                 |
 | `,M`       | Kill running mentors                                                                 |
 | `,R`       | Show runners info                                                                    |
 | `,<space>` | Run agent from current PR (skips project selection)                                  |
@@ -1050,7 +1050,7 @@ collapsed clan.
 | `,u`       | Mark all loaded unread completed agents as read                                                   |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
 | `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel))              |
-| `,U`       | Update SASE/agent CLIs and synchronize enabled agents repositories                                |
+| `,U`       | Update SASE/agent CLIs and import cached agent hoods                                              |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
 | `,r`       | Revert focused or marked agent commits, including recorded linked repos                           |
@@ -1261,7 +1261,7 @@ entry opens in cell mode on its first required property.
 | `,,` | Repeat the last leader command                                                       |
 | `,h` | Run agent from home prompt context; bare prompts default to `#git:home`              |
 | `,m` | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel)) |
-| `,U` | Update SASE/agent CLIs and synchronize enabled agents repositories                   |
+| `,U` | Update SASE/agent CLIs and import cached agent hoods                                 |
 | `,R` | Show runners info                                                                    |
 | `,?` | Open Help for the current tab (Keymaps / Guide)                                      |
 
@@ -3111,10 +3111,10 @@ installed CLI. See the [Updates tab reference](configuration.md#updates-tab) for
 
 Separately, ACE fetches and checks enabled agents repositories after first paint and on the remote cadence configured by
 `ace.agents_sync`; cheaper checks between fetches only reconcile cached entries and receipts. A green `⇅ N` top-bar
-badge appears when the cached status reports projects behind, ahead, with a nonzero legacy unexported-agent count, or in
-another non-ready state. Its tooltip lists the affected projects; clicking it launches the agent-sync leg directly as a
-tracked task. The immediate post-sync recheck remains cache-only, so a count-based badge can persist until the next
-remote check. See [Agent Hood Synchronization](agents_sidecar.md) for privacy, import, status, and recovery behavior.
+badge appears only when incoming hoods from other owners are already captured in the cache and not covered by import
+receipts. Its tooltip lists the exact projects and hoods; clicking it imports only those cached hoods without fetching,
+pulling, pushing, exporting, or mutating the sidecar checkout. See [Agent Hood Synchronization](agents_sidecar.md) for
+privacy, import, status, and recovery behavior.
 
 ## Snippets
 

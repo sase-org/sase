@@ -227,7 +227,7 @@ class AgentsSyncActionsMixin:
         )
 
     def action_integrate_cached_agents(self) -> None:
-        """Import exactly the cache items currently represented by the badge."""
+        """Import exactly the cached hoods currently represented by the badge."""
         from ..widgets import AgentsSyncIndicator
 
         try:
@@ -244,9 +244,9 @@ class AgentsSyncActionsMixin:
         def task(
             reporter: TaskReporter,
         ) -> TrackedTaskResult[tuple[CachedIntegrationResult, ...]]:
-            reporter.phase("Importing cached agent updates")
+            reporter.phase("Importing cached incoming agent hoods")
             results = integrate_cached_agent_updates(captured_items)
-            reporter.section("Cached agent update results")
+            reporter.section("Cached incoming hood results")
             for result in results:
                 reporter.log(cached_agents_result_line(result), stream="result")
             message = "Cached agents: " + summarize_cached_agents_results(results)
@@ -269,10 +269,10 @@ class AgentsSyncActionsMixin:
             return
         submit(
             "agents-cached-integration",
-            "cached agent updates",
+            "cached incoming agent hoods",
             "",
             task,
-            display_name="import cached agent updates",
+            display_name="import cached incoming hoods",
             dedup_key="agents-sync",
             exclusive_scopes=("agents-sync",),
             duplicate_message="An agents-repository synchronization is already running.",

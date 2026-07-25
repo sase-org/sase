@@ -250,7 +250,7 @@ def test_merged_default_config_marks_all_unread_done_agents_read_with_u(
 def test_help_advertises_update_sase_on_all_tabs() -> None:
     """The global ``,U`` update shortcut appears in every help binding list."""
     reg = load_keymap_registry({})
-    expected = (",U", "Update SASE + agent CLIs + agents repos")
+    expected = (",U", "Update SASE + CLIs + hood cache")
     for bindings in (cls_bindings, agents_bindings, axe_bindings):
         pairs = {
             (key, label) for _section, rows in bindings(reg) for key, label in rows

@@ -346,10 +346,11 @@ def test_comprehensive_agents_preview_captures_exact_projects_and_hoods() -> Non
 
     assert preview.agents_runnable is True
     assert preview.runnable is True
-    assert section.title == "Agents repos"
+    assert section.title == "Cached agent hoods"
     assert section.counts == ("2 projects", "3 hoods")
     assert section.summary == (
-        "Imports 3 captured foreign hoods across 2 projects without network access."
+        "Imports 3 captured incoming hoods from other owners across 2 projects "
+        "without network access."
     )
     assert [
         (component.name, component.detail, component.state)
@@ -371,7 +372,7 @@ def test_comprehensive_agents_preview_without_cache_items_is_noop() -> None:
     assert preview.agents_runnable is False
     assert preview.runnable is False
     assert _agents_preview_section(preview).summary == (
-        "No cached foreign agent hood updates were captured."
+        "No cached incoming agent hoods from other owners were captured."
     )
 
 

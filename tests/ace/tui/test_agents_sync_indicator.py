@@ -76,12 +76,12 @@ def test_indicator_shows_pending_projects_and_deterministic_tooltip() -> None:
     assert rendered.plain == " ⇅ 2 "
     assert "#5FD787" in repr(rendered.spans)
     assert str(indicator.tooltip) == (
-        "Cached foreign agent updates ready to import:\n"
+        "Cached incoming agent hoods from other owners:\n"
         "Alpha:\n"
         "  alice.hera.bar — 1 run, 0 families\n"
         "  alice.zeus.foo — 2 runs, 1 family\n"
-        "Click to import this captured cache without fetching. Press ,U "
-        "for the comprehensive cached update."
+        "Click to import these cached hoods without fetching. Press ,U "
+        "to include them in the comprehensive update."
     )
 
 
@@ -101,7 +101,7 @@ def test_indicator_clear_and_idempotent_projection() -> None:
     assert indicator.pending_count == 0
     assert indicator._build_content(indicator.pending_projects).plain == ""
     assert indicator.tooltip == (
-        "No cached foreign agent updates are waiting to be imported"
+        "No cached incoming agent hoods from other owners are waiting"
     )
 
 

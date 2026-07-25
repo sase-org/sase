@@ -269,14 +269,14 @@ def agents_preview_section(
     preview: ComprehensiveUpdatePreview,
 ) -> PluginActionPreviewSection:
     """Render the no-network agents-repository snapshot for confirmation."""
-    title = "Agents repos"
+    title = "Cached agent hoods"
     if preview.agents_error:
         return PluginActionPreviewSection(
             title=title,
-            summary="Agents-repository status could not be planned.",
+            summary="Cached agent-hood status could not be planned.",
             components=(
                 PluginActionPreviewComponent(
-                    "Agents repositories",
+                    "Cached agent hoods",
                     preview.agents_error,
                     "skipped",
                 ),
@@ -288,7 +288,7 @@ def agents_preview_section(
     if not updates:
         return PluginActionPreviewSection(
             title=title,
-            summary="No cached foreign agent hood updates were captured.",
+            summary="No cached incoming agent hoods from other owners were captured.",
         )
 
     ordered = tuple(
@@ -308,8 +308,8 @@ def agents_preview_section(
     return PluginActionPreviewSection(
         title=title,
         summary=(
-            f"Imports {len(ordered)} captured foreign "
-            f"hood{'s' if len(ordered) != 1 else ''} across "
+            f"Imports {len(ordered)} captured incoming "
+            f"hood{'s' if len(ordered) != 1 else ''} from other owners across "
             f"{project_count} project{'s' if project_count != 1 else ''} "
             "without network access."
         ),
