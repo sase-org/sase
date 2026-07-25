@@ -27,6 +27,7 @@ from sase.core.state_write_guard import best_effort_test_state_write_allowed
 from sase.tasks import (
     ACTIVE_TASK_STATUSES,
     BackgroundTask,
+    TERMINAL_TASK_STATUSES,
     append_task,
     append_task_log_text,
     new_task_id,
@@ -334,6 +335,8 @@ class TaskMirror:
     def _mirror_progress(self, tracked: _Tracked) -> None:
         info = tracked.info
         status = _STATUS_BY_TUI_STATUS.get(info.status, "running")
+        if status in TERMINAL_TASK_STATUSES:
+            return
         if status == tracked.status and info.phase == tracked.phase:
             return
         tracked.status = status

@@ -163,6 +163,38 @@ def test_mirror_flushes_only_new_log_lines(sandboxed_home: Path) -> None:
     assert row.exit_code == 2
 
 
+def test_progress_tick_does_not_terminalize_before_finish(
+    sandboxed_home: Path,
+) -> None:
+    """The explicit finish op owns terminal status writes.
+
+    A UI task can briefly carry a terminal-looking queue status before its
+    worker result is delivered to the mirror.  The durable store intentionally
+    keeps the first terminal status, so progress mirroring must not race the
+    final completion write.
+    """
+    del sandboxed_home
+    mirror = TaskMirror()
+    assert mirror.start() is True
+    try:
+        info = _task_info()
+        task_id = mirror.track(info)
+        assert task_id is not None
+        assert mirror.flush(timeout=5.0) is True
+
+        info.status = "error"
+        mirror._tick()
+        mirror.finish(info, status="success", message="started", exit_code=0)
+        assert mirror.flush(timeout=5.0) is True
+    finally:
+        _stop(mirror)
+
+    row = read_tasks()[0]
+    assert row.status == "success"
+    assert row.message == "started"
+    assert row.exit_code == 0
+
+
 def test_mirror_reports_detached_task_count_for_this_session(
     sandboxed_home: Path,
 ) -> None:
