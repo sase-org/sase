@@ -165,8 +165,14 @@ def active_resume_reserved_names(resume_name: str) -> set[str]:
 
 
 def resume_agent_name_template(base: str) -> str:
-    """Return the template used for fork/resume-derived agent names."""
-    return f"{base}.f@"
+    """Return the template used for fork/resume-derived agent names.
+
+    A family member such as ``foo--code`` contributes its family name so the
+    derived child is ``foo.f@`` rather than the unclassifiable ``foo--code.f@``.
+    """
+    from sase.agent.names._generation_guard import generated_child_name_base
+
+    return f"{generated_child_name_base(base)}.f@"
 
 
 def single_wait_agent_name(prompt: str | None) -> str | None:
@@ -258,7 +264,9 @@ def active_wait_reserved_names(wait_name: str) -> set[str]:
 
 def wait_agent_name_template(base: str) -> str:
     """Return the template used for wait-derived agent names."""
-    return f"{base}.w@"
+    from sase.agent.names._generation_guard import generated_child_name_base
+
+    return f"{generated_child_name_base(base)}.w@"
 
 
 def _iter_reference_arg_groups(

@@ -19,4 +19,6 @@ def allocate_retry_name(
 
 def retry_agent_name_template(base: str) -> str:
     """Return the template used for retry-derived agent names."""
-    return f"{base}.r@"
+    from sase.agent.names._generation_guard import generated_child_name_base
+
+    return f"{generated_child_name_base(base)}.r@"

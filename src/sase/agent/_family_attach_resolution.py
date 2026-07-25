@@ -96,6 +96,7 @@ def resolve_family_attach_plan(
         pending_family_parents=pending_family_parents,
     )
     agent_name = f"{parent_base}{role_suffix}"
+    _ensure_generated_family_name(agent_name, directive, role_suffix)
     if parent_sibling is not None:
         parent_family_role_suffix = parent_sibling.family_root_role_suffix
     else:
@@ -118,6 +119,11 @@ def resolve_family_attach_plan(
         else parent_name
     )
     if parent_needs_rename:
+        _ensure_generated_family_name(
+            parent_family_member_name,
+            directive,
+            parent_family_role_suffix,
+        )
         _ensure_family_name_available(
             parent_family_member_name,
             directive,
@@ -239,6 +245,33 @@ def _resolve_role_suffix(
             extra_reserved_suffixes=tuple(known_suffixes),
         )
     return _directives.normalize_family_suffix_arg(suffix_arg)
+
+
+def _ensure_generated_family_name(
+    agent_name: str,
+    directive: _types.FamilyAttachDirective,
+    role_suffix: str,
+) -> None:
+    """Reject a composed member name whose role suffix is not terminal.
+
+    Attaching to a parent whose own name already carries a family marker (a
+    legacy spelling such as ``fi--code.f0``) would compose a name the strict
+    identity rules cannot classify, which is how names like
+    ``fi--code.f0--code`` reached the artifact store. Fail loudly instead of
+    silently renaming an agent the user explicitly asked for.
+    """
+    from sase.agent.names import generated_agent_name_is_valid
+
+    if generated_agent_name_is_valid(agent_name):
+        return
+    role = role_suffix.removeprefix(AGENT_FAMILY_SEPARATOR)
+    raise _types.FamilyAttachError(
+        f"Cannot attach family member '{role}' to '{directive.parent}': the "
+        f"generated name '{agent_name}' would place its "
+        f"'{AGENT_FAMILY_SEPARATOR}{role}' suffix outside the final name "
+        "segment. Relaunch the parent under a name without "
+        f"'{AGENT_FAMILY_SEPARATOR}' and attach the member to it."
+    )
 
 
 def _family_role(role_suffix: str, suffix_arg: str) -> str:

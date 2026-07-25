@@ -126,6 +126,7 @@ def _reserve_clan_membership(
         normalize_owned_agent_name,
     )
 
+    _reject_family_marked_clan_name(clan_name)
     identity = AgentIdentitySnapshot.current()
     foreign_machine = foreign_agent_owner_root(clan_name, identity)
     if foreign_machine is not None and identity.owner is not None:
@@ -148,6 +149,25 @@ def _reserve_clan_membership(
     return ClanMembershipPlan(
         clan_name=clan_name,
         generation=reserved_generation,
+    )
+
+
+def _reject_family_marked_clan_name(clan_name: str) -> None:
+    """Reject a clan whose members would carry a non-terminal role suffix.
+
+    Clan members are named ``<clan>.<suffix>``, so a clan name carrying a
+    family marker pushes that marker out of the final segment and produces a
+    name strict identity rules cannot classify.
+    """
+    from sase.plan_chain import AGENT_FAMILY_SEPARATOR
+
+    if AGENT_FAMILY_SEPARATOR not in clan_name:
+        return
+    raise ClanMembershipError(
+        f"Clan '{clan_name}' cannot contain '{AGENT_FAMILY_SEPARATOR}': its "
+        f"members would be named '{clan_name}.<suffix>', placing the family "
+        "role suffix outside the final name segment. Choose a clan name "
+        "without a family role suffix."
     )
 
 

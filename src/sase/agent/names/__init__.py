@@ -34,6 +34,12 @@ from sase.agent.names._common import (
     is_process_alive,
     strip_dismissed_prefix,
 )
+from sase.agent.names._generation_guard import (
+    GeneratedAgentNameError,
+    ensure_generated_agent_name,
+    generated_agent_name_is_valid,
+    generated_child_name_base,
+)
 from sase.agent.names._indexed import (
     INDEXED_AGENT_NAME_MARKER,
     IndexedAgentNameError,
@@ -241,6 +247,7 @@ __all__ = [
     "InvalidAgentNameTemplateError",
     "InvalidAgentNameTemplateTokenError",
     "InvalidIndexedAgentNameTemplateError",
+    "GeneratedAgentNameError",
     "ImportedNameCollisionError",
     "ImportedV2RegistryClaim",
     "NameCollisionError",
@@ -280,11 +287,14 @@ __all__ = [
     "get_live_agent_name_map",
     "get_live_agent_name_subset",
     "get_most_recent_agent_name",
+    "generated_agent_name_is_valid",
+    "generated_child_name_base",
     "get_next_auto_name",
     "get_reserved_agent_name_map",
     "get_reserved_agent_names",
     "get_reserved_clan_names",
     "get_reserved_family_names",
+    "ensure_generated_agent_name",
     "ensure_historical_auto_name_migration",
     "indexed_agent_name_base",
     "is_agent_name_template",

@@ -127,6 +127,17 @@ def validate_agent_username(username: str) -> None:
     binding(username)
 
 
+def validate_new_agent_name(name: str) -> None:
+    """Strictly validate a name the runtime is about to create.
+
+    Historical classification helpers are total on purpose, so a legacy name
+    such as ``fi--code.f0`` is read rather than rejected. Name *creation* keeps
+    the strict rule: at most one ``--<role>`` suffix, in the final segment.
+    """
+    binding = require_rust_binding("validate_agent_name")
+    binding(name)
+
+
 def validate_agent_owner(owner: AgentOwnerIdentity) -> None:
     binding = require_rust_binding("validate_agent_owner")
     payload = asdict(owner)
@@ -441,4 +452,5 @@ __all__ = [
     "validate_agent_owner",
     "validate_agent_relationship_batch",
     "validate_agent_username",
+    "validate_new_agent_name",
 ]

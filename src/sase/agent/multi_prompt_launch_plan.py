@@ -320,6 +320,15 @@ def prepare_clan_launches(
                         f"Cannot resolve %clan template '{raw_clan}' from any "
                         "member name in this launch"
                     ) from None
+        from sase.plan_chain import AGENT_FAMILY_SEPARATOR
+
+        if AGENT_FAMILY_SEPARATOR in resolved_clan:
+            raise DirectiveError(
+                f"Clan '{resolved_clan}' cannot contain "
+                f"'{AGENT_FAMILY_SEPARATOR}': its members would be named "
+                f"'{resolved_clan}.<suffix>', placing the family role suffix "
+                "outside the final name segment."
+            )
         foreign_machine = foreign_agent_owner_root(
             resolved_clan,
             machine_identity,
