@@ -416,5 +416,6 @@ def test_panel_counts_use_lanes_for_total_and_statuses() -> None:
 
     assert counts.lane_count == 4
     assert counts.queued == 1
-    assert (counts.running, counts.waiting, counts.read) == (2, 1, 1)
-    assert sum(value for _name, value in counts.metric_items()) == 5
+    assert (counts.running, counts.waiting, counts.read) == (2, 0, 1)
+    # Disjoint status metrics must sum to the number of visible lanes.
+    assert sum(value for _name, value in counts.metric_items()) == 4

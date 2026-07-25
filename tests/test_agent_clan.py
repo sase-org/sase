@@ -95,7 +95,7 @@ def test_clan_queue_count_projects_parallel_member_behind_family() -> None:
 
     counts = clan_member_counts(container)
 
-    assert (counts.queued, counts.waiting) == (1, 1)
+    assert (counts.queued, counts.waiting) == (1, 0)
 
 
 def test_clan_member_counts_ignores_globally_queued_leaf() -> None:

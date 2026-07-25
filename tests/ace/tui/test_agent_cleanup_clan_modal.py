@@ -145,7 +145,7 @@ def test_clan_modal_preview_renders_only_implicit_global_queue_waits() -> None:
 
     label = modal._clan_row_label(modal._rows[0])
 
-    assert "[Q1 W2]" in label.plain
+    assert "[Q1 W1]" in label.plain
 
 
 async def test_clan_modal_pre_highlights_focused_clan_and_folds_members() -> None:

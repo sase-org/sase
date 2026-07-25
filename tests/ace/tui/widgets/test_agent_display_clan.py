@@ -291,7 +291,7 @@ def test_clan_header_queue_count_excludes_explicit_and_dependency_waits() -> Non
 
     detail = build_clan_detail_text(container)
 
-    assert "Status: WAITING [Q1 W3]\n" in detail.plain
+    assert "Status: WAITING [Q1 W2]\n" in detail.plain
     queue_digit = detail.plain.index("Q1") + 1
     assert style_at(detail, queue_digit) == "bold #FF87D7"
 

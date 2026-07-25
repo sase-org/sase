@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models._agent_clan import (
+    ClanStatusCounts,
     agent_lane_status_counts,
     agent_summary_status_counts,
     clan_member_counts,
@@ -296,6 +297,43 @@ def test_queue_counts_are_orthogonal_and_dedupe_container_flat_rows() -> None:
     )
     clan = clan_member_counts(container)
 
-    assert (concrete.total, concrete.queued, concrete.waiting) == (3, 1, 3)
-    assert (lanes.total, lanes.queued, lanes.waiting) == (3, 1, 3)
-    assert (clan.queued, clan.waiting) == (1, 3)
+    assert (concrete.total, concrete.queued, concrete.waiting) == (3, 1, 2)
+    assert (lanes.total, lanes.queued, lanes.waiting) == (3, 1, 2)
+    assert (clan.queued, clan.waiting) == (1, 2)
+
+
+def test_queued_waiters_partition_waiting_counts() -> None:
+    members = [
+        _agent(
+            f"research.member-{index}",
+            "WAITING",
+            role="solo",
+            clan="research",
+        )
+        for index in range(6)
+    ]
+    for member in members:
+        member.agent_family = None
+    for index, member in enumerate(members[:2]):
+        member.pid = 100 + index
+        member.wait_runners = 9
+        member.wait_runners_explicit = False
+        member.slot_requested_at = f"2026-07-19T09:00:0{index}Z"
+    container = project_clan_tree(members)[0]
+
+    clan = clan_member_counts(container)
+    lanes = agent_lane_status_counts((container,), ())
+
+    assert clan == ClanStatusCounts(queued=2, waiting=4)
+    assert (lanes.total, lanes.queued, lanes.waiting) == (6, 2, 4)
+    assert lanes.queued + lanes.waiting == len(members)
+    assert sum(
+        (
+            lanes.stopped,
+            lanes.running,
+            lanes.queued,
+            lanes.waiting,
+            lanes.failed,
+            lanes.done,
+        )
+    ) == len(members)

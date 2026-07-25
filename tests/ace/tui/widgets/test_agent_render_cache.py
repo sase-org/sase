@@ -185,7 +185,7 @@ def test_cached_family_root_invalidates_when_member_joins_global_queue() -> None
 
     assert dependency_wait[0] is not global_wait[0]
     assert "[W1]" in dependency_wait[0].plain
-    assert "[Q1 W1]" in global_wait[0].plain
+    assert "[Q1]" in global_wait[0].plain
 
 
 def test_cached_family_root_aggregates_members_once_per_render_attempt(

@@ -49,17 +49,17 @@ async def test_queued_clan_counts_png_snapshot(
 
         assert page.app._agents[0].is_clan_container is True
         panel = page.app.query_one("#agent-list-panel", AgentList)
-        assert Text.from_markup(panel.border_title).plain == "▲ @epic · 2 [Q1 W2]"
+        assert Text.from_markup(panel.border_title).plain == "▲ @epic · 2 [Q1 W1]"
         list_rows = "\n".join(
             option.prompt.plain
             for option in panel._options  # type: ignore[union-attr]
         )
-        assert "(WAITING) ×2 [Q1 W2]" in list_rows
+        assert "(WAITING) ×2 [Q1 W1]" in list_rows
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
-        assert "Status: WAITING [Q1 W2]" in prompt.content.plain
+        assert "Status: WAITING [Q1 W1]" in prompt.content.plain
         info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
         assert info._build_display_text().plain.startswith(
-            "2  [0/10 running · 1 queued · 2 waiting]"
+            "2  [0/10 running · 1 queued · 1 waiting]"
         )
         ace_png_visual.assert_page_png(
             page,

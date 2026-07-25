@@ -231,7 +231,7 @@ def test_tribe_header_and_clan_unit_render_scoped_queue_count() -> None:
         fold_level=FoldLevel.COLLAPSED,
     )
 
-    assert detail.plain.count("[Q1 W2]") == 2
+    assert detail.plain.count("[Q1 W1]") == 2
     for start in (
         index
         for index in range(len(detail.plain))

@@ -262,12 +262,12 @@ def test_tribe_queue_count_is_scoped_and_preserves_waiting_status() -> None:
         now=_NOW,
     )
 
-    assert (snapshot.counts.queued, snapshot.counts.waiting) == (1, 3)
+    assert (snapshot.counts.queued, snapshot.counts.waiting) == (1, 2)
     assert snapshot.units[0].status_counts is not None
     assert (
         snapshot.units[0].status_counts.queued,
         snapshot.units[0].status_counts.waiting,
-    ) == (1, 3)
+    ) == (1, 2)
     assert (unrelated.counts.queued, unrelated.counts.waiting) == (0, 1)
 
 
