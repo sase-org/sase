@@ -301,6 +301,10 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
             )
         )
         await wait_for_visual_idle(page)
+        # ``_last_layout_inputs`` is updated before Textual necessarily paints
+        # the Static child. Prove the two-neighbor footer reached the exported
+        # frame so a stale one-neighbor compositor cannot reach the PNG capture.
+        await wait_for_svg_contains(page, "neighbors (2)")
         assert_page_svg_contains(page, "Descendants")
         assert_page_svg_contains(page, "visual.root.dismissed")
         assert_page_svg_contains(page, "dismissed")

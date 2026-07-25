@@ -175,6 +175,17 @@ async def mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar:
         description="mounted prompt stack and active-pane focus",
     )
     await wait_for_visual_idle(page)
+    # A background refresh can move focus after the initial mount predicate
+    # succeeds. Re-request it after all visual settling, then make cursor
+    # visibility the final awaited condition so the next synchronous PNG
+    # capture cannot observe an unfocused, caret-free frame.
+    text_area = bar.active_text_area()
+    text_area.focus()
+    await wait_for_state(
+        page,
+        lambda: text_area.has_focus and text_area._draw_cursor,
+        description="focused prompt caret ready for snapshot capture",
+    )
     return bar
 
 
