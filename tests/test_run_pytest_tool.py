@@ -423,6 +423,41 @@ def test_reaper_removes_only_stale_pytest_run_directories(tmp_path: Path) -> Non
     assert unrelated.is_dir()
 
 
+def test_reaper_removes_stale_top_level_scratch_entries(tmp_path: Path) -> None:
+    runner = _load_run_pytest()
+    stale_inline_snapshot = tmp_path / "inline-snapshot-abc"
+    stale_artifact_tree = tmp_path / "tmpab12cd34" / "artifacts"
+    fresh_inline_snapshot = tmp_path / "inline-snapshot-def"
+    locked_run = tmp_path / "pytest-1"
+    skipped_symlink = tmp_path / "inline-snapshot-link"
+    for directory in (
+        stale_inline_snapshot,
+        stale_artifact_tree,
+        fresh_inline_snapshot,
+        locked_run,
+    ):
+        directory.mkdir(parents=True)
+    lock_path = locked_run / ".lock"
+    lock_path.touch()
+    skipped_symlink.symlink_to(fresh_inline_snapshot, target_is_directory=True)
+
+    now = 100_000.0
+    stale_time = now - runner.PYTEST_TMP_REAP_HORIZON_SECONDS - 1
+    os.utime(stale_inline_snapshot, (stale_time, stale_time))
+    os.utime(stale_artifact_tree.parent, (stale_time, stale_time))
+    os.utime(fresh_inline_snapshot, (now, now))
+    os.utime(locked_run, (stale_time, stale_time))
+    os.utime(lock_path, (now, now))
+
+    runner._reap_stale_pytest_runs(tmp_path, now=now)
+
+    assert not stale_inline_snapshot.exists()
+    assert not stale_artifact_tree.parent.exists()
+    assert fresh_inline_snapshot.is_dir()
+    assert locked_run.is_dir()
+    assert skipped_symlink.is_symlink()
+
+
 def test_reaper_preserves_run_with_fresh_lock(tmp_path: Path) -> None:
     runner = _load_run_pytest()
     run_directory = tmp_path / "pytest-of-user" / "pytest-1"

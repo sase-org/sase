@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import os
 import shutil
+import stat
 import sys
 import time
 from pathlib import Path
@@ -256,6 +257,64 @@ def _is_pytest_run_directory(path: Path) -> bool:
     )
 
 
+def _stale_scratch_entry_kind(path: Path, cutoff: float) -> str | None:
+    try:
+        entry_stat = path.stat(follow_symlinks=False)
+    except OSError:
+        return None
+    if stat.S_ISLNK(entry_stat.st_mode):
+        return None
+    if entry_stat.st_mtime >= cutoff:
+        return None
+
+    if stat.S_ISDIR(entry_stat.st_mode):
+        lock_path = path / ".lock"
+        try:
+            lock_mtime = lock_path.stat(follow_symlinks=False).st_mtime
+        except FileNotFoundError:
+            lock_mtime = None
+        except OSError:
+            return None
+        if lock_mtime is not None and lock_mtime >= cutoff:
+            return None
+        return "directory"
+
+    if stat.S_ISREG(entry_stat.st_mode):
+        return "file"
+    return None
+
+
+def _remove_stale_scratch_entry(path: Path, cutoff: float) -> None:
+    entry_kind = _stale_scratch_entry_kind(path, cutoff)
+    if entry_kind is None:
+        return
+    try:
+        if entry_kind == "directory":
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    except OSError:
+        pass
+
+
+def _reap_pytest_user_root(user_root: Path, cutoff: float) -> None:
+    try:
+        user_root_stat = user_root.stat(follow_symlinks=False)
+    except OSError:
+        return
+    if not stat.S_ISDIR(user_root_stat.st_mode):
+        return
+
+    try:
+        run_directories = list(user_root.iterdir())
+    except OSError:
+        return
+
+    for run_directory in run_directories:
+        if _is_pytest_run_directory(run_directory):
+            _remove_stale_scratch_entry(run_directory, cutoff)
+
+
 def _reap_stale_pytest_runs(
     scratch_root: Path,
     *,
@@ -264,41 +323,15 @@ def _reap_stale_pytest_runs(
 ) -> None:
     cutoff = (time.time() if now is None else now) - horizon_seconds
     try:
-        user_roots = list(scratch_root.glob("pytest-of-*"))
+        scratch_entries = list(scratch_root.iterdir())
     except OSError:
         return
 
-    for user_root in user_roots:
-        try:
-            run_directories = list(user_root.iterdir())
-        except OSError:
+    for scratch_entry in scratch_entries:
+        if scratch_entry.name.startswith("pytest-of-"):
+            _reap_pytest_user_root(scratch_entry, cutoff)
             continue
-        for run_directory in run_directories:
-            if not _is_pytest_run_directory(run_directory):
-                continue
-            try:
-                run_stat = run_directory.stat(follow_symlinks=False)
-            except OSError:
-                continue
-            if run_directory.is_symlink() or not run_directory.is_dir():
-                continue
-
-            lock_path = run_directory / ".lock"
-            try:
-                lock_mtime = lock_path.stat().st_mtime
-            except FileNotFoundError:
-                lock_mtime = None
-            except OSError:
-                continue
-            if lock_mtime is not None and lock_mtime >= cutoff:
-                continue
-            if run_stat.st_mtime >= cutoff:
-                continue
-
-            try:
-                shutil.rmtree(run_directory)
-            except OSError:
-                pass
+        _remove_stale_scratch_entry(scratch_entry, cutoff)
 
 
 def _prepare_pytest_tmpdir() -> Path:

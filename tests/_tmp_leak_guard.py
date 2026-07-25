@@ -35,8 +35,8 @@ FOREIGN_ENTRY_PATTERNS: tuple[str, ...] = (
     "check.log",
     "claude-*",
     "dbus-*",
-    # Third-party pytest plugin scratch, created at plugin-configure time and
-    # reaped on the plugin's own schedule rather than by the suite.
+    # Third-party pytest plugin scratch, created at plugin-configure time during
+    # healthy runs and later swept by tools/run_pytest's stale scratch reaper.
     "inline-snapshot-*",
     "node-compile-cache",
     "plainci-*",
