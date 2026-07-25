@@ -280,6 +280,10 @@ class LeaderModeMixin:
         self._refresh_current_tab()  # type: ignore[attr-defined]
         return True
 
+    def action_open_models_panel(self) -> None:
+        """Open the Models panel (top-bar override pills click here)."""
+        self._open_models_panel()
+
     def _open_models_panel(self) -> None:
         """Open the Models panel (leader ``,m`` by default)."""
         from ...modals import ModelsPanel, ModelsPanelResult

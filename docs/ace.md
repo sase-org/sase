@@ -1595,13 +1595,15 @@ offset-qualified ISO value such as `2026-11-01T01:30-04:00`. Invalid input stays
 `Esc` goes back to the duration picker, where a second `Esc` cancels the override flow. Overrides are per-alias and
 independent:
 
-- An override on **`default`** drives the no-`%model` launch default and renders in the existing gold top-bar pill — its
-  behavior is unchanged.
+- An override on **`default`** drives the no-`%model` launch default and renders in a gold top-bar pill as
+  `PROVIDER(model)[@<effort>] <time-left>`.
 - An override on **any other alias** takes effect wherever that alias is resolved. A size-specific phase override
   affects only that alias. Overrides on `@smartest`, `@cheaper`, and `@cheapest` suspend their ordered fallback or
   independent load-balanced rotation until the override expires or is cleared. It is surfaced by a distinct, concise
-  violet top-bar pill: a single active override renders as `Override @<alias>[@<effort>] <time-left>`, and several
-  render as an `Overrides ×N` count.
+  violet top-bar pill: a single active override renders as `@<alias>[@<effort>] <time-left>`, and several render as
+  `@<alias> +N`, naming the alphabetically first alias and counting the rest. In both pills, lane color carries the
+  "override" meaning while the effort suffix and time use a recessive tone; `∞` means until cleared. Hover either pill
+  for full target and expiry details, or click it to open the Models panel.
 
 Overrides apply only to default selection: explicit prompt directives (`%model:codex/o3`,
 `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win, already-running

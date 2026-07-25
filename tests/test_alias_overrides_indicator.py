@@ -55,7 +55,7 @@ def test_single_override_renders_alias_and_countdown() -> None:
         {"coder": _override(expires_at=3_820.0)}, now=100.0
     )
 
-    assert text.plain == " Override @coder 1h2m "
+    assert text.plain == " @coder 1h2m "
     assert "#AF87FF" in str(text.style)
 
 
@@ -64,7 +64,7 @@ def test_single_override_until_cleared_renders_without_countdown() -> None:
         {"phase_worker": _override(expires_at=None)}, now=100.0
     )
 
-    assert text.plain == " Override @phase_worker until cleared "
+    assert text.plain == " @phase_worker ∞ "
 
 
 def test_single_override_renders_effort_suffix() -> None:
@@ -73,7 +73,13 @@ def test_single_override_renders_effort_suffix() -> None:
         now=100.0,
     )
 
-    assert text.plain == " Override @coder@medium until cleared "
+    assert text.plain == " @coder@medium ∞ "
+    assert str(text.style) == _ACTIVE_STYLE
+    styled_segments = [
+        (text.plain[span.start : span.end], str(span.style)) for span in text.spans
+    ]
+    assert ("@medium", "not bold #3A2A5F on #AF87FF") in styled_segments
+    assert (" ∞ ", "not bold #3A2A5F on #AF87FF") in styled_segments
 
 
 def test_single_expired_override_renders_empty() -> None:
@@ -86,18 +92,84 @@ def test_single_expired_override_renders_empty() -> None:
     assert text.plain == ""
 
 
-def test_multiple_overrides_render_terse_count() -> None:
+def test_multiple_overrides_name_first_alias_and_count_rest() -> None:
     text = AliasOverridesIndicator._build_content(
         {
-            "coder": _override(expires_at=3_820.0),
-            "phase_worker": _override(expires_at=None),
-            "fast": _override(expires_at=5_000.0),
+            "zeta": _override(expires_at=3_820.0),
+            "alpha": _override(expires_at=None),
+            "mid": _override(expires_at=5_000.0),
         },
         now=100.0,
     )
 
-    assert text.plain == " Overrides ×3 "
+    assert text.plain == " @alpha +2 "
     assert str(text.style) == _ACTIVE_STYLE
+
+
+def test_multiple_overrides_prune_expired_entries_before_rendering() -> None:
+    text = AliasOverridesIndicator._build_content(
+        {
+            "alpha": _override(expires_at=99.0),
+            "coder": _override(expires_at=None),
+            "zeta": _override(expires_at=50.0),
+        },
+        now=100.0,
+    )
+
+    assert text.plain == " @coder ∞ "
+
+
+def test_tooltip_is_none_without_active_overrides() -> None:
+    assert AliasOverridesIndicator._build_tooltip({}) is None
+    assert (
+        AliasOverridesIndicator._build_tooltip(
+            {"expired": _override(expires_at=99.0)},
+            now=100.0,
+        )
+        is None
+    )
+
+
+def test_tooltip_describes_single_override_target_and_effort() -> None:
+    tooltip = AliasOverridesIndicator._build_tooltip(
+        {
+            "coder": _override(
+                provider="claude",
+                model="opus",
+                effort="xhigh",
+                expires_at=3_820.0,
+            )
+        },
+        now=100.0,
+    )
+
+    assert tooltip == (
+        "Temporary alias overrides:\n"
+        "@coder -> CLAUDE(opus) @ xhigh - 1h2m left\n"
+        "Press ,m for the Models panel."
+    )
+
+
+def test_tooltip_sorts_multiple_overrides_and_describes_until_cleared() -> None:
+    tooltip = AliasOverridesIndicator._build_tooltip(
+        {
+            "fast": _override(provider="claude", model="haiku", expires_at=None),
+            "coder": _override(
+                provider="claude",
+                model="opus",
+                effort="xhigh",
+                expires_at=3_820.0,
+            ),
+        },
+        now=100.0,
+    )
+
+    assert tooltip == (
+        "Temporary alias overrides:\n"
+        "@coder -> CLAUDE(opus) @ xhigh - 1h2m left\n"
+        "@fast -> CLAUDE(haiku) - until cleared\n"
+        "Press ,m for the Models panel."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +221,7 @@ def test_initial_content_reflects_non_default_override(
     rendered = AliasOverridesIndicator()._build_initial_content()
 
     assert isinstance(rendered, Text)
-    assert rendered.plain == " Override @coder until cleared "
+    assert rendered.plain == " @coder ∞ "
 
 
 # ---------------------------------------------------------------------------
@@ -185,4 +257,22 @@ async def test_refresh_picks_up_new_non_default_override(
         indicator.refresh()
         await page.pause()
 
-    assert indicator._build_initial_content().plain == " Override @coder until cleared "
+    assert indicator._build_initial_content().plain == " @coder ∞ "
+
+
+async def test_click_opens_models_panel(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+
+    async with AcePage() as page:
+        monkeypatch.setattr(
+            page.app,
+            "_open_models_panel",
+            lambda: calls.append("opened"),
+        )
+        indicator = page.query_one_widget(
+            "#alias-overrides-indicator", AliasOverridesIndicator
+        )
+        await indicator.on_click()
+        await page.pause()
+
+    assert calls == ["opened"]

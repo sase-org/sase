@@ -60,6 +60,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "restore_prompt_stash",
         "show_notifications",
         "open_config_center",
+        "open_models_panel",
         "open_command_palette",
         "dismiss_toasts",
         "refresh",

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import math
-import time
 from typing import Any
 
 from rich.text import Text
@@ -17,30 +15,19 @@ from sase.llm_provider.temporary_override import (
     resolve_effective_default_provider_model,
 )
 
-_ACTIVE_STYLE = "bold #1a1a1a on #D7AF5F"
+from ._override_pill import (
+    DEFAULT_LANE_PALETTE,
+    build_override_pill,
+    format_pill_remaining,
+    format_tooltip_remaining,
+    format_tooltip_target,
+)
+
+_ACTIVE_STYLE = DEFAULT_LANE_PALETTE.base_style
 _DEFAULT_STYLE = "dim cyan"
 _PLACEHOLDER_TEXT = " ... "
 _UNAVAILABLE_TEXT = " unavailable "
 _DEFAULT_WORKER_GROUP = "llm-indicator-default"
-
-
-def format_remaining_until(expires_at: float | None, now: float | None = None) -> str:
-    """Render an expiry timestamp as a compact remaining-time label."""
-    if expires_at is None:
-        return "until cleared"
-
-    current = time.time() if now is None else now
-    remaining = expires_at - current
-    if remaining <= 0:
-        return ""
-
-    total_minutes = max(1, math.ceil(remaining / 60.0))
-    hours, minutes = divmod(total_minutes, 60)
-    if hours and minutes:
-        return f"{hours}h{minutes}m"
-    if hours:
-        return f"{hours}h"
-    return f"{minutes}m"
 
 
 class LLMOverrideIndicator(Static):
@@ -50,9 +37,11 @@ class LLMOverrideIndicator(Static):
         self._cached_default: tuple[str, str] | None = None
         self._cached_default_failed = False
         super().__init__(self._build_initial_content(), **kwargs)
+        self.tooltip = self._build_tooltip(get_active_temporary_override())
 
     def on_mount(self) -> None:
         """Resolve the default provider off the UI thread, then poll."""
+        self._apply_content()
         self._schedule_default_resolution_if_needed()
         self.set_interval(30.0, self.refresh)
 
@@ -66,7 +55,7 @@ class LLMOverrideIndicator(Static):
         if self._cached_default is None and not self._cached_default_failed:
             if primary_override is None:
                 self._schedule_default_resolution_if_needed()
-        self.update(self._build_initial_content())
+        self._apply_content()
         return super().refresh()
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
@@ -81,10 +70,14 @@ class LLMOverrideIndicator(Static):
                 self._cached_default_failed = False
             else:
                 self._cached_default_failed = True
-            self.update(self._build_initial_content())
+            self._apply_content()
         elif event.state == WorkerState.ERROR:
             self._cached_default_failed = True
-            self.update(self._build_initial_content())
+            self._apply_content()
+
+    async def on_click(self) -> None:
+        """Open the Models panel."""
+        await self.app.run_action("open_models_panel")
 
     def _schedule_default_resolution_if_needed(self) -> None:
         """Launch the off-thread default-resolution worker, if appropriate."""
@@ -112,6 +105,18 @@ class LLMOverrideIndicator(Static):
             if override_content is not None:
                 return override_content
         return self._build_cached_default_content()
+
+    def _apply_content(self, *, now: float | None = None) -> None:
+        """Update content and tooltip from one current override snapshot."""
+        override = get_active_temporary_override()
+        if override is not None:
+            override_content = self._build_override_content(override, now=now)
+            if override_content is not None:
+                self.update(override_content)
+                self.tooltip = self._build_tooltip(override, now=now)
+                return
+        self.update(self._build_cached_default_content())
+        self.tooltip = self._build_tooltip(None, now=now)
 
     def _build_cached_default_content(self) -> Text:
         """Render the default-model line using already-resolved values."""
@@ -151,14 +156,47 @@ class LLMOverrideIndicator(Static):
         now: float | None = None,
     ) -> Text | None:
         """Build the high-signal content for an active temporary override."""
-        remaining = format_remaining_until(override.expires_at, now)
-        if not remaining:
+        remaining = format_pill_remaining(override.expires_at, now)
+        if remaining is None:
             return None
 
-        label = format_provider_model_label(override.provider, override.model)
-        if override.effort:
-            label = f"{label}@{override.effort}"
-        return Text(f" Override {label} {remaining} ", style=_ACTIVE_STYLE)
+        return build_override_pill(
+            subject=format_provider_model_label(override.provider, override.model),
+            effort=override.effort,
+            trailing=remaining,
+            palette=DEFAULT_LANE_PALETTE,
+        )
+
+    def _build_tooltip(
+        self,
+        override: TemporaryLLMOverride | None,
+        *,
+        now: float | None = None,
+    ) -> str:
+        """Build long-form override or launch-default details."""
+        if override is not None:
+            return "\n".join(
+                (
+                    "Temporary override on @default",
+                    format_tooltip_target(override),
+                    format_tooltip_remaining(override.expires_at, now),
+                    "Press ,m for the Models panel.",
+                )
+            )
+
+        if self._cached_default is not None:
+            default_label = format_provider_model_label(*self._cached_default)
+        elif self._cached_default_failed:
+            default_label = "unavailable"
+        else:
+            default_label = "resolving..."
+        return "\n".join(
+            (
+                f"Launch default: {default_label}",
+                "No temporary override active.",
+                "Press ,m for the Models panel.",
+            )
+        )
 
     @staticmethod
     def _build_default_content() -> Text:

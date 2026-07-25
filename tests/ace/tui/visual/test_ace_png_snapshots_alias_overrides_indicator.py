@@ -5,11 +5,11 @@ temporary overrides on *non-*``default`` aliases — the concise violet pill tha
 sits next to the gold ``default`` pill (:class:`LLMOverrideIndicator`) in two
 states:
 
-* **single** — exactly one non-``default`` override, shown as
-  ``Override @<alias> …`` beside the calm default-model pill;
-* **multi** — several non-``default`` overrides collapsed to a terse
-  ``Overrides ×N`` count, shown beside an active *default* override pill (the
-  "default + non-default together" case).
+* **single** — exactly one non-``default`` override, shown as the two-tone
+  ``@<alias>@<effort> ∞`` beside the calm default-model pill;
+* **multi** — several non-``default`` overrides collapsed to
+  ``@<alphabetically-first-alias> +N``, shown beside an active *default*
+  override pill (the "default + non-default together" case).
 
 Both use until-cleared overrides so no live countdown leaks into the frame; the
 empty state (no non-``default`` override) is the baseline pinned by every other
@@ -39,7 +39,12 @@ pytestmark = pytest.mark.visual
 _FROZEN_NOW = 1000.0
 
 
-def _override(provider: str, model: str) -> TemporaryLLMOverride:
+def _override(
+    provider: str,
+    model: str,
+    *,
+    effort: str | None = None,
+) -> TemporaryLLMOverride:
     return TemporaryLLMOverride(
         provider=provider,
         model=model,
@@ -47,6 +52,7 @@ def _override(provider: str, model: str) -> TemporaryLLMOverride:
         created_at=_FROZEN_NOW,
         expires_at=None,
         source="ace",
+        effort=effort,
     )
 
 
@@ -60,7 +66,7 @@ async def test_alias_overrides_indicator_single_png_snapshot(
     monkeypatch.setattr(
         alias_overrides_indicator,
         "get_active_alias_overrides",
-        lambda *a, **k: {"coder": _override("codex", "o3")},
+        lambda *a, **k: {"coder": _override("codex", "o3", effort="max")},
     )
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -73,7 +79,7 @@ async def test_alias_overrides_indicator_single_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "alias_overrides_indicator_single_120x40",
-            title="ACE non-default override pill (single)",
+            title="ACE @coder@max ∞ override pill",
         )
 
 
@@ -82,9 +88,9 @@ async def test_alias_overrides_indicator_multi_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    # Several non-default overrides collapse to a count; a ``default`` entry is
-    # present too (it drives the gold pill and is excluded from the violet
-    # count) so the "default + non-default together" frame is exercised.
+    # Several non-default overrides name the first alias and count the rest; a
+    # ``default`` entry is present too (it drives the gold pill and is excluded
+    # from the violet count) so the paired-lanes frame is exercised.
     monkeypatch.setattr(
         alias_overrides_indicator,
         "get_active_alias_overrides",
@@ -111,5 +117,5 @@ async def test_alias_overrides_indicator_multi_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "alias_overrides_indicator_multi_120x40",
-            title="ACE non-default override pill (multi + default)",
+            title="ACE @coder +2 and default ∞ override pills",
         )
