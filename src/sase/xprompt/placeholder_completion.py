@@ -31,7 +31,11 @@ class PlaceholderRange:
 
 @dataclass(frozen=True, slots=True)
 class _PlaceholderCompletion:
-    """Reusable placeholder candidates and their inner replacement range."""
+    """Reusable placeholder candidates and their inner replacement range.
+
+    The binding tags every candidate with the source that produced it. Until
+    the TUI consumes that tag, only the candidate text is rehydrated here.
+    """
 
     prefix: str
     replacement_range: PlaceholderRange
@@ -86,7 +90,7 @@ def _completion_from_dict(payload: dict[str, Any]) -> _PlaceholderCompletion:
         prefix=str(payload["prefix"]),
         replacement_range=_range_from_dict(payload["replacement_range"]),
         append_closing_bracket=bool(payload["append_closing_bracket"]),
-        candidates=tuple(str(candidate) for candidate in payload["candidates"]),
+        candidates=tuple(str(candidate["text"]) for candidate in payload["candidates"]),
     )
 
 

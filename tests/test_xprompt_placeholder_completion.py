@@ -19,7 +19,10 @@ def test_completion_rehydrates_binding_payload(monkeypatch: Any) -> None:
                 "end": {"line": line, "character": character},
             },
             "append_closing_bracket": True,
-            "candidates": ["Alpha", "Alpine"],
+            "candidates": [
+                {"text": "Alpha", "source": "prompt"},
+                {"text": "Alpine", "source": "common"},
+            ],
         }
 
     monkeypatch.setattr(facade, "require_rust_binding", fake_require)
