@@ -32,6 +32,17 @@ def _configured_owner(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def _redirect_managed_tmpdir(monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
+    """Point the managed temp root at *root* for one launch under test."""
+
+    def fake_managed_tmpdir(*parts: str) -> str:
+        managed = root.joinpath(*parts)
+        managed.mkdir(parents=True, exist_ok=True)
+        return str(managed)
+
+    monkeypatch.setattr("sase.core.paths.get_sase_managed_tmpdir", fake_managed_tmpdir)
+
+
 def _spawn_agent_for_env_test(
     *,
     tmp_path: Path,
@@ -48,7 +59,7 @@ def _spawn_agent_for_env_test(
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     mock_spawn.side_effect = _fake_spawn_success
-    monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
+    _redirect_managed_tmpdir(monkeypatch, tmp_dir)
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
 
     spawn_agent_subprocess(
@@ -357,7 +368,7 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     mock_spawn.side_effect = _fake_spawn_success
-    monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
+    _redirect_managed_tmpdir(monkeypatch, tmp_dir)
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
     monkeypatch.setattr(
         "sase.linked_repos.resolve_linked_repos_for_project",
@@ -403,7 +414,10 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
         prepared.argv[8],
     ]
     assert Path(prepared.argv[8]).read_text() == "do work"
-    assert Path(prepared.argv[8]).parent == tmp_dir
+    # The prompt file lands in a managed subdirectory a reaper can own, never
+    # directly in the managed temp root.
+    assert Path(prepared.argv[8]).parent == tmp_dir / "launch-prompts"
+    assert Path(prepared.argv[8]).name.startswith("sase_ace_prompt_")
     assert mock_spawn.call_args.kwargs["claim_callback"] is not None
     child_env = mock_spawn.call_args.kwargs["env"]
     assert child_env[ENV_CHOP_LUMBERJACK] == "hooks"
@@ -433,7 +447,7 @@ def test_spawn_agent_subprocess_ignores_post_spawn_chop_record_failure(
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     mock_spawn.side_effect = _fake_spawn_success
-    monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
+    _redirect_managed_tmpdir(monkeypatch, tmp_dir)
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
     monkeypatch.setattr(
         "sase.linked_repos.resolve_linked_repos_for_project",
@@ -484,7 +498,7 @@ def test_spawn_agent_subprocess_prepares_vcs_and_local_xprompt_env(
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     mock_spawn.side_effect = _fake_spawn_success
-    monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
+    _redirect_managed_tmpdir(monkeypatch, tmp_dir)
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
     monkeypatch.setattr(
         "sase.workspace_provider.get_pre_allocated_env_prefix",
@@ -536,7 +550,7 @@ def test_spawn_agent_subprocess_does_not_record_without_chop_env(
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     mock_spawn.side_effect = _fake_spawn_success
-    monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
+    _redirect_managed_tmpdir(monkeypatch, tmp_dir)
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
 
     spawn_agent_subprocess(

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal, NoReturn, cast
 
 from sase.ace.query import QueryParseError
 from sase.core.clipboard import copy_to_system_clipboard
-from sase.core.paths import get_sase_tmpdir, shorten_path
+from sase.core.paths import get_sase_managed_tmpdir, shorten_path
 from sase.core.time import local_now
 
 if TYPE_CHECKING:
@@ -31,8 +31,7 @@ def _profile_output_path(profile_arg: str) -> str:
 
     timestamp = local_now().strftime("%Y%m%d_%H%M%S")
     filename = f"ace_profile_{timestamp}.txt"
-    tmpdir = get_sase_tmpdir()
-    return os.path.join(tmpdir, filename) if tmpdir else filename
+    return os.path.join(get_sase_managed_tmpdir("ace-profiles"), filename)
 
 
 def _write_profile_output(profiler: Any, profile_arg: str) -> str:

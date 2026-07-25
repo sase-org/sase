@@ -171,7 +171,7 @@ def spawn_agent_subprocess(
         AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
         AgentLaunchRequestWire,
     )
-    from sase.core.paths import get_sase_tmpdir, sharded_path
+    from sase.core.paths import get_sase_managed_tmpdir, sharded_path
     from sase.running_field import (
         WorkspaceClaimError,
         claim_workspace,
@@ -245,7 +245,7 @@ def spawn_agent_subprocess(
             request,
             python_executable=sys.executable,
             runner_script=runner_script,
-            sase_tmpdir=get_sase_tmpdir(),
+            sase_tmpdir=get_sase_managed_tmpdir("launch-prompts"),
             output_root=output_root,
             preallocated_env=_preallocated_workspace_env(
                 vcs_ref,

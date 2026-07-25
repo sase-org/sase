@@ -40,25 +40,17 @@ from pathlib import Path
 from sase.core.time import local_now
 
 
-def get_sase_tmpdir() -> str | None:
-    """Return the SASE temp directory if $SASE_TMPDIR is set, else None.
-
-    When $SASE_TMPDIR is set, the directory is created if it doesn't exist.
-    Returning None lets tempfile functions fall back to the system default.
-    """
-    sase_tmpdir = os.environ.get("SASE_TMPDIR")
-    if sase_tmpdir:
-        os.makedirs(sase_tmpdir, exist_ok=True)
-        return sase_tmpdir
-    return None
-
-
 def get_sase_managed_tmpdir(*parts: str) -> str:
     """Return a managed SASE temp directory.
 
     Honors $SASE_TMPDIR when explicitly configured; otherwise uses
     ``~/.sase/tmp`` so production handoff files do not land in the system temp
     dir. Optional *parts* create deterministic children under that root.
+
+    Always pass at least one *part*: the bare root is what the reaper scans,
+    and files dropped directly into it are indistinguishable from the
+    subdirectories it manages.  There is deliberately no helper that returns
+    the bare $SASE_TMPDIR root.
     """
     sase_tmpdir = os.environ.get("SASE_TMPDIR")
     root = Path(sase_tmpdir).expanduser() if sase_tmpdir else sase_subdir("tmp")

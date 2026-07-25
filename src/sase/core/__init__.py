@@ -36,7 +36,6 @@ from sase.core.paths import (
     ensure_sase_directory,
     get_sase_managed_tmpdir,
     get_sase_directory,
-    get_sase_tmpdir,
     make_safe_filename,
     shorten_path,
 )
@@ -57,7 +56,6 @@ __all__ = [
     "get_next_suffix_number",
     "get_sase_managed_tmpdir",
     "get_sase_directory",
-    "get_sase_tmpdir",
     "get_timezone",
     "get_vendored_tool",
     "get_workspace_directory_for_changespec",

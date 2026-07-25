@@ -111,12 +111,20 @@ def test_write_profile_output_shortens_home_and_copies_path(
     tmpdir = home / "tmp" / "sase"
     tmpdir.mkdir(parents=True)
 
+    def fake_managed_tmpdir(*parts: str) -> str:
+        managed = tmpdir.joinpath(*parts)
+        managed.mkdir(parents=True, exist_ok=True)
+        return str(managed)
+
     with (
         patch(
             "sase.main.ace_handler.local_now",
             return_value=datetime(2026, 5, 13, 12, 9, 57),
         ),
-        patch("sase.main.ace_handler.get_sase_tmpdir", return_value=str(tmpdir)),
+        patch(
+            "sase.main.ace_handler.get_sase_managed_tmpdir",
+            side_effect=fake_managed_tmpdir,
+        ),
         patch("sase.core.paths.Path.home", return_value=home),
         patch(
             "sase.main.ace_handler.copy_to_system_clipboard", return_value=True
@@ -124,15 +132,15 @@ def test_write_profile_output_shortens_home_and_copies_path(
     ):
         output_path = ace_handler._write_profile_output(_FakeProfiler(), "")
 
-    expected_path = tmpdir / "ace_profile_20260513_120957.txt"
+    expected_path = tmpdir / "ace-profiles" / "ace_profile_20260513_120957.txt"
     assert output_path == str(expected_path)
     assert expected_path.read_text() == "profile text"
     copy_to_clipboard.assert_called_once_with(
-        "~/tmp/sase/ace_profile_20260513_120957.txt"
+        "~/tmp/sase/ace-profiles/ace_profile_20260513_120957.txt"
     )
     assert (
         capsys.readouterr().err
-        == "Profile written to: ~/tmp/sase/ace_profile_20260513_120957.txt\n"
+        == "Profile written to: ~/tmp/sase/ace-profiles/ace_profile_20260513_120957.txt\n"
         "Profile path copied to clipboard.\n"
     )
 
