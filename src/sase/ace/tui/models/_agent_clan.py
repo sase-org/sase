@@ -147,7 +147,8 @@ def clan_member_counts(
     """Count a clan container's loaded members by display bucket."""
     awaiting = failed = running = waiting = unread = done = 0
     seen: set[tuple[AgentType, str, str | None]] = set()
-    for member in clan_members(agent):
+    members = clan_members(agent)
+    for member in members:
         if member.identity in seen:
             continue
         seen.add(member.identity)
@@ -167,7 +168,7 @@ def clan_member_counts(
             done += 1
     queued = sum(
         agent_is_globally_queued(status.agent)
-        for status in agent_status_projections((agent,))
+        for status in agent_status_projections(members)
     )
     return ClanStatusCounts(
         awaiting=awaiting,
