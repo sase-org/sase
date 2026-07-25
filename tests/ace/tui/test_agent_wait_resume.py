@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.axe import run_agent_wait
+from sase.axe import run_agent_wait_markers, run_agent_wait_slots
 from sase.ace.tui.actions.agents._wait_resume import (
     _prompt_wait_spec,
     _wait_modal_candidates,
@@ -271,11 +271,11 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
             "sase.ace.tui.actions.agents._directive_persistence."
             "update_agent_artifact_index_for_marker_mutation"
         ),
-        patch.object(run_agent_wait, "_scan_runner_slot_records", scan_records),
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
-        patch.object(run_agent_wait, "get_max_running_agents", return_value=2),
+        patch.object(run_agent_wait_slots, "_scan_runner_slot_records", scan_records),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=2),
         patch.object(
-            run_agent_wait,
+            run_agent_wait_markers,
             "update_agent_artifact_index_for_marker_mutation",
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
@@ -301,7 +301,7 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
         assert agent.wait_priority_explicit is False
         assert agent.slot_requested_at == "2026-07-12T12:00:00Z"
 
-        claimed, parked = run_agent_wait._try_claim_runner_slot(
+        claimed, parked = run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(tmp_path),
             cl_name="test_cl",
             timestamp="20240101120000",

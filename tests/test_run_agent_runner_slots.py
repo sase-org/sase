@@ -7,86 +7,27 @@ import threading
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.axe import run_agent_wait
-from sase.core.agent_scan_wire import (
-    AgentArtifactRecordWire,
-    AgentMetaWire,
-    PendingQuestionMarkerWire,
-    WaitingMarkerWire,
-    WorkflowStateWire,
-)
+from sase.axe import run_agent_wait_markers, run_agent_wait_slots
 
-
-def _artifact(tmp_path: Path, name: str, pid: int) -> Path:
-    path = tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / name
-    path.mkdir(parents=True)
-    (path / "agent_meta.json").write_text(json.dumps({"pid": pid}))
-    return path
-
-
-def _record(
-    path: Path,
-    *,
-    started: bool = False,
-    meta_wait_priority: int | None = None,
-) -> AgentArtifactRecordWire:
-    waiting_path = path / "waiting.json"
-    waiting_data = (
-        json.loads(waiting_path.read_text()) if waiting_path.exists() else None
-    )
-    return AgentArtifactRecordWire(
-        project_name="proj",
-        project_dir=str(path.parents[3]),
-        project_file=str(path.parents[3] / "proj.gp"),
-        workflow_dir_name="ace-run",
-        artifact_dir=str(path),
-        timestamp=path.name,
-        agent_meta=AgentMetaWire(
-            pid=int(json.loads((path / "agent_meta.json").read_text())["pid"]),
-            wait_priority=meta_wait_priority,
-            run_started_at=("2026-07-12T12:00:00+00:00" if started else None),
-        ),
-        waiting=(
-            WaitingMarkerWire(
-                waiting_for=list(waiting_data.get("waiting_for") or []),
-                wait_runners=waiting_data.get("wait_runners"),
-                wait_runners_explicit=bool(
-                    waiting_data.get("wait_runners_explicit", False)
-                ),
-                wait_priority=waiting_data.get("wait_priority"),
-                wait_priority_explicit=bool(
-                    waiting_data.get("wait_priority_explicit", False)
-                ),
-                slot_requested_at=waiting_data.get("slot_requested_at"),
-            )
-            if waiting_data is not None
-            else None
-        ),
-        workflow_state=WorkflowStateWire(appears_as_agent=True),
-        pending_question=(
-            PendingQuestionMarkerWire(session_id="question")
-            if (path / "pending_question.json").exists()
-            else None
-        ),
-    )
+from tests._runner_slot_fixtures import artifact, record
 
 
 def test_uncontended_gate_claims_without_parking(tmp_path: Path) -> None:
-    waiter = _artifact(tmp_path, "20260712120000", 101)
+    waiter = artifact(tmp_path, "20260712120000", 101)
     claims: list[str] = []
     with (
         patch.object(
-            run_agent_wait, "_scan_runner_slot_records", return_value=[]
+            run_agent_wait_slots, "_scan_runner_slot_records", return_value=[]
         ) as scan,
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
         patch.object(
-            run_agent_wait,
+            run_agent_wait_markers,
             "update_agent_artifact_index_for_marker_mutation",
         ),
-        patch.object(run_agent_wait.time, "sleep") as sleep,
+        patch.object(run_agent_wait_slots.time, "sleep") as sleep,
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
     ):
-        started_at = run_agent_wait.wait_for_runner_slot(
+        started_at = run_agent_wait_slots.wait_for_runner_slot(
             str(waiter),
             "cl",
             waiter.name,
@@ -102,248 +43,14 @@ def test_uncontended_gate_claims_without_parking(tmp_path: Path) -> None:
     sleep.assert_not_called()
 
 
-def test_deprioritized_waiter_defers_until_window_elapsed(
-    tmp_path: Path,
-    capsys,
-) -> None:
-    waiter = _artifact(tmp_path, "20260725120000", 101)
-    better = _artifact(tmp_path, "20260725120001", 102)
-    claims: list[str] = []
-
-    def scan() -> list[AgentArtifactRecordWire]:
-        return [
-            _record(waiter),
-            _record(better, meta_wait_priority=10),
-        ]
-
-    with (
-        patch.object(run_agent_wait, "_scan_runner_slot_records", side_effect=scan),
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
-        patch.object(
-            run_agent_wait,
-            "get_runner_slot_deference_seconds_per_step",
-            return_value=3,
-        ),
-        patch.object(
-            run_agent_wait,
-            "get_runner_slot_deference_max_seconds",
-            return_value=60,
-        ),
-        patch.object(
-            run_agent_wait,
-            "update_agent_artifact_index_for_marker_mutation",
-        ),
-        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
-    ):
-        first, parked = run_agent_wait._try_claim_runner_slot(
-            artifacts_dir=str(waiter),
-            cl_name="cl",
-            timestamp=waiter.name,
-            directive_threshold=9,
-            directive_priority=20,
-            claim=lambda: claims.append("claim") or "started",
-        )
-
-        assert first is None
-        assert parked
-        marker = json.loads((waiter / "waiting.json").read_text())
-        assert marker["eligible_since"]
-        assert marker["wait_priority_explicit"] is True
-        assert capsys.readouterr().out == "Deferring for up to 30s (priority 20)\n"
-
-        second, parked = run_agent_wait._try_claim_runner_slot(
-            artifacts_dir=str(waiter),
-            cl_name="cl",
-            timestamp=waiter.name,
-            directive_threshold=9,
-            directive_priority=20,
-            claim=lambda: claims.append("claim") or "started",
-        )
-        assert second is None
-        assert not parked
-        assert capsys.readouterr().out == ""
-
-        marker["eligible_since"] = "2026-07-25T00:00:00+00:00"
-        (waiter / "waiting.json").write_text(json.dumps(marker))
-        third, parked = run_agent_wait._try_claim_runner_slot(
-            artifacts_dir=str(waiter),
-            cl_name="cl",
-            timestamp=waiter.name,
-            directive_threshold=9,
-            directive_priority=20,
-            claim=lambda: claims.append("claim") or "started",
-        )
-
-    assert third == "started"
-    assert not parked
-    assert claims == ["claim"]
-    assert not (waiter / "waiting.json").exists()
-
-
-def test_deprioritized_waiter_uses_early_exit_without_better_agent(
-    tmp_path: Path,
-) -> None:
-    waiter = _artifact(tmp_path, "20260725120000", 101)
-    better = _artifact(tmp_path, "20260725120001", 102)
-    better_present = True
-
-    def scan() -> list[AgentArtifactRecordWire]:
-        records = [_record(waiter)]
-        if better_present:
-            records.append(_record(better, meta_wait_priority=10))
-        return records
-
-    with (
-        patch.object(run_agent_wait, "_scan_runner_slot_records", side_effect=scan),
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
-        patch.object(
-            run_agent_wait,
-            "get_runner_slot_deference_seconds_per_step",
-            return_value=3,
-        ),
-        patch.object(
-            run_agent_wait,
-            "get_runner_slot_deference_max_seconds",
-            return_value=60,
-        ),
-        patch.object(
-            run_agent_wait,
-            "update_agent_artifact_index_for_marker_mutation",
-        ),
-        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
-    ):
-        first, parked = run_agent_wait._try_claim_runner_slot(
-            artifacts_dir=str(waiter),
-            cl_name="cl",
-            timestamp=waiter.name,
-            directive_threshold=9,
-            directive_priority=20,
-            claim=lambda: "started",
-        )
-        assert first is None
-        assert parked
-
-        better_present = False
-        second, parked = run_agent_wait._try_claim_runner_slot(
-            artifacts_dir=str(waiter),
-            cl_name="cl",
-            timestamp=waiter.name,
-            directive_threshold=9,
-            directive_priority=20,
-            claim=lambda: "started",
-        )
-
-    assert second == "started"
-    assert not parked
-    assert not (waiter / "waiting.json").exists()
-
-
-def test_ineligible_poll_clears_continuous_eligibility(
-    tmp_path: Path,
-) -> None:
-    waiter = _artifact(tmp_path, "20260725120000", 101)
-    better = _artifact(tmp_path, "20260725120001", 102)
-    (waiter / "waiting.json").write_text(
-        json.dumps(
-            {
-                "cl_name": "cl",
-                "timestamp": waiter.name,
-                "wait_runners": 9,
-                "wait_runners_explicit": True,
-                "wait_priority": 20,
-                "slot_requested_at": "2026-07-25T12:00:00+00:00",
-                "eligible_since": "2026-07-25T12:00:00+00:00",
-            }
-        )
-    )
-    (better / "waiting.json").write_text(
-        json.dumps(
-            {
-                "cl_name": "cl",
-                "timestamp": better.name,
-                "wait_runners": 9,
-                "wait_runners_explicit": True,
-                "wait_priority": 1,
-                "slot_requested_at": "2026-07-25T12:00:01+00:00",
-            }
-        )
-    )
-
-    with (
-        patch.object(
-            run_agent_wait,
-            "_scan_runner_slot_records",
-            return_value=[_record(waiter), _record(better)],
-        ),
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
-        patch.object(
-            run_agent_wait,
-            "update_agent_artifact_index_for_marker_mutation",
-        ),
-        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
-    ):
-        claimed, parked = run_agent_wait._try_claim_runner_slot(
-            artifacts_dir=str(waiter),
-            cl_name="cl",
-            timestamp=waiter.name,
-            directive_threshold=9,
-            directive_priority=20,
-            claim=lambda: "unexpected",
-        )
-
-    assert claimed is None
-    assert not parked
-    marker = json.loads((waiter / "waiting.json").read_text())
-    assert "eligible_since" not in marker
-
-
-def test_default_and_better_priorities_claim_without_deference_config(
-    tmp_path: Path,
-) -> None:
-    with (
-        patch.object(run_agent_wait, "_scan_runner_slot_records", return_value=[]),
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
-        patch.object(
-            run_agent_wait,
-            "get_runner_slot_deference_seconds_per_step",
-        ) as seconds_per_step,
-        patch.object(
-            run_agent_wait,
-            "get_runner_slot_deference_max_seconds",
-        ) as max_seconds,
-        patch.object(
-            run_agent_wait,
-            "update_agent_artifact_index_for_marker_mutation",
-        ) as marker_mutation,
-        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
-    ):
-        for index, priority in enumerate((10, 1)):
-            waiter = _artifact(tmp_path, f"2026072512000{index}", 101 + index)
-            claimed, parked = run_agent_wait._try_claim_runner_slot(
-                artifacts_dir=str(waiter),
-                cl_name="cl",
-                timestamp=waiter.name,
-                directive_threshold=9,
-                directive_priority=priority,
-                claim=lambda: "started",
-            )
-            assert claimed == "started"
-            assert not parked
-            assert not (waiter / "waiting.json").exists()
-
-    seconds_per_step.assert_not_called()
-    max_seconds.assert_not_called()
-    marker_mutation.assert_not_called()
-
-
 def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
-    running = _artifact(tmp_path, "20260712120000", 100)
-    waiter = _artifact(tmp_path, "20260712120001", 101)
+    running = artifact(tmp_path, "20260712120000", 100)
+    waiter = artifact(tmp_path, "20260712120001", 101)
     config_cap = 1
     started = False
 
     def scan() -> list[AgentArtifactRecordWire]:
-        return [_record(running, started=True), _record(waiter, started=started)]
+        return [record(running, started=True), record(waiter, started=started)]
 
     def claim() -> str:
         nonlocal started
@@ -351,20 +58,22 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
         return "started"
 
     with (
-        patch.object(run_agent_wait, "_scan_runner_slot_records", side_effect=scan),
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
         patch.object(
-            run_agent_wait,
+            run_agent_wait_slots, "_scan_runner_slot_records", side_effect=scan
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(
+            run_agent_wait_slots,
             "get_max_running_agents",
             side_effect=lambda: config_cap,
         ),
         patch.object(
-            run_agent_wait,
+            run_agent_wait_markers,
             "update_agent_artifact_index_for_marker_mutation",
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
     ):
-        first, parked = run_agent_wait._try_claim_runner_slot(
+        first, parked = run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(waiter),
             cl_name="cl",
             timestamp=waiter.name,
@@ -381,7 +90,7 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
         assert marker["wait_priority_explicit"] is True
 
         config_cap = 2
-        second, parked = run_agent_wait._try_claim_runner_slot(
+        second, parked = run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(waiter),
             cl_name="cl",
             timestamp=waiter.name,
@@ -398,25 +107,25 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
 def test_implicit_gate_fails_closed_when_effective_limit_is_unavailable(
     tmp_path: Path,
 ) -> None:
-    waiter = _artifact(tmp_path, "20260712120001", 101)
+    waiter = artifact(tmp_path, "20260712120001", 101)
     claims: list[str] = []
     with (
         patch.object(
-            run_agent_wait,
+            run_agent_wait_slots,
             "get_max_running_agents",
             side_effect=[TimeoutError("override lock busy"), 2],
         ),
         patch.object(
-            run_agent_wait, "_scan_runner_slot_records", return_value=[]
+            run_agent_wait_slots, "_scan_runner_slot_records", return_value=[]
         ) as scan,
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
         patch.object(
-            run_agent_wait,
+            run_agent_wait_markers,
             "update_agent_artifact_index_for_marker_mutation",
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
     ):
-        first, parked = run_agent_wait._try_claim_runner_slot(
+        first, parked = run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(waiter),
             cl_name="cl",
             timestamp=waiter.name,
@@ -431,7 +140,7 @@ def test_implicit_gate_fails_closed_when_effective_limit_is_unavailable(
         assert marker["runner_limit_unavailable"] == "override lock busy"
         scan.assert_not_called()
 
-        second, parked = run_agent_wait._try_claim_runner_slot(
+        second, parked = run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(waiter),
             cl_name="cl",
             timestamp=waiter.name,
@@ -449,9 +158,9 @@ def test_repeated_slot_polls_preserve_foreign_waiting_marker_fields(
     tmp_path: Path,
 ) -> None:
     running = [
-        _artifact(tmp_path, f"2026071212000{index}", 100 + index) for index in range(2)
+        artifact(tmp_path, f"2026071212000{index}", 100 + index) for index in range(2)
     ]
-    waiter = _artifact(tmp_path, "20260712120002", 102)
+    waiter = artifact(tmp_path, "20260712120002", 102)
     requested_at = "2026-07-12T12:00:02+00:00"
     foreign_fields = {
         "waiting_for": ["upstream"],
@@ -478,27 +187,27 @@ def test_repeated_slot_polls_preserve_foreign_waiting_marker_fields(
 
     with (
         patch.object(
-            run_agent_wait,
+            run_agent_wait_slots,
             "_scan_runner_slot_records",
             side_effect=lambda: [
-                *[_record(path, started=True) for path in running],
-                _record(waiter),
+                *[record(path, started=True) for path in running],
+                record(waiter),
             ],
         ),
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
         patch.object(
-            run_agent_wait,
+            run_agent_wait_slots,
             "get_max_running_agents",
             side_effect=[2, 1],
         ),
         patch.object(
-            run_agent_wait,
+            run_agent_wait_markers,
             "update_agent_artifact_index_for_marker_mutation",
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
     ):
         for expected_threshold in (1, 0):
-            claimed, parked = run_agent_wait._try_claim_runner_slot(
+            claimed, parked = run_agent_wait_slots._try_claim_runner_slot(
                 artifacts_dir=str(waiter),
                 cl_name="fresh-cl",
                 timestamp=waiter.name,
@@ -523,9 +232,9 @@ def test_repeated_slot_polls_preserve_foreign_waiting_marker_fields(
 
 def test_parked_marker_edit_overrides_original_directive(tmp_path: Path) -> None:
     running = [
-        _artifact(tmp_path, f"2026071212000{index}", 100 + index) for index in range(2)
+        artifact(tmp_path, f"2026071212000{index}", 100 + index) for index in range(2)
     ]
-    waiter = _artifact(tmp_path, "20260712120002", 102)
+    waiter = artifact(tmp_path, "20260712120002", 102)
     (waiter / "waiting.json").write_text(
         json.dumps(
             {
@@ -541,22 +250,22 @@ def test_parked_marker_edit_overrides_original_directive(tmp_path: Path) -> None
 
     with (
         patch.object(
-            run_agent_wait,
+            run_agent_wait_slots,
             "_scan_runner_slot_records",
             return_value=[
-                *[_record(path, started=True) for path in running],
-                _record(waiter),
+                *[record(path, started=True) for path in running],
+                record(waiter),
             ],
         ),
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
-        patch.object(run_agent_wait, "get_max_running_agents") as get_config,
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents") as get_config,
         patch.object(
-            run_agent_wait,
+            run_agent_wait_markers,
             "update_agent_artifact_index_for_marker_mutation",
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
     ):
-        result, parked = run_agent_wait._try_claim_runner_slot(
+        result, parked = run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(waiter),
             cl_name="cl",
             timestamp=waiter.name,
@@ -569,111 +278,9 @@ def test_parked_marker_edit_overrides_original_directive(tmp_path: Path) -> None
     get_config.assert_not_called()
 
 
-def test_parked_priority_edit_overrides_original_directive(tmp_path: Path) -> None:
-    waiter = _artifact(tmp_path, "20260712120001", 101)
-    competitor = _artifact(tmp_path, "20260712120002", 102)
-    (waiter / "waiting.json").write_text(
-        json.dumps(
-            {
-                "waiting_for": [],
-                "cl_name": "cl",
-                "timestamp": waiter.name,
-                "wait_runners": 9,
-                "wait_runners_explicit": True,
-                "wait_priority": 1,
-                "slot_requested_at": "2026-07-12T12:00:01+00:00",
-            }
-        )
-    )
-    (competitor / "waiting.json").write_text(
-        json.dumps(
-            {
-                "waiting_for": [],
-                "cl_name": "cl",
-                "timestamp": competitor.name,
-                "wait_runners": 9,
-                "wait_runners_explicit": True,
-                "wait_priority": 5,
-                "slot_requested_at": "2026-07-12T12:00:00+00:00",
-            }
-        )
-    )
-
-    with (
-        patch.object(
-            run_agent_wait,
-            "_scan_runner_slot_records",
-            return_value=[_record(waiter), _record(competitor)],
-        ),
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
-        patch.object(
-            run_agent_wait,
-            "update_agent_artifact_index_for_marker_mutation",
-        ),
-        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
-    ):
-        result, parked = run_agent_wait._try_claim_runner_slot(
-            artifacts_dir=str(waiter),
-            cl_name="cl",
-            timestamp=waiter.name,
-            directive_threshold=9,
-            directive_priority=20,
-            claim=lambda: "started",
-        )
-
-    assert result == "started"
-    assert not parked
-    assert not (waiter / "waiting.json").exists()
-
-
-def test_marker_priority_resolution_rejects_boolean_and_invalid_values() -> None:
-    assert run_agent_wait._marker_priority_state(None, None) == (10, False)
-    assert run_agent_wait._marker_priority_state({"slot_requested_at": "now"}, 3) == (
-        3,
-        True,
-    )
-    assert run_agent_wait._marker_priority_state(
-        {"slot_requested_at": "now", "wait_priority": True},
-        None,
-    ) == (10, False)
-    assert run_agent_wait._marker_priority_state(
-        {"slot_requested_at": "now", "wait_priority": -1},
-        4,
-    ) == (4, True)
-
-
-def test_marker_priority_resolution_tracks_explicit_legacy_markers() -> None:
-    legacy_default = {
-        "slot_requested_at": "now",
-        "wait_priority": 10,
-    }
-    assert run_agent_wait._marker_priority_state(legacy_default, None) == (10, False)
-    assert run_agent_wait._marker_priority_state(legacy_default, 3) == (3, True)
-
-    legacy_non_default = {
-        "slot_requested_at": "now",
-        "wait_priority": 20,
-    }
-    assert run_agent_wait._marker_priority_state(legacy_non_default, 3) == (20, True)
-
-    explicit_default = {
-        "slot_requested_at": "now",
-        "wait_priority": 10,
-        "wait_priority_explicit": True,
-    }
-    assert run_agent_wait._marker_priority_state(explicit_default, 3) == (10, True)
-
-    implicit_non_default = {
-        "slot_requested_at": "now",
-        "wait_priority": 20,
-        "wait_priority_explicit": False,
-    }
-    assert run_agent_wait._marker_priority_state(implicit_non_default, 3) == (3, True)
-
-
 def test_concurrent_claimants_cannot_overshoot_threshold(tmp_path: Path) -> None:
     waiters = [
-        _artifact(tmp_path, f"2026071212000{index}", 100 + index) for index in range(4)
+        artifact(tmp_path, f"2026071212000{index}", 100 + index) for index in range(4)
     ]
     started: set[str] = set()
     start_barrier = threading.Barrier(len(waiters))
@@ -681,7 +288,7 @@ def test_concurrent_claimants_cannot_overshoot_threshold(tmp_path: Path) -> None
     result_lock = threading.Lock()
 
     def scan() -> list[AgentArtifactRecordWire]:
-        return [_record(path, started=str(path) in started) for path in waiters]
+        return [record(path, started=str(path) in started) for path in waiters]
 
     def contend(path: Path) -> None:
         start_barrier.wait()
@@ -690,7 +297,7 @@ def test_concurrent_claimants_cannot_overshoot_threshold(tmp_path: Path) -> None
             started.add(str(path))
             return str(path)
 
-        result = run_agent_wait._try_claim_runner_slot(
+        result = run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(path),
             cl_name="cl",
             timestamp=path.name,
@@ -701,10 +308,12 @@ def test_concurrent_claimants_cannot_overshoot_threshold(tmp_path: Path) -> None
             results.append(result)
 
     with (
-        patch.object(run_agent_wait, "_scan_runner_slot_records", side_effect=scan),
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
         patch.object(
-            run_agent_wait,
+            run_agent_wait_slots, "_scan_runner_slot_records", side_effect=scan
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(
+            run_agent_wait_markers,
             "update_agent_artifact_index_for_marker_mutation",
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
@@ -723,9 +332,9 @@ def test_concurrent_claimants_cannot_overshoot_threshold(tmp_path: Path) -> None
 def test_serial_child_agent_is_exempt_from_scanning_and_queueing(
     tmp_path: Path,
 ) -> None:
-    child = _artifact(tmp_path, "20260712120000", 101)
-    with patch.object(run_agent_wait, "_scan_runner_slot_records") as scan:
-        started_at = run_agent_wait.wait_for_runner_slot(
+    child = artifact(tmp_path, "20260712120000", 101)
+    with patch.object(run_agent_wait_slots, "_scan_runner_slot_records") as scan:
+        started_at = run_agent_wait_slots.wait_for_runner_slot(
             str(child),
             "cl",
             child.name,
@@ -742,19 +351,19 @@ def test_serial_child_agent_is_exempt_from_scanning_and_queueing(
 def test_parallel_family_member_participates_in_runner_admission(
     tmp_path: Path,
 ) -> None:
-    child = _artifact(tmp_path, "20260712120000", 101)
+    child = artifact(tmp_path, "20260712120000", 101)
     with (
         patch.object(
-            run_agent_wait, "_scan_runner_slot_records", return_value=[]
+            run_agent_wait_slots, "_scan_runner_slot_records", return_value=[]
         ) as scan,
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
         patch.object(
-            run_agent_wait,
+            run_agent_wait_markers,
             "update_agent_artifact_index_for_marker_mutation",
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
     ):
-        started_at = run_agent_wait.wait_for_runner_slot(
+        started_at = run_agent_wait_slots.wait_for_runner_slot(
             str(child),
             "cl",
             child.name,
@@ -775,8 +384,8 @@ def test_parallel_family_member_participates_in_runner_admission(
 def test_answered_root_reacquires_after_yield_without_oversubscribing(
     tmp_path: Path,
 ) -> None:
-    paused = _artifact(tmp_path, "20260712120000", 100)
-    newcomer = _artifact(tmp_path, "20260712120001", 101)
+    paused = artifact(tmp_path, "20260712120000", 100)
+    newcomer = artifact(tmp_path, "20260712120001", 101)
     (paused / "pending_question.json").write_text(
         json.dumps({"session_id": "question"})
     )
@@ -784,21 +393,23 @@ def test_answered_root_reacquires_after_yield_without_oversubscribing(
 
     def scan() -> list[AgentArtifactRecordWire]:
         return [
-            _record(paused, started=True),
-            _record(newcomer, started=newcomer_started),
+            record(paused, started=True),
+            record(newcomer, started=newcomer_started),
         ]
 
     with (
-        patch.object(run_agent_wait, "_scan_runner_slot_records", side_effect=scan),
-        patch.object(run_agent_wait, "is_process_alive", return_value=True),
-        patch.object(run_agent_wait, "get_max_running_agents", return_value=1),
         patch.object(
-            run_agent_wait,
+            run_agent_wait_slots, "_scan_runner_slot_records", side_effect=scan
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=1),
+        patch.object(
+            run_agent_wait_markers,
             "update_agent_artifact_index_for_marker_mutation",
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
     ):
-        admitted, parked = run_agent_wait._try_claim_runner_slot(
+        admitted, parked = run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(newcomer),
             cl_name="cl",
             timestamp=newcomer.name,
@@ -809,7 +420,7 @@ def test_answered_root_reacquires_after_yield_without_oversubscribing(
         assert not parked
         newcomer_started = True
 
-        resumed, parked = run_agent_wait._try_claim_runner_slot(
+        resumed, parked = run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(paused),
             cl_name="cl",
             timestamp=paused.name,
@@ -829,7 +440,7 @@ def test_answered_root_reacquires_after_yield_without_oversubscribing(
             (paused / "pending_question.json").unlink()
             return "resumed"
 
-        resumed, parked = run_agent_wait._try_claim_runner_slot(
+        resumed, parked = run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(paused),
             cl_name="cl",
             timestamp=paused.name,

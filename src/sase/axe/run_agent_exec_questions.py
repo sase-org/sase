@@ -27,7 +27,7 @@ from sase.axe.run_agent_helpers import (
     update_meta_suffix,
     update_step_marker_chat_path,
 )
-from sase.axe.run_agent_wait import wait_for_runner_slot
+from sase.axe.run_agent_wait_slots import wait_for_runner_slot
 from sase.axe.runner_signals import reset_killed
 from sase.core.runner_slots import normalize_wait_priority
 from sase.plan_chain import (

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -13,6 +14,27 @@ import pytest
 from sase.axe.run_agent_wait import wait_for_dependencies
 
 from tests._agent_names_fixtures import make_agent
+
+
+@contextmanager
+def _patch_index_updates(side_effect: Callable[[str], None]) -> Iterator[None]:
+    """Observe Tier 1 index refreshes from both wait modules.
+
+    ``waiting.json`` is published by ``run_agent_wait_markers`` while the wait
+    barrier removes it inline, so both bindings must be intercepted.
+    """
+    with (
+        patch(
+            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
+            side_effect=side_effect,
+        ),
+        patch(
+            "sase.axe.run_agent_wait_markers."
+            "update_agent_artifact_index_for_marker_mutation",
+            side_effect=side_effect,
+        ),
+    ):
+        yield
 
 
 @pytest.fixture(autouse=True)
@@ -75,10 +97,7 @@ def test_resolved_named_wait_skips_waiting_marker(
 
     with (
         patch("sase.axe.run_agent_wait.was_killed", return_value=False),
-        patch(
-            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
-            side_effect=lambda path: index_updates.append(path),
-        ),
+        _patch_index_updates(lambda path: index_updates.append(path)),
         patch("sase.axe.run_agent_wait.time.sleep") as sleep_mock,
     ):
         blocked = wait_for_dependencies(
@@ -112,10 +131,7 @@ def test_submitted_plan_row_wait_skips_waiting_marker(
 
     with (
         patch("sase.axe.run_agent_wait.was_killed", return_value=False),
-        patch(
-            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
-            side_effect=lambda path: index_updates.append(path),
-        ),
+        _patch_index_updates(lambda path: index_updates.append(path)),
         patch("sase.axe.run_agent_wait.time.sleep") as sleep_mock,
     ):
         wait_for_dependencies(
@@ -194,10 +210,7 @@ def test_unresolved_named_wait_uses_slow_waiting_marker_path(
 
     with (
         patch("sase.axe.run_agent_wait.was_killed", return_value=False),
-        patch(
-            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
-            side_effect=lambda path: index_updates.append(path),
-        ),
+        _patch_index_updates(lambda path: index_updates.append(path)),
     ):
         wait_for_dependencies(
             ["missing"],
@@ -432,10 +445,7 @@ def test_named_wait_with_time_floor_uses_slow_waiting_marker_path(
 
     with (
         patch("sase.axe.run_agent_wait.was_killed", return_value=False),
-        patch(
-            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
-            side_effect=lambda path: index_updates.append(path),
-        ),
+        _patch_index_updates(lambda path: index_updates.append(path)),
     ):
         wait_for_dependencies(
             ["dep"],
@@ -507,7 +517,7 @@ def test_completed_wait_is_idempotent_on_refreshed_pass(tmp_path: Path) -> None:
     refreshed_meta = {"pid": 123}
     with (
         patch("sase.axe.run_agent_wait.was_killed", return_value=False),
-        patch("sase.axe.run_agent_wait._write_waiting_marker") as write_waiting,
+        patch("sase.axe.run_agent_wait.write_waiting_marker") as write_waiting,
         patch("sase.axe.run_agent_wait.time.sleep") as sleep_mock,
     ):
         blocked = wait_for_dependencies(
@@ -540,11 +550,8 @@ def test_dependency_wait_updates_index_for_waiting_marker_only(
 
     with (
         patch("sase.axe.run_agent_wait.was_killed", return_value=False),
-        patch("sase.axe.run_agent_wait.write_agent_meta", write_agent_meta),
-        patch(
-            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
-            side_effect=lambda path: calls.append(path),
-        ),
+        patch("sase.axe.run_agent_wait_markers.write_agent_meta", write_agent_meta),
+        _patch_index_updates(lambda path: calls.append(path)),
     ):
         wait_for_dependencies(
             ["dep"],
@@ -580,10 +587,7 @@ def test_named_duration_wait_starts_after_dependencies_are_ready(
 
     with (
         patch("sase.axe.run_agent_wait.was_killed", return_value=False),
-        patch(
-            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
-            side_effect=update_index,
-        ),
+        _patch_index_updates(update_index),
         patch("sase.axe.run_agent_wait.time.sleep", side_effect=sleep),
         patch(
             "sase.axe.run_agent_wait.remaining_until",
@@ -639,10 +643,7 @@ def test_killed_wait_updates_index_for_write_and_cleanup(tmp_path: Path) -> None
 
     with (
         patch("sase.axe.run_agent_wait.was_killed", return_value=True),
-        patch(
-            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
-            side_effect=lambda path: calls.append(path),
-        ),
+        _patch_index_updates(lambda path: calls.append(path)),
         pytest.raises(SystemExit) as exc_info,
     ):
         wait_for_dependencies(

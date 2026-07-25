@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +13,27 @@ import pytest
 from sase.axe.run_agent_wait import wait_for_dependencies
 
 from tests._agent_names_fixtures import make_agent
+
+
+@contextmanager
+def _patch_index_updates(side_effect: Callable[[str], None]) -> Iterator[None]:
+    """Observe Tier 1 index refreshes from both wait modules.
+
+    ``waiting.json`` is published by ``run_agent_wait_markers`` while the wait
+    barrier removes it inline, so both bindings must be intercepted.
+    """
+    with (
+        patch(
+            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
+            side_effect=side_effect,
+        ),
+        patch(
+            "sase.axe.run_agent_wait_markers."
+            "update_agent_artifact_index_for_marker_mutation",
+            side_effect=side_effect,
+        ),
+    ):
+        yield
 
 
 @pytest.fixture(autouse=True)
@@ -145,10 +167,7 @@ def test_named_wait_fallback_starts_duration_floor_at_resolution(
     with (
         patch("sase.axe.run_agent_wait.was_killed", return_value=False),
         patch("sase.axe.run_agent_wait._WAIT_DEPENDENCY_FALLBACK_INTERVAL", 0),
-        patch(
-            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
-            side_effect=update_index,
-        ),
+        _patch_index_updates(update_index),
         patch(
             "sase.axe.run_agent_wait.time.sleep",
             side_effect=complete_dependency_on_first_poll,
@@ -310,7 +329,7 @@ def test_named_wait_fallback_is_skipped_without_project_name(
         patch("sase.axe.run_agent_wait.was_killed", return_value=False),
         patch("sase.axe.run_agent_wait._WAIT_DEPENDENCY_FALLBACK_INTERVAL", 0),
         patch(
-            "sase.axe.run_agent_wait._waiting_marker_dependencies_resolved"
+            "sase.axe.run_agent_wait.waiting_marker_dependencies_resolved"
         ) as fallback,
         patch(
             "sase.axe.run_agent_wait.time.sleep",

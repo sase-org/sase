@@ -26,7 +26,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "Tier 1 artifact index for the same artifacts directory."
         ),
     ),
-    "src/sase/axe/run_agent_wait.py:_remove_waiting_marker": PathPassingReview(
+    "src/sase/axe/run_agent_wait_markers.py:remove_waiting_marker": PathPassingReview(
         lifecycle_coverage=(
             "Deletes waiting.json and immediately refreshes the Tier 1 artifact "
             "index for the same artifacts directory."

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.axe import run_agent_wait
+from sase.axe import run_agent_wait_markers, run_agent_wait_slots
 from sase.axe.run_agent_helpers import handle_questions_flow
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
@@ -221,27 +221,27 @@ def test_kill_while_answered_question_is_queued_cleans_both_markers(
     )
     kill_checks = iter((False, True))
     monkeypatch.setattr(
-        run_agent_wait,
+        run_agent_wait_slots,
         "_scan_runner_slot_records",
         lambda: [running_record],
     )
-    monkeypatch.setattr(run_agent_wait, "is_process_alive", lambda *args: True)
-    monkeypatch.setattr(run_agent_wait, "get_max_running_agents", lambda: 1)
+    monkeypatch.setattr(run_agent_wait_slots, "is_process_alive", lambda *args: True)
+    monkeypatch.setattr(run_agent_wait_slots, "get_max_running_agents", lambda: 1)
     monkeypatch.setattr(
-        run_agent_wait,
+        run_agent_wait_markers,
         "update_agent_artifact_index_for_marker_mutation",
         lambda path: None,
     )
     monkeypatch.setattr(
-        run_agent_wait,
+        run_agent_wait_slots,
         "was_killed",
         lambda: next(kill_checks, True),
     )
-    monkeypatch.setattr(run_agent_wait, "_RUNNER_SLOT_POLL_INTERVAL", 0)
+    monkeypatch.setattr(run_agent_wait_slots, "_RUNNER_SLOT_POLL_INTERVAL", 0)
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
 
     def reacquire(claim):
-        return run_agent_wait.wait_for_runner_slot(
+        return run_agent_wait_slots.wait_for_runner_slot(
             str(tmp_path),
             "proj",
             "20260712120000",

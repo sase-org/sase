@@ -26,8 +26,8 @@ from sase.axe.run_agent_refs import (
 from sase.axe.run_agent_wait import (
     remaining_until,
     wait_for_dependencies,
-    wait_for_runner_slot,
 )
+from sase.axe.run_agent_wait_slots import wait_for_runner_slot
 
 
 def claim_deferred_workspace(
