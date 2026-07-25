@@ -67,6 +67,37 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Name of the agent to show",
     )
 
+    # sase agent retire-v1
+    retire_v1_parser = agents_sub.add_parser(
+        "retire-v1",
+        help="Safely retire this machine's legacy-v1 sidecar payload",
+        description=(
+            "Preview retirement of this machine's legacy-v1 agents-sidecar "
+            "payload. Retirement is refused unless the current owner's v2 "
+            "manifest covers every v1 hood. The command is a dry run unless "
+            "--apply is explicitly supplied."
+        ),
+    )
+    retire_v1_parser.add_argument(
+        "-a",
+        "--apply",
+        action="store_true",
+        help="Remove the covered payload, then commit and push through agents sync",
+    )
+    retire_v1_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a stable machine-readable JSON report",
+    )
+    retire_v1_parser.add_argument(
+        "-p",
+        "--project",
+        action="append",
+        default=[],
+        help="Limit to a project name or alias (repeatable)",
+    )
+
     # sase agent sync
     sync_parser = agents_sub.add_parser(
         "sync",

@@ -26,6 +26,7 @@ _AGENTS_PAYLOAD_PATHS = (
     "agents",
     "families",
 )
+_LEGACY_MANIFEST_PATH = "manifest.json"
 
 
 def commit_agents_payload_if_dirty(
@@ -33,16 +34,22 @@ def commit_agents_payload_if_dirty(
     owner: AgentOwnerIdentity,
     git_runner: GitRunner,
 ) -> bool | str:
+    payload_paths = (
+        (_LEGACY_MANIFEST_PATH, *_AGENTS_PAYLOAD_PATHS)
+        if (repo / _LEGACY_MANIFEST_PATH).exists()
+        or _tracked_legacy_manifest(repo, git_runner)
+        else _AGENTS_PAYLOAD_PATHS
+    )
     staged = git_runner(
         repo,
-        ["add", "--force", "--", *_AGENTS_PAYLOAD_PATHS],
+        ["add", "--force", "--", *payload_paths],
         op="agents_sync.stage",
     )
     if staged.returncode != 0:
         return agents_git_error("could not stage agents sidecar payload", staged)
     dirty = git_runner(
         repo,
-        ["diff", "--cached", "--quiet", "--", *_AGENTS_PAYLOAD_PATHS],
+        ["diff", "--cached", "--quiet", "--", *payload_paths],
         op="agents_sync.diff_staged",
     )
     if dirty.returncode == 0:
@@ -68,6 +75,15 @@ def commit_agents_payload_if_dirty(
     if committed.returncode != 0:
         return agents_git_error("could not commit agents sidecar payload", committed)
     return True
+
+
+def _tracked_legacy_manifest(repo: Path, git_runner: GitRunner) -> bool:
+    tracked = git_runner(
+        repo,
+        ["ls-files", "--error-unmatch", "--", _LEGACY_MANIFEST_PATH],
+        op="agents_sync.legacy_manifest_tracked",
+    )
+    return tracked.returncode == 0
 
 
 def ensure_agents_clone(

@@ -103,7 +103,6 @@ def _render_status(statuses: Sequence[ProjectSyncStatus]) -> None:
     table.add_column("STATE")
     table.add_column("BEHIND", justify="right")
     table.add_column("AHEAD", justify="right")
-    table.add_column("UNEXPORTED", justify="right")
     table.add_column("LAST FETCH")
     table.add_column("DETAIL")
     for status in statuses:
@@ -119,7 +118,6 @@ def _render_status(statuses: Sequence[ProjectSyncStatus]) -> None:
             Text(status.state, style=style),
             _number(status.behind),
             _number(status.ahead),
-            _number(status.unexported_agents),
             _timestamp(status.last_fetch_time),
             _status_detail(status),
         )

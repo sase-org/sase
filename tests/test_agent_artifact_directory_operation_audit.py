@@ -65,6 +65,12 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             ),
         )
     ),
+    "src/sase/agents_sync/v1_retirement.py:_apply_v1_retirement": DirOpReview(
+        exemption=(
+            "Removes only evidence-covered legacy-v1 transport bundles inside "
+            "an agents sidecar checkout, not local agent artifact directories."
+        ),
+    ),
     "src/sase/agents_sync/v2_io.py:apply_payload_atomic": DirOpReview(
         exemption=(
             "Atomically promotes validated owner-sharded payload files inside "

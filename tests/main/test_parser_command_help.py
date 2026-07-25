@@ -33,6 +33,7 @@ def test_agents_help_renders_sorted_subcommands() -> None:
         "kill",
         "list",
         "names",
+        "retire-v1",
         "show",
         "sync",
         "tribe",
@@ -42,7 +43,7 @@ def test_agents_help_renders_sorted_subcommands() -> None:
 
     assert help_commands == sorted(expected_commands)
     assert (
-        "{archive,artifacts,index,kill,list,names,show,sync,tribe}"
+        "{archive,artifacts,index,kill,list,names,retire-v1,show,sync,tribe}"
         in agents_parser.format_help()
     )
 

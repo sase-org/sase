@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Collection, Mapping
+from collections.abc import Collection
 from datetime import UTC, datetime, timedelta
 import json
 import os
@@ -17,15 +17,10 @@ from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.incoming_cache_legacy import legacy_group_machine_hood
 from sase.agents_sync.io import (
     AgentsSyncFormatError,
-    PORTABLE_META_FIELDS,
     atomic_write_bytes,
     atomic_write_json,
-    compute_bundle_digest,
-    portable_metadata_from_json,
     read_bundle,
-    validate_qualified_name,
     write_bundle,
-    write_manifest,
 )
 from sase.agents_sync.models import (
     AgentBundle,
@@ -34,7 +29,6 @@ from sase.agents_sync.models import (
     ExportCounts,
     IntegrationCounts,
     ManifestEntry,
-    PortableAgentMetadata,
     ProjectTarget,
 )
 from sase.core.agent_artifact_index_lifecycle import (
@@ -44,7 +38,6 @@ from sase.core.agent_artifact_paths import (
     ACE_RUN_WORKFLOW_DIR,
     canonical_agent_artifact_path,
     iter_agent_artifact_dirs,
-    parse_agent_artifact_path,
 )
 from sase.core.agent_identity_facade import (
     AgentOwnerIdentity,
@@ -55,7 +48,6 @@ from sase.core.agent_identity_facade import (
 from sase.core.commit_sha_facade import commit_shas_equivalent
 from sase.core.machine_hood_facade import machine_qualify_v1_transport_agent_name
 from sase.core.paths import sase_home
-from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
 
 
 def integrate_foreign_bundles(
@@ -230,151 +222,6 @@ def _v1_artifact_rows(
     return tuple(rows)
 
 
-def _build_local_bundles(
-    target: ProjectTarget,
-    machine: str,
-    *,
-    git_runner: GitRunner = run_git,
-    incremental_only: bool,
-) -> tuple[dict[str, AgentBundle], int, list[str]]:
-    """Build verified local transport bundles without writing the sidecar."""
-
-    associations: dict[str, dict[str, CommitRecord]] = defaultdict(dict)
-    artifacts: dict[str, tuple[Path, dict[str, Any], dict[str, Any]]] = {}
-    diagnostics: list[str] = []
-    skipped = 0
-    root_cache: dict[str, Path | None] = {}
-
-    for artifact_dir in iter_agent_artifact_dirs(
-        target.project_key,
-        ACE_RUN_WORKFLOW_DIR,
-        newest_first=False,
-    ):
-        done = _read_json_object(artifact_dir / "done.json")
-        meta = _read_json_object(artifact_dir / "agent_meta.json")
-        if done is None or meta is None:
-            continue
-        if done.get("outcome") != "completed":
-            continue
-        if meta.get("imported_from_machine") is not None:
-            continue
-        raw_name = meta.get("name") or done.get("name")
-        if not isinstance(raw_name, str) or not raw_name:
-            continue
-        name = machine_qualify_v1_transport_agent_name(raw_name, machine)
-        try:
-            validate_qualified_name(name, machine)
-        except AgentsSyncFormatError as exc:
-            diagnostics.append(f"{artifact_dir}: {exc}")
-            skipped += 1
-            continue
-        artifacts[name] = (artifact_dir, meta, done)
-        for marker in commit_markers(artifact_dir):
-            sha = _text(marker.get("result")) or _text(marker.get("commit_result"))
-            cwd = _text(marker.get("cwd"))
-            if sha is None or cwd is None:
-                continue
-            repo_root = repository_root(Path(cwd), git_runner, root_cache)
-            if repo_root is None or not is_primary_root(repo_root, target):
-                continue
-            commit = commit_record(repo_root, sha, git_runner)
-            if commit is None:
-                diagnostics.append(
-                    f"{artifact_dir}: commit marker {sha!r} is not readable"
-                )
-                continue
-            associations[name][commit.sha] = commit
-
-    if not incremental_only:
-        for name, commit in _historical_commit_associations(
-            target, machine, git_runner
-        ):
-            associations[name][commit.sha] = commit
-
-    bundles: dict[str, AgentBundle] = {}
-    for name, (artifact_dir, meta, done) in sorted(artifacts.items()):
-        commits = tuple(
-            sorted(
-                associations.get(name, {}).values(),
-                key=lambda item: (item.committed_at, item.sha),
-            )
-        )
-        if not commits:
-            continue
-        chat_path = _transcript_path(meta, done)
-        if chat_path is None:
-            diagnostics.append(f"{artifact_dir}: transcript is missing or unreadable")
-            skipped += 1
-            continue
-        try:
-            chat_bytes = chat_path.read_bytes()
-        except OSError as exc:
-            diagnostics.append(f"{artifact_dir}: could not read transcript: {exc}")
-            skipped += 1
-            continue
-        metadata = _portable_metadata(artifact_dir, meta, name, machine)
-        if metadata is None:
-            diagnostics.append(f"{artifact_dir}: artifact timestamp/layout is invalid")
-            skipped += 1
-            continue
-        digest = compute_bundle_digest(metadata, commits, chat_bytes)
-        bundles[name] = AgentBundle(metadata, commits, chat_bytes, digest)
-    return bundles, skipped, diagnostics
-
-
-def count_unexported_local_agents(
-    target: ProjectTarget,
-    manifest: AgentsManifest,
-    machine: str,
-    *,
-    git_runner: GitRunner = run_git,
-) -> int:
-    """Count incremental-marker bundles absent or stale in the local manifest."""
-
-    bundles, _skipped, _diagnostics = _build_local_bundles(
-        target,
-        machine,
-        git_runner=git_runner,
-        incremental_only=True,
-    )
-    entries = manifest.by_name()
-    return sum(
-        1
-        for name, bundle in bundles.items()
-        if (entry := entries.get(name)) is None
-        or entry.machine != machine
-        or entry.digest != bundle.digest
-    )
-
-
-def _portable_metadata(
-    artifact_dir: Path,
-    meta: Mapping[str, Any],
-    name: str,
-    machine: str,
-) -> PortableAgentMetadata | None:
-    info = parse_agent_artifact_path(artifact_dir)
-    if info is None or len(info.timestamp) != 14 or not info.timestamp.isdigit():
-        return None
-    fields = {
-        key: meta[key]
-        for key in PORTABLE_META_FIELDS
-        if key in meta and meta[key] is not None
-    }
-    raw = {
-        "schema_version": 1,
-        "name": name,
-        "machine": machine,
-        "artifact_timestamp": info.timestamp,
-        "artifact_layout_version": info.layout_version,
-        **fields,
-    }
-    try:
-        return portable_metadata_from_json(raw)
-    except AgentsSyncFormatError:
-        return None
-
-
 def commit_markers(artifact_dir: Path) -> list[dict[str, Any]]:
     results = _read_json(artifact_dir / "commit_results.json")
     if isinstance(results, list):
@@ -444,80 +291,6 @@ def _resolve_sha(repo_root: Path, sha: str, git_runner: GitRunner) -> str | None
     )
     value = result.stdout.strip().lower()
     return value if result.returncode == 0 and value else None
-
-
-def _historical_commit_associations(
-    target: ProjectTarget,
-    machine: str,
-    git_runner: GitRunner,
-) -> list[tuple[str, CommitRecord]]:
-    result = git_runner(
-        target.primary_checkout,
-        ["log", "--format=%H%x00%ct%x00%s%x00%B%x00"],
-        op="agents_sync.history",
-    )
-    if result.returncode != 0:
-        return []
-    chunks = result.stdout.split("\x00")
-    associations: list[tuple[str, CommitRecord]] = []
-    for index in range(0, len(chunks) - 3, 4):
-        sha = chunks[index].lstrip("\r\n").strip().lower()
-        committed_raw = chunks[index + 1].strip()
-        subject = chunks[index + 2].rstrip("\r\n")
-        message = chunks[index + 3].rstrip("\r\n")
-        try:
-            committed_at = int(committed_raw)
-            tags = parse_trailing_commit_tags(message)
-        except (ValueError, TypeError, RuntimeError):
-            continue
-        raw_name = tags.get("AGENT")
-        if not raw_name:
-            continue
-        name = _historical_local_agent_name(
-            raw_name,
-            tags.get("MACHINE"),
-            machine,
-        )
-        if name is None:
-            continue
-        try:
-            validate_qualified_name(name, machine)
-        except AgentsSyncFormatError:
-            continue
-        associations.append((name, CommitRecord(sha, subject, committed_at)))
-    return associations
-
-
-def _historical_local_agent_name(
-    raw_name: str,
-    commit_machine: str | None,
-    machine: str,
-) -> str | None:
-    """Classify legacy and modern commit provenance for local backfill.
-
-    Legacy footers stored an unqualified agent alongside the host name.  That
-    host name is not the configured machine identity and therefore cannot be
-    used as an ownership filter.  Modern footers qualify the agent with the
-    same machine hood they record; those explicit foreign identities must
-    remain foreign instead of being re-qualified as local.
-    """
-    if (
-        commit_machine
-        and raw_name.startswith(f"{commit_machine}.")
-        and commit_machine != machine
-    ):
-        return None
-    return machine_qualify_v1_transport_agent_name(raw_name, machine)
-
-
-def _transcript_path(meta: Mapping[str, Any], done: Mapping[str, Any]) -> Path | None:
-    for value in (meta.get("chat_path"), done.get("response_path")):
-        if not isinstance(value, str) or not value:
-            continue
-        path = Path(value).expanduser()
-        if path.is_file():
-            return path
-    return None
 
 
 def _create_imported_artifact(
@@ -694,7 +467,6 @@ def _text(value: object) -> str | None:
 
 
 __all__ = [
-    "count_unexported_local_agents",
     "integrate_foreign_bundles",
     "v1_artifact_rows",
 ]

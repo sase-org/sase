@@ -96,7 +96,7 @@ def canonical_json_bytes(value: object) -> bytes:
     ).encode("utf-8")
 
 
-def compute_bundle_digest(
+def _compute_bundle_digest(
     metadata: PortableAgentMetadata | Mapping[str, Any],
     commits: Sequence[CommitRecord] | Mapping[str, Any],
     chat_bytes: bytes,
@@ -165,7 +165,7 @@ def validate_qualified_name(value: object, machine: str) -> str:
     return name
 
 
-def portable_metadata_from_json(value: object) -> PortableAgentMetadata:
+def _portable_metadata_from_json(value: object) -> PortableAgentMetadata:
     data = _object(value, "meta.json")
     allowed = _META_REQUIRED | PORTABLE_META_FIELDS
     unknown = set(data) - allowed
@@ -316,7 +316,7 @@ def read_bundle(repo_root: Path, entry: ManifestEntry) -> AgentBundle:
         raise AgentsSyncFormatError(
             f"could not read chat.md for {entry.name!r}: {exc}"
         ) from exc
-    metadata = portable_metadata_from_json(metadata_raw)
+    metadata = _portable_metadata_from_json(metadata_raw)
     commits = _commits_from_json(commits_raw)
     if metadata.name != entry.name or metadata.machine != entry.machine:
         raise AgentsSyncFormatError(
@@ -326,7 +326,7 @@ def read_bundle(repo_root: Path, entry: ManifestEntry) -> AgentBundle:
         raise AgentsSyncFormatError(
             f"bundle timestamp for {entry.name!r} does not match its manifest entry"
         )
-    digest = compute_bundle_digest(metadata, commits, chat_bytes)
+    digest = _compute_bundle_digest(metadata, commits, chat_bytes)
     if digest != entry.digest:
         raise AgentsSyncFormatError(
             f"bundle digest mismatch for {entry.name!r}: expected {entry.digest}"
@@ -348,10 +348,6 @@ def write_bundle(repo_root: Path, bundle: AgentBundle) -> None:
         },
     )
     atomic_write_bytes(bundle_dir / "chat.md", bundle.chat_bytes)
-
-
-def write_manifest(path: Path, manifest: AgentsManifest) -> None:
-    atomic_write_json(path, manifest.to_json_dict())
 
 
 def atomic_write_json(path: Path, value: object) -> None:
@@ -433,13 +429,10 @@ __all__ = [
     "atomic_write_bytes",
     "atomic_write_json",
     "canonical_json_bytes",
-    "compute_bundle_digest",
     "manifest_from_bytes",
-    "portable_metadata_from_json",
     "read_bundle",
     "read_manifest",
     "validate_machine",
     "validate_qualified_name",
     "write_bundle",
-    "write_manifest",
 ]

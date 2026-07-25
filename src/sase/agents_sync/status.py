@@ -9,9 +9,6 @@ from pathlib import Path
 import re
 import time
 
-from sase.agents_sync.bundles import (  # noqa: F401 - compatibility patch seam
-    count_unexported_local_agents,
-)
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.git_objects import LocalGitObjectReader
 from sase.agents_sync.incoming_cache import (
@@ -19,7 +16,7 @@ from sase.agents_sync.incoming_cache import (
     reconcile_pending_items,
 )
 from sase.agents_sync.incoming_detection import capture_fetched_agent_updates
-from sase.agents_sync.io import AgentsSyncFormatError, atomic_write_json, read_manifest
+from sase.agents_sync.io import AgentsSyncFormatError, atomic_write_json
 from sase.agents_sync.models import (
     STATUS_SCHEMA_VERSION,
     CapturedIncomingHood,
@@ -175,7 +172,6 @@ def _refresh_project_status(
             )
         diagnostics = _revalidate_project_diagnostics(
             target,
-            owner.machine_name,
             last_fetch_time=checked_at,
             git_runner=git_runner,
         )
@@ -185,7 +181,6 @@ def _refresh_project_status(
             diagnostics.state,
             ahead=diagnostics.ahead,
             behind=diagnostics.behind,
-            unexported_agents=diagnostics.unexported_agents,
             last_fetch_time=checked_at,
             detail=diagnostics.detail,
             error=diagnostics.error,
@@ -252,7 +247,6 @@ def _reconcile_project_status(
         state,
         ahead=prior.ahead if prior is not None else None,
         behind=prior.behind if prior is not None else None,
-        unexported_agents=(prior.unexported_agents if prior is not None else None),
         last_fetch_time=prior.last_fetch_time if prior is not None else None,
         detail=detail,
         error=prior.error if prior is not None else None,
@@ -279,7 +273,6 @@ def _publication_diagnostics(project_key: str) -> tuple[str, ...]:
 
 def _revalidate_project_diagnostics(
     target: ProjectTarget,
-    machine: str,
     *,
     last_fetch_time: float | None,
     git_runner: GitRunner = run_git,
@@ -295,19 +288,6 @@ def _revalidate_project_diagnostics(
             last_fetch_time=last_fetch_time,
             detail="agents sidecar clone does not exist on this machine",
         )
-    legacy_manifest_path = repo / "manifest.json"
-    manifest = None
-    if legacy_manifest_path.is_file():
-        try:
-            manifest = read_manifest(legacy_manifest_path)
-        except AgentsSyncFormatError as exc:
-            return ProjectSyncStatus(
-                target.project_key,
-                target.project,
-                "error",
-                last_fetch_time=last_fetch_time,
-                error=str(exc),
-            )
     upstream = git_runner(
         repo,
         ["rev-parse", "--verify", "@{upstream}"],
@@ -318,13 +298,6 @@ def _revalidate_project_diagnostics(
             target.project_key,
             target.project,
             "missing_upstream",
-            unexported_agents=(
-                count_unexported_local_agents(
-                    target, manifest, machine, git_runner=git_runner
-                )
-                if manifest is not None
-                else 0
-            ),
             last_fetch_time=last_fetch_time,
             detail="agents sidecar clone has no configured upstream",
         )
@@ -346,13 +319,6 @@ def _revalidate_project_diagnostics(
         ahead_raw, behind_raw = counts.stdout.split()
         ahead = int(ahead_raw)
         behind = int(behind_raw)
-        unexported = (
-            count_unexported_local_agents(
-                target, manifest, machine, git_runner=git_runner
-            )
-            if manifest is not None
-            else 0
-        )
     except (ValueError, OSError, RuntimeError) as exc:
         return ProjectSyncStatus(
             target.project_key,
@@ -367,7 +333,6 @@ def _revalidate_project_diagnostics(
         "ready",
         ahead=ahead,
         behind=behind,
-        unexported_agents=unexported,
         last_fetch_time=last_fetch_time,
     )
 
@@ -459,7 +424,6 @@ def _status_from_json(value: object) -> ProjectSyncStatus | None:
         "state",
         "ahead",
         "behind",
-        "unexported_agents",
         "last_fetch_time",
         "detail",
         "error",
@@ -495,7 +459,7 @@ def _status_from_json(value: object) -> ProjectSyncStatus | None:
     ):
         return None
     counts: dict[str, int | None] = {}
-    for key in ("ahead", "behind", "unexported_agents"):
+    for key in ("ahead", "behind"):
         item = value.get(key)
         if item is not None and (type(item) is not int or item < 0):
             return None
@@ -574,7 +538,6 @@ def _status_from_json(value: object) -> ProjectSyncStatus | None:
         state,  # type: ignore[arg-type]
         ahead=counts["ahead"],
         behind=counts["behind"],
-        unexported_agents=counts["unexported_agents"],
         last_fetch_time=(
             _finite_json_time(last_fetch) if last_fetch is not None else None
         ),
@@ -606,7 +569,6 @@ def _status_error(
         "error",
         ahead=status.ahead,
         behind=status.behind,
-        unexported_agents=status.unexported_agents,
         last_fetch_time=(
             status.last_fetch_time if last_fetch_time is None else last_fetch_time
         ),

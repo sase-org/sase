@@ -65,7 +65,7 @@ def test_indicator_shows_pending_projects_and_deterministic_tooltip() -> None:
                 behind=2,
                 pending_updates=alpha_updates,
             ),
-            ProjectSyncStatus("current", "Current", "ready", 0, 0, 0),
+            ProjectSyncStatus("current", "Current", "ready", 0, 0),
             ProjectSyncStatus("local", "Local", "ready", ahead=3),
             ProjectSyncStatus("off", "Disabled", "disabled"),
         )
@@ -97,7 +97,7 @@ def test_indicator_clear_and_idempotent_projection() -> None:
 
     assert indicator.pending_projects == pending.projects
     assert indicator.tooltip == tooltip
-    indicator.set_status(_snapshot(ProjectSyncStatus("a", "Alpha", "ready", 0, 0, 0)))
+    indicator.set_status(_snapshot(ProjectSyncStatus("a", "Alpha", "ready", 0, 0)))
     assert indicator.pending_count == 0
     assert indicator._build_content(indicator.pending_projects).plain == ""
     assert indicator.tooltip == (
@@ -121,7 +121,6 @@ def test_indicator_projection_performs_no_io(
                 "a",
                 "Alpha",
                 "ready",
-                unexported_agents=3,
                 pending_updates=(_captured("a", "Alpha", "foo"),),
             )
         )

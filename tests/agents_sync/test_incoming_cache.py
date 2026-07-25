@@ -18,7 +18,11 @@ from sase.agents_sync import (
 )
 from sase.agents_sync.git import run_git
 from sase.agents_sync.inventory import InventoryRun, ProjectHoodInventory
-from sase.agents_sync.io import compute_bundle_digest, write_bundle, write_manifest
+from sase.agents_sync.io import (
+    _compute_bundle_digest,
+    atomic_write_json,
+    write_bundle,
+)
 from sase.agents_sync.models import (
     AgentBundle,
     AgentsManifest,
@@ -153,7 +157,7 @@ def _write_legacy_group(
     metadata = PortableAgentMetadata(name, machine, timestamp, 2)
     commits = (CommitRecord(sha, hood, 1),)
     chat = f"{hood}\n".encode()
-    digest = compute_bundle_digest(metadata, commits, chat)
+    digest = _compute_bundle_digest(metadata, commits, chat)
     write_bundle(repo, AgentBundle(metadata, commits, chat, digest))
     entry = ManifestEntry(
         name,
@@ -162,7 +166,10 @@ def _write_legacy_group(
         timestamp,
         "2026-07-24T13:00:00+00:00",
     )
-    write_manifest(repo / "manifest.json", AgentsManifest((entry,)))
+    atomic_write_json(
+        repo / "manifest.json",
+        AgentsManifest((entry,)).to_json_dict(),
+    )
     return entry
 
 
@@ -546,7 +553,7 @@ def test_username_unknown_v1_entries_are_grouped_by_machine_and_hood(
         )
         commits = (CommitRecord(str(index) * 40, role, index),)
         chat = f"{role}\n".encode()
-        digest = compute_bundle_digest(metadata, commits, chat)
+        digest = _compute_bundle_digest(metadata, commits, chat)
         bundle = AgentBundle(metadata, commits, chat, digest)
         write_bundle(seed, bundle)
         entries.append(
@@ -558,7 +565,10 @@ def test_username_unknown_v1_entries_are_grouped_by_machine_and_hood(
                 "2026-07-24T12:00:00+00:00",
             )
         )
-    write_manifest(seed / "manifest.json", AgentsManifest(tuple(entries)))
+    atomic_write_json(
+        seed / "manifest.json",
+        AgentsManifest(tuple(entries)).to_json_dict(),
+    )
     _git(seed, "init")
     _git(seed, "config", "user.name", "Tests")
     _git(seed, "config", "user.email", "tests@example.test")

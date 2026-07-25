@@ -29,6 +29,11 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         handle_agents_show(args)
         sys.exit(0)
 
+    if sub == "retire-v1":
+        from sase.agents.cli_retire_v1 import handle_agents_retire_v1
+
+        sys.exit(handle_agents_retire_v1(args))
+
     if sub == "sync":
         from sase.agents.cli_sync import handle_agents_sync
 
@@ -68,5 +73,8 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         handle_agents_names(args)
         sys.exit(0)
 
-    print("Usage: sase agent {archive,artifacts,index,kill,list,names,show,sync,tribe}")
+    print(
+        "Usage: sase agent "
+        "{archive,artifacts,index,kill,list,names,retire-v1,show,sync,tribe}"
+    )
     sys.exit(1)

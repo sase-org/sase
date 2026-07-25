@@ -7,12 +7,11 @@ import pytest
 
 from sase.agents_sync.io import (
     AgentsSyncFormatError,
+    _compute_bundle_digest,
     _manifest_from_json,
+    _portable_metadata_from_json,
     atomic_write_json,
-    compute_bundle_digest,
-    portable_metadata_from_json,
     read_manifest,
-    write_manifest,
 )
 from sase.agents_sync.models import AgentsManifest, CommitRecord, ManifestEntry
 
@@ -31,8 +30,8 @@ def _meta(**updates: object) -> dict[str, object]:
 
 
 def test_digest_is_canonical_and_chat_bytes_are_exact() -> None:
-    left = portable_metadata_from_json(_meta())
-    right = portable_metadata_from_json(
+    left = _portable_metadata_from_json(_meta())
+    right = _portable_metadata_from_json(
         {
             "model": "gpt-test",
             "artifact_layout_version": 2,
@@ -44,10 +43,10 @@ def test_digest_is_canonical_and_chat_bytes_are_exact() -> None:
     )
     commits = (CommitRecord("a" * 40, "subject", 42),)
 
-    assert compute_bundle_digest(left, commits, b"chat\n") == compute_bundle_digest(
+    assert _compute_bundle_digest(left, commits, b"chat\n") == _compute_bundle_digest(
         right, commits, b"chat\n"
     )
-    assert compute_bundle_digest(left, commits, b"chat\n") != compute_bundle_digest(
+    assert _compute_bundle_digest(left, commits, b"chat\n") != _compute_bundle_digest(
         left, commits, b"chat"
     )
 
@@ -65,7 +64,7 @@ def test_portable_metadata_rejects_untrusted_shapes(
     update: dict[str, object], match: str
 ) -> None:
     with pytest.raises(AgentsSyncFormatError, match=match):
-        portable_metadata_from_json(_meta(**update))
+        _portable_metadata_from_json(_meta(**update))
 
 
 def test_manifest_rejects_key_identity_mismatch_and_unsafe_paths() -> None:
@@ -83,7 +82,7 @@ def test_manifest_rejects_key_identity_mismatch_and_unsafe_paths() -> None:
         _manifest_from_json({"schema_version": 1, "agents": {"../worker": entry}})
 
 
-def test_manifest_and_generic_json_writes_are_atomic_round_trips(
+def test_manifest_json_write_is_an_atomic_round_trip(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "manifest.json"
@@ -98,10 +97,7 @@ def test_manifest_and_generic_json_writes_are_atomic_round_trips(
             ),
         )
     )
-    write_manifest(path, manifest)
-    assert read_manifest(path) == manifest
-    assert not list(tmp_path.glob("*.tmp"))
-
     atomic_write_json(path, manifest.to_json_dict())
+    assert read_manifest(path) == manifest
     assert json.loads(path.read_text()) == manifest.to_json_dict()
     assert not list(tmp_path.glob(".*.tmp"))

@@ -13,7 +13,7 @@ BUNDLE_SCHEMA_VERSION = 1
 CACHE_SCHEMA_VERSION = 1
 MANIFEST_SCHEMA_VERSION = 1
 RECEIPT_SCHEMA_VERSION = 1
-STATUS_SCHEMA_VERSION = 3
+STATUS_SCHEMA_VERSION = 4
 SYNC_RESULT_SCHEMA_VERSION = 2
 
 StatusState = Literal[
@@ -391,7 +391,6 @@ class ProjectSyncStatus:
     state: StatusState
     ahead: int | None = None
     behind: int | None = None
-    unexported_agents: int | None = None
     last_fetch_time: float | None = None
     detail: str | None = None
     error: str | None = None
@@ -418,7 +417,6 @@ class ProjectSyncStatus:
             "state": self.state,
             "ahead": self.ahead,
             "behind": self.behind,
-            "unexported_agents": self.unexported_agents,
             "last_fetch_time": self.last_fetch_time,
             "detail": self.detail,
             "error": self.error,

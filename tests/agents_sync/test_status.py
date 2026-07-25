@@ -9,7 +9,7 @@ import pytest
 from sase.agents_sync import status
 from sase.agents_sync.git_objects import FetchedAgentsCommit
 from sase.agents_sync.incoming_detection import _IncomingCaptureReport
-from sase.agents_sync.io import write_manifest
+from sase.agents_sync.io import atomic_write_json
 from sase.agents_sync.models import (
     STATUS_SCHEMA_VERSION,
     AgentsManifest,
@@ -31,7 +31,7 @@ def _target(tmp_path: Path) -> ProjectTarget:
     primary.mkdir()
     repo = tmp_path / "agents"
     (repo / ".git").mkdir(parents=True)
-    write_manifest(repo / "manifest.json", AgentsManifest())
+    atomic_write_json(repo / "manifest.json", AgentsManifest().to_json_dict())
     return ProjectTarget(
         "proj",
         "Project",
@@ -73,7 +73,6 @@ def test_plain_status_reconciles_cache_without_running_git(
                 "ready",
                 2,
                 3,
-                4,
                 last_fetch_time=90.0,
             ),
         ),
@@ -98,7 +97,7 @@ def test_plain_status_reconciles_cache_without_running_git(
     )
 
     current = snapshot.projects[0]
-    assert (current.ahead, current.behind, current.unexported_agents) == (2, 3, 4)
+    assert (current.ahead, current.behind) == (2, 3)
     assert current.last_fetch_time == 90.0
 
 
@@ -189,11 +188,6 @@ def test_explicit_refresh_fetches_once_and_updates_cached_diagnostics(
             1000.0,
         ),
     )
-    monkeypatch.setattr(
-        status,
-        "count_unexported_local_agents",
-        lambda *_args, **_kwargs: 4,
-    )
 
     def runner(
         _cwd: Path,
@@ -222,7 +216,8 @@ def test_explicit_refresh_fetches_once_and_updates_cached_diagnostics(
 
     assert sum(network for _args, network in calls) == 1
     current = snapshot.projects[0]
-    assert (current.ahead, current.behind, current.unexported_agents) == (2, 3, 4)
+    assert (current.ahead, current.behind) == (2, 3)
+    assert "unexported_agents" not in current.to_json_dict()
     assert current.fetched_sha == "a" * 40
     assert current.validated_foreign_count == 2
     assert current.exact_owner_count == 1
@@ -244,7 +239,6 @@ def test_revalidate_only_never_runs_git(
                     "ready",
                     1,
                     2,
-                    3,
                     last_fetch_time=0.5,
                 ),
             ),
@@ -270,7 +264,7 @@ def test_revalidate_only_never_runs_git(
     )
 
     current = snapshot.projects[0]
-    assert (current.ahead, current.behind, current.unexported_agents) == (1, 2, 3)
+    assert (current.ahead, current.behind) == (1, 2)
 
 
 def test_status_rejects_conflicting_network_modes() -> None:
