@@ -266,14 +266,14 @@ def test_status_strip_styles_running_capacity_and_positive_queue() -> None:
         (7, 10, "bold #00D7AF", "bold #FFD700"),
         (8, 10, "bold #00D7AF", "bold #FF8700"),
         (9, 10, "bold #00D7AF", "bold #FF8700"),
-        (10, 10, "bold #FFD700", "bold #FF5F5F"),
-        (12, 10, "bold #FF5F5F", "bold #FF5F5F"),
+        (10, 10, "bold #00D7AF", "bold #FF5F5F"),
+        (12, 10, "bold #00D7AF", "bold #FF5F5F"),
         # Odd limit: 50% rounds up to 4 and 75% rounds up to 6.
         (3, 7, "bold #00D7AF", "not bold dim"),
         (4, 7, "bold #00D7AF", "bold #FFD700"),
         (5, 7, "bold #00D7AF", "bold #FFD700"),
         (6, 7, "bold #00D7AF", "bold #FF8700"),
-        (7, 7, "bold #FFD700", "bold #FF5F5F"),
+        (7, 7, "bold #00D7AF", "bold #FF5F5F"),
         # A non-positive limit has no meaningful pressure threshold.
         (2, 0, "bold #00D7AF", "not bold dim"),
         (2, -3, "bold #00D7AF", "not bold dim"),
@@ -319,6 +319,31 @@ def test_status_strip_styles_running_capacity_and_positive_queue() -> None:
     panel._runner_queue_count = 0
     zero_text = _collect_rich_text(panel)
     assert "queued" not in zero_text.plain
+
+
+def test_running_count_style_is_constant_across_capacity_pressure() -> None:
+    """The running count never encodes pressure; only the limit does."""
+    panel = AgentInfoPanel()
+    running_styles = set()
+    limit_styles = set()
+    for running_count, runner_limit in [
+        (0, 10),
+        (5, 10),
+        (8, 10),
+        (10, 10),
+        (13, 10),
+    ]:
+        panel._running_count = running_count
+        panel._runner_limit = runner_limit
+        text = _collect_rich_text(panel)
+        occupancy_index = text.plain.index(f"{running_count}/{runner_limit}")
+        slash_index = text.plain.index("/", occupancy_index)
+        running_styles.add(_style_at_plain_index(text, occupancy_index))
+        limit_styles.add(_style_at_plain_index(text, slash_index + 1))
+
+    assert running_styles == {"bold #00D7AF"}
+    # The retained pressure signal still varies across the same inputs.
+    assert len(limit_styles) > 1
 
 
 def test_update_runner_capacity_caches_only_limit_and_queue() -> None:

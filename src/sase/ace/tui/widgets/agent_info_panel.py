@@ -318,13 +318,9 @@ class AgentInfoPanel(Static):
     def _append_status_strip(self, text: Text) -> None:
         """Append the consolidated visible status and runner-capacity strip."""
         text.append("  [", style="dim")
-        if self._runner_limit > 0 and self._running_count > self._runner_limit:
-            running_style = "bold #FF5F5F"
-        elif self._runner_limit > 0 and self._running_count == self._runner_limit:
-            running_style = "bold #FFD700"
-        else:
-            running_style = "bold #00D7AF"
-        text.append(str(self._running_count), style=running_style)
+        # The runner-limit style already escalates with capacity pressure, so the
+        # running count itself stays a single stable color at every occupancy.
+        text.append(str(self._running_count), style=self._COUNT_STYLES["running"])
         text.append("/", style="dim")
         text.append(str(self._runner_limit), style=self._runner_limit_style())
         text.append(" running", style="dim")

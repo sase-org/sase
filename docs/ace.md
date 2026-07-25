@@ -907,8 +907,9 @@ of slot-participating user agents currently holding runner slots, `L` is the cur
 limit (temporary override first, configured value second), and `Q` counts live waiters governed by that effective cap.
 Slot participants are top-level user agents—including every clan member launched independently—plus parallel family
 members. Serial family follow-ups, workflow Python/bash steps, and axe ChangeSpec runners do not participate. Waits with
-an explicit `%wait(runners=N)` threshold are intentionally excluded from `Q`. Occupancy is green below the limit, gold
-at the limit, and red above it; a nonzero queue count is violet.
+an explicit `%wait(runners=N)` threshold are intentionally excluded from `Q`. The occupancy count `R` always renders
+green, so it reads as a plain count; capacity pressure is carried by `L`, which escalates from dim through gold at half
+the limit, orange at three quarters, and red once `R` reaches or passes it. A nonzero queue count is violet.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with numeric counts in place of the
