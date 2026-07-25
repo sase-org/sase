@@ -7,6 +7,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
+from sase.axe.chop_proposals import plan_chop_proposals, prepare_chop_proposals
 from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.config import AxeConfig, ChopConfig
 from sase.xprompt.directives import extract_prompt_directives
@@ -21,19 +24,20 @@ def _write_clan_result(
     *,
     with_env: bool = False,
     clan_summary: str | None = None,
+    member_names: tuple[str, str] = ("split_file.first", "split_file.second"),
 ) -> None:
     proposals: list[dict[str, object]] = [
         {
             "id": "first",
             "prompt": "Split first.py.",
             "workspace": "git:sase",
-            "agent_name": "split_file.first",
+            "agent_name": member_names[0],
             "clan": "toobig-@",
         },
         {
             "prompt": "Split second.py.",
             "workspace": "git:sase",
-            "agent_name": "split_file.second",
+            "agent_name": member_names[1],
             "clan": "toobig-@",
             "wait_on": "first",
         },
@@ -101,6 +105,129 @@ def test_dry_run_previews_one_concrete_clan_without_reserving_names(
     from sase.agent.names import get_reserved_agent_names
 
     assert get_reserved_agent_names() == set()
+
+
+def _plan_clan_members(members: list[dict[str, object]]) -> list[tuple[str, str]]:
+    prepared = prepare_chop_proposals(
+        "split",
+        {
+            "proposed_launches": [
+                {"prompt": "Split.", "workspace": "git:sase", "clan": "toobig-@"}
+                | member
+                for member in members
+            ]
+        },
+    )
+    return [(str(plan.clan), plan.agent_name) for plan in plan_chop_proposals(prepared)]
+
+
+def test_dry_run_allocates_member_tokens_inside_the_concrete_clan(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    _write_clan_result(
+        tmp_path,
+        member_names=("split_file.first.@", "split_file.second.@"),
+    )
+    with (
+        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.launch_agent_from_cwd") as launch_one,
+        patch("sase.axe.chop_runner.launch_agents_from_cwd") as launch_many,
+    ):
+        outcome = _run(tmp_path, dry_run=True)
+
+    launch_one.assert_not_called()
+    launch_many.assert_not_called()
+    assert outcome.status == "success"
+    assert [item["agent_name"] for item in outcome.proposals] == [
+        "toobig-0.split_file.first.0",
+        "toobig-0.split_file.second.0",
+    ]
+    assert [item["clan"] for item in outcome.proposals] == ["toobig-0", "toobig-0"]
+    assert [item["clan_role"] for item in outcome.proposals] == ["declare", "join"]
+    assert [item["member_id"] for item in outcome.proposals] == [
+        "split_file.first.0",
+        "split_file.second.0",
+    ]
+    assert "%id:toobig-0.split_file.first.0" in str(outcome.proposals[0]["prompt"])
+    assert "%id(split_file.second.0, clan=toobig-0)" in str(
+        outcome.proposals[1]["prompt"]
+    )
+    assert "%wait:toobig-0.split_file.first.0" in str(outcome.proposals[1]["prompt"])
+    assert outcome.proposals[1]["wait_name"] == "toobig-0.split_file.first.0"
+
+    from sase.agent.names import get_reserved_agent_names
+
+    assert get_reserved_agent_names() == set()
+
+
+def test_clan_planning_mixes_plain_and_templated_members(
+    temp_state_dir: Path,
+) -> None:
+    assert _plan_clan_members(
+        [
+            {"agent_name": "split_file.plain"},
+            {"agent_name": "split_file.templated.@"},
+        ]
+    ) == [
+        ("toobig-0", "toobig-0.split_file.plain"),
+        ("toobig-0", "toobig-0.split_file.templated.0"),
+    ]
+
+
+def test_identical_member_templates_allocate_distinct_tokens(
+    temp_state_dir: Path,
+) -> None:
+    assert _plan_clan_members(
+        [
+            {"agent_name": "split_file.dupe.@"},
+            {"agent_name": "split_file.dupe.@"},
+        ]
+    ) == [
+        ("toobig-0", "toobig-0.split_file.dupe.0"),
+        ("toobig-0", "toobig-0.split_file.dupe.1"),
+    ]
+
+
+def test_identical_plain_members_remain_a_duplicate_identity_error(
+    temp_state_dir: Path,
+) -> None:
+    with pytest.raises(ValueError, match="duplicate member identities"):
+        _plan_clan_members(
+            [
+                {"agent_name": "split_file.dupe"},
+                {"agent_name": "split_file.dupe"},
+            ]
+        )
+
+
+def test_reserved_clan_moves_the_whole_group_without_leaking_member_tokens(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    from sase.agent.names import get_reserved_agent_names, reserve_registered_clan_name
+
+    artifacts = tmp_path / "old-clan"
+    artifacts.mkdir()
+    reserve_registered_clan_name(
+        "toobig-0",
+        "old-generation",
+        artifacts,
+        create_only=True,
+    )
+
+    assert _plan_clan_members(
+        [
+            {"agent_name": "split_file.first.@"},
+            {"agent_name": "split_file.second.@"},
+        ]
+    ) == [
+        ("toobig-1", "toobig-1.split_file.first.0"),
+        ("toobig-1", "toobig-1.split_file.second.0"),
+    ]
+    assert not any(
+        name.startswith("toobig-0.split_file") for name in get_reserved_agent_names()
+    )
 
 
 def test_runner_batches_clan_proposals_with_per_member_env_and_full_waits(

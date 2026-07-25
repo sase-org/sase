@@ -368,6 +368,14 @@ Result `status` is `ok`, `no_op`, or `check_error`. Results can also carry a `re
 identity. Clan proposals cannot also set `tribe`; the first accepted member declares the clan with the default `chop`
 tribe.
 
+`clan` and `agent_name` may each carry at most one `@` auto-name template marker, so a composed clan-member identity
+holds up to two. The runner resolves them in two stages: it picks one clan token for the whole group first, then
+allocates each templated member name inside that concrete clan, so `clan="toobig-@"` with
+`agent_name="split_file.src.pkg.large.@"` plans to `toobig-0.split_file.src.pkg.large.0`. Two members sharing one
+template therefore land on `.0` and `.1` instead of colliding. A clan token is taken only when the clan name and every
+member identity in the group are free together; otherwise the whole group moves to the next clan token and the member
+tokens tried under the rejected one are discarded.
+
 `clan_summary` is an optional literal Rich-markup summary and is valid only with `clan`. Every non-null summary attached
 to the same raw clan template must be identical; members that omit it inherit that agreed value before once-per
 filtering. The first accepted member therefore retains and declares the summary even when an earlier member is

@@ -185,21 +185,82 @@ def prepare_chop_proposals(
     ]
 
 
-def _render_template_value(value: str, token: str | None) -> str:
-    from sase.agent.names import is_agent_name_template, render_agent_name_template
-
-    if not is_agent_name_template(value):
-        return value
-    assert token is not None
-    return render_agent_name_template(value, token)
-
-
-def _group_token_candidates(has_template: bool) -> Iterable[str | None]:
-    if not has_template:
+def _clan_token_candidates(clan_is_template: bool) -> Iterable[str | None]:
+    if not clan_is_template:
         return (None,)
     from sase.agent.names import iter_agent_name_template_tokens
 
     return iter_agent_name_template_tokens()
+
+
+def _concrete_clan(raw_clan: str, token: str | None) -> tuple[str, str]:
+    """Return the concrete clan name and the namespace it reserves."""
+    if token is None:
+        return raw_clan, raw_clan
+    from sase.agent.names import (
+        agent_name_template_namespace_template,
+        render_agent_name_template,
+    )
+
+    return (
+        render_agent_name_template(raw_clan, token),
+        render_agent_name_template(
+            agent_name_template_namespace_template(raw_clan),
+            token,
+        ),
+    )
+
+
+def _allocate_clan_members(
+    proposals: Sequence[_PreparedChopProposal],
+    *,
+    concrete_clan: str,
+    clan_namespace: str,
+    reserved_names: set[str],
+    reservation_index: Any,
+) -> dict[int, tuple[str, str]] | None:
+    """Allocate every member identity inside one concrete clan, or give up.
+
+    Allocation runs against trial copies of the reservation state so a rejected
+    clan token leaks no member name into the caller's pool.
+    """
+    from sase.agent.names import allocate_agent_name_template, is_agent_name_template
+
+    trial_reserved = set(reserved_names)
+    trial_index = replace(
+        reservation_index,
+        exact_names=set(reservation_index.exact_names),
+        occupied_namespaces=set(reservation_index.occupied_namespaces),
+    )
+    members: dict[int, tuple[str, str]] = {}
+    templated: list[_PreparedChopProposal] = []
+    # Literal identities are immovable, so claim them all before letting
+    # template members pick tokens around them. Their clan-namespace check runs
+    # against the pre-group index because registering one sibling occupies the
+    # shared clan namespace for every other member.
+    for proposal in proposals:
+        if is_agent_name_template(proposal.agent_name):
+            templated.append(proposal)
+            continue
+        composed = f"{concrete_clan}.{proposal.agent_name}"
+        if composed in trial_reserved:
+            return None
+        if not reservation_index.candidate_available(composed, clan_namespace):
+            return None
+        trial_reserved.add(composed)
+        trial_index.add_name(composed)
+        members[proposal.index] = (composed, proposal.agent_name)
+    for proposal in templated:
+        concrete_name = allocate_agent_name_template(
+            f"{concrete_clan}.{proposal.agent_name}",
+            reserved=trial_reserved,
+            index=trial_index,
+        )
+        members[proposal.index] = (
+            concrete_name,
+            concrete_name[len(concrete_clan) + 1 :],
+        )
+    return members
 
 
 def _plan_clan_group(
@@ -209,52 +270,37 @@ def _plan_clan_group(
     reservation_index: Any,
 ) -> tuple[str, dict[int, tuple[str, str]]]:
     """Choose one unreserved concrete clan/token for a proposal group."""
-    from sase.agent.names import (
-        agent_name_template_namespace_template,
-        is_agent_name_template,
-        render_agent_name_template,
-    )
+    from sase.agent.names import is_agent_name_template
 
     raw_clan = proposals[0].clan
     assert raw_clan is not None
-    full_templates = [_full_name_template(proposal) for proposal in proposals]
-    has_template = any(is_agent_name_template(value) for value in full_templates)
+    literal_members = [
+        proposal.agent_name
+        for proposal in proposals
+        if not is_agent_name_template(proposal.agent_name)
+    ]
+    if len(set(literal_members)) != len(literal_members):
+        raise ValueError(f"clan {raw_clan!r} contains duplicate member identities")
 
-    for token in _group_token_candidates(has_template):
-        concrete_clan = _render_template_value(raw_clan, token)
+    for token in _clan_token_candidates(is_agent_name_template(raw_clan)):
+        concrete_clan, clan_namespace = _concrete_clan(raw_clan, token)
         if concrete_clan in reserved_names:
-            if not has_template:
-                break
             continue
-
-        members: dict[int, tuple[str, str]] = {}
-        candidates: list[tuple[str, str]] = []
-        for proposal, full_template in zip(proposals, full_templates, strict=True):
-            concrete_member = _render_template_value(proposal.agent_name, token)
-            concrete_name = _render_template_value(full_template, token)
-            namespace = concrete_clan
-            if is_agent_name_template(full_template):
-                namespace = render_agent_name_template(
-                    agent_name_template_namespace_template(full_template),
-                    token or "",
-                )
-            members[proposal.index] = (concrete_name, concrete_member)
-            candidates.append((concrete_name, namespace))
-
-        candidate_names = [name for name, _ in candidates]
-        if len(set(candidate_names)) != len(candidate_names):
-            raise ValueError(f"clan {raw_clan!r} contains duplicate member identities")
-        if not all(
-            reservation_index.candidate_available(name, namespace)
-            for name, namespace in candidates
-        ):
-            if not has_template:
-                break
+        if not reservation_index.candidate_available(concrete_clan, clan_namespace):
+            continue
+        members = _allocate_clan_members(
+            proposals,
+            concrete_clan=concrete_clan,
+            clan_namespace=clan_namespace,
+            reserved_names=reserved_names,
+            reservation_index=reservation_index,
+        )
+        if members is None:
             continue
 
         reserved_names.add(concrete_clan)
         reservation_index.add_name(concrete_clan)
-        for name, _ in candidates:
+        for name, _ in members.values():
             reserved_names.add(name)
             reservation_index.add_name(name)
         return concrete_clan, members
