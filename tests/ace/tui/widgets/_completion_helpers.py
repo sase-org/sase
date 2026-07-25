@@ -16,12 +16,31 @@ class CompletionTestApp(App[None]):
     # command palette (default ctrl+p) must not intercept them.
     ENABLE_COMMAND_PALETTE = False
 
-    def __init__(self, snippets: dict[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        snippets: dict[str, str] | None = None,
+        common_placeholders: list[str] | None = None,
+    ) -> None:
         super().__init__()
         self._snippets: dict[str, str] = snippets or {}
+        # ``None`` stands in for a cold cache, exactly as the real app's
+        # ``common_placeholders()`` does before its first warm lands.
+        self._common_placeholders: list[str] | None = common_placeholders
+        self._common_placeholders_gen = 0
 
     def get_snippets(self) -> dict[str, str]:
         return self._snippets
+
+    def common_placeholders(self) -> list[str] | None:
+        return self._common_placeholders
+
+    def common_placeholders_generation(self) -> int:
+        return self._common_placeholders_gen
+
+    def publish_common_placeholders(self, placeholders: list[str]) -> None:
+        """Stand in for a warm cache landing while a menu is already open."""
+        self._common_placeholders = list(placeholders)
+        self._common_placeholders_gen += 1
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar()

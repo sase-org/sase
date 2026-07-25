@@ -64,7 +64,11 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             return
 
         if self._completion_kind == PLACEHOLDER_COMPLETION_KIND:
-            placeholder_result = self._placeholder_completion_at_cursor()
+            placeholder_result = self._placeholder_completion_at_cursor(
+                include_common_when_prefix_empty=(
+                    self._placeholder_completion_includes_common_at_empty_prefix()
+                ),
+            )
             if placeholder_result is None:
                 self._clear_file_completion()
                 return
@@ -419,7 +423,14 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
 
     def _structured_completion_claims_cursor(self) -> bool:
         """Return whether an existing provider shadows prompt-word fallback."""
-        if self._placeholder_completion_at_cursor() is not None:
+        # Precedence only asks "is there a placeholder context here", so a bare
+        # ``<`` backed by saved tags still shadows the prompt-word fallback.
+        if (
+            self._placeholder_completion_at_cursor(
+                include_common_when_prefix_empty=True,
+            )
+            is not None
+        ):
             return True
         if self._get_vcs_project_trigger() is not None:
             return True

@@ -189,7 +189,11 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             )
             return True
         if self._completion_kind == PLACEHOLDER_COMPLETION_KIND:
-            placeholder_result = self._placeholder_completion_at_cursor()
+            placeholder_result = self._placeholder_completion_at_cursor(
+                include_common_when_prefix_empty=(
+                    self._placeholder_completion_includes_common_at_empty_prefix()
+                ),
+            )
             self._update_file_completion_panel(
                 "" if placeholder_result is None else placeholder_result.prefix
             )
@@ -272,7 +276,11 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             self._clear_file_completion()
             return True
         if self._completion_kind == PLACEHOLDER_COMPLETION_KIND:
-            placeholder_result = self._placeholder_completion_at_cursor()
+            placeholder_result = self._placeholder_completion_at_cursor(
+                include_common_when_prefix_empty=(
+                    self._placeholder_completion_includes_common_at_empty_prefix()
+                ),
+            )
             if placeholder_result is None:
                 self._clear_file_completion()
                 return False

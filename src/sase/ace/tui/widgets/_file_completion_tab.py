@@ -45,10 +45,14 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
 
         def _placeholder_completion_at_cursor(
             self,
+            *,
+            include_common_when_prefix_empty: bool = False,
         ) -> PlaceholderCompletionResult | None: ...
         def _open_placeholder_completion(
             self,
             result: PlaceholderCompletionResult,
+            *,
+            trigger: str = "auto",
         ) -> None: ...
         def _try_vcs_project_completion(self) -> bool: ...
         def _try_vcs_repo_completion(self) -> bool: ...
@@ -56,10 +60,18 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         def _try_file_history_completion(self) -> bool: ...
 
     def _try_file_completion_tab(self) -> bool:
-        """Dispatch manual Ctrl+T completion for the current prompt context."""
-        placeholder_result = self._placeholder_completion_at_cursor()
+        """Dispatch manual Ctrl+T completion for the current prompt context.
+
+        An explicit request is exhaustive: a bare ``<`` shows the full saved
+        list.  As with every other completion kind, a single match is inserted
+        directly, so ``Ctrl+T`` on a prefix matching exactly one saved tag
+        completes it outright.
+        """
+        placeholder_result = self._placeholder_completion_at_cursor(
+            include_common_when_prefix_empty=True,
+        )
         if placeholder_result is not None:
-            self._open_placeholder_completion(placeholder_result)
+            self._open_placeholder_completion(placeholder_result, trigger="manual")
             if len(placeholder_result.candidates) == 1:
                 self._accept_file_completion()
             return True

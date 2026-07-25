@@ -42,8 +42,18 @@ class PlaceholderHighlightMixin(_MixinBase):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._placeholder_cache_text: str | None = None
         self._placeholder_cached_spans: tuple[PlaceholderSpan, ...] | None = None
-        self._placeholder_cached_completion_key: tuple[int, int] | None = None
-        self._placeholder_cached_completion: PlaceholderCompletionResult | None = None
+        # One memo slot per empty-prefix rule.  A single shared slot would
+        # thrash: the auto-open path and the structured-precedence check ask
+        # for different rules on the same keystroke and would evict each other
+        # every time.
+        self._placeholder_cached_completion_keys: dict[
+            bool,
+            tuple[int, int, int],
+        ] = {}
+        self._placeholder_cached_completions: dict[
+            bool,
+            PlaceholderCompletionResult | None,
+        ] = {}
         super().__init__(*args, **kwargs)
 
     def on_mount(self) -> None:
@@ -100,19 +110,57 @@ class PlaceholderHighlightMixin(_MixinBase):
 
     def _placeholder_completion_at_cursor(
         self,
+        *,
+        include_common_when_prefix_empty: bool = False,
     ) -> PlaceholderCompletionResult | None:
-        """Return a completion payload cached for the current text and cursor."""
+        """Return a completion payload cached for the current text and cursor.
+
+        The memo key must cover every input the payload depends on, not just
+        the document position: the saved-placeholder cache generation belongs
+        in it too, so a menu opened against a cold cache recomputes once the
+        saved group lands.  A missing member here is the most likely way to end
+        up staring at a stale menu.  The empty-prefix rule selects the slot
+        rather than joining the key, so the two rules coexist instead of
+        evicting each other.
+        """
         text = self.text
         self._invalidate_placeholder_cache_for(text)
         cursor_offset = self._absolute_offset(self.cursor_location)
-        key = (cursor_offset, len(text))
-        if self._placeholder_cached_completion_key != key:
-            self._placeholder_cached_completion = build_placeholder_completion_result(
-                text,
-                cursor_offset,
+        slot = include_common_when_prefix_empty
+        key = (cursor_offset, len(text), self._common_placeholders_generation())
+        if self._placeholder_cached_completion_keys.get(slot) != key:
+            self._placeholder_cached_completions[slot] = (
+                build_placeholder_completion_result(
+                    text,
+                    cursor_offset,
+                    self._common_placeholders(),
+                    include_common_when_prefix_empty=include_common_when_prefix_empty,
+                )
             )
-            self._placeholder_cached_completion_key = key
-        return self._placeholder_cached_completion
+            self._placeholder_cached_completion_keys[slot] = key
+        return self._placeholder_cached_completions[slot]
+
+    def _common_placeholders(self) -> list[str]:
+        """Return the app's warm saved-placeholder list without touching disk."""
+        provider = getattr(self.app, "common_placeholders", None)
+        if not callable(provider):
+            return []
+        try:
+            placeholders = provider()
+        except Exception:
+            return []
+        return placeholders if isinstance(placeholders, list) else []
+
+    def _common_placeholders_generation(self) -> int:
+        """Return the app cache generation folded into the memo key."""
+        provider = getattr(self.app, "common_placeholders_generation", None)
+        if not callable(provider):
+            return 0
+        try:
+            generation = provider()
+        except Exception:
+            return 0
+        return generation if isinstance(generation, int) else 0
 
     def _placeholder_spans_for_document(self) -> tuple[PlaceholderSpan, ...]:
         """Return spans cached for the current prompt text."""
@@ -127,8 +175,8 @@ class PlaceholderHighlightMixin(_MixinBase):
             return
         self._placeholder_cache_text = text
         self._placeholder_cached_spans = None
-        self._placeholder_cached_completion_key = None
-        self._placeholder_cached_completion = None
+        self._placeholder_cached_completion_keys.clear()
+        self._placeholder_cached_completions.clear()
 
     def _register_placeholder_text_area_theme(
         self,

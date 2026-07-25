@@ -49,14 +49,22 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
 
         def _placeholder_completion_at_cursor(
             self,
+            *,
+            include_common_when_prefix_empty: bool = False,
         ) -> PlaceholderCompletionResult | None: ...
         def _prompt_completion_settings(self) -> PromptCompletionSettings: ...
 
     def _try_auto_placeholder_completion(self) -> bool:
-        """Open placeholder completion when automatic completion is enabled."""
+        """Open placeholder completion when automatic completion is enabled.
+
+        Automatic opens keep the saved group out of a bare ``<`` so a stray
+        less-than in prose or code never pops a menu of unrelated tags.
+        """
         if self._prompt_completion_settings().auto == "off":
             return False
-        result = self._placeholder_completion_at_cursor()
+        result = self._placeholder_completion_at_cursor(
+            include_common_when_prefix_empty=False,
+        )
         if result is None:
             if (
                 self._file_completion_active
@@ -64,15 +72,18 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
             ):
                 self._clear_file_completion()
             return False
-        self._open_placeholder_completion(result)
+        self._open_placeholder_completion(result, trigger="auto")
         return True
 
     def _open_placeholder_completion(
         self,
         result: PlaceholderCompletionResult,
+        *,
+        trigger: str = "auto",
     ) -> None:
         """Populate the shared hard-popup state from a placeholder result."""
         self._completion_kind = PLACEHOLDER_COMPLETION_KIND
+        self._placeholder_completion_trigger = trigger
         self._file_completion_active = True
         self._file_completion_candidates = result.candidates
         self._file_completion_index = 0

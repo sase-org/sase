@@ -7,10 +7,13 @@ so TUI callers do not depend on untyped dictionaries.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from sase.core.rust import require_rust_binding
+
+PlaceholderCandidateSource = Literal["prompt", "common"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,17 +33,26 @@ class PlaceholderRange:
 
 
 @dataclass(frozen=True, slots=True)
-class _PlaceholderCompletion:
-    """Reusable placeholder candidates and their inner replacement range.
+class _PlaceholderCandidate:
+    """One completion candidate and the source that produced it.
 
-    The binding tags every candidate with the source that produced it. Until
-    the TUI consumes that tag, only the candidate text is rehydrated here.
+    ``prompt`` candidates come from another ``<...>`` span in the document
+    being edited; ``common`` candidates come from the caller-supplied durable
+    store.  Core guarantees prompt candidates precede common ones.
     """
+
+    text: str
+    source: PlaceholderCandidateSource
+
+
+@dataclass(frozen=True, slots=True)
+class _PlaceholderCompletion:
+    """Reusable placeholder candidates and their inner replacement range."""
 
     prefix: str
     replacement_range: PlaceholderRange
     append_closing_bracket: bool
-    candidates: tuple[str, ...]
+    candidates: tuple[_PlaceholderCandidate, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,10 +68,16 @@ def placeholder_completion(
     text: str,
     line: int,
     character: int,
+    common: Sequence[str] = (),
 ) -> _PlaceholderCompletion | None:
-    """Return completion data at an LSP position, if candidates exist."""
+    """Return completion data at an LSP position, if candidates exist.
+
+    ``common`` carries caller-ranked placeholders from the durable store, in
+    display order.  Core applies the same prefix and dedup rules to them and
+    emits them after the document's own candidates.
+    """
     binding = require_rust_binding("placeholder_completion")
-    payload = binding(text, line, character)
+    payload = binding(text, line, character, list(common))
     if payload is None:
         return None
     return _completion_from_dict(payload)
@@ -90,7 +108,19 @@ def _completion_from_dict(payload: dict[str, Any]) -> _PlaceholderCompletion:
         prefix=str(payload["prefix"]),
         replacement_range=_range_from_dict(payload["replacement_range"]),
         append_closing_bracket=bool(payload["append_closing_bracket"]),
-        candidates=tuple(str(candidate["text"]) for candidate in payload["candidates"]),
+        candidates=tuple(
+            _candidate_from_dict(candidate) for candidate in payload["candidates"]
+        ),
+    )
+
+
+def _candidate_from_dict(payload: dict[str, Any]) -> _PlaceholderCandidate:
+    # An unrecognised source degrades to ``prompt`` rather than raising: a
+    # newer core adding a source must never break an older client's menu.
+    source = str(payload.get("source", "prompt"))
+    return _PlaceholderCandidate(
+        text=str(payload["text"]),
+        source="common" if source == "common" else "prompt",
     )
 
 

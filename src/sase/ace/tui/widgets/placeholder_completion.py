@@ -2,16 +2,25 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.xprompt.placeholder_completion import (
+    PlaceholderCandidateSource,
     PlaceholderPosition,
     PlaceholderRange,
     placeholder_completion,
 )
 
 PLACEHOLDER_COMPLETION_KIND = "placeholder"
+
+
+@dataclass(frozen=True, slots=True)
+class PlaceholderCompletionMetadata:
+    """Row metadata telling the panel which source produced a candidate."""
+
+    source: PlaceholderCandidateSource
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,8 +37,18 @@ class PlaceholderCompletionResult:
 def build_placeholder_completion_result(
     text: str,
     cursor_offset: int,
+    common: Sequence[str] = (),
+    *,
+    include_common_when_prefix_empty: bool = False,
 ) -> PlaceholderCompletionResult | None:
-    """Return placeholder completions at a Python character offset."""
+    """Return placeholder completions at a Python character offset.
+
+    Core always receives ``common`` and owns every matching, dedup, and
+    ordering rule.  The only thing decided here is whether a bare ``<`` gets to
+    see the saved group at all: an automatic trigger keeps quiet until the user
+    types a prefix, while an explicit ``Ctrl+T`` shows the full list.  That is a
+    filter over an already-merged list, not a second matching implementation.
+    """
     position = _editor_position_for_offset(text, cursor_offset)
     if position is None:
         return None
@@ -37,6 +56,7 @@ def build_placeholder_completion_result(
         text,
         position.line,
         position.character,
+        common,
     )
     if payload is None:
         return None
@@ -44,14 +64,17 @@ def build_placeholder_completion_result(
     if replacement is None:
         return None
     replacement_start, replacement_end = replacement
+    drop_common = not payload.prefix and not include_common_when_prefix_empty
     candidates = [
         CompletionCandidate(
-            display=candidate,
-            insertion=candidate,
+            display=candidate.text,
+            insertion=candidate.text,
             is_dir=False,
-            name=candidate,
+            name=candidate.text,
+            metadata=PlaceholderCompletionMetadata(source=candidate.source),
         )
         for candidate in payload.candidates
+        if not (drop_common and candidate.source == "common")
     ]
     if not candidates:
         return None

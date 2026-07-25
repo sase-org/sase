@@ -107,6 +107,11 @@ class LaunchTaskMixin:
         completion: TrackedTaskCompletion[LaunchTaskOutcome],
     ) -> None:
         """Apply launch-specific completion effects on the UI thread."""
+        # The launch worker has finished writing prompt history by now, so any
+        # placeholder the user just wrote is on disk. Re-warm here rather than
+        # waiting for the next ACE start, so the tag is offered in the next
+        # prompt of this session.
+        _warm_common_placeholders_if_available(self)
         submitted_prompt = self._pop_launch_submitted_prompt(completion)
         outcome = completion.payload
         if outcome is None:
@@ -161,6 +166,12 @@ class LaunchTaskMixin:
         if not prompts:
             return None
         return prompts.pop(completion.task_info.task_id, None)
+
+
+def _warm_common_placeholders_if_available(app: object) -> None:
+    warm = getattr(app, "warm_common_placeholders", None)
+    if callable(warm):
+        warm()
 
 
 def _refresh_notification_count_if_available(app: object) -> None:

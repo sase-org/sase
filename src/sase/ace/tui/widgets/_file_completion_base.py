@@ -63,6 +63,10 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         _file_completion_index: int
         _file_completion_active: bool
         _completion_kind: str
+        # ``"auto"`` or ``"manual"``, recorded for the lifetime of an open
+        # placeholder menu so refresh and accept keep resolving the same
+        # candidate set the user is looking at.
+        _placeholder_completion_trigger: str | None
         _agent_completion_candidates: list[AgentCompletionCandidate] | None
         _active_xprompt_arg_hint: ActiveXPromptArgHint | None
         _vcs_repo_completion_key: tuple[str, str] | None
@@ -74,6 +78,8 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         def _prompt_completion_settings(self) -> PromptCompletionSettings: ...
         def _placeholder_completion_at_cursor(
             self,
+            *,
+            include_common_when_prefix_empty: bool = False,
         ) -> PlaceholderCompletionResult | None: ...
 
         def _replace_via_keyboard(
@@ -168,6 +174,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         self._file_completion_candidates = []
         self._file_completion_index = 0
         self._completion_kind = "file"
+        self._placeholder_completion_trigger = None
         self._agent_completion_candidates = None
         self._vcs_repo_completion_key = None
         self._vcs_repo_completion_result = None
@@ -310,6 +317,22 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         ):
             return
         self._refresh_history_word_completion(words)
+
+    def _placeholder_completion_includes_common_at_empty_prefix(self) -> bool:
+        """Return the empty-prefix rule for the placeholder menu that is open.
+
+        A stray ``<`` is common in prose and code, so an automatically opened
+        menu stays exactly as quiet as it is today until a prefix character
+        narrows the saved group.  An explicit ``Ctrl+T`` asked for the full
+        list and gets it.
+        """
+        return self._placeholder_completion_trigger == "manual"
+
+    def _warm_common_placeholder_cache(self) -> None:
+        """Warm saved placeholders off the mount and keystroke paths."""
+        warmer = getattr(self.app, "warm_common_placeholders", None)
+        if callable(warmer):
+            warmer()
 
     def _warm_history_word_completion_cache(self) -> None:
         """Warm prompt-history words off the mount and keystroke paths."""

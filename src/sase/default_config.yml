@@ -126,6 +126,7 @@ ace:
     auto_directive_menu: true
     max_auto_rows: 1
     history_word_count: 1000
+    common_placeholder_count: 100
     word_min_length: 5
   keymaps:
     # Shared branch-driven plan/custom gate modal bindings.

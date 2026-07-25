@@ -101,6 +101,7 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
             "auto_directive_menu": False,
             "max_auto_rows": "0",
             "history_word_count": "25",
+            "common_placeholder_count": "-5",
             "word_min_length": "0",
         }
     )
@@ -110,15 +111,19 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
     assert parsed.auto_directive_menu is False
     assert parsed.max_auto_rows == 1
     assert parsed.history_word_count == 25
+    # A negative cap clamps to the ``0`` disable rather than going negative.
+    assert parsed.common_placeholder_count == 0
     assert parsed.word_min_length == 1
 
     garbage = parse_prompt_completion_settings(
         {
             "history_word_count": "many",
+            "common_placeholder_count": "lots",
             "word_min_length": None,
         }
     )
     assert garbage.history_word_count == 1000
+    assert garbage.common_placeholder_count == 100
     assert garbage.word_min_length == 5
     assert (
         parse_prompt_completion_settings({"history_word_min_length": 2}).word_min_length

@@ -118,6 +118,7 @@ class PromptTextArea(
         self._file_completion_index: int = 0
         self._file_completion_active: bool = False
         self._completion_kind: str = "file"
+        self._placeholder_completion_trigger: str | None = None
         self._agent_completion_candidates: list[AgentCompletionCandidate] | None = None
         self._vcs_project_catalog_warmed: bool = False
         self._vcs_ref_completion_has_namespaces: bool = False

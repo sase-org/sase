@@ -139,6 +139,11 @@ def init_late_startup_state(
     self._history_prompt_words_source_token = None
     self._history_prompt_words_rebuild_in_flight = False
     self._history_prompt_words_rebuild_pending = False
+    self._common_placeholders_cache = None
+    self._common_placeholders_source_token = None
+    self._common_placeholders_generation = 0
+    self._common_placeholders_rebuild_in_flight = False
+    self._common_placeholders_rebuild_pending = False
     user_snippets: dict[str, str] = (
         ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}
     )

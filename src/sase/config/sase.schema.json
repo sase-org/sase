@@ -666,6 +666,12 @@
               "minimum": 0,
               "default": 1000
             },
+            "common_placeholder_count": {
+              "type": "integer",
+              "description": "Maximum saved <placeholder> tags retained and offered beneath the current prompt's own tags; 0 disables the feature",
+              "minimum": 0,
+              "default": 100
+            },
             "word_min_length": {
               "type": "integer",
               "description": "Minimum character length for prompt-local and prompt-history word completion candidates",

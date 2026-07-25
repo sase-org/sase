@@ -43,6 +43,7 @@ class PromptCompletionSettings:
     auto_directive_menu: bool = True
     max_auto_rows: int = 1
     history_word_count: int = 1000
+    common_placeholder_count: int = 100
     word_min_length: int = 5
 
 
@@ -98,6 +99,13 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
         ),
         DEFAULT_PROMPT_COMPLETION_SETTINGS.history_word_count,
     )
+    common_placeholder_count = _parse_non_negative_int(
+        raw.get(
+            "common_placeholder_count",
+            DEFAULT_PROMPT_COMPLETION_SETTINGS.common_placeholder_count,
+        ),
+        DEFAULT_PROMPT_COMPLETION_SETTINGS.common_placeholder_count,
+    )
     word_min_length = max(
         1,
         _parse_non_negative_int(
@@ -116,6 +124,7 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
         auto_directive_menu=auto_directive_menu,
         max_auto_rows=max_auto_rows,
         history_word_count=history_word_count,
+        common_placeholder_count=common_placeholder_count,
         word_min_length=word_min_length,
     )
 
