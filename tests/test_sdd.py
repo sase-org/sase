@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.directory_map_assets import DIRECTORY_MAP_ASSET_OVERRIDE_ENV
 from sase.sdd.committed_plan_validation import _CommittedPlanValidationError
 from sase.sdd.files import (
     ensure_bare_git_sdd_initialized,
@@ -46,12 +47,32 @@ def _git(repo: Path | None, *args: str) -> subprocess.CompletedProcess[str]:
 # ---------------------------------------------------------------------------
 
 
-def test_ensure_sdd_initialized_writes_generated_files(tmp_path: Path) -> None:
+def test_ensure_sdd_initialized_writes_generated_files(
+    tmp_path: Path,
+    real_directory_map_assets: None,
+) -> None:
     refreshed = ensure_sdd_initialized(tmp_path)
 
     expected = set(expected_sdd_generated_paths(str(tmp_path)))
     assert set(refreshed) == expected
     assert all(path.exists() for path in expected)
+    directory_map = tmp_path / "sdd" / "assets" / "sdd-directory-map.png"
+    assert directory_map.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_ensure_sdd_initialized_uses_directory_map_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    override = tmp_path / "placeholder.bin"
+    override.write_bytes(b"small directory map")
+    monkeypatch.setenv(DIRECTORY_MAP_ASSET_OVERRIDE_ENV, str(override))
+    root = tmp_path / "repo"
+
+    ensure_sdd_initialized(root)
+
+    directory_map = root / "sdd" / "assets" / "sdd-directory-map.png"
+    assert directory_map.read_bytes() == b"small directory map"
 
 
 def test_ensure_sdd_initialized_skips_current_tree(tmp_path: Path) -> None:

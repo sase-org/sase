@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from importlib import resources
 from pathlib import Path
 
 from sase.amd._config import resolve_markdown_template_override
 from sase.amd.inline_memory import validate_short_memory_structure
 from sase.amd.init import AmdMemorySyncPlan
+from sase.directory_map_assets import read_directory_map_asset
 from sase.mdtemplates import render_markdown_template
 from sase.memory.inventory import MemoryStats, stats_for_text
 from sase.memory.notes import (
@@ -120,12 +120,10 @@ def _generated_sase_memory_content(generated_sase_body: str) -> str:
 
 
 def read_memory_directory_map_bytes() -> bytes:
-    source = resources.files("sase.memory").joinpath(
-        "assets",
+    return read_directory_map_asset(
+        "sase.memory",
         MEMORY_DIRECTORY_MAP_FILENAME,
     )
-    with resources.as_file(source) as source_path:
-        return source_path.read_bytes()
 
 
 def _memory_note_overlay_by_relative_path(

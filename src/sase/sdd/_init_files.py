@@ -1,8 +1,8 @@
 """Generated SDD guide files and init planning."""
 
-from importlib import resources
 from pathlib import Path
 
+from sase.directory_map_assets import read_directory_map_asset
 from sase.mdtemplates import packaged_markdown_text
 from sase.sdd._paths import resolve_sdd_asset_path, resolve_sdd_readme_path
 from sase.sdd._types import (
@@ -281,20 +281,17 @@ def write_sdd_directory_map(expected_file: SddExpectedBytesFile) -> None:
 
 
 def read_sdd_directory_map_bytes() -> bytes:
-    source = resources.files("sase.sdd").joinpath("assets", SDD_DIRECTORY_MAP_FILENAME)
-    with resources.as_file(source) as source_path:
-        return source_path.read_bytes()
+    return read_directory_map_asset("sase.sdd", SDD_DIRECTORY_MAP_FILENAME)
 
 
 def _read_sdd_sidecar_directory_map_bytes(kind: str) -> bytes:
     """Read the packaged directory-map placeholder for one sidecar."""
 
     _validate_sidecar_kind(kind)
-    source = resources.files("sase.sdd").joinpath(
-        "assets", SDD_SIDECAR_DIRECTORY_MAP_FILENAMES[kind]
+    return read_directory_map_asset(
+        "sase.sdd",
+        SDD_SIDECAR_DIRECTORY_MAP_FILENAMES[kind],
     )
-    with resources.as_file(source) as source_path:
-        return source_path.read_bytes()
 
 
 def _validate_sidecar_kind(kind: str) -> None:

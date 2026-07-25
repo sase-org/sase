@@ -14,6 +14,7 @@ from sase.sdd._init_files import (
 
 def test_sidecar_generated_files_are_deterministic_and_drift_tracked(
     tmp_path: Path,
+    real_directory_map_assets: None,
 ) -> None:
     for kind in ("plans", "research"):
         root = tmp_path / kind

@@ -66,6 +66,7 @@ linked_repos:
 def test_init_memory_renders_data_driven_readme_and_asset(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    real_directory_map_assets: None,
 ) -> None:
     project_root = tmp_path / "project"
     home_root = tmp_path / "home"

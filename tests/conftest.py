@@ -14,11 +14,15 @@ from sase.ace.changespec import (
     CommitEntry,
     HookEntry,
 )
+from sase.directory_map_assets import DIRECTORY_MAP_ASSET_OVERRIDE_ENV
 from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
 from tests._suite_gate import configure_suite_gate, unconfigure_suite_gate
 from tests._project_display_case import ProjectDisplayCase
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+_DIRECTORY_MAP_PLACEHOLDER = (
+    _REPO_ROOT / "tests" / "fixtures" / "directory-map-placeholder.bin"
+)
 
 _PLAN_CHAIN_GOLDEN_TEST_FILES = frozenset(
     Path(path)
@@ -228,6 +232,23 @@ def _isolate_sase_home(
 
     monkeypatch.setattr(config_core, "CONFIG_DIR", fake_config_dir)
     monkeypatch.setattr(config_targets, "CONFIG_DIR", fake_config_dir)
+
+
+@pytest.fixture(autouse=True)
+def _use_placeholder_directory_map_assets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep scaffolded test homes small while preserving asset behavior."""
+    monkeypatch.setenv(
+        DIRECTORY_MAP_ASSET_OVERRIDE_ENV,
+        str(_DIRECTORY_MAP_PLACEHOLDER),
+    )
+
+
+@pytest.fixture
+def real_directory_map_assets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise production packaged directory-map asset installation."""
+    monkeypatch.delenv(DIRECTORY_MAP_ASSET_OVERRIDE_ENV, raising=False)
 
 
 @pytest.fixture
