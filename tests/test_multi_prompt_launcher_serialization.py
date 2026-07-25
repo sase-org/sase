@@ -9,7 +9,7 @@ from sase.agent.multi_prompt_launcher import (
     _serialize_local_xprompts,
     deserialize_local_xprompts,
 )
-from sase.core.paths import sase_subdir
+from sase.core.paths import PYTEST_SANDBOX_MANAGED_TMPDIR_NAME
 from sase.xprompt.models import InputArg, InputType, XPrompt
 
 
@@ -36,7 +36,7 @@ def test_serialize_deserialize_roundtrip_simple() -> None:
 
 
 def test_serialize_local_xprompts_uses_managed_tmpdir(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     xprompts = {
         "_review": XPrompt(
@@ -46,10 +46,16 @@ def test_serialize_local_xprompts_uses_managed_tmpdir(
         ),
     }
 
-    monkeypatch.delenv("SASE_TMPDIR", raising=False)
+    # Under pytest the managed root is the published sandbox, not the
+    # developer's $SASE_TMPDIR — the handoff subdirectory is what this asserts.
+    developer_root = tmp_path / "developer-root"
+    monkeypatch.setenv("SASE_TMPDIR", str(developer_root))
     path = _serialize_local_xprompts(xprompts)
     try:
-        assert Path(path).parent == sase_subdir("tmp") / "handoff"
+        parent = Path(path).parent
+        assert parent.name == "handoff"
+        assert parent.parent.name == PYTEST_SANDBOX_MANAGED_TMPDIR_NAME
+        assert not developer_root.exists()
         assert deserialize_local_xprompts(path)["_review"].content == (
             "Focus on correctness"
         )

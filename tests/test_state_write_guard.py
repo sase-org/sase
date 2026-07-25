@@ -15,6 +15,7 @@ from sase.axe.state import append_bounded_log
 from sase.core.state_write_guard import (
     assert_bead_store_write_sandboxed,
     pytest_path_is_sandboxed,
+    require_pytest_sandbox_root,
 )
 from sase.telemetry import flush_metrics, metrics as telemetry_metrics
 from sase.telemetry._config import _TelemetryConfig
@@ -113,6 +114,41 @@ def test_bead_store_write_allows_explicit_override(tmp_path: Path) -> None:
             "SASE_ALLOW_UNSANDBOXED_BEAD_WRITES": "1",
         },
     )
+
+
+def test_require_sandbox_root_returns_none_outside_pytest() -> None:
+    assert require_pytest_sandbox_root(purpose="managed temp dir", environ={}) is None
+
+
+def test_require_sandbox_root_resolves_the_published_root(tmp_path: Path) -> None:
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+
+    resolved = require_pytest_sandbox_root(
+        purpose="managed temp dir",
+        environ={
+            "PYTEST_CURRENT_TEST": "published sandbox",
+            "SASE_PYTEST_SANDBOX_DIR": str(sandbox),
+        },
+    )
+
+    assert resolved == sandbox.resolve()
+
+
+@pytest.mark.parametrize("published", ["", "   "])
+def test_require_sandbox_root_fails_closed_without_a_sandbox(published: str) -> None:
+    with pytest.raises(RuntimeError) as exc:
+        require_pytest_sandbox_root(
+            purpose="managed temp dir",
+            environ={
+                "PYTEST_CURRENT_TEST": "unpublished sandbox",
+                "SASE_PYTEST_SANDBOX_DIR": published,
+            },
+        )
+
+    message = str(exc.value)
+    assert "managed temp dir" in message
+    assert "SASE_PYTEST_SANDBOX_DIR" in message
 
 
 def test_unisolated_pytest_telemetry_refuses_before_drain_or_binding(

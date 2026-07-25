@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.core.paths import sase_subdir
+from sase.core.paths import get_sase_managed_tmpdir
 from sase.xprompt.catalog import (
     NoXpromptsFound,
     PdfEngineUnavailable,
@@ -110,7 +110,10 @@ def test_build_default_output_uses_managed_sase_tmp(
     ):
         artifact = build_xprompts_catalog()
 
-    expected_parent = sase_subdir("tmp") / "xprompts_catalog"
+    # The managed root itself is the pytest sandbox here, not ~/.sase/tmp; what
+    # this asserts is that the catalog routes through the managed helper rather
+    # than picking its own temp location.
+    expected_parent = Path(get_sase_managed_tmpdir("xprompts_catalog"))
     assert artifact.pdf_path.parent == expected_parent
     assert artifact.pdf_path.read_bytes() == b"%PDF fake"
     assert rendered_paths

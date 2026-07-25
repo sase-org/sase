@@ -63,6 +63,7 @@ def test_watched_directories_follow_the_effective_temp_root(
     monkeypatch.setattr(
         _tmp_leak_guard.tempfile, "gettempdir", lambda: str(scratch_root)
     )
+    monkeypatch.setenv("SASE_TMPDIR", str(tmp_path / "absent-managed"))
 
     assert watched_temp_directories() == (scratch_root.resolve(),)
 
@@ -73,8 +74,56 @@ def test_watched_directories_skip_a_missing_temp_root(
     monkeypatch.setattr(
         _tmp_leak_guard.tempfile, "gettempdir", lambda: str(tmp_path / "absent")
     )
+    monkeypatch.setenv("SASE_TMPDIR", str(tmp_path / "absent-managed"))
 
     assert watched_temp_directories() == ()
+
+
+def test_watched_directories_include_the_unsandboxed_managed_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    scratch_root = tmp_path / "scratch"
+    managed_root = tmp_path / "managed"
+    for directory in (scratch_root, managed_root):
+        directory.mkdir()
+    monkeypatch.setattr(
+        _tmp_leak_guard.tempfile, "gettempdir", lambda: str(scratch_root)
+    )
+    monkeypatch.setenv("SASE_TMPDIR", str(managed_root))
+
+    assert watched_temp_directories() == (
+        scratch_root.resolve(),
+        managed_root.resolve(),
+    )
+
+
+def test_watched_directories_deduplicate_a_shared_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    monkeypatch.setattr(_tmp_leak_guard.tempfile, "gettempdir", lambda: str(shared))
+    monkeypatch.setenv("SASE_TMPDIR", str(shared))
+
+    assert watched_temp_directories() == (shared.resolve(),)
+
+
+def test_agent_launch_scratch_from_other_processes_is_ignored(
+    tmp_path: Path,
+) -> None:
+    baseline: dict[Path, frozenset[str]] = {tmp_path: frozenset()}
+    final = {
+        tmp_path: frozenset(
+            {
+                "ace-profiles",
+                "ace_profile_260725_144000.txt",
+                "launch-prompts",
+                "sase_ace_prompt_AbCdEf.md",
+            }
+        )
+    }
+
+    assert find_leaked_entries(baseline, final) == {}
 
 
 def test_snapshot_reports_entry_names(tmp_path: Path) -> None:

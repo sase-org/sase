@@ -37,7 +37,12 @@ from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 
+from sase.core.state_write_guard import require_pytest_sandbox_root
 from sase.core.time import local_now
+
+
+PYTEST_SANDBOX_MANAGED_TMPDIR_NAME = "managed-tmp"
+"""Sandbox child that stands in for the managed temp root under pytest."""
 
 
 def get_sase_managed_tmpdir(*parts: str) -> str:
@@ -51,13 +56,36 @@ def get_sase_managed_tmpdir(*parts: str) -> str:
     and files dropped directly into it are indistinguishable from the
     subdirectories it manages.  There is deliberately no helper that returns
     the bare $SASE_TMPDIR root.
+
+    Under pytest the root moves into this process's published sandbox instead,
+    so the suite can never add entries to the developer's real managed root —
+    a root neither the temp-leak guard's ``tempfile`` snapshot nor
+    :mod:`sase.core.state_write_guard`'s ``~/.sase`` check used to cover. A
+    pytest process with no published sandbox fails closed.
     """
-    sase_tmpdir = os.environ.get("SASE_TMPDIR")
-    root = Path(sase_tmpdir).expanduser() if sase_tmpdir else sase_subdir("tmp")
+    sandbox = require_pytest_sandbox_root(purpose="managed SASE temp directory")
+    root = (
+        sandbox / PYTEST_SANDBOX_MANAGED_TMPDIR_NAME
+        if sandbox is not None
+        else _unsandboxed_managed_tmpdir_root()
+    )
     for part in parts:
         root /= part
     root.mkdir(parents=True, exist_ok=True)
     return str(root)
+
+
+def _unsandboxed_managed_tmpdir_root() -> Path:
+    """Return the managed temp root production uses, ignoring pytest sandboxing.
+
+    Never creates the directory, so the suite's temp-leak guard can watch the
+    developer's real root from inside a pytest process — where
+    :func:`get_sase_managed_tmpdir` deliberately resolves somewhere else.
+    """
+    sase_tmpdir = os.environ.get("SASE_TMPDIR")
+    if sase_tmpdir:
+        return Path(sase_tmpdir).expanduser()
+    return sase_subdir("tmp")
 
 
 def sase_home() -> Path:

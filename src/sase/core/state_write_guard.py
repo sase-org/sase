@@ -46,6 +46,34 @@ def pytest_path_is_sandboxed(
     return _is_at_or_below(_resolve_path(target), _resolve_path(sandbox))
 
 
+def require_pytest_sandbox_root(
+    *,
+    purpose: str,
+    environ: Mapping[str, str] | None = None,
+) -> Path | None:
+    """Return this pytest process's sandbox root, or ``None`` outside pytest.
+
+    Callers redirect *purpose* into the returned root so a pytest process
+    cannot write where a production run would. A pytest process that published
+    no sandbox fails closed, because silently falling back to the production
+    target is exactly the leak this guard exists to prevent.
+    """
+    effective_environ = os.environ if environ is None else environ
+    if not pytest_context_detected(effective_environ):
+        return None
+
+    sandbox = effective_environ.get(PYTEST_SANDBOX_DIR_ENV_VAR, "").strip()
+    if not sandbox:
+        raise _PytestStateIsolationError(
+            f"Refusing to resolve the {purpose} from a pytest process: "
+            f"{PYTEST_SANDBOX_DIR_ENV_VAR} is unset or empty, so the write "
+            "cannot be proven sandboxed. Publish a per-test temporary "
+            f"directory through {PYTEST_SANDBOX_DIR_ENV_VAR}, the way "
+            "tests/conftest.py does from tmp_path_factory."
+        )
+    return _resolve_path(sandbox)
+
+
 def _account_home() -> Path:
     """Resolve the OS account home without trusting ``HOME`` or ``Path.home``."""
     import pwd
@@ -179,4 +207,5 @@ __all__ = [
     "best_effort_test_state_write_allowed",
     "pytest_context_detected",
     "pytest_path_is_sandboxed",
+    "require_pytest_sandbox_root",
 ]
