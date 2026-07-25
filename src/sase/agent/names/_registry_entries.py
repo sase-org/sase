@@ -124,11 +124,9 @@ def _best_effort_canonical_global_name(
     """Return canonical global provenance, or ``None`` when it cannot be derived.
 
     A registry rebuild scans every historical artifact and dismissed bundle,
-    including legacy names whose shape the current globalizer rejects (for
-    example ``clan--role.f-0``, a fanout child of a family member). Provenance
-    enrichment is best effort: one un-globalizable name must never raise and
-    abort the whole rebuild, which would block every agent launch. Such names
-    simply carry no canonical global spelling.
+    so provenance enrichment remains best effort: one un-globalizable name must
+    never raise and abort the whole rebuild, which would block every agent
+    launch. Such names simply carry no canonical global spelling.
     """
     if identity.owner is None:
         return None

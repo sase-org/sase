@@ -121,16 +121,16 @@ def test_local_claim_records_v2_registry_provenance(
     }
 
 
-def test_registry_rebuild_survives_un_globalizable_legacy_name(
+def test_registry_rebuild_globalizes_legacy_terminal_segment_name(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A legacy name the globalizer rejects must not abort the whole rebuild.
+    """A legacy role marker outside the terminal segment receives provenance.
 
     Historical artifacts include names such as ``foo--role.f-0`` (a fanout child
-    of a family member) whose shape the current globalizer refuses. Because a
-    rebuild runs on every launch, one such name raising would block every agent
-    launch. The entry is kept with best-effort ``None`` provenance instead.
+    of a family member). The historical classifier treats that as a solo name
+    whose ``--role`` fragment is opaque, so registry rebuilds keep explicit
+    current-owner provenance for it.
     """
     _configure_machine(monkeypatch)
     _make_agent(tmp_path, "proj", "run1", "foo--role.f-0")
@@ -142,7 +142,7 @@ def test_registry_rebuild_survives_un_globalizable_legacy_name(
     entries = data["entries"]
     legacy = entries["foo--role.f-0"]
     assert legacy["origin"] == "local"
-    assert legacy["canonical_global_name"] is None
+    assert legacy["canonical_global_name"] == "alice.athena.foo--role.f-0"
     assert legacy["source_owner"] == {"username": "alice", "machine_name": "athena"}
     # Well-formed neighbours still receive a canonical global spelling.
     assert entries["foo"]["canonical_global_name"] == "alice.athena.foo"

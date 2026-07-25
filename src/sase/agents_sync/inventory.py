@@ -261,6 +261,7 @@ def _run_from_artifact(
         timestamp,
         embedded_workflows,
         prompt_steps,
+        source_label=str(artifact),
     )
 
 
@@ -325,6 +326,7 @@ def _run_from_dismissed(
         clan,
         relationships,
         raw_suffix,
+        source_label=source_label,
     )
 
 
