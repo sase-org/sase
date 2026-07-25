@@ -17,6 +17,7 @@ from sase.ace.tui.widgets._paired_text_editing import (
 from sase.ace.tui.widgets._prompt_bullet_editing import (
     is_prompt_bullet_marker_only,
     normalize_prompt_bullet_replay_text,
+    prompt_bullet_row_has_bullet_above,
     prompt_bullet_sibling_prefix,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
@@ -325,7 +326,15 @@ class PromptTextAreaActionsMixin(_MixinBase):
         start, end = self.selection
         line = self.document.get_line(row)
         if start == end and is_prompt_bullet_marker_only(line):
-            self._replace_via_keyboard("\n", (row, 0), (row, len(line)))
+            if prompt_bullet_row_has_bullet_above(self.document.lines, row):
+                self._replace_via_keyboard("\n", (row, 0), (row, len(line)))
+            else:
+                # A lone marker grows one sibling first; the exit lands on the
+                # next press, once that sibling has a bullet above it. Anchor
+                # at the line end so a cursor inside the marker cannot produce
+                # ``\n- - ``.
+                line_end = (row, len(line))
+                self._replace_via_keyboard(f"\n{line}", line_end, line_end)
             return
 
         prefix = prompt_bullet_sibling_prefix(self.document.lines, row)

@@ -12,6 +12,7 @@ __all__ = [
     "is_prompt_bullet_marker_only",
     "normalize_prompt_bullet_replay_text",
     "plan_prompt_bullet_shift",
+    "prompt_bullet_row_has_bullet_above",
     "prompt_bullet_sibling_prefix",
 ]
 
@@ -154,3 +155,18 @@ def prompt_bullet_sibling_prefix(
         )
 
     return None
+
+
+def prompt_bullet_row_has_bullet_above(
+    lines: Sequence[str],
+    cursor_row: int,
+) -> bool:
+    """Return whether the line above *cursor_row* belongs to a hyphen bullet.
+
+    An empty marker keeps its exit-the-list behavior only when an earlier
+    bullet already owns the preceding line; a lone marker instead grows one
+    sibling first.
+    """
+    if cursor_row <= 0:
+        return False
+    return prompt_bullet_sibling_prefix(lines, cursor_row - 1) is not None

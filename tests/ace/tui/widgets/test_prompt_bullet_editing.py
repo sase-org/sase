@@ -10,6 +10,7 @@ from sase.ace.tui.widgets._prompt_bullet_editing import (
     is_prompt_bullet_marker_only,
     normalize_prompt_bullet_replay_text,
     plan_prompt_bullet_shift,
+    prompt_bullet_row_has_bullet_above,
     prompt_bullet_sibling_prefix,
 )
 from sase.ace.tui.widgets._paired_text_editing import TextEdit
@@ -222,6 +223,39 @@ def test_prompt_bullet_sibling_prefix_rejects_boundaries(
 
 
 @pytest.mark.parametrize(
+    ("lines", "cursor_row", "expected"),
+    [
+        (["- "], 0, False),
+        (["", "- "], 1, False),
+        (["#gh:sase", "%w:agent text", "", "- "], 3, False),
+        (["- item", "- "], 1, True),
+        (["- outer", "  - nested", "  - "], 2, True),
+        (["- item", "  wrapped", "- "], 2, True),
+        (["- item", "", "- "], 2, False),
+        (["```", "- "], 1, False),
+        (["prose", "- "], 1, False),
+    ],
+    ids=[
+        "first-row",
+        "blank-above",
+        "reported-prompt-shape",
+        "bullet-above",
+        "nested-under-sibling",
+        "continuation-above",
+        "blank-breaks-ownership",
+        "fence-above",
+        "prose-above",
+    ],
+)
+def test_prompt_bullet_row_has_bullet_above(
+    lines: list[str],
+    cursor_row: int,
+    expected: bool,
+) -> None:
+    assert prompt_bullet_row_has_bullet_above(lines, cursor_row) is expected
+
+
+@pytest.mark.parametrize(
     ("structural_line", "replay_text", "expected"),
     [
         ("- ", "- item", "item"),
@@ -328,6 +362,64 @@ async def test_prompt_insert_ctrl_j_twice_exits_bullet_and_undoes_separately(
 
         await page.press("u")
         assert page.text == text
+
+
+@pytest.mark.parametrize(
+    ("text", "cursor", "expected_text", "expected_cursor"),
+    [
+        ("- ", (0, 2), "- \n- ", (1, 2)),
+        ("intro\n\n- ", (2, 2), "intro\n\n- \n- ", (3, 2)),
+        ("  - ", (0, 4), "  - \n  - ", (1, 4)),
+        ("- ", (0, 0), "- \n- ", (1, 2)),
+    ],
+    ids=["lone", "blank-line-above", "nested-lone", "cursor-inside-marker"],
+)
+async def test_prompt_insert_ctrl_j_lone_marker_opens_sibling(
+    text: str,
+    cursor: tuple[int, int],
+    expected_text: str,
+    expected_cursor: tuple[int, int],
+) -> None:
+    async with PromptPage(text, cursor=cursor, mode="insert") as page:
+        await page.press("ctrl+j")
+
+        assert page.text == expected_text
+        assert page.cursor == expected_cursor
+        assert page.mode == "insert"
+
+
+@pytest.mark.parametrize(
+    ("text", "cursor", "expected_text", "expected_cursor"),
+    [
+        ("- ", (0, 2), "- \n\n", (2, 0)),
+        ("intro\n\n- ", (2, 2), "intro\n\n- \n\n", (4, 0)),
+    ],
+    ids=["lone", "blank-line-above"],
+)
+async def test_prompt_insert_ctrl_j_twice_exits_from_lone_marker(
+    text: str,
+    cursor: tuple[int, int],
+    expected_text: str,
+    expected_cursor: tuple[int, int],
+) -> None:
+    async with PromptPage(text, cursor=cursor, mode="insert") as page:
+        await page.press("ctrl+j", "ctrl+j")
+
+        assert page.text == expected_text
+        assert page.cursor == expected_cursor
+        assert page.mode == "insert"
+
+
+async def test_prompt_insert_ctrl_j_lone_marker_undoes_separately() -> None:
+    async with PromptPage("- ", cursor=(0, 2), mode="insert") as page:
+        await page.press("ctrl+j", "ctrl+j")
+        assert page.text == "- \n\n"
+
+        await page.press("escape", "u")
+        assert page.text == "- \n- "
+
+        await page.press("u")
+        assert page.text == "- "
 
 
 async def test_prompt_insert_ctrl_j_prefix_is_its_own_undo_checkpoint() -> None:

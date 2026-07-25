@@ -2566,7 +2566,7 @@ multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent
 | `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                |
 | `Ctrl+G Enter`               | Submit only the selected pane                                                                              |
 | `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                        |
-| `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet, or leave the list from an exact empty marker          |
+| `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet, or leave the list from an empty marker below a bullet |
 | `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                   |
 | `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                             |
 | `Ctrl+G`                     | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                               |
@@ -2602,10 +2602,13 @@ INSERT-mode `Ctrl+J` and prompt NORMAL-mode `o` / `O` continue a containing spac
 bullet's indentation. This also works from physical continuation lines, including Prettier-wrapped nested bullets;
 non-bullet lines keep the ordinary bare newline or open-line behavior. In INSERT mode, when there is no selection,
 pressing `Ctrl+J` anywhere on a line containing only zero or more leading spaces followed by `- ` replaces that marker
-with a bare newline and moves the cursor to column zero, ending the list. The common sequence is therefore `Ctrl+J` once
-to create the next sibling marker and `Ctrl+J` again to exit the list. Those two edits are separate undo checkpoints. A
-selection uses the normal replacement path instead. Extra spaces after the marker, tab indentation, other Markdown
-markers, and markers containing text do not trigger the exit path.
+with a bare newline and moves the cursor to column zero, ending the list -- but only when the line above that marker is
+itself part of a hyphen bullet. The common sequence is therefore `Ctrl+J` once to create the next sibling marker and
+`Ctrl+J` again to exit the list. A marker-only line whose preceding line is not part of a bullet -- a freshly typed `- `
+on the first line, or one following a blank line or plain prose -- grows a sibling marker on the next line instead, so
+the exit still happens on the following press. Those two edits are separate undo checkpoints. A selection uses the
+normal replacement path instead. Extra spaces after the marker, tab indentation, other Markdown markers, and markers
+containing text do not trigger either path.
 
 On a line beginning with zero or more spaces followed by `- `, INSERT-mode `Tab` and `Shift+Tab` indent or dedent the
 bullet when the selection is collapsed and the cursor is anywhere from column zero through the marker's content column.
