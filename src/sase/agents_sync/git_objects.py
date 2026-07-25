@@ -123,6 +123,36 @@ class LocalGitObjectReader:
             )
         return payload
 
+    def owner_manifest_divergence_diagnostic(
+        self,
+        sha: str,
+        relative: str,
+    ) -> str | None:
+        """Explain when an owner manifest references a file absent from its commit."""
+
+        _validate_sha(sha)
+        validate_relative_path(relative)
+        listed = self.git_runner(
+            self.repo,
+            ["ls-tree", "-r", "--name-only", "-z", sha, "--", relative],
+            op="agents_sync.object_manifest_reference",
+        )
+        if listed.returncode != 0 or relative in listed.stdout.split("\x00"):
+            return None
+        message = (
+            f"owner manifest references {relative!r}, but it is missing from "
+            f"commit {sha}"
+        )
+        ignored = self.git_runner(
+            self.repo,
+            ["check-ignore", "-v", "--no-index", "--", relative],
+            op="agents_sync.object_manifest_reference_ignore",
+        )
+        if ignored.returncode != 0 or not ignored.stdout.strip():
+            return message
+        rule = ignored.stdout.strip().splitlines()[0]
+        return f"{message}; local ignore rule: {rule}"
+
 
 def _validate_sha(value: str) -> None:
     if _SHA_RE.fullmatch(value) is None:

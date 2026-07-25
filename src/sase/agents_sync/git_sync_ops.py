@@ -19,6 +19,13 @@ from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS = 10.0
 _LOCK_TIMEOUT_ENV = "SASE_AGENTS_SYNC_LOCK_TIMEOUT"
+_AGENTS_PAYLOAD_PATHS = (
+    "README.md",
+    "schema.json",
+    "users",
+    "agents",
+    "families",
+)
 
 
 def commit_agents_payload_if_dirty(
@@ -26,32 +33,25 @@ def commit_agents_payload_if_dirty(
     owner: AgentOwnerIdentity,
     git_runner: GitRunner,
 ) -> bool | str:
-    status = git_runner(
-        repo,
-        [
-            "status",
-            "--porcelain",
-            "--untracked-files=all",
-            "--",
-            "README.md",
-            "schema.json",
-            "users",
-            "agents",
-            "families",
-        ],
-        op="agents_sync.status_payload",
-    )
-    if status.returncode != 0:
-        return agents_git_error("could not inspect agents sidecar changes", status)
-    if not status.stdout.strip():
-        return False
     staged = git_runner(
         repo,
-        ["add", "--", "README.md", "schema.json", "users", "agents", "families"],
+        ["add", "--force", "--", *_AGENTS_PAYLOAD_PATHS],
         op="agents_sync.stage",
     )
     if staged.returncode != 0:
         return agents_git_error("could not stage agents sidecar payload", staged)
+    dirty = git_runner(
+        repo,
+        ["diff", "--cached", "--quiet", "--", *_AGENTS_PAYLOAD_PATHS],
+        op="agents_sync.diff_staged",
+    )
+    if dirty.returncode == 0:
+        return False
+    if dirty.returncode != 1:
+        return agents_git_error(
+            "could not inspect staged agents sidecar changes",
+            dirty,
+        )
     committed = git_runner(
         repo,
         [

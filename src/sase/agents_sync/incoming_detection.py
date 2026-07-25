@@ -299,7 +299,13 @@ def _capture_v2_payload(
     payload: dict[str, bytes] = {}
     for relative in entry.files:
         maximum = MAX_JSON_BYTES if relative.endswith(".json") else MAX_TEXT_BYTES
-        content = reader.read_bytes(sha, relative, maximum=maximum)
+        try:
+            content = reader.read_bytes(sha, relative, maximum=maximum)
+        except AgentsSyncFormatError as exc:
+            diagnostic = reader.owner_manifest_divergence_diagnostic(sha, relative)
+            if diagnostic is not None:
+                raise AgentsSyncFormatError(diagnostic) from exc
+            raise
         total += len(content)
         if total > MAX_PAYLOAD_BYTES:
             raise AgentsSyncFormatError("hood aggregate payload exceeds byte limit")
