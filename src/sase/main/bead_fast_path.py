@@ -9,6 +9,7 @@ from typing import Any
 
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
+_MUTATING_VERBS = frozenset({"create", "open", "update", "close", "dep", "rm"})
 
 
 def try_handle_bead_fast_path(argv: list[str]) -> int | None:
@@ -25,6 +26,14 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     context = _resolve_fast_path_context(argv)
     if context is None:
         return None
+
+    if argv[0] in _MUTATING_VERBS:
+        from sase.core.state_write_guard import assert_bead_store_write_sandboxed
+
+        assert_bead_store_write_sandboxed(
+            context.write_beads_dir,
+            operation=f"fast-path {argv[0]}",
+        )
 
     try:
         from sase.core.rust import require_rust_binding

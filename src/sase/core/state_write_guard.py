@@ -12,6 +12,7 @@ log = logging.getLogger(__name__)
 
 PYTEST_CONTEXT_ENV_VARS = ("PYTEST_CURRENT_TEST", "PYTEST_VERSION")
 PYTEST_SANDBOX_DIR_ENV_VAR = "SASE_PYTEST_SANDBOX_DIR"
+ALLOW_UNSANDBOXED_BEAD_WRITES_ENV_VAR = "SASE_ALLOW_UNSANDBOXED_BEAD_WRITES"
 
 _warned_refusals: set[tuple[str, str]] = set()
 _warned_refusals_lock = threading.Lock()
@@ -68,6 +69,40 @@ def assert_test_state_write_isolated(
     )
     if refusal is not None:
         raise _PytestStateIsolationError(refusal)
+
+
+def assert_bead_store_write_sandboxed(
+    beads_dir: str | os.PathLike[str],
+    *,
+    operation: str,
+    environ: Mapping[str, str] | None = None,
+) -> None:
+    """Raise when a pytest process would mutate a bead store outside its sandbox."""
+    effective_environ = os.environ if environ is None else environ
+    if not pytest_context_detected(effective_environ):
+        return
+    if effective_environ.get(ALLOW_UNSANDBOXED_BEAD_WRITES_ENV_VAR) == "1":
+        return
+
+    resolved_beads_dir = _resolve_path(beads_dir)
+    sandbox = effective_environ.get(PYTEST_SANDBOX_DIR_ENV_VAR, "").strip()
+    if not sandbox:
+        raise _PytestStateIsolationError(
+            f"Refusing pytest bead-store {operation} write to "
+            f"{resolved_beads_dir}: {PYTEST_SANDBOX_DIR_ENV_VAR} is unset or "
+            "empty, so the write cannot be proven sandboxed. Create the bead "
+            "store under a per-test temporary directory and publish that "
+            f"directory through {PYTEST_SANDBOX_DIR_ENV_VAR}."
+        )
+
+    resolved_sandbox = _resolve_path(sandbox)
+    if _is_at_or_below(resolved_beads_dir, resolved_sandbox):
+        return
+    raise _PytestStateIsolationError(
+        f"Refusing pytest bead-store {operation} write to "
+        f"{resolved_beads_dir}: target is outside pytest sandbox root "
+        f"{resolved_sandbox}. Create the bead store at or below the sandbox root."
+    )
 
 
 def best_effort_test_state_write_allowed(
@@ -136,8 +171,10 @@ def _is_at_or_below(path: Path, root: Path) -> bool:
 
 
 __all__ = [
+    "ALLOW_UNSANDBOXED_BEAD_WRITES_ENV_VAR",
     "PYTEST_CONTEXT_ENV_VARS",
     "PYTEST_SANDBOX_DIR_ENV_VAR",
+    "assert_bead_store_write_sandboxed",
     "assert_test_state_write_isolated",
     "best_effort_test_state_write_allowed",
     "pytest_context_detected",

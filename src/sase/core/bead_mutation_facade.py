@@ -15,6 +15,7 @@ from sase.core.bead_wire import (
     tier_value,
 )
 from sase.core.rust import require_rust_binding
+from sase.core.state_write_guard import assert_bead_store_write_sandboxed
 
 
 def init_store(
@@ -24,6 +25,7 @@ def init_store(
     issue_prefix: str,
     owner: str = "",
 ) -> dict[str, Any]:
+    _guard_bead_store_write(Path(root_dir) / beads_dirname, "init_store")
     binding = require_rust_binding("bead_init_store")
     return dict(binding(str(root_dir), beads_dirname, issue_prefix, owner))
 
@@ -45,6 +47,7 @@ def create(
     size: PhaseSize | str | None = None,
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "create")
     binding = require_rust_binding("bead_create")
     payload = _call_issue_operation(
         binding,
@@ -73,6 +76,7 @@ def update(
     issue_id: str,
     **fields: str | int | bool | None,
 ) -> tuple[Issue, dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "update")
     binding = require_rust_binding("bead_update")
     payload = _call_issue_operation(binding, str(beads_dir), issue_id, fields)
     return _issue_payload(payload), payload
@@ -85,6 +89,7 @@ def claim_for_agent_launch(
     *,
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "claim_for_agent_launch")
     binding = require_rust_binding("bead_claim_for_agent_launch")
     payload = _call_issue_operation(
         binding,
@@ -103,6 +108,7 @@ def claim_for_agent_wait(
     *,
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "claim_for_agent_wait")
     binding = require_rust_binding("bead_claim_for_agent_wait")
     payload = _call_issue_operation(
         binding,
@@ -121,6 +127,7 @@ def release_agent_claim(
     *,
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "release_agent_claim")
     binding = require_rust_binding("bead_release_agent_claim")
     payload = _call_issue_operation(
         binding,
@@ -139,6 +146,7 @@ def preclaim_epic_work(
     *,
     now: str | None = None,
 ) -> tuple[list[Issue], list[tuple[str, Status, str]], dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "preclaim_epic_work")
     binding = require_rust_binding("bead_preclaim_epic_work")
     payload = _call_issue_operation(
         binding,
@@ -168,6 +176,7 @@ def close(
     reason: str | None = None,
     now: str | None = None,
 ) -> tuple[list[Issue], dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "close")
     binding = require_rust_binding("bead_close")
     payload = _call_issue_operation(binding, str(beads_dir), issue_ids, reason, now)
     return issues_from_list(payload.get("issues", [])), payload
@@ -184,6 +193,7 @@ def remove_many(
     beads_dir: Path | str,
     issue_ids: list[str],
 ) -> tuple[list[Issue], dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "remove_many")
     binding = require_rust_binding("bead_remove_many")
     payload = _call_issue_operation(binding, str(beads_dir), issue_ids)
     return issues_from_list(payload.get("issues", [])), payload
@@ -196,6 +206,7 @@ def add_dependency(
     *,
     now: str | None = None,
 ) -> tuple[Dependency, dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "add_dependency")
     binding = require_rust_binding("bead_dep_add")
     payload = _call_issue_operation(
         binding, str(beads_dir), issue_id, depends_on_id, now
@@ -218,6 +229,7 @@ def mark_ready_to_work(
     *,
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "mark_ready_to_work")
     binding = require_rust_binding("bead_mark_ready_to_work")
     payload = _call_issue_operation(binding, str(beads_dir), epic_id, now)
     return _issue_payload(payload), payload
@@ -229,14 +241,20 @@ def unmark_ready_to_work(
     *,
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "unmark_ready_to_work")
     binding = require_rust_binding("bead_unmark_ready_to_work")
     payload = _call_issue_operation(binding, str(beads_dir), epic_id, now)
     return _issue_payload(payload), payload
 
 
 def export_jsonl(beads_dir: Path | str) -> dict[str, Any]:
+    _guard_bead_store_write(beads_dir, "export_jsonl")
     binding = require_rust_binding("bead_export_jsonl")
     return dict(binding(str(beads_dir)))
+
+
+def _guard_bead_store_write(beads_dir: Path | str, operation: str) -> None:
+    assert_bead_store_write_sandboxed(beads_dir, operation=operation)
 
 
 def _call_issue_operation(binding: Any, *args: Any) -> dict[str, Any]:

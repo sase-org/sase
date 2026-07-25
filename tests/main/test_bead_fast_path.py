@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from sase.main import bead_fast_path
 from sase.main.bead_fast_path import (
     _BEADS_DIRNAME,
@@ -240,6 +242,46 @@ def test_fast_path_routes_search_through_rust_executor(
             "relativize_design_paths": True,
         }
     ]
+
+
+def test_fast_path_guards_mutations_but_not_reads(tmp_path: Path, monkeypatch) -> None:
+    read_dir = tmp_path / "production" / "beads"
+    context = bead_fast_path._FastPathContext(
+        read_beads_dirs=[read_dir],
+        write_beads_dir=read_dir,
+        relativize_design_paths=False,
+    )
+    calls: list[list[str]] = []
+
+    def fake_binding(
+        argv: list[str],
+        _read_beads_dirs: list[str],
+        _write_beads_dir: str,
+        _cwd: str,
+        _relativize_design_paths: bool,
+    ) -> dict[str, object]:
+        calls.append(argv)
+        return {"handled": True, "exit_code": 0}
+
+    monkeypatch.setattr(
+        bead_fast_path,
+        "_resolve_fast_path_context",
+        lambda _argv: context,
+    )
+    monkeypatch.setattr(
+        "sase.core.rust.require_rust_binding",
+        lambda _name: fake_binding,
+    )
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "fast-path write guard")
+    monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(tmp_path / "sandbox"))
+
+    assert try_handle_bead_fast_path(["search", "needle"]) == 0
+    with pytest.raises(RuntimeError, match="fast-path create"):
+        try_handle_bead_fast_path(
+            ["create", "--title", "Unsafe", "--type", "plan(plan.md)"]
+        )
+
+    assert calls == [["search", "needle"]]
 
 
 def test_fast_path_defers_list_to_argparse(monkeypatch) -> None:

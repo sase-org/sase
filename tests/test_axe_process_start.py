@@ -94,11 +94,14 @@ def test_start_axe_daemon_returns_existing_pid(
     mock_popen.assert_not_called()
 
 
-@patch("sase.axe._process_start.shutil.which", return_value="/usr/bin/sase")
+@patch(
+    "sase.axe._process_start._build_axe_start_command",
+    return_value=["/usr/bin/sase", "axe", "start"],
+)
 @patch("sase.axe._process_probe.is_process_running", return_value=True)
 def test_repeated_start_axe_daemon_spawns_once_after_pid_appears(
     mock_is_running: MagicMock,
-    _mock_which: MagicMock,
+    _mock_build_command: MagicMock,
     temp_state_dir: Path,
     axe_config: AxeConfig,
 ) -> None:

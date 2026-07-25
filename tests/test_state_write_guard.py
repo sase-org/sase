@@ -12,7 +12,10 @@ import pytest
 from sase.axe.config import AxeConfig
 from sase.axe.orchestrator import Orchestrator
 from sase.axe.state import append_bounded_log
-from sase.core.state_write_guard import pytest_path_is_sandboxed
+from sase.core.state_write_guard import (
+    assert_bead_store_write_sandboxed,
+    pytest_path_is_sandboxed,
+)
 from sase.telemetry import flush_metrics, metrics as telemetry_metrics
 from sase.telemetry._config import _TelemetryConfig
 from sase.telemetry._registry import _reset_for_tests, init_telemetry
@@ -42,6 +45,74 @@ def test_pytest_path_is_sandboxed_uses_published_boundary(tmp_path: Path) -> Non
         environ={"PYTEST_CURRENT_TEST": "missing sandbox"},
     )
     assert pytest_path_is_sandboxed(outside, environ={})
+
+
+def test_bead_store_write_allows_non_pytest_process(tmp_path: Path) -> None:
+    assert_bead_store_write_sandboxed(
+        tmp_path / "production" / "beads",
+        operation="create",
+        environ={},
+    )
+
+
+def test_bead_store_write_allows_target_inside_sandbox(tmp_path: Path) -> None:
+    sandbox = tmp_path / "sandbox"
+
+    assert_bead_store_write_sandboxed(
+        sandbox / "project" / "beads",
+        operation="create",
+        environ={
+            "PYTEST_CURRENT_TEST": "sandboxed bead write",
+            "SASE_PYTEST_SANDBOX_DIR": str(sandbox),
+        },
+    )
+
+
+def test_bead_store_write_refuses_target_outside_sandbox(tmp_path: Path) -> None:
+    sandbox = tmp_path / "sandbox"
+    beads_dir = tmp_path / "production" / "beads"
+
+    with pytest.raises(RuntimeError) as exc:
+        assert_bead_store_write_sandboxed(
+            beads_dir,
+            operation="remove_many",
+            environ={
+                "PYTEST_CURRENT_TEST": "unsandboxed bead write",
+                "SASE_PYTEST_SANDBOX_DIR": str(sandbox),
+            },
+        )
+
+    message = str(exc.value)
+    assert str(beads_dir) in message
+    assert "remove_many" in message
+    assert str(sandbox) in message
+
+
+def test_bead_store_write_refuses_missing_sandbox(tmp_path: Path) -> None:
+    beads_dir = tmp_path / "beads"
+
+    with pytest.raises(RuntimeError) as exc:
+        assert_bead_store_write_sandboxed(
+            beads_dir,
+            operation="update",
+            environ={"PYTEST_CURRENT_TEST": "missing sandbox"},
+        )
+
+    message = str(exc.value)
+    assert str(beads_dir) in message
+    assert "update" in message
+    assert "SASE_PYTEST_SANDBOX_DIR" in message
+
+
+def test_bead_store_write_allows_explicit_override(tmp_path: Path) -> None:
+    assert_bead_store_write_sandboxed(
+        tmp_path / "production" / "beads",
+        operation="close",
+        environ={
+            "PYTEST_CURRENT_TEST": "deliberate unsandboxed bead write",
+            "SASE_ALLOW_UNSANDBOXED_BEAD_WRITES": "1",
+        },
+    )
 
 
 def test_unisolated_pytest_telemetry_refuses_before_drain_or_binding(
