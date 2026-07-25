@@ -29,17 +29,20 @@ def _create_executor(
     args: dict[str, Any] | None = None,
 ) -> WorkflowExecutor:
     """Helper to create an executor with a temp artifacts dir."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        artifacts_dir = os.path.join(tmpdir, "artifacts")
-        os.makedirs(artifacts_dir, exist_ok=True)
-        executor = WorkflowExecutor(
-            workflow=workflow,
-            args=args or {},
-            artifacts_dir=artifacts_dir,
-        )
-        # Store tmpdir reference to keep it alive during test
-        executor._test_tmpdir = tmpdir  # type: ignore[attr-defined]
-        return executor
+    # The executor recreates its artifacts directory while the test runs, so a
+    # self-deleting TemporaryDirectory would be resurrected in the system temp
+    # dir after this helper returns. Keep the scratch root inside pytest's
+    # sandbox instead, where the run directory collects it.
+    tmpdir = tempfile.mkdtemp(dir=os.environ["SASE_PYTEST_SANDBOX_DIR"])
+    artifacts_dir = os.path.join(tmpdir, "artifacts")
+    os.makedirs(artifacts_dir, exist_ok=True)
+    executor = WorkflowExecutor(
+        workflow=workflow,
+        args=args or {},
+        artifacts_dir=artifacts_dir,
+    )
+    executor._test_tmpdir = tmpdir  # type: ignore[attr-defined]
+    return executor
 
 
 # ============================================================================
@@ -232,7 +235,9 @@ def test_pre_expand_parallel_collects_post_steps() -> None:
         ),
     ]
 
-    workflow = _create_workflow("test", [])
+    # A real executor always has the step it is expanding for; the embedded
+    # metadata write is keyed on it.
+    workflow = _create_workflow("test", [WorkflowStep(name="root")])
     executor = _create_executor(workflow)
 
     with patch("sase.xprompt.loader.get_all_workflows") as mock_get:

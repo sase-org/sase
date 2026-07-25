@@ -17,6 +17,11 @@ from sase.ace.changespec import (
 from sase.directory_map_assets import DIRECTORY_MAP_ASSET_OVERRIDE_ENV
 from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
 from tests._suite_gate import configure_suite_gate, unconfigure_suite_gate
+from tests._tmp_leak_guard import (
+    finish_tmp_leak_guard,
+    report_tmp_leak_guard,
+    start_tmp_leak_guard,
+)
 from tests._project_display_case import ProjectDisplayCase
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -91,6 +96,23 @@ def pytest_configure(config: pytest.Config) -> None:
 def pytest_unconfigure(config: pytest.Config) -> None:
     """Release host-global worker tokens held by an xdist controller."""
     unconfigure_suite_gate(config)
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Snapshot the system temp directory before any test runs."""
+    start_tmp_leak_guard(session)
+
+
+def pytest_sessionfinish(session: pytest.Session) -> None:
+    """Fail the run when the suite leaked system temp-directory entries."""
+    finish_tmp_leak_guard(session)
+
+
+def pytest_terminal_summary(
+    terminalreporter: pytest.TerminalReporter, config: pytest.Config
+) -> None:
+    """Name any leaked system temp-directory entries in the summary."""
+    report_tmp_leak_guard(config, terminalreporter)
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:

@@ -165,7 +165,7 @@ def test_prepare_agent_launch_rust_deferred_vcs_env_and_home_claim(
         base,
         python_executable="python",
         runner_script="runner.py",
-        sase_tmpdir=None,
+        sase_tmpdir=str(tmp_path),
         output_root=str(tmp_path),
     )
     assert deferred.claim_request is not None
@@ -177,7 +177,7 @@ def test_prepare_agent_launch_rust_deferred_vcs_env_and_home_claim(
         AgentLaunchRequestWire(**{**base.__dict__, "is_home_mode": True}),
         python_executable="python",
         runner_script="runner.py",
-        sase_tmpdir=None,
+        sase_tmpdir=str(tmp_path),
         output_root=str(tmp_path),
     )
     assert home.claim_request is None
