@@ -174,7 +174,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                         )
                         for position in range(1, 3)
                     ),
-                    "Set family level 1-2",
+                    "Set family lane level 1-2",
                 ),
                 (
                     " / ".join(
@@ -184,7 +184,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                         )
                         for position in range(1, 4)
                     ),
-                    "Set clan/session level 1-3",
+                    "Set clan/agent lane level 1-3",
                 ),
                 (
                     " / ".join(

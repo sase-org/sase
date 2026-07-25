@@ -181,8 +181,9 @@ and known-empty sections remain omitted. The compact roster and its numeric jump
 
 The fold prefix is available only while the Agents tab is active. Press uppercase `Z` to zoom the largest detail panel
 from an agent row, or to isolate/restore a tribe panel from whole-panel focus; lowercase `z` starts fold mode. Fold
-state is panel-wide and applies when a clan or multi-member family container is selected. Using a fold chord on a
-regular agent updates the session state for the next container selection without changing that agent's sections.
+state is panel-wide and applies when a clan or an agent lane is selected. Using a fold chord on a regular agent lane
+folds its `NEIGHBORS` section across that agent's own three-level scale, leaves its other sections unchanged, and
+updates the session state for the next container selection.
 
 ### Epic bead-work example
 
