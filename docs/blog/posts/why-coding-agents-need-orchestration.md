@@ -311,8 +311,8 @@ The core logical roots are:
 The flow is intentionally concrete:
 
 ```bash
-sase sdd list
-sase sdd validate
+sase plan search
+sase plan links validate
 sase bead ready
 sase bead show <bead-id>
 sase bead work <epic-id>
@@ -535,7 +535,7 @@ These are the commands I reach for most:
 | `sase xprompt explain "#foo"`                            | Inspect how a prompt reference resolves.                             |
 | `sase xprompt graph "#!workflow"`                        | Visualize workflow structure.                                        |
 | `sase plan`                                              | Review, approve, and manage submitted plans.                         |
-| `sase sdd list` / `sase sdd validate`                    | Inspect and validate SDD artifacts.                                  |
+| `sase plan search` / `sase plan links validate`          | Inspect and validate SDD artifacts.                                  |
 | `sase bead ready` / `sase bead work`                     | Find unblocked bead work or execute an epic.                         |
 | `sase axe lumberjack status`                             | Check scheduled background automation.                               |
 | `sase axe chop doctor`                                   | Verify configured chops, scripts, and Telegram chop setup.           |

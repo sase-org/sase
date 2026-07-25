@@ -132,3 +132,44 @@ If a provider CLI lives at a non-standard path, point SASE at it with the provid
 environment variable — `SASE_CLAUDE_PATH`, `SASE_CODEX_PATH`, `SASE_OPENCODE_PATH`, `SASE_QWEN_PATH`, `SASE_AGY_PATH`,
 or `SASE_FAKEY_PATH`. For deeper integration details (model mapping, per-provider environment variables, retry/fallback
 behavior), see the [LLM provider reference](llms.md).
+
+## Inventory and Updates
+
+`sase agent-cli` is the inventory and update surface for the provider CLIs on this machine. A bare `sase agent-cli`
+means `sase agent-cli list`.
+
+```bash
+sase agent-cli list            # every supported CLI, its versions, and install method
+sase agent-cli list -v         # add resolved executable paths, docs URLs, and probe errors
+sase agent-cli update codex    # update one CLI
+sase agent-cli update -a -n    # preview every planned command without running anything
+```
+
+`list` shows each CLI's resolved binary, installed version, latest known version, install method, and an `↑` marker when
+an update is available. A CLI that is not installed shows its install hint instead. The footer summarizes how many of
+the supported CLIs are installed and whether any updates are known. Latest versions come from the npm registry and are
+cached: `-o/--offline` uses only the cache and never contacts the network, while `-r/--refresh` bypasses the cache.
+`-j/--json` emits a stable machine-readable envelope.
+
+`update` takes CLI names (provider, binary, or display name) or `-a/--all` for every installed CLI; a bare
+`sase agent-cli update` with neither is a usage error. Commands run sequentially and without a shell. `-n/--dry-run`
+prints the exact command or skip reason for each CLI and changes nothing.
+
+SASE only automates updates it can identify safely, and it never uses `sudo` and never guesses an update command:
+
+| Install method                   | Behavior                                                                                |
+| -------------------------------- | --------------------------------------------------------------------------------------- |
+| npm, writable global root        | Runs `npm install -g <package>@latest`.                                                 |
+| npm, non-writable global root    | Skipped as manual, with the exact command to run under an npm setup owned by your user. |
+| Self-managed with a self-update  | Runs the provider's own declared update command.                                        |
+| Homebrew                         | Skipped as manual, with the `brew upgrade <package>` command to run.                    |
+| Bundled (`fakey`)                | Skipped; it ships with SASE and moves with `sase update`.                               |
+| Not installed, or method unknown | Skipped, with the install hint or a note that SASE will not guess an update command.    |
+
+Anything already at its latest known version is reported as an explicit `already up to date` skip rather than being
+reinstalled. Skips carry the provider's canonical docs URL where one is known.
+
+This command manages the provider CLIs only. Use [`sase update`](cli.md) to upgrade SASE itself and its plugins.
+
+The same inventory is available inside ACE on the SASE Admin Center's **Updates → Agent CLIs** sub-tab, which adds
+marked multi-select updates and confirmation previews. See the [Updates tab](ace.md#updates-tab) for that surface.

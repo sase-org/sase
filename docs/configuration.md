@@ -869,8 +869,9 @@ through the threshold-sized epic and xlarge-phase fallback chains. See
 [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
 [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role.
 
-Legacy `model_aliases.builtin.epic_creator` entries remain accepted so existing configs still load, but SASE no longer
-launches an epic-creator agent or resolves that alias implicitly.
+`model_aliases.builtin.epic_creator` is retired. SASE no longer launches an epic-creator agent, resolves that alias
+implicitly, or treats it as a builtin override, so a stale entry should be deleted rather than repointed. `sase doctor`
+reports a leftover entry under the `model_aliases.builtin.epic_creator` key.
 
 > The `llm_provider.worker_models` map and the reserved `@worker` / `@other` aliases were removed in epic sase-5d. Use
 > `@coder`, a size-specific phase alias, or an explicit model instead of `@worker`, and `@default` instead of `@other`.
@@ -2934,15 +2935,16 @@ without one); `--since`/`--until` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or r
 while `--quiet` suppresses only the successful human summary. See
 [Plan Frontmatter Schema and Validation](sdd.md#plan-frontmatter-schema-and-validation) for diagnostics and exit codes.
 
-### `sase artifact`
+### `sase artifact-file`
 
-`sase artifact create` is intended for code agents running with `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR` set. It moves a
-generated file into persistent SASE artifact storage and associates it with the current agent so the Agents tab can open
-it with `A`, even after the agent has been dismissed and revived.
+`sase artifact-file create` is intended for code agents running with `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR` set. It
+moves a generated file into persistent SASE artifact storage and associates it with the current agent so the Agents tab
+can open it with `A`, even after the agent has been dismissed and revived. `-k/--kind` accepts `chat`, `plan`, `image`,
+`markdown`, `pdf`, or `file` and defaults to a kind inferred from the file extension.
 
-| Form                   | Flags                                  | Description                                       |
-| ---------------------- | -------------------------------------- | ------------------------------------------------- |
-| `sase artifact create` | `-p/--path`, `-n/--label`, `-k/--kind` | Store one explicit artifact for the current agent |
+| Form                        | Flags                                  | Description                                       |
+| --------------------------- | -------------------------------------- | ------------------------------------------------- |
+| `sase artifact-file create` | `-p/--path`, `-n/--label`, `-k/--kind` | Store one explicit artifact for the current agent |
 
 ### `sase questions`
 
@@ -2965,6 +2967,20 @@ it with `A`, even after the agent has been dismissed and revived.
 | `index`     | `status` / `rebuild` / `verify` / `gc`, `-i/--index-path`, `-p/--projects-root`, `-j/--json`                              | Maintain the persistent agent artifact index. Defaults are `~/.sase/agent_artifact_index.sqlite` and `~/.sase/projects`; `status` performs a lightweight visible-inbox check without scanning source artifacts, `verify` exits non-zero when the index diverges from source artifacts, and `gc` rebuilds the index from source artifacts and replaces the dismissed projection. |
 | `names`     | `migrate-auto`, `-f/--force`, `-j/--json`                                                                                 | Maintain the permanent agent-name registry. `migrate-auto` runs the historical generated-name namespace migration; `--force` reruns it after the completion marker exists and `--json` emits a machine-readable summary.                                                                                                                                                        |
 | `sync`      | `-c/--check`, `-j/--json`, repeatable `-p/--project`, `-r/--refresh`                                                      | Import shared agent history and publish locally commit-eligible hoods through enabled agents sidecars. Plain `--check` uses cached status without Git or artifact scans; `--check --refresh` fetches and recomputes status. See [Agent Hood Synchronization](agents_sidecar.md).                                                                                                |
+
+### `sase agent-cli`
+
+`sase agent-cli` inventories the supported coding-agent CLIs and updates the ones whose install method can be identified
+safely. With no subcommand, it defaults to `sase agent-cli list`. See
+[Agent providers](agent_providers.md#inventory-and-updates) for the per-install-method update behavior.
+
+| Subcommand | Flags                                                                                 | Description                                                                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `list`     | `-j/--json`, `-o/--offline`, `-r/--refresh`, `-v/--verbose`                           | List every supported CLI with its binary, installed and latest versions, install method, and update marker. `-v` adds executable paths, docs URLs, and probe errors.     |
+| `update`   | `<name> ...`, `-a/--all`, `-j/--json`, `-n/--dry-run`, `-o/--offline`, `-r/--refresh` | Update named CLIs or, with `-a`, every installed one. `-n` prints exact commands and skip reasons without running them. Passing neither names nor `-a` is a usage error. |
+
+`-o/--offline` uses only cached latest-version data and never contacts the npm registry; `-r/--refresh` bypasses that
+cache.
 
 ### `sase chat`
 

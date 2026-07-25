@@ -150,6 +150,67 @@ project workspace and its plans store. ACE does not clone or materialize a missi
 reference, unavailable path, non-file path, or unreadable file produces a specific toast and leaves the commit visible.
 Moving to another commit always returns the modal to commit mode.
 
+### Chats Pane
+
+The Chats sub-tab (`3`) lists agent chat transcripts newest first, grouped under day headings, from the same catalog
+that backs [`sase chat list`](cli.md). Each row carries a **sync provenance** badge describing how the transcript
+reached this machine:
+
+| Badge | Provenance | Meaning                                              |
+| ----- | ---------- | ---------------------------------------------------- |
+| `◇`   | `local`    | Written here and not published to an agents sidecar. |
+| `◆`   | `shared`   | Written here and published to an agents sidecar.     |
+| `↓`   | `remote`   | Imported from another machine.                       |
+| `○`   | `unknown`  | Provenance could not be determined.                  |
+
+`unknown` is a truthful "could not check" rather than a guess, so an unrecognized value renders as `unknown` instead of
+being coerced into one of the other three.
+
+Selecting a row loads a detail pane off the event loop with a bounded transcript preview (the first 200 lines) plus the
+originating agent's provider, model, status, and whether it has been dismissed. Those agent facts come from the run's
+artifact directory, so a `remote` transcript with no local artifact shows the transcript alone.
+
+| Key       | Action                                                                                    |
+| --------- | ----------------------------------------------------------------------------------------- |
+| `j` / `k` | Select the next / previous transcript, skipping day headings                              |
+| `Enter`   | Open the full transcript in the preview modal                                             |
+| `f`       | Edit the pane's filter query                                                              |
+| `s`       | Cycle the provenance filter: All → local → shared → remote → unknown → All                |
+| `a`       | Jump to the transcript's agent on the Agents tab, reviving it first when it was dismissed |
+| `o`       | Open the transcript in `$EDITOR` (falling back to `nvim`)                                 |
+| `y`       | Copy the transcript's absolute path to the clipboard                                      |
+| `R`       | Refresh the catalog                                                                       |
+| `p`       | Change the shared Artifacts project scope                                                 |
+
+These are the default keymap values; the nine Chats actions are remappable under
+[`ace.keymaps.app`](configuration.md#acekeymaps) as `chats_next`, `chats_prev`, `chats_view_selected`, `chats_filters`,
+`chats_cycle_provenance`, `chats_open_agent`, `chats_open_external`, `chats_copy_path`, and `chats_refresh`. The pane
+also shares the navigation and jump keys described in
+[Navigation in Commits, Plans, Chats, and Bugs](#navigation-in-commits-plans-chats-and-bugs).
+
+`a` matches a transcript to an agent by artifact directory, then by raw name suffix, then by recorded local agent name,
+always within the transcript's own project. When nothing matches, ACE warns rather than guessing — a transcript imported
+from another machine reports that it has no local agent artifact.
+
+#### Filtering Chats
+
+`f` opens the same live filter row Commits and Plans use, and like Plans it is visible only during an edit session.
+Results update as you type: `Enter` commits the query and returns focus to the list, `Escape` restores the last
+committed query and selection, and `Tab` accepts the highlighted key or value completion. An invalid query is reported
+inline and on submit, leaving the committed results in place. Chats accepts `provenance:`, `machine:`, `project:`,
+`agent:`, `workflow:`, `since:`, and `until:`, plus free text matched against the transcript. Tokens from different
+facets combine with AND semantics, while comma-separated or repeated values within `provenance:`, `machine:`,
+`project:`, `agent:`, and `workflow:` combine with OR semantics. `provenance:` accepts only `local`, `shared`, `remote`,
+and `unknown`.
+
+Unlike Commits and Plans, **Chats filters do not support negation**; a leading `-` is rejected with an explicit error
+rather than excluding a match.
+
+`s` and the `provenance:` token drive the same filter state, so the two controls stay consistent: cycling with `s`
+closes an open edit session and sets `provenance:` to the next single value, and reopening the query row shows that
+value. `s` steps through the cycle only when exactly one provenance is selected; a query listing several is treated like
+`All`, so the next press selects `local`.
+
 ### Epic phase sizes across plan surfaces
 
 ACE uses the literal scope labels `xsmall`, `small`, `medium`, `large`, and `xlarge`, with mint, sky, gold, rose, and
@@ -637,15 +698,27 @@ discards local clone changes without re-cloning from the network.
 
 ### Wait Modal
 
-Press `w` on the Agents tab to open the WaitModal. Behavior depends on the agent's status:
+Press `w` on the Agents tab to open the WaitModal. It has four editable fields — **Agents**, **Time**, **Runners**, and
+**Priority** — each prefilled from the agent's current wait. Time, Runners, and Priority render a live preview of how
+the typed value will be interpreted, and an invalid value blocks apply and focuses the offending field. Beads the agent
+is waiting on appear above the fields as a read-only summary; they are preserved but cannot be edited here.
 
-- **WAITING or QUEUED agent**: Edit dependency names, a time floor, or the `runners` threshold. A runner-slot-parked
-  agent applies a runners-only edit live on its next poll; changing earlier wait stages restarts the agent. Clearing an
-  explicit runner threshold returns it to the global `max_running_agents` cap rather than bypassing that cap.
-- **RUNNING agent**: Enter a dependency, time floor, or runners threshold to kill and restart the current agent with a
-  canonical `%wait(...)` directive.
+Behavior depends on the agent's status:
 
-The modal supports readline-style keybindings (`Ctrl+F`/`Ctrl+B`/`Ctrl+A`/`Ctrl+E`) for cursor movement.
+- **WAITING or QUEUED agent**: Edit dependency names, a time floor, the `runners` threshold, or the runner-slot
+  `priority`. A runner-slot-parked agent applies a runners- or priority-only edit live on its next poll; changing
+  earlier wait stages restarts the agent. Clearing an explicit runner threshold returns it to the global
+  `max_running_agents` cap rather than bypassing that cap.
+- **RUNNING agent**: Enter a dependency, time floor, runners threshold, or priority to kill and restart the current
+  agent with a canonical `%wait(...)` directive.
+
+Priority must be a non-negative integer and defaults to `10`; lower values are admitted first. See
+[Runner slot waits](troubleshooting/runner-slots.md) for how priority interacts with FIFO order and the bounded
+deference window applied to deprioritized waiters.
+
+`Enter` applies, `Tab` accepts an agent-name completion, `Ctrl+R` runs the agent now by clearing every wait condition,
+and `Escape` cancels. The modal supports readline-style keybindings (`Ctrl+F`/`Ctrl+B`/`Ctrl+A`/`Ctrl+E`) for cursor
+movement.
 
 ### VCS Tag Resolution in Fork/Wait
 
@@ -670,8 +743,8 @@ launch.
 Press `a` on a focused agent to open the artifact panel whenever artifacts are associated with that agent. The list can
 include chat transcripts, plan files, generated Markdown PDFs, generated images, generated videos, prompt-referenced
 media from saved prompt artifacts, and explicit files saved with
-`sase artifact create -p <path> [-n <label>] [-k <kind>]`. ACE always opens the panel, even for a single artifact, so
-the label, kind, and path are visible before launching the terminal viewer.
+`sase artifact-file create -p <path> [-n <label>] [-k <kind>]`. ACE always opens the panel, even for a single artifact,
+so the label, kind, and path are visible before launching the terminal viewer.
 
 The prompt/detail header includes those non-chat entries in the plan-adjacent `SASE CONTEXT` `ARTIFACTS` lane. Within
 that lane, `Commits`, `Deltas`, and `Artifacts` stay in that order when present. Paths are made workspace-relative when
@@ -3209,8 +3282,9 @@ and axe only after provider and agents-repository work finishes, while provider-
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate pane-wide agent-CLI action: on
 the Agent CLIs sub-tab it updates the marked `Space` selection, and elsewhere it targets every safely updatable
-installed CLI. See the [Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior, and
-[Plugins](plugins.md) for the equivalent `sase plugin` CLI.
+installed CLI. See the [Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior,
+[Plugins](plugins.md) for the equivalent `sase plugin` CLI, and
+[Agent providers](agent_providers.md#inventory-and-updates) for the equivalent `sase agent-cli` CLI.
 
 Separately, ACE fetches and checks enabled agents repositories after first paint and on the remote cadence configured by
 `ace.agents_sync`; cheaper checks between fetches only reconcile cached entries and receipts. A green `⇅ N` top-bar

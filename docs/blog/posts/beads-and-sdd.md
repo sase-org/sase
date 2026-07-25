@@ -46,9 +46,9 @@ GitHub projects use split `--plans` and `--research` companions; unmigrated GitH
 clone; providerless projects use the primary workspace's local `.sase/sdd/` store. A positive companion-store record
 preserves the resolved GitHub layout for offline use.
 
-`sase sdd list -k epics` lists every epic; `sase sdd validate` checks the prompt/plan link graph; `sase sdd init`
-materializes provider-owned storage and refreshes the generated READMEs and directory-map asset. The reference is in
-[`sdd.md`](../../sdd.md).
+`sase plan search -k epic` lists every epic; `sase plan links validate` checks the prompt/plan link graph;
+`sase repo init` materializes provider-owned storage and refreshes the generated READMEs and directory-map asset. The
+reference is in [`sdd.md`](../../sdd.md).
 
 ## Beads Are the Work Unit
 
