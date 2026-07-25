@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -195,6 +196,81 @@ def test_rendered_waves_claim_while_waiting_then_promote_at_execution(
     with BeadProject(project_dir) as project:
         assert project.show(epic_id).status == Status.IN_PROGRESS
         assert project.show(epic_id).assignee == plan.land_agent_name
+
+
+def test_wait_claim_survives_publication_lag_and_holds_until_promotion(
+    project_dir: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reproduce the launch failure: the canonical store lags the epic graph.
+
+    The waiting agent's canonical checkout has not yet integrated the freshly
+    published graph, so its first claim attempt cannot find the bead at all.
+    The claim must recover from that, and the resulting ``claimed`` window must
+    last for the whole wait rather than ending milliseconds later.
+    """
+    _epic_id, phase_ids = seed_diamond(project_dir)
+    published_beads = project_dir / "sdd" / "beads"
+    canonical_root = tmp_path_factory.mktemp("canonical")
+    with BeadProject.init(canonical_root):
+        pass
+    canonical_beads = canonical_root / "sdd" / "beads"
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: canonical_beads,
+    )
+
+    integrations: list[Path] = []
+
+    def integrate(beads_dir: Path) -> None:
+        """Stand in for the fetch/rebase that publishes the graph locally."""
+        integrations.append(beads_dir)
+        shutil.copytree(published_beads, beads_dir, dirs_exist_ok=True)
+
+    monkeypatch.setattr("sase.bead.sync.refresh_bead_store", integrate)
+
+    blocker, waiting = phase_ids[0], phase_ids[1]
+    agent_name = "diamond-1.2"
+
+    assert claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id=waiting,
+        agent_name=agent_name,
+    )
+    assert integrations == [canonical_beads]
+    with BeadProject(canonical_root) as project:
+        issue = project.show(waiting)
+        assert (issue.status, issue.assignee) == (Status.CLAIMED, agent_name)
+
+    # The claim is held for the whole wait: the blocker runs to completion and
+    # a re-claim by the same agent is a no-op that needs no further recovery.
+    with BeadProject(canonical_root) as project:
+        project.close([blocker])
+    assert claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id=waiting,
+        agent_name=agent_name,
+    )
+    assert integrations == [canonical_beads]
+    with BeadProject(canonical_root) as project:
+        assert project.show(waiting).status == Status.CLAIMED
+
+    store = SddStore(
+        storage="in_tree",
+        sdd_dir=canonical_root / "sdd",
+        repo_root=canonical_root,
+    )
+    with patch("sase.sdd.store.resolve_sdd_store", return_value=store):
+        promoted = claim_bead_for_agent_launch(
+            agent_name=agent_name,
+            bead_id=waiting,
+            workspace_dir=str(canonical_root),
+            workspace_num=0,
+            artifacts_dir=str(canonical_root / "artifacts"),
+        )
+
+    assert (promoted.status, promoted.assignee) == (Status.IN_PROGRESS, agent_name)
 
 
 @pytest.mark.parametrize("target", ["phase", "epic"])

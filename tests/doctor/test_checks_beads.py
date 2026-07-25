@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 
 from sase.bead.model import Issue, Status
@@ -259,3 +261,128 @@ def test_project_beads_resolves_claim_owner_from_any_artifact(
 
     assert check.status == "OK"
     assert check.details == ()
+
+
+def _stub_open_bead(monkeypatch, bead_id: str) -> None:
+    """Route the bead reads of ``_check_project_beads`` at one open bead."""
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.rust_beads.doctor",
+        lambda _path: ["OK: no issues found"],
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.rust_beads.list_issues",
+        lambda _path, statuses: [
+            Issue(
+                id=bead_id,
+                title="Waiting phase",
+                status=Status.OPEN,
+                parent_id="sase-1",
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.rust_beads.stats",
+        lambda _path: {"open": 1, "claimed": 0, "in_progress": 0, "closed": 0},
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.bead_state_is_clean",
+        lambda _path: True,
+    )
+
+
+def _stub_agent_scan(
+    monkeypatch,
+    tmp_path: Path,
+    *,
+    agent_name: str,
+    bead_id: str,
+    agent_meta: dict[str, object],
+    pid: int | None,
+) -> None:
+    """Publish one ace-run artifact record backed by a real metadata file."""
+    artifact_dir = tmp_path / "artifacts" / agent_name
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps({"name": agent_name, "bead_id": bead_id, **agent_meta}),
+        encoding="utf-8",
+    )
+
+    def scan(
+        root: Path,
+        options: AgentArtifactScanOptionsWire,
+    ) -> AgentArtifactScanWire:
+        return AgentArtifactScanWire(
+            schema_version=4,
+            projects_root=str(root),
+            options=options,
+            stats=AgentArtifactScanStatsWire(),
+            records=[
+                AgentArtifactRecordWire(
+                    project_name="proj",
+                    project_dir=str(root / "proj"),
+                    project_file=str(root / "proj" / "proj.sase"),
+                    workflow_dir_name="ace-run",
+                    artifact_dir=str(artifact_dir),
+                    timestamp="20260725120000",
+                    agent_meta=AgentMetaWire(
+                        name=agent_name,
+                        bead_id=bead_id,
+                        pid=pid,
+                    ),
+                )
+            ],
+        )
+
+    monkeypatch.setattr("sase.doctor.checks_beads.scan_agent_artifacts", scan)
+
+
+def test_project_beads_warns_about_live_agent_whose_bead_is_unclaimed(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """The reconciler failing to claim for a live agent is reported, not fixed."""
+    (tmp_path / "sdd" / "beads").mkdir(parents=True)
+    _stub_open_bead(monkeypatch, "sase-1.1")
+    _stub_agent_scan(
+        monkeypatch,
+        tmp_path,
+        agent_name="sase-1.1",
+        bead_id="sase-1.1",
+        agent_meta={},
+        pid=os.getpid(),
+    )
+
+    check = _check_project_beads(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert "sase-1.1 (sase-1.1)" in check.details[0]
+    assert "bead_claim_checks" in check.details[0]
+
+
+def test_project_beads_ignores_promoted_and_dead_bead_owners(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "sdd" / "beads").mkdir(parents=True)
+    _stub_open_bead(monkeypatch, "sase-1.1")
+    _stub_agent_scan(
+        monkeypatch,
+        tmp_path,
+        agent_name="sase-1.1",
+        bead_id="sase-1.1",
+        agent_meta={"bead_claim_promoted": True},
+        pid=os.getpid(),
+    )
+
+    assert _check_project_beads(_context(tmp_path)).status == "OK"
+
+    _stub_agent_scan(
+        monkeypatch,
+        tmp_path,
+        agent_name="sase-1.1",
+        bead_id="sase-1.1",
+        agent_meta={},
+        pid=None,
+    )
+
+    assert _check_project_beads(_context(tmp_path)).status == "OK"

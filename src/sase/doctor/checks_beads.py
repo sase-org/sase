@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from sase.agent.names import is_process_alive
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
 from sase.bead.model import Issue, Status
 from sase.bead.sync import bead_state_is_clean
 from sase.core import bead_read_facade as rust_beads
 from sase.core.agent_scan_facade import scan_agent_artifacts
-from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
+from sase.core.agent_scan_wire import (
+    AgentArtifactScanOptionsWire,
+    AgentArtifactScanWire,
+    AgentMetaWire,
+)
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
 from sase.doctor.checks_project import resolve_current_project_record
 
@@ -59,18 +65,11 @@ def _check_project_beads(context: DoctorContext) -> DiagnosticCheck:
         )
 
     messages = rust_beads.doctor(beads_dir)
-    orphaned_claims = _claimed_beads_without_artifacts(
-        beads_dir,
-        context.sase_home / "projects",
-    )
-    if orphaned_claims:
+    advisories = _claim_advisories(beads_dir, context.sase_home / "projects")
+    if advisories:
         if len(messages) == 1 and messages[0].strip().upper().startswith("OK:"):
             messages = []
-        bead_ids = ", ".join(issue.id for issue in orphaned_claims)
-        messages.append(
-            "WARNING: claimed beads have no resolvable agent artifact: "
-            f"{bead_ids}; run `sase bead open <id>` to reopen them"
-        )
+        messages.extend(advisories)
     sync_clean = _bead_sync_clean(beads_dir)
     if sync_clean is False:
         ok_message = "OK: no issues found"
@@ -102,21 +101,55 @@ def _check_project_beads(context: DoctorContext) -> DiagnosticCheck:
     )
 
 
-def _claimed_beads_without_artifacts(
-    beads_dir: Path,
-    projects_root: Path,
-) -> list[Issue]:
-    """Return claimed issues whose assignees have no artifact anywhere."""
+def _claim_advisories(beads_dir: Path, projects_root: Path) -> list[str]:
+    """Return read-only advisories about claims that disagree with agents.
+
+    Two mirrored disagreements are reported, and neither ever mutates:
+    a claimed bead whose owner has no artifact anywhere, and a live
+    pre-launch agent whose bead is still ``open`` even though the
+    ``bead_claim_checks`` chop should have claimed it for that agent.
+    """
     try:
-        claimed = rust_beads.list_issues(beads_dir, statuses=[Status.CLAIMED])
+        issues = rust_beads.list_issues(
+            beads_dir,
+            statuses=[Status.CLAIMED, Status.OPEN],
+        )
     except Exception:  # noqa: BLE001 - advisory failure must not break doctor.
         return []
-    if not claimed:
+    claimed = [issue for issue in issues if issue.status == Status.CLAIMED]
+    open_ids = {issue.id for issue in issues if issue.status == Status.OPEN}
+    if not claimed and not open_ids:
         return []
 
     try:
         snapshot = scan_agent_artifacts(projects_root, _CLAIM_OWNER_SCAN_OPTIONS)
     except Exception:  # noqa: BLE001 - failed resolution proves nothing.
+        return []
+
+    messages: list[str] = []
+    orphaned = _claims_without_artifacts(claimed, snapshot)
+    if orphaned:
+        bead_ids = ", ".join(issue.id for issue in orphaned)
+        messages.append(
+            "WARNING: claimed beads have no resolvable agent artifact: "
+            f"{bead_ids}; run `sase bead open <id>` to reopen them"
+        )
+    unclaimed = _live_agents_without_claims(open_ids, snapshot)
+    if unclaimed:
+        owners = ", ".join(f"{bead_id} ({agent})" for bead_id, agent in unclaimed)
+        messages.append(
+            "WARNING: live pre-launch agents own beads that are still open: "
+            f"{owners}; check that the `bead_claim_checks` chop is running"
+        )
+    return messages
+
+
+def _claims_without_artifacts(
+    claimed: list[Issue],
+    snapshot: AgentArtifactScanWire,
+) -> list[Issue]:
+    """Return claimed issues whose assignees have no artifact anywhere."""
+    if not claimed:
         return []
     artifact_owners = {
         record.agent_meta.name
@@ -124,6 +157,51 @@ def _claimed_beads_without_artifacts(
         if record.agent_meta is not None and record.agent_meta.name
     }
     return [issue for issue in claimed if issue.assignee not in artifact_owners]
+
+
+def _live_agents_without_claims(
+    open_ids: set[str],
+    snapshot: AgentArtifactScanWire,
+) -> list[tuple[str, str]]:
+    """Return ``(bead_id, agent_name)`` pairs the reconciler should have claimed.
+
+    Only an ``open`` bead qualifies: a bead that reached ``in_progress`` or
+    ``closed`` was legitimately promoted past the claim, and the promotion
+    flag in ``agent_meta.json`` can lag that transition by a moment.
+    """
+    if not open_ids:
+        return []
+    unclaimed: dict[str, str] = {}
+    for record in snapshot.records:
+        meta = record.agent_meta
+        if meta is None or not meta.name or meta.bead_id not in open_ids:
+            continue
+        artifact_dir = Path(record.artifact_dir)
+        raw_meta = _read_json_dict(artifact_dir / "agent_meta.json")
+        if raw_meta is None or raw_meta.get("bead_claim_promoted") is True:
+            continue
+        if not _agent_process_is_alive(meta, artifact_dir):
+            continue
+        unclaimed[str(meta.bead_id)] = meta.name
+    return sorted(unclaimed.items())
+
+
+def _agent_process_is_alive(meta: AgentMetaWire, artifact_dir: Path) -> bool:
+    liveness: dict[str, object] = {}
+    if meta.pid is not None:
+        liveness["pid"] = meta.pid
+    if meta.stopped_at is not None:
+        liveness["stopped_at"] = meta.stopped_at
+    return is_process_alive(liveness, artifact_dir)
+
+
+def _read_json_dict(path: Path) -> dict[str, Any] | None:
+    try:
+        with path.open(encoding="utf-8") as stream:
+            payload = json.load(stream)
+    except (json.JSONDecodeError, OSError):
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _bead_sync_clean(beads_dir: Path) -> bool | None:

@@ -107,15 +107,25 @@ open ──claim──▶ claimed ──promote──▶ in_progress ──close
 - **Claim.** When a bead-carrying agent enters a wait phase (dependency `%wait`, runner-slot, or duration waits), the
   runner sets the bead to `claimed` and assigns it to the agent name. Claims are written to the project's canonical bead
   store and committed locally, but never pushed — a claim is host-local runtime state. Claiming is advisory: it never
-  blocks or fails an agent launch, and a straight-through launch with no waits skips it entirely.
+  blocks or fails an agent launch, and a straight-through launch with no waits skips it entirely. Because it is
+  advisory, the claim is acquired **best-effort**: the runner retries a bounded number of times (refreshing the
+  canonical store once when the bead is not there yet, which is normal right after an epic graph is published), and
+  whatever it fails to acquire is picked up by the `bead_claim_checks` reconciler. A bead can therefore turn `claimed` a
+  few seconds after its agent starts waiting rather than instantly.
 - **Promote.** Immediately before model execution the runner performs the existing just-in-time claim, which sets
   `status=in_progress` and assigns the runner name. Promotion is what makes the claim permanent; from that point the
   claim is never released automatically.
 - **Release.** If the owning agent dies before it ever promoted its claim, the bead returns to `open` with an empty
   assignee. The runner shutdown path releases the claim on ordinary kills (except when a retry handoff is pending, which
-  keeps the claim), and the `bead_claim_checks` chop — registered under the `waits` lumberjack — is the backstop for
-  SIGKILL, crashes, and reboots. It releases a claim only when the owning agent is dead, never promoted, and resolvable
-  to its artifact; anything else is left untouched and reported by `sase doctor` instead.
+  keeps the claim), and the `bead_claim_checks` chop is the backstop for SIGKILL, crashes, and reboots. It releases a
+  claim only when the owning agent is dead, never promoted, and resolvable to its artifact; anything else is left
+  untouched and reported by `sase doctor` instead.
+- **Reconcile.** The `bead_claim_checks` chop — registered under the `waits` lumberjack — runs in both directions. Next
+  to the release pass above, an acquire pass claims a bead on behalf of a live agent that is waiting without a claim,
+  which is what makes a lost or delayed claim self-healing within one `waits` interval. A held claim is recorded in the
+  agent's `bead_claim.json` artifact file, so an agent that already holds its claim costs the chop nothing: it is
+  filtered out without opening a bead store. `sase doctor` reports the residue in either direction — a claim with no
+  resolvable owner, and a live pre-launch agent whose bead is still `open`.
 
 Claim and release are compare-and-swap operations: a claim succeeds only from `open` (re-claiming your own claim is a
 no-op), and a release succeeds only when the bead is still `claimed` by the releasing agent. Both decline silently
@@ -343,6 +353,8 @@ Run health checks on the beads database. Checks for:
 - Uncommitted bead-state changes
 - Orphan children (phase or nested-plan beads whose parent is missing)
 - `claimed` beads whose assignee resolves to no agent artifact (reported only; run `sase bead open <id>` to clear them)
+- `open` beads owned by a live agent that has not started work yet (reported only; it means the `bead_claim_checks` chop
+  is not running or is failing, since it should have claimed them)
 
 If bead commands fail before opening a store, run `sase core health` first. It verifies that the required `sase_core_rs`
 extension is importable and exposes the representative bead CLI binding used by the fast path.
