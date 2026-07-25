@@ -149,9 +149,9 @@ every open canonical clan in that same group in one batch, and only then falls b
 and grouping collapse on a later press. Thus an open sibling clan collapses even when the focused clan is already
 closed. Selecting the clan row shows an aggregate `CLAN` header and a navigable summary of every section represented
 across its members. In the Agents list, direct members sort by status priority — Failed, Stopped, Running/Starting,
-Waiting, Done — and then by launch recency within a bucket. The metadata roster uses chronological launch order instead,
-keeping its number-to-member mapping stable while statuses change. The runtime is the union of member run intervals,
-with human-wait windows excluded, so concurrent members are not double-counted.
+Queued, Waiting, Done — and then by launch recency within a bucket. The metadata roster uses chronological launch order
+instead, keeping its number-to-member mapping stable while statuses change. The runtime is the union of member run
+intervals, with human-wait windows excluded, so concurrent members are not double-counted.
 
 ### Clan summary folding
 

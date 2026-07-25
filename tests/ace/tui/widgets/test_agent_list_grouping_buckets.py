@@ -123,6 +123,11 @@ def test_by_status_mode_hides_starting_bucket() -> None:
                 start_time=datetime(2026, 4, 26, 10, 0, 0),
             ),
             make_agent(
+                cl_name="queued",
+                status="QUEUED",
+                start_time=datetime(2026, 4, 26, 10, 30, 0),
+            ),
+            make_agent(
                 cl_name="starting",
                 status="STARTING",
                 start_time=datetime(2026, 4, 26, 12, 0, 0),
@@ -147,6 +152,7 @@ def test_by_status_mode_hides_starting_bucket() -> None:
         "Stopped",
         "Failed",
         "Running",
+        "Queued",
         "Waiting",
         "Done",
     ]

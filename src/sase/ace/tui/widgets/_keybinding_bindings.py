@@ -296,7 +296,7 @@ class KeybindingBindingsMixin:
                     bindings.append((x, "dismiss"))
                 else:
                     bindings.append((x, "kill"))
-            if agent.status in ("STARTING", "WAITING", "RUNNING"):
+            if agent.status in ("STARTING", "WAITING", "QUEUED", "RUNNING"):
                 bindings.append((self._kd("reword"), "edit wait"))
             if agent.agent_name:
                 bindings.append((self._kd("add_tag"), "new w/ wait"))

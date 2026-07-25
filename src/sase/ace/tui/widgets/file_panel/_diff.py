@@ -116,6 +116,7 @@ _ACTIVE_DIFF_SOURCE_STATUSES = frozenset(
     {
         "STARTING",
         "WAITING",
+        "QUEUED",
         "RUNNING",
         *ACTIVE_PLAN_HANDOFF_STATUSES,
     }

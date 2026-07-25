@@ -5,7 +5,7 @@ from __future__ import annotations
 from rich.text import Text
 
 AGENT_COUNT_CHIP_NEUTRAL_STYLE = "#AFAFAF"
-AGENT_COUNT_CHIP_QUEUED_STYLE = "bold #FF87D7"
+AGENT_COUNT_CHIP_QUEUED_STYLE = "bold #5F87FF"
 AGENT_COUNT_CHIP_METRIC_STYLES: dict[str, str] = {
     "stopped": "bold #FFAF00",
     "running": "bold #00D7AF",

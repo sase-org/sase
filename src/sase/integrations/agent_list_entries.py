@@ -7,7 +7,13 @@ from dataclasses import replace
 from datetime import datetime
 
 from sase.agent.running import RunningAgentInfo, list_all_agents, list_running_agents
-from sase.agent.status_buckets import AGENT_STATUS_BUCKETS
+from sase.agent.status_buckets import (
+    AGENT_STATUS_BUCKETS,
+    AGENT_STATUS_BUCKET_GLYPHS,
+    PRE_RUN_WAIT_STATUSES,
+    runner_slot_display_status,
+    status_bucket_for_values,
+)
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
@@ -100,32 +106,49 @@ def _attach_runner_slot_context(
     runner_slot_holders: tuple[str, ...] = (),
 ) -> list[AgentListEntry]:
     waiters = sorted(
-        (
-            entry
-            for entry in entries
-            if entry.wait.slot_requested_at
-            and entry.wait.wait_runners is not None
-            and runner_slots_in_use <= entry.wait.wait_runners
-        ),
+        (entry for entry in entries if _is_live_slot_waiter(entry)),
         key=_runner_slot_waiter_sort_key,
     )
     positions = {id(entry): index for index, entry in enumerate(waiters, 1)}
     queue_size = len(waiters)
-    return [
-        replace(
-            entry,
-            wait=replace(
-                entry.wait,
+    contextualized: list[AgentListEntry] = []
+    for entry in entries:
+        status = runner_slot_display_status(
+            entry.status,
+            globally_queued=_is_globally_queued(entry),
+        )
+        bucket = status_bucket_for_values(status, entry.retry.retried_as_timestamp)
+        wait = entry.wait
+        if wait.slot_requested_at:
+            wait = replace(
+                wait,
                 runner_slots_in_use=runner_slots_in_use,
                 runner_slot_queue_position=positions.get(id(entry)),
                 runner_slot_queue_size=queue_size,
                 runner_slot_holders=runner_slot_holders,
-            ),
+            )
+        contextualized.append(
+            replace(
+                entry,
+                status=status,
+                status_bucket=bucket,
+                status_glyph=AGENT_STATUS_BUCKET_GLYPHS.get(bucket, ""),
+                wait=wait,
+            )
         )
-        if entry.wait.slot_requested_at
-        else entry
-        for entry in entries
-    ]
+    return contextualized
+
+
+def _is_live_slot_waiter(entry: AgentListEntry) -> bool:
+    return bool(
+        entry.pid is not None
+        and entry.wait.slot_requested_at
+        and entry.status in PRE_RUN_WAIT_STATUSES
+    )
+
+
+def _is_globally_queued(entry: AgentListEntry) -> bool:
+    return _is_live_slot_waiter(entry) and not entry.wait.wait_runners_explicit
 
 
 def _runner_slot_waiter_sort_key(

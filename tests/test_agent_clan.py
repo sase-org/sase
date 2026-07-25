@@ -49,6 +49,11 @@ def test_clan_pending_plan_status_uses_review_priority() -> None:
     assert aggregate_clan_status(["EPIC", "QUESTION"]) == "QUESTION"
 
 
+def test_clan_waiting_outranks_queued_and_queued_aggregates_on_its_own() -> None:
+    assert aggregate_clan_status(["QUEUED", "DONE"]) == "QUEUED"
+    assert aggregate_clan_status(["QUEUED", "WAITING"]) == "WAITING"
+
+
 def test_clan_unread_counts_deduplicate_and_replace_successful_done() -> None:
     container = _agent("research", "FAILED", suffix=None)
     container.is_clan_container = True
@@ -84,7 +89,7 @@ def test_clan_queue_count_projects_parallel_member_behind_family() -> None:
     container.is_clan_container = True
     family = _agent("research.family", "WAITING", suffix="family")
     family.agent_family_parallel = True
-    queued = _agent("research.family.phase", "WAITING", suffix="phase")
+    queued = _agent("research.family.phase", "QUEUED", suffix="phase")
     queued.agent_family_parallel = True
     queued.parent_timestamp = family.raw_suffix
     queued.pid = 100

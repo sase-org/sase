@@ -9,6 +9,8 @@ from rich.text import Text
 
 from sase.agent.status_buckets import (
     AGENT_STATUS_BUCKET_GLYPHS,
+    QUEUED_STATUS,
+    QUEUED_STATUS_COLOR,
     status_bucket_for_values,
 )
 from sase.project_display_names import humanize_cl_name
@@ -39,6 +41,10 @@ _WAITING_VALUE_STYLE = "#FF87D7"
 # accents in ``_agent_list_render_agent.py`` / ``models.agent_status``.
 _WAIT_STATUS_BADGES: dict[str, tuple[str, str]] = {
     "Running": (AGENT_STATUS_BUCKET_GLYPHS["Running"], "bold #FFD700"),
+    "Queued": (
+        AGENT_STATUS_BUCKET_GLYPHS["Queued"],
+        f"bold {QUEUED_STATUS_COLOR}",
+    ),
     "Waiting": (AGENT_STATUS_BUCKET_GLYPHS["Waiting"], "bold #AF87FF"),
     "Starting": (AGENT_STATUS_BUCKET_GLYPHS["Starting"], "bold #87D7FF"),
     "Done": (AGENT_STATUS_BUCKET_GLYPHS["Done"], "bold #5FD75F"),
@@ -54,10 +60,33 @@ _LEGACY_MEMBER_STATUS_STYLES: dict[str, str] = {
     "Stopped": "bold #FFAF5F",
     "Starting": "bold #87D7FF",
     "Running": "bold #FFD700",
+    "Queued": f"bold {QUEUED_STATUS_COLOR}",
     "Waiting": "bold #AF87FF",
     "Failed": "bold #FF5F5F",
     "Done": "bold #5FD75F",
 }
+
+
+def _queued_for_label(requested_at: str | None) -> str | None:
+    """Return a compact elapsed label for a runner-slot request timestamp."""
+    if not requested_at:
+        return None
+    from datetime import UTC, datetime
+
+    from sase.ace.tui.models.agent import format_compact_duration
+    from sase.core.time import local_now
+
+    try:
+        requested = datetime.fromisoformat(requested_at.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if requested.tzinfo is None:
+        requested = requested.replace(tzinfo=UTC)
+    now = local_now()
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    elapsed = max(0.0, (now - requested.astimezone(now.tzinfo)).total_seconds())
+    return format_compact_duration(elapsed)
 
 
 def _append_wait_status_badge(text: Text, bucket: str | None) -> None:
@@ -192,6 +221,37 @@ def _append_wait_field(
     )
 
     wait_agent = wait_display_agent(agent)
+    if agent.status == QUEUED_STATUS:
+        text.append("Queue: ", style="bold #87D7FF")
+        position = wait_agent.runner_slot_queue_position
+        queue_size = wait_agent.runner_slot_queue_size
+        if position is not None:
+            text.append(f"#{position}", style=f"bold {QUEUED_STATUS_COLOR}")
+            if queue_size is not None:
+                text.append(f" of {queue_size}", style=QUEUED_STATUS_COLOR)
+        else:
+            text.append("pending", style=f"bold {QUEUED_STATUS_COLOR}")
+        queued_for = _queued_for_label(wait_agent.slot_requested_at)
+        if queued_for is not None:
+            text.append(" · ", style="dim")
+            text.append(f"requested {queued_for} ago", style=QUEUED_STATUS_COLOR)
+        in_use = wait_agent.runner_slots_in_use
+        threshold = wait_agent.wait_runners
+        if in_use is not None:
+            text.append(" · ", style="dim")
+            if threshold is not None:
+                text.append(
+                    f"{in_use}/{threshold + 1} runners",
+                    style=f"dim {QUEUED_STATUS_COLOR}",
+                )
+            else:
+                text.append(
+                    f"{in_use} runner{'s' if in_use != 1 else ''} in use",
+                    style=f"dim {QUEUED_STATUS_COLOR}",
+                )
+        text.append("\n")
+        return
+
     has_slot_wait = bool(
         wait_agent.slot_requested_at and wait_agent.wait_runners is not None
     )
@@ -297,11 +357,9 @@ def _append_wait_field(
         queue_size = wait_agent.runner_slot_queue_size
         if position is not None and queue_size is not None:
             text.append(
-                f" · eligible #{position} of {queue_size}",
+                f" · queue #{position} of {queue_size}",
                 style="dim #AF87FF",
             )
-        elif in_use is not None and in_use > threshold:
-            text.append(" · not currently eligible", style="dim #AF87FF")
         if wait_agent.wait_priority_explicit and wait_agent.wait_priority is not None:
             text.append(
                 f" · priority {wait_agent.wait_priority}",

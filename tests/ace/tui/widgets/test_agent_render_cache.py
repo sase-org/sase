@@ -175,6 +175,7 @@ def test_cached_family_root_invalidates_when_member_joins_global_queue() -> None
     member.waiting_for = []
     member.wait_runners = 9
     member.slot_requested_at = "2026-04-25T14:31:00Z"
+    member.status = "QUEUED"
     global_wait = cached_format_agent_option(
         cache,
         root,

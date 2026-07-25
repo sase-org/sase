@@ -20,6 +20,7 @@ from sase.project_display_names import (
 _STATUS_COLORS: dict[str, str] = {
     "STARTING": "cyan",
     "RUNNING": "green",
+    "QUEUED": "#5F87FF",
     "WAITING": "yellow",
     "DONE": "bright_black",
     "FAILED": "red",

@@ -18,7 +18,9 @@ from ._dedup import (
 from .agent import Agent
 
 
-_LIVE_PLAN_AGENT_BUCKETS = frozenset({"Stopped", "Starting", "Running", "Waiting"})
+_LIVE_PLAN_AGENT_BUCKETS = frozenset(
+    {"Stopped", "Starting", "Running", "Queued", "Waiting"}
+)
 
 
 def apply_snapshot_clan_context(

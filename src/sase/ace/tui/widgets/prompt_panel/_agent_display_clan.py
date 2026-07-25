@@ -46,6 +46,7 @@ _MEMBER_STATUS_STYLES: dict[str, str] = {
     "Stopped": "bold #FFAF5F",
     "Starting": "bold #87D7FF",
     "Running": "bold #FFD700",
+    "Queued": "bold #5F87FF",
     "Waiting": "bold #AF87FF",
     "Failed": "bold #FF5F5F",
     "Done": "bold #5FD75F",

@@ -37,6 +37,7 @@ _LIVE_FILE_REFRESH_STATUSES = frozenset(
     {
         "RUNNING",
         "WAITING",
+        "QUEUED",
         "WAITING INPUT",
         *PENDING_PLAN_REVIEW_STATUSES,
         *ACTIVE_PLAN_HANDOFF_STATUSES,

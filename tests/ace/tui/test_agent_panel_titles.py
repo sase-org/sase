@@ -376,7 +376,7 @@ def test_panel_counts_use_lanes_for_total_and_statuses() -> None:
     clan_standalone = _agent(
         name="research.standalone",
         suffix="research-standalone",
-        status="WAITING",
+        status="QUEUED",
     )
     clan_standalone.agent_clan = "research"
     clan_standalone.agent_clan_generation = "gen-1"

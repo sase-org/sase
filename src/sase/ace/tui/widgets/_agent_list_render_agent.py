@@ -13,6 +13,8 @@ from sase.agent.status_buckets import (
     PENDING_EPIC_STATUS,
     PENDING_TALE_STATUS,
     PLAN_APPROVED_STATUS,
+    QUEUED_STATUS,
+    QUEUED_STATUS_COLOR,
     TALE_APPROVED_STATUS,
     WORKING_PLAN_STATUS,
     WORKING_TALE_STATUS,
@@ -272,6 +274,15 @@ def format_agent_option(
         text.append(display_status, style="bold #5FD75F")  # Green
     elif agent.status == "EPIC APPROVED":
         text.append(display_status, style="bold #5FD7AF")  # Sea-green
+    elif agent.status == QUEUED_STATUS:
+        text.append(display_status, style=f"bold {QUEUED_STATUS_COLOR}")
+        position = agent.runner_slot_queue_position
+        queue_size = agent.runner_slot_queue_size
+        if position is not None:
+            queue_label = f" #{position}"
+            if queue_size is not None:
+                queue_label += f"/{queue_size}"
+            text.append(queue_label, style=QUEUED_STATUS_COLOR)
     elif agent.status == "WAITING":
         text.append(display_status, style="bold #AF87FF")  # Amethyst
         wait_agent = wait_display_agent(agent)

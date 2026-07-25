@@ -68,6 +68,7 @@ def _clan_rows(
         ("Done", "✓", "bold #5FD75F"),
         ("Running", "▶", "bold #FFD700"),
         ("Failed", "✗", "bold #FF5F5F"),
+        ("Queued", "…", "bold #5F87FF"),
         ("Waiting", "⏳", "bold #AF87FF"),
         ("Starting", "◐", "bold #87D7FF"),
         ("Stopped", "▲", "bold #8787AF"),
@@ -308,6 +309,7 @@ def test_collect_agent_status_buckets_applies_family_precedence() -> None:
         (["DONE", "DONE"], "Done"),
         (["RUNNING", "DONE"], "Running"),
         (["RUNNING", "FAILED"], "Failed"),
+        (["QUEUED", "DONE"], "Queued"),
         (["WAITING", "DONE"], "Waiting"),
     ],
 )
@@ -328,6 +330,7 @@ def test_collect_agent_status_buckets_aggregates_clan_members(
         "DONE": "Done",
         "RUNNING": "Running",
         "FAILED": "Failed",
+        "QUEUED": "Queued",
         "WAITING": "Waiting",
     }
     assert clan_members["sase-7g"] == tuple(

@@ -265,7 +265,7 @@ class Agent(AgentState):
 
         first_tag = (
             "WAIT"
-            if self.wait_start_time is not None or self.status == "WAITING"
+            if self.wait_start_time is not None or self.status in {"WAITING", "QUEUED"}
             else "START"
         )
         first_time = self.wait_start_time or self.start_time

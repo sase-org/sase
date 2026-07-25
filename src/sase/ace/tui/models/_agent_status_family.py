@@ -436,7 +436,14 @@ def planner_child_status(
     logical_child: Agent | None = None,
 ) -> str:
     """Status for the logical planner child derived from a family root."""
-    if parent.status in {"STARTING", "WAITING", "RUNNING", "FAILED", "PLAN REJECTED"}:
+    if parent.status in {
+        "STARTING",
+        "WAITING",
+        "QUEUED",
+        "RUNNING",
+        "FAILED",
+        "PLAN REJECTED",
+    }:
         return parent.status
     if parent.status in {"QUESTION", "ANSWERED"}:
         return parent.status

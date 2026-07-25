@@ -1300,7 +1300,7 @@ Python/bash steps, and axe ChangeSpec runners do not consume these slots.
 A slot participant that pauses at `QUESTION` temporarily yields its slot while waiting for the user's answer. Answering
 does not bypass the cap: before follow-up work resumes, the agent reacquires capacity through the same locked
 priority/FIFO gate using the current effective global `max_running_agents` limit. If the cap is full, the answered agent
-appears as a normal runner-slot `WAITING` row until admitted. Its original `%wait(runners=N)` threshold governed initial
+appears as a normal runner-slot `QUEUED` row until admitted. Its original `%wait(runners=N)` threshold governed initial
 admission and is not reapplied to this resume, while its authored `priority=N` is retained for admission under the
 current global cap.
 

@@ -266,7 +266,7 @@ def test_clan_family_and_standalone_render_as_two_direct_lanes() -> None:
 def test_clan_header_queue_count_excludes_explicit_and_dependency_waits() -> None:
     implicit = make_clan_agent(
         "research.implicit",
-        status="WAITING",
+        status="QUEUED",
         start=datetime(2026, 7, 17, 12, 0, 0),
     )
     explicit = make_clan_agent(
@@ -293,7 +293,7 @@ def test_clan_header_queue_count_excludes_explicit_and_dependency_waits() -> Non
 
     assert "Status: WAITING [Q1 W2]\n" in detail.plain
     queue_digit = detail.plain.index("Q1") + 1
-    assert style_at(detail, queue_digit) == "bold #FF87D7"
+    assert style_at(detail, queue_digit) == "bold #5F87FF"
 
 
 def test_clan_build_header_path_is_aggregate_only() -> None:

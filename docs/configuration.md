@@ -1572,7 +1572,7 @@ agents—including independently launched clan members—and eligible parallel f
 workflow Python/bash steps, and axe ChangeSpec runners are excluded; axe runners continue to use their separate
 `axe.max_*_runners` limits. An unanswered participant at `QUESTION` temporarily yields its slot. After the user answers,
 it must reacquire against the current effective cap before follow-up work resumes and may therefore appear as a
-runner-slot `WAITING` row.
+runner-slot `QUEUED` row.
 
 ```yaml
 max_running_agents: 10

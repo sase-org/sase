@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 _WAIT_DEPENDENCY_BUCKET_PRECEDENCE: tuple[str, ...] = (
     "Running",
     "Starting",
+    "Queued",
     "Waiting",
     "Done",
     "Stopped",

@@ -12,6 +12,7 @@ from sase.ace.tui.models._agent_clan import (
 )
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
 
 _STARTED = datetime(2026, 7, 19, 9, 0, 0)
 
@@ -285,6 +286,7 @@ def test_queue_counts_are_orthogonal_and_dedupe_container_flat_rows() -> None:
     explicit.wait_runners_explicit = True
     explicit.slot_requested_at = "2026-07-19T09:00:01Z"
     dependency.waiting_for = ["research.other"]
+    refresh_runner_slot_context([implicit, explicit, dependency], effective_limit=10)
     container = project_clan_tree([implicit, explicit, dependency])[0]
 
     concrete = agent_summary_status_counts(
@@ -319,6 +321,7 @@ def test_queued_waiters_partition_waiting_counts() -> None:
         member.wait_runners = 9
         member.wait_runners_explicit = False
         member.slot_requested_at = f"2026-07-19T09:00:0{index}Z"
+    refresh_runner_slot_context(members, effective_limit=10)
     container = project_clan_tree(members)[0]
 
     clan = clan_member_counts(container)

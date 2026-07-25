@@ -324,6 +324,20 @@ def runner_slot_wait_agents() -> list[Agent]:
             llm_provider="claude",
             model="sonnet",
         ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-dependency-wait",
+            project_file="/workspace/sase/visual_project.sase",
+            status="WAITING",
+            start_time=datetime(2026, 7, 12, 11, 59, 0),
+            raw_suffix="20260712115900",
+            artifacts_dir="/workspace/sase/artifacts/ace-run/20260712115900",
+            agent_name="dependency-wait",
+            pid=4103,
+            waiting_for=["visual-upstream"],
+            llm_provider="qwen",
+            model="qwen3-coder",
+        ),
     ]
 
 

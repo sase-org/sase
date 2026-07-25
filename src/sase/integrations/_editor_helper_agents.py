@@ -282,6 +282,8 @@ def _aggregate_status(statuses: Iterable[str]) -> str:
         return "RUNNING"
     if "Waiting" in buckets:
         return "WAITING"
+    if "Queued" in buckets:
+        return "QUEUED"
     if buckets and all(bucket == "Done" for bucket in buckets):
         return "DONE"
     return "RUNNING"

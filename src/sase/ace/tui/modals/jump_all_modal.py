@@ -66,7 +66,8 @@ _AGENT_STATUS_STYLES: dict[str, str] = {
     "FAILED": "#FF5F5F",
     "KILLED": "#FF8C00",
     STOPPED_STATUS: STOPPED_COLOR,
-    "WAITING": "#FFD700",
+    "QUEUED": "#5F87FF",
+    "WAITING": "#AF87FF",
     "WORKFLOW": "#AF87FF",
 }
 

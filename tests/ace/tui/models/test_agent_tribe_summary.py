@@ -6,6 +6,7 @@ from datetime import datetime
 
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
 from sase.ace.tui.models.agent_tribe_summary import (
     build_agent_tribe_summary_snapshot,
     _tribe_panel_identity,
@@ -241,6 +242,7 @@ def test_tribe_queue_count_is_scoped_and_preserves_waiting_status() -> None:
     explicit.wait_runners_explicit = True
     explicit.slot_requested_at = "2026-07-18T14:00:01Z"
     dependency.waiting_for = ["research.other"]
+    refresh_runner_slot_context([implicit, explicit, dependency], effective_limit=10)
     projected = project_clan_tree([implicit, explicit, dependency])
 
     snapshot = build_agent_tribe_summary_snapshot(

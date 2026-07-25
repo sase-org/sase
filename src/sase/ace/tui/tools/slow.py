@@ -50,7 +50,7 @@ def format_long_duration(duration_ms: int) -> str:
 def agent_is_active_for_slow_tool_calls(agent: object) -> bool:
     """Return whether the row's runtime can still complete pending calls."""
     status = getattr(agent, "status", None)
-    return agent_is_active(status) or status == "WAITING"
+    return agent_is_active(status) or status in {"WAITING", "QUEUED"}
 
 
 def slow_tool_call_threshold_ms_from_config(

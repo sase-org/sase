@@ -42,6 +42,11 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 or workflow references, the editor, or the prompt-history picker, and multi-prompt input expands into sequential
 background launches. ACE uses the same launch machinery when users start agents from the TUI.
 
+`sase agent list -j` reports an implicit global-cap waiter as `status: "QUEUED"`. Its
+`runner_slot_queue_position`/`runner_slot_queue_size` rank every live slot waiter by priority and request FIFO,
+including explicit-threshold waits and periods when the pool is full; the fields are not limited to waiters whose
+threshold is already satisfied.
+
 Command groups with an exact `list` child default to that list view when invoked bare, including `sase bead`,
 `sase chat`, `sase file`, `sase file-history`, `sase memory`, `sase notify`, `sase plugin`, `sase project`,
 `sase prompt`, `sase skill`, `sase telemetry`, `sase workspace`, and `sase xprompt`. Nested groups such as

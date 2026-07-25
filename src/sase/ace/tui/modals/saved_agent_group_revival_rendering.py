@@ -24,6 +24,8 @@ _STATUS_COLORS: dict[str, str] = {
     "DONE": "#5FD75F",
     "FAILED": "#FF5F5F",
     STOPPED_STATUS: STOPPED_COLOR,
+    "QUEUED": "#5F87FF",
+    "WAITING": "#AF87FF",
     "WAITING INPUT": "#FF87D7",
     "RUNNING": "#87AFFF",
 }
@@ -35,6 +37,8 @@ _TITLE_AGENT_COUNT_RE = re.compile(r"^\d+\s+agents?(?=$|\s)")
 _STATUS_GLYPHS: dict[str, str] = {
     "FAILED": "x",
     "RUNNING": "●",
+    "QUEUED": "…",
+    "WAITING": "⏳",
     "DONE": "✓",
     STOPPED_STATUS: "Ø",
     "WAITING INPUT": "!",

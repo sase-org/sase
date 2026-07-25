@@ -223,7 +223,10 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
             return False
         if self._status_filter == "failed" and agent.status != "FAILED":
             return False
-        if self._status_filter == "waiting" and agent.status != "WAITING":
+        if self._status_filter == "waiting" and agent.status not in {
+            "WAITING",
+            "QUEUED",
+        }:
             return False
         if (
             self._tribe_filter is not None

@@ -67,6 +67,8 @@ def status_style(status: str) -> str:
     status_upper = status.upper()
     if status_upper in {"RUNNING", "STARTING"}:
         return "bold #00D7AF"
+    if status_upper == "QUEUED":
+        return "bold #5F87FF"
     if status_upper == "WAITING":
         return "bold #AF87FF"
     if "DONE" in status_upper:

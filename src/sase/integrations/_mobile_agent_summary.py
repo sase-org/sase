@@ -38,6 +38,7 @@ _KILLABLE_ACTIVE_STATUSES = frozenset(
         "STARTING",
         "RUNNING",
         "WAITING",
+        "QUEUED",
         "QUESTION",
         *PENDING_PLAN_REVIEW_STATUSES,
         *ACTIVE_PLAN_HANDOFF_STATUSES,

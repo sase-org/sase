@@ -97,9 +97,10 @@ def test_live_family_root_survives_shared_pid_for_runner_slot_context() -> None:
     capacity = refresh_runner_slot_context(result, effective_limit=1)
 
     assert capacity == RunnerCapacitySnapshot(1, 1, 1)
+    assert waiter.status == "QUEUED"
     assert waiter.runner_slots_in_use == 1
-    assert waiter.runner_slot_queue_position is None
-    assert waiter.runner_slot_queue_size == 0
+    assert waiter.runner_slot_queue_position == 1
+    assert waiter.runner_slot_queue_size == 1
 
     admission_records = [
         AgentArtifactRecordWire(

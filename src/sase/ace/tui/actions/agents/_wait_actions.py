@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
+from sase.agent.status_buckets import runner_slot_display_status
 from sase.ace.tui.agent_completion import (
     AgentCompletionCandidate,
     build_agent_completion_candidates,
@@ -55,9 +56,9 @@ class AgentWaitActionsMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        if agent.status not in ("STARTING", "WAITING", "RUNNING"):
+        if agent.status not in ("STARTING", "WAITING", "QUEUED", "RUNNING"):
             self.notify(  # type: ignore[attr-defined]
-                "Agent is not starting, waiting, or running",
+                "Agent is not starting, queued, waiting, or running",
                 severity="warning",
             )
             return
@@ -126,7 +127,7 @@ class AgentWaitActionsMixin:
         agent: Agent,
         result: WaitModalResult,
     ) -> None:
-        """Apply a WAITING-agent wait result."""
+        """Apply a WAITING- or QUEUED-agent wait result."""
         if result.run_now and agent.slot_requested_at:
             self._apply_live_runner_wait(artifacts_dir, agent, result)
             return
@@ -402,6 +403,10 @@ class AgentWaitActionsMixin:
         if update_wait_priority:
             agent.wait_priority = result.priority
             agent.wait_priority_explicit = result.priority is not None
+        agent.status = runner_slot_display_status(
+            agent.status,
+            globally_queued=result.runners is None,
+        )
         label = (
             f"runners ≤ {result.runners}"
             if result.runners is not None

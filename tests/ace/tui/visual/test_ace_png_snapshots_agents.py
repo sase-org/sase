@@ -130,6 +130,7 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 12, 12, 3, 0))
     monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 10)
     patch_startup_loaders(monkeypatch, agents=runner_slot_wait_agents())
 
@@ -137,24 +138,39 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 2)
+        await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
 
+        await page.press("j")
+        await wait_for_visual_idle(page)
         selected = page.app._agents[page.app.current_idx]
-        assert selected.runner_slot_queue_position == 2
+        assert selected.status == "QUEUED"
+        assert selected.runner_slot_queue_position == 1
         assert selected.runner_slot_queue_size == 2
         assert_page_svg_contains(page, "drain-barrier")
         assert_page_svg_contains(page, "global-cap")
-        assert_page_svg_contains(page, "drain barrier")
-        assert_page_svg_contains(page, "eligible")
+        assert_page_svg_contains(page, "dependency-wait")
+        assert_page_svg_contains(page, "Queue:")
+        assert_page_svg_contains(page, "of 2")
+        assert_page_svg_contains(page, "requested 3m ago")
         info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
         assert info._build_display_text().plain.startswith(
-            "2  [0/10 running · 1 queued · 1 waiting]"
+            "3  [0/10 running · 1 queued · 2 waiting]"
         )
         ace_png_visual.assert_page_png(
             page,
             "agents_runner_slot_waits_120x40",
             title="ACE agents runner slot waits",
+        )
+
+        await page.press("o", "o")
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "Queued")
+        assert_page_svg_contains(page, "Waiting")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_runner_slot_waits_by_status_120x40",
+            title="ACE agents runner slot waits by status",
         )
 
 

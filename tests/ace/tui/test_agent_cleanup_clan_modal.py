@@ -123,7 +123,7 @@ def test_clan_modal_preview_renders_only_implicit_global_queue_waits() -> None:
         "alpha.implicit",
         "implicit",
         clan="alpha",
-        status="WAITING",
+        status="QUEUED",
     )
     implicit.wait_runners = 9
     implicit.slot_requested_at = "2026-07-19T08:00:00Z"

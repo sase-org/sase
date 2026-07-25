@@ -29,6 +29,7 @@ ACTIVE_STATUSES = frozenset(
     {
         "RUNNING",
         "WAITING",
+        "QUEUED",
         "WAITING INPUT",
         *PENDING_PLAN_REVIEW_STATUSES,
         *ACTIVE_PLAN_HANDOFF_STATUSES,
@@ -49,6 +50,7 @@ def agent_label(agent: Agent | None) -> str:
 def status_text(status: str) -> Text:
     style = {
         "RUNNING": "bold green",
+        "QUEUED": "bold #5F87FF",
         "WAITING": "bold yellow",
         "WAITING INPUT": "bold yellow",
         "QUESTION": "bold yellow",

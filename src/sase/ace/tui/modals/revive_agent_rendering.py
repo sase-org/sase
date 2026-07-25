@@ -26,6 +26,8 @@ _STATUS_COLORS: dict[str, str] = {
     "DONE": "#5FD75F",
     "FAILED": "#FF5F5F",
     STOPPED_STATUS: STOPPED_COLOR,
+    "QUEUED": "#5F87FF",
+    "WAITING": "#AF87FF",
     "WAITING INPUT": "#FF87D7",
 }
 

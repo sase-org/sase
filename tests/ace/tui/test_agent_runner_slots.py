@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+from unittest.mock import patch
 
+from sase.ace.tui.agent_count_chip import format_agent_count_chip
+from sase.ace.tui.models._agent_clan import agent_lane_status_counts
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_runner_slots import (
     RunnerCapacitySnapshot,
-    agent_is_globally_queued,
     refresh_runner_slot_context,
 )
+from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 
 
 def _agent(name: str, **overrides: object) -> Agent:
@@ -27,7 +31,7 @@ def _agent(name: str, **overrides: object) -> Agent:
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
-def test_refresh_runner_slot_context_orders_currently_eligible_waiters() -> None:
+def test_refresh_runner_slot_context_ranks_all_waiters_while_pool_is_full() -> None:
     running = _agent(
         "running",
         status="RUNNING",
@@ -51,11 +55,13 @@ def test_refresh_runner_slot_context_orders_currently_eligible_waiters() -> None
 
     assert capacity == RunnerCapacitySnapshot(10, 1, 1)
     assert first.runner_slots_in_use == 1
-    assert first.runner_slot_queue_position == 1
-    assert first.runner_slot_queue_size == 1
+    assert first.status == "QUEUED"
+    assert first.runner_slot_queue_position == 2
+    assert first.runner_slot_queue_size == 2
     assert second.runner_slots_in_use == 1
-    assert second.runner_slot_queue_position is None
-    assert second.runner_slot_queue_size == 1
+    assert second.status == "WAITING"
+    assert second.runner_slot_queue_position == 1
+    assert second.runner_slot_queue_size == 2
 
 
 def test_runner_slot_context_orders_priority_before_fifo() -> None:
@@ -253,7 +259,7 @@ def test_runner_capacity_excludes_non_slot_and_explicit_waits_from_global_queue(
     assert dependency_wait.runner_slot_queue_position is None
 
 
-def test_global_queue_predicate_matches_capacity_and_rejects_other_waits() -> None:
+def test_global_queue_derivation_matches_capacity_and_rejects_other_waits() -> None:
     implicit = _agent(
         "implicit",
         wait_runners=9,
@@ -302,19 +308,128 @@ def test_global_queue_predicate_matches_capacity_and_rejects_other_waits() -> No
         clan_container,
     ]
 
-    assert [agent_is_globally_queued(agent) for agent in agents] == [
-        True,
-        False,
-        False,
-        False,
-        False,
-        False,
-        False,
-    ]
-    assert refresh_runner_slot_context(
+    capacity = refresh_runner_slot_context(
         agents,
         effective_limit=10,
-    ).global_cap_queue_count == sum(agent_is_globally_queued(agent) for agent in agents)
+    )
+    assert [agent.status for agent in agents] == [
+        "QUEUED",
+        "WAITING",
+        "WAITING",
+        "WAITING",
+        "QUESTION",
+        "WAITING",
+        "WAITING",
+    ]
+    assert capacity.global_cap_queue_count == sum(
+        agent.status == "QUEUED" for agent in agents
+    )
+
+
+def test_runner_slot_status_promotion_demotion_and_idempotence() -> None:
+    implicit = _agent(
+        "implicit",
+        wait_runners=9,
+        slot_requested_at="2026-07-12T12:00:00Z",
+    )
+    explicit = _agent(
+        "explicit",
+        wait_runners=0,
+        wait_runners_explicit=True,
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+
+    first = refresh_runner_slot_context([implicit, explicit], effective_limit=10)
+    assert first == RunnerCapacitySnapshot(10, 0, 1)
+    assert (implicit.status, explicit.status) == ("QUEUED", "WAITING")
+    assert (
+        implicit.runner_slot_queue_position,
+        explicit.runner_slot_queue_position,
+    ) == (
+        1,
+        2,
+    )
+
+    second = refresh_runner_slot_context([implicit, explicit], effective_limit=10)
+    assert second == first
+    assert (implicit.status, explicit.status) == ("QUEUED", "WAITING")
+    assert (
+        implicit.runner_slot_queue_position,
+        explicit.runner_slot_queue_position,
+    ) == (
+        1,
+        2,
+    )
+
+    implicit.wait_runners_explicit = True
+    third = refresh_runner_slot_context([implicit, explicit], effective_limit=10)
+    assert third == RunnerCapacitySnapshot(10, 0, 0)
+    assert implicit.status == "WAITING"
+
+
+def test_stale_queued_status_demotes_without_a_live_slot_request() -> None:
+    agent = _agent("stale", status="QUEUED", slot_requested_at=None)
+
+    capacity = refresh_runner_slot_context([agent], effective_limit=10)
+
+    assert capacity == RunnerCapacitySnapshot(10, 0, 0)
+    assert agent.status == "WAITING"
+
+
+def test_first_refresh_promotes_all_queued_clan_aggregate() -> None:
+    member = _agent(
+        "research.coder",
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+        wait_runners=9,
+        slot_requested_at="2026-07-12T12:00:00Z",
+    )
+    projected = project_clan_tree([member])
+
+    capacity = refresh_runner_slot_context(projected, effective_limit=10)
+
+    assert capacity == RunnerCapacitySnapshot(10, 0, 1)
+    assert [agent.status for agent in projected] == ["QUEUED", "QUEUED"]
+
+
+def test_queued_rows_match_chip_header_summary_and_capacity_counts() -> None:
+    first = _agent(
+        "first",
+        wait_runners=9,
+        slot_requested_at="2026-07-12T12:00:00Z",
+    )
+    second = _agent(
+        "second",
+        wait_runners=9,
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+    blocked = _agent("blocked", waiting_for=["dependency"])
+    agents = [first, second, blocked]
+
+    capacity = refresh_runner_slot_context(agents, effective_limit=10)
+    displayed_queued = sum(agent.status == "QUEUED" for agent in agents)
+    counts = agent_lane_status_counts(agents, ())
+    chip = format_agent_count_chip(
+        queued=counts.queued,
+        waiting=counts.waiting,
+    )
+    panel = AgentInfoPanel()
+    panel._runner_limit = capacity.effective_limit
+    panel._running_count = capacity.slots_in_use
+    panel._runner_queue_count = capacity.global_cap_queue_count
+    captured: list[str] = []
+    with patch.object(
+        panel,
+        "update",
+        lambda text, **_kwargs: captured.append(text.plain),
+    ):
+        panel._update_display()
+
+    assert displayed_queued == 2
+    assert counts.queued == displayed_queued
+    assert capacity.global_cap_queue_count == displayed_queued
+    assert "Q2" in chip.plain
+    assert "2 queued" in captured[-1]
 
 
 def test_runner_capacity_counts_only_live_rows_and_excludes_yielded_question() -> None:

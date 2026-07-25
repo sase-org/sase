@@ -61,6 +61,8 @@ def _status_style(status: str) -> str:
         return "bold #5FD75F"
     if status == "FAILED":
         return "bold #FF5F5F"
+    if status == "QUEUED":
+        return "bold #5F87FF"
     if status == "WAITING":
         return "bold #AF87FF"
     if status == PENDING_EPIC_STATUS:

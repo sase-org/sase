@@ -7,6 +7,7 @@ AGENT_STATUS_BUCKETS: tuple[str, ...] = (
     "Failed",
     "Starting",
     "Running",
+    "Queued",
     "Waiting",
     "Done",
 )
@@ -15,10 +16,16 @@ AGENT_STATUS_BUCKET_GLYPHS: dict[str, str] = {
     "Stopped": "▲",
     "Starting": "◐",
     "Running": "▶",
+    "Queued": "…",
     "Waiting": "⏳",
     "Failed": "✗",
     "Done": "✓",
 }
+
+QUEUED_STATUS = "QUEUED"
+QUEUED_STATUS_BUCKET = "Queued"
+QUEUED_STATUS_COLOR = "#5F87FF"
+PRE_RUN_WAIT_STATUSES: frozenset[str] = frozenset({"WAITING", QUEUED_STATUS})
 
 PLAN_APPROVED_STATUS = "PLAN APPROVED"
 TALE_APPROVED_STATUS = "TALE APPROVED"
@@ -55,6 +62,7 @@ AUTO_APPROVE_ELIGIBLE_STATUSES: frozenset[str] = frozenset(
         *PENDING_PLAN_REVIEW_STATUSES,
         *ACTIVE_PLAN_HANDOFF_STATUSES,
         "WAITING",
+        QUEUED_STATUS,
         "QUESTION",
     }
 )
@@ -163,6 +171,22 @@ def agent_is_active(status: str | None) -> bool:
     return (status or "") in ACTIVE_AGENT_STATUSES
 
 
+def runner_slot_display_status(
+    status: str | None,
+    *,
+    globally_queued: bool,
+) -> str:
+    """Return the reversible display status for runner-slot context.
+
+    ``QUEUED`` is derived only for live agents waiting solely on the global
+    runner cap. Persisted and scan-level statuses remain ``WAITING``.
+    """
+    status_text = status or ""
+    if status_text not in PRE_RUN_WAIT_STATUSES:
+        return status_text
+    return QUEUED_STATUS if globally_queued else "WAITING"
+
+
 def status_bucket_for_values(
     status: str | None,
     retried_as_timestamp: str | None = None,
@@ -185,6 +209,8 @@ def status_bucket_for_values(
     # rather than the input-needed ``Stopped`` group.
     if status_text in ACTIVE_PLAN_HANDOFF_STATUSES or status_text == "ANSWERED":
         return "Running"
+    if status_text == QUEUED_STATUS:
+        return QUEUED_STATUS_BUCKET
     if status_text == "WAITING":
         return "Waiting"
     if status_text.startswith("FAILED"):

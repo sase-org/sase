@@ -24,12 +24,12 @@ def _agent(*, suffix: str, status: str = "RUNNING") -> Agent:
 def _family_root() -> Agent:
     root = _agent(suffix="root", status="WAITING")
     root.agent_family_parallel = True
-    statuses = ("QUESTION", "RUNNING", "STARTING", "WAITING", "FAILED", "DONE")
+    statuses = ("QUESTION", "RUNNING", "STARTING", "QUEUED", "FAILED", "DONE")
     for index, status in enumerate(statuses):
         member = _agent(suffix=f"member-{index}", status=status)
         member.agent_family_parallel = True
         member.parent_timestamp = root.raw_suffix
-        if status == "WAITING":
+        if status == "QUEUED":
             member.pid = 100
             member.wait_runners = 9
             member.slot_requested_at = "2026-07-17T12:00:00Z"
@@ -142,7 +142,7 @@ def test_non_family_and_zero_bucket_rows_omit_count_chip() -> None:
 
 
 def test_globally_queued_leaf_row_omits_count_chip() -> None:
-    leaf = _agent(suffix="queued", status="WAITING")
+    leaf = _agent(suffix="queued", status="QUEUED")
     leaf.pid = 100
     leaf.wait_runners = 9
     leaf.wait_runners_explicit = False

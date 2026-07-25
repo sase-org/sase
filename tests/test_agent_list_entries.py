@@ -9,6 +9,9 @@ from typing import Any
 
 from pytest import MonkeyPatch
 
+from sase.ace.tui.models.agent import Agent as TuiAgent
+from sase.ace.tui.models.agent import AgentType
+from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
 from sase.agent.running import RunningAgentInfo
 from sase.agent.running_listing import _running_from_snapshot
 from sase.agents.cli_list import _agent_to_json
@@ -162,13 +165,17 @@ def test_runner_slot_wait_info_includes_live_count_and_queue_position() -> None:
     assert first.wait.wait_runners == 9
     assert first.wait.wait_priority == 20
     assert first.wait.runner_slots_in_use == 7
-    assert first.wait.runner_slot_queue_position == 1
-    assert first.wait.runner_slot_queue_size == 1
+    assert first.status == "QUEUED"
+    assert first.status_bucket == "Queued"
+    assert first.status_glyph == "…"
+    assert first.wait.runner_slot_queue_position == 2
+    assert first.wait.runner_slot_queue_size == 2
     assert first.wait.runner_slot_holders == ("phase",)
     assert second.wait.wait_runners_explicit is True
     assert second.wait.wait_priority == 1
-    assert second.wait.runner_slot_queue_position is None
-    assert second.wait.runner_slot_queue_size == 1
+    assert second.status == "WAITING"
+    assert second.wait.runner_slot_queue_position == 1
+    assert second.wait.runner_slot_queue_size == 2
     assert second.wait.runner_slot_holders == ("phase",)
 
 
@@ -240,6 +247,69 @@ def test_runner_slot_queue_orders_priority_before_fifo_with_default_priority() -
         "newer-explicit-default": 3,
         "newer-urgent": 1,
     }
+
+
+def test_runner_slot_queue_rank_matches_tui_projection() -> None:
+    specs = (
+        ("older", "20260712120001", "2026-07-12T12:00:01Z", 20),
+        ("default", "20260712120002", "2026-07-12T12:00:02Z", None),
+        ("urgent", "20260712120003", "2026-07-12T12:00:03Z", 1),
+    )
+    entries = [
+        _build_agent_list_entry(
+            _agent(
+                name=name,
+                status="WAITING",
+                artifacts_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
+            ),
+            record=_record(
+                timestamp=timestamp,
+                artifact_dir=f"/tmp/sase/artifacts/ace-run/{timestamp}",
+                agent_meta=AgentMetaWire(),
+                waiting=WaitingMarkerWire(
+                    wait_runners=9,
+                    wait_priority=priority,
+                    slot_requested_at=requested_at,
+                ),
+            ),
+        )
+        for name, timestamp, requested_at, priority in specs
+    ]
+    tui_agents = [
+        TuiAgent(
+            agent_type=AgentType.RUNNING,
+            cl_name=name,
+            project_file="/tmp/project/project.sase",
+            status="WAITING",
+            start_time=datetime(2026, 7, 12, 12, 0),
+            raw_suffix=timestamp,
+            pid=100 + index,
+            artifacts_dir=f"/tmp/project/artifacts/ace-run/{timestamp}",
+            wait_runners=9,
+            wait_priority=priority,
+            slot_requested_at=requested_at,
+        )
+        for index, (name, timestamp, requested_at, priority) in enumerate(specs)
+    ]
+
+    entries = _attach_runner_slot_context(entries, 10)
+    refresh_runner_slot_context(tui_agents, effective_limit=10)
+
+    integration_positions = {
+        entry.name: entry.wait.runner_slot_queue_position for entry in entries
+    }
+    tui_positions = {
+        agent.cl_name: agent.runner_slot_queue_position for agent in tui_agents
+    }
+    assert (
+        integration_positions
+        == tui_positions
+        == {
+            "older": 3,
+            "default": 2,
+            "urgent": 1,
+        }
+    )
 
 
 def test_runner_slot_queue_defaults_invalid_priorities() -> None:

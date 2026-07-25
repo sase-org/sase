@@ -7,6 +7,8 @@ from typing import Literal
 
 from textual.widgets.option_list import Option
 
+from sase.agent.status_buckets import QUEUED_STATUS_BUCKET, QUEUED_STATUS_COLOR
+
 from ..models.agent import Agent
 from ..models.agent_groups import (
     GroupingMode,
@@ -109,6 +111,8 @@ def format_banner_option(
             prefix = ""
         rule_char = _PROJECT_RULE
         prefix_style = _PROJECT_BANNER_BAR_STYLE
+        if mode is GroupingMode.BY_STATUS and label == QUEUED_STATUS_BUCKET:
+            prefix_style = f"bold {QUEUED_STATUS_COLOR}"
         label_style = _PROJECT_BANNER_BAR_STYLE
         rule_style = _PROJECT_BANNER_RULE_STYLE
     elif is_middle_tier_banner:

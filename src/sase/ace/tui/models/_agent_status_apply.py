@@ -350,9 +350,11 @@ def apply_status_overrides(
             )
             if aggregate_status is not None:
                 parent.status = aggregate_status
-            if parent.status == "WAITING":
+            if parent.status in {"WAITING", "QUEUED"}:
                 waiting_members = [
-                    member for member in parallel_members if member.status == "WAITING"
+                    member
+                    for member in parallel_members
+                    if member.status in {"WAITING", "QUEUED"}
                 ]
                 if waiting_members:
                     next_waiting = min(waiting_members, key=child_launch_time)
@@ -384,11 +386,13 @@ def apply_status_overrides(
                 _mirror_root_from_child(parent, newest_active)
             continue
 
-        waiting = [agent for agent in candidates if agent.status == "WAITING"]
+        waiting = [
+            agent for agent in candidates if agent.status in {"WAITING", "QUEUED"}
+        ]
         if waiting:
             next_waiting = min(waiting, key=child_launch_time)
             if next_waiting is not parent:
-                parent.status = "WAITING"
+                parent.status = next_waiting.status
                 parent.wait_display_source = next_waiting
                 copy_missing_display_metadata(parent, next_waiting)
             continue

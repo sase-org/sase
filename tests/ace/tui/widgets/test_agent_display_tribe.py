@@ -202,7 +202,7 @@ def test_tribe_family_children_use_effective_status_glyphs() -> None:
 def test_tribe_header_and_clan_unit_render_scoped_queue_count() -> None:
     implicit = _agent(
         "research.implicit",
-        "WAITING",
+        "QUEUED",
         suffix="implicit",
     )
     explicit = _agent(
@@ -239,7 +239,7 @@ def test_tribe_header_and_clan_unit_render_scoped_queue_count() -> None:
     ):
         digit = start + 1
         assert any(
-            span.start <= digit < span.end and str(span.style) == "bold #FF87D7"
+            span.start <= digit < span.end and str(span.style) == "bold #5F87FF"
             for span in detail.spans
         )
 

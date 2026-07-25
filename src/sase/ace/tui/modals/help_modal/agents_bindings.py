@@ -335,7 +335,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         (
             "Agent Query Syntax",
             [
-                ("status:VAL", "Substring on status"),
+                ("status:VAL", "Substring on status (e.g. queued)"),
                 ("cl:VAL", "Substring on ChangeSpec name"),
                 ("project:VAL", "Substring on project basename"),
                 ("name:VAL", "Substring on agent name"),

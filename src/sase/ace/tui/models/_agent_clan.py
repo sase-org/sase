@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import (
     PENDING_PLAN_REVIEW_STATUSES,
+    QUEUED_STATUS,
+    QUEUED_STATUS_BUCKET,
     agent_is_asking,
     status_bucket_for_values,
 )
@@ -22,7 +24,6 @@ from .agent_family_members import (
     concrete_agent_statuses,
     is_sequential_family_container,
 )
-from .agent_runner_slots import agent_is_globally_queued
 
 _QUESTION_STATUSES = frozenset({"QUESTION", "WAITING INPUT"})
 _CLAN_MEMBER_STATUS_PRIORITIES: dict[str, int] = {
@@ -30,8 +31,9 @@ _CLAN_MEMBER_STATUS_PRIORITIES: dict[str, int] = {
     "Stopped": 1,
     "Running": 2,
     "Starting": 2,
-    "Waiting": 3,
-    "Done": 4,
+    QUEUED_STATUS_BUCKET: 3,
+    "Waiting": 4,
+    "Done": 5,
 }
 
 
@@ -91,6 +93,8 @@ def aggregate_clan_status(statuses: Iterable[str]) -> str | None:
         return "RUNNING"
     if "Waiting" in buckets:
         return "WAITING"
+    if QUEUED_STATUS_BUCKET in buckets:
+        return QUEUED_STATUS
     if all(bucket == "Done" for bucket in buckets):
         return "DONE"
     return "RUNNING"
@@ -145,14 +149,6 @@ def clan_members(agent: Agent) -> tuple[Agent, ...]:
     )
 
 
-def _member_is_globally_queued(member: Agent) -> bool:
-    """Return whether a clan member's concrete row waits on the global cap."""
-    return any(
-        agent_is_globally_queued(status.agent)
-        for status in agent_status_projections((member,))
-    )
-
-
 def clan_member_counts(
     agent: Agent,
     unread_ids: Collection[tuple[AgentType, str, str | None]] = (),
@@ -164,7 +160,11 @@ def clan_member_counts(
         if member.identity in seen:
             continue
         seen.add(member.identity)
-        bucket = status_bucket_for_values(member.status)
+        projected_statuses = agent_status_projections((member,))
+        aggregate_status = aggregate_clan_status(
+            status.agent.status for status in projected_statuses
+        )
+        bucket = status_bucket_for_values(aggregate_status or member.status)
         is_unread = member.identity in unread_ids
         if is_unread:
             unread += 1
@@ -174,11 +174,10 @@ def clan_member_counts(
             failed += 1
         elif bucket in {"Running", "Starting"}:
             running += 1
+        elif bucket == QUEUED_STATUS_BUCKET:
+            queued += 1
         elif bucket == "Waiting":
-            if _member_is_globally_queued(member):
-                queued += 1
-            else:
-                waiting += 1
+            waiting += 1
         elif bucket == "Done" and not is_unread:
             done += 1
     return ClanStatusCounts(
@@ -224,10 +223,9 @@ def _status_counts_for_projections(
     total = stopped = running = queued = waiting = failed = unread = done = 0
     for projection in projected:
         projected_agent = projection.status.agent
-        is_queued = agent_is_globally_queued(projected_agent)
         bucket = projection.status.bucket
         total += 1
-        if is_queued:
+        if bucket == QUEUED_STATUS_BUCKET:
             queued += 1
         if projection.is_unread:
             unread += 1
@@ -236,8 +234,7 @@ def _status_counts_for_projections(
         elif bucket == "Failed":
             failed += 1
         elif bucket == "Waiting":
-            if not is_queued:
-                waiting += 1
+            waiting += 1
         elif bucket == "Done":
             if not projection.is_unread:
                 done += 1

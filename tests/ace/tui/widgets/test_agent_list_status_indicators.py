@@ -485,18 +485,29 @@ class TestRelativeWaitDurationRendering:
 
 
 class TestRunnerSlotWaitRendering:
-    def test_config_gated_row_renders_running_count_over_cap(self) -> None:
+    def test_queued_row_renders_only_status_and_admission_rank(self) -> None:
         agent = make_agent(
-            status="WAITING",
+            status="QUEUED",
             wait_runners=9,
             wait_runners_explicit=False,
+            waiting_for=["completed-dependency"],
+            wait_duration=300,
             slot_requested_at="2026-07-12T12:00:00Z",
             runner_slots_in_use=10,
+            runner_slot_queue_position=2,
+            runner_slot_queue_size=3,
         )
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        header, _ = build_header_text(agent, cheap=True)
 
-        assert "test_cl (WAITING ▶10/10)" in left.plain
+        assert "test_cl (QUEUED #2/3)" in left.plain
+        assert "▶" not in left.plain
+        assert "bold #5F87FF" in _styles_covering(left, "QUEUED")
+        assert _styles_covering(left, "#2/3") == {"#5F87FF"}
+        assert "Queue: #2 of 3 · requested " in header.plain
+        assert "10/10 runners" in header.plain
+        assert "completed-dependency" not in header.plain
 
     def test_explicit_priority_renders_on_row_slot_marker(self) -> None:
         agent = make_agent(
@@ -536,7 +547,7 @@ class TestRunnerSlotWaitRendering:
             wait_runners_explicit=True,
             slot_requested_at="2026-07-12T12:00:00Z",
             runner_slots_in_use=3,
-            runner_slot_queue_position=None,
+            runner_slot_queue_position=2,
             runner_slot_queue_size=2,
         )
 
@@ -546,10 +557,10 @@ class TestRunnerSlotWaitRendering:
         assert "test_cl (WAITING ▶3→0)" in left.plain
         assert (
             "Wait: runners ≤ 0 (drain barrier) · 3 runners still running"
-            " · not currently eligible"
+            " · queue #2 of 2"
         ) in header.plain
 
-    def test_eligible_queue_position_is_labeled(self) -> None:
+    def test_explicit_wait_queue_position_is_labeled(self) -> None:
         agent = make_agent(
             status="WAITING",
             wait_runners=3,
@@ -562,7 +573,7 @@ class TestRunnerSlotWaitRendering:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert " · eligible #2 of 3" in header.plain
+        assert " · queue #2 of 3" in header.plain
 
     def test_explicit_priority_renders_in_detail_wait_line(self) -> None:
         agent = make_agent(
@@ -580,7 +591,7 @@ class TestRunnerSlotWaitRendering:
         header, _ = build_header_text(agent, cheap=True)
 
         assert (
-            "Wait: runners: 10/10 in use · eligible #2 of 3 · priority 20"
+            "Wait: runners: 10/10 in use · queue #2 of 3 · priority 20"
             in header.plain
         )
         assert "dim #AF87FF" in _styles_covering(header, "priority 20")
