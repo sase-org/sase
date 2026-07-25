@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for Agents-tab panel interactions."""
+"""ACE TUI PNG visual snapshots for Agents-tab panel selection and folding."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ from datetime import datetime
 
 import pytest
 from rich.text import Text
-from textual.css.scalar import Unit
 from textual.widgets import Input
 
 from sase.ace.testing import AcePage
@@ -30,59 +29,12 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
-    wait_for_state,
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
-
-
-def _done_agents() -> list[Agent]:
-    """Three completed agents in the ``Done`` bucket.
-
-    Used by the unread-highlight snapshot — all three rows are then
-    marked unread post-startup so the Agents-tab info-panel header
-    renders a non-zero ``N unread`` count that exercises the yellow
-    background style.
-    """
-    return [
-        Agent(
-            agent_type=AgentType.RUNNING,
-            cl_name="visual-plan",
-            project_file="/workspace/sase/visual_project.sase",
-            status="DONE",
-            start_time=datetime(2026, 5, 9, 10, 0, 0),
-            stop_time=datetime(2026, 5, 9, 10, 7, 30),
-            raw_suffix="20260509-100000-plan",
-            agent_name="planner",
-            llm_provider="codex",
-            model="gpt-5",
-            response_path="/workspace/sase/artifacts/visual-plan/response.md",
-        ),
-        Agent(
-            agent_type=AgentType.RUNNING,
-            cl_name="visual-code",
-            project_file="/workspace/sase/visual_project.sase",
-            status="DONE",
-            start_time=datetime(2026, 5, 9, 10, 8, 0),
-            stop_time=datetime(2026, 5, 9, 10, 9, 5),
-            raw_suffix="20260509-100800-code",
-            agent_name="coder",
-        ),
-        Agent(
-            agent_type=AgentType.RUNNING,
-            cl_name="visual-review",
-            project_file="/workspace/sase/visual_project.sase",
-            status="PLAN DONE",
-            start_time=datetime(2026, 5, 9, 10, 10, 0),
-            stop_time=datetime(2026, 5, 9, 10, 12, 0),
-            raw_suffix="20260509-101000-review",
-            agent_name="reviewer",
-            tribe="visual",
-        ),
-    ]
 
 
 def _panel_collapse_agents() -> list[Agent]:
@@ -142,112 +94,6 @@ def _panel_auto_expand_agents() -> list[Agent]:
     return agents
 
 
-def _cleanup_confirmation_agents() -> list[Agent]:
-    """A small lane roster backed by many concrete cleanup targets."""
-    project_file = "/workspace/sase/visual_project.sase"
-    started = datetime(2026, 7, 24, 10, 0, 0)
-    stopped = datetime(2026, 7, 24, 10, 20, 0)
-
-    def done(
-        cl_name: str,
-        suffix: str,
-        *,
-        agent_name: str | None,
-        tribe: str | None = None,
-        agent_type: AgentType = AgentType.RUNNING,
-        workflow: str | None = None,
-        parent_timestamp: str | None = None,
-        parent_workflow: str | None = None,
-        step_name: str | None = None,
-        agent_family: str | None = None,
-        agent_family_role: str | None = None,
-        role_suffix: str | None = None,
-    ) -> Agent:
-        return Agent(
-            agent_type=agent_type,
-            cl_name=cl_name,
-            project_file=project_file,
-            status="DONE",
-            start_time=started,
-            stop_time=stopped,
-            raw_suffix=suffix,
-            agent_name=agent_name,
-            tribe=tribe,
-            workflow=workflow,
-            parent_timestamp=parent_timestamp,
-            parent_workflow=parent_workflow,
-            step_name=step_name,
-            step_type="agent" if parent_workflow else None,
-            is_hidden_step=bool(parent_workflow),
-            agent_family=agent_family,
-            agent_family_role=agent_family_role,
-            role_suffix=role_suffix,
-        )
-
-    standalone = done(
-        "lane-cleanup-standalone",
-        "20260724-100000-standalone",
-        agent_name="lane.cleanup.standalone",
-        tribe="cleanup",
-    )
-    workflow = done(
-        "lane-cleanup-workflow",
-        "20260724-100100-workflow",
-        agent_name="lane.cleanup.workflow",
-        tribe="cleanup",
-        agent_type=AgentType.WORKFLOW,
-        workflow="lane-cleanup-workflow",
-    )
-    workflow.appears_as_agent = True
-    workflow_steps = [
-        done(
-            f"internal-workflow-step-{index}",
-            f"20260724-10010{index}-step",
-            agent_name=f"internal.workflow.step.{index}",
-            agent_type=AgentType.WORKFLOW,
-            parent_timestamp=workflow.raw_suffix,
-            parent_workflow="lane-cleanup-workflow",
-            step_name=f"internal-step-{index}",
-        )
-        for index in range(3)
-    ]
-    for step in workflow_steps:
-        step.parent_appears_as_agent = True
-    family = done(
-        "lane-cleanup-family",
-        "20260724-100200-family",
-        agent_name="lane.cleanup.family--plan",
-        tribe="cleanup",
-        agent_family="lane.cleanup.family",
-        agent_family_role="root",
-        role_suffix="--plan",
-    )
-    family_members = [
-        done(
-            "lane-cleanup-family",
-            f"20260724-10020{index}-family",
-            agent_name=f"lane.cleanup.family--phase-{index}",
-            parent_timestamp=family.raw_suffix,
-            agent_family="lane.cleanup.family",
-            role_suffix=f"--phase-{index}",
-        )
-        for index in range(1, 4)
-    ]
-    neighbor = done(
-        "lane-cleanup-neighbor",
-        "20260724-100300-neighbor",
-        agent_name="lane.cleanup.neighbor",
-    )
-    return [
-        neighbor,
-        standalone,
-        workflow,
-        *workflow_steps,
-        family,
-        *family_members,
-    ]
-
-
 def _sole_default_panel_agent() -> Agent:
     """One top-level row in the split ``@default`` panel."""
     return Agent(
@@ -261,50 +107,6 @@ def _sole_default_panel_agent() -> Agent:
         llm_provider="codex",
         model="gpt-5",
     )
-
-
-def _overflowing_panel_agents() -> list[Agent]:
-    """Large no-tribe panel followed by two compact tribe panels."""
-    project_file = "/workspace/sase/visual_project.sase"
-    started = datetime(2026, 7, 18, 15, 0, 0)
-    rows = [
-        Agent(
-            agent_type=AgentType.RUNNING,
-            cl_name=f"visual-overflow-agent-{idx:02d}",
-            project_file=project_file,
-            status="RUNNING",
-            start_time=started,
-            raw_suffix=f"20260718-15{idx:02d}00-overflow-{idx:02d}",
-            agent_name=f"overflow-agent-{idx:02d}",
-        )
-        for idx in range(28)
-    ]
-    rows.extend(
-        [
-            Agent(
-                agent_type=AgentType.RUNNING,
-                cl_name="visual-compact-apple",
-                project_file=project_file,
-                status="WAITING",
-                start_time=started,
-                raw_suffix="20260718-160000-compact-apple",
-                agent_name="compact-apple",
-                tribe="apple",
-            ),
-            Agent(
-                agent_type=AgentType.RUNNING,
-                cl_name="visual-compact-banana",
-                project_file=project_file,
-                status="DONE",
-                start_time=started,
-                stop_time=datetime(2026, 7, 18, 16, 5, 0),
-                raw_suffix="20260718-160100-compact-banana",
-                agent_name="compact-banana",
-                tribe="banana",
-            ),
-        ]
-    )
-    return rows
 
 
 def _assert_collapsed_panel_summary(page: AcePage) -> None:
@@ -557,110 +359,6 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert focus.panel_key == "keep"
         assert focus.collapsed is False
         assert page.app._expanded_panel_focus is True
-
-
-async def test_agent_lane_cleanup_confirmation_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agents = _cleanup_confirmation_agents()
-    patch_startup_loaders(monkeypatch, agents=agents)
-
-    async with AcePage(
-        query='"visual"',
-        changespecs=changespecs(),
-        initial_tab="agents",
-    ) as page:
-        await wait_for_startup(page)
-        cleanup_targets = [
-            agent for agent in agents if agent.agent_name != "lane.cleanup.neighbor"
-        ]
-        page.app._present_bulk_kill_modal(
-            cleanup_targets,
-            header="Tribe: @cleanup",
-        )
-        await page.expect_modal("ConfirmDismissAllModal")
-        modal = page.app.screen
-        assert isinstance(modal, ConfirmDismissAllModal)
-        description = modal.agent_description
-        assert "lane.cleanup.standalone" in description
-        assert "lane.cleanup.workflow" in description
-        assert "lane.cleanup.family" in description
-        assert "internal.workflow.step" not in description
-        assert "lane.cleanup.family--" not in description
-        assert "lane.cleanup.neighbor" not in description
-
-        await wait_for_visual_idle(page)
-        ace_png_visual.assert_page_png(
-            page,
-            "agent_lane_cleanup_confirmation_120x40",
-            title="ACE agent lane cleanup confirmation",
-        )
-
-
-async def test_agents_overflowing_panel_uses_full_height_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    rows = _overflowing_panel_agents()
-    patch_startup_loaders(monkeypatch, agents=rows)
-
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
-        await wait_for_startup(page)
-        await page.press("shift+tab")
-        await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", len(rows))
-        await wait_for_visual_idle(page)
-
-        container = page.app.query_one("#agent-list-container")
-        widgets = list(container.query(AgentList).results(AgentList))
-        assert page.app._panel_group.panel_keys == [None, "apple", "banana"]
-        assert len(widgets) == 3
-        no_tribe, apple, banana = widgets
-
-        assert no_tribe.styles.height.unit is Unit.FRACTION
-        assert no_tribe.option_count + 2 > no_tribe.region.height
-        for compact in (apple, banana):
-            assert compact.styles.height.unit is Unit.CELLS
-            assert compact.styles.height.value == compact.option_count + 2
-        assert banana.region.bottom == container.content_region.bottom
-
-        ace_png_visual.assert_page_png(
-            page,
-            "agents_overflowing_panel_full_height_120x40",
-            title="ACE agents overflowing panel full height",
-        )
-
-
-async def test_agents_unread_highlight_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    done = _done_agents()
-    patch_startup_loaders(monkeypatch, agents=done)
-
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
-        await wait_for_startup(page)
-        identities = {agent.identity for agent in done}
-        page.app._unread_completed_agent_ids = set(identities)
-        page.app._manual_unread_agent_ids = set(identities)
-        await page.press("shift+tab")
-        await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 3)
-        page.app._update_agents_info_panel()
-        panel = page.app.query_one("#agent-info-panel", AgentInfoPanel)
-        await wait_for_state(
-            page,
-            lambda: panel._unread_count == 3,
-            description="three unread completed agents",
-        )
-        await wait_for_visual_idle(page)
-
-        ace_png_visual.assert_page_png(
-            page,
-            "agents_unread_highlight_120x40",
-            title="ACE agents unread highlight",
-        )
 
 
 async def test_agents_leader_jump_auto_expands_panel_png_snapshot(
