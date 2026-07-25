@@ -88,6 +88,7 @@ def _entry(**overrides: Any) -> ChatCatalogEntry:
         "sidecar_relpath": None,
         "publication_pending": False,
         "publication_last_error": None,
+        "publication_quarantined": False,
     }
     provenance_keys = set(defaults)
     defaults.update({k: v for k, v in overrides.items() if k in provenance_keys})
@@ -331,6 +332,7 @@ def test_list_json_shape_and_key_order(
         "sidecar_relpath",
         "publication_pending",
         "publication_last_error",
+        "publication_quarantined",
     ]
     assert row["provenance"] in CHAT_PROVENANCE_VALUES
     assert row["basename"] == "branch-run-planner-260429_101500"
@@ -449,6 +451,10 @@ def test_list_pretty_renders_every_provenance_state(
         assert badge.glyph in out
         if provenance != "unknown":
             assert badge.label in out
+    assert "↓" in out
+    assert "○" in out
+    assert "⇣" not in out
+    assert "◌" not in out
     assert "zeus" in out
 
 

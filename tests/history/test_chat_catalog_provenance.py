@@ -291,7 +291,7 @@ def test_filters_counts_and_limit_use_full_filtered_result(
     assert snapshot.provenance_counts["local"] == 3
 
 
-def test_publication_backlog_is_attached_to_local_agent(
+def test_schema_v1_publication_backlog_is_active(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -324,8 +324,78 @@ def test_publication_backlog_is_attached_to_local_agent(
     entry = load_chat_catalog(force=True).entries[0]
 
     assert entry.publication_pending is True
+    assert entry.publication_quarantined is False
     assert entry.publication_attempts == 28
     assert entry.publication_last_error == "network down"
+    assert not outbox.with_suffix(".json.lock").exists()
+
+
+def test_schema_v2_quarantined_publication_is_not_pending(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = _setup_home(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        sidecars,
+        "resolve_sync_targets",
+        lambda: TargetSelection(),
+    )
+    chat = _chat(home, "quarantined-260724_160100")
+    _artifact(home, "20260724160100", chat)
+    outbox = home / "projects" / "proj" / "agents-publication-outbox.json"
+    outbox.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "items": [
+                    {
+                        "global_agent": "bryan.athena.alpha",
+                        "local_agent": "alpha",
+                        "attempts": 3,
+                        "last_error": "remote rejected update",
+                        "quarantined": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    entry = load_chat_catalog(force=True).entries[0]
+
+    assert entry.publication_pending is False
+    assert entry.publication_quarantined is True
+    assert entry.publication_attempts == 3
+    assert entry.publication_last_error == "remote rejected update"
+    assert not outbox.with_suffix(".json.lock").exists()
+
+
+def test_publication_quarantine_requires_a_json_boolean(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = _setup_home(monkeypatch, tmp_path)
+    project_dir = home / "projects" / "proj"
+    project_dir.mkdir(parents=True)
+    (project_dir / "agents-publication-outbox.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "items": [
+                    {
+                        "global_agent": "bryan.athena.alpha",
+                        "local_agent": "alpha",
+                        "quarantined": 1,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    backlog = sidecars.load_publication_backlog()
+
+    assert backlog[("proj", "alpha")].quarantined is False
 
 
 def test_corrupt_catalog_cache_is_rebuilt(

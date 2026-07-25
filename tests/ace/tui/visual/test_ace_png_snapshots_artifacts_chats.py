@@ -124,7 +124,7 @@ async def test_artifacts_chats_populated_png_snapshot(
         await wait_for_svg_contains(page, "From this machine")
         await wait_for_visual_idle(page)
 
-        for token in ("◇ local", "◆ shared", "⇣ zeus", "⇣ hermes", "◌ ?"):
+        for token in ("◇ local", "◆ shared", "↓ zeus", "↓ hermes", "○ ?"):
             assert_page_svg_contains(page, token)
         svg = page.export_svg(title="ACE Artifacts Chats populated assertion")
         assert svg.count("▌") >= len(catalog_snapshot.entries)

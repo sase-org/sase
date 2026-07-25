@@ -88,8 +88,8 @@ async def test_filter_bar_and_provenance_cycle_update_rows_and_summary(
         info = pane.query_one("#chats-info", Static)
         assert "◇ 1 local" in info.content.plain
         assert "◆ 1 shared" in info.content.plain
-        assert "⇣ 1 remote (1 machine)" in info.content.plain
-        assert "◌ 1 unknown" in info.content.plain
+        assert "↓ 1 remote (1 machine)" in info.content.plain
+        assert "○ 1 unknown" in info.content.plain
 
         bar = pane.query_one(ChatFilterBar)
         await page.press("f")

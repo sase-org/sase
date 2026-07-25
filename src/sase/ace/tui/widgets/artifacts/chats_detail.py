@@ -164,20 +164,16 @@ def _provenance_section(
     text.append(f"{glyph} {label}\n", style=f"bold {color}")
     if entry.provenance == "local":
         text.append("Only on this machine. Not published to the agents sidecar.\n")
-        if entry.publication_pending:
+        if entry.publication_quarantined:
+            text.append("Publication quarantined", style="bold #FFAF5F")
+            _publication_diagnostics(text, entry, color="#FFAF5F")
+            text.append(
+                "Run `sase agent sync --retry-quarantined` to retry.\n",
+                style="#FFAF5F",
+            )
+        elif entry.publication_pending:
             text.append("Queued to publish", style="bold #FFD75F")
-            if entry.publication_attempts is not None:
-                noun = "attempt" if entry.publication_attempts == 1 else "attempts"
-                text.append(
-                    f" — {entry.publication_attempts} {noun}",
-                    style="#FFD75F",
-                )
-            if entry.publication_last_error:
-                text.append(
-                    f", last error: {entry.publication_last_error}",
-                    style="#FFD75F",
-                )
-            text.append("\n")
+            _publication_diagnostics(text, entry, color="#FFD75F")
     elif entry.provenance == "shared":
         text.append("From this machine; also published to the agents sidecar.\n")
         _field(text, "Sidecar repo", entry.sidecar_repo)
@@ -198,6 +194,26 @@ def _provenance_section(
     else:
         diagnostic = diagnostics[0] if diagnostics else "sidecar data was unavailable"
         text.append(f"Sync state unknown — {diagnostic}.\n")
+
+
+def _publication_diagnostics(
+    text: Text,
+    entry: ChatCatalogEntry,
+    *,
+    color: str,
+) -> None:
+    if entry.publication_attempts is not None:
+        noun = "attempt" if entry.publication_attempts == 1 else "attempts"
+        text.append(
+            f" — {entry.publication_attempts} {noun}",
+            style=color,
+        )
+    if entry.publication_last_error:
+        text.append(
+            f", last error: {entry.publication_last_error}",
+            style=color,
+        )
+    text.append("\n")
 
 
 def _heading(text: Text, label: str) -> None:

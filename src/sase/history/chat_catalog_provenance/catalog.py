@@ -19,6 +19,7 @@ from .models import (
     ChatCatalogEntry,
     ChatCatalogSnapshot,
     ChatProvenance,
+    PublicationBacklogItem,
     SidecarAgent,
     SidecarProjectIndex,
 )
@@ -98,7 +99,7 @@ def _catalog_entry(
     transcript: ChatTranscriptInfo,
     link: AgentChatLink | None,
     sidecars: dict[str, SidecarProjectIndex],
-    backlog: dict[tuple[str, str], tuple[int | None, str | None]],
+    backlog: dict[tuple[str, str], PublicationBacklogItem],
     *,
     owner_username: str | None,
     owner_machine: str | None,
@@ -138,7 +139,7 @@ def _catalog_entry(
     ):
         sidecar_repo = owning_index.sidecar_path
     sidecar_relpath = published_agent.relpath if published_agent is not None else None
-    pending, attempts, last_error = _publication_status(link, backlog)
+    publication = _publication_status(link, backlog)
     return ChatCatalogEntry(
         path=transcript.path,
         absolute_path=transcript.absolute_path,
@@ -159,9 +160,16 @@ def _catalog_entry(
         agent_global_name=link.global_name if link is not None else None,
         sidecar_repo=sidecar_repo,
         sidecar_relpath=sidecar_relpath,
-        publication_pending=pending,
-        publication_last_error=last_error,
-        publication_attempts=attempts,
+        publication_pending=(publication is not None and not publication.quarantined),
+        publication_last_error=(
+            publication.last_error if publication is not None else None
+        ),
+        publication_quarantined=(
+            publication.quarantined if publication is not None else False
+        ),
+        publication_attempts=(
+            publication.attempts if publication is not None else None
+        ),
     )
 
 
@@ -206,18 +214,17 @@ def _sidecar_was_read(
 
 def _publication_status(
     link: AgentChatLink | None,
-    backlog: dict[tuple[str, str], tuple[int | None, str | None]],
-) -> tuple[bool, int | None, str | None]:
+    backlog: dict[tuple[str, str], PublicationBacklogItem],
+) -> PublicationBacklogItem | None:
     if link is None:
-        return False, None, None
+        return None
     for name in (link.global_name, link.local_name):
         if name is None:
             continue
         key = (link.project_key, name)
         if key in backlog:
-            attempts, last_error = backlog[key]
-            return True, attempts, last_error
-    return False, None, None
+            return backlog[key]
+    return None
 
 
 def _matches(

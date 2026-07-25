@@ -70,6 +70,27 @@ def test_local_publication_backlog_and_truncation_are_explained() -> None:
     assert "press enter for the full chat" in rendered
 
 
+def test_quarantined_publication_is_never_described_as_queued() -> None:
+    entry = replace(
+        chat_entry("quarantined"),
+        publication_pending=False,
+        publication_quarantined=True,
+        publication_attempts=3,
+        publication_last_error="remote rejected update",
+    )
+
+    rendered = build_chat_detail(
+        entry,
+        _detail(entry.absolute_path),
+    ).plain
+
+    assert "Publication quarantined" in rendered
+    assert "3 attempts" in rendered
+    assert "last error: remote rejected update" in rendered
+    assert "sase agent sync --retry-quarantined" in rendered
+    assert "Queued to publish" not in rendered
+
+
 def test_detail_loader_bounds_transcript_to_200_lines(tmp_path) -> None:
     transcript = tmp_path / "chat.md"
     transcript.write_text(

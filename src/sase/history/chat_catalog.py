@@ -218,6 +218,7 @@ def chat_info_to_json(
                 "sidecar_relpath": info.sidecar_relpath,
                 "publication_pending": info.publication_pending,
                 "publication_last_error": info.publication_last_error,
+                "publication_quarantined": info.publication_quarantined,
             }
         )
     return payload

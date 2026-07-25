@@ -41,6 +41,7 @@ def chat_entry(
         sidecar_relpath=f"agents/{name}/chat.md",
         publication_pending=False,
         publication_last_error=None,
+        publication_quarantined=False,
     )
 
 

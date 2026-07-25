@@ -13,7 +13,7 @@ from sase.agents_sync.targets import resolve_sync_targets
 from sase.core.paths import sase_projects_dir
 
 from .cache import load_cached_json, store_cached_json
-from .models import SidecarAgent, SidecarProjectIndex
+from .models import PublicationBacklogItem, SidecarAgent, SidecarProjectIndex
 
 _CACHE_NAMESPACE = "sidecar"
 
@@ -58,10 +58,10 @@ def load_sidecar_indexes(
     return indexes, tuple(dict.fromkeys(diagnostics)), False
 
 
-def load_publication_backlog() -> dict[tuple[str, str], tuple[int | None, str | None]]:
+def load_publication_backlog() -> dict[tuple[str, str], PublicationBacklogItem]:
     """Read pending global/local agent names without mutating outbox locks."""
 
-    result: dict[tuple[str, str], tuple[int | None, str | None]] = {}
+    result: dict[tuple[str, str], PublicationBacklogItem] = {}
     projects_root = sase_projects_dir()
     try:
         projects = projects_root.iterdir()
@@ -87,11 +87,22 @@ def load_publication_backlog() -> dict[tuple[str, str], tuple[int | None, str | 
                 and not isinstance(attempts_value, bool)
                 else None
             )
+            backlog_item = PublicationBacklogItem(
+                attempts=attempts,
+                last_error=last_error,
+                quarantined=_strict_boolean(item.get("quarantined", False)),
+            )
             for field in ("global_agent", "local_agent"):
                 name = item.get(field)
                 if isinstance(name, str) and name:
-                    result[(project_dir.name, name)] = (attempts, last_error)
+                    result[(project_dir.name, name)] = backlog_item
     return result
+
+
+def _strict_boolean(value: object) -> bool:
+    """Decode JSON booleans without treating integers or strings as truthy."""
+
+    return value if isinstance(value, bool) else False
 
 
 def _load_project_sidecar(

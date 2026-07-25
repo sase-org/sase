@@ -13,8 +13,26 @@ from sase.ace.tui.widgets.artifacts.chats_rendering import (
     CHAT_PROVENANCE_GLYPHS,
     chat_row_text,
 )
-from sase.history.chat_catalog_provenance import ChatProvenance
+from sase.history.chat_catalog_provenance import (
+    CHAT_PROVENANCE_BADGES,
+    ChatProvenance,
+)
 from tests.ace.tui._artifacts_chats_helpers import chat_entry, pane_snapshot
+
+
+def test_tui_badge_maps_derive_from_the_headless_badge_registry() -> None:
+    assert CHAT_PROVENANCE_GLYPHS == {
+        provenance: badge.glyph for provenance, badge in CHAT_PROVENANCE_BADGES.items()
+    }
+    assert CHAT_PROVENANCE_COLORS == {
+        provenance: badge.color for provenance, badge in CHAT_PROVENANCE_BADGES.items()
+    }
+    assert CHAT_PROVENANCE_GLYPHS == {
+        "local": "◇",
+        "shared": "◆",
+        "remote": "↓",
+        "unknown": "○",
+    }
 
 
 @pytest.mark.parametrize(

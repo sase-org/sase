@@ -25,8 +25,8 @@ class ChatProvenanceBadge:
 CHAT_PROVENANCE_BADGES: dict[ChatProvenance, ChatProvenanceBadge] = {
     "local": ChatProvenanceBadge(glyph="◇", label="local", color="#767676"),
     "shared": ChatProvenanceBadge(glyph="◆", label="shared", color="#5FD75F"),
-    "remote": ChatProvenanceBadge(glyph="⇣", label="remote", color="#FFAF5F"),
-    "unknown": ChatProvenanceBadge(glyph="◌", label="?", color="#585858"),
+    "remote": ChatProvenanceBadge(glyph="↓", label="remote", color="#FFAF5F"),
+    "unknown": ChatProvenanceBadge(glyph="○", label="?", color="#585858"),
 }
 
 

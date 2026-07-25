@@ -39,6 +39,7 @@ class ChatCatalogEntry:
     sidecar_relpath: str | None
     publication_pending: bool
     publication_last_error: str | None
+    publication_quarantined: bool
     publication_attempts: int | None = None
 
 
@@ -94,12 +95,22 @@ class SidecarProjectIndex:
     diagnostic: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class PublicationBacklogItem:
+    """Read-only publication state attached to a catalog entry."""
+
+    attempts: int | None
+    last_error: str | None
+    quarantined: bool
+
+
 __all__ = [
     "CHAT_PROVENANCE_VALUES",
     "AgentChatLink",
     "ChatCatalogEntry",
     "ChatCatalogSnapshot",
     "ChatProvenance",
+    "PublicationBacklogItem",
     "SidecarAgent",
     "SidecarProjectIndex",
 ]

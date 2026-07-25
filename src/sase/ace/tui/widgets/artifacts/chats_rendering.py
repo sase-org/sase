@@ -9,6 +9,7 @@ from rich.text import Text
 from sase.ace.tui.keymaps import KeymapRegistry, key_display_name
 from sase.core.agent_identity_facade import present_agent_name
 from sase.history.chat_catalog_provenance import (
+    CHAT_PROVENANCE_BADGES,
     CHAT_PROVENANCE_VALUES,
     ChatCatalogEntry,
     ChatCatalogSnapshot,
@@ -20,16 +21,10 @@ from .types import ARTIFACTS_ACCENTS
 
 
 CHAT_PROVENANCE_GLYPHS: dict[ChatProvenance, str] = {
-    "local": "◇",
-    "shared": "◆",
-    "remote": "⇣",
-    "unknown": "◌",
+    provenance: badge.glyph for provenance, badge in CHAT_PROVENANCE_BADGES.items()
 }
 CHAT_PROVENANCE_COLORS: dict[ChatProvenance, str] = {
-    "local": "#767676",
-    "shared": "#5FD75F",
-    "remote": "#FFAF5F",
-    "unknown": "#585858",
+    provenance: badge.color for provenance, badge in CHAT_PROVENANCE_BADGES.items()
 }
 _BADGE_WIDTH = 10
 

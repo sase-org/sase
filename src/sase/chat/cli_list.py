@@ -21,7 +21,7 @@ from sase.history.chat_catalog_provenance import (
 )
 
 _PRETTY_SNIPPET_MAX_CHARS = 60
-# Widest badge is ``⇣ remote``; widest header is ``MACHINE``.
+# Widest badge is ``↓ remote``; widest header is ``MACHINE``.
 _SYNC_COLUMN_WIDTH = 8
 _MACHINE_COLUMN_WIDTH = 10
 # ``YYYY-MM-DD HH:MM`` — sub-minute precision and the UTC offset are noise in a
