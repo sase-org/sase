@@ -132,11 +132,11 @@ def _parse_events(lines: list[str]) -> list[dict[str, Any]]:
 def _extract_thinking_blocks(events: list[dict[str, Any]]) -> list[ThinkingBlock]:
     """Extract thinking blocks from parsed events, returned newest-first.
 
-    Claude Opus 4.7 encrypts extended-thinking content server-side: the
-    persisted ``thinking`` string is empty, with the reasoning living only
-    inside the opaque ``signature`` field.  When that's the case we emit a
-    placeholder so the panel still surfaces that the model thought, with
-    a token-count hint pulled from ``message.usage.output_tokens``.
+    Claude Opus 4.7 and later encrypt extended-thinking content server-side:
+    the persisted ``thinking`` string is empty, with the reasoning living
+    only inside the opaque ``signature`` field.  When that's the case we emit
+    a placeholder so the panel still surfaces that the model thought, with a
+    token-count hint pulled from ``message.usage.output_tokens``.
     """
     blocks: list[ThinkingBlock] = []
     index = 0

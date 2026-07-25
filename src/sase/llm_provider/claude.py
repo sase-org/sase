@@ -75,11 +75,24 @@ class ClaudeCodeProvider(LLMProvider):
 
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
-        return ["opus", "sonnet", "haiku", "claude-fable-5"]
+        return [
+            "opus",
+            "sonnet",
+            "haiku",
+            "claude-opus-5",
+            "claude-sonnet-5",
+            "claude-haiku-4-5",
+            "claude-fable-5",
+        ]
 
     @hookimpl
     def llm_model_short_aliases(self) -> dict[str, str]:
-        return {"claude-fable-5": "fable"}
+        return {
+            "claude-opus-5": "opus5",
+            "claude-sonnet-5": "sonnet5",
+            "claude-haiku-4-5": "haiku45",
+            "claude-fable-5": "fable",
+        }
 
     @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:

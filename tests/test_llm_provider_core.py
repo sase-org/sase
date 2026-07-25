@@ -150,6 +150,18 @@ def test_resolve_model_provider_implicit_mapping() -> None:
     assert resolve_model_provider("o3") == ("codex", "o3")
     assert resolve_model_provider("opus") == ("claude", "opus")
     assert resolve_model_provider("sonnet") == ("claude", "sonnet")
+    assert resolve_model_provider("claude-opus-5") == (
+        "claude",
+        "claude-opus-5",
+    )
+    assert resolve_model_provider("claude-sonnet-5") == (
+        "claude",
+        "claude-sonnet-5",
+    )
+    assert resolve_model_provider("claude-haiku-4-5") == (
+        "claude",
+        "claude-haiku-4-5",
+    )
     assert resolve_model_provider("claude-fable-5") == (
         "claude",
         "claude-fable-5",
@@ -198,6 +210,9 @@ def test_model_short_alias_map_contains_codex_entries() -> None:
 def test_model_short_alias_map_contains_claude_entries() -> None:
     """The aggregated alias map carries the claude plugin's entries."""
     aliases = model_short_alias_map()
+    assert aliases.get("claude-opus-5") == "opus5"
+    assert aliases.get("claude-sonnet-5") == "sonnet5"
+    assert aliases.get("claude-haiku-4-5") == "haiku45"
     assert aliases.get("claude-fable-5") == "fable"
 
 

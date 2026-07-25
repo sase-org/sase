@@ -33,6 +33,9 @@ def test_build_model_options_has_known_models() -> None:
     ids = {o.id for o in options if o is not None}
     assert "opus" in ids
     assert "sonnet" in ids
+    assert "claude-opus-5" in ids
+    assert "claude-sonnet-5" in ids
+    assert "claude-haiku-4-5" in ids
     assert "claude-fable-5" in ids
     assert "o3" in ids
     assert "gpt-5.6-sol" in ids
@@ -105,3 +108,20 @@ def test_model_picker_claude_fable_row_includes_alias() -> None:
     assert "claude-fable-5" in option.prompt.plain
     assert "fable" in option.prompt.plain
     assert any(span.style == "dim #D7AF87" for span in option.prompt.spans)
+
+
+def test_model_picker_claude_5_rows_include_aliases() -> None:
+    """Explicit Claude 5 models should be pickable with their short aliases."""
+    rows = build_model_rows()
+    expected = {
+        "claude-opus-5": "opus5",
+        "claude-sonnet-5": "sonnet5",
+        "claude-haiku-4-5": "haiku45",
+    }
+
+    for model_id, alias in expected.items():
+        row = next(row for row in rows if row.option_id == model_id)
+        assert row.provider == "claude"
+        assert row.model_id == model_id
+        assert row.alias == alias
+        assert row.label == f"    {model_id}  ({alias})"

@@ -180,6 +180,9 @@ stream.
 | `large` | `opus`           |
 | `small` | `sonnet`         |
 
+`opus` and `sonnet` are floating Claude CLI aliases that resolve to the provider's current model (Opus 5 today), so sase
+intentionally does not pin them to a point version.
+
 ### Environment Variables
 
 | Variable                 | Description                                                |
@@ -773,7 +776,7 @@ Known model names are automatically mapped to their provider:
 
 | Model Name                                                                                                                                                                                                               | Provider |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
-| `opus`, `sonnet`, `haiku`, `claude-fable-5`                                                                                                                                                                              | claude   |
+| `opus`, `sonnet`, `haiku`, `claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5`, `claude-fable-5`                                                                                                                      | claude   |
 | `gpt-5.6-sol`, `gpt-5.5`, `gpt-5.3-codex`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                                                                           | codex    |
 | `Gemini 3.5 Flash (High)`, `Gemini 3.5 Flash (Medium)`, `Gemini 3.5 Flash (Low)`, `Gemini 3.1 Pro (High)`, `Gemini 3.1 Pro (Low)`, `Claude Sonnet 4.6 (Thinking)`, `Claude Opus 4.6 (Thinking)`, `GPT-OSS 120B (Medium)` | agy      |
 | `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                                                                            | qwen     |
@@ -797,7 +800,7 @@ configured model alias yourself.
 
 | Provider | Shorthands                                                                                                                                                                                                                                                                                                                     |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| claude   | `claude-fable-5` → `fable`                                                                                                                                                                                                                                                                                                     |
+| claude   | `claude-opus-5` → `opus5`, `claude-sonnet-5` → `sonnet5`, `claude-haiku-4-5` → `haiku45`, `claude-fable-5` → `fable`                                                                                                                                                                                                           |
 | codex    | `codex-mini-latest` → `mini`, `gpt-5.6-sol` → `gpt56sol`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex` → `gpt53`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                                                                                        |
 | agy      | `Gemini 3.5 Flash (High)` → `flash35h`, `Gemini 3.5 Flash (Medium)` → `flash35m`, `Gemini 3.5 Flash (Low)` → `flash35l`, `Gemini 3.1 Pro (High)` → `pro31h`, `Gemini 3.1 Pro (Low)` → `pro31l`, `Claude Sonnet 4.6 (Thinking)` → `sonnet46t`, `Claude Opus 4.6 (Thinking)` → `opus46t`, `GPT-OSS 120B (Medium)` → `gptoss120m` |
 | qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                                                                                                                    |
