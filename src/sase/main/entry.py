@@ -362,6 +362,12 @@ def main() -> NoReturn:
 
         handle_skills_command(args)
 
+    # --- task ---
+    if args.command == "task":
+        from .task_handler import handle_task_command
+
+        handle_task_command(args)
+
     # --- telemetry ---
     if args.command == "telemetry":
         from .telemetry_handler import handle_telemetry_command

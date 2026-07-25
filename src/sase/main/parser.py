@@ -50,6 +50,7 @@ from sase.main.parser_prompt import register_prompt_parser
 from sase.main.parser_repo import register_repo_parser
 from sase.main.parser_repro import register_repro_parser
 from sase.main.parser_skills import register_skills_parser
+from sase.main.parser_task import register_task_parser
 from sase.main.parser_telemetry import register_telemetry_parser
 from sase.main.parser_update import register_update_parser
 from sase.main.parser_validate import register_validate_parser
@@ -494,6 +495,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_revive_log_parser(top_level_subparsers)
     register_run_parser(top_level_subparsers)
     register_skills_parser(top_level_subparsers)
+    register_task_parser(top_level_subparsers)
     register_telemetry_parser(top_level_subparsers)
     register_update_parser(top_level_subparsers)
     register_validate_parser(top_level_subparsers)

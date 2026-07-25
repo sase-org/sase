@@ -29,6 +29,10 @@ _INITIAL_POLL_SECONDS = 0.05
 _MAX_POLL_SECONDS = 0.5
 _CHILD_ENV_VAR = "_SASE_TASK_CHILD_ENV_JSON"
 
+# How long a command row may sit without a supervisor pid before
+# reconciliation treats it as a submit that died before it spawned.
+_UNCLAIMED_GRACE_SECONDS = 60.0
+
 
 class TaskSubmitError(RuntimeError):
     """A task could not be validated or its supervisor could not be started."""
@@ -178,7 +182,7 @@ def reconcile_running_tasks() -> list[BackgroundTask]:
     """Mark active rows whose supervisor died without terminalizing them."""
     reconciled: list[BackgroundTask] = []
     for task in read_tasks(status=ACTIVE_TASK_STATUSES):
-        if task.pid is not None and is_process_running(task.pid):
+        if not _is_orphaned(task):
             continue
         current = get_task(task.task_id)
         if current is None or current.status not in ACTIVE_TASK_STATUSES:
@@ -192,6 +196,30 @@ def reconcile_running_tasks() -> list[BackgroundTask]:
         if outcome.task is not None:
             reconciled.append(outcome.task)
     return reconciled
+
+
+def _is_orphaned(task: BackgroundTask) -> bool:
+    """Return whether an active row's owner is gone without a terminal write."""
+    if task.pid is not None:
+        return not is_process_running(task.pid)
+    # No supervisor pid yet. ``submit_task`` stamps one within milliseconds of
+    # appending the row, and mirrored in-TUI tasks are owned by their own
+    # process, so only a stale command row is a genuine ghost: reconciling a
+    # just-submitted row would race its supervisor to a terminal status the
+    # store then refuses to move off.
+    if task.kind != "command":
+        return False
+    return _age_seconds(task.created_at) >= _UNCLAIMED_GRACE_SECONDS
+
+
+def _age_seconds(timestamp: str) -> float:
+    try:
+        created = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return 0.0
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=UTC)
+    return (datetime.now(UTC) - created).total_seconds()
 
 
 def _validated_argv(argv: Sequence[str]) -> list[str]:

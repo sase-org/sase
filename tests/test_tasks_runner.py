@@ -6,6 +6,7 @@ import os
 import signal
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -193,6 +194,52 @@ def test_reconcile_marks_missing_supervisors_error(
     )
 
 
+def test_reconcile_leaves_a_just_submitted_row_alone(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """A row appended moments ago has no supervisor pid yet, but is not dead.
+
+    Terminalizing it here would race the supervisor's own ``running`` write,
+    which the store then refuses because terminal states are final.
+    """
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    fresh = _recorded_task(
+        "fresh-task01",
+        pid=None,
+        status="pending",
+        tmp_path=tmp_path,
+        created_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+    )
+    append_task(fresh)
+
+    assert reconcile_running_tasks() == []
+
+    current = get_task(fresh.task_id)
+    assert current is not None
+    assert current.status == "pending"
+
+
+def test_reconcile_leaves_mirrored_tui_rows_alone(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """In-TUI tasks record no supervisor pid; their own process owns them."""
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    mirrored = _recorded_task(
+        "mirrored-tui",
+        pid=None,
+        status="running",
+        tmp_path=tmp_path,
+        kind="tui",
+    )
+    append_task(mirrored)
+
+    assert reconcile_running_tasks() == []
+
+    current = get_task(mirrored.task_id)
+    assert current is not None
+    assert current.status == "running"
+
+
 def test_killed_supervisor_is_reconciled_to_terminal_error(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
@@ -230,16 +277,18 @@ def _recorded_task(
     pid: int | None,
     status: str,
     tmp_path: Path,
+    kind: str = "command",
+    created_at: str = "2020-01-01T00:00:00Z",
 ) -> BackgroundTask:
     return BackgroundTask(
         task_id=task_id,
         label=task_id,
-        kind="command",
+        kind=kind,
         status=status,
         command=["true"],
         cwd=str(tmp_path),
         origin="test",
-        created_at="2026-07-25T12:00:00Z",
+        created_at=created_at,
         log_path=str(tmp_path / f"{task_id}.log"),
         pid=pid,
     )

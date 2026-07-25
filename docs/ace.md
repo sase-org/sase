@@ -3120,6 +3120,31 @@ output every second while the Tasks tab is visible.
 | `⊘`  | Yellow | Killed                        |
 | `?`  | Dim    | Unknown                       |
 
+### Durable Background Tasks
+
+Background tasks are also durable records shared by every SASE surface, not just rows in this pane. They live in
+`~/.sase/tasks/tasks.jsonl`, with one combined stdout/stderr log per task under `~/.sase/tasks/logs/<task_id>.log`.
+Because the records outlive the process that produced them, `sase task` can list and inspect work started anywhere —
+including an epic launch approved from Telegram or from a second terminal.
+
+Each task carries a 12-character id resolvable by unique prefix (three characters minimum, like a git short SHA), so
+`sase task show k7m2` works. Statuses are `pending`, `running`, `success`, `error`, and `killed`; terminal states are
+final, and a task whose supervisor died without reporting is reconciled to `error` rather than left running forever.
+`sase task list` reuses the icons above and adds `◌` for pending and `⊘` for killed.
+
+**Session attribution.** A task may be stamped with the SASE session it belongs to. That is attribution, not delegation:
+`sase task run` always executes under its own detached supervisor, and the session id decides which TUI shows the task
+and counts it in the task indicator. `--session` accepts a full session id, a unique id prefix or short handle, or
+`current`, `latest`, and `none`; the default is this process's ACE session, then the newest live one, then no session.
+`sase task list` scopes to that same session plus unattributed tasks by default, and `--all` widens it. Rows from a
+session that has since exited render dim with a `†` marker.
+
+**Retention.** [`tasks.history_limit`](configuration.md#tasks) caps how many _finished_ tasks are kept; pending and
+running work is never pruned for being old. Lowering the limit removes the oldest finished rows and their log files.
+
+The CLI equivalents are `sase task list`, `sase task show ID` (`--follow` to stream), and `sase task run -- COMMAND`
+(`--wait` to stream and inherit the exit code). See the [CLI reference](cli.md#daily-operation).
+
 ### Keybindings
 
 | Key                 | Action                                       |
