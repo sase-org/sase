@@ -591,8 +591,7 @@ class TestRunnerSlotWaitRendering:
         header, _ = build_header_text(agent, cheap=True)
 
         assert (
-            "Wait: runners: 10/10 in use · queue #2 of 3 · priority 20"
-            in header.plain
+            "Wait: runners: 10/10 in use · queue #2 of 3 · priority 20" in header.plain
         )
         assert "dim #AF87FF" in _styles_covering(header, "priority 20")
 

@@ -498,7 +498,18 @@ def add_or_update_prompt(
         record_segments: If True, multi-prompts also record their individual
             long-enough segments. If False, only the exact prompt text passed by
             the caller is written.
+
+    Placeholder tags are recorded before the history threshold is applied, so
+    even a sub-five-word prompt contributes its ``<foobar>`` tags to the common
+    placeholder store. Cancelled prompts contribute too: the user wrote those
+    tags, and recovering one from an abandoned draft is exactly what makes the
+    completion menu feel like it remembers. Span extraction covers the whole
+    string, so multi-prompt segments need no separate call.
     """
+    from sase.history.prompt_placeholders import record_prompt_placeholders
+
+    record_prompt_placeholders(text)
+
     if not is_recordable_prompt(text, allow_short=allow_short):
         return
 
@@ -522,9 +533,17 @@ def record_failed_launch_prompt(text: str, *, project: str | None = None) -> Non
     a long prompt remains recoverable through ``gp`` / ``gP`` after the prompt
     bar has been unmounted. ``project`` is optional best-effort metadata for the
     restore picker's project chip; it never gates recovery of the prompt text.
+
+    A failed launch still records the prompt's ``<foobar>`` tags in the common
+    placeholder store: the user wrote them, so they stay available in the next
+    prompt's completion menu even though the launch produced no agents.
     """
     if not text.strip():
         return
+
+    from sase.history.prompt_placeholders import record_prompt_placeholders
+
+    record_prompt_placeholders(text)
 
     current_timestamp = generate_timestamp()
     mutations = [_PromptMutation(text=text, cancelled=True, force_cancelled=True)]
