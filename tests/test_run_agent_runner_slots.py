@@ -54,6 +54,9 @@ def _record(
                     waiting_data.get("wait_runners_explicit", False)
                 ),
                 wait_priority=waiting_data.get("wait_priority"),
+                wait_priority_explicit=bool(
+                    waiting_data.get("wait_priority_explicit", False)
+                ),
                 slot_requested_at=waiting_data.get("slot_requested_at"),
             )
             if waiting_data is not None
@@ -145,6 +148,7 @@ def test_deprioritized_waiter_defers_until_window_elapsed(
         assert parked
         marker = json.loads((waiter / "waiting.json").read_text())
         assert marker["eligible_since"]
+        assert marker["wait_priority_explicit"] is True
         assert capsys.readouterr().out == "Deferring for up to 30s (priority 20)\n"
 
         second, parked = run_agent_wait._try_claim_runner_slot(
@@ -374,6 +378,7 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
         assert marker["wait_runners"] == 0
         assert marker["wait_runners_explicit"] is False
         assert marker["wait_priority"] == 7
+        assert marker["wait_priority_explicit"] is True
 
         config_cap = 2
         second, parked = run_agent_wait._try_claim_runner_slot(
@@ -422,6 +427,7 @@ def test_implicit_gate_fails_closed_when_effective_limit_is_unavailable(
         assert first is None
         assert parked is True
         assert marker["wait_runners_explicit"] is False
+        assert marker["wait_priority_explicit"] is False
         assert marker["runner_limit_unavailable"] == "override lock busy"
         scan.assert_not_called()
 
@@ -511,6 +517,7 @@ def test_repeated_slot_polls_preserve_foreign_waiting_marker_fields(
             assert marker["wait_runners"] == expected_threshold
             assert marker["wait_runners_explicit"] is False
             assert marker["wait_priority"] == 4
+            assert marker["wait_priority_explicit"] is True
             assert marker["slot_requested_at"] == requested_at
 
 
@@ -620,22 +627,48 @@ def test_parked_priority_edit_overrides_original_directive(tmp_path: Path) -> No
 
 
 def test_marker_priority_resolution_rejects_boolean_and_invalid_values() -> None:
-    assert run_agent_wait._marker_priority(None, None) == 10
-    assert run_agent_wait._marker_priority({"slot_requested_at": "now"}, 3) == 3
-    assert (
-        run_agent_wait._marker_priority(
-            {"slot_requested_at": "now", "wait_priority": True},
-            None,
-        )
-        == 10
+    assert run_agent_wait._marker_priority_state(None, None) == (10, False)
+    assert run_agent_wait._marker_priority_state({"slot_requested_at": "now"}, 3) == (
+        3,
+        True,
     )
-    assert (
-        run_agent_wait._marker_priority(
-            {"slot_requested_at": "now", "wait_priority": -1},
-            4,
-        )
-        == 4
-    )
+    assert run_agent_wait._marker_priority_state(
+        {"slot_requested_at": "now", "wait_priority": True},
+        None,
+    ) == (10, False)
+    assert run_agent_wait._marker_priority_state(
+        {"slot_requested_at": "now", "wait_priority": -1},
+        4,
+    ) == (4, True)
+
+
+def test_marker_priority_resolution_tracks_explicit_legacy_markers() -> None:
+    legacy_default = {
+        "slot_requested_at": "now",
+        "wait_priority": 10,
+    }
+    assert run_agent_wait._marker_priority_state(legacy_default, None) == (10, False)
+    assert run_agent_wait._marker_priority_state(legacy_default, 3) == (3, True)
+
+    legacy_non_default = {
+        "slot_requested_at": "now",
+        "wait_priority": 20,
+    }
+    assert run_agent_wait._marker_priority_state(legacy_non_default, 3) == (20, True)
+
+    explicit_default = {
+        "slot_requested_at": "now",
+        "wait_priority": 10,
+        "wait_priority_explicit": True,
+    }
+    assert run_agent_wait._marker_priority_state(explicit_default, 3) == (10, True)
+
+    implicit_non_default = {
+        "slot_requested_at": "now",
+        "wait_priority": 20,
+        "wait_priority_explicit": False,
+    }
+    assert run_agent_wait._marker_priority_state(implicit_non_default, 3) == (3, True)
 
 
 def test_concurrent_claimants_cannot_overshoot_threshold(tmp_path: Path) -> None:

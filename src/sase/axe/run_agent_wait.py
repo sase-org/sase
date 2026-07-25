@@ -266,17 +266,33 @@ def _marker_threshold(
     return get_max_running_agents() - 1, False
 
 
-def _marker_priority(
+def _legacy_marker_priority_explicit(waiting_data: dict[str, Any]) -> bool:
+    marker_value = waiting_data.get("wait_priority")
+    # Legacy markers had no explicitness flag. A non-default priority almost
+    # certainly came from a user directive or edit; the default was often written
+    # implicitly by the runner and must not shadow later directive metadata.
+    return (
+        "wait_priority_explicit" not in waiting_data
+        and type(marker_value) is int
+        and marker_value >= 0
+        and marker_value != DEFAULT_WAIT_PRIORITY
+    )
+
+
+def _marker_priority_state(
     waiting_data: dict[str, Any] | None,
     directive_priority: int | None,
-) -> int:
+) -> tuple[int, bool]:
     if waiting_data is not None and "slot_requested_at" in waiting_data:
         marker_value = waiting_data.get("wait_priority")
-        if type(marker_value) is int and marker_value >= 0:
-            return marker_value
+        marker_explicit = waiting_data.get(
+            "wait_priority_explicit"
+        ) is True or _legacy_marker_priority_explicit(waiting_data)
+        if marker_explicit and type(marker_value) is int and marker_value >= 0:
+            return marker_value, True
     if type(directive_priority) is int and directive_priority >= 0:
-        return directive_priority
-    return DEFAULT_WAIT_PRIORITY
+        return directive_priority, True
+    return DEFAULT_WAIT_PRIORITY, False
 
 
 def _remove_waiting_marker(artifacts_dir: str) -> None:
@@ -331,7 +347,10 @@ def _try_claim_runner_slot(
         try:
             waiting_path = Path(artifacts_dir) / "waiting.json"
             waiting_data = _read_json_dict(waiting_path)
-            priority = _marker_priority(waiting_data, directive_priority)
+            priority, priority_explicit = _marker_priority_state(
+                waiting_data,
+                directive_priority,
+            )
             try:
                 threshold, explicit = _marker_threshold(
                     waiting_data, directive_threshold
@@ -355,6 +374,7 @@ def _try_claim_runner_slot(
                         "wait_runners": previous_threshold,
                         "wait_runners_explicit": False,
                         "wait_priority": priority,
+                        "wait_priority_explicit": priority_explicit,
                         "slot_requested_at": requested_at,
                         "runner_limit_unavailable": str(error),
                     }
@@ -431,6 +451,7 @@ def _try_claim_runner_slot(
                     "wait_runners": threshold,
                     "wait_runners_explicit": explicit,
                     "wait_priority": priority,
+                    "wait_priority_explicit": priority_explicit,
                     "slot_requested_at": requested_at,
                 }
             )

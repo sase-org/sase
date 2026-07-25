@@ -104,6 +104,7 @@ def test_waiting_runner_slot_fields_match_filesystem_marker(tmp_path: Path) -> N
                 "wait_runners": 3,
                 "wait_runners_explicit": True,
                 "wait_priority": 5,
+                "wait_priority_explicit": True,
                 "slot_requested_at": "2026-07-12T19:20:00Z",
             }
         ),
@@ -122,6 +123,7 @@ def test_waiting_runner_slot_fields_match_filesystem_marker(tmp_path: Path) -> N
     assert waiting.wait_runners == raw["wait_runners"]
     assert waiting.wait_runners_explicit is raw["wait_runners_explicit"]
     assert waiting.wait_priority == raw["wait_priority"]
+    assert waiting.wait_priority_explicit is raw["wait_priority_explicit"]
     assert waiting.slot_requested_at == raw["slot_requested_at"]
 
 
