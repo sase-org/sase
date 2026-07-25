@@ -7,6 +7,8 @@ from sase.axe.run_agent_repeat_stop import RepeatStopDecision
 
 from tests._axe_run_agent_runner_retry_helpers import (
     AGENT_INFO,
+    BOOTSTRAP,
+    LAUNCH,
     RUNNER,
     base_patches,
     exec_result,
@@ -30,11 +32,11 @@ class TestDeferredWorkspaceOutcomes:
 
         wait_info = AGENT_INFO._replace(wait_names=["foo.1"], bead_id="sase-8f.2")
         patches = base_patches(artifacts_dir)
-        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+        patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = MagicMock(
             return_value=wait_info
         )
         patches[f"{RUNNER}.wait_for_dependencies"] = MagicMock()
-        patches[f"{RUNNER}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
+        patches[f"{LAUNCH}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
         patches[f"{RUNNER}.detect_repeat_stop"] = MagicMock(
             return_value=RepeatStopDecision(producer_name="foo.1", stop_value="1")
         )
@@ -48,15 +50,15 @@ class TestDeferredWorkspaceOutcomes:
         patches[f"{RUNNER}.write_done_marker_and_update_index"] = write_done_mock
 
         run_loop = MagicMock(return_value=exec_result(artifacts_dir))
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
         claim_mock = MagicMock(
             side_effect=AssertionError("stopped slot must not claim a workspace")
         )
-        patches[f"{RUNNER}.claim_deferred_workspace"] = claim_mock
+        patches[f"{LAUNCH}.claim_deferred_workspace"] = claim_mock
         claim_bead_mock = MagicMock(
             side_effect=AssertionError("stopped slot must not claim a bead")
         )
-        patches[f"{RUNNER}.claim_bead_for_agent_launch"] = claim_bead_mock
+        patches[f"{LAUNCH}.claim_bead_for_agent_launch"] = claim_bead_mock
 
         notify_mock = MagicMock()
         patches[f"{RUNNER}.send_completion_notification"] = notify_mock
@@ -96,7 +98,7 @@ class TestDeferredWorkspaceOutcomes:
         write_error = MagicMock()
 
         patches = base_patches(artifacts_dir)
-        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+        patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = MagicMock(
             return_value=AGENT_INFO._replace(
                 wait_names=[],
                 wait_duration=None,
@@ -104,7 +106,7 @@ class TestDeferredWorkspaceOutcomes:
                 wait_runners=None,
             )
         )
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
         patches[f"{RUNNER}.write_error_done_marker"] = write_error
 
         run_main(
@@ -130,11 +132,11 @@ class TestDeferredWorkspaceOutcomes:
         claim_bead = MagicMock(side_effect=RuntimeError("claim failed"))
 
         patches = base_patches(artifacts_dir)
-        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+        patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = MagicMock(
             return_value=AGENT_INFO._replace(bead_id="sase-8f.2")
         )
-        patches[f"{RUNNER}.claim_bead_for_agent_launch"] = claim_bead
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.claim_bead_for_agent_launch"] = claim_bead
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
         patches[f"{RUNNER}.write_error_done_marker"] = write_error
 
         run_main(patches, tmp_path)
@@ -150,13 +152,13 @@ class TestDeferredWorkspaceOutcomes:
         run_loop = MagicMock(return_value=exec_result(artifacts_dir))
         write_error = MagicMock()
         patches = base_patches(artifacts_dir)
-        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+        patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = MagicMock(
             side_effect=RuntimeError(
                 "%id bead association 'sase-8f.2' does not match "
                 "SASE_BEAD_ID='sase-other'"
             )
         )
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
         patches[f"{RUNNER}.write_error_done_marker"] = write_error
 
         run_main(patches, tmp_path)
@@ -173,8 +175,8 @@ class TestDeferredWorkspaceOutcomes:
         )
         run_loop = MagicMock(return_value=exec_result(artifacts_dir))
         patches = base_patches(artifacts_dir)
-        patches[f"{RUNNER}.claim_bead_for_agent_launch"] = claim_bead
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.claim_bead_for_agent_launch"] = claim_bead
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
 
         run_main(patches, tmp_path)
 

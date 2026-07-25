@@ -57,6 +57,8 @@ class WorkflowResult:
 
 
 RUNNER = "sase.axe.run_agent_runner"
+BOOTSTRAP = "sase.axe.run_agent_runner_bootstrap"
+LAUNCH = "sase.axe.run_agent_runner_launch"
 SETUP = "sase.axe.run_agent_runner_setup"
 FINALIZE = "sase.axe.run_agent_runner_finalize"
 EXEC = "sase.axe.run_agent_exec"
@@ -75,7 +77,7 @@ def base_patches(artifacts_dir: str) -> dict[str, Any]:
     return {
         # Runner module.
         f"{SETUP}.prepare_workspace": prepare_ws_mock,
-        f"{RUNNER}.extract_directives_and_write_meta": MagicMock(
+        f"{BOOTSTRAP}.extract_directives_and_write_meta": MagicMock(
             return_value=AGENT_INFO
         ),
         f"{SETUP}.convert_timestamp_to_artifacts_format": MagicMock(

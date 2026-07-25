@@ -6,8 +6,8 @@ import signal
 from unittest.mock import patch
 
 from sase.ace.tui.models.agent import AgentType
-from sase.axe.run_agent_runner import (
-    auto_dismiss_completed_agent,
+from sase.axe.run_agent_runner_lifecycle import auto_dismiss_completed_agent
+from sase.axe.run_agent_runner_signals import (
     install_workspace_release_sigterm_handler,
 )
 from sase.axe.runner_signals import reset_killed, was_killed

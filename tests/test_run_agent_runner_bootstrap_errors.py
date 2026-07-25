@@ -11,7 +11,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.axe import run_agent_runner
+from sase.axe import (
+    run_agent_runner,
+    run_agent_runner_bootstrap,
+    run_agent_runner_launch,
+)
 from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
 
 
@@ -44,11 +48,13 @@ def _runner_patches(
         patch.object(run_agent_runner, "parse_runner_args", return_value=args)
     )
     stack.enter_context(
-        patch.object(run_agent_runner, "install_workspace_release_sigterm_handler")
+        patch.object(
+            run_agent_runner_bootstrap, "install_workspace_release_sigterm_handler"
+        )
     )
     stack.enter_context(
         patch.object(
-            run_agent_runner,
+            run_agent_runner_bootstrap,
             "setup_artifacts_directory",
             return_value=("sase", "20260701010202", str(artifacts_dir)),
         )
@@ -65,9 +71,13 @@ def _runner_patches(
             "update_agent_artifact_index_for_marker_mutation"
         )
     )
-    stack.enter_context(patch.object(run_agent_runner, "init_telemetry"))
-    stack.enter_context(patch.object(run_agent_runner, "register_flush_on_exit"))
-    stack.enter_context(patch.object(run_agent_runner, "print_agent_start_banner"))
+    stack.enter_context(patch.object(run_agent_runner_bootstrap, "init_telemetry"))
+    stack.enter_context(
+        patch.object(run_agent_runner_bootstrap, "register_flush_on_exit")
+    )
+    stack.enter_context(
+        patch.object(run_agent_runner_bootstrap, "print_agent_start_banner")
+    )
     stack.enter_context(
         patch.object(run_agent_runner, "format_agent_run_runtime", return_value="0s")
     )
@@ -121,7 +131,7 @@ def test_preprocessing_failure_records_failed_done_and_finalizes(
         artifacts_dir, _, finalize, _ = _runner_patches(stack, tmp_path=tmp_path)
         stack.enter_context(
             patch.object(
-                run_agent_runner,
+                run_agent_runner_bootstrap,
                 "preprocess_prompt_xprompts",
                 side_effect=RuntimeError("xprompt bootstrap failed"),
             )
@@ -168,7 +178,7 @@ def test_refreshed_bootstrap_preserves_phase_launch_metadata(
         )
         stack.enter_context(
             patch.object(
-                run_agent_runner,
+                run_agent_runner_bootstrap,
                 "preprocess_prompt_xprompts",
                 side_effect=RuntimeError("stop after refreshed bootstrap"),
             )
@@ -200,7 +210,7 @@ def test_user_kill_during_bootstrap_preserves_exit_and_skips_error_recording(
         )
         stack.enter_context(
             patch.object(
-                run_agent_runner,
+                run_agent_runner_bootstrap,
                 "preprocess_prompt_xprompts",
                 side_effect=SystemExit(143),
             )

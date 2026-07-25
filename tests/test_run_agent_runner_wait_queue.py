@@ -10,7 +10,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.axe import run_agent_runner
+from sase.axe import (
+    run_agent_runner,
+    run_agent_runner_bootstrap,
+    run_agent_runner_launch,
+)
 from sase.bead.claims import BEAD_CLAIM_MARKER
 
 
@@ -126,30 +130,36 @@ def _run_runner_with_wait_result(
         )
         stack.enter_context(
             patch.object(
-                run_agent_runner,
+                run_agent_runner_bootstrap,
                 "read_prompt_file",
                 return_value="%i(reviewer, family=foo)\nDo work",
             )
         )
         stack.enter_context(
-            patch.object(run_agent_runner, "install_workspace_release_sigterm_handler")
+            patch.object(
+                run_agent_runner_bootstrap, "install_workspace_release_sigterm_handler"
+            )
         )
-        stack.enter_context(patch.object(run_agent_runner, "init_telemetry"))
-        stack.enter_context(patch.object(run_agent_runner, "register_flush_on_exit"))
-        stack.enter_context(patch.object(run_agent_runner, "print_agent_start_banner"))
+        stack.enter_context(patch.object(run_agent_runner_bootstrap, "init_telemetry"))
+        stack.enter_context(
+            patch.object(run_agent_runner_bootstrap, "register_flush_on_exit")
+        )
+        stack.enter_context(
+            patch.object(run_agent_runner_bootstrap, "print_agent_start_banner")
+        )
         stack.enter_context(
             patch.object(
-                run_agent_runner,
+                run_agent_runner_bootstrap,
                 "setup_artifacts_directory",
                 return_value=("sase", "20260701010202", str(artifacts_dir)),
             )
         )
         stack.enter_context(
-            patch.object(run_agent_runner, "write_submitted_xprompt_artifact")
+            patch.object(run_agent_runner_bootstrap, "write_submitted_xprompt_artifact")
         )
         stack.enter_context(
             patch.object(
-                run_agent_runner,
+                run_agent_runner_bootstrap,
                 "preprocess_prompt_xprompts",
                 return_value=(
                     "%i(reviewer, family=foo)\nDo work",
@@ -160,26 +170,30 @@ def _run_runner_with_wait_result(
         )
         stack.enter_context(
             patch.object(
-                run_agent_runner, "load_retry_handoff_from_env", return_value=None
+                run_agent_runner_bootstrap,
+                "load_retry_handoff_from_env",
+                return_value=None,
             )
         )
-        stack.enter_context(patch.object(run_agent_runner, "enter_agent_workspace"))
+        stack.enter_context(
+            patch.object(run_agent_runner_bootstrap, "enter_agent_workspace")
+        )
         stack.enter_context(
             patch.object(
-                run_agent_runner,
+                run_agent_runner_bootstrap,
                 "extract_directives_and_write_meta",
                 return_value=_agent_info(bead_id=bead_id),
             )
         )
         stack.enter_context(
             patch.object(
-                run_agent_runner,
+                run_agent_runner_bootstrap,
                 "apply_retry_chain_to_meta",
                 side_effect=apply_retry_chain_to_meta,
             )
         )
         stack.enter_context(
-            patch.object(run_agent_runner, "prepare_workspace_if_needed")
+            patch.object(run_agent_runner_launch, "prepare_workspace_if_needed")
         )
         stack.enter_context(patch.object(run_agent_runner, "bump_spawn_telemetry"))
         wait_for_dependencies = stack.enter_context(
@@ -204,14 +218,14 @@ def _run_runner_with_wait_result(
         )
         stack.enter_context(
             patch.object(
-                run_agent_runner,
+                run_agent_runner_launch,
                 "resolve_agent_refs_in_prompt",
                 return_value=("%i(reviewer, family=foo)\nDo work", None),
             )
         )
         stack.enter_context(
             patch.object(
-                run_agent_runner,
+                run_agent_runner_launch,
                 "build_output_variable_namespaces",
                 return_value=[],
             )
@@ -225,14 +239,14 @@ def _run_runner_with_wait_result(
         )
         claim_for_wait = stack.enter_context(
             patch.object(
-                run_agent_runner,
+                run_agent_runner_bootstrap,
                 "claim_bead_for_waiting_agent",
                 side_effect=lambda **_kwargs: lifecycle_events.append("claim") or True,
             )
         )
         claim_for_launch = stack.enter_context(
             patch.object(
-                run_agent_runner,
+                run_agent_runner_launch,
                 "claim_bead_for_agent_launch",
                 side_effect=lambda **_kwargs: lifecycle_events.append("promote"),
             )
@@ -250,7 +264,7 @@ def _run_runner_with_wait_result(
 
         run_execution_loop = stack.enter_context(
             patch.object(
-                run_agent_runner,
+                run_agent_runner_launch,
                 "run_execution_loop",
                 side_effect=execute,
             )

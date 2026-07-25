@@ -15,6 +15,8 @@ from sase.linked_repos import LinkedRepoResolution, _ResolvedLinkedRepo
 
 from tests._axe_run_agent_runner_retry_helpers import (
     AGENT_INFO,
+    BOOTSTRAP,
+    LAUNCH,
     RUNNER,
     SETUP,
     base_patches,
@@ -67,9 +69,11 @@ class TestRunStartedAtRecording:
             events.append("run")
             return exec_result(artifacts_dir)
 
-        patches[f"{RUNNER}.extract_directives_and_write_meta"] = extract_and_write_meta
+        patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = (
+            extract_and_write_meta
+        )
         patches[f"{SETUP}.prepare_workspace"] = prepare_workspace
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
         gate = patches[f"{RUNNER}.wait_for_runner_slot"]
 
         run_main(
@@ -116,7 +120,7 @@ class TestRunStartedAtRecording:
             raise RuntimeError("blocked workspace preparation")
 
         patches[f"{SETUP}.prepare_workspace"] = prepare_workspace
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
         patches[f"{RUNNER}.write_error_done_marker"] = write_error
 
         run_main(
@@ -146,7 +150,7 @@ class TestRunStartedAtRecording:
             seen_run_started_at.append(run_started_at)
             return exec_result(artifacts_dir)
 
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
 
         run_main(patches, tmp_path)
 
@@ -166,8 +170,8 @@ class TestRunStartedAtRecording:
             seen.append(meta["sdd_base_sha"])
             return exec_result(artifacts_dir)
 
-        patches[f"{RUNNER}.capture_sdd_base_sha"] = MagicMock(return_value="abc123")
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.capture_sdd_base_sha"] = MagicMock(return_value="abc123")
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
 
         run_main(patches, tmp_path)
 
@@ -187,7 +191,7 @@ class TestRunStartedAtRecording:
             seen.append(ctx.multi_agent_prompt_file)
             return exec_result(artifacts_dir)
 
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
 
         run_main(
             patches,
@@ -203,10 +207,10 @@ class TestRunStartedAtRecording:
         artifacts_dir = tmp_path / "artifacts"
         patches = base_patches(str(artifacts_dir))
         run_loop = MagicMock()
-        patches[f"{RUNNER}.resolve_agent_refs_in_prompt"] = MagicMock(
+        patches[f"{LAUNCH}.resolve_agent_refs_in_prompt"] = MagicMock(
             side_effect=RuntimeError("bad agent ref")
         )
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
 
         run_main(patches, tmp_path)
 
@@ -248,11 +252,11 @@ class TestRunStartedAtRecording:
         ) -> bool:
             return workspace_dir_arg == str(workspace_dir)
 
-        patches[f"{RUNNER}.refresh_linked_repos_for_workspace"] = (
+        patches[f"{LAUNCH}.refresh_linked_repos_for_workspace"] = (
             refresh_linked_repos_for_workspace
         )
         patches[f"{SETUP}.prepare_workspace"] = prepare_workspace
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
         patches[f"{RUNNER}.write_error_done_marker"] = write_error
 
         run_main(
@@ -276,17 +280,17 @@ class TestRunStartedAtRecording:
     ) -> None:
         artifacts_dir = tmp_path / "artifacts"
         patches = base_patches(str(artifacts_dir))
-        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+        patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = MagicMock(
             return_value=AGENT_INFO._replace(wait_duration=1.0)
         )
         patches[f"{RUNNER}.wait_for_dependencies"] = MagicMock(
             side_effect=SystemExit(128 + 15)
         )
-        patches[f"{RUNNER}.run_execution_loop"] = MagicMock()
+        patches[f"{LAUNCH}.run_execution_loop"] = MagicMock()
 
         run_main(patches, tmp_path)
 
-        patches[f"{RUNNER}.run_execution_loop"].assert_not_called()
+        patches[f"{LAUNCH}.run_execution_loop"].assert_not_called()
         meta_path = artifacts_dir / "agent_meta.json"
         if meta_path.exists():
             assert "run_started_at" not in json.loads(meta_path.read_text())
@@ -322,7 +326,7 @@ class TestRunStartedAtRecording:
         notify = MagicMock()
         patches[f"{RUNNER}.record_run_started_at"] = record_run_started_at
         patches[f"{RUNNER}.format_agent_run_runtime"] = format_runtime
-        patches[f"{RUNNER}.run_execution_loop"] = MagicMock(
+        patches[f"{LAUNCH}.run_execution_loop"] = MagicMock(
             return_value=exec_result(artifacts_dir)
         )
         patches[f"{RUNNER}.send_completion_notification"] = notify
@@ -348,7 +352,7 @@ class TestRunStartedAtRecording:
         patches = base_patches(artifacts_dir)
         write_error = MagicMock()
         notify = MagicMock()
-        patches[f"{RUNNER}.run_execution_loop"] = MagicMock(side_effect=SystemExit(1))
+        patches[f"{LAUNCH}.run_execution_loop"] = MagicMock(side_effect=SystemExit(1))
         patches[f"{RUNNER}.write_error_done_marker"] = write_error
         patches[f"{RUNNER}.send_completion_notification"] = notify
         patches[f"{RUNNER}.all_steps_hidden"] = MagicMock(return_value=False)
@@ -369,7 +373,7 @@ class TestRunStartedAtRecording:
         patches = base_patches(artifacts_dir)
         setup_index_update = MagicMock()
         cleanup_index_update = MagicMock()
-        patches[f"{RUNNER}.run_execution_loop"] = MagicMock(
+        patches[f"{LAUNCH}.run_execution_loop"] = MagicMock(
             return_value=exec_result(artifacts_dir)
         )
         patches[

@@ -16,6 +16,8 @@ from sase.linked_repos import LinkedRepoResolution, _ResolvedLinkedRepo
 
 from tests._axe_run_agent_runner_retry_helpers import (
     AGENT_INFO,
+    BOOTSTRAP,
+    LAUNCH,
     RUNNER,
     SETUP,
     base_patches,
@@ -47,7 +49,7 @@ class TestDeferredWorkspaceFlow:
         events: list[str] = []
 
         patches = base_patches(artifacts_dir)
-        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+        patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = MagicMock(
             return_value=wait_info
         )
         wait_for_dependencies = MagicMock()
@@ -73,13 +75,13 @@ class TestDeferredWorkspaceFlow:
         patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_dependencies
         patches[f"{RUNNER}.detect_repeat_stop"] = detect_repeat_stop
         patches[f"{RUNNER}.wait_for_runner_slot"] = MagicMock(side_effect=wait_for_slot)
-        patches[f"{RUNNER}.claim_deferred_workspace"] = MagicMock(
+        patches[f"{LAUNCH}.claim_deferred_workspace"] = MagicMock(
             side_effect=claim_deferred
         )
-        patches[f"{RUNNER}.refresh_linked_repos_for_workspace"] = MagicMock(
+        patches[f"{LAUNCH}.refresh_linked_repos_for_workspace"] = MagicMock(
             return_value=LinkedRepoResolution(repos=())
         )
-        patches[f"{RUNNER}.run_execution_loop"] = MagicMock(side_effect=run_loop)
+        patches[f"{LAUNCH}.run_execution_loop"] = MagicMock(side_effect=run_loop)
         patches[f"{RUNNER}.write_error_done_marker"] = write_error
 
         run_main(
@@ -116,7 +118,7 @@ class TestDeferredWorkspaceFlow:
             ),
         )
         patches = base_patches(artifacts_dir)
-        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+        patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = MagicMock(
             return_value=wait_info
         )
         meta_path = Path(artifacts_dir) / "agent_meta.json"
@@ -213,18 +215,18 @@ class TestDeferredWorkspaceFlow:
         patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_deps
         patches[f"{RUNNER}.refresh_runner_code_after_wait"] = refresh_code
         patches[f"{RUNNER}.wait_for_runner_slot"] = wait_for_slot
-        patches[f"{RUNNER}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
-        patches[f"{RUNNER}.claim_deferred_workspace"] = claim_deferred
+        patches[f"{LAUNCH}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
+        patches[f"{LAUNCH}.claim_deferred_workspace"] = claim_deferred
         patches[f"{SETUP}.prepare_workspace"] = prepare_ws
         patches[f"{SETUP}.prepare_launch_workspace_repos"] = prepare_sidecars
-        patches[f"{RUNNER}.refresh_linked_repos_for_workspace"] = refresh_linked_repos
-        patches[f"{RUNNER}.prepare_linked_repo_workspaces_if_needed"] = (
+        patches[f"{LAUNCH}.refresh_linked_repos_for_workspace"] = refresh_linked_repos
+        patches[f"{LAUNCH}.prepare_linked_repo_workspaces_if_needed"] = (
             prepare_linked_repos
         )
-        patches[f"{RUNNER}.resolve_clan_summary_script"] = resolve_clan_summary
-        patches[f"{RUNNER}.claim_bead_for_agent_launch"] = claim_bead
-        patches[f"{RUNNER}.capture_sdd_base_sha"] = capture_sdd
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.resolve_clan_summary_script"] = resolve_clan_summary
+        patches[f"{LAUNCH}.claim_bead_for_agent_launch"] = claim_bead
+        patches[f"{LAUNCH}.capture_sdd_base_sha"] = capture_sdd
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
 
         run_main(
             patches,
@@ -261,7 +263,7 @@ class TestDeferredWorkspaceFlow:
         events: list[str] = []
 
         patches = base_patches(artifacts_dir)
-        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+        patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = MagicMock(
             return_value=AGENT_INFO._replace(wait_names=["review"])
         )
 
@@ -289,12 +291,12 @@ class TestDeferredWorkspaceFlow:
         patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_deps
         patches[f"{RUNNER}.expand_deferred_launch_xprompts"] = expand_fork
         patches[f"{RUNNER}.wait_for_runner_slot"] = wait_for_slot
-        patches[f"{RUNNER}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
-        patches[f"{RUNNER}.claim_deferred_workspace"] = claim_deferred
-        patches[f"{RUNNER}.refresh_linked_repos_for_workspace"] = MagicMock(
+        patches[f"{LAUNCH}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
+        patches[f"{LAUNCH}.claim_deferred_workspace"] = claim_deferred
+        patches[f"{LAUNCH}.refresh_linked_repos_for_workspace"] = MagicMock(
             return_value=LinkedRepoResolution(repos=())
         )
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
 
         run_main(
             patches,
@@ -318,7 +320,7 @@ class TestDeferredWorkspaceFlow:
 
         wait_info = AGENT_INFO._replace(wait_names=["dep"], wait_runners=1)
         patches = base_patches(artifacts_dir)
-        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+        patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = MagicMock(
             return_value=wait_info
         )
 
@@ -344,14 +346,14 @@ class TestDeferredWorkspaceFlow:
         patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_dependencies
         patches[f"{RUNNER}.detect_repeat_stop"] = MagicMock(return_value=None)
         patches[f"{RUNNER}.wait_for_runner_slot"] = MagicMock(side_effect=wait_for_slot)
-        patches[f"{RUNNER}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
-        patches[f"{RUNNER}.claim_deferred_workspace"] = MagicMock(
+        patches[f"{LAUNCH}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
+        patches[f"{LAUNCH}.claim_deferred_workspace"] = MagicMock(
             side_effect=claim_deferred
         )
-        patches[f"{RUNNER}.refresh_linked_repos_for_workspace"] = MagicMock(
+        patches[f"{LAUNCH}.refresh_linked_repos_for_workspace"] = MagicMock(
             return_value=LinkedRepoResolution(repos=())
         )
-        patches[f"{RUNNER}.run_execution_loop"] = MagicMock(side_effect=run_loop)
+        patches[f"{LAUNCH}.run_execution_loop"] = MagicMock(side_effect=run_loop)
 
         run_main(
             patches,
@@ -375,7 +377,7 @@ class TestDeferredWorkspaceFlow:
 
         wait_info = AGENT_INFO._replace(wait_duration=0.0)
         patches = base_patches(artifacts_dir)
-        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+        patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = MagicMock(
             return_value=wait_info
         )
 
@@ -387,12 +389,12 @@ class TestDeferredWorkspaceFlow:
             return exec_result(artifacts_dir)
 
         patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_deps
-        patches[f"{RUNNER}.claim_deferred_workspace"] = MagicMock(
+        patches[f"{LAUNCH}.claim_deferred_workspace"] = MagicMock(
             side_effect=AssertionError(
                 "home-mode agents must not claim deferred workspaces"
             )
         )
-        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
 
         run_main(
             patches,

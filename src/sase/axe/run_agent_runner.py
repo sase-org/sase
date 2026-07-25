@@ -4,90 +4,54 @@
 This script is launched by the ace TUI to run custom agents in the background.
 It handles workspace cleanup and releases the workspace upon completion.
 
-The core execution loop (retry, plan approval, question handling) lives in
-``axe.run_agent_exec``. Pre-execution setup helpers live in
-``axe.run_agent_runner_setup`` and post-execution helpers in
-``axe.run_agent_runner_finalize``.
+``main`` owns admission control -- dependency waits, code refresh, repeat-stop
+detection, and runner-slot queueing -- and delegates the phases around it:
+pre-wait bootstrap to ``axe.run_agent_runner_bootstrap``, post-admission
+workspace preparation and execution to ``axe.run_agent_runner_launch``, the
+core execution loop to ``axe.run_agent_exec``, and completion/shutdown to
+``axe.run_agent_runner_finalize`` and ``axe.run_agent_runner_lifecycle``. The
+run state they all share lives in ``axe.run_agent_runner_state``.
 """
 
-import json
 import os
 import sys
-import time
 from datetime import UTC, datetime
-from typing import Any
 
 from sase.ace.hooks import format_duration
 from sase.artifacts import convert_timestamp_to_artifacts_format, launch_artifacts_dir
-from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
-from sase.axe.clan_summary_script import (
-    POST_WORKSPACE_PREPARATION_ATTEMPT_LABEL,
-    resolve_clan_summary_script,
-)
-from sase.axe.run_agent_directive_metadata import (
-    epic_work_environment_from_metadata,
-)
 from sase.axe.run_agent_phases import (
-    claim_deferred_workspace,
-    extract_directives_and_write_meta,
-    persist_refreshed_clan_summary,
     record_run_started_at,
-    resolve_agent_refs_in_prompt,
-    resolve_wait_chat_paths,
     wait_for_dependencies,
     wait_for_runner_slot,
 )
 from sase.axe.run_agent_repeat_stop import RepeatStopDecision, detect_repeat_stop
 from sase.axe.run_agent_runtime import format_agent_run_runtime
-from sase.axe.run_agent_runner_cli import parse_runner_args, read_prompt_file
-from sase.axe.run_agent_runner_errors import (
-    RunnerErrorContext,
-    record_runner_error,
-)
+from sase.axe.run_agent_runner_bootstrap import RunnerBootstrap, bootstrap_agent_run
+from sase.axe.run_agent_runner_cli import parse_runner_args
+from sase.axe.run_agent_runner_errors import record_runner_error
 from sase.axe.run_agent_runner_finalize import (
-    classify_exec_success,
     record_completion_metrics,
     send_completion_notification,
     write_error_done_marker,
 )
+from sase.axe.run_agent_runner_launch import launch_agent_run
 from sase.axe.run_agent_runner_lifecycle import (
-    RunnerShutdownContext,
     RunnerShutdownDeps,
-    RunnerShutdownState,
     auto_dismiss_completed_agent,
     finalize_runner_shutdown,
 )
 from sase.axe.run_agent_runner_repeat import finalize_repeat_stop
 from sase.axe.run_agent_runner_refresh import (
-    RUNNER_CODE_REFRESHED_ENV,
     refresh_runner_code_after_wait,
     runner_code_identity,
 )
-from sase.axe.run_agent_runner_bead import claim_bead_for_agent_launch
-from sase.axe.run_agent_runner_signals import (
-    install_workspace_release_sigterm_handler,
-    is_user_kill_exit,
-    system_exit_code,
-)
 from sase.axe.run_agent_runner_setup import (
-    apply_retry_chain_to_meta,
     bump_spawn_telemetry,
-    build_output_variable_namespaces,
-    capture_sdd_base_sha,
-    enter_agent_workspace,
     expand_deferred_launch_xprompts,
-    load_retry_handoff_from_env,
-    prepare_linked_repo_workspaces_if_needed,
-    prepare_workspace_if_needed,
-    preprocess_prompt_xprompts,
-    print_agent_start_banner,
-    refresh_linked_repos_for_workspace,
-    setup_artifacts_directory,
-    write_submitted_xprompt_artifact,
-    write_agent_meta,
-    write_home_running_marker,
 )
+from sase.axe.run_agent_runner_signals import is_user_kill_exit, system_exit_code
+from sase.axe.run_agent_runner_state import RunnerRunState
 from sase.axe.runner_artifacts import all_steps_hidden
 from sase.axe.runner_reporting import write_error_report
 from sase.axe.runner_signals import install_sigterm_handler, was_killed
@@ -95,13 +59,6 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_output_variables import set_agent_output_variables
-from sase.bead.claims import (
-    claim_bead_for_waiting_agent,
-    clear_bead_claim_marker,
-    write_bead_claim_marker,
-)
-from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
-from sase.telemetry import init_telemetry, register_flush_on_exit
 from sase.telemetry.metrics import AGENT_KILLS
 
 install_sigterm_handler("agent", soft=True)
@@ -111,582 +68,224 @@ install_sigterm_handler("agent", soft=True)
 _STARTUP_CODE_IDENTITY = runner_code_identity()
 
 
-def _write_bootstrap_agent_meta(
-    artifacts_dir: str,
-    *,
-    output_path: str,
-    refreshed: bool,
-) -> None:
-    """Seed process metadata without erasing a refreshed run's launch identity."""
-    agent_meta: dict[str, Any] = {}
-    if refreshed:
-        meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-        try:
-            with open(meta_path, encoding="utf-8") as f:
-                existing_meta = json.load(f)
-            if isinstance(existing_meta, dict):
-                agent_meta.update(existing_meta)
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
-            pass
+def _build_run_state(argv: list[str]) -> RunnerRunState:
+    """Derive the run's launch and artifact identity from argv.
 
-    agent_meta.update({"pid": os.getpid(), "output_path": output_path})
-    write_agent_meta(artifacts_dir, agent_meta)
+    Parsing is the only operation that intentionally precedes error recording:
+    malformed argv may not contain enough launch identity to locate artifacts.
+    For valid argv, the artifact identity is derived up front so even a failure
+    while creating/seeding the directory has a best-effort ``done.json``
+    destination.
+    """
+    args = parse_runner_args(argv)
+    project_name = (
+        "home"
+        if args.is_home_mode
+        else os.path.basename(os.path.dirname(args.project_file))
+    )
+    return RunnerRunState(
+        cl_name=args.cl_name,
+        project_file=args.project_file,
+        prompt_file=args.prompt_file,
+        output_path=args.output_path,
+        workflow_name=args.workflow_name,
+        timestamp=args.timestamp,
+        update_target=args.update_target,
+        is_home_mode=args.is_home_mode,
+        workspace_dir=args.workspace_dir,
+        workspace_num=args.workspace_num,
+        project_name=project_name,
+        artifacts_timestamp=convert_timestamp_to_artifacts_format(args.timestamp),
+        artifacts_dir=launch_artifacts_dir(project_name, args.timestamp),
+    )
+
+
+def _wait_for_dependencies_phase(
+    state: RunnerRunState,
+    bootstrap: RunnerBootstrap,
+) -> bool:
+    """Block on this run's declared dependencies; return whether it blocked."""
+    if not bootstrap.has_dependency_wait:
+        return False
+    info = bootstrap.info
+    return wait_for_dependencies(
+        info.wait_names,
+        state.artifacts_dir,
+        state.cl_name,
+        state.timestamp,
+        bootstrap.agent_meta,
+        project_name=state.project_name,
+        wait_identity_deps=info.wait_identity_deps,
+        wait_beads=info.wait_beads,
+        duration=info.wait_duration,
+        wait_until=info.wait_until,
+    )
+
+
+def _finalize_repeat_stop_slot(
+    state: RunnerRunState,
+    decision: RepeatStopDecision,
+) -> None:
+    """Close this repeat slot as a successful skipped STOP slot."""
+    finalize_repeat_stop(
+        decision=decision,
+        artifacts_dir=state.artifacts_dir,
+        cl_name=state.cl_name,
+        project_file=state.project_file,
+        timestamp=state.timestamp,
+        artifacts_timestamp=state.artifacts_timestamp,
+        workspace_num=state.workspace_num,
+        workspace_dir=state.workspace_dir,
+        output_path=state.output_path,
+        agent_name=state.agent_name,
+        agent_model=state.agent_model,
+        agent_llm_provider=state.agent_llm_provider,
+        agent_vcs_provider=state.agent_vcs_provider,
+        agent_hidden=state.agent_hidden,
+        set_output_variables=set_agent_output_variables,
+        write_done_marker=write_done_marker_and_update_index,
+    )
+    state.current_artifacts_dir = state.artifacts_dir
+    state.success = True
+    state.exec_outcome = "completed"
+    state.suppress_completion_notification = True
+
+
+def _bump_spawn_telemetry(state: RunnerRunState) -> None:
+    """Count this run as an active spawn once it has been admitted."""
+    bump_spawn_telemetry(
+        agent_llm_provider=state.agent_llm_provider,
+        project_name=state.project_name,
+        is_home_mode=state.is_home_mode,
+        workflow_name=state.workflow_name,
+        timestamp=state.timestamp,
+    )
+
+
+def _admit_and_launch(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None:
+    """Claim a runner slot for this run and hand off to the launch phase."""
+    # Fork resolution reads mutable parent transcripts. Keep it behind
+    # dependency admission, but run it before runner-slot admission or any real
+    # workspace claim/preparation.
+    state.prompt = expand_deferred_launch_xprompts(
+        state.prompt,
+        state.artifacts_dir,
+        extra_xprompts=bootstrap.info.local_xprompts or None,
+    )
+
+    state.run_started_at = wait_for_runner_slot(
+        state.artifacts_dir,
+        state.cl_name,
+        state.timestamp,
+        bootstrap.agent_meta,
+        wait_runners=bootstrap.info.wait_runners,
+        wait_priority=bootstrap.info.wait_priority,
+        claim=lambda: record_run_started_at(state.artifacts_dir, bootstrap.agent_meta),
+    )
+
+    state.active_agent_started = True
+    _bump_spawn_telemetry(state)
+    launch_agent_run(state, bootstrap)
+
+
+def _run_agent(state: RunnerRunState) -> None:
+    """Bootstrap, wait for admission, then either stop or launch the agent."""
+    bootstrap = bootstrap_agent_run(state)
+    blocking_wait_occurred = _wait_for_dependencies_phase(state, bootstrap)
+
+    # Re-exec before repeat-stop detection, runner-slot claiming, or any
+    # workspace mutation. The refreshed main pass intentionally resolves
+    # xprompts again so post-wait work uses the current definitions.
+    refresh_runner_code_after_wait(
+        _STARTUP_CODE_IDENTITY,
+        blocking_wait_occurred=blocking_wait_occurred,
+        killed=was_killed(),
+        prompt_file=state.prompt_file,
+        submitted_xprompt=state.submitted_xprompt,
+    )
+
+    repeat_stop: RepeatStopDecision | None = None
+    if bootstrap.has_dependency_wait:
+        repeat_stop = detect_repeat_stop()
+
+    if repeat_stop is not None:
+        state.active_agent_started = True
+        _bump_spawn_telemetry(state)
+        _finalize_repeat_stop_slot(state, repeat_stop)
+    else:
+        _admit_and_launch(state, bootstrap)
+
+
+def _record_completion(state: RunnerRunState) -> None:
+    """Record duration/runtime metrics and print the run's closing summary."""
+    completion_time = datetime.now(UTC)
+    end_time = completion_time.timestamp()
+    state.duration = format_duration(int(end_time - state.start_time))
+
+    record_completion_metrics(
+        success=state.success,
+        duration_seconds=end_time - state.start_time,
+        agent_llm_provider=state.agent_llm_provider,
+        agent_model=state.agent_model,
+        workflow_name=state.workflow_name,
+        project_name=state.project_name,
+        cl_name=state.cl_name,
+        workspace_num=state.workspace_num,
+        artifacts_dir=state.artifacts_dir,
+        current_artifacts_dir=state.current_artifacts_dir,
+        prompt=state.prompt,
+        active_agent_started=state.active_agent_started,
+        completion_time=completion_time,
+    )
+    state.runtime = format_agent_run_runtime(
+        launch_timestamp_suffix=state.artifacts_timestamp,
+        run_started_at=state.run_started_at,
+        completion_time=completion_time,
+    )
+
+    print()
+    print(f"Agent completed with status: {'SUCCESS' if state.success else 'FAILED'}")
+    print(f"Duration: {state.duration}")
 
 
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
-    args = parse_runner_args(sys.argv)
-    cl_name = args.cl_name
-    project_file = args.project_file
-    workspace_dir = args.workspace_dir
-    output_path = args.output_path
-    workspace_num = args.workspace_num
-    workflow_name = args.workflow_name
-    timestamp = args.timestamp
-    update_target = args.update_target
-    is_home_mode = args.is_home_mode
-
-    # Parsing is the only operation that intentionally precedes error recording:
-    # malformed argv may not contain enough launch identity to locate artifacts.
-    # For valid argv, derive the artifact identity up front so even a failure while
-    # creating/seeding the directory has a best-effort destination for done.json.
-    project_name = (
-        "home" if is_home_mode else os.path.basename(os.path.dirname(project_file))
-    )
-    artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
-    artifacts_dir = launch_artifacts_dir(project_name, timestamp)
-    current_artifacts_dir = artifacts_dir
-    signal_fallback_artifacts_dir: str | None = artifacts_dir
-
-    prompt = ""
-    submitted_xprompt = ""
-    start_time = time.time()
-    success = False
-    duration = "0s"
-    runtime: str | None = None
-    saved_path: str | None = None
-    diff_path: str | None = None
-    markdown_pdf_paths: list[str] = []
-    markdown_source_count = 0
-    image_paths: list[str] = []
-    video_paths: list[str] = []
-    step_output: dict[str, Any] | None = None
-    exec_outcome = ""
-    error_summary: str | None = None
-    error_traceback_str: str | None = None
-    run_started_at: str | None = None
-    suppress_completion_notification = False
-    active_agent_started = False
-    running_marker_path: str | None = None
-    held_bead_claim: tuple[str, str, str] | None = None
-
-    # Defaults for agent metadata (populated later, but needed by error handler).
-    agent_name: str | None = None
-    agent_model: str | None = None
-    agent_llm_provider: str | None = None
-    agent_vcs_provider: str | None = None
-    agent_hidden = False
-
-    def _signal_fallback_artifacts_dir() -> str | None:
-        return signal_fallback_artifacts_dir
-
-    def _error_context() -> RunnerErrorContext:
-        return RunnerErrorContext(
-            current_artifacts_dir=current_artifacts_dir,
-            cl_name=cl_name,
-            project_file=project_file,
-            timestamp=timestamp,
-            artifacts_timestamp=artifacts_timestamp,
-            workspace_num=workspace_num,
-            workspace_dir=workspace_dir,
-            output_path=output_path,
-            agent_name=agent_name,
-            agent_model=agent_model,
-            agent_llm_provider=agent_llm_provider,
-            agent_vcs_provider=agent_vcs_provider,
-            agent_hidden=agent_hidden,
-        )
+    state = _build_run_state(sys.argv)
 
     try:
         try:
-            install_workspace_release_sigterm_handler(
-                project_file=project_file,
-                workspace_num=workspace_num,
-                workflow_name=workflow_name,
-                cl_name=cl_name,
-                is_home_mode=is_home_mode,
-                artifacts_dir_getter=_signal_fallback_artifacts_dir,
-            )
-
-            project_name, artifacts_timestamp, artifacts_dir = (
-                setup_artifacts_directory(
-                    timestamp=timestamp,
-                    project_file=project_file,
-                    cl_name=cl_name,
-                    is_home_mode=is_home_mode,
-                )
-            )
-            current_artifacts_dir = artifacts_dir
-            signal_fallback_artifacts_dir = artifacts_dir
-
-            # Persist the raw output location before any prompt processing or
-            # dependency wait. A refreshed pass reuses the artifact directory,
-            # so retain its durable launch metadata until directive extraction
-            # can carry it into the rebuilt record.
-            _write_bootstrap_agent_meta(
-                artifacts_dir,
-                output_path=output_path,
-                refreshed=RUNNER_CODE_REFRESHED_ENV in os.environ,
-            )
-
-            refreshed_prompt_fallback: str | None = None
-            if RUNNER_CODE_REFRESHED_ENV in os.environ:
-                refreshed_prompt_fallback = os.path.join(
-                    artifacts_dir,
-                    "submitted_xprompt.md",
-                )
-            prompt = read_prompt_file(
-                args.prompt_file,
-                refreshed_fallback_file=refreshed_prompt_fallback,
-            )
-            submitted_xprompt = prompt
-            try:
-                write_submitted_xprompt_artifact(artifacts_dir, submitted_xprompt)
-            except OSError as e:
-                print(
-                    f"Warning: Failed to write submitted_xprompt.md: {e}",
-                    file=sys.stderr,
-                )
-
-            init_telemetry()
-            register_flush_on_exit(
-                job="agent_runner", workflow=workflow_name, instance=timestamp
-            )
-
-            if RUNNER_CODE_REFRESHED_ENV not in os.environ:
-                print_agent_start_banner(
-                    cl_name=cl_name,
-                    workspace_dir=workspace_dir,
-                    workflow_name=workflow_name,
-                    prompt=prompt,
-                )
-
-            prompt, vcs_tag, raw_resolved_prompt = preprocess_prompt_xprompts(
-                prompt, artifacts_dir
-            )
-            retry_handoff = load_retry_handoff_from_env()
-
-            deferred_workspace = bool(os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE"))
-
-            enter_agent_workspace(workspace_dir, workspace_num)
-
-            # Extract directives and write agent metadata
-            info = extract_directives_and_write_meta(
-                prompt,
-                workspace_dir,
-                artifacts_dir,
-                cl_name=cl_name,
-                output_path=output_path,
-                raw_resolved_prompt=raw_resolved_prompt,
-            )
-            agent_name = info.name
-            agent_model = info.model
-            agent_llm_provider = info.llm_provider
-            agent_vcs_provider = info.vcs_provider
-            agent_hidden = info.hidden
-            agent_meta = {**info.meta, "output_path": output_path}
-
-            agent_meta = apply_retry_chain_to_meta(
-                retry_handoff=retry_handoff,
-                agent_meta=agent_meta,
-                artifacts_dir=artifacts_dir,
-            )
-
-            has_dependency_wait = (
-                bool(info.wait_names)
-                or bool(info.wait_identity_deps)
-                or bool(info.wait_beads)
-                or info.wait_duration is not None
-                or info.wait_until is not None
-            )
-            has_wait = (
-                has_dependency_wait
-                or info.wait_runners is not None
-                or info.wait_priority is not None
-            )
-            if deferred_workspace and not is_home_mode and not has_wait:
-                raise RuntimeError(
-                    "SASE_AGENT_DEFERRED_WORKSPACE=1 but extracted wait metadata "
-                    "is empty; refusing to continue in the placeholder workspace"
-                )
-            if (
-                has_wait
-                and info.bead_id is not None
-                and agent_name is not None
-                and project_name
-                and claim_bead_for_waiting_agent(
-                    project_name=project_name,
-                    bead_id=info.bead_id,
-                    agent_name=agent_name,
-                )
-            ):
-                held_bead_claim = (info.bead_id, agent_name, project_name)
-                write_bead_claim_marker(
-                    artifacts_dir,
-                    project_name=project_name,
-                    bead_id=info.bead_id,
-                    agent_name=agent_name,
-                )
-            wait_chats: list[str] = []
-            repeat_stop: RepeatStopDecision | None = None
-            blocking_wait_occurred = False
-            if has_dependency_wait:
-                blocking_wait_occurred = wait_for_dependencies(
-                    info.wait_names,
-                    artifacts_dir,
-                    cl_name,
-                    timestamp,
-                    agent_meta,
-                    project_name=project_name,
-                    wait_identity_deps=info.wait_identity_deps,
-                    wait_beads=info.wait_beads,
-                    duration=info.wait_duration,
-                    wait_until=info.wait_until,
-                )
-
-            # Re-exec before repeat-stop detection, runner-slot claiming, or any
-            # workspace mutation. The refreshed main pass intentionally resolves
-            # xprompts again so post-wait work uses the current definitions.
-            refresh_runner_code_after_wait(
-                _STARTUP_CODE_IDENTITY,
-                blocking_wait_occurred=blocking_wait_occurred,
-                killed=was_killed(),
-                prompt_file=args.prompt_file,
-                submitted_xprompt=submitted_xprompt,
-            )
-
-            if has_dependency_wait:
-                repeat_stop = detect_repeat_stop()
-
-            if repeat_stop is not None:
-                active_agent_started = True
-                bump_spawn_telemetry(
-                    agent_llm_provider=agent_llm_provider,
-                    project_name=project_name,
-                    is_home_mode=is_home_mode,
-                    workflow_name=workflow_name,
-                    timestamp=timestamp,
-                )
-                finalize_repeat_stop(
-                    decision=repeat_stop,
-                    artifacts_dir=artifacts_dir,
-                    cl_name=cl_name,
-                    project_file=project_file,
-                    timestamp=timestamp,
-                    artifacts_timestamp=artifacts_timestamp,
-                    workspace_num=workspace_num,
-                    workspace_dir=workspace_dir,
-                    output_path=output_path,
-                    agent_name=agent_name,
-                    agent_model=agent_model,
-                    agent_llm_provider=agent_llm_provider,
-                    agent_vcs_provider=agent_vcs_provider,
-                    agent_hidden=agent_hidden,
-                    set_output_variables=set_agent_output_variables,
-                    write_done_marker=write_done_marker_and_update_index,
-                )
-                current_artifacts_dir = artifacts_dir
-                success = True
-                exec_outcome = "completed"
-                suppress_completion_notification = True
-            else:
-                # Fork resolution reads mutable parent transcripts. Keep it
-                # behind dependency admission, but run it before runner-slot
-                # admission or any real workspace claim/preparation.
-                prompt = expand_deferred_launch_xprompts(
-                    prompt,
-                    artifacts_dir,
-                    extra_xprompts=info.local_xprompts or None,
-                )
-
-                run_started_at = wait_for_runner_slot(
-                    artifacts_dir,
-                    cl_name,
-                    timestamp,
-                    agent_meta,
-                    wait_runners=info.wait_runners,
-                    wait_priority=info.wait_priority,
-                    claim=lambda: record_run_started_at(artifacts_dir, agent_meta),
-                )
-
-                active_agent_started = True
-                bump_spawn_telemetry(
-                    agent_llm_provider=agent_llm_provider,
-                    project_name=project_name,
-                    is_home_mode=is_home_mode,
-                    workflow_name=workflow_name,
-                    timestamp=timestamp,
-                )
-
-                if deferred_workspace and not is_home_mode:
-                    workspace_num, workspace_dir = claim_deferred_workspace(
-                        project_file,
-                        project_name,
-                        workflow_name,
-                        cl_name,
-                        artifacts_timestamp,
-                    )
-
-                fresh_sidecar_paths = prepare_workspace_if_needed(
-                    workspace_dir=workspace_dir,
-                    workspace_num=workspace_num,
-                    cl_name=cl_name,
-                    update_target=update_target,
-                    project_name=project_name,
-                    is_home_mode=is_home_mode,
-                    retry_handoff=retry_handoff,
-                )
-
-                if deferred_workspace and not is_home_mode:
-                    linked_repo_resolution = refresh_linked_repos_for_workspace(
-                        project_file=project_file,
-                        workspace_dir=workspace_dir,
-                        workspace_num=workspace_num,
-                        artifacts_dir=artifacts_dir,
-                        agent_meta=agent_meta,
-                    )
-                    if update_target and retry_handoff is None:
-                        prepare_linked_repo_workspaces_if_needed(
-                            resolution=linked_repo_resolution,
-                            cl_name=cl_name,
-                            fresh_sidecar_paths=fresh_sidecar_paths,
-                        )
-                elif update_target and not is_home_mode and retry_handoff is None:
-                    linked_repo_resolution = refresh_linked_repos_for_workspace(
-                        project_file=project_file,
-                        workspace_dir=workspace_dir,
-                        workspace_num=workspace_num,
-                        artifacts_dir=artifacts_dir,
-                        agent_meta=agent_meta,
-                    )
-                    prepare_linked_repo_workspaces_if_needed(
-                        resolution=linked_repo_resolution,
-                        cl_name=cl_name,
-                        fresh_sidecar_paths=fresh_sidecar_paths,
-                    )
-
-                clan_summary_resolution = info.clan_summary_resolution
-                if clan_summary_resolution is not None:
-                    summary_environment = {
-                        **os.environ,
-                        **epic_work_environment_from_metadata(agent_meta),
-                    }
-                    refreshed_clan_summary = resolve_clan_summary_script(
-                        clan_summary_resolution.script,
-                        workspace_dir=workspace_dir,
-                        clan_name=clan_summary_resolution.clan_name,
-                        clan_generation=clan_summary_resolution.clan_generation,
-                        clan_tribe=clan_summary_resolution.clan_tribe,
-                        agent_log_path=output_path,
-                        artifacts_dir=artifacts_dir,
-                        attempt_label=POST_WORKSPACE_PREPARATION_ATTEMPT_LABEL,
-                        environment=summary_environment,
-                    )
-                    if refreshed_clan_summary:
-                        persist_refreshed_clan_summary(
-                            artifacts_dir,
-                            agent_meta,
-                            refreshed_clan_summary,
-                        )
-
-                if is_home_mode:
-                    running_marker_path = write_home_running_marker(
-                        artifacts_dir=artifacts_dir,
-                        cl_name=cl_name,
-                        timestamp=timestamp,
-                        prompt=prompt,
-                        agent_model=agent_model,
-                        agent_llm_provider=agent_llm_provider,
-                        agent_vcs_provider=agent_vcs_provider,
-                        workspace_dir=workspace_dir,
-                    )
-
-                if has_dependency_wait and info.wait_names:
-                    wait_chats = resolve_wait_chat_paths(info.wait_names)
-
-                prompt, vcs_tag = resolve_agent_refs_in_prompt(prompt)
-
-                if info.approve:
-                    os.environ["SASE_AGENT_AUTO_APPROVE"] = "1"
-
-                output_variable_namespaces = build_output_variable_namespaces(
-                    info.wait_names
-                )
-
-                if info.bead_id is not None:
-                    if agent_name is None:
-                        raise RuntimeError(
-                            f"Cannot claim bead '{info.bead_id}' without a resolved "
-                            "agent name"
-                        )
-                    claim_bead_for_agent_launch(
-                        agent_name=agent_name,
-                        bead_id=info.bead_id,
-                        workspace_dir=workspace_dir,
-                        workspace_num=workspace_num,
-                        artifacts_dir=artifacts_dir,
-                    )
-                    agent_meta["bead_claim_promoted"] = True
-                    write_agent_meta(artifacts_dir, agent_meta)
-                    clear_bead_claim_marker(artifacts_dir)
-                    held_bead_claim = None
-
-                sdd_base_sha = capture_sdd_base_sha(workspace_dir, workspace_num)
-                if sdd_base_sha:
-                    agent_meta["sdd_base_sha"] = sdd_base_sha
-                    write_agent_meta(artifacts_dir, agent_meta)
-
-                ctx = AgentExecContext(
-                    cl_name=cl_name,
-                    project_file=project_file,
-                    workspace_dir=workspace_dir,
-                    output_path=output_path,
-                    workspace_num=workspace_num,
-                    timestamp=timestamp,
-                    update_target=update_target,
-                    project_name=project_name,
-                    is_home_mode=is_home_mode,
-                    artifacts_dir=artifacts_dir,
-                    artifacts_timestamp=artifacts_timestamp,
-                    vcs_tag=vcs_tag,
-                    agent_name=agent_name,
-                    agent_model=agent_model,
-                    agent_llm_provider=agent_llm_provider,
-                    agent_vcs_provider=agent_vcs_provider,
-                    agent_hidden=agent_hidden,
-                    agent_meta=agent_meta,
-                    local_xprompts=info.local_xprompts,
-                    multi_agent_prompt_file=os.environ.get(MULTI_AGENT_PROMPT_FILE_ENV),
-                    wait_chats=wait_chats,
-                    output_variable_namespaces=output_variable_namespaces,
-                )
-
-                exec_result = run_execution_loop(ctx, prompt)
-                exec_outcome = exec_result.outcome
-                success = classify_exec_success(
-                    success=exec_result.success,
-                    outcome=exec_outcome,
-                )
-                saved_path = exec_result.saved_path
-                diff_path = exec_result.diff_path
-                markdown_pdf_paths = exec_result.markdown_pdf_paths
-                markdown_source_count = exec_result.markdown_source_count
-                image_paths = exec_result.image_paths
-                video_paths = exec_result.video_paths
-                current_artifacts_dir = exec_result.current_artifacts_dir
-                step_output = exec_result.step_output
-
+            _run_agent(state)
         except Exception as e:
-            success = False
-            error_summary, error_traceback_str = record_runner_error(
+            state.success = False
+            state.error_summary, state.error_traceback_str = record_runner_error(
                 e,
-                context=_error_context(),
+                context=state.error_context(),
                 write_error_done_marker=write_error_done_marker,
                 agent_kills=AGENT_KILLS,
                 message_prefix="Error running agent",
             )
         except SystemExit as e:
             if is_user_kill_exit(e):
-                exec_outcome = "killed"
-                suppress_completion_notification = True
+                state.exec_outcome = "killed"
+                state.suppress_completion_notification = True
                 raise
 
-            success = False
-            error_summary, error_traceback_str = record_runner_error(
+            state.success = False
+            state.error_summary, state.error_traceback_str = record_runner_error(
                 e,
-                context=_error_context(),
+                context=state.error_context(),
                 write_error_done_marker=write_error_done_marker,
                 agent_kills=AGENT_KILLS,
                 message_prefix="Agent exited before completion",
                 error_summary=f"{type(e).__qualname__}: {system_exit_code(e)}",
             )
 
-        completion_time = datetime.now(UTC)
-        end_time = completion_time.timestamp()
-        elapsed_seconds = int(end_time - start_time)
-        duration = format_duration(elapsed_seconds)
-
-        record_completion_metrics(
-            success=success,
-            duration_seconds=end_time - start_time,
-            agent_llm_provider=agent_llm_provider,
-            agent_model=agent_model,
-            workflow_name=workflow_name,
-            project_name=project_name,
-            cl_name=cl_name,
-            workspace_num=workspace_num,
-            artifacts_dir=artifacts_dir,
-            current_artifacts_dir=current_artifacts_dir,
-            prompt=prompt,
-            active_agent_started=active_agent_started,
-            completion_time=completion_time,
-        )
-        runtime = format_agent_run_runtime(
-            launch_timestamp_suffix=artifacts_timestamp,
-            run_started_at=run_started_at,
-            completion_time=completion_time,
-        )
-
-        print()
-        print(f"Agent completed with status: {'SUCCESS' if success else 'FAILED'}")
-        print(f"Duration: {duration}")
+        _record_completion(state)
 
     finally:
         finalize_runner_shutdown(
-            context=RunnerShutdownContext(
-                project_file=project_file,
-                workflow_name=workflow_name,
-                cl_name=cl_name,
-                artifacts_timestamp=artifacts_timestamp,
-                artifacts_dir=artifacts_dir,
-                output_path=output_path,
-                submitted_xprompt=submitted_xprompt,
-                prompt=prompt,
-                is_home_mode=is_home_mode,
-            ),
-            state=RunnerShutdownState(
-                success=success,
-                duration=duration,
-                workspace_num=workspace_num,
-                workspace_dir=workspace_dir,
-                current_artifacts_dir=current_artifacts_dir,
-                running_marker_path=running_marker_path,
-                agent_name=agent_name,
-                agent_model=agent_model,
-                agent_llm_provider=agent_llm_provider,
-                agent_hidden=agent_hidden,
-                saved_path=saved_path,
-                diff_path=diff_path,
-                markdown_pdf_paths=markdown_pdf_paths,
-                markdown_source_count=markdown_source_count,
-                image_paths=image_paths,
-                video_paths=video_paths,
-                step_output=step_output,
-                exec_outcome=exec_outcome,
-                error_summary=error_summary,
-                error_traceback_str=error_traceback_str,
-                suppress_completion_notification=suppress_completion_notification,
-                runtime=runtime,
-                held_bead_claim_id=(
-                    held_bead_claim[0] if held_bead_claim is not None else None
-                ),
-                held_bead_claim_agent=(
-                    held_bead_claim[1] if held_bead_claim is not None else None
-                ),
-                held_bead_claim_project=(
-                    held_bead_claim[2] if held_bead_claim is not None else None
-                ),
-            ),
+            context=state.shutdown_context(),
+            state=state.shutdown_state(),
             deps=RunnerShutdownDeps(
                 update_artifact_index=update_agent_artifact_index_for_marker_mutation,
                 was_killed=was_killed,
@@ -697,7 +296,7 @@ def main() -> None:
             ),
         )
 
-    sys.exit(0 if success else 1)
+    sys.exit(0 if state.success else 1)
 
 
 if __name__ == "__main__":
