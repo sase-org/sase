@@ -146,6 +146,27 @@ def _build_info(p: Path, mtime: float, head: str) -> ChatTranscriptInfo | None:
     )
 
 
+def read_chat_transcript_info(
+    path: Path,
+    *,
+    mtime: float | None = None,
+) -> ChatTranscriptInfo | None:
+    """Parse one transcript using the catalog's bounded-head policy.
+
+    Args:
+        path: Transcript path to parse.
+        mtime: Optional modification time from an existing caller stat. When
+            omitted, this function stats the file itself.
+    """
+
+    if mtime is None:
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            return None
+    return _build_info(path, mtime, _read_head(path))
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
