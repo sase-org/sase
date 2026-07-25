@@ -593,7 +593,7 @@ place after the editor exits.
 
 ### Lane Neighbors Section
 
-Every agent lane panel ends its metadata region with a numbered `NEIGHBORS` roster. A lane is a multi-member family
+Every agent lane panel carries a numbered `NEIGHBORS` roster in its metadata region. A lane is a multi-member family
 container row or a single agent that owns its own lane, so the section appears on family container panels below their
 `FAMILY MEMBERS` roster and on ordinary agent panels. Clan containers, tribe panel summaries, family member child rows,
 and workflow aggregate rows have no `NEIGHBORS` section.
@@ -602,9 +602,9 @@ The rows are exactly the rows the `~` chooser offers for that lane — ancestors
 dismissed descendants, then hood neighbors grouped by hood, nearest hood first — under dim `ancestors`, `descendants`,
 and `<hood> hood` group labels. Row labels are shortened relative to their group, so a `myclan` hood neighbor reads
 `.code` and a descendant reads `--impl.helper`. A `⊘` glyph and a `dismissed` annotation mark dismissed rows, and
-`folded` marks a prospective row that currently lives inside a collapsed clan. The section sits after `ERROR` and
-immediately before the divider that separates metadata from the prompt/reply body, so it never pushes `BEAD`, `PLAN`, or
-`SASE CONTEXT` down.
+`folded` marks a prospective row that currently lives inside a collapsed clan. The section sits directly below
+`WORKFLOW VARIABLES` and immediately above `SASE CONTEXT`, so a lane's numbered neighbors stay reachable without
+scrolling past the context, slow-call, and error sections.
 
 The row count follows the lane's fold scale by position, not by level name: the first position shows 3 rows, the last
 position shows all of them, and any middle position shows 10. A family lane therefore shows 3 rows at level 1 and every

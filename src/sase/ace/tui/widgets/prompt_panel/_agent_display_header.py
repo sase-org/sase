@@ -210,6 +210,28 @@ def build_header_text(
                 header_text.append(f"{name}: ", style="bold #87D7FF")
                 header_text.append(f"{value}\n", style="#5FD75F")
 
+    neighbors_map = None
+    if lane_neighbors is not None:
+        neighbors_map = append_lane_neighbors_section(
+            header_text,
+            projection=lane_neighbors,
+            panel_level=resolved_lane_fold_level,
+            scale=lane_scale,
+            section_fold_overrides=lane_overrides,
+            numbering=document_numbering,
+            unread_agent_ids=unread_agent_ids,
+            marked_identities=marked_agent_ids,
+        )
+
+    if member_jump_map_publisher is not None and (
+        family_map is not None or neighbors_map is not None
+    ):
+        from ._member_roster import merged_member_jump_map
+
+        member_jump_map_publisher(
+            merged_member_jump_map(agent.identity, family_map, neighbors_map)
+        )
+
     bead_section: ResponsiveBeadSection | None = None
     plan_section: ResponsivePlanSection | None = None
     responsive_ranges: dict[str, tuple[int, int]] = {}
@@ -287,28 +309,6 @@ def build_header_text(
     if agent.output_path and is_failed:
         header_text.append("Output: ", style="bold #87D7FF")
         header_text.append(f"{agent.output_path}\n", style="dim")
-
-    neighbors_map = None
-    if lane_neighbors is not None:
-        neighbors_map = append_lane_neighbors_section(
-            header_text,
-            projection=lane_neighbors,
-            panel_level=resolved_lane_fold_level,
-            scale=lane_scale,
-            section_fold_overrides=lane_overrides,
-            numbering=document_numbering,
-            unread_agent_ids=unread_agent_ids,
-            marked_identities=marked_agent_ids,
-        )
-
-    if member_jump_map_publisher is not None and (
-        family_map is not None or neighbors_map is not None
-    ):
-        from ._member_roster import merged_member_jump_map
-
-        member_jump_map_publisher(
-            merged_member_jump_map(agent.identity, family_map, neighbors_map)
-        )
 
     error_tb_syntax: Syntax | None = None
     if agent.error_traceback:

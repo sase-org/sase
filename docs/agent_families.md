@@ -269,10 +269,10 @@ untouched. A member-specific override inherits from the `FAMILY MEMBERS` section
 level. The numbered roster and its digit jumps remain present at both effective levels. Absent xprompt and prompt
 sections are omitted, while reply rows for members that have not responded yet remain visible with their pending state.
 
-A family root is an agent lane, so its panel also ends with a `NEIGHBORS` section listing the lane's ancestors,
-descendants, and hood neighbors below `FAMILY MEMBERS`. Both rosters draw their digits from one continuous ladder, so
-family members are numbered first and neighbors after, with a single shared number width. Lane members already shown
-under `FAMILY MEMBERS` are never repeated in `NEIGHBORS`; they are reported as a dim
+A family root is an agent lane, so its panel also carries a `NEIGHBORS` section listing the lane's ancestors,
+descendants, and hood neighbors; it sits below `FAMILY MEMBERS` and above `SASE CONTEXT`. Both rosters draw their digits
+from one continuous ladder, so family members are numbered first and neighbors after, with a single shared number width.
+Lane members already shown under `FAMILY MEMBERS` are never repeated in `NEIGHBORS`; they are reported as a dim
 `… +N also listed under FAMILY MEMBERS` tail. The family's two-level scale drives the section too: level 1 shows the
 first three neighbors plus a hidden-count tail, and level 2 shows all of them. See
 [Lane Neighbors Section](ace.md#lane-neighbors-section) for the full behavior, which single agents share through their

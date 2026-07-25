@@ -20,9 +20,13 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_neighbors import (
     append_lane_neighbors_section,
     neighbor_entry_limit,
 )
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
+    DetailHeaderSummary,
+)
 from sase.ace.tui.widgets.prompt_panel._member_roster_digest import (
     _AgentRosterDigest,
 )
+from tests.ace.tui.widgets._agent_display_plan_helpers import plan_summary
 
 _NOW = datetime(2026, 7, 25, 14, 0, 0)
 
@@ -192,21 +196,27 @@ def test_neighbors_section_marks_dismissed_targets_and_suppression_tail() -> Non
     assert "… +2 also listed under FAMILY MEMBERS" in text.plain
 
 
-def test_header_places_neighbors_after_error_and_before_metadata_divider() -> None:
+def test_header_places_neighbors_below_workflow_variables_and_above_sase_context() -> (
+    None
+):
     lane = _agent("lane", status="FAILED", error_message="boom")
+    lane.step_output = {"meta_foo": "bar"}
     neighbor = _agent("lane.child")
     published = []
 
     header, _ = build_header_text(
         lane,
-        cheap=True,
         lane_fold_level=FoldLevel.COLLAPSED,
+        summary=DetailHeaderSummary(associated_plan=plan_summary()),
         lane_neighbors=_projection(lane, (_row(neighbor),)),
         member_jump_map_publisher=published.append,
     )
 
-    assert header.plain.index("ERROR") < header.plain.index("NEIGHBORS")
-    assert header.plain.index("NEIGHBORS") < header.plain.rindex("─" * 50)
+    plain = header.plain
+    assert plain.index("WORKFLOW VARIABLES") < plain.index("NEIGHBORS")
+    assert plain.index("NEIGHBORS") < plain.index("SASE CONTEXT")
+    assert plain.index("SASE CONTEXT") < plain.index("ERROR")
+    assert plain.index("NEIGHBORS") < plain.rindex("─" * 50)
     assert len(published) == 1
     assert [target.member_identity for target in published[0].targets] == [
         neighbor.identity

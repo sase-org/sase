@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -122,6 +123,43 @@ def _single_lane_neighbor_agents() -> list[Agent]:
     """A single-agent lane with two hood groups of neighbors."""
     rows = [
         _lane_agent("visual.lane.plan", index=0, status="RUNNING"),
+        _lane_agent("visual.lane.code", index=1, status="DONE"),
+        _lane_agent("visual.lane.review", index=2, status="WAITING"),
+        _lane_agent("visual.lane.docs", index=3, status="DONE"),
+        _lane_agent("visual.lane.verify", index=4, status="DONE"),
+        _lane_agent("visual.other.bench", index=5, status="DONE"),
+    ]
+    _apply_status_overrides(rows)
+    return sort_and_reorder(rows, [])
+
+
+def _lane_neighbor_agents_with_plan(tmp_path: Path) -> list[Agent]:
+    """``_single_lane_neighbor_agents`` whose lane also renders SASE CONTEXT."""
+    relative_plan_path = Path("sase/repos/plans/202607/lane neighbor placement.md")
+    plan_path = tmp_path / relative_plan_path
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text(
+        "---\n"
+        "tier: tale\n"
+        "title: Lane neighbor placement\n"
+        "goal: >\n"
+        "  Keep a lane's numbered neighbors reachable without scrolling past the\n"
+        "  context, slow-call, and error sections.\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    rows = [
+        _lane_agent(
+            "visual.lane.plan",
+            index=0,
+            status="RUNNING",
+            plan_path=relative_plan_path.as_posix(),
+            sdd_plan_path=relative_plan_path.as_posix(),
+            plan_committed=True,
+            plan_action="tale",
+            workspace_dir=str(tmp_path),
+        ),
         _lane_agent("visual.lane.code", index=1, status="DONE"),
         _lane_agent("visual.lane.review", index=2, status="WAITING"),
         _lane_agent("visual.lane.docs", index=3, status="DONE"),
@@ -463,6 +501,46 @@ async def test_agents_lane_neighbors_section_fold_levels_png_snapshots(
                 page.app._agents[page.app.current_idx].agent_name
                 == "visual.other.bench"
             )
+        )
+
+
+async def test_agents_lane_neighbors_above_sase_context_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pin_agents_visual_now(monkeypatch, _LANE_NOW)
+    patch_startup_loaders(monkeypatch, agents=_lane_neighbor_agents_with_plan(tmp_path))
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(160, 50)
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 6)
+        lane = next(
+            agent
+            for agent in page.app._agents
+            if agent.agent_name == "visual.lane.plan"
+        )
+        page.app.current_idx = page.app._agents.index(lane)
+        await wait_for_svg_contains(page, "NEIGHBORS")
+        await wait_for_svg_contains(page, "SASE CONTEXT")
+        await wait_for_visual_idle(page)
+
+        assert page.app._agents[page.app.current_idx] is lane
+        assert_page_svg_contains(page, "NEIGHBORS")
+        assert_page_svg_contains(page, "SASE CONTEXT")
+        svg_plain = page.export_svg(title="ACE lane neighbors above context").replace(
+            "&#160;", " "
+        )
+        assert svg_plain.index("NEIGHBORS") < svg_plain.index("SASE CONTEXT")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_lane_neighbors_above_context_160x50",
+            title="ACE lane neighbors above SASE CONTEXT",
         )
 
 
