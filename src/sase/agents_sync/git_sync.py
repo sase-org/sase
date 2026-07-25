@@ -14,6 +14,7 @@ import tempfile
 import time
 from typing import Any
 
+from sase.agent.names._registry import name_registry_load_session
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.incoming_integration import (
     integrate_agent_imports_with_receipts,
@@ -71,8 +72,10 @@ def sync_agents(
             from sase.agents_sync.publication_outbox import (
                 acknowledge_agent_publications,
                 clear_quarantined_agent_publications,
+                configured_publication_max_attempts,
                 list_agent_publications,
                 publication_quarantine_diagnostics,
+                update_agent_publications,
             )
 
             if retry_quarantined:
@@ -88,10 +91,29 @@ def sync_agents(
                 lock_timeout_seconds=timeout,
             )
             if outcome.ok and outcome.skip_reason is None and pending_publications:
-                acknowledge_agent_publications(
-                    target.project_key,
-                    (item.logical_key for item in pending_publications),
+                materialized = tuple(
+                    item
+                    for item in pending_publications
+                    if _publication_request_materialized(target, item.global_agent)
                 )
+                if materialized:
+                    acknowledge_agent_publications(
+                        target.project_key,
+                        (item.logical_key for item in materialized),
+                    )
+                for item in pending_publications:
+                    if item in materialized:
+                        continue
+                    update_agent_publications(
+                        target.project_key,
+                        (item.logical_key,),
+                        error=(
+                            f"published agent page for {item.global_agent!r} "
+                            "did not materialize during full sync"
+                        ),
+                        increment_attempts=True,
+                        quarantine_threshold=configured_publication_max_attempts(),
+                    )
             quarantine_diagnostics = publication_quarantine_diagnostics(
                 target.project_key
             )
@@ -122,6 +144,15 @@ def sync_agents(
         # A cache write must never turn an already-complete sync into failure.
         pass
     return result
+
+
+def _publication_request_materialized(
+    target: ProjectTarget,
+    global_agent: str,
+) -> bool:
+    agents_root = (target.sidecar_path / "agents").resolve(strict=False)
+    page = (agents_root / global_agent / "README.md").resolve(strict=False)
+    return page.is_relative_to(agents_root) and page.is_file()
 
 
 def _sync_project(
@@ -404,18 +435,22 @@ def _integrate_export_pass(
     git_runner: GitRunner,
 ) -> tuple[IntegrationCounts, ExportCounts]:
     identity = AgentIdentitySnapshot(owner)
-    integrated = integrate_agent_imports_with_receipts(
-        target,
-        repo,
-        owner,
-        git_runner=git_runner,
-    )
-    published = reconcile_agent_hoods(
-        target,
-        repo,
-        identity=identity,
-        git_runner=git_runner,
-    )
+    # Import recovery can claim many historical names. Keep one registry
+    # snapshot alive across the pass instead of rebuilding the artifact-backed
+    # registry for every recovered transaction.
+    with name_registry_load_session():
+        integrated = integrate_agent_imports_with_receipts(
+            target,
+            repo,
+            owner,
+            git_runner=git_runner,
+        )
+        published = reconcile_agent_hoods(
+            target,
+            repo,
+            identity=identity,
+            git_runner=git_runner,
+        )
     return integrated, ExportCounts(
         diagnostics=tuple(
             dict.fromkeys((*integrated.diagnostics, *published.diagnostics))

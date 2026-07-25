@@ -275,10 +275,35 @@ def _finalize_transaction(target: ProjectTarget, journal: dict[str, Any]) -> Non
             sase_projects_dir() / target.project_key / relative
         )
     _apply_staged_files(target, journal, journal["groups"])
-    from sase.ace.dismissed_agents import rebuild_dismissed_bundle_index
-
-    rebuild_dismissed_bundle_index()
+    _update_dismissed_bundle_index(target, journal)
     sync_dismissed_agent_artifact_index(force=True)
+
+
+def _update_dismissed_bundle_index(
+    target: ProjectTarget,
+    journal: dict[str, Any],
+) -> None:
+    """Incrementally index imported bundles, rebuilding only as a fallback."""
+
+    from sase.ace.dismissed_agents import rebuild_dismissed_bundle_index
+    from sase.ace.dismissed_bundle_index import (
+        archive_index_exists,
+        upsert_bundle_summary,
+    )
+
+    root = dismissed_bundles_dir()
+    bundle_rows = [
+        row for row in journal["files"] if row.get("destination_kind") == "bundles"
+    ]
+    if not archive_index_exists(root):
+        rebuild_dismissed_bundle_index()
+        return
+    for row in bundle_rows:
+        path = destination_path(target, row)
+        bundle = read_json_object(path)
+        if bundle is None or not upsert_bundle_summary(root, path, bundle):
+            rebuild_dismissed_bundle_index()
+            return
 
 
 def _apply_staged_files(

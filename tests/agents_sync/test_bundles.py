@@ -156,6 +156,57 @@ def test_import_probes_forward_on_artifact_timestamp_collision(
     assert (artifact_root / "20260722123457" / "done.json").is_file()
 
 
+def test_v1_import_indexes_local_artifacts_once_for_multi_entry_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    first = _bundle()
+    second_meta = PortableAgentMetadata(
+        "zeus.worker-two",
+        "zeus",
+        "20260722123457",
+        2,
+        (("model", "second"), ("workflow_name", "ace-run")),
+    )
+    second = AgentBundle(
+        second_meta,
+        first.commits,
+        b"second chat\n",
+        compute_bundle_digest(second_meta, first.commits, b"second chat\n"),
+    )
+    write_bundle(repo, first)
+    write_bundle(repo, second)
+    scans = 0
+    created: list[str] = []
+
+    def artifact_rows(
+        _target: ProjectTarget,
+    ) -> tuple[tuple[Path, dict[str, object], dict[str, object]], ...]:
+        nonlocal scans
+        scans += 1
+        return ()
+
+    monkeypatch.setattr(bundles, "_v1_artifact_rows", artifact_rows)
+    monkeypatch.setattr(
+        bundles,
+        "_create_imported_artifact",
+        lambda _target, _bundle, entry: created.append(entry.name),
+    )
+
+    counts = bundles.integrate_foreign_bundles(
+        target,
+        repo,
+        AgentsManifest((_entry(first), _entry(second))),
+        "athena",
+    )
+
+    assert counts.integrated == 2
+    assert scans == 1
+    assert created == ["zeus.worker", "zeus.worker-two"]
+
+
 def test_same_machine_v1_requires_local_commit_proof(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

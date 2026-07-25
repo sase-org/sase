@@ -41,7 +41,9 @@ from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import CommitRecord, ProjectTarget
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
+    AgentOwnerIdentity,
     globalize_agent_name,
+    parse_agent_family_name,
 )
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -132,10 +134,26 @@ def build_project_hood_inventory(
                 preferred.prompt_steps_bytes or existing.prompt_steps_bytes
             ),
         )
+    _add_commit_only_runs(
+        by_global,
+        history,
+        target.project_key,
+        owner,
+        diagnostics,
+    )
+    normalized_runs = tuple(
+        _normalize_historical_family_metadata(run, diagnostics)
+        for run in by_global.values()
+    )
+    unique_runs = _disambiguate_source_run_ids(
+        normalized_runs,
+        target.project_key,
+        diagnostics,
+    )
     return ProjectHoodInventory(
         owner,
         target.project_key,
-        tuple(sorted(by_global.values(), key=lambda item: item.source_run_id)),
+        tuple(sorted(unique_runs, key=lambda item: item.source_run_id)),
         tuple(diagnostics),
     )
 
@@ -477,6 +495,141 @@ def _run_preference(run: InventoryRun) -> tuple[int, int, str]:
             )
         ),
         run.timestamp,
+    )
+
+
+def _add_commit_only_runs(
+    by_global: dict[str, InventoryRun],
+    history: dict[str, tuple[CommitRecord, ...]],
+    project_key: str,
+    owner: AgentOwnerIdentity,
+    diagnostics: list[str],
+) -> None:
+    """Represent linked primary commits even after their local artifact is gone."""
+
+    for local_name, commits in sorted(history.items()):
+        global_name = globalize_agent_name(local_name, owner)
+        if global_name in by_global:
+            continue
+        source_label = f"primary commit history for {global_name}"
+        by_global[global_name] = InventoryRun(
+            _source_run_id(project_key, "primary-commit-history", local_name),
+            local_name,
+            global_name,
+            "completed",
+            None,
+            None,
+            None,
+            (),
+            commits,
+            None,
+            None,
+            None,
+            None,
+            (),
+            str(commits[-1].committed_at),
+            source_label=source_label,
+        )
+        diagnostics.append(
+            f"{source_label}: synthesized publication record because no local "
+            "artifact remains"
+        )
+
+
+def _normalize_historical_family_metadata(
+    run: InventoryRun,
+    diagnostics: list[str],
+) -> InventoryRun:
+    """Make stale family metadata agree with canonical name classification."""
+
+    try:
+        parsed = parse_agent_family_name(run.local_name)
+    except Exception as exc:  # noqa: BLE001 - defensive history boundary.
+        source = run.source_label or run.source_run_id
+        diagnostics.append(
+            f"{source}: could not normalize historical family metadata: {exc}"
+        )
+        return run
+    raw_family = run.family_name
+    canonical_family = (
+        parsed.family_name
+        if parsed.member_role is not None
+        else raw_family
+        if raw_family == parsed.family_name
+        else None
+    )
+    metadata = dict(run.metadata)
+    if canonical_family is None:
+        metadata.pop("agent_family", None)
+        metadata.pop("agent_family_role", None)
+        metadata.pop("role_suffix", None)
+    else:
+        metadata["agent_family"] = canonical_family
+        if parsed.member_role is not None:
+            metadata["agent_family_role"] = parsed.member_role
+            metadata["role_suffix"] = parsed.member_role
+    if raw_family is not None and raw_family != canonical_family:
+        source = run.source_label or run.source_run_id
+        diagnostics.append(
+            f"{source}: historical agent_family {raw_family!r} disagrees with "
+            f"canonical name {run.local_name!r}; using "
+            f"{canonical_family or 'solo classification'!r}"
+        )
+    return replace(
+        run,
+        family_name=canonical_family,
+        metadata=tuple(sorted(metadata.items())),
+    )
+
+
+def _disambiguate_source_run_ids(
+    runs: tuple[InventoryRun, ...],
+    project_key: str,
+    diagnostics: list[str],
+) -> tuple[InventoryRun, ...]:
+    """Give distinct historical runs unique stable IDs when old timestamps collide."""
+
+    grouped: dict[str, list[InventoryRun]] = defaultdict(list)
+    for run in runs:
+        grouped[run.source_run_id].append(run)
+    used = {
+        source_run_id
+        for source_run_id, candidates in grouped.items()
+        if len(candidates) == 1
+    }
+    replacements: dict[str, str] = {}
+    for source_run_id, candidates in sorted(grouped.items()):
+        if len(candidates) == 1:
+            continue
+        labels = tuple(
+            sorted(
+                candidate.source_label or candidate.global_name
+                for candidate in candidates
+            )
+        )
+        diagnostics.append(
+            f"historical source run ID {source_run_id!r} was shared by "
+            f"{len(candidates)} records and was deterministically disambiguated: "
+            + ", ".join(labels)
+        )
+        for candidate in sorted(candidates, key=lambda item: item.global_name):
+            salt = 0
+            while True:
+                replacement = _source_run_id(
+                    project_key,
+                    "historical-source-collision",
+                    f"{source_run_id}\0{candidate.global_name}\0{salt}",
+                )
+                if replacement not in used:
+                    break
+                salt += 1
+            replacements[candidate.global_name] = replacement
+            used.add(replacement)
+    return tuple(
+        replace(run, source_run_id=replacements[run.global_name])
+        if run.global_name in replacements
+        else run
+        for run in runs
     )
 
 

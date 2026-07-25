@@ -202,6 +202,217 @@ def test_inventory_discovers_real_legacy_names_and_reconciles_unrelated_hood(
     assert {run.local_name for run in work.runs} == {"work.committer"}
 
 
+def test_inventory_synthesizes_run_for_linked_commit_without_local_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(inventory, "_indexed_records", lambda _target: ((), []))
+    monkeypatch.setattr(inventory, "_dismissed_records", lambda _target: ())
+
+    def runner(
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        if args[0] == "log":
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                _git_log(("missing.agent",)),
+                "",
+            )
+        return subprocess.CompletedProcess(args, 1, "", "unused")
+
+    owner = AgentOwnerIdentity("alice", "athena")
+    identity = AgentIdentitySnapshot(owner)
+    target = _target(tmp_path)
+    result = inventory.build_project_hood_inventory(
+        target,
+        identity,
+        git_runner=runner,
+    )
+
+    assert [run.local_name for run in result.runs] == ["missing.agent"]
+    assert len(result.runs[0].commits) == 1
+    assert result.eligible_hoods() == ("missing",)
+    assert result.diagnostics == (
+        "primary commit history for alice.athena.missing.agent: synthesized "
+        "publication record because no local artifact remains",
+    )
+
+    repo = target.sidecar_path
+    repo.mkdir()
+    counts = reconcile_agent_hoods(target, repo, identity=identity, inventory=result)
+
+    assert counts.hoods_published == 1
+    assert (repo / "agents" / "alice.athena.missing.agent" / "README.md").is_file()
+
+
+def test_inventory_disambiguates_historical_runs_that_share_a_timestamp_id(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("SASE_HOME", str(home))
+    artifacts = home / "projects" / "proj" / "artifacts" / "ace-run"
+    timestamp = "20260723120000"
+    artifact = _write_artifact(artifacts, timestamp, "foo.live")
+    monkeypatch.setattr(
+        inventory,
+        "_indexed_records",
+        lambda _target: ((_record(artifact, timestamp),), []),
+    )
+    monkeypatch.setattr(
+        inventory,
+        "_dismissed_records",
+        lambda _target: (
+            (
+                {
+                    "agent_name": "foo.dismissed",
+                    "raw_suffix": timestamp,
+                    "status": "DONE",
+                },
+                "dismissed.json",
+            ),
+        ),
+    )
+
+    def runner(
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        if args[0] == "log":
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                _git_log(("foo.live",)),
+                "",
+            )
+        return subprocess.CompletedProcess(args, 1, "", "unused")
+
+    owner = AgentOwnerIdentity("alice", "athena")
+    identity = AgentIdentitySnapshot(owner)
+    target = _target(tmp_path)
+    result = inventory.build_project_hood_inventory(
+        target,
+        identity,
+        git_runner=runner,
+    )
+
+    assert {run.local_name for run in result.runs} == {
+        "foo.dismissed",
+        "foo.live",
+    }
+    assert len({run.source_run_id for run in result.runs}) == 2
+    assert any(
+        "was shared by 2 records and was deterministically disambiguated" in diagnostic
+        for diagnostic in result.diagnostics
+    )
+
+    repo = target.sidecar_path
+    repo.mkdir()
+    counts = reconcile_agent_hoods(target, repo, identity=identity, inventory=result)
+
+    assert counts.hoods_published == 1
+    snapshot = read_hood_snapshot(
+        repo
+        / "users"
+        / "alice"
+        / "machines"
+        / "athena"
+        / "hoods"
+        / "foo"
+        / "snapshot.json"
+    )
+    assert len({run.source_run_id for run in snapshot.runs}) == 2
+
+
+def test_inventory_diagnoses_and_drops_stale_solo_family_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("SASE_HOME", str(home))
+    artifacts = home / "projects" / "proj" / "artifacts" / "ace-run"
+    artifact = _write_artifact(artifacts, "20260723120000", "research.g.image")
+    (artifact / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "research.g.image",
+                "artifact_agent_id": "20260723120000",
+                "agent_family": "research.g.final",
+                "model": "gpt",
+            }
+        )
+    )
+    monkeypatch.setattr(
+        inventory,
+        "_indexed_records",
+        lambda _target: ((_record(artifact, "20260723120000"),), []),
+    )
+    monkeypatch.setattr(inventory, "_dismissed_records", lambda _target: ())
+
+    def runner(
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        del network, op
+        if args[0] == "log":
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                _git_log(("research.g.image",)),
+                "",
+            )
+        return subprocess.CompletedProcess(args, 1, "", "unused")
+
+    owner = AgentOwnerIdentity("alice", "athena")
+    identity = AgentIdentitySnapshot(owner)
+    target = _target(tmp_path)
+    result = inventory.build_project_hood_inventory(
+        target,
+        identity,
+        git_runner=runner,
+    )
+
+    run = result.runs[0]
+    assert run.family_name is None
+    assert "agent_family" not in dict(run.metadata)
+    assert any(
+        "historical agent_family 'research.g.final' disagrees with canonical name "
+        "'research.g.image'" in diagnostic
+        for diagnostic in result.diagnostics
+    )
+
+    repo = target.sidecar_path
+    repo.mkdir()
+    counts = reconcile_agent_hoods(target, repo, identity=identity, inventory=result)
+
+    assert counts.hoods_published == 1
+    snapshot = read_hood_snapshot(
+        repo
+        / "users"
+        / "alice"
+        / "machines"
+        / "athena"
+        / "hoods"
+        / "research"
+        / "snapshot.json"
+    )
+    assert snapshot.containers == ()
+
+
 def test_inventory_selection_excludes_and_diagnoses_classifier_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

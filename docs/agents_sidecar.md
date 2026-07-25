@@ -76,6 +76,22 @@ manifest. Family member links use stable `member-<role>` anchors; solo links tar
 Because owners mutate disjoint authority files, a bounded non-fast-forward retry can pull a competing owner, recompute
 the shared views, and converge without overwriting either snapshot.
 
+### Historical-name tolerance
+
+Published history is treated as durable input, even when it contains an agent name that current creation-time validation
+would reject. Read-side identity classification therefore interprets `--<role>` as a family role only when it occurs in
+the final dot-separated segment. For example, `4x--epic.f-0` is a solo name in hood `4x`, while `fi--code.f0--code` is
+the `code` member of family `fi--code.f0` in hood `fi`.
+
+Classification of a non-empty, path-safe historical name is best effort and must not abort an inventory scan or hood
+publication. A record that is genuinely unsafe or cannot be contained is excluded with its artifact path and reason in
+the publication diagnostics. Historical records that share an old timestamp-derived run ID are assigned distinct,
+deterministic IDs and reported instead of invalidating the hood. Stale family metadata is likewise diagnosed and
+reconciled to the canonical name-derived classification. If a linked primary commit remains after its local artifact has
+been cleaned up, publication synthesizes a minimal completed run from the commit association so its `SASE_AGENT` page
+does not become a permanent dead link. This read tolerance does not relax write validation: newly generated solo,
+family, and clan names must still satisfy the current strict naming rules.
+
 ## Importing shared history
 
 A mutating sync also imports shared v2 hoods into local, project-scoped history. Each owner hood is an independent
@@ -113,7 +129,11 @@ The repository transaction acquires a bounded lock, fetches and pulls with rebas
 and optional legacy v1 bundles, drains commit-publication outbox entries, performs v2 publication for locally owned
 hoods, rebuilds deterministic indexes, commits with the full owner identity, and pushes. A non-fast-forward rejection
 triggers one pull/recompute/commit/push retry. Conflicted rebases are aborted and reported; a failure in one project
-does not prevent the others from running. The Updates pane's `a` action is the ACE equivalent for all enabled projects.
+does not prevent the others from running. Import preflight indexes local artifacts once per project sync and reuses that
+view across every incoming hood and run. Exact-owner preflight also indexes matching `SASE_AGENT` commit evidence across
+local project checkouts, so cleaned runs are observed instead of re-imported. Interrupted transaction recovery runs once
+per project pass, v1 compatibility lookup scans artifacts once, and imported dismissed bundles update their summary
+index incrementally. The Updates pane's `a` action is the ACE equivalent for all enabled projects.
 
 Use `--json` to audit the complete schema-version-2 result. In addition to the legacy `integrated`, `refreshed`,
 `exported`, and `export_refreshed` fields, each project reports `hoods_imported`, `hoods_import_refreshed`,
@@ -122,6 +142,24 @@ publication counts and diagnostics. The default table is intentionally compact: 
 import count, `V1` is the changed legacy-v1 publication count, and `HOODS` / `RUNS` report v2 publication—not v2 import—
 totals. ACE's tracked-task lines likewise do not currently include the v2 import fields, so a project that only imports
 or refreshes v2 history can be summarized there as `current`; use the CLI's `--json` result to audit those imports.
+
+Commit-triggered publications use a durable outbox at `~/.sase/projects/<project-key>/agents-publication-outbox.json`.
+Each request records its agent, primary revision, top-level hood, attempt count, most recent attributable error, and
+quarantine state. A hood-specific preparation failure increments only requests for that hood; repository-wide failures
+such as lock contention, pull failure, or push failure remain retryable without consuming the per-item quarantine
+budget. Successful requests are acknowledged only after the sidecar commit is safely pushed (or the prepared payload is
+already current) and the requested agent page exists in the sidecar.
+
+Repeated hood-specific failures are quarantined after a bounded number of attempts. Quarantined requests remain in the
+outbox, appear in sync/status `diagnostics` and `quarantine_diagnostics`, and are skipped by ordinary drains. After
+fixing the reported cause, explicitly reset and retry them:
+
+```bash
+sase agent sync --retry-quarantined -p project-alias
+```
+
+Do not delete or hand-edit the outbox. `--retry-quarantined` clears the quarantine flag and gives those requests a fresh
+retry budget before running the normal full reconciliation.
 
 Periodic detection and the equivalent CLI status checks maintain `~/.sase/agents_sync/status_snapshot.json` and
 validated incoming-hood cache objects:
@@ -171,6 +209,9 @@ All Git, validation, cache import, and full-sync work runs outside the Textual e
 ## Recovery
 
 - A busy lock is a benign skip; retry after the active sync finishes.
+- For an outbox diagnostic, run `sase agent sync --check --json` and inspect the selected project's
+  `quarantine_diagnostics`. The durable outbox file can also be read to correlate a request's `global_agent`,
+  `primary_revision`, `attempts`, and `last_error`, but it must not be edited manually.
 - A missing sidecar reports `not_created`; run `sase repo init` interactively if you intend to publish this scope.
 - A malformed legacy v1 manifest is quarantined and skipped with a diagnostic. A malformed v2 owner manifest, snapshot,
   or referenced digest is quarantined from import; full v2 publication still validates all shared authority and may fail
@@ -181,6 +222,9 @@ All Git, validation, cache import, and full-sync work runs outside the Textual e
 - A post-commit sidecar push failure leaves the primary commit successful and a durable retry request under the
   project's SASE state. Fix credentials/connectivity and run `sase agent sync -p <project>` (or Updates-pane `a`) to
   drain it. Repeating the original commit workflow does not create another primary commit.
+- If an ordinary retry reports a quarantined publication request, fix the item-specific cause and run
+  `sase agent sync --retry-quarantined -p <project>`. Rerun `sase agent sync --check --json` afterward and confirm that
+  no publication quarantine diagnostic remains.
 - A general push or fetch failure leaves local agent history intact. Fix credentials/connectivity and retry.
 - A rebase conflict is aborted before the command returns. Resolve unexpected state in the hidden clone, then rerun
   `sase agent sync`.

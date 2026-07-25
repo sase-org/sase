@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import hashlib
+from pathlib import Path
 
 from sase.agent.names import (
     ImportedV2RegistryClaim,
     preflight_imported_registered_names_v2,
 )
+from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_import_history import (
+    ExactLocalObservationIndex,
+    build_exact_local_observation_index,
     existing_project_imports,
     find_exact_local_observation,
     preferred_timestamp,
@@ -33,24 +38,58 @@ from sase.core.agent_identity_facade import (
 )
 
 
+@dataclass(slots=True)
+class ImportPreflightContext:
+    """Project-scoped indexes reused across one multi-hood import pass."""
+
+    existing: dict[tuple[str, str, str, str], tuple[Path, str | None]]
+    reserved: set[str]
+    observations: ExactLocalObservationIndex
+    recovery_complete: bool = False
+
+
+def build_import_preflight_context(
+    target: ProjectTarget,
+    identity: AgentIdentitySnapshot,
+    packages: tuple[ValidatedV2HoodPackage, ...] = (),
+    *,
+    git_runner: GitRunner = run_git,
+) -> ImportPreflightContext:
+    """Scan local import and observation state once for all incoming hoods."""
+
+    return ImportPreflightContext(
+        existing_project_imports(target, identity),
+        {
+            path.name
+            for path in iter_agent_artifact_dirs(
+                target.project_key,
+                ACE_RUN_WORKFLOW_DIR,
+                newest_first=False,
+            )
+        },
+        build_exact_local_observation_index(
+            target,
+            identity,
+            packages,
+            git_runner=git_runner,
+        ),
+    )
+
+
 def preflight_hood(
     target: ProjectTarget,
     package: ValidatedV2HoodPackage,
     identity: AgentIdentitySnapshot,
+    *,
+    context: ImportPreflightContext | None = None,
 ) -> HoodPlan:
     if identity.owner is None:
         raise AgentsSyncFormatError("v2 import requires a configured owner identity")
     source = AgentSourceOwnerIdentity.v2(package.owner)
     classification = classify_imported_agent_owner(source, identity)
-    existing = existing_project_imports(target, identity)
-    reserved = {
-        path.name
-        for path in iter_agent_artifact_dirs(
-            target.project_key,
-            ACE_RUN_WORKFLOW_DIR,
-            newest_first=False,
-        )
-    }
+    resolved_context = context or build_import_preflight_context(target, identity)
+    existing = resolved_context.existing
+    reserved = resolved_context.reserved
     planned_runs: list[PlannedRun] = []
     destination_ids: dict[str, str] = {}
 
@@ -73,7 +112,12 @@ def preflight_hood(
             destination = artifact.name
         else:
             observed = (
-                find_exact_local_observation(target, payload, identity)
+                find_exact_local_observation(
+                    target,
+                    payload,
+                    identity,
+                    index=resolved_context.observations,
+                )
                 if classification is AgentOwnershipClassification.EXACT_OWNER
                 else None
             )
@@ -209,4 +253,8 @@ def _transaction_key(
     return "v2-" + hashlib.sha256(identity.encode()).hexdigest()[:40]
 
 
-__all__ = ["preflight_hood"]
+__all__ = [
+    "ImportPreflightContext",
+    "build_import_preflight_context",
+    "preflight_hood",
+]

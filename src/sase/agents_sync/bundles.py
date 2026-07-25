@@ -68,6 +68,25 @@ def integrate_foreign_bundles(
     for entry in manifest.entries:
         validated.append((entry, read_bundle(repo_root, entry)))
 
+    artifact_rows = _v1_artifact_rows(target)
+    rows_by_timestamp: dict[
+        str,
+        list[tuple[Path, dict[str, Any], dict[str, Any]]],
+    ] = defaultdict(list)
+    imported_by_identity: dict[
+        tuple[str, str],
+        tuple[Path, dict[str, Any]],
+    ] = {}
+    for artifact, meta, done in artifact_rows:
+        rows_by_timestamp[artifact.name].append((artifact, meta, done))
+        name = meta.get("name")
+        machine_name = meta.get("imported_from_machine")
+        if isinstance(name, str) and isinstance(machine_name, str):
+            imported_by_identity.setdefault(
+                (name, machine_name),
+                (artifact, meta),
+            )
+
     integrated = 0
     refreshed = 0
     unchanged = 0
@@ -79,18 +98,23 @@ def integrate_foreign_bundles(
                 entry,
                 bundle,
                 machine,
+                candidates=tuple(rows_by_timestamp.get(entry.artifact_timestamp, ())),
             )
             is not None
         ):
             unchanged += 1
             continue
-        existing = _find_imported_artifact(target, entry)
-        if existing is not None:
-            existing_meta = _read_json_object(existing / "agent_meta.json") or {}
+        imported = imported_by_identity.get((entry.name, entry.machine))
+        if imported is not None:
+            existing, existing_meta = imported
             if existing_meta.get("imported_digest") == entry.digest:
                 unchanged += 1
                 continue
             _refresh_imported_artifact(existing, bundle, entry)
+            imported_by_identity[(entry.name, entry.machine)] = (
+                existing,
+                {**existing_meta, "imported_digest": entry.digest},
+            )
             refreshed += 1
             continue
         _create_imported_artifact(target, bundle, entry)
@@ -103,22 +127,17 @@ def _find_proven_current_v1_artifact(
     entry: ManifestEntry,
     bundle: AgentBundle,
     machine: str,
+    *,
+    candidates: tuple[tuple[Path, dict[str, Any], dict[str, Any]], ...] | None = None,
 ) -> Path | None:
     """Return a local artifact only when name, timestamp, and commit agree."""
 
     source_shas = {commit.sha.lower() for commit in bundle.commits}
     if not source_shas:
         return None
-    for artifact_dir in iter_agent_artifact_dirs(
-        target.project_key,
-        ACE_RUN_WORKFLOW_DIR,
-        newest_first=False,
-    ):
+    rows = _v1_artifact_rows(target) if candidates is None else candidates
+    for artifact_dir, meta, done in rows:
         if artifact_dir.name != entry.artifact_timestamp:
-            continue
-        meta = _read_json_object(artifact_dir / "agent_meta.json")
-        done = _read_json_object(artifact_dir / "done.json")
-        if meta is None or done is None:
             continue
         if meta.get("imported_from_machine") is not None:
             continue
@@ -140,6 +159,22 @@ def _find_proven_current_v1_artifact(
         if source_shas & local_shas:
             return artifact_dir
     return None
+
+
+def _v1_artifact_rows(
+    target: ProjectTarget,
+) -> tuple[tuple[Path, dict[str, Any], dict[str, Any]], ...]:
+    rows: list[tuple[Path, dict[str, Any], dict[str, Any]]] = []
+    for artifact in iter_agent_artifact_dirs(
+        target.project_key,
+        ACE_RUN_WORKFLOW_DIR,
+        newest_first=False,
+    ):
+        meta = _read_json_object(artifact / "agent_meta.json")
+        done = _read_json_object(artifact / "done.json")
+        if meta is not None and done is not None:
+            rows.append((artifact, meta, done))
+    return tuple(rows)
 
 
 def _build_local_bundles(
@@ -429,23 +464,6 @@ def _transcript_path(meta: Mapping[str, Any], done: Mapping[str, Any]) -> Path |
         path = Path(value).expanduser()
         if path.is_file():
             return path
-    return None
-
-
-def _find_imported_artifact(target: ProjectTarget, entry: ManifestEntry) -> Path | None:
-    for artifact_dir in iter_agent_artifact_dirs(
-        target.project_key,
-        ACE_RUN_WORKFLOW_DIR,
-        newest_first=True,
-    ):
-        meta = _read_json_object(artifact_dir / "agent_meta.json")
-        if meta is None:
-            continue
-        if (
-            meta.get("name") == entry.name
-            and meta.get("imported_from_machine") == entry.machine
-        ):
-            return artifact_dir
     return None
 
 

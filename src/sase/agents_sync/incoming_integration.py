@@ -43,6 +43,10 @@ from sase.agents_sync.v2_import_package import (
     ValidatedV2HoodPackage,
     discover_agent_imports,
 )
+from sase.agents_sync.v2_import_planning import (
+    ImportPreflightContext,
+    build_import_preflight_context,
+)
 from sase.agents_sync.v2_importer import integrate_v2_hoods
 from sase.agents_sync.v2_models import V2ProjectIdentity
 from sase.config import require_agent_owner_identity
@@ -150,6 +154,12 @@ def integrate_cached_agent_updates(
                     receipt.source_hood_key: receipt
                     for receipt in read_project_receipts(project_key)
                 }
+                identity = AgentIdentitySnapshot(owner)
+                preflight_context = build_import_preflight_context(
+                    target,
+                    identity,
+                    git_runner=git_runner,
+                )
             except AgentsSyncFormatError as exc:
                 for index, item in rows:
                     results[index] = _cached_result(
@@ -164,6 +174,7 @@ def integrate_cached_agent_updates(
                     item,
                     owner,
                     receipts.get(item.source_hood_key),
+                    preflight_context,
                 )
                 results[index] = result
                 if receipt is not None:
@@ -202,8 +213,23 @@ def integrate_agent_imports_with_receipts(
     )
     identity = AgentIdentitySnapshot(owner)
     total = IntegrationCounts(diagnostics=discovery.diagnostics)
+    preflight_context = (
+        build_import_preflight_context(
+            target,
+            identity,
+            discovery.v2_packages,
+            git_runner=git_runner,
+        )
+        if discovery.v2_packages
+        else None
+    )
     for package in discovery.v2_packages:
-        counts = integrate_v2_hoods(target, (package,), identity=identity)
+        counts = integrate_v2_hoods(
+            target,
+            (package,),
+            identity=identity,
+            preflight_context=preflight_context,
+        )
         total = _merge_counts(total, counts)
         classification = classify_agent_ownership(
             AgentSourceOwnerIdentity.v2(package.owner),
@@ -256,6 +282,7 @@ def _integrate_one_cached(
     item: CapturedIncomingHood,
     owner: AgentOwnerIdentity,
     prior: AgentHoodImportReceipt | None,
+    preflight_context: ImportPreflightContext,
 ) -> tuple[CachedIntegrationResult, AgentHoodImportReceipt | None]:
     if prior is not None and prior.hood_digest == item.hood_digest:
         return CachedIntegrationResult(item, "already_applied"), None
@@ -277,6 +304,7 @@ def _integrate_one_cached(
                 target,
                 (loaded.v2_package,),
                 identity=AgentIdentitySnapshot(owner),
+                preflight_context=preflight_context,
             )
             if counts.hoods_quarantined:
                 return (

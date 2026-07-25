@@ -80,7 +80,11 @@ def _patch_payload_pass(monkeypatch: pytest.MonkeyPatch) -> list[int]:
         lambda *_args, **_kwargs: IntegrationCounts(),
     )
 
-    def reconcile(_target, repo, **_kwargs):
+    def reconcile(
+        _target: ProjectTarget,
+        repo: Path,
+        **_kwargs: object,
+    ) -> V2PublicationCounts:
         calls.append(1)
         (repo / "README.md").write_text("# Hoods\n")
         (repo / "schema.json").write_text("{}\n")
@@ -97,6 +101,54 @@ def _patch_payload_pass(monkeypatch: pytest.MonkeyPatch) -> list[int]:
 
     monkeypatch.setattr(git_sync, "reconcile_agent_hoods", reconcile)
     return calls
+
+
+def test_full_sync_reuses_one_name_registry_load_session(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _target(tmp_path, tmp_path / "remote.git", tmp_path / "sidecar")
+    events: list[str] = []
+
+    class _Session:
+        def __enter__(self) -> None:
+            events.append("enter")
+
+        def __exit__(self, *_args: object) -> None:
+            events.append("exit")
+
+    monkeypatch.setattr(git_sync, "name_registry_load_session", _Session)
+
+    def integrate(*_args: object, **_kwargs: object) -> IntegrationCounts:
+        events.append("integrate")
+        return IntegrationCounts()
+
+    def reconcile(
+        *_args: object,
+        **_kwargs: object,
+    ) -> V2PublicationCounts:
+        events.append("reconcile")
+        return V2PublicationCounts()
+
+    monkeypatch.setattr(
+        git_sync,
+        "integrate_agent_imports_with_receipts",
+        integrate,
+    )
+    monkeypatch.setattr(
+        git_sync,
+        "reconcile_agent_hoods",
+        reconcile,
+    )
+
+    git_sync._integrate_export_pass(
+        target,
+        target.sidecar_path,
+        AgentOwnerIdentity("alice", "athena"),
+        run_git,
+    )
+
+    assert events == ["enter", "integrate", "reconcile", "exit"]
 
 
 def test_full_sync_transaction_commits_and_pushes_only_payload(
@@ -289,6 +341,9 @@ def test_full_sync_acknowledges_publication_outbox_after_success(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
     target = _target(tmp_path, tmp_path / "remote.git", tmp_path / "sidecar")
+    published_page = target.sidecar_path / "agents" / "alice.athena.foo" / "README.md"
+    published_page.parent.mkdir(parents=True)
+    published_page.write_text("# foo\n")
     enqueue_agent_publication(
         AgentPublicationOutboxItem(
             project_key=target.project_key,
@@ -321,6 +376,53 @@ def test_full_sync_acknowledges_publication_outbox_after_success(
 
     assert git_sync.sync_agents() == (SyncOutcome("proj", "Project", pulled=True),)
     assert list_agent_publications("proj") == ()
+
+
+def test_full_sync_keeps_outbox_request_when_agent_page_did_not_materialize(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target = _target(tmp_path, tmp_path / "remote.git", tmp_path / "sidecar")
+    item = enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key=target.project_key,
+            project=target.project,
+            local_agent="missing",
+            global_agent="alice.athena.missing",
+            primary_revision="a" * 40,
+            local_hood="missing",
+        )
+    )
+    monkeypatch.setattr(
+        git_sync,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        git_sync,
+        "require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
+    monkeypatch.setattr(
+        git_sync,
+        "_sync_project",
+        lambda *_args, **_kwargs: SyncOutcome("proj", "Project", pulled=True),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.status.rewrite_agents_sync_status_after_sync",
+        lambda _projects: None,
+    )
+
+    assert git_sync.sync_agents() == (SyncOutcome("proj", "Project", pulled=True),)
+    remaining = list_agent_publications("proj")
+    assert len(remaining) == 1
+    assert remaining[0].logical_key == item.logical_key
+    assert remaining[0].attempts == 1
+    assert remaining[0].last_error == (
+        "published agent page for 'alice.athena.missing' did not materialize "
+        "during full sync"
+    )
 
 
 def test_network_git_environment_is_noninteractive() -> None:

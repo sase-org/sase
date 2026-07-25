@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import replace
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 
 from sase.ace import dismissed_agents
 from sase.ace import dismissed_agents_bundles
+from sase.ace import dismissed_bundle_index
 from sase.ace.tui.models._loaders import _done_loaders
 from sase.agents_sync import v2_importer
 from sase.agents_sync import v2_import_history
@@ -367,3 +370,223 @@ def test_exact_current_owner_commit_evidence_observes_without_duplicate(
         not in json.loads((artifact / "agent_meta.json").read_text())
         for artifact in artifact_root.glob("*")
     )
+
+
+def test_exact_current_owner_primary_history_observes_cleaned_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, package = _published_package(tmp_path, owner=LOCAL_OWNER)
+    artifact_root, groups, claims = _isolate_local_state(
+        tmp_path,
+        target,
+        monkeypatch,
+    )
+
+    def primary_git(
+        cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "agents_sync.git",
+    ) -> subprocess.CompletedProcess[str]:
+        del cwd, network
+        if op == "agents_sync.v2_primary_commit_index":
+            return subprocess.CompletedProcess(args, 0, f"{'1' * 40}\n{'2' * 40}\n", "")
+        if op == "agents_sync.v2_primary_commit_messages":
+            stdout = "".join(
+                (
+                    f"{'1' * 40}\x00SASE_AGENT=alice.athena.crew--plan\n"
+                    "SASE_MACHINE=athena\n\x00\n",
+                    f"{'2' * 40}\x00SASE_AGENT=alice.athena.crew--code\n"
+                    "SASE_MACHINE=athena\n\x00\n",
+                )
+            )
+            return subprocess.CompletedProcess(args, 0, stdout, "")
+        raise AssertionError(f"unexpected git operation: {op}")
+
+    context = v2_import_planning.build_import_preflight_context(
+        target,
+        AgentIdentitySnapshot(LOCAL_OWNER),
+        (package,),
+        git_runner=primary_git,
+    )
+    observed = v2_importer.integrate_v2_hoods(
+        target,
+        (package,),
+        identity=AgentIdentitySnapshot(LOCAL_OWNER),
+        preflight_context=context,
+    )
+
+    assert observed.hoods_unchanged == 1
+    assert observed.runs_imported == 0
+    assert not list(artifact_root.glob("*"))
+    assert not list(groups.glob("*.json"))
+    assert not any(row[0] == "claim" for row in claims)
+
+
+def test_preflight_context_scans_artifacts_once_for_multi_run_import(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, package = _published_package(tmp_path)
+    artifact_root, _groups, _claims = _isolate_local_state(
+        tmp_path,
+        target,
+        monkeypatch,
+    )
+    history_scans = 0
+    planning_scans = 0
+
+    def history_artifacts(
+        *_args: object,
+        **_kwargs: object,
+    ) -> Iterator[Path]:
+        nonlocal history_scans
+        history_scans += 1
+        return iter(sorted(artifact_root.glob("*")))
+
+    def planning_artifacts(
+        *_args: object,
+        **_kwargs: object,
+    ) -> Iterator[Path]:
+        nonlocal planning_scans
+        planning_scans += 1
+        return iter(sorted(artifact_root.glob("*")))
+
+    monkeypatch.setattr(
+        v2_import_history,
+        "iter_agent_artifact_dirs",
+        history_artifacts,
+    )
+    monkeypatch.setattr(
+        v2_import_planning,
+        "iter_agent_artifact_dirs",
+        planning_artifacts,
+    )
+    identity = AgentIdentitySnapshot(LOCAL_OWNER)
+    context = v2_import_planning.build_import_preflight_context(target, identity)
+
+    imported = v2_importer.integrate_v2_hoods(
+        target,
+        (package,),
+        identity=identity,
+        preflight_context=context,
+    )
+
+    assert imported.hoods_imported == 1
+    assert imported.runs_imported == 2
+    assert history_scans == 2
+    assert planning_scans == 1
+
+
+def test_import_finalization_upserts_bundle_index_without_full_rebuild(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _target(tmp_path)
+    bundles = tmp_path / "bundles"
+    bundle_path = bundles / "202607" / "20260724120000.json"
+    bundle_path.parent.mkdir(parents=True)
+    bundle_path.write_text('{"agent_name":"crew--plan"}\n')
+    upserts: list[tuple[Path, Path, dict[str, object]]] = []
+
+    def upsert(
+        root: Path,
+        path: Path,
+        bundle: dict[str, object],
+    ) -> bool:
+        upserts.append((root, path, bundle))
+        return True
+
+    monkeypatch.setattr(
+        v2_import_transactions,
+        "dismissed_bundles_dir",
+        lambda: bundles,
+    )
+    monkeypatch.setattr(
+        v2_import_transactions,
+        "destination_path",
+        lambda _target, _row: bundle_path,
+    )
+    monkeypatch.setattr(
+        dismissed_bundle_index,
+        "archive_index_exists",
+        lambda root: root == bundles,
+    )
+    monkeypatch.setattr(
+        dismissed_bundle_index,
+        "upsert_bundle_summary",
+        upsert,
+    )
+    monkeypatch.setattr(
+        dismissed_agents,
+        "rebuild_dismissed_bundle_index",
+        lambda: pytest.fail("incremental finalization must not rebuild"),
+    )
+
+    v2_import_transactions._update_dismissed_bundle_index(
+        target,
+        {
+            "files": [
+                {
+                    "destination_kind": "bundles",
+                    "relative": "202607/20260724120000.json",
+                },
+                {
+                    "destination_kind": "project",
+                    "relative": "artifacts/ignored.json",
+                },
+            ]
+        },
+    )
+
+    assert upserts == [
+        (
+            bundles,
+            bundle_path,
+            {"agent_name": "crew--plan"},
+        )
+    ]
+
+
+def test_shared_preflight_context_recovers_transactions_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, package = _published_package(tmp_path)
+    _isolate_local_state(tmp_path, target, monkeypatch)
+    recoveries = 0
+
+    def recover(
+        _target: ProjectTarget,
+        *,
+        identity: AgentIdentitySnapshot,
+    ) -> tuple[str, ...]:
+        nonlocal recoveries
+        del identity
+        recoveries += 1
+        return ()
+
+    monkeypatch.setattr(
+        v2_importer,
+        "recover_v2_import_transactions",
+        recover,
+    )
+    identity = AgentIdentitySnapshot(LOCAL_OWNER)
+    context = v2_import_planning.build_import_preflight_context(target, identity)
+
+    v2_importer.integrate_v2_hoods(
+        target,
+        (package,),
+        identity=identity,
+        preflight_context=context,
+    )
+    v2_importer.integrate_v2_hoods(
+        target,
+        (package,),
+        identity=identity,
+        preflight_context=context,
+    )
+
+    assert recoveries == 1

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 import hashlib
 import json
@@ -9,8 +10,12 @@ from pathlib import Path
 import re
 from typing import Any
 
+from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.models import ProjectTarget
-from sase.agents_sync.v2_import_package import ValidatedV2RunPayload
+from sase.agents_sync.v2_import_package import (
+    ValidatedV2HoodPackage,
+    ValidatedV2RunPayload,
+)
 from sase.core.agent_artifact_paths import (
     ACE_RUN_WORKFLOW_DIR,
     canonical_agent_artifact_path,
@@ -24,6 +29,16 @@ from sase.core.agent_identity_facade import (
     normalize_agent_archive_name,
     normalize_owned_agent_name,
 )
+from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
+
+
+@dataclass(frozen=True, slots=True)
+class ExactLocalObservationIndex:
+    """One-pass lookup for exact-owner source IDs and primary commits."""
+
+    by_source: dict[tuple[str, str], Path]
+    by_commit: dict[tuple[str, str], Path]
+    primary_commits: frozenset[tuple[str, str]]
 
 
 def existing_project_imports(
@@ -67,14 +82,19 @@ def existing_project_imports(
     return results
 
 
-def find_exact_local_observation(
+def build_exact_local_observation_index(
     target: ProjectTarget,
-    payload: ValidatedV2RunPayload,
     identity: AgentIdentitySnapshot,
-) -> Path | None:
+    packages: tuple[ValidatedV2HoodPackage, ...] = (),
+    *,
+    git_runner: GitRunner = run_git,
+) -> ExactLocalObservationIndex:
+    """Index exact-owner artifacts once for a multi-hood import pass."""
+
     if identity.owner is None:
-        return None
-    source_shas = {commit.sha for commit in payload.commits.commits}
+        return ExactLocalObservationIndex({}, {}, frozenset())
+    by_source: dict[tuple[str, str], Path] = {}
+    by_commit: dict[tuple[str, str], Path] = {}
     for artifact in iter_agent_artifact_dirs(
         target.project_key,
         ACE_RUN_WORKFLOW_DIR,
@@ -91,22 +111,136 @@ def find_exact_local_observation(
             local_name = normalize_agent_archive_name(
                 normalize_owned_agent_name(raw_name, identity)
             )
-            if (
-                globalize_agent_name(local_name, identity.owner)
-                != payload.record.global_name
-            ):
-                continue
+            global_name = globalize_agent_name(local_name, identity.owner)
         except (ValueError, RuntimeError):
             continue
         durable = meta.get("artifact_agent_id")
         if not isinstance(durable, str) or not durable:
             durable = artifact.name
-        derived_id = _source_run_id(target.project_key, ACE_RUN_WORKFLOW_DIR, durable)
-        if derived_id == payload.record.source_run_id:
-            return artifact
-        if source_shas and source_shas & _artifact_commit_shas(artifact):
-            return artifact
+        source_run_id = _source_run_id(
+            target.project_key,
+            ACE_RUN_WORKFLOW_DIR,
+            durable,
+        )
+        by_source.setdefault((global_name, source_run_id), artifact)
+        for sha in _artifact_commit_shas(artifact):
+            by_commit.setdefault((global_name, sha), artifact)
+    return ExactLocalObservationIndex(
+        by_source,
+        by_commit,
+        _matching_primary_commit_evidence(
+            target,
+            identity,
+            packages,
+            git_runner=git_runner,
+        ),
+    )
+
+
+def find_exact_local_observation(
+    target: ProjectTarget,
+    payload: ValidatedV2RunPayload,
+    identity: AgentIdentitySnapshot,
+    *,
+    index: ExactLocalObservationIndex | None = None,
+) -> Path | None:
+    if identity.owner is None:
+        return None
+    observations = index or build_exact_local_observation_index(target, identity)
+    direct = observations.by_source.get(
+        (payload.record.global_name, payload.record.source_run_id)
+    )
+    if direct is not None:
+        return direct
+    source_shas = {commit.sha for commit in payload.commits.commits}
+    for sha in sorted(source_shas):
+        observed = observations.by_commit.get((payload.record.global_name, sha))
+        if observed is not None:
+            return observed
+        if (payload.record.global_name, sha) in observations.primary_commits:
+            # Primary history proves the exact-owner run already happened even
+            # after its local artifact was cleaned. This evidence-only path is
+            # never materialized; the source-ID-derived basename exists only
+            # for relationship rewriting in the otherwise no-op plan.
+            return target.primary_checkout / preferred_timestamp(
+                payload.record.source_run_id,
+                None,
+            )
     return None
+
+
+def _matching_primary_commit_evidence(
+    target: ProjectTarget,
+    identity: AgentIdentitySnapshot,
+    packages: tuple[ValidatedV2HoodPackage, ...],
+    *,
+    git_runner: GitRunner,
+) -> frozenset[tuple[str, str]]:
+    owner = identity.owner
+    if owner is None or not packages:
+        return frozenset()
+    expected: dict[str, set[str]] = {}
+    for package in packages:
+        for payload in package.runs:
+            for commit in payload.commits.commits:
+                expected.setdefault(commit.sha.lower(), set()).add(
+                    payload.record.global_name
+                )
+    unresolved = set(expected)
+    matched: set[tuple[str, str]] = set()
+    roots = tuple(dict.fromkeys((target.primary_checkout, *target.primary_roots)))
+    for root in roots:
+        if not unresolved:
+            break
+        if not root.is_dir():
+            continue
+        revisions = git_runner(
+            root,
+            ["rev-list", "--all"],
+            op="agents_sync.v2_primary_commit_index",
+        )
+        if revisions.returncode != 0:
+            continue
+        present = unresolved & {
+            line.strip().lower()
+            for line in revisions.stdout.splitlines()
+            if line.strip()
+        }
+        if not present:
+            continue
+        messages = git_runner(
+            root,
+            [
+                "show",
+                "--no-patch",
+                "--format=%H%x00%B%x00",
+                *sorted(present),
+            ],
+            op="agents_sync.v2_primary_commit_messages",
+        )
+        if messages.returncode != 0:
+            continue
+        chunks = messages.stdout.split("\x00")
+        for index in range(0, len(chunks) - 1, 2):
+            sha = chunks[index].lstrip("\r\n").strip().lower()
+            if sha not in present:
+                continue
+            tags = parse_trailing_commit_tags(chunks[index + 1].rstrip("\r\n"))
+            raw_name = tags.get("AGENT")
+            footer_machine = tags.get("MACHINE")
+            if not raw_name or footer_machine not in {None, owner.machine_name}:
+                continue
+            try:
+                local_name = normalize_agent_archive_name(
+                    normalize_owned_agent_name(raw_name, identity)
+                )
+                global_name = globalize_agent_name(local_name, owner)
+            except (ValueError, RuntimeError):
+                continue
+            if global_name in expected[sha]:
+                matched.add((global_name, sha))
+        unresolved -= present
+    return frozenset(matched)
 
 
 def preferred_timestamp(source_run_id: str, started_at: str | None) -> str:
@@ -195,6 +329,8 @@ def _source_run_id(project: str, workflow: str, durable: str) -> str:
 
 
 __all__ = [
+    "ExactLocalObservationIndex",
+    "build_exact_local_observation_index",
     "existing_project_imports",
     "find_exact_local_observation",
     "preferred_timestamp",

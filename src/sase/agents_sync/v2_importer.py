@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from sase.agents_sync.models import IntegrationCounts, ProjectTarget
 from sase.agents_sync.v2_import_package import ValidatedV2HoodPackage
-from sase.agents_sync.v2_import_planning import preflight_hood
+from sase.agents_sync.v2_import_planning import (
+    ImportPreflightContext,
+    build_import_preflight_context,
+    preflight_hood,
+)
 from sase.agents_sync.v2_import_storage import (
     journal_path,
     project_import_lock,
@@ -24,19 +28,33 @@ def integrate_v2_hoods(
     packages: tuple[ValidatedV2HoodPackage, ...],
     *,
     identity: AgentIdentitySnapshot,
+    preflight_context: ImportPreflightContext | None = None,
 ) -> IntegrationCounts:
     """Preflight and import independently validated hoods one transaction each."""
 
     diagnostics: list[str] = []
     imported = refreshed = unchanged = quarantined = 0
     families = runs = 0
-    with project_import_lock(target.project_key):
-        diagnostics.extend(recover_v2_import_transactions(target, identity=identity))
+    context = preflight_context or (
+        build_import_preflight_context(target, identity, packages) if packages else None
+    )
+    if context is None or not context.recovery_complete:
+        with project_import_lock(target.project_key):
+            diagnostics.extend(
+                recover_v2_import_transactions(target, identity=identity)
+            )
+        if context is not None:
+            context.recovery_complete = True
 
     for package in packages:
         label = f"{package.owner.username}.{package.owner.machine_name}.{package.hood}"
         try:
-            plan = preflight_hood(target, package, identity)
+            plan = preflight_hood(
+                target,
+                package,
+                identity,
+                context=context,
+            )
             if not plan.changed_runs or (
                 plan.is_unchanged
                 and transaction_is_complete(
