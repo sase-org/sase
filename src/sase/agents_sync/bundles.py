@@ -161,6 +161,14 @@ def _find_proven_current_v1_artifact(
     return None
 
 
+def v1_artifact_rows(
+    target: ProjectTarget,
+) -> tuple[tuple[Path, dict[str, Any], dict[str, Any]], ...]:
+    """Return the local artifact evidence rows used by legacy-v1 ownership."""
+
+    return _v1_artifact_rows(target)
+
+
 def _v1_artifact_rows(
     target: ProjectTarget,
 ) -> tuple[tuple[Path, dict[str, Any], dict[str, Any]], ...]:
@@ -617,4 +625,5 @@ def _text(value: object) -> str | None:
 __all__ = [
     "count_unexported_local_agents",
     "integrate_foreign_bundles",
+    "v1_artifact_rows",
 ]

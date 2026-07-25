@@ -7,11 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from sase.core.agent_identity_facade import AgentOwnerIdentity
+
 BUNDLE_SCHEMA_VERSION = 1
 CACHE_SCHEMA_VERSION = 1
 MANIFEST_SCHEMA_VERSION = 1
 RECEIPT_SCHEMA_VERSION = 1
-STATUS_SCHEMA_VERSION = 2
+STATUS_SCHEMA_VERSION = 3
 SYNC_RESULT_SCHEMA_VERSION = 2
 
 StatusState = Literal[
@@ -398,6 +400,8 @@ class ProjectSyncStatus:
     exact_owner_count: int = 0
     quarantine_diagnostics: tuple[str, ...] = ()
     cache_updated_at: float | None = None
+    owner_v2_hoods: tuple[str, ...] = ()
+    owner_v2_identity: AgentOwnerIdentity | None = None
 
     @property
     def pending_foreign_count(self) -> int:
@@ -435,6 +439,15 @@ class ProjectSyncStatus:
             "exact_owner_count": self.exact_owner_count,
             "quarantine_diagnostics": list(self.quarantine_diagnostics),
             "cache_updated_at": self.cache_updated_at,
+            "owner_v2_hoods": sorted(self.owner_v2_hoods),
+            "owner_v2_identity": (
+                {
+                    "username": self.owner_v2_identity.username,
+                    "machine_name": self.owner_v2_identity.machine_name,
+                }
+                if self.owner_v2_identity is not None
+                else None
+            ),
         }
 
 

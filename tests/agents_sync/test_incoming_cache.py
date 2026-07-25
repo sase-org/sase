@@ -9,7 +9,12 @@ import subprocess
 
 import pytest
 
-from sase.agents_sync import incoming_cache, incoming_integration, status
+from sase.agents_sync import (
+    incoming_cache,
+    incoming_detection,
+    incoming_integration,
+    status,
+)
 from sase.agents_sync.git import run_git
 from sase.agents_sync.inventory import InventoryRun, ProjectHoodInventory
 from sase.agents_sync.io import compute_bundle_digest, write_bundle, write_manifest
@@ -50,8 +55,9 @@ def _run(
     *,
     suffix: str,
     chat: bytes = b"chat\n",
+    hood: str = "crew",
 ) -> InventoryRun:
-    name = "crew--code"
+    name = f"{hood}--code"
     return InventoryRun(
         f"run-{owner.username}-{owner.machine_name}-{suffix}",
         name,
@@ -64,7 +70,7 @@ def _run(
         (CommitRecord((suffix * 40)[:40], name, 1),),
         b"prompt\n",
         chat,
-        "crew",
+        hood,
         None,
         (),
         f"2026072412000{suffix[0]}",
@@ -79,16 +85,17 @@ def _publish_owner(
     *,
     suffix: str,
     chat: bytes = b"chat\n",
+    hood: str = "crew",
 ) -> None:
     publish_agent_hood(
         target,
         target.sidecar_path,
-        "crew--code",
+        f"{hood}--code",
         identity=AgentIdentitySnapshot(owner),
         inventory=ProjectHoodInventory(
             owner,
             PROJECT.key,
-            (_run(owner, suffix=suffix, chat=chat),),
+            (_run(owner, suffix=suffix, chat=chat, hood=hood),),
         ),
     )
 
@@ -131,6 +138,37 @@ def _setup_v2_remote(tmp_path: Path) -> tuple[ProjectTarget, Path]:
         ),
         seed,
     )
+
+
+def _write_legacy_group(
+    repo: Path,
+    *,
+    machine: str,
+    hood: str,
+    sha: str = "d" * 40,
+    timestamp: str = "20260724130000",
+) -> ManifestEntry:
+    name = f"{machine}.{hood}"
+    metadata = PortableAgentMetadata(name, machine, timestamp, 2)
+    commits = (CommitRecord(sha, hood, 1),)
+    chat = f"{hood}\n".encode()
+    digest = compute_bundle_digest(metadata, commits, chat)
+    write_bundle(repo, AgentBundle(metadata, commits, chat, digest))
+    entry = ManifestEntry(
+        name,
+        machine,
+        digest,
+        timestamp,
+        "2026-07-24T13:00:00+00:00",
+    )
+    write_manifest(repo / "manifest.json", AgentsManifest((entry,)))
+    return entry
+
+
+def _commit_and_push(repo: Path, message: str) -> None:
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", message)
+    _git(repo, "push")
 
 
 def _patch_target(
@@ -549,3 +587,215 @@ def test_username_unknown_v1_entries_are_grouped_by_machine_and_hood(
     assert item.top_hood == "crew"
     assert item.run_count == 2
     assert incoming_cache.load_validated_cache_item(item).legacy_manifest is not None
+
+
+def test_owner_machine_v1_with_exact_owner_v2_coverage_is_not_pending(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, seed = _setup_v2_remote(tmp_path)
+    entry = _write_legacy_group(seed, machine="athena", hood="crew")
+    for filename in ("meta.json", "commits.json", "chat.md"):
+        (seed / "agents" / entry.name / filename).unlink()
+    _commit_and_push(seed, "add covered legacy owner hood")
+    _patch_target(monkeypatch, target)
+
+    current = _refresh(target, network_calls=[], now=100.0).projects[0]
+
+    assert current.owner_v2_hoods == ("crew",)
+    assert current.exact_owner_count == 2
+    assert current.validated_foreign_count == 2
+    assert all(item.format_version == 2 for item in current.pending_updates)
+    assert current.quarantine_diagnostics == ()
+
+
+def test_owner_machine_v1_with_abbreviated_local_commit_proof_is_not_pending(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, seed = _setup_v2_remote(tmp_path)
+    entry = _write_legacy_group(seed, machine="athena", hood="legacy")
+    (seed / "agents" / entry.name / "chat.md").unlink()
+    _commit_and_push(seed, "add locally proven legacy owner hood")
+    _patch_target(monkeypatch, target)
+    artifact = tmp_path / "artifacts" / entry.artifact_timestamp
+    artifact.mkdir(parents=True)
+    (artifact / "commit_result.json").write_text(
+        json.dumps({"result": "d" * 9}),
+        encoding="utf-8",
+    )
+    artifact_index_calls = 0
+
+    def artifact_rows(
+        _target: ProjectTarget,
+    ) -> tuple[tuple[Path, dict[str, object], dict[str, object]], ...]:
+        nonlocal artifact_index_calls
+        artifact_index_calls += 1
+        return ((artifact, {"name": "legacy"}, {"name": "legacy"}),)
+
+    monkeypatch.setattr(incoming_detection.bundles, "_v1_artifact_rows", artifact_rows)
+
+    current = _refresh(target, network_calls=[], now=100.0).projects[0]
+
+    assert artifact_index_calls == 1
+    assert current.exact_owner_count == 2
+    assert all(item.format_version == 2 for item in current.pending_updates)
+    assert current.quarantine_diagnostics == ()
+
+
+@pytest.mark.parametrize(
+    ("machine", "hood"),
+    (
+        ("athena", "unproven"),
+        ("zeus", "crew"),
+    ),
+)
+def test_unproven_or_other_machine_v1_stays_foreign(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    machine: str,
+    hood: str,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, seed = _setup_v2_remote(tmp_path)
+    _write_legacy_group(seed, machine=machine, hood=hood)
+    _commit_and_push(seed, "add foreign legacy hood")
+    _patch_target(monkeypatch, target)
+
+    current = _refresh(target, network_calls=[], now=100.0).projects[0]
+
+    legacy = [item for item in current.pending_updates if item.format_version == 1]
+    assert len(legacy) == 1
+    assert (legacy[0].source_machine, legacy[0].top_hood) == (machine, hood)
+    assert current.validated_foreign_count == 3
+
+
+def test_same_machine_v1_is_not_covered_by_another_username_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, seed = _setup_v2_remote(tmp_path)
+    seed_target = ProjectTarget(
+        PROJECT.key,
+        PROJECT.name,
+        target.primary_checkout,
+        target.primary_roots,
+        seed,
+        target.remote_url,
+    )
+    _publish_owner(
+        seed_target,
+        AgentOwnerIdentity("bob", "athena"),
+        suffix="4",
+        hood="other",
+    )
+    _write_legacy_group(seed, machine="athena", hood="other")
+    _commit_and_push(seed, "add other-user coverage and legacy hood")
+    _patch_target(monkeypatch, target)
+
+    current = _refresh(target, network_calls=[], now=100.0).projects[0]
+
+    assert current.owner_v2_hoods == ("crew",)
+    legacy = [item for item in current.pending_updates if item.format_version == 1]
+    assert len(legacy) == 1
+    assert legacy[0].top_hood == "other"
+
+
+def test_cached_reconcile_drops_owner_covered_v1_without_git_and_prunes_object(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, seed = _setup_v2_remote(tmp_path)
+    _write_legacy_group(seed, machine="athena", hood="legacy")
+    _commit_and_push(seed, "add stale pending legacy owner hood")
+    _patch_target(monkeypatch, target)
+    current = _refresh(target, network_calls=[], now=100.0).projects[0]
+    legacy = next(item for item in current.pending_updates if item.format_version == 1)
+    object_path = (
+        tmp_path / "state" / "agents_sync" / "cache" / "objects" / legacy.cache_id
+    )
+    assert object_path.is_dir()
+
+    def no_git(
+        _cwd: Path,
+        args: list[str],
+        *,
+        network: bool = False,
+        op: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        raise AssertionError(f"cached reconcile must not run Git: {args}")
+
+    wrong_owner = replace(
+        current,
+        owner_v2_hoods=("legacy",),
+        owner_v2_identity=AgentOwnerIdentity("bob", "athena"),
+    )
+    status._write_agents_sync_status_snapshot(
+        status.SyncStatusSnapshot(100.0, (wrong_owner,))
+    )
+    still_foreign = status.get_agents_sync_status(now=100.5, git_runner=no_git)
+    assert any(
+        item.cache_id == legacy.cache_id
+        for item in still_foreign.projects[0].pending_updates
+    )
+    assert object_path.is_dir()
+
+    persisted = replace(
+        still_foreign.projects[0],
+        owner_v2_hoods=("legacy",),
+        owner_v2_identity=LOCAL_OWNER,
+    )
+    status._write_agents_sync_status_snapshot(
+        status.SyncStatusSnapshot(100.5, (persisted,))
+    )
+    reconciled = status.get_agents_sync_status(now=101.0, git_runner=no_git)
+    repeated = status.get_agents_sync_status(now=102.0, git_runner=no_git)
+
+    assert all(
+        item.format_version == 2 for item in reconciled.projects[0].pending_updates
+    )
+    assert (
+        repeated.projects[0].pending_updates == reconciled.projects[0].pending_updates
+    )
+    assert not object_path.exists()
+
+
+def test_refresh_prunes_owner_v1_objects_after_old_status_schema_is_discarded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, seed = _setup_v2_remote(tmp_path)
+    _write_legacy_group(seed, machine="athena", hood="legacy")
+    _commit_and_push(seed, "add legacy owner residue")
+    _patch_target(monkeypatch, target)
+    first = _refresh(target, network_calls=[], now=100.0).projects[0]
+    legacy = next(item for item in first.pending_updates if item.format_version == 1)
+    object_path = (
+        tmp_path / "state" / "agents_sync" / "cache" / "objects" / legacy.cache_id
+    )
+    snapshot_path = tmp_path / "state" / "agents_sync" / "status_snapshot.json"
+    stale_snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    stale_snapshot["schema_version"] = status.STATUS_SCHEMA_VERSION - 1
+    snapshot_path.write_text(json.dumps(stale_snapshot), encoding="utf-8")
+
+    seed_target = ProjectTarget(
+        PROJECT.key,
+        PROJECT.name,
+        target.primary_checkout,
+        target.primary_roots,
+        seed,
+        target.remote_url,
+    )
+    _publish_owner(seed_target, LOCAL_OWNER, suffix="5", hood="legacy")
+    _commit_and_push(seed, "publish v2 owner coverage")
+
+    current = _refresh(target, network_calls=[], now=200.0).projects[0]
+
+    assert all(item.cache_id != legacy.cache_id for item in current.pending_updates)
+    assert "legacy" in current.owner_v2_hoods
+    assert not object_path.exists()

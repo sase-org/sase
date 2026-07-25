@@ -107,7 +107,7 @@ def get_agents_sync_status(
                     )
                 )
             else:
-                statuses.append(_reconcile_project_status(target, prior))
+                statuses.append(_reconcile_project_status(target, owner, prior))
 
     snapshot = SyncStatusSnapshot(
         checked_at,
@@ -128,7 +128,7 @@ def _refresh_project_status(
 ) -> ProjectSyncStatus:
     repo = target.sidecar_path
     if not (repo / ".git").exists():
-        return _reconcile_project_status(target, prior)
+        return _reconcile_project_status(target, owner, prior)
 
     from sase.agents_sync import git_sync
 
@@ -144,7 +144,7 @@ def _refresh_project_status(
     with git_sync.bounded_agents_lock(lock_path, timeout) as acquired:
         if not acquired:
             return _status_error(
-                _reconcile_project_status(target, prior),
+                _reconcile_project_status(target, owner, prior),
                 "agents sync lock is busy; retry the refresh",
             )
         fetched = git_runner(
@@ -156,7 +156,7 @@ def _refresh_project_status(
         if fetched.returncode != 0:
             detail = (fetched.stderr or fetched.stdout or "unknown git error").strip()
             return _status_error(
-                _reconcile_project_status(target, prior),
+                _reconcile_project_status(target, owner, prior),
                 f"git fetch failed: {detail}",
             )
         try:
@@ -169,7 +169,7 @@ def _refresh_project_status(
             )
         except (AgentsSyncFormatError, OSError, RuntimeError, ValueError) as exc:
             return _status_error(
-                _reconcile_project_status(target, prior),
+                _reconcile_project_status(target, owner, prior),
                 f"could not inspect fetched agents commit: {exc}",
                 last_fetch_time=checked_at,
             )
@@ -199,11 +199,14 @@ def _refresh_project_status(
                 *_publication_diagnostics(target.project_key),
             ),
             cache_updated_at=report.cache_updated_at,
+            owner_v2_hoods=report.owner_v2_hoods,
+            owner_v2_identity=owner,
         )
 
 
 def _reconcile_project_status(
     target: ProjectTarget,
+    owner: AgentOwnerIdentity,
     prior: ProjectSyncStatus | None,
 ) -> ProjectSyncStatus:
     """Reconcile metadata and receipts without Git or artifact discovery."""
@@ -212,6 +215,12 @@ def _reconcile_project_status(
     pending, diagnostics = reconcile_pending_items(
         previous_items,
         project_key=target.project_key,
+        owner=owner,
+        owner_v2_hoods=(
+            prior.owner_v2_hoods
+            if prior is not None and prior.owner_v2_identity == owner
+            else ()
+        ),
     )
     quarantines = tuple(
         dict.fromkeys(
@@ -256,6 +265,8 @@ def _reconcile_project_status(
         exact_owner_count=prior.exact_owner_count if prior is not None else 0,
         quarantine_diagnostics=quarantines,
         cache_updated_at=prior.cache_updated_at if prior is not None else None,
+        owner_v2_hoods=prior.owner_v2_hoods if prior is not None else (),
+        owner_v2_identity=prior.owner_v2_identity if prior is not None else None,
     )
 
 
@@ -459,6 +470,8 @@ def _status_from_json(value: object) -> ProjectSyncStatus | None:
         "exact_owner_count",
         "quarantine_diagnostics",
         "cache_updated_at",
+        "owner_v2_hoods",
+        "owner_v2_identity",
     }
     if not isinstance(value, dict) or set(value) != keys:
         return None
@@ -530,6 +543,31 @@ def _status_from_json(value: object) -> ProjectSyncStatus | None:
         isinstance(item, str) for item in raw_diagnostics
     ):
         return None
+    raw_owner_v2_hoods = value.get("owner_v2_hoods")
+    if (
+        not isinstance(raw_owner_v2_hoods, list)
+        or not all(_valid_component(item) for item in raw_owner_v2_hoods)
+        or len(set(raw_owner_v2_hoods)) != len(raw_owner_v2_hoods)
+    ):
+        return None
+    raw_owner_v2_identity = value.get("owner_v2_identity")
+    owner_v2_identity: AgentOwnerIdentity | None
+    if raw_owner_v2_identity is None:
+        if raw_owner_v2_hoods:
+            return None
+        owner_v2_identity = None
+    elif (
+        isinstance(raw_owner_v2_identity, dict)
+        and set(raw_owner_v2_identity) == {"username", "machine_name"}
+        and _valid_component(raw_owner_v2_identity.get("username"))
+        and _valid_component(raw_owner_v2_identity.get("machine_name"))
+    ):
+        owner_v2_identity = AgentOwnerIdentity(
+            raw_owner_v2_identity["username"],
+            raw_owner_v2_identity["machine_name"],
+        )
+    else:
+        return None
     return ProjectSyncStatus(
         project_key,
         project,
@@ -551,6 +589,8 @@ def _status_from_json(value: object) -> ProjectSyncStatus | None:
         cache_updated_at=(
             _finite_json_time(cache_updated) if cache_updated is not None else None
         ),
+        owner_v2_hoods=tuple(sorted(raw_owner_v2_hoods)),
+        owner_v2_identity=owner_v2_identity,
     )
 
 
@@ -579,6 +619,8 @@ def _status_error(
         exact_owner_count=status.exact_owner_count,
         quarantine_diagnostics=status.quarantine_diagnostics,
         cache_updated_at=status.cache_updated_at,
+        owner_v2_hoods=status.owner_v2_hoods,
+        owner_v2_identity=status.owner_v2_identity,
     )
 
 

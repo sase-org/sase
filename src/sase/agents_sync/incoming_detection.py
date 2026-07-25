@@ -6,8 +6,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 import json
 import math
+from pathlib import Path
 import time
+from typing import Any
 
+from sase.agents_sync import bundles
 from sase.agents_sync.git_objects import FetchedAgentsCommit, LocalGitObjectReader
 from sase.agents_sync.incoming_cache import (
     cached_item_is_available,
@@ -44,8 +47,13 @@ from sase.core.agent_identity_facade import (
     AgentOwnerIdentity,
     AgentOwnershipClassification,
     AgentSourceOwnerIdentity,
+    LegacyV1GroupOwnershipClassification,
+    LegacyV1GroupOwnershipEvidence,
     classify_agent_ownership,
+    classify_legacy_v1_group_ownership,
 )
+from sase.core.commit_sha_facade import commit_shas_equivalent
+from sase.core.machine_hood_facade import machine_qualify_v1_transport_agent_name
 
 _MAX_V1_MANIFEST_BYTES = 4 * 1024 * 1024
 
@@ -60,6 +68,7 @@ class _IncomingCaptureReport:
     exact_owner_count: int
     diagnostics: tuple[str, ...]
     cache_updated_at: float
+    owner_v2_hoods: tuple[str, ...] = ()
 
 
 def capture_fetched_agent_updates(
@@ -90,6 +99,9 @@ def capture_fetched_agent_updates(
         diagnostics.append(f"quarantined import receipts: {exc}")
 
     paths = reader.manifest_paths(fetched.sha)
+    legacy: AgentsManifest | None = None
+    parsed_v2: list[tuple[str, V2OwnerManifest, AgentOwnershipClassification]] = []
+    owner_v2_hoods: set[str] = set()
     for relative in paths:
         if relative == "manifest.json":
             try:
@@ -102,29 +114,7 @@ def capture_fetched_agent_updates(
                 )
             except (AgentsSyncFormatError, OSError, RuntimeError) as exc:
                 diagnostics.append(f"{relative}: quarantined legacy manifest: {exc}")
-                continue
-            for group in legacy_manifest_groups(legacy):
-                key = _legacy_group_key(group)
-                try:
-                    payload = _capture_legacy_payload(reader, fetched.sha, group)
-                    item = legacy_captured_item(
-                        target,
-                        fetched,
-                        group,
-                        captured_at,
-                    )
-                    publish_needed = not receipt_matches(receipts.get(key), item)
-                    validated_foreign += 1
-                    if not publish_needed:
-                        pending.pop(key, None)
-                        continue
-                    pending[key] = publish_cache_object(item, payload)
-                except (AgentsSyncFormatError, OSError, RuntimeError) as exc:
-                    diagnostics.append(
-                        f"{key[2]}.{key[3]}: quarantined legacy hood: {exc}"
-                    )
             continue
-
         try:
             manifest_bytes = reader.read_bytes(
                 fetched.sha,
@@ -146,6 +136,59 @@ def capture_fetched_agent_updates(
         except (AgentsSyncFormatError, ValueError, RuntimeError, OSError) as exc:
             diagnostics.append(f"{relative}: quarantined v2 owner manifest: {exc}")
             continue
+        parsed_v2.append((relative, manifest, classification))
+        if classification is AgentOwnershipClassification.EXACT_OWNER:
+            owner_v2_hoods.update(hood for hood, _entry in manifest.hoods)
+
+    discarded_hood_keys: list[tuple[str, str | None, str, str]] = []
+    if legacy is not None:
+        groups = legacy_manifest_groups(legacy)
+        artifact_rows = bundles.v1_artifact_rows(target)
+        rows_by_timestamp = _artifact_rows_by_timestamp(artifact_rows)
+        for group in groups:
+            key = _legacy_group_key(group)
+            machine, hood = legacy_group_machine_hood(group)
+            try:
+                proven_entry_count = (
+                    _legacy_proven_entry_count(
+                        reader,
+                        fetched.sha,
+                        group,
+                        rows_by_timestamp,
+                    )
+                    if machine == owner.machine_name and hood not in owner_v2_hoods
+                    else 0
+                )
+                ownership = classify_legacy_v1_group_ownership(
+                    machine,
+                    owner,
+                    LegacyV1GroupOwnershipEvidence(
+                        v2_hood_published=hood in owner_v2_hoods,
+                        proven_entry_count=proven_entry_count,
+                        total_entry_count=len(group.entries),
+                    ),
+                )
+                if ownership is LegacyV1GroupOwnershipClassification.OWNER_OBSERVED:
+                    exact_owner += 1
+                    pending.pop(key, None)
+                    discarded_hood_keys.append(key)
+                    continue
+                payload = _capture_legacy_payload(reader, fetched.sha, group)
+                item = legacy_captured_item(
+                    target,
+                    fetched,
+                    group,
+                    captured_at,
+                )
+                validated_foreign += 1
+                if receipt_matches(receipts.get(key), item):
+                    pending.pop(key, None)
+                    continue
+                pending[key] = publish_cache_object(item, payload)
+            except (AgentsSyncFormatError, OSError, RuntimeError, ValueError) as exc:
+                diagnostics.append(f"{key[2]}.{key[3]}: quarantined legacy hood: {exc}")
+
+    for _relative, manifest, classification in parsed_v2:
         if classification is AgentOwnershipClassification.EXACT_OWNER:
             for hood, _entry in manifest.hoods:
                 try:
@@ -224,6 +267,7 @@ def capture_fetched_agent_updates(
         target.project_key,
         pending_items=tuple(reconciled),
         receipts=tuple(receipts.values()),
+        discarded_hood_keys=tuple(discarded_hood_keys),
     )
     return _IncomingCaptureReport(
         fetched,
@@ -232,6 +276,7 @@ def capture_fetched_agent_updates(
         exact_owner,
         tuple(dict.fromkeys(diagnostics)),
         captured_at,
+        tuple(sorted(owner_v2_hoods)),
     )
 
 
@@ -367,6 +412,104 @@ def _legacy_group_key(
 ) -> tuple[str, str | None, str, str]:
     machine, hood = legacy_group_machine_hood(manifest)
     return ("username_unknown_v1", None, machine, hood)
+
+
+def _artifact_rows_by_timestamp(
+    rows: Sequence[tuple[Path, dict[str, Any], dict[str, Any]]],
+) -> dict[str, tuple[tuple[Path, dict[str, Any], dict[str, Any]], ...]]:
+    grouped: dict[
+        str,
+        list[tuple[Path, dict[str, Any], dict[str, Any]]],
+    ] = {}
+    for row in rows:
+        grouped.setdefault(row[0].name, []).append(row)
+    return {timestamp: tuple(values) for timestamp, values in grouped.items()}
+
+
+def _legacy_proven_entry_count(
+    reader: LocalGitObjectReader,
+    fetched_sha: str,
+    group: AgentsManifest,
+    rows_by_timestamp: dict[
+        str,
+        tuple[tuple[Path, dict[str, Any], dict[str, Any]], ...],
+    ],
+) -> int:
+    proven = 0
+    for entry in group.entries:
+        source_shas = _legacy_source_commit_shas(
+            reader,
+            fetched_sha,
+            entry.name,
+        )
+        if not source_shas:
+            continue
+        for artifact_dir, meta, done in rows_by_timestamp.get(
+            entry.artifact_timestamp, ()
+        ):
+            if meta.get("imported_from_machine") is not None:
+                continue
+            raw_name = meta.get("name") or done.get("name")
+            if not isinstance(raw_name, str):
+                continue
+            if (
+                machine_qualify_v1_transport_agent_name(raw_name, entry.machine)
+                != entry.name
+            ):
+                continue
+            local_shas = tuple(
+                sha
+                for marker in bundles.commit_markers(artifact_dir)
+                if (sha := _marker_commit_sha(marker)) is not None
+            )
+            if any(
+                commit_shas_equivalent(source_sha, local_sha)
+                for source_sha in source_shas
+                for local_sha in local_shas
+            ):
+                proven += 1
+                break
+    return proven
+
+
+def _legacy_source_commit_shas(
+    reader: LocalGitObjectReader,
+    fetched_sha: str,
+    entry_name: str,
+) -> tuple[str, ...]:
+    relative = f"agents/{entry_name}/commits.json"
+    try:
+        value = json.loads(
+            reader.read_bytes(
+                fetched_sha,
+                relative,
+                maximum=MAX_JSON_BYTES,
+            ).decode("utf-8")
+        )
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise AgentsSyncFormatError(
+            f"could not decode commits.json for {entry_name!r}: {exc}"
+        ) from exc
+    if not isinstance(value, dict) or not isinstance(value.get("commits"), list):
+        raise AgentsSyncFormatError(
+            f"commits.json for {entry_name!r} has an invalid shape"
+        )
+    shas: list[str] = []
+    for row in value["commits"]:
+        if not isinstance(row, dict) or not isinstance(row.get("sha"), str):
+            raise AgentsSyncFormatError(
+                f"commits.json for {entry_name!r} has an invalid commit row"
+            )
+        shas.append(row["sha"])
+    return tuple(shas)
+
+
+def _marker_commit_sha(marker: dict[str, Any]) -> str | None:
+    for key in ("result", "commit_result", "sha"):
+        value = marker.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
 
 
 __all__ = [

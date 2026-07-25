@@ -8,6 +8,7 @@ import pytest
 
 from sase.agents.cli_sync import handle_agents_sync
 from sase.agents_sync.models import (
+    STATUS_SCHEMA_VERSION,
     ProjectSyncStatus,
     SyncOutcome,
     SyncStatusSnapshot,
@@ -101,7 +102,7 @@ def test_check_json_is_stable_and_errors_exit_nonzero(
         exit_code = handle_agents_sync(args)
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == STATUS_SCHEMA_VERSION
     assert payload["mode"] == "check"
     assert payload["projects"][0]["error"] == "corrupt manifest"
     assert exit_code == 1

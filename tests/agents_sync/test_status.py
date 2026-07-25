@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import subprocess
 
@@ -10,6 +11,7 @@ from sase.agents_sync.git_objects import FetchedAgentsCommit
 from sase.agents_sync.incoming_detection import _IncomingCaptureReport
 from sase.agents_sync.io import write_manifest
 from sase.agents_sync.models import (
+    STATUS_SCHEMA_VERSION,
     AgentsManifest,
     ProjectSyncStatus,
     ProjectTarget,
@@ -311,5 +313,14 @@ def test_status_decoder_rejects_non_finite_times(tmp_path: Path) -> None:
         '{"schema_version":2,"checked_at":NaN,"projects":[]}',
         encoding="utf-8",
     )
+
+    assert status._read_agents_sync_status_snapshot(path=cache) is None
+
+
+def test_status_decoder_discards_previous_schema_version(tmp_path: Path) -> None:
+    cache = tmp_path / "status.json"
+    payload = SyncStatusSnapshot(1.0).to_json_dict()
+    payload["schema_version"] = STATUS_SCHEMA_VERSION - 1
+    cache.write_text(json.dumps(payload), encoding="utf-8")
 
     assert status._read_agents_sync_status_snapshot(path=cache) is None

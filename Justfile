@@ -236,10 +236,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-92(LegacyV1GroupOwnershipClassification)' \
-        --epic-symbol 'sase-92(LegacyV1GroupOwnershipEvidence)' \
-        --epic-symbol 'sase-92(classify_legacy_v1_group_ownership)' \
-        --epic-symbol 'sase-92(commit_shas_equivalent)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

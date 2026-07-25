@@ -52,7 +52,12 @@ from sase.agents_sync.v2_io import (
     validate_relative_path,
 )
 from sase.agents_sync.v2_models import V2ProjectIdentity
-from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.core.agent_identity_facade import (
+    AgentOwnerIdentity,
+    LegacyV1GroupOwnershipClassification,
+    LegacyV1GroupOwnershipEvidence,
+    classify_legacy_v1_group_ownership,
+)
 
 _RECENT_SUPERSEDED_PER_HOOD = 2
 
@@ -264,6 +269,8 @@ def reconcile_pending_items(
     items: Sequence[CapturedIncomingHood],
     *,
     project_key: str,
+    owner: AgentOwnerIdentity,
+    owner_v2_hoods: Sequence[str],
 ) -> tuple[tuple[CapturedIncomingHood, ...], tuple[str, ...]]:
     """Reconcile persisted items using metadata and receipts only."""
 
@@ -277,6 +284,8 @@ def reconcile_pending_items(
         receipts = {}
         diagnostics.append(f"quarantined import receipts: {exc}")
     pending: list[CapturedIncomingHood] = []
+    discarded: list[CapturedIncomingHood] = []
+    published_hoods = frozenset(owner_v2_hoods)
     for item in items:
         if item.project_key != project_key:
             diagnostics.append(
@@ -285,12 +294,31 @@ def reconcile_pending_items(
             continue
         if receipt_matches(receipts.get(item.source_hood_key), item):
             continue
+        if item.format_version == 1:
+            ownership = classify_legacy_v1_group_ownership(
+                item.source_machine,
+                owner,
+                LegacyV1GroupOwnershipEvidence(
+                    v2_hood_published=item.top_hood in published_hoods,
+                    proven_entry_count=0,
+                    total_entry_count=item.run_count,
+                ),
+            )
+            if ownership is LegacyV1GroupOwnershipClassification.OWNER_OBSERVED:
+                discarded.append(item)
+                continue
         if not cached_item_is_available(item):
             diagnostics.append(
                 f"{item.cache_id}: pending cache object is missing or invalid"
             )
             continue
         pending.append(item)
+    prune_project_cache(
+        project_key,
+        pending_items=tuple(pending),
+        receipts=tuple(receipts.values()),
+        discarded_hood_keys=tuple(item.source_hood_key for item in discarded),
+    )
     return tuple(pending), tuple(diagnostics)
 
 
@@ -300,6 +328,7 @@ def prune_project_cache(
     pending_items: Sequence[CapturedIncomingHood],
     receipts: Sequence[AgentHoodImportReceipt],
     keep_recent: int = _RECENT_SUPERSEDED_PER_HOOD,
+    discarded_hood_keys: Sequence[tuple[str, str | None, str, str]] = (),
 ) -> None:
     """Bound superseded objects while preserving pending and receipt evidence."""
 
@@ -308,6 +337,7 @@ def prune_project_cache(
         return
     protected = {item.cache_id for item in pending_items}
     protected.update(receipt.cache_id for receipt in receipts)
+    discarded = frozenset(discarded_hood_keys)
     by_hood: dict[
         tuple[str, str | None, str, str],
         list[CapturedIncomingHood],
@@ -324,6 +354,9 @@ def prune_project_cache(
         except AgentsSyncFormatError:
             continue
         if item.project_key == project_key:
+            if item.source_hood_key in discarded and item.cache_id not in protected:
+                shutil.rmtree(path)
+                continue
             by_hood[item.source_hood_key].append(item)
     for rows in by_hood.values():
         superseded = [
