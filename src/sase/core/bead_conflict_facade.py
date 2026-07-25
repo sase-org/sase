@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.rust import require_rust_binding
+from sase.core.state_write_guard import assert_bead_store_write_sandboxed
 
 
 def merge_event_streams(
@@ -28,5 +29,10 @@ def event_store_manifest(streams: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def repair_event_store_manifest(beads_dir: str | Path) -> dict[str, Any]:
+    # Rewrites ``events/manifest.json`` inside the store, so it is a bead-store
+    # write chokepoint alongside the mutation facade and the CLI fast path.
+    assert_bead_store_write_sandboxed(
+        beads_dir, operation="repair_event_store_manifest"
+    )
     binding = require_rust_binding("bead_repair_event_store_manifest")
     return dict(binding(str(Path(beads_dir))))
