@@ -394,9 +394,9 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint         |
 | `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                  |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                |
-| `0`–`9`                   | Jump from a selected clan, family, or whole-panel roster to its numbered member                      |
+| `0`–`9`                   | Jump from a selected clan, lane, or whole-panel roster to its numbered member or neighbor            |
 | `o` / `O`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                         |
-| `~`                       | Jump among dotted-name ancestors, descendants, and shared-hood neighbors                             |
+| `~`                       | Jump among dotted-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)           |
 | `g`                       | Scroll to top (file, tools, or metadata panel)                                                       |
 | `G`                       | Scroll to bottom (file, tools, or metadata panel)                                                    |
 | `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                          |
@@ -414,12 +414,16 @@ descendant to offer, ACE jumps directly. Otherwise it opens a chooser that can a
 descendants. A chosen target is resolved by stable identity and revealed through any clan, family, workflow, or grouping
 folds before focus moves.
 
-When a clan or multi-member family container is selected, its metadata panel assigns a fixed number to each direct
-member, up to 100 targets. Rosters with at most ten entries use `0`–`9`; larger rosters number the first 100 entries
-with two-key values `00`–`99` and show any remaining entries as an unnumbered count. After the first digit of a two-key
-jump, press `Esc` to cancel or any non-digit key to cancel and continue with that key's normal action. A successful jump
-expands only the target's ancestor chain, switches tribe panels when needed, and participates in the normal `Ctrl+O`
-jump-back history.
+When a clan or an agent lane is selected, its metadata panel assigns a fixed number to each numbered row, up to 100
+targets. A lane is a multi-member family container or a single agent that owns its own lane; lane panels number their
+`FAMILY MEMBERS` roster (when present) and then their `NEIGHBORS` section from one continuous ladder. Documents with at
+most ten numbered rows use `0`–`9`; larger documents number the first 100 rows with two-key values `00`–`99` and show
+any remaining entries as an unnumbered count. After the first digit of a two-key jump, press `Esc` to cancel or any
+non-digit key to cancel and continue with that key's normal action. A successful jump expands only the target's ancestor
+chain, switches tribe panels when needed, and participates in the normal `Ctrl+O` jump-back history. A digit on a
+dismissed neighbor revives that agent instead of jumping, exactly as `<enter>` does in the `~` chooser. If the roster or
+the neighbor relationship changed since the panel was drawn, the jump is cancelled with a warning rather than landing
+somewhere stale.
 
 ### Agent Actions
 
@@ -451,7 +455,7 @@ jump-back history.
 | `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it) |
 | `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                  |
 | `p`                 | Toggle file / prompt layout                                                                                |
-| `z`                 | Start metadata fold mode for clan, family, or selected whole-tribe detail panels                           |
+| `z`                 | Start metadata fold mode for clan, lane (family or single agent), or selected whole-tribe detail panels    |
 | `Z`                 | Zoom the active detail panel, or isolate/restore a selected tribe panel                                    |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                              |
 
@@ -521,10 +525,12 @@ The default fold chords are:
 | `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4                                  |
 
 The `Fold: N/M` header field reports the position within the active scale, while the heading glyphs show effective
-per-section levels. A valid panel-level cycle, extreme toggle, or direct selection clears per-section overrides. Fold
-state is shared by the Agents metadata panel: ordinary agents do not fold their sections, but using a chord on one
-records the three-level session scope that the next selected clan or family container will use. A selected whole tribe
-panel adds level 4 for exhaustive detail. These keys are configurable; see
+per-section levels. Only family panels print that header line; a single-agent lane relies on the `NEIGHBORS` heading
+glyph instead. A valid panel-level cycle, extreme toggle, or direct selection clears per-section overrides. Fold state
+is shared by the Agents metadata panel: an ordinary agent's own three-level scale now shapes its `NEIGHBORS` section, so
+`z*` chords have a visible effect on a regular-agent lane, and the same session scope carries over to the next selected
+clan or family container. Every other section on a regular-agent panel stays fold-inert. A selected whole tribe panel
+adds level 4 for exhaustive detail. These keys are configurable; see
 [Agent Clans, Families, and Tribes](agent_families.md) for the grouping model.
 
 When ACE knows a planner/author or epic lander's associated plan, the metadata panel adds `PLAN` as the leading lane in
@@ -584,6 +590,29 @@ When one or more agents are marked, `e` edits the marked set instead of only the
 completed transcripts in visible row order, deduplicates repeated paths, skips live marked rows that are still running
 or have no chat file, and reports that live skip count. Stale marks are ignored for this action, and marks remain in
 place after the editor exits.
+
+### Lane Neighbors Section
+
+Every agent lane panel ends its metadata region with a numbered `NEIGHBORS` roster. A lane is a multi-member family
+container row or a single agent that owns its own lane, so the section appears on family container panels below their
+`FAMILY MEMBERS` roster and on ordinary agent panels. Clan containers, tribe panel summaries, family member child rows,
+and workflow aggregate rows have no `NEIGHBORS` section.
+
+The rows are exactly the rows the `~` chooser offers for that lane — ancestors, descendants including same-session
+dismissed descendants, then hood neighbors grouped by hood, nearest hood first — under dim `ancestors`, `descendants`,
+and `<hood> hood` group labels. Row labels are shortened relative to their group, so a `myclan` hood neighbor reads
+`.code` and a descendant reads `--impl.helper`. A `⊘` glyph and a `dismissed` annotation mark dismissed rows, and
+`folded` marks a prospective row that currently lives inside a collapsed clan. The section sits after `ERROR` and
+immediately before the divider that separates metadata from the prompt/reply body, so it never pushes `BEAD`, `PLAN`, or
+`SASE CONTEXT` down.
+
+The row count follows the lane's fold scale by position, not by level name: the first position shows 3 rows, the last
+position shows all of them, and any middle position shows 10. A family lane therefore shows 3 rows at level 1 and every
+row at level 2, while a single-agent lane shows 3 / 10 / all across its three levels. The heading count is always the
+lane's total neighbor count, and a dim `… +N more neighbors (zz / za to show more)` tail reports what is hidden. Only
+visible rows get digits. On a family lane, siblings that already appear under `FAMILY MEMBERS` are not repeated; they
+are reported by a dim `… +N also listed under FAMILY MEMBERS` tail instead. That suppression applies only to this
+section — the `~` chooser and the info panel's `neighbors:` badge still count them.
 
 ### Opened Repository Context
 

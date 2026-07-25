@@ -142,6 +142,25 @@ def test_projection_suppresses_family_members_and_counts_them() -> None:
     assert projection.is_empty is False
 
 
+def test_projection_never_lists_the_lane_as_its_own_neighbor() -> None:
+    source = _agent("myclan.worker--plan")
+    # An expanded family renders its root member a second time under a
+    # synthetic identity, so identity-only suppression would keep it.
+    duplicate = _agent("myclan.worker--plan", raw_suffix=None)
+    peer = _agent("myclan.helper")
+
+    projection = build_agent_lane_neighbor_projection(
+        lane_identity=source.identity,
+        lane_name="myclan.worker--plan",
+        index=_index(source, duplicate, peer),
+        suppressed_identities={source.identity},
+    )
+
+    assert duplicate.identity != source.identity
+    assert [row.agent for row in projection.rows] == [peer]
+    assert projection.suppressed_lane_member_count == 0
+
+
 def test_projection_preserves_prospective_neighbor_flag() -> None:
     source = _agent("foo.plan")
     prospective = _agent("foo.code")

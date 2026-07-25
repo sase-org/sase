@@ -122,9 +122,17 @@ def build_agent_lane_neighbor_projection(
             )
 
     suppressed = set(suppressed_identities)
+    lane_key = lane_name.casefold() if lane_name else None
     retained: list[LaneNeighborRow] = []
     suppressed_count = 0
     for row in rows:
+        if row.agent.identity == lane_identity or (
+            lane_key is not None and agent_name_key(row.agent) == lane_key
+        ):
+            # A lane is never its own neighbor. An expanded family renders its
+            # root member as a second row with a synthetic identity, so drop by
+            # name key too rather than trusting identity alone.
+            continue
         if row.agent.identity in suppressed:
             suppressed_count += 1
         else:
