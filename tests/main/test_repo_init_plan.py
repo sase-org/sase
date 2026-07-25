@@ -393,6 +393,62 @@ def test_run_uses_materialized_path_and_updates_project_wiring(
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == "/sase/repos/\n"
 
 
+def test_plan_skips_agents_sidecar_without_a_resolvable_project_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mark_project(tmp_path)
+    specs = (
+        SidecarInitSpec(role="plans", description="Durable plans."),
+        SidecarInitSpec(
+            role="agents",
+            visibility="private",
+            description="Commit-associated agents.",
+        ),
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda _root: None,
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: specs,
+    )
+
+    plan = plan_repo_init(_args(tmp_path))
+
+    assert plan.blockers == ()
+    details = {action.detail for action in plan.actions}
+    assert any("plans sidecar repository" in detail for detail in details)
+    assert not any("agents sidecar repository" in detail for detail in details)
+    assert not any("agents sidecar README.md" in detail for detail in details)
+    assert any(
+        "skipped agents sidecar planning" in warning for warning in plan.warnings
+    )
+
+
+def test_materialized_sidecar_run_still_fails_without_a_project_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.main._repo_init_sidecars import run_materialized_sidecars
+    from sase.sdd.store import SddMaterializationError
+
+    monkeypatch.setattr(
+        "sase.bead.project_name.infer_project_name_from_cwd",
+        lambda _root: None,
+    )
+    specs = (SidecarInitSpec(role="agents", description="Agents."),)
+
+    with pytest.raises(SddMaterializationError, match="owning SASE project key"):
+        run_materialized_sidecars(tmp_path, specs, frozenset())
+
+
 def test_init_registry_uses_repo_runner() -> None:
     specs = {spec.name: spec for spec in iter_init_command_specs()}
     assert tuple(specs) == ("config", "memory", "repo", "skills")

@@ -203,9 +203,14 @@ def plan_repo_init(args: argparse.Namespace) -> InitPlan:
 
         specs = _configured_sidecar_specs(project_root)
         try:
-            actions.extend(_plan_sidecar_actions(project_root, specs))
+            sidecar_actions, sidecar_warnings = _plan_sidecar_actions(
+                project_root, specs
+            )
         except SddMaterializationError as exc:
             blockers.append(str(exc))
+        else:
+            actions.extend(sidecar_actions)
+            warnings.extend(sidecar_warnings)
     else:
         legacy_actions, legacy_warnings = _plan_legacy_store_actions(project_root)
         actions.extend(legacy_actions)
@@ -254,7 +259,7 @@ def _plan_legacy_store_actions(
 def _plan_sidecar_actions(
     project_root: Path,
     specs: tuple[SidecarInitSpec, ...],
-) -> list[InitAction]:
+) -> tuple[list[InitAction], list[str]]:
     recorded_roles = _materialized_compatibility_roles(project_root)
     return _plan_sidecar_actions_impl(
         project_root,

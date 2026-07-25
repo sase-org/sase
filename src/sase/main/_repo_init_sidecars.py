@@ -257,15 +257,25 @@ def plan_sidecar_actions(
     project_root: Path,
     specs: tuple[SidecarInitSpec, ...],
     recorded_roles: frozenset[str],
-) -> list[InitAction]:
+) -> tuple[list[InitAction], list[str]]:
     """Plan provider connection and guide-file actions for sidecars."""
 
-    from sase.sdd._sidecar_init import sidecar_clone_root
+    from sase.sdd._sidecar_init import (
+        resolve_sidecar_clone_root,
+        unresolved_project_key_message,
+    )
     from sase.sdd.files import plan_sdd_sidecar_init_actions
 
     actions: list[InitAction] = []
+    warnings: list[str] = []
     for spec in specs:
-        root = sidecar_clone_root(project_root, spec.role)
+        root = resolve_sidecar_clone_root(project_root, spec.role)
+        if root is None:
+            warnings.append(
+                f"skipped {spec.role} sidecar planning: "
+                f"{unresolved_project_key_message(project_root)}"
+            )
+            continue
         clone_exists = (root / ".git").is_dir()
         needs_connection = not clone_exists and spec.role not in recorded_roles
         if needs_connection:
@@ -296,7 +306,7 @@ def plan_sidecar_actions(
                     description=spec.description,
                 )
             )
-    return actions
+    return actions, warnings
 
 
 __all__ = [
