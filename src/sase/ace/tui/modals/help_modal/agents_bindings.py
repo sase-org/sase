@@ -35,7 +35,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(a.focus_next_agent_panel)} / {d(a.focus_prev_agent_panel)}",
-                    "Jump into next / previous panel",
+                    "Jump into next / prev open panel",
                 ),
                 (d(a.jump_to_entry), "Jump entry/head (' first/back stack)"),
                 (

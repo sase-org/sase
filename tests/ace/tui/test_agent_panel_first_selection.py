@@ -519,12 +519,14 @@ def test_focus_next_agent_panel_single_panel_does_not_overwrite_anchor() -> None
     app = _StubApp(agents, focused_key="alpha")
     app.current_idx = 0
     app._current_group_key = None
+    app._expanded_panel_focus = True
     app._entry_jump_agents_anchor_stack = [("agent", 0, "alpha")]
 
     app.action_focus_next_agent_panel()
 
     assert app._panel_group.focused_key == "alpha"
     assert app.current_idx == 0
+    assert app._expanded_panel_focus is True
     assert app._entry_jump_agents_anchor_stack == [("agent", 0, "alpha")]
 
 

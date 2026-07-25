@@ -389,7 +389,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | Key                       | Action                                                                                               |
 | ------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, cycle whole panels instead |
-| `J` / `K`                 | Cycle focus across tribe side panels (forward / reverse)                                             |
+| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                    |
 | `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                      |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint         |
 | `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                  |
@@ -708,8 +708,9 @@ heights are sized to their content and separated by a one-row gap. When the pane
 leftover vertical space while later panels stay pinned to their natural height; when the panels overflow, space is
 weighted by each panel's rendered row count.
 
-Use `J` / `K` to move across panels (forward / reverse) and enter the first or last selectable row in the destination;
-collapsed grouping banners count as rows. Whole-panel focus is available only in the split layout. Lowercase `h` walks
+Use `J` / `K` to move across expanded panels (forward / reverse) and enter the first or last selectable row in the
+destination; collapsed panels are skipped entirely, and the keymaps do nothing when no other panel is expanded.
+Collapsed grouping banners count as rows. Whole-panel focus is available only in the split layout. Lowercase `h` walks
 from any agent or workflow-step row to its validated immediate workflow, family, clan, and finally tribe parent without
 changing structural or grouping folds. It also selects a lone split panel after the structural chain is exhausted. A
 selected panel has a `❖` title and shows a fold-aware `TRIBE` summary in the metadata pane. While it is selected, `j` /

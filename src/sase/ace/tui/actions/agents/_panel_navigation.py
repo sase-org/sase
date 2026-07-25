@@ -169,21 +169,35 @@ class AgentPanelNavigationMixin:
         """Cycle focus between tribe-driven side panels with wrap.
 
         Next-panel focus lands on the first selectable row in the new
-        panel's rendered order; previous-panel focus lands on the last.
-        No-ops when only one panel exists.
+        expanded panel's rendered order; previous-panel focus lands on the
+        last. No-ops when no other expanded panel exists.
         """
         if self.current_tab != "agents":
             return
         if self._guard_agent_navigation_for_artifact_file_viewer():  # type: ignore[attr-defined]
             return
+        panel_keys = self._panel_group.panel_keys
+        if len(panel_keys) <= 1:
+            return
+        # ``J`` / ``K`` mean "enter the first / last row of an adjacent panel",
+        # so a collapsed panel -- which renders no selectable rows -- is never
+        # a destination. With no expanded sibling left the keymaps are a pure
+        # no-op: lowercase j/k whole-panel cycling remains the way to reach
+        # collapsed panels.
+        collapsed_keys = effective_panel_collapses(self, panel_keys)
+        focused_idx = self._panel_group.focused_idx
+        if all(
+            key in collapsed_keys
+            for idx, key in enumerate(panel_keys)
+            if idx != focused_idx
+        ):
+            return
         # Uppercase J/K retain their row-jump meaning even when the origin is
         # a selected panel, so clear explicit expanded focus before choosing
-        # the destination row. Collapsed destinations still imply panel focus.
+        # the destination row.
         if getattr(self, "_expanded_panel_focus", False):
             self._expanded_panel_focus = False
-        if len(self._panel_group.panel_keys) <= 1:
-            return
-        old_focused_idx = self._panel_group.focused_idx
+        old_focused_idx = focused_idx
         old_idx = self.current_idx
         old_group_key = self._current_group_key
         old_agent = (
@@ -195,9 +209,9 @@ class AgentPanelNavigationMixin:
         if callable(save_jump_anchor):
             save_jump_anchor()
         if forward:
-            changed = self._panel_group.focus_next()
+            changed = self._panel_group.focus_next(skip=collapsed_keys)
         else:
-            changed = self._panel_group.focus_prev()
+            changed = self._panel_group.focus_prev(skip=collapsed_keys)
         if not changed:
             return
 

@@ -218,7 +218,13 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert "chop" not in page.app._collapsed_panel_keys
         assert "chop" not in page.app._expanded_panel_keys
         await page.press("J")
+        assert page.app._panel_group.focused_key == "keep"
         await page.press("J")
+        assert page.app._panel_group.focused_key is None
+        await page.press("J")
+        assert page.app._panel_group.focused_key == "keep"
+        await page.press("h")
+        await page.press("j")
         assert page.app._panel_group.focused_key == "chop"
         panel_focus = page.app._resolve_focused_panel()
         assert panel_focus is not None and panel_focus.collapsed
@@ -412,8 +418,8 @@ async def test_agents_leader_jump_auto_expands_panel_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 4)
 
-        await page.press("J")
-        await page.press("J")
+        await page.press("h")
+        await page.press("k")
         assert page.app._panel_group.focused_key == "chop"
         await page.press("l")
         await page.wait_for(

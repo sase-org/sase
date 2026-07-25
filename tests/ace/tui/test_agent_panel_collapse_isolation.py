@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import pytest
+
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 from sase.ace.tui.models.fold_state import FoldLevel
 
 from ._agent_panel_collapse_helpers import (
     AgentPanelCollapseApp,
+    make_four_panel_agents,
     make_multi_panel_agents,
 )
 
@@ -213,7 +218,7 @@ def test_escape_from_expanded_panel_restores_remembered_banner() -> None:
     assert app.current_idx == 1
 
 
-def test_panel_switch_lands_on_collapsed_panel_and_l_reanchors() -> None:
+def test_panel_switch_skips_collapsed_panel_and_l_reanchors_after_lowercase_j() -> None:
     app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key=None)
     app._collapsed_panel_keys.add("alpha")
     app._sync_panel_group()
@@ -225,10 +230,17 @@ def test_panel_switch_lands_on_collapsed_panel_and_l_reanchors() -> None:
 
     app.action_focus_next_agent_panel()
 
-    assert app._panel_group.focused_key == "alpha"
-    assert app.current_idx == 1
+    assert app._panel_group.focused_key is None
+    assert app.current_idx == 0
     assert app._current_group_key is None
     assert app.refresh_calls == [False, False]
+
+    app._expanded_panel_focus = True
+    BasicNavigationMixin._navigate_agents_panel(app, -1)
+    focus = app._resolve_focused_panel()
+    assert focus is not None
+    assert focus.panel_key == "alpha"
+    assert focus.collapsed is True
 
     prior = (app.current_idx, app._current_group_key)
     BasicNavigationMixin._navigate_agents_panel(app, 1)
@@ -240,4 +252,108 @@ def test_panel_switch_lands_on_collapsed_panel_and_l_reanchors() -> None:
     assert app.current_idx == 2
     assert app._collapsed_panel_keys == set()
     assert app._panel_group.panel_keys == [None, "alpha", "beta"]
-    assert app.refresh_calls == [False, False, False, False, True, False]
+    assert app.refresh_calls == [False, False, False, False, False, True, False]
+
+
+def test_prev_panel_switch_skips_collapsed_panel_and_lands_on_last_banner() -> None:
+    app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key=None)
+    app._collapsed_panel_keys.add("beta")
+    app._group_fold_registry.for_panel("alpha").collapse(("zeta",))
+    app._sync_panel_group()
+
+    app.action_focus_prev_agent_panel()
+
+    assert app._panel_group.focused_key == "alpha"
+    assert app._current_group_key == ("zeta",)
+    assert app.current_idx == 1
+    assert app._expanded_panel_focus is False
+
+
+def test_panel_switches_descend_from_collapsed_origin() -> None:
+    forward = AgentPanelCollapseApp(make_four_panel_agents(), focused_key="beta")
+    forward._collapsed_panel_keys.add("beta")
+    forward._sync_panel_group()
+    forward._expanded_panel_focus = True
+
+    forward.action_focus_next_agent_panel()
+
+    assert forward._panel_group.focused_key is None
+    assert forward.current_idx == 0
+    assert forward._current_group_key is None
+    assert forward._expanded_panel_focus is False
+
+    reverse = AgentPanelCollapseApp(make_four_panel_agents(), focused_key="beta")
+    reverse._collapsed_panel_keys.add("beta")
+    reverse._sync_panel_group()
+    reverse._expanded_panel_focus = True
+
+    reverse.action_focus_prev_agent_panel()
+
+    assert reverse._panel_group.focused_key == "gamma"
+    assert reverse.current_idx == 4
+    assert reverse._current_group_key is None
+    assert reverse._expanded_panel_focus is False
+
+
+def test_panel_switch_skips_config_collapsed_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.models import tribe_display
+
+    monkeypatch.setattr(
+        tribe_display,
+        "tribe_display_for",
+        lambda key: SimpleNamespace(initially_expanded=key != "alpha"),
+    )
+    app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key=None)
+    app._sync_panel_group()
+
+    app.action_focus_next_agent_panel()
+
+    assert app._collapsed_panel_keys == set()
+    assert app._expanded_panel_keys == set()
+    assert app._panel_group.focused_key == "beta"
+    assert app.current_idx == 3
+
+
+def _panel_switch_state(app: AgentPanelCollapseApp) -> tuple[object, ...]:
+    return (
+        app._panel_group.focused_idx,
+        app._panel_group.focused_key,
+        app.current_idx,
+        app.current_attempt_number,
+        app._current_group_key,
+        app._expanded_panel_focus,
+        list(app._entry_jump_agents_anchor_stack),
+        list(app._entry_jump_agents_forward_anchor_stack),
+        list(app.refresh_calls),
+        list(app.notifications),
+    )
+
+
+def test_panel_switches_are_pure_noops_without_expanded_sibling() -> None:
+    app = AgentPanelCollapseApp(make_four_panel_agents(), focused_key="alpha")
+    app._collapsed_panel_keys.update({None, "beta", "gamma"})
+    app._sync_panel_group()
+    app.current_idx = 2
+    app._current_group_key = ("stale",)
+    app._expanded_panel_focus = True
+    app._entry_jump_agents_anchor_stack = [("agent", 0, None)]
+    app._entry_jump_agents_forward_anchor_stack = [("agent", 4, "gamma")]
+    before = _panel_switch_state(app)
+
+    app.action_focus_next_agent_panel()
+    app.action_focus_prev_agent_panel()
+
+    assert _panel_switch_state(app) == before
+
+
+def test_panel_switches_are_noops_in_merged_layout() -> None:
+    app = AgentPanelCollapseApp(make_multi_panel_agents(), merged=True)
+    app._expanded_panel_focus = True
+    before = _panel_switch_state(app)
+
+    app.action_focus_next_agent_panel()
+    app.action_focus_prev_agent_panel()
+
+    assert _panel_switch_state(app) == before

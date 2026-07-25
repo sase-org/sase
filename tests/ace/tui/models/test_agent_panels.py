@@ -320,3 +320,51 @@ def test_new_clan_tribe_keeps_entire_subtree_in_one_panel() -> None:
     assert effective_tribe_per_agent(clan) == ["quality"] * len(clan)
     assert AgentPanelGroup.from_agents(clan).panel_keys == ["quality"]
     assert agents_for_panel(clan, "quality") == clan
+
+
+def test_panel_focus_next_skips_multiple_panels_and_wraps() -> None:
+    group = AgentPanelGroup([None, "alpha", "beta", "gamma"])
+
+    assert group.focus_next(skip={"alpha", "beta"}) is True
+    assert group.focused_key == "gamma"
+    assert group.focus_next(skip={"alpha", "beta"}) is True
+    assert group.focused_key is None
+
+
+def test_panel_focus_prev_skips_multiple_panels_and_wraps() -> None:
+    group = AgentPanelGroup([None, "alpha", "beta", "gamma"])
+
+    assert group.focus_prev(skip={"beta", "gamma"}) is True
+    assert group.focused_key == "alpha"
+    assert group.focus_prev(skip={"beta", "gamma"}) is True
+    assert group.focused_key is None
+
+
+def test_panel_focus_step_can_start_from_skipped_panel() -> None:
+    group = AgentPanelGroup([None, "alpha", "beta"], focused_idx=1)
+
+    assert group.focus_next(skip={"alpha"}) is True
+    assert group.focused_key == "beta"
+
+
+def test_panel_focus_step_returns_false_when_every_other_panel_is_skipped() -> None:
+    group = AgentPanelGroup([None, "alpha", "beta"], focused_idx=1)
+
+    assert group.focus_next(skip={None, "beta"}) is False
+    assert group.focused_idx == 1
+    assert group.focus_prev(skip={None, "beta"}) is False
+    assert group.focused_idx == 1
+
+
+def test_panel_focus_default_step_and_single_panel_behavior_are_unchanged() -> None:
+    group = AgentPanelGroup([None, "alpha", "beta"])
+
+    assert group.focus_next() is True
+    assert group.focused_key == "alpha"
+    assert group.focus_prev() is True
+    assert group.focused_key is None
+    assert group.focus_prev() is True
+    assert group.focused_key == "beta"
+
+    assert AgentPanelGroup([]).focus_next() is False
+    assert AgentPanelGroup(["alpha"]).focus_prev() is False

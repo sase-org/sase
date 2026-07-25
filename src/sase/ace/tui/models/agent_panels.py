@@ -226,32 +226,31 @@ class AgentPanelGroup:
             return self.panel_keys[self.focused_idx]
         return None
 
-    def focus_next(self) -> bool:
-        """Advance focus to the next panel with wrap.
+    def focus_next(self, *, skip: Collection[PanelKey] = ()) -> bool:
+        """Advance focus to the next panel not in *skip*, with wrap.
 
-        Returns ``True`` when the focused index changed; ``False`` when
-        the panel set is empty or contains a single panel.
+        Returns ``True`` when the focused index changed; ``False`` when the
+        panel set is empty, holds a single panel, or every other panel is
+        skipped.
         """
+        return self._focus_step(1, skip)
+
+    def focus_prev(self, *, skip: Collection[PanelKey] = ()) -> bool:
+        """Retreat focus to the previous panel not in *skip*, with wrap."""
+        return self._focus_step(-1, skip)
+
+    def _focus_step(self, delta: int, skip: Collection[PanelKey]) -> bool:
+        """Step focus by *delta* until a non-skipped panel is found."""
         n = len(self.panel_keys)
         if n <= 1:
             return False
-        new_idx = (self.focused_idx + 1) % n
-        if new_idx == self.focused_idx:
-            return False
-        self.focused_idx = new_idx
-        return True
-
-    def focus_prev(self) -> bool:
-        """Retreat focus to the previous panel with wrap.
-
-        Returns ``True`` when the focused index changed; ``False`` when
-        the panel set is empty or contains a single panel.
-        """
-        n = len(self.panel_keys)
-        if n <= 1:
-            return False
-        new_idx = (self.focused_idx - 1) % n
-        if new_idx == self.focused_idx:
-            return False
-        self.focused_idx = new_idx
-        return True
+        skipped = {normalize_panel_key(key) for key in skip}
+        for step in range(1, n):
+            idx = (self.focused_idx + delta * step) % n
+            if idx == self.focused_idx:
+                break
+            if self.panel_keys[idx] in skipped:
+                continue
+            self.focused_idx = idx
+            return True
+        return False
