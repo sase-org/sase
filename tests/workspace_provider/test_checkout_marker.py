@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from sase.workspace_provider.marker import (
     CheckoutMarker,
     find_marker_from_cwd,
@@ -114,4 +116,22 @@ class TestFindMarkerFromCwd:
     def test_returns_none_when_no_marker(self, tmp_path: Path) -> None:
         nested = tmp_path / "nothing" / "here"
         nested.mkdir(parents=True)
+        assert find_marker_from_cwd(str(nested)) is None
+
+    def test_pytest_sandbox_stops_marker_walk_at_boundary(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        store = _make_managed_store(tmp_path)
+        wp = store.resolve(10)
+        checkout = Path(wp.checkout_dir.rstrip("/"))
+        checkout.mkdir(parents=True)
+        write_marker(store, wp)
+
+        sandbox = checkout / "sandbox"
+        nested = sandbox / "nested"
+        nested.mkdir(parents=True)
+        monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(sandbox))
+
         assert find_marker_from_cwd(str(nested)) is None

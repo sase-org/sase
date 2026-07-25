@@ -23,6 +23,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DIRECTORY_MAP_PLACEHOLDER = (
     _REPO_ROOT / "tests" / "fixtures" / "directory-map-placeholder.bin"
 )
+_PYTEST_SANDBOX_DIR_ENV_VAR = "SASE_PYTEST_SANDBOX_DIR"
 
 _PLAN_CHAIN_GOLDEN_TEST_FILES = frozenset(
     Path(path)
@@ -115,6 +116,19 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=".pytest_cache/sase-visual",
         help="Directory for ACE visual snapshot failure artifacts.",
     )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _publish_pytest_sandbox(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Iterator[None]:
+    """Publish this worker's sandbox root for in-process and child-process checks."""
+    sandbox = tmp_path_factory.getbasetemp().resolve()
+    os.environ[_PYTEST_SANDBOX_DIR_ENV_VAR] = str(sandbox)
+    try:
+        yield
+    finally:
+        os.environ.pop(_PYTEST_SANDBOX_DIR_ENV_VAR, None)
 
 
 @pytest.fixture(autouse=True)

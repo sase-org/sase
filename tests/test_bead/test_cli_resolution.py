@@ -1,14 +1,16 @@
 """Tests for bead CLI workspace resolution behavior."""
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
 from tests.sdd_policy_helpers import patched_sdd_policy, set_sdd_policy
 
 from sase.bead.cli import _find_beads_location
-from sase.bead.cli_common import get_project
+from sase.bead.cli_common import get_project, resolve_beads_location
 from sase.bead.project import BeadProject
+from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
 
 def test_find_beads_location_separate_repo_prefers_workspace_local_clone(
@@ -163,6 +165,38 @@ def test_get_project_opens_warm_store_without_materialization(
 
     with get_project() as project:
         assert project.beads_dir == sdd_dir / "beads"
+
+
+def test_isolated_fixture_resolves_store_below_pytest_sandbox(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    checkout = tmp_path / "checkout"
+    with BeadProject.init(checkout):
+        pass
+    isolate_bead_store_resolution(monkeypatch, checkout)
+
+    location = resolve_beads_location()
+
+    assert location is not None
+    assert location.beads_dir == checkout / "sdd" / "beads"
+    sandbox = Path(os.environ["SASE_PYTEST_SANDBOX_DIR"]).resolve()
+    location.beads_dir.resolve().relative_to(sandbox)
+
+
+def test_workspace_context_rejects_primary_outside_pytest_sandbox(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    sandbox = tmp_path / "sandbox"
+    checkout = sandbox / "checkout"
+    production = tmp_path / "production"
+    checkout.mkdir(parents=True)
+    (production / "sdd" / "beads").mkdir(parents=True)
+    _write_checkout_marker(checkout, production, workspace_num=2)
+    monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(sandbox))
+
+    assert resolve_beads_location(cwd=checkout, require_existing=True) is None
 
 
 def _set_sdd_config(monkeypatch, *, storage: str) -> None:

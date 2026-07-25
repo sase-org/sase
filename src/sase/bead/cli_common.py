@@ -14,6 +14,7 @@ from sase.bead.project import (
     BEADS_DIRNAME_NON_VC,
     BeadProject,
 )
+from sase.core.state_write_guard import pytest_path_is_sandboxed
 
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
@@ -158,6 +159,8 @@ def _resolve_workspace_context(cwd: Path) -> _WorkspaceContext | None:
         return None
 
     primary = primary.expanduser().resolve()
+    if not pytest_path_is_sandboxed(primary):
+        return None
     root = _existing_workspace_root(cwd) or _workspace_root_under_primary(cwd, primary)
     if root is None:
         root = cwd
@@ -178,10 +181,13 @@ def _resolve_workspace_context_from_marker(cwd: Path) -> _WorkspaceContext | Non
     primary = marker.primary_workspace_dir.strip()
     if not primary:
         return None
+    resolved_primary = Path(primary.rstrip("/")).expanduser().resolve()
+    if not pytest_path_is_sandboxed(resolved_primary):
+        return None
     workspace_num = marker.workspace_num if marker.workspace_num > 0 else 1
     return _WorkspaceContext(
         root=Path(checkout_dir).expanduser().resolve(),
-        primary=Path(primary.rstrip("/")).expanduser().resolve(),
+        primary=resolved_primary,
         workspace_num=workspace_num,
         project_name=marker.project_name or None,
     )
@@ -199,6 +205,8 @@ def _resolve_workspace_context_from_project_scan(cwd: Path) -> _WorkspaceContext
 
     project_name, primary = scanned
     primary = primary.expanduser().resolve()
+    if not pytest_path_is_sandboxed(primary):
+        return None
     root = (
         _workspace_root_from_primary_variant(cwd, primary, project_name)
         or _existing_workspace_root(cwd)

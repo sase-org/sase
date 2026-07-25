@@ -11,6 +11,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 PYTEST_CONTEXT_ENV_VARS = ("PYTEST_CURRENT_TEST", "PYTEST_VERSION")
+PYTEST_SANDBOX_DIR_ENV_VAR = "SASE_PYTEST_SANDBOX_DIR"
 
 _warned_refusals: set[tuple[str, str]] = set()
 _warned_refusals_lock = threading.Lock()
@@ -26,6 +27,22 @@ def pytest_context_detected(
     """Return whether this process carries an established pytest marker."""
     effective_environ = os.environ if environ is None else environ
     return any(name in effective_environ for name in PYTEST_CONTEXT_ENV_VARS)
+
+
+def pytest_path_is_sandboxed(
+    target: str | os.PathLike[str],
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> bool:
+    """Return whether *target* is safe to discover from a pytest process."""
+    effective_environ = os.environ if environ is None else environ
+    if not pytest_context_detected(effective_environ):
+        return True
+
+    sandbox = effective_environ.get(PYTEST_SANDBOX_DIR_ENV_VAR, "").strip()
+    if not sandbox:
+        return False
+    return _is_at_or_below(_resolve_path(target), _resolve_path(sandbox))
 
 
 def _account_home() -> Path:
@@ -120,7 +137,9 @@ def _is_at_or_below(path: Path, root: Path) -> bool:
 
 __all__ = [
     "PYTEST_CONTEXT_ENV_VARS",
+    "PYTEST_SANDBOX_DIR_ENV_VAR",
     "assert_test_state_write_isolated",
     "best_effort_test_state_write_allowed",
     "pytest_context_detected",
+    "pytest_path_is_sandboxed",
 ]

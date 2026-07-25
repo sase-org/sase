@@ -20,6 +20,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.core.state_write_guard import pytest_path_is_sandboxed
 from sase.workspace_provider.registry import registry_path
 from sase.workspace_provider.store import (
     PRIMARY_WORKSPACE_NUM,
@@ -143,6 +144,8 @@ def find_marker_from_cwd(start_dir: str) -> tuple[str, CheckoutMarker] | None:
     """
     current = os.path.abspath(start_dir)
     while True:
+        if not pytest_path_is_sandboxed(current):
+            return None
         marker = read_marker(current)
         if marker is not None:
             return current, marker

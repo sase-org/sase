@@ -18,6 +18,7 @@ import pytest
 from sase.bead.config import save_config
 from sase.bead.project import BeadProject
 from sase.main.entry import main as sase_main
+from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
 GOLDEN = Path(__file__).parent / "golden"
 
@@ -128,9 +129,8 @@ def _run_cli(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> CliResult:
-    monkeypatch.chdir(cwd)
+    isolate_bead_store_resolution(monkeypatch, cwd)
     monkeypatch.setattr(sys, "argv", ["sase", *argv])
-    monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
 
     with pytest.raises(SystemExit) as excinfo:
         sase_main()

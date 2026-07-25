@@ -11,6 +11,7 @@ import pytest
 from sase.bead import db
 from sase.bead.project import BeadProject
 from sase.xprompt.workflow_models import Workflow
+from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
 
 @pytest.fixture
@@ -27,8 +28,7 @@ def project_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pat
     """Create a fresh beads project and route the CLI's lookups at it."""
     with BeadProject.init(tmp_path):
         pass
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
+    isolate_bead_store_resolution(monkeypatch, tmp_path)
     yield tmp_path
 
 

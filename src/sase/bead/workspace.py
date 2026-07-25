@@ -9,6 +9,7 @@ from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
 from sase.bead.project_name import infer_project_name_from_cwd, scan_projects_for_cwd
 from sase.core.paths import sase_projects_dir
+from sase.core.state_write_guard import pytest_path_is_sandboxed
 
 
 def get_project_beads_dirs() -> list[Path] | None:
@@ -78,7 +79,7 @@ def resolve_primary_workspace() -> Path | None:
     """
     # Strategy 1: managed checkout marker
     marker_primary = _resolve_from_marker()
-    if marker_primary is not None:
+    if marker_primary is not None and pytest_path_is_sandboxed(marker_primary):
         return marker_primary
 
     # Strategy 2: workspace/provider-derived project name
@@ -86,16 +87,19 @@ def resolve_primary_workspace() -> Path | None:
 
     if project_name:
         result = _resolve_from_project_file(project_name)
-        if result is not None:
+        if result is not None and pytest_path_is_sandboxed(result):
             return result
         # If WORKSPACE_DIR is missing/stale in the .gp file, ask the
         # workspace provider directly for workspace #1.
         result = _resolve_from_workspace_provider(project_name)
-        if result is not None:
+        if result is not None and pytest_path_is_sandboxed(result):
             return result
 
     # Strategy 3: scan all projects
-    return _resolve_by_scanning_projects(os.path.abspath(os.getcwd()))
+    result = _resolve_by_scanning_projects(os.path.abspath(os.getcwd()))
+    if result is None or not pytest_path_is_sandboxed(result):
+        return None
+    return result
 
 
 def _resolve_from_marker() -> Path | None:

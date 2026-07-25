@@ -12,6 +12,7 @@ import pytest
 from sase.axe.config import AxeConfig
 from sase.axe.orchestrator import Orchestrator
 from sase.axe.state import append_bounded_log
+from sase.core.state_write_guard import pytest_path_is_sandboxed
 from sase.telemetry import flush_metrics, metrics as telemetry_metrics
 from sase.telemetry._config import _TelemetryConfig
 from sase.telemetry._registry import _reset_for_tests, init_telemetry
@@ -23,6 +24,24 @@ def _reset_guard_warnings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setattr("sase.core.state_write_guard._warned_refusals", set())
     yield
     _reset_for_tests()
+
+
+def test_pytest_path_is_sandboxed_uses_published_boundary(tmp_path: Path) -> None:
+    sandbox = tmp_path / "sandbox"
+    inside = sandbox / "beads"
+    outside = tmp_path / "production" / "beads"
+    environ = {
+        "PYTEST_CURRENT_TEST": "sandbox containment",
+        "SASE_PYTEST_SANDBOX_DIR": str(sandbox),
+    }
+
+    assert pytest_path_is_sandboxed(inside, environ=environ)
+    assert not pytest_path_is_sandboxed(outside, environ=environ)
+    assert not pytest_path_is_sandboxed(
+        inside,
+        environ={"PYTEST_CURRENT_TEST": "missing sandbox"},
+    )
+    assert pytest_path_is_sandboxed(outside, environ={})
 
 
 def test_unisolated_pytest_telemetry_refuses_before_drain_or_binding(

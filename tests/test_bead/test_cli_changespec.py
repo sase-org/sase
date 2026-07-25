@@ -8,20 +8,18 @@ from pathlib import Path
 
 import pytest
 
-from tests.sdd_policy_helpers import set_sdd_policy
-
 from sase.bead import cli as bead_cli
 from sase.bead.model import PhaseSize
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
+from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
 
 @pytest.fixture
 def project_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     with BeadProject.init(tmp_path):
         pass
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
+    isolate_bead_store_resolution(monkeypatch, tmp_path)
     yield tmp_path
 
 
@@ -83,11 +81,12 @@ def test_create_plan_stores_sibling_workspace_plan_path_relative_to_primary(
     plan.write_text("# Roadmap\n")
     with BeadProject.init(primary):
         pass
-    monkeypatch.chdir(sibling)
-    monkeypatch.setattr(
-        "sase.bead.workspace.resolve_primary_workspace", lambda: primary
+    isolate_bead_store_resolution(
+        monkeypatch,
+        sibling,
+        primary=primary,
+        workspace_num=101,
     )
-    set_sdd_policy(monkeypatch, "in_tree")
     args = _create_args(title="Epic", type_value=f"plan({plan})", tier="epic")
 
     bead_cli.handle_bead_create(args)
@@ -109,11 +108,7 @@ def test_create_plan_preserves_external_absolute_plan_path(
     external.write_text("# Roadmap\n")
     with BeadProject.init(primary):
         pass
-    monkeypatch.chdir(primary)
-    monkeypatch.setattr(
-        "sase.bead.workspace.resolve_primary_workspace", lambda: primary
-    )
-    set_sdd_policy(monkeypatch, "in_tree")
+    isolate_bead_store_resolution(monkeypatch, primary)
     args = _create_args(title="Epic", type_value=f"plan({external})", tier="epic")
 
     bead_cli.handle_bead_create(args)

@@ -470,6 +470,28 @@ def test_marker_primary_overrides_sibling_scan(tmp_path: Path, monkeypatch) -> N
     assert resolve_primary_workspace() == primary
 
 
+def test_pytest_primary_resolution_rejects_workspace_outside_sandbox(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    sandbox = tmp_path / "sandbox"
+    managed = sandbox / "managed"
+    primary = tmp_path / "production"
+    managed.mkdir(parents=True)
+    primary.mkdir()
+    _write_marker(
+        managed,
+        project_name="zorg",
+        project_key="key",
+        primary_workspace_dir=primary,
+        workspace_num=10,
+    )
+    monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(sandbox))
+    monkeypatch.chdir(managed)
+
+    assert resolve_primary_workspace() is None
+
+
 def test_bead_lookup_prefers_current_checkout_bead_store(
     tmp_path: Path, monkeypatch
 ) -> None:
