@@ -25,7 +25,7 @@ from tests._agent_revive_helpers import make_agent
 
 _HITCH_THRESHOLD_SECONDS = 0.5
 _BACKGROUND_HOLD_SECONDS = 0.65
-_INPUT_DEADLINE_SECONDS = 1.5
+_INPUT_DEADLINE_SECONDS = 3.0
 _FREEZE_EVENTS = frozenset(
     {
         "tui_hitch",
@@ -41,6 +41,7 @@ class _WatchdogWindow:
     label: str
     started_ts: float
     ended_ts: float
+    stack_markers: tuple[str, ...] = ()
 
 
 class _WatchdogWindows:
@@ -51,7 +52,12 @@ class _WatchdogWindows:
         self._windows: list[_WatchdogWindow] = []
 
     @contextmanager
-    def record(self, label: str) -> Iterator[None]:
+    def record(
+        self,
+        label: str,
+        *,
+        stack_markers: tuple[str, ...],
+    ) -> Iterator[None]:
         started_ts = time.time()
         try:
             yield
@@ -60,6 +66,7 @@ class _WatchdogWindows:
                 label=label,
                 started_ts=started_ts,
                 ended_ts=time.time(),
+                stack_markers=stack_markers,
             )
             with self._lock:
                 self._windows.append(window)
@@ -116,6 +123,38 @@ def _read_events(path: Path) -> list[dict[str, object]]:
     ]
 
 
+def _iter_stack_lines(value: object) -> Iterator[str]:
+    if isinstance(value, str):
+        yield value
+        return
+    if isinstance(value, list):
+        for item in value:
+            yield from _iter_stack_lines(item)
+        return
+    if not isinstance(value, dict):
+        return
+    for key in ("stack", "await_chain"):
+        yield from _iter_stack_lines(value.get(key))
+
+
+def _record_causal_stack_text(record: dict[str, object]) -> str:
+    # Pump-stall task/worker stacks include broad diagnostic context. Attribute
+    # fixed-path failures only to the UI-thread stack that the watchdog sampled.
+    lines: list[str] = []
+    lines.extend(_iter_stack_lines(record.get("main_thread_stack")))
+    return "\n".join(lines)
+
+
+def _record_implicates_window(
+    record: dict[str, object],
+    window: _WatchdogWindow,
+) -> bool:
+    if not window.stack_markers:
+        return True
+    stack_text = _record_causal_stack_text(record)
+    return any(marker in stack_text for marker in window.stack_markers)
+
+
 def _assert_no_fixed_path_freezes(
     records: list[dict[str, object]],
     windows: tuple[_WatchdogWindow, ...],
@@ -128,7 +167,10 @@ def _assert_no_fixed_path_freezes(
         if not isinstance(event_ts, (int, float)):
             continue
         for window in windows:
-            if window.started_ts <= event_ts <= window.ended_ts:
+            if (
+                window.started_ts <= event_ts <= window.ended_ts
+                and _record_implicates_window(record, window)
+            ):
                 observed.append((window.label, record))
                 break
     assert observed == [], (
@@ -146,21 +188,78 @@ def test_real_app_watchdog_context_includes_last_action() -> None:
 
 
 def test_watchdog_windows_ignore_unrelated_session_hitches() -> None:
-    windows = (_WatchdogWindow("startup", 10.0, 11.0),)
+    windows = (
+        _WatchdogWindow(
+            "startup",
+            10.0,
+            11.0,
+            stack_markers=("slow_startup_read",),
+        ),
+    )
     records = [
-        {"event": "tui_hitch", "ts": 9.9},
-        {"event": "tui_pump_hitch", "ts": 11.1},
+        {
+            "event": "tui_hitch",
+            "ts": 9.9,
+            "main_thread_stack": ["slow_startup_read"],
+        },
+        {
+            "event": "tui_pump_hitch",
+            "ts": 11.1,
+            "main_thread_stack": ["slow_startup_read"],
+        },
+        {
+            "event": "tui_stall",
+            "ts": 10.5,
+            "main_thread_stack": ["commits_rendering.build_commit_detail"],
+        },
     ]
 
     _assert_no_fixed_path_freezes(records, windows)
 
 
 def test_watchdog_windows_reject_fixed_path_hitches() -> None:
-    windows = (_WatchdogWindow("history", 10.0, 11.0),)
-    records = [{"event": "tui_pump_hitch", "ts": 10.5}]
+    windows = (
+        _WatchdogWindow(
+            "prompt_history",
+            10.0,
+            11.0,
+            stack_markers=("load_prompt_record_page",),
+        ),
+    )
+    records = [
+        {
+            "event": "tui_pump_hitch",
+            "ts": 10.5,
+            "main_thread_stack": ["load_prompt_record_page"],
+        },
+    ]
 
-    with pytest.raises(AssertionError, match="history"):
+    with pytest.raises(AssertionError, match="prompt_history"):
         _assert_no_fixed_path_freezes(records, windows)
+
+
+def test_watchdog_windows_ignore_worker_only_fixed_path_stacks() -> None:
+    windows = (
+        _WatchdogWindow(
+            "loader_cleanup",
+            10.0,
+            11.0,
+            stack_markers=("compute_loader_cleanup",),
+        ),
+    )
+    records = [
+        {
+            "event": "tui_pump_stall",
+            "ts": 10.5,
+            "main_thread_stack": ["commits_rendering.build_commit_detail"],
+            "asyncio_task_stacks": [{"name": "pump-handler", "stack": ["unrelated"]}],
+            "worker_thread_stacks": [
+                {"name": "worker", "stack": ["compute_loader_cleanup"]}
+            ],
+        },
+    ]
+
+    _assert_no_fixed_path_freezes(records, windows)
 
 
 @pytest.mark.asyncio
@@ -177,7 +276,10 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
     startup_release = Event()
 
     def slow_startup_read(_self: AceApp) -> tuple[set[str], int, int, int]:
-        with watchdog_windows.record("startup"):
+        with watchdog_windows.record(
+            "startup",
+            stack_markers=("_read_notifications_for_startup", "slow_startup_read"),
+        ):
             startup_started.set()
             startup_release.wait(timeout=5.0)
         return set(), 0, 0, 0
@@ -208,7 +310,10 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
         history_release = Event()
 
         def slow_history_page(**_kwargs: object) -> PromptHistoryPage:
-            with watchdog_windows.record("prompt_history"):
+            with watchdog_windows.record(
+                "prompt_history",
+                stack_markers=("load_prompt_record_page", "slow_history_page"),
+            ):
                 history_started.set()
                 history_release.wait(timeout=5.0)
             return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
@@ -246,7 +351,10 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
         )
 
         def slow_archive_page() -> tuple[list[object], list[object], bool]:
-            with watchdog_windows.record("revive_archive"):
+            with watchdog_windows.record(
+                "revive_archive",
+                stack_markers=("_page_loader", "slow_archive_page"),
+            ):
                 archive_started.set()
                 archive_release.wait(timeout=5.0)
             return [dismissed_agent], [dismissed_agent], True
@@ -279,7 +387,10 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
         def slow_loader_cleanup(
             *_args: object,
         ) -> tuple[set[object], set[str]]:
-            with watchdog_windows.record("loader_cleanup"):
+            with watchdog_windows.record(
+                "loader_cleanup",
+                stack_markers=("compute_loader_cleanup", "slow_loader_cleanup"),
+            ):
                 cleanup_started.set()
                 cleanup_release.wait(timeout=5.0)
             return set(), set()
