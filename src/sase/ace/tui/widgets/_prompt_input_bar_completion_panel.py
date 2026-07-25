@@ -32,6 +32,7 @@ from sase.ace.tui.widgets.history_word_completion import (
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
+    PlaceholderCompletionMetadata,
 )
 from sase.ace.tui.widgets.prompt_word_completion import PROMPT_WORD_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
@@ -53,6 +54,7 @@ _PANEL_BORDER_ROWS = 2
 _PANEL_MARGIN_ROWS = 1
 _COMPLETION_PANEL_MAX_HEIGHT = 10
 _JINJA_PANEL_MAX_HEIGHT = 5
+_PLACEHOLDER_SOURCE_LEGEND = "<> prompt   ◆ saved"
 
 
 def _reserved_panel_rows(
@@ -262,6 +264,11 @@ class PromptInputBarCompletionMixin(_MixinBase):
 
         if is_history:
             panel.border_subtitle = "[^L] accept  [^D] delete"
+        elif is_placeholder and _visible_placeholder_sources(visible) == {
+            "prompt",
+            "common",
+        }:
+            panel.border_subtitle = _PLACEHOLDER_SOURCE_LEGEND
         else:
             panel.border_subtitle = ""
 
@@ -394,3 +401,21 @@ def _clear_jinja_panel_classes(panel: Static) -> None:
 
 def _content_line_count(content: Text) -> int:
     return len(content.plain.splitlines()) if content.plain else 0
+
+
+def _visible_placeholder_sources(
+    visible: list[CompletionCandidate],
+) -> set[str]:
+    sources: set[str] = set()
+    for candidate in visible:
+        metadata = (
+            candidate.metadata
+            if isinstance(candidate.metadata, PlaceholderCompletionMetadata)
+            else None
+        )
+        sources.add(
+            "common"
+            if metadata is not None and metadata.source == "common"
+            else "prompt"
+        )
+    return sources

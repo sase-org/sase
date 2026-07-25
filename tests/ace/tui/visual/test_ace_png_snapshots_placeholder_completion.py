@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
+    PlaceholderCompletionMetadata,
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -23,12 +26,16 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-def _candidate(text: str) -> CompletionCandidate:
+def _candidate(
+    text: str,
+    source: Literal["prompt", "common"] = "prompt",
+) -> CompletionCandidate:
     return CompletionCandidate(
         display=text,
         insertion=text,
         is_dir=False,
         name=text,
+        metadata=PlaceholderCompletionMetadata(source=source),
     )
 
 
@@ -74,6 +81,42 @@ async def test_placeholder_completion_panel_png_snapshot(
             page,
             "placeholder_completion_panel_120x40",
             title="ACE prompt input — placeholder completion menu",
+        )
+
+
+async def test_common_placeholder_completion_panel_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("5")
+        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("tab", "changespecs")
+        bar = await _mount_prompt_bar(
+            page,
+            "Reuse <release note> and <release owner>; update <rel",
+        )
+        bar.show_file_completions(
+            "rel",
+            [
+                _candidate("release note"),
+                _candidate("release owner"),
+                _candidate("release checklist", "common"),
+                _candidate("release risks", "common"),
+            ],
+            selected_index=2,
+            completion_kind=PLACEHOLDER_COMPLETION_KIND,
+        )
+        await wait_for_svg_contains(page, "release checklist")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "placeholder_common_completion_panel_120x40",
+            title="ACE prompt input — common placeholder completion menu",
         )
 
 

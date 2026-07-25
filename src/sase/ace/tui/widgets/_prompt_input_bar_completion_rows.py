@@ -15,6 +15,7 @@ from sase.ace.tui.widgets.directive_completion import (
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.jinja_completion import JinjaCompletionMetadata
+from sase.ace.tui.widgets.placeholder_completion import PlaceholderCompletionMetadata
 from sase.ace.tui.widgets.vcs_repo_completion import VcsRepoCompletionPlaceholder
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
@@ -27,6 +28,11 @@ from sase.ace.tui.widgets._agent_list_styling import (
 from sase.project_display_names import project_display_name_for
 from sase.workspace_provider import VcsNamespaceEntry, VcsRepoEntry
 from sase.xprompt.vcs_project_completion import VcsProjectEntry
+
+_PROMPT_PLACEHOLDER_BADGE = "<> "
+_PROMPT_PLACEHOLDER_STYLE = "cyan"
+_COMMON_PLACEHOLDER_BADGE = "◆  "
+_COMMON_PLACEHOLDER_STYLE = "#D7AF5F"
 
 
 def vcs_project_label_width(candidate: CompletionCandidate) -> int:
@@ -371,11 +377,21 @@ def append_placeholder_completion_row(
     candidate: CompletionCandidate,
     is_selected: bool,
 ) -> None:
-    """Append one reusable placeholder row with a quiet bracket badge."""
-    content.append("<> ", style="dim cyan")
+    """Append one reusable placeholder row with a source-specific badge."""
+    metadata = (
+        candidate.metadata
+        if isinstance(candidate.metadata, PlaceholderCompletionMetadata)
+        else None
+    )
+    is_common = metadata is not None and metadata.source == "common"
+    badge = _COMMON_PLACEHOLDER_BADGE if is_common else _PROMPT_PLACEHOLDER_BADGE
+    label_style = _COMMON_PLACEHOLDER_STYLE if is_common else _PROMPT_PLACEHOLDER_STYLE
+    badge_style = _COMMON_PLACEHOLDER_STYLE if is_common else "dim cyan"
+
+    content.append(badge, style=badge_style)
     content.append(
         candidate.display,
-        style="bold cyan" if is_selected else "cyan",
+        style=f"bold {label_style}" if is_selected else label_style,
     )
 
 

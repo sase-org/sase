@@ -739,25 +739,34 @@ ace:
     auto_directive_menu: true
     max_auto_rows: 1
     history_word_count: 1000
+    common_placeholder_count: 100
     word_min_length: 5
 ```
 
-| Field                 | Type        | Default | Description                                                                                                       |
-| --------------------- | ----------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
-| `auto`                | bool/string | `soft`  | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.         |
-| `debounce_ms`         | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                            |
-| `auto_file_paths`     | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.      |
-| `auto_xprompt_menu`   | bool        | `true`  | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens. |
-| `auto_directive_menu` | bool        | `true`  | Automatically open directive completion while typing `%id` tokens and fixed values such as `%model:`.             |
-| `max_auto_rows`       | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                        |
-| `history_word_count`  | int         | `1000`  | Maximum unique recent prompt-history words retained for manual completion; `0` disables the history fallback.     |
-| `word_min_length`     | int         | `5`     | Shared minimum length for prompt-local and prompt-history word candidates; values below `1` clamp to `1`.         |
+| Field                      | Type        | Default | Description                                                                                                        |
+| -------------------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
+| `auto`                     | bool/string | `soft`  | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.          |
+| `debounce_ms`              | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                             |
+| `auto_file_paths`          | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.       |
+| `auto_xprompt_menu`        | bool        | `true`  | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens.  |
+| `auto_directive_menu`      | bool        | `true`  | Automatically open directive completion while typing `%id` tokens and fixed values such as `%model:`.              |
+| `max_auto_rows`            | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                         |
+| `history_word_count`       | int         | `1000`  | Maximum unique recent prompt-history words retained for manual completion; `0` disables the history fallback.      |
+| `common_placeholder_count` | int         | `100`   | Maximum saved `<placeholder>` tags retained and offered after prompt-local placeholder matches; `0` disables them. |
+| `word_min_length`          | int         | `5`     | Shared minimum length for prompt-local and prompt-history word candidates; values below `1` clamp to `1`.          |
 
 The minimum applies to the complete candidate, so a shorter typed prefix can still complete an eligible word.
 Prompt-local words below the threshold are skipped before ACE considers the prompt-history fallback. Candidates from
 history retain their original spelling and appear in most-recently-used order. The cache is warmed off-thread and
 rebuilt when history shards or the shared minimum change. Setting `history_word_count: 0` disables only the history
 fallback; eligible prompt-local words remain available.
+
+Common placeholders are stored at `sase_home()/prompt_placeholders.json` and are learned from complete `<foobar>` tags
+written in submitted, failed-launch, and cancelled prompt drafts. When the store is first created, ACE seeds it once
+from bounded prompt history so existing tags can appear immediately. Retention evicts least-recently-used entries down
+to `common_placeholder_count`, while display order is frecency: use count, then last use, then text. Setting
+`common_placeholder_count: 0` disables recording, loading, and display of saved placeholders; prompt-local placeholder
+completion still works.
 
 The former `history_word_min_length` key has been replaced by `word_min_length`. Existing overrides must rename the key
 to keep controlling word completion.
@@ -779,7 +788,8 @@ suggestions, manual `Ctrl+T` path completion, and the manual `Ctrl+R` recursive 
 
 Source: `src/sase/ace/tui/widgets/prompt_completion.py`, `src/sase/ace/tui/widgets/_prompt_soft_completion.py`,
 `src/sase/ace/tui/widgets/history_word_completion.py`, `src/sase/history/prompt_words.py`,
-`src/sase/ace/tui/widgets/prompt_completion_root.py`, `src/sase/ace/tui/widgets/recursive_file_finder.py`
+`src/sase/history/prompt_placeholders.py`, `src/sase/ace/tui/widgets/prompt_completion_root.py`,
+`src/sase/ace/tui/widgets/recursive_file_finder.py`
 
 ### llm_provider
 

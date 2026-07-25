@@ -22,6 +22,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("{{ / {% / {#", "Auto-pair delimiters"),
         ("Ctrl+T / Ctrl+L", "Manual completion / accept"),
         ("Tab / Shift+Tab", "Indent / dedent bullet marker"),
+        ("<...>", "Saved placeholder completion"),
         ("#name / #!name", "Auto-open xprompt menu"),
         ("%model: / %auto: / %effort:", "Auto-open directive values"),
         ("%wait: / #fork:", "Complete agent/family/clan/tribe targets"),

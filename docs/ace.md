@@ -2768,6 +2768,13 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   and `%w` completes to `%wait`. Inside `%wait`, completion keeps `time=` and `runners=` first, followed by matching
   tribes, clans, families, and agents. The panel shows each directive's aliases and whether it takes an argument or is a
   flag.
+- **Placeholder completion**: When the cursor is inside an incomplete `<foobar>` tag, completion suggests matching
+  placeholders from the current prompt first, then saved common placeholders learned from tags you have written before.
+  Current-prompt rows use the cyan `<>` badge; saved rows use the gold `◆` badge. ACE retains up to
+  `ace.prompt_completion.common_placeholder_count` saved placeholders, ranked by use count and recency. Automatic
+  completion stays quiet for a bare `<` and adds saved placeholders only after you type at least one prefix character;
+  manual `Ctrl+T` on a bare `<` shows the saved list explicitly. Set `common_placeholder_count: 0` to disable saving and
+  display of common placeholders.
 - **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
   `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
   preserved in the completed path (useful for file-reference arguments). Relative paths use the prompt-selected base
@@ -2825,10 +2832,12 @@ match. The project/ChangeSpec picker opens when `+` completes a token at prompt 
 literal ASCII space and is also available through manual `Ctrl+T`. The VCS ref-root menu opens when `:` or `(` completes
 a known workflow ref trigger such as `#gh:` and local candidates exist. The VCS repository menu opens when `/` completes
 a known workflow ref trigger such as `#gh:owner/`; cached rows appear immediately and uncached namespaces fetch in a
-background worker. Manual `Ctrl+T` completion still supports file paths, xprompt names, directives, skills,
-project/ChangeSpec tags, VCS ref roots, VCS repository refs, prompt-local prose words, and enabled history words
-regardless of the automatic settings. Live suggestions pause while the manual completion panel is open, while snippet
-tabstops are active, in NORMAL mode, and during feedback prompts.
+background worker. Placeholder auto-completion opens only for an incomplete `<...` context; saved common placeholders
+join automatic results after the prefix is non-empty, while manual `Ctrl+T` can show them from a bare `<`. Manual
+`Ctrl+T` completion still supports file paths, xprompt names, directives, skills, project/ChangeSpec tags, VCS ref
+roots, VCS repository refs, prompt-local prose words, placeholders, and enabled history words regardless of the
+automatic settings. Live suggestions pause while the manual completion panel is open, while snippet tabstops are active,
+in NORMAL mode, and during feedback prompts.
 
 For file completion, directories appear before files in the candidate list. Dotfiles are hidden unless the partial
 prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The

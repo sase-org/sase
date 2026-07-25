@@ -72,6 +72,7 @@ async def test_typing_open_bracket_auto_opens_and_live_narrows() -> None:
         ]
         panel = bar.query_one("#prompt-completion", Static)
         assert panel.border_title == "placeholder"
+        assert panel.border_subtitle == ""
         assert "<> alpha" in panel.render().plain  # type: ignore[union-attr]
 
         await pilot.press("a", "l", "p", "h")
@@ -286,6 +287,11 @@ async def test_manual_trigger_shows_the_full_saved_list_at_a_bare_bracket() -> N
         assert ta._placeholder_completion_trigger == "manual"
         assert _insertions(ta) == ["alpha", "feature flag", "fedora"]
         assert _sources(ta) == ["prompt", "common", "common"]
+        panel = app.query_one("#prompt-completion", Static)
+        assert panel.border_subtitle == "<> prompt   ◆ saved"
+        rendered = panel.render().plain  # type: ignore[union-attr]
+        assert "<> alpha" in rendered
+        assert "◆  feature flag" in rendered
 
 
 async def test_manual_trigger_accepts_a_lone_saved_match_outright() -> None:
