@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 
 import pytest
@@ -14,9 +15,11 @@ from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._member_roster import (
     MEMBER_ROSTER_LIMIT,
     MemberJumpMap,
+    MemberJumpNumbering,
     MemberRosterChild,
     MemberRosterEntry,
     append_member_roster,
+    merged_member_jump_map,
 )
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     SECTION_MARKER_META_KEY,
@@ -59,6 +62,18 @@ def _render(count: int) -> tuple[Text, MemberJumpMap]:
         panel_level=FoldLevel.COLLAPSED,
     )
     return text, jump_map
+
+
+def _section_ids(text: Text) -> list[str]:
+    section_ids: list[str] = []
+    for span in text.spans:
+        style = span.style
+        if not isinstance(style, RichStyle) or not style.meta:
+            continue
+        section_id = style.meta.get(SECTION_MARKER_META_KEY)
+        if isinstance(section_id, str) and section_id not in section_ids:
+            section_ids.append(section_id)
+    return section_ids
 
 
 @pytest.mark.parametrize(
@@ -210,17 +225,196 @@ def test_member_override_inherits_roster_then_overrides_it() -> None:
 
 def test_roster_and_each_numbered_entry_publish_section_anchors() -> None:
     text, _jump_map = _render(2)
-    section_ids: list[str] = []
-    for span in text.spans:
-        style = span.style
-        if not isinstance(style, RichStyle) or not style.meta:
-            continue
-        section_id = style.meta.get(SECTION_MARKER_META_KEY)
-        if isinstance(section_id, str) and section_id not in section_ids:
-            section_ids.append(section_id)
 
-    assert section_ids == [
+    assert _section_ids(text) == [
         "members",
         "member:research.member-0",
         "member:research.member-1",
     ]
+
+
+@pytest.mark.parametrize(
+    ("counts", "expected_numbers"),
+    (
+        ((2, 3), ("0", "1", "2", "3", "4")),
+        ((5, 6), tuple(f"{index:02d}" for index in range(11))),
+    ),
+)
+def test_shared_numbering_is_contiguous_across_rosters(
+    counts: tuple[int, int],
+    expected_numbers: tuple[str, ...],
+) -> None:
+    numbering = MemberJumpNumbering(total=sum(counts))
+    maps: list[MemberJumpMap] = []
+    texts: list[Text] = []
+    entry_offset = 0
+
+    for count in counts:
+        text = Text()
+        maps.append(
+            append_member_roster(
+                text,
+                container_identity=(
+                    AgentType.RUNNING,
+                    "family:research",
+                    "generation",
+                ),
+                entries=tuple(
+                    _entry(index) for index in range(entry_offset, entry_offset + count)
+                ),
+                title="MEMBERS",
+                accent=_ACCENT,
+                panel_level=FoldLevel.COLLAPSED,
+                numbering=numbering,
+            )
+        )
+        texts.append(text)
+        entry_offset += count
+
+    actual_numbers = tuple(
+        target.number for jump_map in maps for target in jump_map.targets
+    )
+    assert actual_numbers == expected_numbers
+    rendered = texts[0].plain + texts[1].plain
+    assert all(f" {number}  " in rendered for number in actual_numbers)
+
+
+def test_entry_limit_keeps_total_heading_and_emits_configured_tails() -> None:
+    text = Text()
+
+    jump_map = append_member_roster(
+        text,
+        container_identity=(AgentType.RUNNING, "agent:research", "generation"),
+        entries=tuple(_entry(index) for index in range(5)),
+        title="NEIGHBORS",
+        accent=_ACCENT,
+        panel_level=FoldLevel.COLLAPSED,
+        entry_limit=2,
+        hidden_tail_label="neighbors",
+        hidden_tail_hint="zz / za to show more",
+        extra_tail="… +3 also listed under FAMILY MEMBERS",
+    )
+
+    assert "▸ ❖ NEIGHBORS · 5\n" in text.plain
+    assert ".member-0" in text.plain
+    assert ".member-1" in text.plain
+    assert ".member-2" not in text.plain
+    assert tuple(target.number for target in jump_map.targets) == ("0", "1")
+    assert "… +3 more neighbors (zz / za to show more)\n" in text.plain
+    assert "… +3 also listed under FAMILY MEMBERS\n" in text.plain
+
+
+def test_group_labels_render_once_per_run_without_section_markers() -> None:
+    entries = (
+        replace(_entry(index), group_label=group)
+        for index, group in enumerate(
+            ("ancestors", "ancestors", "research hood", "research hood")
+        )
+    )
+    text = Text()
+
+    append_member_roster(
+        text,
+        container_identity=(AgentType.RUNNING, "agent:research", "generation"),
+        entries=tuple(entries),
+        title="NEIGHBORS",
+        accent=_ACCENT,
+        panel_level=FoldLevel.COLLAPSED,
+    )
+
+    assert text.plain.count("  ancestors\n") == 1
+    assert text.plain.count("  research hood\n") == 1
+    assert _section_ids(text) == [
+        "members",
+        "member:research.member-0",
+        "member:research.member-1",
+        "member:research.member-2",
+        "member:research.member-3",
+    ]
+
+
+def test_dismissed_entry_is_always_annotated_and_overrides_target_role() -> None:
+    base = _entry(0)
+    entry = MemberRosterEntry(
+        identity=base.identity,
+        presented_name=base.presented_name,
+        label=base.label,
+        kind=base.kind,
+        status=base.status,
+        model=base.model,
+        duration=base.duration,
+        is_dismissed=True,
+        target_role="dismissed",
+    )
+    text = Text()
+
+    jump_map = append_member_roster(
+        text,
+        container_identity=(AgentType.RUNNING, "agent:research", "generation"),
+        entries=(entry,),
+        title="NEIGHBORS",
+        accent=_ACCENT,
+        panel_level=FoldLevel.COLLAPSED,
+        target_role="neighbor",
+    )
+
+    assert "⊘ .member-0" in text.plain
+    assert text.plain.endswith(" · dismissed\n")
+    assert jump_map.targets[0].role == "dismissed"
+
+
+def test_merged_member_jump_map_preserves_order_and_ignores_none() -> None:
+    container_identity = (AgentType.RUNNING, "agent:research", "generation")
+    first = append_member_roster(
+        Text(),
+        container_identity=container_identity,
+        entries=(_entry(0),),
+        title="MEMBERS",
+        accent=_ACCENT,
+        panel_level=FoldLevel.COLLAPSED,
+    )
+    second = append_member_roster(
+        Text(),
+        container_identity=container_identity,
+        entries=(_entry(1),),
+        title="NEIGHBORS",
+        accent=_ACCENT,
+        panel_level=FoldLevel.COLLAPSED,
+        target_role="neighbor",
+    )
+
+    merged = merged_member_jump_map(container_identity, first, None, second)
+
+    assert tuple(target.member_identity for target in merged.targets) == (
+        _identity(0),
+        _identity(1),
+    )
+    assert tuple(target.role for target in merged.targets) == ("member", "neighbor")
+
+
+def test_merged_member_jump_map_rejects_a_different_container() -> None:
+    jump_map = _render(1)[1]
+
+    with pytest.raises(ValueError, match="different containers"):
+        merged_member_jump_map(
+            (AgentType.RUNNING, "agent:other", "generation"),
+            jump_map,
+        )
+
+
+def test_numbering_capacity_exhaustion_stops_rendering_without_raising() -> None:
+    text = Text()
+
+    jump_map = append_member_roster(
+        text,
+        container_identity=(AgentType.RUNNING, "agent:research", "generation"),
+        entries=tuple(_entry(index) for index in range(3)),
+        title="NEIGHBORS",
+        accent=_ACCENT,
+        panel_level=FoldLevel.COLLAPSED,
+        numbering=MemberJumpNumbering(total=3, capacity=2),
+    )
+
+    assert tuple(target.number for target in jump_map.targets) == ("0", "1")
+    assert ".member-2" not in text.plain
+    assert "… +1 more members (not numbered)\n" in text.plain

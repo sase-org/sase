@@ -238,6 +238,8 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-99(LaneNeighborRow)' \
         --epic-symbol 'sase-99(lane_fold_scale)' \
+        --epic-symbol 'sase-99(MemberJumpNumbering)' \
+        --epic-symbol 'sase-99(merged_member_jump_map)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

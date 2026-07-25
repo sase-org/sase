@@ -31,6 +31,7 @@ from ._helpers import append_section_heading
 
 type MemberIdentity = tuple[AgentType, str, str | None]
 type MemberJumpContainerIdentity = MemberIdentity | tuple[Literal["panel"], PanelKey]
+type MemberJumpRole = Literal["member", "neighbor", "dismissed"]
 
 MEMBER_ROSTER_SECTION_ID = "members"
 MEMBER_ROSTER_LIMIT = 100
@@ -122,6 +123,31 @@ class MemberRosterEntry:
     status_counts: MemberRosterStatusCounts | None = None
     is_marked: bool = False
     is_unread: bool = False
+    group_label: str | None = None
+    is_dismissed: bool = False
+    target_role: MemberJumpRole | None = None
+
+
+@dataclass(slots=True)
+class MemberJumpNumbering:
+    """Digit allocator shared by every numbered roster in one panel document."""
+
+    total: int
+    capacity: int = MEMBER_ROSTER_LIMIT
+    _taken: int = 0
+
+    @property
+    def width(self) -> int:
+        """Return the shared number width for this document."""
+        return 1 if self.total <= 10 else 2
+
+    def take(self) -> str | None:
+        """Return the next zero-padded number, or None when capacity is spent."""
+        if self._taken >= self.capacity:
+            return None
+        number = f"{self._taken:0{self.width}d}"
+        self._taken += 1
+        return number
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,6 +157,7 @@ class _MemberJumpTarget:
     number: str
     member_identity: MemberIdentity
     kind: str
+    role: MemberJumpRole = "member"
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +182,12 @@ def append_member_roster(
     member_anchor_prefix: str = "member:",
     children_from_level: FoldLevel | None = None,
     full_annotations_from_level: FoldLevel = FoldLevel.FULLY_EXPANDED,
+    numbering: MemberJumpNumbering | None = None,
+    entry_limit: int | None = None,
+    hidden_tail_label: str = "members",
+    hidden_tail_hint: str = "not numbered",
+    extra_tail: str | None = None,
+    target_role: MemberJumpRole = "member",
 ) -> MemberJumpMap:
     """Append a numbered roster and return the jump map rendered from it."""
     ordered_entries = tuple(entries)
@@ -173,10 +206,20 @@ def append_member_roster(
         accent=accent,
         section_id=section_id,
     )
-    number_width = 1 if len(ordered_entries) <= 10 else 2
+    numbering = numbering or MemberJumpNumbering(total=len(ordered_entries))
+    limited_entries = (
+        ordered_entries if entry_limit is None else ordered_entries[:entry_limit]
+    )
     targets: list[_MemberJumpTarget] = []
-    for index, entry in enumerate(ordered_entries[:MEMBER_ROSTER_LIMIT]):
-        number = f"{index:0{number_width}d}"
+    rendered_count = 0
+    previous_group_label: str | None = None
+    for entry in limited_entries:
+        number = numbering.take()
+        if number is None:
+            break
+        if entry.group_label is not None and entry.group_label != previous_group_label:
+            text.append(f"  {entry.group_label}\n", style="dim italic #8787AF")
+        previous_group_label = entry.group_label
         anchor_id = f"{member_anchor_prefix}{entry.presented_name}"
         entry_level = effective_fold_level(
             overrides.get(anchor_id, roster_level),
@@ -197,16 +240,38 @@ def append_member_roster(
                 number=number,
                 member_identity=entry.identity,
                 kind=entry.kind,
+                role=entry.target_role or target_role,
             )
         )
+        rendered_count += 1
 
-    hidden_count = len(ordered_entries) - MEMBER_ROSTER_LIMIT
+    hidden_count = len(ordered_entries) - rendered_count
     if hidden_count > 0:
         text.append(
-            f"… +{hidden_count} more members (not numbered)\n",
+            f"… +{hidden_count} more {hidden_tail_label} ({hidden_tail_hint})\n",
             style="dim italic",
         )
+    if extra_tail is not None:
+        text.append(extra_tail + "\n", style="dim italic")
 
+    return MemberJumpMap(
+        container_identity=container_identity,
+        targets=tuple(targets),
+    )
+
+
+def merged_member_jump_map(
+    container_identity: MemberJumpContainerIdentity,
+    *maps: MemberJumpMap | None,
+) -> MemberJumpMap:
+    """Concatenate same-container maps into the one map a document publishes."""
+    targets: list[_MemberJumpTarget] = []
+    for jump_map in maps:
+        if jump_map is None:
+            continue
+        if jump_map.container_identity != container_identity:
+            raise ValueError("Cannot merge member jump maps for different containers")
+        targets.extend(jump_map.targets)
     return MemberJumpMap(
         container_identity=container_identity,
         targets=tuple(targets),
@@ -287,6 +352,7 @@ def _append_numbered_entry(
         status_counts=entry.status_counts,
         is_marked=entry.is_marked,
         is_unread=entry.is_unread,
+        is_dismissed=entry.is_dismissed,
     )
     append_section_heading(text, line, section_id=anchor_id)
 
@@ -314,6 +380,7 @@ def _append_numbered_entry(
             status_counts=None,
             is_marked=child.is_marked,
             is_unread=child.is_unread,
+            is_dismissed=False,
         )
         text.append("\n")
 
@@ -331,6 +398,7 @@ def _append_member_fields(
     status_counts: MemberRosterStatusCounts | None,
     is_marked: bool,
     is_unread: bool,
+    is_dismissed: bool,
 ) -> None:
     bucket = effective_bucket or status_bucket_for_values(status)
     glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
@@ -338,6 +406,8 @@ def _append_member_fields(
         text.append("[✓] ", style="bold #00D700")
     if is_unread:
         text.append("❌ " if bucket == "Failed" else "✅ ", style="#5FD7FF")
+    if is_dismissed:
+        text.append("⊘ ", style="dim #FFAF00")
     text.append(label, style=_AGENT_NAME_ANNOTATION_STYLE)
     text.append(" · ", style="dim")
     text.append(kind, style=_MEMBER_KIND_STYLE)
@@ -360,9 +430,12 @@ def _append_member_fields(
         if chip.cell_len:
             text.append(" ")
             text.append_text(chip)
-    if annotations:
+    rendered_annotations = (
+        (*annotations, "dismissed") if is_dismissed else tuple(annotations)
+    )
+    if rendered_annotations:
         text.append(" · ", style="dim")
-        text.append(" · ".join(annotations), style="dim #BCAFD7")
+        text.append(" · ".join(rendered_annotations), style="dim #BCAFD7")
 
 
 def _member_annotations(
@@ -409,9 +482,12 @@ __all__ = [
     "MEMBER_ROSTER_SECTION_ID",
     "MemberJumpMap",
     "MemberJumpContainerIdentity",
+    "MemberJumpNumbering",
+    "MemberJumpRole",
     "MemberRosterChild",
     "MemberRosterEntry",
     "MemberRosterStatusCounts",
     "append_member_roster",
     "member_jump_map_publisher_for",
+    "merged_member_jump_map",
 ]
