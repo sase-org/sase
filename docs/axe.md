@@ -22,8 +22,8 @@ operators can also manage it directly with `sase axe start` and `sase axe stop`.
 │          │          │          │            │           │
 │ hook_    │ wait_    │ cl_sub-  │ comment_   │ error_    │
 │ checks   │ checks   │ mitted_  │ checks     │ digest    │
-│ mentor_  │          │ checks   │            │           │
-│ checks   │          │ stale_   │            │           │
+│ mentor_  │          │ checks   │            │ managed_  │
+│ checks   │          │ stale_   │            │ tmp_reap  │
 │ workflow_│          │ running_ │            │           │
 │ checks   │          │ cleanup  │            │           │
 │ ...      │          │          │            │           │
@@ -210,13 +210,24 @@ Comment polling:
 
 Periodic maintenance:
 
-| Chop           | Description                                                                     |
-| -------------- | ------------------------------------------------------------------------------- |
-| `error_digest` | Send error notification digests (creates `ViewErrorReport` notification action) |
+| Chop               | Description                                                                     |
+| ------------------ | ------------------------------------------------------------------------------- |
+| `error_digest`     | Send error notification digests (creates `ViewErrorReport` notification action) |
+| `managed_tmp_reap` | Prune stale scratch under the managed SASE temp root                            |
 
 The `error_digest` chop summarizes recent errors into a digest file stored at
 `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a `ViewErrorReport` action that opens the
 digest in `$EDITOR` when selected in the ACE notification modal.
+
+The `managed_tmp_reap` chop bounds the managed SASE temp root (`$SASE_TMPDIR`, else `~/.sase/tmp`) that
+`get_sase_managed_tmpdir()` hands out. Horizons are per subdirectory: command scratch (`editors/`, `wrappers/`,
+`viewers/`, `commit-messages/`, …) goes after 12 hours, handoff files (`handoff/`, `gh-diffs/`) after 3 days, and
+artifacts the ACE Agents tab reads back (`launch-prompts/`, `workflow-artifacts/`) after 14 days. Each run removes at
+most 2,000 entries so a long-neglected root converges over several passes instead of stalling one; the chop summary
+reports `scanned`, `removed`, `deindexed`, and `capped=1` when it hit that budget. Reaped directories are dropped from
+the agent artifact index too, since a workflow launched without an explicit `artifacts_dir` gets one under
+`workflow-artifacts/`. It lives on `housekeeping` rather than an interactive path because the first pass over a
+neglected root walks tens of thousands of entries.
 
 ## Configuration
 

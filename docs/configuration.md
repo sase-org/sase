@@ -1235,6 +1235,9 @@ axe:
         - name: error_digest
           script: sase_chop_error_digest
           description: Summarize recent errors into a notification
+        - name: managed_tmp_reap
+          script: sase_chop_managed_tmp_reap
+          description: Prune stale scratch under the managed SASE temp root
 ```
 
 **Top-level fields:**

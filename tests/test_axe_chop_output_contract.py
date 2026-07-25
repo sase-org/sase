@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
+import time
 from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 
 from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
+from sase.chops.builtin import run_builtin_chop
 
 
 @pytest.fixture(autouse=True)
@@ -119,4 +122,76 @@ def test_error_digest_emits_action_summary(
         "errors_total": 2,
         "notified": 2,
         "recent": 2,
+    }
+
+
+def test_managed_tmp_reap_emits_noop_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    importlib.import_module("sase.scripts.sase_chop_managed_tmp_reap")
+
+    managed_root = tmp_path / "managed"
+    managed_root.mkdir()
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    monkeypatch.setattr(
+        "sase.core.managed_tmp_reaper.managed_tmpdir_root", lambda: managed_root
+    )
+
+    run_builtin_chop("managed_tmp_reap", ["--context", str(context_path)])
+
+    out = capsys.readouterr().out
+    assert "managed_tmp_reap:" in out
+    assert "removed=0" in out
+    assert "reason=nothing_stale" in out
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "no_op"
+    assert result["reason"] == "nothing_stale"
+    assert result["counters"] == {
+        "capped": 0,
+        "deindexed": 0,
+        "removed": 0,
+        "scanned": 0,
+        "subdirs": 0,
+    }
+
+
+def test_managed_tmp_reap_emits_action_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    importlib.import_module("sase.scripts.sase_chop_managed_tmp_reap")
+
+    managed_root = tmp_path / "managed"
+    stale = managed_root / "editors" / "note.md"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("scratch", encoding="utf-8")
+    ancient = time.time() - 400 * 24 * 3600
+    os.utime(stale, (ancient, ancient))
+
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    monkeypatch.setattr(
+        "sase.core.managed_tmp_reaper.managed_tmpdir_root", lambda: managed_root
+    )
+
+    run_builtin_chop("managed_tmp_reap", ["--context", str(context_path)])
+
+    assert not stale.exists()
+    out = capsys.readouterr().out
+    assert "reclaimed 1 entries" in out
+    assert "removed=1" in out
+    assert "subdirs=1" in out
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "ok"
+    assert result["reason"] is None
+    assert result["counters"] == {
+        "capped": 0,
+        "deindexed": 0,
+        "removed": 1,
+        "scanned": 1,
+        "subdirs": 1,
     }

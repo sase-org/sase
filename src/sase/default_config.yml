@@ -475,6 +475,9 @@ axe:
         - name: error_digest
           script: sase_chop_error_digest
           description: "Send a notification digest of errors from the last hour"
+        - name: managed_tmp_reap
+          script: sase_chop_managed_tmp_reap
+          description: "Prune stale scratch under the managed SASE temp root"
 
 llm_provider:
   provider: ""

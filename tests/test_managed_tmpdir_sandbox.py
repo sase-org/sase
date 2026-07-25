@@ -10,6 +10,7 @@ from sase.core.paths import (
     PYTEST_SANDBOX_MANAGED_TMPDIR_NAME,
     _unsandboxed_managed_tmpdir_root,
     get_sase_managed_tmpdir,
+    managed_tmpdir_root,
     sase_subdir,
 )
 from sase.core.state_write_guard import (
@@ -121,3 +122,29 @@ def test_unsandboxed_root_falls_back_to_sase_home(
     monkeypatch.delenv("SASE_TMPDIR", raising=False)
 
     assert _unsandboxed_managed_tmpdir_root() == sase_subdir("tmp")
+
+
+def test_reap_root_matches_where_writers_land_under_pytest(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sandbox = tmp_path / "sandbox"
+    monkeypatch.setenv(PYTEST_SANDBOX_DIR_ENV_VAR, str(sandbox))
+    monkeypatch.setenv("SASE_TMPDIR", str(tmp_path / "developer-root"))
+
+    root = managed_tmpdir_root()
+
+    assert root == Path(get_sase_managed_tmpdir("editors")).parent
+    assert not (tmp_path / "developer-root").exists()
+
+
+def test_reap_root_is_the_developer_root_outside_pytest(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _leave_pytest_context(monkeypatch)
+    developer_root = tmp_path / "developer-root"
+    monkeypatch.setenv("SASE_TMPDIR", str(developer_root))
+
+    # Never created: the reaper only ever prunes, so a missing root is simply
+    # nothing to do rather than something to materialize.
+    assert managed_tmpdir_root() == developer_root
+    assert not developer_root.exists()

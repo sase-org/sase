@@ -119,6 +119,15 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "None of these touch the tracked marker layer."
         ),
     ),
+    "src/sase/core/managed_tmp_reaper.py:_remove_if_stale": DirOpReview(
+        batched_by=(
+            BatchedCoverage(
+                caller_context="src/sase/core/managed_tmp_reaper.py:reap_managed_tmpdir",
+                helper_call="_remove_if_stale",
+                lifecycle_call=_DELETE_INDEX,
+            ),
+        ),
+    ),
     "src/sase/llm_provider/_plan_utils.py:move_plan_to_sase": DirOpReview(
         exemption=(
             "Moves a submitted scratch plan file into the machine-local "

@@ -183,6 +183,7 @@ def test_all_builtin_chop_modules_use_the_registry() -> None:
         "comment_zombie_checks",
         "error_digest",
         "hook_checks",
+        "managed_tmp_reap",
         "mentor_checks",
         "orphan_cleanup",
         "pending_checks_poll",

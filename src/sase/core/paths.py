@@ -52,10 +52,11 @@ def get_sase_managed_tmpdir(*parts: str) -> str:
     ``~/.sase/tmp`` so production handoff files do not land in the system temp
     dir. Optional *parts* create deterministic children under that root.
 
-    Always pass at least one *part*: the bare root is what the reaper scans,
-    and files dropped directly into it are indistinguishable from the
-    subdirectories it manages.  There is deliberately no helper that returns
-    the bare $SASE_TMPDIR root.
+    Always pass at least one *part*: the bare root is what
+    :mod:`sase.core.managed_tmp_reaper` scans, and files dropped directly into
+    it are indistinguishable from the subdirectories it manages.  The only
+    helper that resolves the bare root is :func:`managed_tmpdir_root`, and it
+    exists for pruning rather than writing.
 
     Under pytest the root moves into this process's published sandbox instead,
     so the suite can never add entries to the developer's real managed root —
@@ -73,6 +74,20 @@ def get_sase_managed_tmpdir(*parts: str) -> str:
         root /= part
     root.mkdir(parents=True, exist_ok=True)
     return str(root)
+
+
+def managed_tmpdir_root() -> Path:
+    """Return the root :func:`get_sase_managed_tmpdir` resolves children under.
+
+    Only the reaper wants this: it owns the whole root rather than one child,
+    so it cannot ask for a subdirectory.  Sandbox-aware in exactly the same way
+    as :func:`get_sase_managed_tmpdir`, and never creates the directory —
+    nothing should write here, so a missing root simply means nothing to reap.
+    """
+    sandbox = require_pytest_sandbox_root(purpose="managed SASE temp directory")
+    if sandbox is not None:
+        return sandbox / PYTEST_SANDBOX_MANAGED_TMPDIR_NAME
+    return _unsandboxed_managed_tmpdir_root()
 
 
 def _unsandboxed_managed_tmpdir_root() -> Path:
