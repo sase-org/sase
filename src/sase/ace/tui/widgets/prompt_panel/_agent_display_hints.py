@@ -9,6 +9,7 @@ from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
 
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, AgentType, wait_display_agent
+from ...models.agent_hoods import agent_owns_lane
 from ...util.trace import tui_trace
 from ...util.xprompt_syntax import apply_xprompt_overlays
 from ._agent_display_content import (
@@ -158,28 +159,35 @@ class AgentHintsDisplayMixin:
             None,
             None,
         )
-        family_fold_level, family_fold_overrides = panel_fold_state_from_widget(self)
+        lane_fold_level, lane_fold_overrides = panel_fold_state_from_widget(self)
         try:
             app = self.app  # type: ignore[attr-defined]
         except Exception:
             app = None
+        lane_owner = agent_owns_lane(agent)
+        lane_summary_enabled = agent.is_family_container_row or lane_owner
+        projection_resolver = getattr(app, "lane_neighbor_projection_for", None)
+        lane_neighbors = (
+            projection_resolver(agent)
+            if lane_owner and callable(projection_resolver)
+            else None
+        )
         header_text, error_tb_syntax = build_header_text(
             agent,
             hint_state=header_hint_state,
             summary=summary,
             agent_status_buckets=agent_status_buckets,
             clan_wait_member_statuses=clan_wait_member_statuses,
+            unread_agent_ids=getattr(app, "_unread_completed_agent_ids", set()),
+            marked_agent_ids=getattr(app, "_marked_agents", set()),
             slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(self),
-            family_fold_level=(
-                family_fold_level if agent.is_family_container_row else None
+            lane_fold_level=lane_fold_level if lane_summary_enabled else None,
+            lane_section_fold_overrides=(
+                lane_fold_overrides if lane_summary_enabled else None
             ),
-            family_section_fold_overrides=(
-                family_fold_overrides if agent.is_family_container_row else None
-            ),
+            lane_neighbors=lane_neighbors,
             member_jump_map_publisher=(
-                member_jump_map_publisher_for(app)
-                if agent.is_family_container_row
-                else None
+                member_jump_map_publisher_for(app) if lane_summary_enabled else None
             ),
         )
         hint_counter = header_hint_state.hint_counter
@@ -189,8 +197,8 @@ class AgentHintsDisplayMixin:
                 agent,
                 header_text,
                 error_tb_syntax,
-                panel_level=family_fold_level,
-                section_fold_overrides=family_fold_overrides,
+                panel_level=lane_fold_level,
+                section_fold_overrides=lane_fold_overrides,
                 hint_state=header_hint_state,
             )
             if summary is None:

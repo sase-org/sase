@@ -13,13 +13,24 @@ from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 
 from ...models.agent import Agent, AgentType
 from ...models.agent_bead import cached_bead_display
-from ...models.fold_scale import FAMILY_FOLD_SCALE
+from ...models.agent_hoods import agent_owns_lane
+from ...models.fold_scale import (
+    FAMILY_FOLD_SCALE,
+    effective_fold_level,
+    lane_fold_scale,
+)
 from ...models.fold_state import FoldLevel
 from ._agent_bead_section import ResponsiveBeadSection
 from ._agent_display_family import (
     append_family_fold_heading,
     append_family_member_roster,
     effective_family_fold_level,
+    family_roster_entries,
+)
+from ._agent_display_neighbors import (
+    NEIGHBORS_SECTION_ID,
+    append_lane_neighbors_section,
+    neighbor_entry_limit,
 )
 from ._agent_display_header_metadata import (
     _UNASSIGNED_AGENT_NAME_DISPLAY,
@@ -39,6 +50,7 @@ from ._helpers import (
 
 if TYPE_CHECKING:
     from ...models._agent_clan_sections import ClanSectionSnapshot
+    from ...models.agent_lane_neighbors import AgentLaneNeighborProjection
     from ._member_roster import MemberJumpMap
 
 
@@ -52,11 +64,13 @@ def build_header_text(
     clan_wait_member_statuses: Mapping[str, Sequence[tuple[str, str]]] | None = None,
     slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
+    marked_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     clan_snapshot: ClanSectionSnapshot | None = None,
     clan_fold_level: FoldLevel = FoldLevel.COLLAPSED,
     clan_section_fold_overrides: Mapping[str, FoldLevel] | None = None,
-    family_fold_level: FoldLevel | None = None,
-    family_section_fold_overrides: Mapping[str, FoldLevel] | None = None,
+    lane_fold_level: FoldLevel | None = None,
+    lane_section_fold_overrides: Mapping[str, FoldLevel] | None = None,
+    lane_neighbors: AgentLaneNeighborProjection | None = None,
     member_jump_map_publisher: Callable[[MemberJumpMap], None] | None = None,
 ) -> tuple[AgentHeader, Syntax | None]:
     """Build the agent metadata section with trailing separator.
@@ -82,18 +96,37 @@ def build_header_text(
         )
 
     header_text = Text()
-    family_overrides = family_section_fold_overrides or {}
-    family_fold_enabled = (
-        agent.is_family_container_row and family_fold_level is not None
+    lane_overrides = lane_section_fold_overrides or {}
+    lane_scale = lane_fold_scale(agent)
+    resolved_lane_fold_level = effective_fold_level(
+        lane_fold_level or FoldLevel.COLLAPSED,
+        lane_scale,
     )
-    resolved_family_fold_level = (
-        effective_family_fold_level(
-            "",
-            family_fold_level or FoldLevel.COLLAPSED,
+    family_fold_enabled = agent.is_family_container_row and lane_fold_level is not None
+    lane_neighbors = lane_neighbors if agent_owns_lane(agent) else None
+    neighbors_level = effective_fold_level(
+        lane_overrides.get(NEIGHBORS_SECTION_ID, resolved_lane_fold_level),
+        lane_scale,
+    )
+    neighbors_limit = neighbor_entry_limit(neighbors_level, lane_scale)
+    shown_neighbor_count = (
+        0
+        if lane_neighbors is None
+        else (
+            len(lane_neighbors.rows)
+            if neighbors_limit is None
+            else min(len(lane_neighbors.rows), neighbors_limit)
         )
-        if family_fold_enabled
-        else FoldLevel.COLLAPSED
     )
+    family_entries = family_roster_entries(agent) if family_fold_enabled else ()
+    document_numbering = None
+    if family_entries or shown_neighbor_count:
+        from ._member_roster import MemberJumpNumbering
+
+        document_numbering = MemberJumpNumbering(
+            total=len(family_entries) + shown_neighbor_count
+        )
+    family_map = None
 
     meta_fields = append_agent_metadata_fields(
         header_text,
@@ -111,15 +144,16 @@ def build_header_text(
     if family_fold_enabled:
         append_fold_header_line(
             header_text,
-            level=resolved_family_fold_level,
+            level=resolved_lane_fold_level,
             scale=FAMILY_FOLD_SCALE,
         )
-        append_family_member_roster(
+        family_map = append_family_member_roster(
             header_text,
             agent,
-            panel_level=resolved_family_fold_level,
-            section_fold_overrides=family_overrides,
-            member_jump_map_publisher=member_jump_map_publisher,
+            panel_level=resolved_lane_fold_level,
+            section_fold_overrides=lane_overrides,
+            entries=family_entries,
+            numbering=document_numbering,
         )
 
     append_legacy_parallel_members_section(header_text, agent)
@@ -130,8 +164,8 @@ def build_header_text(
         fold_level=(
             effective_family_fold_level(
                 "output-variables",
-                resolved_family_fold_level,
-                family_overrides,
+                resolved_lane_fold_level,
+                lane_overrides,
             )
             if family_fold_enabled
             else None
@@ -142,8 +176,8 @@ def build_header_text(
         append_major_section_divider(header_text)
         meta_level = effective_family_fold_level(
             "workflow-variables",
-            resolved_family_fold_level,
-            family_overrides,
+            resolved_lane_fold_level,
+            lane_overrides,
         )
         if family_fold_enabled:
             append_family_fold_heading(
@@ -186,8 +220,8 @@ def build_header_text(
             artifact_file_paths=summary.artifact_file_paths,
             hint_state=hint_state,
             responsive_ranges=responsive_ranges,
-            fold_level=(resolved_family_fold_level if family_fold_enabled else None),
-            section_fold_overrides=family_overrides,
+            fold_level=(resolved_lane_fold_level if family_fold_enabled else None),
+            section_fold_overrides=lane_overrides,
         )
 
         from ._agent_slow_tools import append_slow_tool_calls_section
@@ -202,8 +236,8 @@ def build_header_text(
             fold_level=(
                 effective_family_fold_level(
                     "slow-tool-calls",
-                    resolved_family_fold_level,
-                    family_overrides,
+                    resolved_lane_fold_level,
+                    lane_overrides,
                 )
                 if family_fold_enabled
                 else None
@@ -215,8 +249,8 @@ def build_header_text(
         header_text.append("\n")
         error_level = effective_family_fold_level(
             "error",
-            resolved_family_fold_level,
-            family_overrides,
+            resolved_lane_fold_level,
+            lane_overrides,
         )
         if family_fold_enabled:
             append_family_fold_heading(
@@ -240,6 +274,28 @@ def build_header_text(
     if agent.output_path and is_failed:
         header_text.append("Output: ", style="bold #87D7FF")
         header_text.append(f"{agent.output_path}\n", style="dim")
+
+    neighbors_map = None
+    if lane_neighbors is not None:
+        neighbors_map = append_lane_neighbors_section(
+            header_text,
+            projection=lane_neighbors,
+            panel_level=resolved_lane_fold_level,
+            scale=lane_scale,
+            section_fold_overrides=lane_overrides,
+            numbering=document_numbering,
+            unread_agent_ids=unread_agent_ids,
+            marked_identities=marked_agent_ids,
+        )
+
+    if member_jump_map_publisher is not None and (
+        family_map is not None or neighbors_map is not None
+    ):
+        from ._member_roster import merged_member_jump_map
+
+        member_jump_map_publisher(
+            merged_member_jump_map(agent.identity, family_map, neighbors_map)
+        )
 
     error_tb_syntax: Syntax | None = None
     if agent.error_traceback:

@@ -236,10 +236,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-99(LaneNeighborRow)' \
-        --epic-symbol 'sase-99(lane_fold_scale)' \
-        --epic-symbol 'sase-99(MemberJumpNumbering)' \
-        --epic-symbol 'sase-99(merged_member_jump_map)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

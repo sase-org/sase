@@ -6,6 +6,7 @@ from rich.console import Group
 
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, wait_display_agent
+from ...models.agent_hoods import agent_owns_lane
 from ...models.agent_tribe_summary import AgentTribeSummarySnapshot
 from ...tools.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.trace import tui_trace
@@ -215,6 +216,18 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             except Exception:
                 app = None
             clan_fold_level, clan_fold_overrides = panel_fold_state_from_widget(self)
+            lane_owner = agent_owns_lane(agent)
+            lane_summary_enabled = agent.is_family_container_row or lane_owner
+            projection_resolver = getattr(
+                app,
+                "lane_neighbor_projection_for",
+                None,
+            )
+            lane_neighbors = (
+                projection_resolver(agent)
+                if lane_owner and callable(projection_resolver)
+                else None
+            )
             if agent.is_clan_container and app is not None:
                 self.set_clan_disk_sections_required(
                     clan_disk_sections_for_fold_state(
@@ -228,15 +241,23 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 agent_status_buckets=agent_status_buckets,
                 clan_wait_member_statuses=clan_wait_member_statuses,
                 unread_agent_ids=getattr(app, "_unread_completed_agent_ids", set()),
+                marked_agent_ids=getattr(app, "_marked_agents", set()),
                 slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(
                     self
                 ),
                 clan_snapshot=get_cached_clan_section_snapshot(self, agent),
                 clan_fold_level=clan_fold_level,
                 clan_section_fold_overrides=clan_fold_overrides,
-                family_fold_level=clan_fold_level,
-                family_section_fold_overrides=clan_fold_overrides,
-                member_jump_map_publisher=member_jump_map_publisher_for(app),
+                lane_fold_level=clan_fold_level if lane_summary_enabled else None,
+                lane_section_fold_overrides=(
+                    clan_fold_overrides if lane_summary_enabled else None
+                ),
+                lane_neighbors=lane_neighbors,
+                member_jump_map_publisher=(
+                    member_jump_map_publisher_for(app)
+                    if agent.is_clan_container or lane_summary_enabled
+                    else None
+                ),
             )
             if error_tb_syntax is not None:
                 self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]

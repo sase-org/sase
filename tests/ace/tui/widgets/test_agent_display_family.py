@@ -17,7 +17,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_family import (
     FAMILY_PROMPT_SECTION_ID,
     FAMILY_REPLY_SECTION_ID,
     FAMILY_XPROMPT_SECTION_ID,
-    _family_roster_entries,
+    family_roster_entries,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
 from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
@@ -106,12 +106,12 @@ def test_family_roster_numbers_real_chain_rows_in_order(
 ) -> None:
     root, child = _family(tmp_path, in_clan=in_clan)
 
-    entries = _family_roster_entries(root, now=root.stop_time)
+    entries = family_roster_entries(root, now=root.stop_time)
     published = []
     header, _ = build_header_text(
         root,
         cheap=True,
-        family_fold_level=FoldLevel.COLLAPSED,
+        lane_fold_level=FoldLevel.COLLAPSED,
         member_jump_map_publisher=published.append,
     )
 
@@ -211,12 +211,12 @@ def test_loaded_plan_family_roster_uses_concrete_member_state_and_content(
     _apply_status_overrides([root, coder], [planner])
     ordered = sort_and_reorder([root, coder], [planner])
     now = started + timedelta(minutes=5)
-    entries = _family_roster_entries(root, now=now)
+    entries = family_roster_entries(root, now=now)
     published = []
     header, error = build_header_text(
         root,
         cheap=True,
-        family_fold_level=FoldLevel.FULLY_EXPANDED,
+        lane_fold_level=FoldLevel.FULLY_EXPANDED,
         member_jump_map_publisher=published.append,
     )
 
@@ -280,7 +280,7 @@ def test_shared_collapsed_level_maps_family_to_bounded_previews(
     header, error = build_header_text(
         root,
         cheap=True,
-        family_fold_level=FoldLevel.COLLAPSED,
+        lane_fold_level=FoldLevel.COLLAPSED,
     )
     panel._update_family_display(
         root,
@@ -308,7 +308,7 @@ def test_expanded_family_sections_render_bounded_previews(tmp_path: Path) -> Non
     header, error = build_header_text(
         root,
         cheap=True,
-        family_fold_level=FoldLevel.EXPANDED,
+        lane_fold_level=FoldLevel.EXPANDED,
     )
 
     panel._update_family_display(
@@ -337,7 +337,7 @@ def test_exhaustive_shared_level_clamps_to_full_family_view(tmp_path: Path) -> N
     full_header, error = build_header_text(
         root,
         cheap=True,
-        family_fold_level=FoldLevel.FULLY_EXPANDED,
+        lane_fold_level=FoldLevel.FULLY_EXPANDED,
     )
     full_panel._update_family_display(
         root,
@@ -350,7 +350,7 @@ def test_exhaustive_shared_level_clamps_to_full_family_view(tmp_path: Path) -> N
     exhaustive_header, error = build_header_text(
         root,
         cheap=True,
-        family_fold_level=FoldLevel.EXHAUSTIVE,
+        lane_fold_level=FoldLevel.EXHAUSTIVE,
     )
     exhaustive_panel._update_family_display(
         root,
@@ -369,7 +369,7 @@ def test_fully_expanded_family_sections_preserve_full_content(tmp_path: Path) ->
     header, error = build_header_text(
         root,
         cheap=True,
-        family_fold_level=FoldLevel.FULLY_EXPANDED,
+        lane_fold_level=FoldLevel.FULLY_EXPANDED,
     )
 
     panel._update_family_display(
@@ -397,7 +397,7 @@ def test_family_omits_empty_xprompt_and_prompt_sections(tmp_path: Path) -> None:
     header, error = build_header_text(
         root,
         cheap=True,
-        family_fold_level=FoldLevel.COLLAPSED,
+        lane_fold_level=FoldLevel.COLLAPSED,
     )
 
     panel._update_family_display(
@@ -424,7 +424,7 @@ def test_family_keeps_pending_reply_state(tmp_path: Path) -> None:
     header, error = build_header_text(
         root,
         cheap=True,
-        family_fold_level=FoldLevel.COLLAPSED,
+        lane_fold_level=FoldLevel.COLLAPSED,
     )
 
     panel._update_family_display(
@@ -450,8 +450,8 @@ def test_family_section_override_wins_over_collapsed_panel(
     header, error = build_header_text(
         root,
         cheap=True,
-        family_fold_level=FoldLevel.COLLAPSED,
-        family_section_fold_overrides=overrides,
+        lane_fold_level=FoldLevel.COLLAPSED,
+        lane_section_fold_overrides=overrides,
     )
     panel._update_family_display(
         root,
@@ -476,12 +476,12 @@ def test_family_header_maps_shared_shallow_levels_to_preview(tmp_path: Path) -> 
     collapsed, _ = build_header_text(
         root,
         cheap=True,
-        family_fold_level=FoldLevel.COLLAPSED,
+        lane_fold_level=FoldLevel.COLLAPSED,
     )
     expanded, _ = build_header_text(
         root,
         cheap=True,
-        family_fold_level=FoldLevel.EXPANDED,
+        lane_fold_level=FoldLevel.EXPANDED,
     )
 
     assert "Fold: 1/2\n" in collapsed.plain

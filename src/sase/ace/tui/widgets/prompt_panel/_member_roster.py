@@ -444,8 +444,11 @@ def _member_annotations(
     *,
     full_annotations_from_level: FoldLevel,
 ) -> tuple[str, ...]:
-    if digest is None or level == FoldLevel.COLLAPSED:
+    if digest is None:
         return ()
+    extra_annotations = tuple(getattr(digest, "extra_annotations", ()))
+    if level == FoldLevel.COLLAPSED:
+        return extra_annotations
     annotations: list[str] = []
     activity = first_meaningful_line(digest.activity or "", max_chars=64)
     if activity:
@@ -466,6 +469,7 @@ def _member_annotations(
         annotations.append(
             f"{digest.attempt_count} attempt{'s' if digest.attempt_count != 1 else ''}"
         )
+    annotations.extend(extra_annotations)
     return tuple(annotations)
 
 

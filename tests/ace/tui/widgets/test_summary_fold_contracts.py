@@ -127,7 +127,7 @@ def _render_family(agent: Agent, level: FoldLevel) -> _RenderedSummary:
     header, error = build_header_text(
         agent,
         cheap=True,
-        family_fold_level=level,
+        lane_fold_level=level,
         member_jump_map_publisher=published.append,
     )
     panel = FakePromptPanel()
