@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from textual.screen import ModalScreen
 
 from ...models.agent import Agent, AgentType
 from ...models.agent_family_members import concrete_family_member_rows
+from ...models.agent_hoods import agent_owns_lane
 from ...models.agent_tribe_summary import AgentPanelFocus
 from ._agent_reveal import (
     AgentRevealFailure,
@@ -24,6 +25,19 @@ if TYPE_CHECKING:
 
 type MemberIdentity = tuple[AgentType, str, str | None]
 type SelectedMemberJumpContainer = Agent | AgentPanelFocus
+
+
+class _MemberJumpTargetLike(Protocol):
+    """Structural jump-target view kept local to navigation."""
+
+    @property
+    def number(self) -> str: ...
+
+    @property
+    def member_identity(self) -> MemberIdentity: ...
+
+    @property
+    def role(self) -> Literal["member", "neighbor", "dismissed"]: ...
 
 
 class MemberJumpNavigationMixin(NavigationMixinBase):
@@ -49,9 +63,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if not callable(get_selected):
             return None
         agent = get_selected()
-        if agent is None or not (
-            agent.is_clan_container or agent.is_family_container_row
-        ):
+        if agent is None or not (agent.is_clan_container or agent_owns_lane(agent)):
             return None
         return agent
 
@@ -104,9 +116,31 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
     def _current_member_target_is_valid(
         self,
         container: SelectedMemberJumpContainer,
-        target_identity: MemberIdentity,
+        target: _MemberJumpTargetLike,
     ) -> bool:
         """Reject maps whose target no longer belongs to the container."""
+        target_identity = target.member_identity
+        if target.role == "neighbor":
+            if not isinstance(container, Agent):
+                return False
+            index_resolver = getattr(self, "_agent_neighbor_index", None)
+            if not callable(index_resolver):
+                return False
+            return target_identity in index_resolver().related_target_identities_for(
+                container.identity
+            )
+        if target.role == "dismissed":
+            if not isinstance(container, Agent):
+                return False
+            dismissed_resolver = getattr(self, "_dismissed_descendant_agents", None)
+            if not callable(dismissed_resolver):
+                return False
+            return any(
+                agent.identity == target_identity
+                for agent in dismissed_resolver(container)
+            )
+        if target.role != "member":
+            return False
         if not isinstance(container, Agent):
             from ...models._agent_tree import agent_is_tree_child
 
@@ -135,7 +169,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         container: SelectedMemberJumpContainer,
         jump_map: MemberJumpMap,
         number: str,
-    ) -> MemberIdentity | None:
+    ) -> _MemberJumpTargetLike | None:
         """Resolve and revalidate one visible number from a published map."""
         target = next(
             (target for target in jump_map.targets if target.number == number),
@@ -144,13 +178,32 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if target is None:
             self._notify_member_jump(f"No member {number}")
             return None
-        if not self._current_member_target_is_valid(
-            container,
-            target.member_identity,
-        ):
-            self._notify_member_jump("Member roster changed; jump cancelled")
+        if not self._current_member_target_is_valid(container, target):
+            subject = "Member roster" if target.role == "member" else "Neighbor list"
+            self._notify_member_jump(f"{subject} changed; jump cancelled")
             return None
-        return target.member_identity
+        return target
+
+    def _activate_member_jump_target(self, target: _MemberJumpTargetLike) -> None:
+        """Jump to a current target, or revive a dismissed neighbor."""
+        if target.role != "dismissed":
+            self._reveal_agent_row(target.member_identity)
+            return
+
+        dismissed_resolver = getattr(self, "_active_dismissed_agent_objects", None)
+        revive = getattr(self, "_do_revive_agent", None)
+        if not callable(dismissed_resolver) or not callable(revive):
+            return
+        dismissed = next(
+            (
+                agent
+                for agent in dismissed_resolver()
+                if agent.identity == target.member_identity
+            ),
+            None,
+        )
+        if dismissed is not None:
+            revive(dismissed)
 
     def _handle_member_jump_key(self, key: str) -> bool:
         """Handle a digit, pending second digit, or pending cancellation.
@@ -190,13 +243,13 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
                 self._notify_member_jump("Member roster changed; jump cancelled")
                 self._refresh_member_jump_footer_after_action()
                 return True
-            target_identity = self._member_jump_target(
+            target = self._member_jump_target(
                 container,
                 jump_map,
                 f"{pending_digit}{key}",
             )
-            if target_identity is not None:
-                self._reveal_agent_row(target_identity)
+            if target is not None:
+                self._activate_member_jump_target(target)
             self._refresh_member_jump_footer_after_action()
             return True
 
@@ -221,9 +274,9 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             self._update_member_jump_footer(key)
             return True
 
-        target_identity = self._member_jump_target(container, jump_map, key)
-        if target_identity is not None:
-            self._reveal_agent_row(target_identity)
+        target = self._member_jump_target(container, jump_map, key)
+        if target is not None:
+            self._activate_member_jump_target(target)
         return True
 
     def _refresh_member_jump_footer_after_action(self) -> None:

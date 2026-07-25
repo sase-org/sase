@@ -72,9 +72,31 @@ def _jump_map(container: Agent, members: list[Agent]) -> MemberJumpMap:
                     number=f"{index:0{width}d}",
                     member_identity=member.identity,
                     kind="agent",
+                    role="member",
                 ),
             )
             for index, member in enumerate(members)
+        ),
+    )
+
+
+def _role_jump_map(
+    container: Agent,
+    targets: list[tuple[Agent, str]],
+) -> MemberJumpMap:
+    return MemberJumpMap(
+        container_identity=container.identity,
+        targets=tuple(
+            cast(
+                Any,
+                SimpleNamespace(
+                    number=str(index),
+                    member_identity=agent.identity,
+                    kind="agent",
+                    role=role,
+                ),
+            )
+            for index, (agent, role) in enumerate(targets)
         ),
     )
 
@@ -108,6 +130,10 @@ class _JumpHarness(MemberJumpNavigationMixin, EntryJumpAgentHistoryMixin):
         self.display_refreshes: list[bool] = []
         self.group_fold_changes: list[tuple[str | None, tuple[str, ...], bool]] = []
         self.panel_fold_changes: list[tuple[str | None, bool]] = []
+        self._neighbor_targets: dict[tuple[Any, ...], set[tuple[Any, ...]]] = {}
+        self._dismissed_agents: set[tuple[Any, ...]] = set()
+        self._dismissed_agent_objects: list[Agent] = []
+        self.revived_agents: list[Agent] = []
         self.refilter_calls = 0
         self._refilter_agents()
         self.refilter_calls = 0
@@ -208,6 +234,40 @@ class _JumpHarness(MemberJumpNavigationMixin, EntryJumpAgentHistoryMixin):
 
     def _guard_agent_navigation_for_artifact_file_viewer(self) -> bool:
         return False
+
+    def _agent_neighbor_index(self) -> Any:
+        targets = self._neighbor_targets
+
+        class _Index:
+            def related_target_identities_for(
+                self,
+                identity: tuple[Any, ...],
+            ) -> frozenset[tuple[Any, ...]]:
+                return frozenset(targets.get(identity, ()))
+
+        return _Index()
+
+    def _active_dismissed_agent_objects(self) -> tuple[Agent, ...]:
+        return tuple(
+            agent
+            for agent in self._dismissed_agent_objects
+            if agent.identity in self._dismissed_agents
+        )
+
+    def _dismissed_descendant_agents(self, selected: Agent) -> tuple[Agent, ...]:
+        from sase.ace.tui.models.agent_hoods import is_agent_descendant
+
+        return tuple(
+            agent
+            for agent in self._active_dismissed_agent_objects()
+            if is_agent_descendant(
+                agent.presented_identity_name,
+                selected.presented_identity_name,
+            )
+        )
+
+    def _do_revive_agent(self, agent: Agent) -> None:
+        self.revived_agents.append(agent)
 
     def notify(self, message: str, **_kwargs: Any) -> None:
         self.notifications.append(message)
@@ -419,6 +479,104 @@ def test_stale_map_and_missing_digit_cancel_without_moving() -> None:
     assert app._handle_member_jump_key("8") is True
     assert app.current_idx == original_idx
     assert app.notifications[-1] == "No member 8"
+
+
+def test_single_agent_lane_digit_jumps_to_numbered_neighbor() -> None:
+    container = _agent("foo.plan")
+    neighbor = _agent("foo.code")
+    app = _JumpHarness([container, neighbor], container)
+    app._neighbor_targets[container.identity] = {neighbor.identity}
+    app._member_jump_maps[container.identity] = _role_jump_map(
+        container,
+        [(neighbor, "neighbor")],
+    )
+
+    assert app._handle_member_jump_key("0") is True
+
+    assert app._agents[app.current_idx].identity == neighbor.identity
+    assert app.notifications == []
+
+
+def test_family_lane_digit_ladder_addresses_members_then_neighbors() -> None:
+    complete, root, child = _family(in_clan=False)
+    neighbor = _agent("alpha.peer")
+    complete.append(neighbor)
+    app = _JumpHarness(complete, root)
+    app._neighbor_targets[root.identity] = {neighbor.identity}
+    app._member_jump_maps[root.identity] = _role_jump_map(
+        root,
+        [(child, "member"), (neighbor, "neighbor")],
+    )
+
+    assert app._handle_member_jump_key("0") is True
+    assert app._agents[app.current_idx].identity == child.identity
+
+    app.current_idx = next(
+        index
+        for index, agent in enumerate(app._agents)
+        if agent.identity == root.identity
+    )
+    assert app._handle_member_jump_key("1") is True
+    assert app._agents[app.current_idx].identity == neighbor.identity
+
+
+def test_dismissed_neighbor_digit_revives_instead_of_jumping() -> None:
+    container = _agent("foo")
+    dismissed = _agent("foo.scratch")
+    app = _JumpHarness([container], container)
+    app._dismissed_agent_objects = [dismissed]
+    app._dismissed_agents = {dismissed.identity}
+    app._member_jump_maps[container.identity] = _role_jump_map(
+        container,
+        [(dismissed, "dismissed")],
+    )
+
+    assert app._handle_member_jump_key("0") is True
+
+    assert app.revived_agents == [dismissed]
+    assert app._agents[app.current_idx].identity == container.identity
+
+
+def test_stale_neighbor_digit_uses_neighbor_specific_cancellation() -> None:
+    container = _agent("foo.plan")
+    neighbor = _agent("foo.code")
+    app = _JumpHarness([container, neighbor], container)
+    app._member_jump_maps[container.identity] = _role_jump_map(
+        container,
+        [(neighbor, "neighbor")],
+    )
+
+    assert app._handle_member_jump_key("0") is True
+
+    assert app._agents[app.current_idx].identity == container.identity
+    assert app.notifications == ["Neighbor list changed; jump cancelled"]
+
+
+def test_digits_do_nothing_on_rows_that_do_not_own_lanes() -> None:
+    complete, root, child = _family(in_clan=False)
+    app = _JumpHarness(complete, root)
+    app._fold_manager.expand(root.raw_suffix or "")
+    app._refilter_agents()
+    app.current_idx = next(
+        index
+        for index, agent in enumerate(app._agents)
+        if agent.identity == child.identity
+    )
+    assert app._handle_member_jump_key("0") is False
+
+    workflow_step = _agent("workflow.step")
+    workflow_step.parent_timestamp = root.raw_suffix
+    workflow_step.parent_workflow = "demo-workflow"
+    workflow_step.step_type = "agent"
+    app = _JumpHarness([root, workflow_step], root)
+    app._fold_manager.expand(root.raw_suffix or "")
+    app._refilter_agents()
+    app.current_idx = next(
+        index
+        for index, agent in enumerate(app._agents)
+        if agent.identity == workflow_step.identity
+    )
+    assert app._handle_member_jump_key("0") is False
 
 
 def test_jump_expands_target_group_and_different_collapsed_panel() -> None:

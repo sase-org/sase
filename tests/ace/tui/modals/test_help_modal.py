@@ -52,7 +52,8 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     agents_left = modal._build_left_column().plain
     agents_right = modal._build_right_column().plain
     assert "Agent Actions" in agents_left
-    assert "Jump to numbered member" in agents_left
+    assert "Jump numbered member/neighbor" in agents_left
+    assert "Neighbors modal (see NEIGHBORS)" in agents_left
     assert "Cycle section/member forward" in agents_right
     assert "Inherit MEMBERS then panel" in agents_right
 

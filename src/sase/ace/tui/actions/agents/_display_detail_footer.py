@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import agent_is_asking
 
+from ...models.agent_hoods import agent_owns_lane
 from ._display_helpers import TabName
 
 if TYPE_CHECKING:
@@ -183,6 +184,11 @@ class AgentFooterDisplayMixin:
                 and callable(resolve_group_collapse)
             ):
                 group_collapse_available = resolve_group_collapse() is not None
+            neighbor_count = (
+                0
+                if current_agent is not None and current_agent.is_clan_container
+                else self._selected_agent_neighbor_count(current_agent)
+            )
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
@@ -204,11 +210,13 @@ class AgentFooterDisplayMixin:
                 group_focused=self._current_group_key is not None,
                 has_artifact_files=has_artifact_files,
                 artifact_file_viewer_active=artifact_file_viewer_active,
-                neighbor_count=(
-                    0
-                    if current_agent is not None and current_agent.is_clan_container
-                    else self._selected_agent_neighbor_count(current_agent)
+                lane_neighbor_jump_available=(
+                    current_agent is not None
+                    and agent_owns_lane(current_agent)
+                    and not current_agent.is_family_container_row
+                    and neighbor_count > 0
                 ),
+                neighbor_count=neighbor_count,
                 tmux_choice_count=(
                     0
                     if current_agent is not None and current_agent.is_clan_container

@@ -80,7 +80,7 @@ def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
         "z1 / z2 / z3 / z4",
         "Set selected tribe level 1-4",
     ) in agent_pairs
-    assert ("0-9", "Jump to numbered member") in agent_pairs
+    assert ("0-9", "Jump numbered member/neighbor") in agent_pairs
     assert ("Esc", "Enter selected panel / cancel member jump") in agent_pairs
 
 

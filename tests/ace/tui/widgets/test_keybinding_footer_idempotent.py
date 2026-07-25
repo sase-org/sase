@@ -125,6 +125,15 @@ async def test_numbered_member_binding_is_conditional_on_container_rows() -> Non
         assert ("0-9", "member") in footer._compute_agent_bindings(clan)
         assert ("0-9", "member") in footer._compute_agent_bindings(family)
         assert ("0-9", "member") not in footer._compute_agent_bindings(regular)
+        assert ("0-9", "neighbor") in footer._compute_agent_bindings(
+            regular,
+            lane_neighbor_jump_available=True,
+        )
+        assert ("0-9", "neighbor") not in footer._compute_agent_bindings(
+            regular,
+            lane_neighbor_jump_available=True,
+            group_focused=True,
+        )
         assert ("0-9", "member") not in footer._compute_agent_bindings(
             clan,
             group_focused=True,

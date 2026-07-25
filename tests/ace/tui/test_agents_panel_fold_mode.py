@@ -44,6 +44,7 @@ class _FoldApp(FoldNavigationMixin):
         family: bool = False,
         panel_focused: bool = False,
         has_agent: bool = True,
+        neighbor_count: int = 0,
     ) -> None:
         self.current_tab = tab
         self.current_artifacts_subtab = "prs"
@@ -61,6 +62,10 @@ class _FoldApp(FoldNavigationMixin):
             SimpleNamespace(
                 is_clan_container=clan,
                 is_family_container_row=family,
+                is_workflow_child=False,
+                is_hidden_step=False,
+                is_family_member_child=False,
+                presented_identity_name="fold-test",
             )
             if has_agent
             else None
@@ -68,6 +73,7 @@ class _FoldApp(FoldNavigationMixin):
         self.refresh_count = 0
         self.notifications: list[str] = []
         self.panel_focused = panel_focused
+        self.neighbor_count = neighbor_count
 
     def _refresh_current_tab(self) -> None:
         self.refresh_count += 1
@@ -77,6 +83,9 @@ class _FoldApp(FoldNavigationMixin):
 
     def _get_selected_agent(self) -> object | None:
         return self.selected_agent
+
+    def _selected_agent_neighbor_count(self, _agent: object) -> int:
+        return self.neighbor_count
 
     def _resolve_focused_collapsed_panel(self) -> object | None:
         return object() if self.panel_focused else None
@@ -237,7 +246,7 @@ def test_valid_direct_panel_level_clears_overrides_and_notifies_regular_scope() 
     assert app.panel_fold_level is FoldLevel.EXPANDED
     assert app._panel_fold_overrides.snapshot() == {}
     assert app.notifications == [
-        "Fold levels currently shape clan and family summaries"
+        "Fold levels shape clan, family, and neighbor summaries"
     ]
 
 
@@ -429,10 +438,27 @@ def test_regular_agent_fold_change_shows_scope_toast_but_containers_do_not() -> 
     _press(family, "Z")
 
     assert regular.notifications == [
-        "Fold levels currently shape clan and family summaries"
+        "Fold levels shape clan, family, and neighbor summaries"
     ]
     assert clan.notifications == []
     assert family.notifications == []
+
+
+def test_regular_agent_fold_change_stays_silent_when_neighbors_are_foldable() -> None:
+    app = _FoldApp(clan=False, neighbor_count=2)
+
+    _press(app, "Z")
+
+    assert app.notifications == []
+
+
+def test_non_lane_agent_fold_change_stays_silent() -> None:
+    app = _FoldApp(clan=False)
+    app.selected_agent.is_workflow_child = True
+
+    _press(app, "Z")
+
+    assert app.notifications == []
 
 
 def test_agents_fold_footer_uses_nested_agent_submap() -> None:

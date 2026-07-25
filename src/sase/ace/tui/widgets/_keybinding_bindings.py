@@ -113,6 +113,7 @@ class KeybindingBindingsMixin:
         group_focused: bool = False,
         has_artifact_files: bool = False,
         artifact_file_viewer_active: bool = False,
+        lane_neighbor_jump_available: bool = False,
         neighbor_count: int = 0,
         tmux_choice_count: int = 0,
         tools_visible: bool = False,
@@ -251,6 +252,8 @@ class KeybindingBindingsMixin:
             and (agent.is_clan_container or agent.is_family_container_row)
         ):
             bindings.append(("0-9", "member"))
+        elif not panel_focused and not group_focused and lane_neighbor_jump_available:
+            bindings.append(("0-9", "neighbor"))
 
         if agent.is_clan_container:
             if marked_count == 0 and not panel_focused and not group_focused:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from ...models.agent_hoods import agent_owns_lane
 from ...models.fold_state import (
     FoldLevel,
     cycle_deltas_fold_level,
@@ -207,7 +208,7 @@ class FoldNavigationMixin(NavigationMixinBase):
 
         self._refresh_current_tab()  # type: ignore[attr-defined]
         if changed:
-            self._notify_regular_agent_fold_scope()
+            self._notify_lane_fold_scope()
         return True
 
     @staticmethod
@@ -260,18 +261,21 @@ class FoldNavigationMixin(NavigationMixinBase):
         document_row = max(0, int(scroll.scroll_y) - panel.virtual_region.y)
         return panel.resolve_section_at_row(document_row, width=panel.size.width)
 
-    def _notify_regular_agent_fold_scope(self) -> None:
-        """Explain the current rendering scope when a regular agent is selected."""
+    def _notify_lane_fold_scope(self) -> None:
+        """Explain fold scope only for a lane with nothing foldable."""
         get_selected = getattr(self, "_get_selected_agent", None)
         if not callable(get_selected):
             return
         agent = get_selected()
-        if agent is None or getattr(agent, "is_clan_container", False):
+        if agent is None or not agent_owns_lane(agent):
             return
         if getattr(agent, "is_family_container_row", False):
             return
+        neighbor_count = getattr(self, "_selected_agent_neighbor_count", None)
+        if callable(neighbor_count) and neighbor_count(agent) > 0:
+            return
         self.notify(  # type: ignore[attr-defined]
-            "Fold levels currently shape clan and family summaries"
+            "Fold levels shape clan, family, and neighbor summaries"
         )
 
     def _all_fold_states_aligned(self) -> bool:
