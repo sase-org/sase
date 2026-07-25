@@ -116,7 +116,15 @@ def _route_cell_mounted(editor: Any) -> None:
         pass
 
 
-class AxeValueInput(SingleLineVimTextArea):
+class _AxeValueVimHostMixin:
+    """Shared vim host policy for AXE value-cell editors."""
+
+    def _host_claims_unhandled_vim_key(self, event: events.Key) -> bool:
+        """Let NORMAL-mode ``q`` reach the sheet's ``quit_editor`` binding."""
+        return event.character == "q"
+
+
+class AxeValueInput(_AxeValueVimHostMixin, SingleLineVimTextArea):
     """Borderless single-line editor mounted in the active value cell."""
 
     def __init__(self, text: str, *, field_name: str, generation: int) -> None:
@@ -140,7 +148,7 @@ class AxeValueInput(SingleLineVimTextArea):
         _route_vim_mode(self, indicator)
 
 
-class AxeValueTextArea(VimTextArea):
+class AxeValueTextArea(_AxeValueVimHostMixin, VimTextArea):
     """Borderless multi-line editor mounted in the active value cell."""
 
     def __init__(

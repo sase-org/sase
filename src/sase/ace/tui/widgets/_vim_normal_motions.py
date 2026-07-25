@@ -81,7 +81,8 @@ class VimNormalMotionsMixin(VimNormalPendingMixin):
                 target = max(row - count, 0)
                 self.cursor_location = (target, col)
             return True
-        if key == "l":
+        # Vim treats <Space> as a cursor-right motion.
+        if key in ("l", " "):
             op_info = self._consume_pending_operator(count)
             if op_info:
                 op, eff = op_info

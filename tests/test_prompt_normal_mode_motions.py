@@ -56,6 +56,37 @@ async def test_count_l() -> None:
         assert page.cursor == (0, 5)
 
 
+async def test_space_moves_right() -> None:
+    """Space is vim's cursor-right motion."""
+    async with PromptPage("abcdefghij") as page:
+        await page.press("space")
+        assert page.cursor == (0, 1)
+
+
+async def test_count_space_moves_right() -> None:
+    """A count applies to the Space cursor-right motion."""
+    async with PromptPage("abcdefghij") as page:
+        await page.press("3", "space")
+        assert page.cursor == (0, 3)
+
+
+async def test_space_clamps_at_end_of_line() -> None:
+    """Space does not move beyond the current line."""
+    async with PromptPage("abc", cursor=(0, 3)) as page:
+        await page.press("space")
+        assert page.cursor == (0, 3)
+
+
+async def test_delete_space_and_dot_repeat() -> None:
+    """``d<Space>`` deletes one character and dot repeats that mutation."""
+    async with PromptPage("abcd") as page:
+        await page.press("d", "space")
+        assert page.text == "bcd"
+
+        await page.press(".")
+        assert page.text == "cd"
+
+
 # --- Count prefix with word motions ---
 
 

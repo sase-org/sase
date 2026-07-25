@@ -77,7 +77,8 @@ class VimVisualKeyHandlingMixin(VimVisualPendingMixin):
         if key == "h":
             self._move_visual_cursor((row, max(0, col - count)))
             return True
-        if key == "l":
+        # Vim treats <Space> as a cursor-right motion.
+        if key in ("l", " "):
             line = doc.get_line(row)
             self._move_visual_cursor((row, min(len(line), col + count)))
             return True

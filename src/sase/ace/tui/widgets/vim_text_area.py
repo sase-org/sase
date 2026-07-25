@@ -116,13 +116,31 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         """Return whether a partial NORMAL-mode sequence is mid-composition."""
         return bool(self._pending_keys or self._pending_operator or self._count_prefix)
 
+    def _swallow_unhandled_vim_key(self, event: Key) -> None:
+        """Consume a printable NORMAL/VISUAL key the vim layer did not handle.
+
+        In vim an unmapped printable NORMAL-mode key is a no-op; letting it bubble
+        instead hands it to whatever app-level binding owns that character -- e.g.
+        bare ``space`` would reach ``start_agent_home``, which unmounts the prompt
+        bar and rewrites its text to history as cancelled. Only printable keys are
+        swallowed, so the structural keys hosts rely on (``enter``, ``escape``,
+        ``tab``, every ctrl/alt chord) keep bubbling as before.
+        """
+        if not event.is_printable:
+            return
+        if self._host_claims_unhandled_vim_key(event):
+            return
+        event.stop()
+        event.prevent_default()
+
     async def _on_key(self, event: Key) -> None:
         """Route keys through the vim tower, then fall back to ``TextArea``.
 
-        Only keys the vim layer actually consumes are stopped; everything else
-        bubbles so host-level bindings (confirm, cancel, etc.) keep working. In
-        INSERT mode this is a thin passthrough to ``TextArea`` (with ``Escape``
-        dropping into NORMAL mode), matching the prompt widget's behavior.
+        Keys the vim layer consumes are stopped. Unconsumed printable keys are
+        also swallowed in NORMAL/VISUAL mode; only non-printable keys bubble so
+        host-level bindings (confirm, cancel, etc.) keep working. In INSERT mode
+        this is a thin passthrough to ``TextArea`` (with ``Escape`` dropping into
+        NORMAL mode), matching the prompt widget's behavior.
 
         ``Escape`` is two-stage: INSERT -> NORMAL, then a NORMAL-mode ``Escape``
         with a pending count/operator/prefix clears it. A NORMAL-mode ``Escape``
@@ -138,20 +156,26 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         """
         if self._vim_mode in ("visual", "visual_line"):
             if getattr(event, "_vim_tower_dispatched", False):
+                self._swallow_unhandled_vim_key(event)
                 return
             if self._handle_visual_mode_key(event):
                 event.stop()
                 event.prevent_default()
+                return
+            self._swallow_unhandled_vim_key(event)
             return
 
         if self._vim_mode == "normal":
             if getattr(event, "_vim_tower_dispatched", False):
+                self._swallow_unhandled_vim_key(event)
                 return
             if event.key == "escape" and not self._has_pending_normal_state():
                 return
             if self._handle_normal_mode_key(event):
                 event.stop()
                 event.prevent_default()
+                return
+            self._swallow_unhandled_vim_key(event)
             return
 
         if event.key == "escape":
@@ -216,6 +240,15 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             self.move_cursor((row, 0), select=select)
 
     # -- Host hooks (safe defaults; subclasses override to reach their host) ---
+
+    def _host_claims_unhandled_vim_key(self, event: Key) -> bool:
+        """Return whether the host owns this unhandled printable key. Default: no.
+
+        Overridden by hosts that deliberately bind a printable NORMAL-mode key the
+        vim layer leaves free -- the AXE entry editor's value cells let ``q`` reach
+        the sheet's quit binding.
+        """
+        return False
 
     def _normal_open_below_insert_text(self, row: int) -> str:
         """Return the structural text inserted by NORMAL-mode ``o``."""

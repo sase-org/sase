@@ -51,6 +51,15 @@ async def test_charwise_visual_delete_writes_register() -> None:
         assert page.ta._vim_register.kind == "charwise"
 
 
+async def test_space_extends_charwise_visual_selection_right() -> None:
+    """Space is the visual-mode alias for the ``l`` motion."""
+    async with PromptPage("abcde") as page:
+        await page.press("v", "space")
+
+        assert page.ta._visual_cursor == (0, 1)
+        assert page.ta.selection == Selection((0, 0), (0, 2))
+
+
 async def test_charwise_visual_yank_backward_selection() -> None:
     """Backward charwise selections normalize before yanking."""
     async with PromptPage("abcde", cursor=(0, 2)) as page:
