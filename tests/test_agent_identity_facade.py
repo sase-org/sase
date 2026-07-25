@@ -57,6 +57,7 @@ def test_facade_delegates_every_operation_with_static_binding_names(
 
     results: dict[str, Any] = {
         "classify_agent_ownership": "exact_owner",
+        "classify_legacy_v1_group_ownership": "owner_observed",
         "normalize_agent_archive_name": "foo",
         "globalize_agent_name": "alice.athena.foo",
         "strip_global_agent_name": "foo",
@@ -115,6 +116,18 @@ def test_facade_delegates_every_operation_with_static_binding_names(
         facade.classify_agent_ownership(source, target)
         is facade.AgentOwnershipClassification.EXACT_OWNER
     )
+    assert (
+        facade.classify_legacy_v1_group_ownership(
+            "athena",
+            target,
+            facade.LegacyV1GroupOwnershipEvidence(
+                v2_hood_published=False,
+                proven_entry_count=1,
+                total_entry_count=2,
+            ),
+        )
+        is facade.LegacyV1GroupOwnershipClassification.OWNER_OBSERVED
+    )
     assert facade.normalize_agent_archive_name("260722.foo") == "foo"
     assert facade.globalize_agent_name("foo", target) == "alice.athena.foo"
     assert facade.normalize_owned_agent_name("alice.athena.foo", identity) == "foo"
@@ -143,6 +156,7 @@ def test_facade_delegates_every_operation_with_static_binding_names(
         "validate_agent_username",
         "validate_agent_owner",
         "classify_agent_ownership",
+        "classify_legacy_v1_group_ownership",
         "normalize_agent_archive_name",
         "globalize_agent_name",
         "strip_global_agent_name",
@@ -155,6 +169,58 @@ def test_facade_delegates_every_operation_with_static_binding_names(
         "validate_agent_relationship_batch",
         "rewrite_agent_relationship_batch",
     ]
+
+
+@pytest.mark.parametrize(
+    (
+        "group_machine_name",
+        "v2_hood_published",
+        "proven_entry_count",
+        "expected",
+    ),
+    [
+        (machine, published, proven, expected)
+        for machine, machine_matches in (("athena", True), ("zeus", False))
+        for published in (False, True)
+        for proven in (0, 1, 3)
+        for expected in (
+            facade.LegacyV1GroupOwnershipClassification.OWNER_OBSERVED
+            if machine_matches and (published or proven > 0)
+            else facade.LegacyV1GroupOwnershipClassification.FOREIGN,
+        )
+    ],
+)
+def test_legacy_v1_group_ownership_integration_matrix(
+    group_machine_name: str,
+    v2_hood_published: bool,
+    proven_entry_count: int,
+    expected: facade.LegacyV1GroupOwnershipClassification,
+) -> None:
+    assert (
+        facade.classify_legacy_v1_group_ownership(
+            group_machine_name,
+            facade.AgentOwnerIdentity("alice", "athena"),
+            facade.LegacyV1GroupOwnershipEvidence(
+                v2_hood_published=v2_hood_published,
+                proven_entry_count=proven_entry_count,
+                total_entry_count=3,
+            ),
+        )
+        is expected
+    )
+
+
+def test_legacy_v1_group_ownership_rejects_impossible_evidence() -> None:
+    with pytest.raises(ValueError, match="proven entry count 2 exceeds total"):
+        facade.classify_legacy_v1_group_ownership(
+            "athena",
+            facade.AgentOwnerIdentity("alice", "athena"),
+            facade.LegacyV1GroupOwnershipEvidence(
+                v2_hood_published=False,
+                proven_entry_count=2,
+                total_entry_count=1,
+            ),
+        )
 
 
 def test_owner_family_and_localization_integration() -> None:

@@ -73,6 +73,18 @@ class AgentOwnershipClassification(StrEnum):
     USERNAME_UNKNOWN_V1 = "username_unknown_v1"
 
 
+class LegacyV1GroupOwnershipClassification(StrEnum):
+    OWNER_OBSERVED = "owner_observed"
+    FOREIGN = "foreign"
+
+
+@dataclass(frozen=True, slots=True)
+class LegacyV1GroupOwnershipEvidence:
+    v2_hood_published: bool
+    proven_entry_count: int
+    total_entry_count: int
+
+
 class AgentFamilyNameKind(StrEnum):
     SOLO = "solo"
     MEMBER = "member"
@@ -156,6 +168,23 @@ def classify_agent_ownership(
         source.username,
     )
     return AgentOwnershipClassification(str(value))
+
+
+def classify_legacy_v1_group_ownership(
+    group_machine_name: str,
+    target: AgentOwnerIdentity,
+    evidence: LegacyV1GroupOwnershipEvidence,
+) -> LegacyV1GroupOwnershipClassification:
+    binding = require_rust_binding("classify_legacy_v1_group_ownership")
+    value = binding(
+        group_machine_name,
+        target.username,
+        target.machine_name,
+        evidence.v2_hood_published,
+        evidence.proven_entry_count,
+        evidence.total_entry_count,
+    )
+    return LegacyV1GroupOwnershipClassification(str(value))
 
 
 def normalize_agent_archive_name(name: str) -> str:
