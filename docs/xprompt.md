@@ -1283,12 +1283,20 @@ preparation starts only after admission, so admitted runner counts include that 
 The `runners=N` keyword is a per-prompt threshold, not a reservation of future capacity: the agent starts only when at
 most `N` other slot-participating user agents are holding slots. It overrides the effective `max_running_agents - 1`
 threshold for that launch, so it can either lower or raise the effective limit. Among waiters eligible at the current
-running count, the lowest numeric `priority=N` starts first, with FIFO ordering among equal priorities. There is no
-priority aging, so a steady stream of higher-priority arrivals can starve default- or lower-priority waiters. An older
-waiter with a lower, currently ineligible threshold does not block eligible launches. `runners=0` is therefore a drain
-barrier that waits for true quiescence. Newer eligible launches can start while it is parked and keep it waiting until
-they also finish. Both values must be non-negative integers and may each appear only once across a prompt's `%wait`
-directives; priority defaults to `10`.
+running count, the lowest numeric `priority=N` starts first, with FIFO ordering among equal priorities. That sort only
+compares waiters already parked when a slot frees, so a waiter whose priority is numerically worse than the `10` default
+additionally holds back for a bounded deference window rather than claiming the instant it becomes eligible. Default-
+and better-priority waiters (`priority=10` or lower) never defer and start on the first eligible poll. A deprioritized
+waiter defers only while a live, unstarted agent with a better priority has not yet joined the queue and could still
+plausibly arrive; when no such agent remains it claims immediately, and the window resets whenever the waiter stops
+being eligible, so time parked behind a full cap does not count toward it. The window is `min((priority - 10) * 3, 60)`
+seconds by default and is configurable through [`runner_slots`](configuration.md#runner_slots). There is no priority
+aging—deference delays a volunteer, it never improves a waiter's own priority and never preempts a running agent—so a
+steady stream of higher-priority arrivals can still starve default- or lower-priority waiters. An older waiter with a
+lower, currently ineligible threshold does not block eligible launches. `runners=0` is therefore a drain barrier that
+waits for true quiescence. Newer eligible launches can start while it is parked and keep it waiting until they also
+finish. Both values must be non-negative integers and may each appear only once across a prompt's `%wait` directives;
+priority defaults to `10`.
 
 Without an explicit `runners=`, the effective global `max_running_agents` value limits concurrent slot-participating
 user agents (configured default `10`; an active `~/.sase/max_running_agents_override.json` value wins). Participants are

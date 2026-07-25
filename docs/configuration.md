@@ -33,6 +33,7 @@ and CLI flags.
   - [use_chezmoi](#use_chezmoi)
   - [commit_hooks](#commit_hooks)
   - [max_running_agents](#max_running_agents)
+  - [runner_slots](#runner_slots)
   - [tasks](#tasks)
   - [timezone](#timezone)
   - [chat_install](#chat_install)
@@ -1590,6 +1591,47 @@ enforced at its deadline, and a persistent edit leaves an active override in for
 non-preemptive, so existing agents continue and new implicit-cap launches wait for occupancy to drain. Parked implicit
 waiters and question continuations reread the effective cap on each normal poll. An explicit `%wait(runners=N)` keeps
 its own initial-admission threshold and may be either stricter or looser than the global cap.
+
+### runner_slots
+
+Bounded deference for deprioritized runner-slot waiters. Admission sorts eligible waiters by lower numeric
+`%wait(priority=N)` first, but that sort only compares agents already parked at the instant a slot frees.
+Dependency-chained work joins the queue seconds after its predecessor exits, so a long-parked deprioritized waiter would
+otherwise reliably win that race against exactly the normal-priority work it was meant to yield to. A waiter whose
+priority is numerically **worse than** the `10` default therefore holds back for a bounded window instead of claiming
+the moment it becomes eligible, which gives a better-priority agent time to park and win through the existing sort.
+
+```yaml
+runner_slots:
+  deference_seconds_per_step: 3
+  deference_max_seconds: 60
+```
+
+| Field                                     | Type | Default | Minimum | Description                                                          |
+| ----------------------------------------- | ---- | ------- | ------- | -------------------------------------------------------------------- |
+| `runner_slots.deference_seconds_per_step` | int  | `3`     | `0`     | Seconds of deference added per priority step worse than the default. |
+| `runner_slots.deference_max_seconds`      | int  | `60`    | `0`     | Upper bound on the deference window regardless of priority.          |
+
+The window is `min((priority - 10) * deference_seconds_per_step, deference_max_seconds)` seconds. With the defaults,
+`priority=20` defers for up to 30s and any priority at or beyond `30` clamps to the 60s cap. Priority `10` is the
+boundary and it is inclusive: default-priority and better-priority waiters (`priority <= 10`) never defer and claim on
+the first eligible poll exactly as before. The asymmetry is deliberate—you cannot defer to work that may never arrive,
+so only an agent that explicitly volunteered to be deprioritized pays a delay.
+
+Deference measures **continuous** eligibility, not total time parked. The window starts when the waiter first becomes
+eligible while a better-priority agent is pending, and it resets whenever the waiter stops being eligible, so time spent
+parked behind a full cap never counts toward it. It also exits early: on any poll where no live, unstarted,
+not-yet-parked agent with a better priority remains, the waiter claims immediately instead of serving out the rest of
+the window. The agent log prints one `Deferring for up to Ns (priority N)` line on entry into the window.
+
+Both fields are read fail-open. Deference is a politeness optimization, so a missing, non-integer, negative, or
+unreadable value falls back to the built-in default rather than propagating an error. This differs deliberately from
+`max_running_agents`, where configuration errors do propagate: a bad value here must never strand a runner.
+
+Bounded deference is not priority aging and not preemption. A running agent is never stopped to make room, and a
+deferred waiter's own priority does not improve while it waits. See
+[Agent waiting for a runner slot](troubleshooting/runner-slots.md) for diagnosis, and
+[`%wait(priority=N)`](xprompt.md#supported-directives) for the directive itself.
 
 ### tasks
 

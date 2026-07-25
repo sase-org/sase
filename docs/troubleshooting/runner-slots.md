@@ -19,12 +19,38 @@ later launch whose higher threshold currently permits it to run. Parallel family
 renders them as nested rows. Serial family follow-ups are exempt so a running parent can safely wait for child work;
 workflow Python/bash steps and axe ChangeSpec runners are exempt as well.
 
+A deprioritized waiter — one whose priority is numerically worse than the `10` default — is additionally held back for a
+bounded deference window before it may claim a freed slot, because the sort above only compares waiters already parked
+at that instant. Dependency-chained work joins the queue seconds after its predecessor exits, so without the window a
+long-parked `priority=20` agent would win the race against exactly the normal-priority successor it was meant to yield
+to. Three properties matter when diagnosing a wait that looks longer than the queue explains:
+
+- **Default and better priorities are unaffected.** `priority=10` or lower claims on the first eligible poll, with no
+  window and no marker churn.
+- **The window is bounded and priority-scaled**, `min((priority - 10) * 3, 60)` seconds with the default
+  [`runner_slots`](../configuration.md#runner_slots) settings — 30s at `priority=20`, capped at 60s from `priority=30`
+  up.
+- **It exits early and resets.** The waiter defers only while some live, unstarted agent that has not yet parked holds a
+  better priority; on the first poll where no such agent remains it claims immediately. The window measures _continuous_
+  eligibility, so losing eligibility (a full cap, for example) clears it and the next window starts from scratch. This
+  is deference only: no running agent is preempted and no waiter's priority improves over time.
+
+The agent's own log records the transition with a single `Deferring for up to Ns (priority N)` line, and `waiting.json`
+carries `eligible_since` for the window currently in progress.
+
+An explicit priority is also visible in ACE, which is usually the fastest way to confirm which value the queue actually
+used. `WAITING` rows suffix the slot marker with it (`▶10→9 p20`), and the agent detail pane appends `· priority N` to
+its `runners: N/M in use · queue #P of Q` line. Both appear only when the priority was explicitly requested rather than
+defaulted; a `QUEUED` row instead shows the resulting rank directly as `#N/M`. Press `w` on the agent to open the wait
+modal and edit the priority in place.
+
 To diagnose a wait:
 
 1. Check active, queued, and waiting agents with `sase agent list` or the ACE Agents tab.
 2. Inspect the launch's `waiting.json`. `wait_runners` is the effective existing-runner threshold and
    `slot_requested_at` is its FIFO request time; `runner_slot_queue_position` in `sase agent list -j` is its current
-   priority/FIFO rank among all live slot waiters.
+   priority/FIFO rank among all live slot waiters. `wait_priority` is the value that rank used, and
+   `wait_priority_explicit` distinguishes a deliberate `priority=N` from the implicit `10` default.
 3. Press fixed `Ctrl+R` in the Models panel to edit `max_running_agents` persistently or apply/clear a temporary value.
    Parked implicit-cap agents reread the effective value and normally react within about two seconds. Setting another
    temporary value replaces the first; expiry or Clear resumes configured behavior.
