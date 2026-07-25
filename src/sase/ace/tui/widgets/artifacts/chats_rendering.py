@@ -14,6 +14,7 @@ from sase.history.chat_catalog_provenance import (
     ChatCatalogSnapshot,
     ChatProvenance,
 )
+from sase.history.chat_filter_query import ChatFilterValues, to_query_tokens
 
 from .types import ARTIFACTS_ACCENTS
 
@@ -33,7 +34,7 @@ CHAT_PROVENANCE_COLORS: dict[ChatProvenance, str] = {
 _BADGE_WIDTH = 10
 
 
-def build_chats_scope(
+def _build_chats_scope(
     registry: KeymapRegistry,
     *,
     project_scope: str | None,
@@ -52,6 +53,47 @@ def build_chats_scope(
         f"{key_display_name(registry.app.pick_artifacts_project)} change",
         style="dim",
     )
+    return text
+
+
+def build_chats_info(
+    registry: KeymapRegistry,
+    snapshot: ChatCatalogSnapshot | None,
+    *,
+    project_scope: str | None,
+    project_display_name: str | None,
+    filters: ChatFilterValues,
+) -> Text:
+    """Build project scope, provenance summary chips, and committed filters."""
+
+    text = _build_chats_scope(
+        registry,
+        project_scope=project_scope,
+        project_display_name=project_display_name,
+    )
+    if snapshot is not None:
+        text.append("  │  ", style="dim")
+        active = filters.provenances[0] if len(filters.provenances) == 1 else None
+        for index, provenance in enumerate(CHAT_PROVENANCE_VALUES):
+            if index:
+                text.append(" · ", style="dim")
+            count = snapshot.provenance_counts.get(provenance, 0)
+            glyph = CHAT_PROVENANCE_GLYPHS[provenance]
+            label: str = provenance
+            if provenance == "remote":
+                machine_count = len(snapshot.remote_machines)
+                suffix = "machine" if machine_count == 1 else "machines"
+                label = f"remote ({machine_count} {suffix})"
+            style = f"bold {CHAT_PROVENANCE_COLORS[provenance]}"
+            if active is not None and provenance != active:
+                style = f"dim {CHAT_PROVENANCE_COLORS[provenance]}"
+            elif active == provenance:
+                style += " reverse"
+            text.append(f"{glyph} {count:,} {label}", style=style)
+    tokens = to_query_tokens(filters)
+    if tokens:
+        text.append("  │  ", style="dim")
+        text.append(" ".join(tokens), style=f"bold {ARTIFACTS_ACCENTS['chats']}")
     return text
 
 
@@ -75,33 +117,28 @@ def build_chats_status(
         )
         return text
 
-    for index, provenance in enumerate(CHAT_PROVENANCE_VALUES):
-        if index:
-            text.append("  ·  ", style="dim")
-        count = snapshot.provenance_counts.get(provenance, 0)
-        glyph = CHAT_PROVENANCE_GLYPHS[provenance]
-        label: str = provenance
-        if provenance == "remote":
-            machine_count = len(snapshot.remote_machines)
-            suffix = "machine" if machine_count == 1 else "machines"
-            label = f"remote ({machine_count} {suffix})"
-        text.append(
-            f"{glyph} {count:,} {label}",
-            style=f"bold {CHAT_PROVENANCE_COLORS[provenance]}",
-        )
+    text.append(f"{len(snapshot.entries):,} transcripts loaded", style="dim")
     if extending:
         text.append("  ·  Loading full history…", style="dim #FFD700")
     return text
 
 
-def build_chats_hints(registry: KeymapRegistry) -> Text:
+def build_chats_hints(
+    registry: KeymapRegistry,
+    *,
+    has_agent: bool = True,
+) -> Text:
     """Build the phase-owned action hints shown below the panels."""
 
     keymap = registry.app
     parts = (
         (key_display_name(keymap.chats_next), "next"),
         (key_display_name(keymap.chats_prev), "prev"),
-        (key_display_name(keymap.chats_open_external), "open"),
+        (key_display_name(keymap.chats_view_selected), "view"),
+        (key_display_name(keymap.edit_query), "filter"),
+        (key_display_name(keymap.chats_cycle_provenance), "sync"),
+        (key_display_name(keymap.chats_open_agent), "agent"),
+        (key_display_name(keymap.chats_open_external), "editor"),
         (key_display_name(keymap.chats_copy_path), "copy path"),
         (key_display_name(keymap.chats_refresh), "refresh"),
     )
@@ -109,7 +146,11 @@ def build_chats_hints(registry: KeymapRegistry) -> Text:
     for index, (key, label) in enumerate(parts):
         if index:
             text.append("  ·  ", style="dim")
-        text.append(key, style=f"bold {ARTIFACTS_ACCENTS['chats']}")
+        disabled = label == "agent" and not has_agent
+        text.append(
+            key,
+            style=("dim" if disabled else f"bold {ARTIFACTS_ACCENTS['chats']}"),
+        )
         text.append(f" {label}", style="dim")
     return text
 
@@ -182,7 +223,7 @@ __all__ = [
     "CHAT_PROVENANCE_COLORS",
     "CHAT_PROVENANCE_GLYPHS",
     "build_chats_hints",
-    "build_chats_scope",
+    "build_chats_info",
     "build_chats_status",
     "chat_group_header",
     "chat_group_label",

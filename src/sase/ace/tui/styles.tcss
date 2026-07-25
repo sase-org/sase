@@ -183,6 +183,21 @@ PlanFilterBar .filter-bar-completion > .option-list--option-highlighted {
     text-style: bold;
 }
 
+ChatFilterBar .filter-bar-sigil {
+    color: #5FAFFF;
+}
+
+ChatFilterBar .filter-bar-input,
+ChatFilterBar .filter-bar-completion {
+    border: solid #5FAFFF;
+}
+
+ChatFilterBar .filter-bar-completion > .option-list--option-highlighted {
+    color: $background;
+    background: #5FAFFF;
+    text-style: bold;
+}
+
 #commits-info {
     width: 100%;
     height: 3;

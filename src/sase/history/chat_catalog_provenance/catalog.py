@@ -98,7 +98,7 @@ def _catalog_entry(
     transcript: ChatTranscriptInfo,
     link: AgentChatLink | None,
     sidecars: dict[str, SidecarProjectIndex],
-    backlog: dict[tuple[str, str], str | None],
+    backlog: dict[tuple[str, str], tuple[int | None, str | None]],
     *,
     owner_username: str | None,
     owner_machine: str | None,
@@ -138,7 +138,7 @@ def _catalog_entry(
     ):
         sidecar_repo = owning_index.sidecar_path
     sidecar_relpath = published_agent.relpath if published_agent is not None else None
-    pending, last_error = _publication_status(link, backlog)
+    pending, attempts, last_error = _publication_status(link, backlog)
     return ChatCatalogEntry(
         path=transcript.path,
         absolute_path=transcript.absolute_path,
@@ -161,6 +161,7 @@ def _catalog_entry(
         sidecar_relpath=sidecar_relpath,
         publication_pending=pending,
         publication_last_error=last_error,
+        publication_attempts=attempts,
     )
 
 
@@ -205,17 +206,18 @@ def _sidecar_was_read(
 
 def _publication_status(
     link: AgentChatLink | None,
-    backlog: dict[tuple[str, str], str | None],
-) -> tuple[bool, str | None]:
+    backlog: dict[tuple[str, str], tuple[int | None, str | None]],
+) -> tuple[bool, int | None, str | None]:
     if link is None:
-        return False, None
+        return False, None, None
     for name in (link.global_name, link.local_name):
         if name is None:
             continue
         key = (link.project_key, name)
         if key in backlog:
-            return True, backlog[key]
-    return False, None
+            attempts, last_error = backlog[key]
+            return True, attempts, last_error
+    return False, None, None
 
 
 def _matches(

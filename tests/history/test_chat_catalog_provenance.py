@@ -312,6 +312,7 @@ def test_publication_backlog_is_attached_to_local_agent(
                     {
                         "global_agent": "bryan.athena.alpha",
                         "local_agent": "alpha",
+                        "attempts": 28,
                         "last_error": "network down",
                     }
                 ],
@@ -323,6 +324,7 @@ def test_publication_backlog_is_attached_to_local_agent(
     entry = load_chat_catalog(force=True).entries[0]
 
     assert entry.publication_pending is True
+    assert entry.publication_attempts == 28
     assert entry.publication_last_error == "network down"
 
 

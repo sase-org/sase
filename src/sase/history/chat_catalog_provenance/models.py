@@ -39,6 +39,7 @@ class ChatCatalogEntry:
     sidecar_relpath: str | None
     publication_pending: bool
     publication_last_error: str | None
+    publication_attempts: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -467,6 +467,14 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             if pane is not None:
                 pane.show_filters()
             return
+        if (
+            self.current_tab == "changespecs"
+            and getattr(self, "current_artifacts_subtab", "prs") == "chats"
+        ):
+            pane = self._chats_pane()  # type: ignore[attr-defined]
+            if pane is not None:
+                pane.show_filters()
+            return
 
         current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
 

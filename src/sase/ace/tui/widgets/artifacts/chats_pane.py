@@ -13,6 +13,7 @@ from textual.widgets import OptionList, Static
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
+from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.pump_tasks import (
     cancel_pump_free_tasks,
     spawn_pump_free_task,
@@ -25,18 +26,27 @@ from sase.history.chat_catalog_provenance import (
 )
 
 from .chats_data import CHATS_FIRST_PAGE_LIMIT, ChatsSnapshot, pane_snapshot
+from .chat_filter_bar import ChatFilterBar
+from .chats_detail import ChatDetailData, build_chat_detail, load_chat_detail
+from .chats_filter_session import ChatsFilterSessionMixin
+from .chats_filtering import filter_chats_snapshot
 from .chats_list import build_chat_options
 from .chats_navigation import ChatsNavigationMixin, ChatsOptionList
 from .chats_rendering import (
     build_chats_hints,
-    build_chats_scope,
+    build_chats_info,
     build_chats_status,
 )
 from .entry_navigation import ArtifactEntryTarget
 from .lifecycle import ArtifactsPaneLifecycle
 
 
-class ArtifactsChatsPane(ChatsNavigationMixin, ArtifactsPaneLifecycle, Vertical):
+class ArtifactsChatsPane(
+    ChatsFilterSessionMixin,
+    ChatsNavigationMixin,
+    ArtifactsPaneLifecycle,
+    Vertical,
+):
     """Browse date-grouped chat transcripts without blocking the event loop."""
 
     can_focus = False
@@ -59,10 +69,14 @@ class ArtifactsChatsPane(ChatsNavigationMixin, ArtifactsPaneLifecycle, Vertical)
         self._worker_full = False
         self._load_generation = 0
         self._extension_generation = 0
+        self._detail_debouncer: DetailPanelDebouncer | None = None
+        self._detail_worker: Worker[Any] | None = None
+        self._detail_cache: dict[tuple[str, str, int], ChatDetailData] = {}
         self._init_chats_navigation()
+        self._init_chats_filter_session()
 
     def compose(self) -> ComposeResult:
-        yield Static("", id="chats-filter-bar", classes="hidden")
+        yield ChatFilterBar(id="chat-filter-bar")
         yield Static(
             self._scope_text(),
             classes="artifacts-pane-info",
@@ -83,13 +97,22 @@ class ArtifactsChatsPane(ChatsNavigationMixin, ArtifactsPaneLifecycle, Vertical)
         yield Static(self._hints_text(), id="chats-hints")
 
     def on_mount(self) -> None:
+        self._detail_debouncer = DetailPanelDebouncer(self.app)
         self._refresh_options()
 
     def on_unmount(self) -> None:
         self._extension_generation += 1
+        if self._detail_debouncer is not None:
+            self._detail_debouncer.cancel()
         cancel_pump_free_tasks(self)
         if self._worker is not None and not self._worker.is_finished:
             self._worker.cancel()
+        if self._detail_worker is not None and not self._detail_worker.is_finished:
+            self._detail_worker.cancel()
+
+    def on_deactivate(self) -> None:
+        if self._detail_debouncer is not None:
+            self._detail_debouncer.cancel()
 
     def on_first_activate(self) -> None:
         self._request_load(force=False, full=False)
@@ -185,6 +208,9 @@ class ArtifactsChatsPane(ChatsNavigationMixin, ArtifactsPaneLifecycle, Vertical)
         self._worker_full = full
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker is self._detail_worker:
+            self._on_detail_worker_changed(event)
+            return
         if event.worker is not self._worker:
             return
         terminal = event.state in {
@@ -213,6 +239,8 @@ class ArtifactsChatsPane(ChatsNavigationMixin, ArtifactsPaneLifecycle, Vertical)
                     cancel_jump("chats")
                 self._snapshot = result
                 self._load_error = None
+                if self._filter_session_open:
+                    self._set_filter_completion_sources()
                 self._refresh_options(preferred_target=preferred)
                 if not full_request and not result.complete:
                     self._schedule_full_extension(generation)
@@ -237,6 +265,8 @@ class ArtifactsChatsPane(ChatsNavigationMixin, ArtifactsPaneLifecycle, Vertical)
     def _on_option_highlighted(self, _event: OptionList.OptionHighlighted) -> None:
         if self._syncing_options:
             return
+        self._update_static("#chats-hints", self._hints_text())
+        self._schedule_detail()
 
     @on(OptionList.OptionSelected, "#chats-list")
     def _on_option_selected(self, event: OptionList.OptionSelected) -> None:
@@ -270,14 +300,17 @@ class ArtifactsChatsPane(ChatsNavigationMixin, ArtifactsPaneLifecycle, Vertical)
         self,
         *,
         preferred_target: ArtifactEntryTarget | None = None,
+        update_detail: bool = True,
     ) -> None:
         option_list = self._option_list()
         if option_list is None:
             return
         if preferred_target is None:
             preferred_target = self.selected_entry_target()
+        values = self._display_filter_values()
+        filtered = filter_chats_snapshot(self._snapshot, values)
         options, rows = build_chat_options(
-            self._snapshot,
+            filtered,
             project_scope=self.project_scope,
             loading=self._loading,
             now=local_now(),
@@ -297,6 +330,24 @@ class ArtifactsChatsPane(ChatsNavigationMixin, ArtifactsPaneLifecycle, Vertical)
             self._syncing_options = False
         self._update_empty()
         self._update_status()
+        self._update_static("#chats-info", self._scope_text())
+        self._update_static("#chats-hints", self._hints_text())
+        if self._filter_session_open and self._filter_query_error is None:
+            self.query_one(ChatFilterBar).set_status(
+                len(rows),
+                exact=bool(self._snapshot is None or self._snapshot.complete),
+                error=None,
+                coverage_label=(
+                    "exact"
+                    if self._snapshot is None or self._snapshot.complete
+                    else "first page"
+                ),
+                lower_bound=bool(
+                    self._snapshot is not None and not self._snapshot.complete
+                ),
+            )
+        if update_detail:
+            self._schedule_detail()
 
     def _update_empty(self) -> None:
         if not self.is_mounted:
@@ -318,10 +369,13 @@ class ArtifactsChatsPane(ChatsNavigationMixin, ArtifactsPaneLifecycle, Vertical)
             self.query_one(selector, Static).update(content)
 
     def _scope_text(self) -> RenderableType:
-        return build_chats_scope(
+        catalog = None if self._snapshot is None else self._snapshot.catalog
+        return build_chats_info(
             self._registry,
+            catalog,
             project_scope=self.project_scope,
             project_display_name=self._project_display_name,
+            filters=self._display_filter_values(),
         )
 
     def _status_text(self) -> RenderableType:
@@ -336,7 +390,89 @@ class ArtifactsChatsPane(ChatsNavigationMixin, ArtifactsPaneLifecycle, Vertical)
         )
 
     def _hints_text(self) -> RenderableType:
-        return build_chats_hints(self._registry)
+        entry = self.selected_entry
+        return build_chats_hints(
+            self._registry,
+            has_agent=bool(entry is not None and entry.agent_artifact_dir),
+        )
+
+    def _set_filter_completion_sources(self) -> None:
+        entries = () if self._snapshot is None else self._snapshot.entries
+        self.query_one(ChatFilterBar).set_completion_sources(
+            machines=(
+                entry.source_machine for entry in entries if entry.source_machine
+            ),
+            projects=(entry.project_key for entry in entries if entry.project_key),
+            agents=(
+                cast(str, entry.agent_local_name or entry.agent)
+                for entry in entries
+                if entry.agent_local_name or entry.agent
+            ),
+            workflows=(entry.workflow for entry in entries if entry.workflow),
+        )
+
+    def _schedule_detail(self) -> None:
+        self._render_detail(loading=True)
+        entry = self.selected_entry
+        if entry is None or self._detail_for(entry) is not None:
+            self._render_detail(loading=False)
+            return
+        if self._detail_debouncer is None:
+            self._request_detail()
+        else:
+            self._detail_debouncer.schedule(self._request_detail)
+
+    def _request_detail(self) -> None:
+        entry = self.selected_entry
+        if entry is None or self._detail_for(entry) is not None:
+            self._render_detail(loading=False)
+            return
+
+        def task() -> ChatDetailData:
+            return load_chat_detail(entry)
+
+        self._detail_worker = self.run_worker(
+            task,
+            thread=True,
+            group="artifacts-chats-detail",
+            exclusive=True,
+            exit_on_error=False,
+        )
+
+    def _on_detail_worker_changed(self, event: Worker.StateChanged) -> None:
+        if event.state == WorkerState.SUCCESS:
+            result = event.worker.result
+            if isinstance(result, ChatDetailData):
+                entry = self.selected_entry
+                if entry is not None and entry.absolute_path == result.absolute_path:
+                    self._detail_cache[self._detail_key(entry)] = result
+                    self._render_detail(loading=False)
+        elif event.state == WorkerState.ERROR:
+            self._render_detail(loading=False)
+
+    def _detail_for(self, entry: ChatCatalogEntry) -> ChatDetailData | None:
+        return self._detail_cache.get(self._detail_key(entry))
+
+    @staticmethod
+    def _detail_key(entry: ChatCatalogEntry) -> tuple[str, str, int]:
+        return (entry.absolute_path, entry.mtime, entry.size_bytes)
+
+    def _render_detail(self, *, loading: bool) -> None:
+        if not self.is_mounted:
+            return
+        entry = self.selected_entry
+        detail = None if entry is None else self._detail_for(entry)
+        diagnostics = (
+            () if self._snapshot is None else self._snapshot.catalog.diagnostics
+        )
+        self.query_one("#chats-detail", Static).update(
+            build_chat_detail(
+                entry,
+                detail,
+                diagnostics=diagnostics,
+                loading=loading and detail is None,
+            )
+        )
 
 
 __all__ = ["ArtifactsChatsPane"]

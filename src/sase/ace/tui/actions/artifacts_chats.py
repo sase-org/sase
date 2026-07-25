@@ -9,7 +9,10 @@ import subprocess
 from sase.ace.hints import build_editor_args
 from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
 
+from ..widgets._prompt_preview_target import PreviewPayload
+from ..widgets.artifacts.chats_detail import read_full_chat
 from ..widgets.artifacts.chats_pane import ArtifactsChatsPane
+from ..widgets.artifacts.chats_rendering import CHAT_PROVENANCE_GLYPHS
 
 
 CHATS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
@@ -55,13 +58,50 @@ class ArtifactsChatsActionsMixin:
                 self._finish_artifacts_navigation()  # type: ignore[attr-defined]
 
     def action_chats_view_selected(self) -> None:
-        """Open the selected chat once catalog-backed rows are available."""
+        """Load and open the selected full transcript without blocking keys."""
+        pane = self._chats_pane()
+        entry = pane.selected_entry if pane is not None else None
+        if entry is None:
+            return
+        absolute_path = entry.absolute_path
+
+        async def open_preview() -> None:
+            content = await asyncio.to_thread(read_full_chat, entry)
+            current_pane = self._chats_pane()
+            current = current_pane.selected_entry if current_pane is not None else None
+            if current is None or current.absolute_path != absolute_path:
+                return
+            from ..modals.preview_panel_modal import PreviewPanelModal
+
+            self.push_screen(  # type: ignore[attr-defined]
+                PreviewPanelModal(
+                    PreviewPayload(
+                        content=content,
+                        lexer="markdown",
+                        title=entry.basename,
+                        kind_label="chat transcript",
+                        icon=CHAT_PROVENANCE_GLYPHS[entry.provenance],
+                        source_path=entry.absolute_path,
+                    )
+                )
+            )
+
+        spawn_pump_free_task(
+            self,
+            open_preview(),
+            name="sase-chat-preview",
+            registry_attr="_pump_free_async_tasks",
+        )
 
     def action_chats_filters(self) -> None:
-        """Open chat filters once the filter session is implemented."""
+        pane = self._chats_pane()
+        if pane is not None:
+            pane.show_filters()
 
     def action_chats_cycle_provenance(self) -> None:
-        """Cycle sync provenance once the catalog is implemented."""
+        pane = self._chats_pane()
+        if pane is not None:
+            pane.cycle_provenance()
 
     def action_chats_open_agent(self) -> None:
         """Open the associated agent once chat-to-agent links are available."""

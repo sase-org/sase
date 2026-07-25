@@ -58,10 +58,10 @@ def load_sidecar_indexes(
     return indexes, tuple(dict.fromkeys(diagnostics)), False
 
 
-def load_publication_backlog() -> dict[tuple[str, str], str | None]:
+def load_publication_backlog() -> dict[tuple[str, str], tuple[int | None, str | None]]:
     """Read pending global/local agent names without mutating outbox locks."""
 
-    result: dict[tuple[str, str], str | None] = {}
+    result: dict[tuple[str, str], tuple[int | None, str | None]] = {}
     projects_root = sase_projects_dir()
     try:
         projects = projects_root.iterdir()
@@ -80,10 +80,17 @@ def load_publication_backlog() -> dict[tuple[str, str], str | None]:
                 continue
             error = item.get("last_error")
             last_error = str(error) if isinstance(error, str) else None
+            attempts_value = item.get("attempts")
+            attempts = (
+                attempts_value
+                if isinstance(attempts_value, int)
+                and not isinstance(attempts_value, bool)
+                else None
+            )
             for field in ("global_agent", "local_agent"):
                 name = item.get(field)
                 if isinstance(name, str) and name:
-                    result[(project_dir.name, name)] = last_error
+                    result[(project_dir.name, name)] = (attempts, last_error)
     return result
 
 
