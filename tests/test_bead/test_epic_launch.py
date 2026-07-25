@@ -10,11 +10,12 @@ from unittest.mock import patch
 import pytest
 
 from sase.bead.epic_launch import (
+    TASK_LOG_PATH_ENV,
     _run_detached_worker,
     build_epic_launch_argv,
     parse_epic_launch_output,
     resolve_epic_launch_cwd,
-    spawn_detached_epic_launch,
+    submit_epic_launch_task,
     update_epic_launch_metadata,
 )
 
@@ -111,24 +112,66 @@ def test_resolve_epic_launch_cwd_rejects_invalid_project_file_identity(
     get_workspace_directory.assert_not_called()
 
 
-def test_spawn_detached_epic_launch_uses_worker_and_log(tmp_path: Path) -> None:
-    process = type("Process", (), {"pid": 1234})()
-    log_path = tmp_path / "logs" / "epic.log"
-    with patch("sase.bead.epic_launch.subprocess.Popen", return_value=process) as popen:
-        launched = spawn_detached_epic_launch(
-            tmp_path / "plan.md",
+def test_submit_epic_launch_task_submits_worker_argv(tmp_path: Path) -> None:
+    task = SimpleNamespace(task_id="k7m2xyz")
+    with (
+        patch("sase.tasks.runner.submit_task", return_value=task) as submit_task,
+        patch(
+            "sase.bead.epic_launch._epic_launch_session_id",
+            return_value="20260725T120000Z-99",
+        ),
+    ):
+        submitted = submit_epic_launch_task(
+            tmp_path / "auth rewrite.md",
             cwd=tmp_path,
-            log_path=log_path,
             artifacts_dir=tmp_path / "artifacts",
             cl_name="demo",
         )
 
-    assert launched.pid == 1234
-    assert launched.log_path == log_path
-    argv = popen.call_args.args[0]
+    assert submitted is task
+    argv = submit_task.call_args.args[0]
     assert argv[1:4] == ["-m", "sase.bead.epic_launch", "--worker"]
+    assert argv[4:8] == [
+        "--plan-file",
+        str(tmp_path / "auth rewrite.md"),
+        "--cwd",
+        str(tmp_path),
+    ]
+    assert "--log-path" not in argv
     assert argv[-2:] == ["--cl-name", "demo"]
-    assert popen.call_args.kwargs["start_new_session"] is True
+    kwargs = submit_task.call_args.kwargs
+    assert kwargs["label"] == "Epic launch · auth rewrite"
+    assert kwargs["cwd"] == tmp_path
+    assert kwargs["origin"] == "epic-launch"
+    assert kwargs["cl_name"] == "demo"
+    assert kwargs["session_id"] == "20260725T120000Z-99"
+    assert sorted(kwargs["tags"]) == ["epic", "launch"]
+
+
+def test_submit_epic_launch_task_attributes_the_resolved_session(
+    tmp_path: Path,
+) -> None:
+    identity = SimpleNamespace(session_id="20260725T120000Z-7")
+    with (
+        patch("sase.tasks.runner.submit_task") as submit_task,
+        patch("sase.sessions.resolve_session_ref", return_value=identity) as resolve,
+    ):
+        submit_epic_launch_task(tmp_path / "plan.md", cwd=tmp_path)
+
+    resolve.assert_called_once_with(None)
+    assert submit_task.call_args.kwargs["session_id"] == "20260725T120000Z-7"
+
+
+def test_submit_epic_launch_task_runs_unattributed_without_a_session(
+    tmp_path: Path,
+) -> None:
+    with (
+        patch("sase.tasks.runner.submit_task") as submit_task,
+        patch("sase.sessions.resolve_session_ref", side_effect=RuntimeError("boom")),
+    ):
+        submit_epic_launch_task(tmp_path / "plan.md", cwd=tmp_path)
+
+    assert submit_task.call_args.kwargs["session_id"] is None
 
 
 def test_update_epic_launch_metadata_backfills_all_host_fields(
@@ -161,7 +204,47 @@ def test_update_epic_launch_metadata_backfills_all_host_fields(
     update_index.assert_called_once_with(artifacts)
 
 
-def test_detached_worker_reports_command_start_failure(tmp_path: Path) -> None:
+def test_detached_worker_inherits_output_and_reports_the_task_log(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_log = tmp_path / "logs" / "k7m2ab.log"
+    task_log.parent.mkdir(parents=True)
+    task_log.write_text(
+        "Epic: sase-77\n  Plan linked bead_id: sase-77 · /plans/epic.md\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(TASK_LOG_PATH_ENV, str(task_log))
+    args = SimpleNamespace(
+        plan_file=str(tmp_path / "plan.md"),
+        cwd=str(tmp_path),
+        log_path=None,
+        artifacts_dir=None,
+        cl_name="demo",
+    )
+    with (
+        patch(
+            "sase.bead.epic_launch.subprocess.run",
+            return_value=SimpleNamespace(returncode=0),
+        ) as run,
+        patch("sase.notifications.senders.notify_workflow_complete") as notify,
+    ):
+        returncode = _run_detached_worker(args)
+
+    assert returncode == 0
+    # The supervisor owns the output, so the worker must not redirect it.
+    assert "stdout" not in run.call_args.kwargs
+    assert "stderr" not in run.call_args.kwargs
+    assert notify.call_args.kwargs["extra_files"] == [str(task_log)]
+    assert notify.call_args.args[2] is True
+    assert f"Launch log: {task_log}" in notify.call_args.args[3]
+
+
+def test_detached_worker_reports_command_start_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(TASK_LOG_PATH_ENV, raising=False)
     log_path = tmp_path / "epic.log"
     args = SimpleNamespace(
         plan_file=str(tmp_path / "plan.md"),

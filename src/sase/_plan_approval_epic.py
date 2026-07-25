@@ -22,6 +22,9 @@ def prepare_epic_launch(
     resolved_cwd: Path | None = None,
 ) -> bool:
     """Start the host-owned epic launch and report whether the host claimed it."""
+    # Detached launches now log through the task supervisor, so no caller-owned
+    # response directory is needed; the parameter stays for callers' sake.
+    del response_dir
     if mode not in {"detached", "foreground", "skip"}:
         raise PlanApprovalActionError(
             "invalid_request",
@@ -54,23 +57,28 @@ def prepare_epic_launch(
             f"approved epic plans store is unusable: {exc}; resume with `{resume}`",
         ) from exc
     if mode == "detached":
-        try:
-            from sase.bead.epic_launch import spawn_detached_epic_launch
+        from sase.bead.epic_launch import (
+            build_epic_launch_argv,
+            submit_epic_launch_task,
+        )
 
-            artifacts_dir = resolve_plan_agent_artifacts_dir(
-                notification.host_action_data
-            )
-            log_root = Path(artifacts_dir) if artifacts_dir else response_dir
-            spawn_detached_epic_launch(
+        try:
+            submit_epic_launch_task(
                 plan_path,
                 cwd=cwd,
-                log_path=log_root / "epic_launch.log",
-                artifacts_dir=artifacts_dir,
+                artifacts_dir=resolve_plan_agent_artifacts_dir(
+                    notification.host_action_data
+                ),
                 cl_name=notification.host_action_data.get("agent_cl_name"),
             )
-            return True
-        except Exception:
-            return False
+        except Exception as exc:
+            resume = shlex.join(build_epic_launch_argv(plan_path))
+            raise PlanApprovalActionError(
+                "epic_launch_failed",
+                plan_path,
+                f"could not submit the epic launch task: {exc}; resume with `{resume}`",
+            ) from exc
+        return True
 
     try:
         from sase.bead.epic_launch import run_epic_launch_foreground

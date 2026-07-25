@@ -248,7 +248,8 @@ def require_plan_approval_choice(choice: str) -> _PlanApprovalChoiceRecord:
             review_modal_key="E",
             consequence_text=(
                 "Commit to sdd/plans (tier: epic); launch beads via "
-                "`sase bead work` (background task)"
+                "`sase bead work` (background task; track it in `sase task "
+                "list` or the ACE Tasks tab)"
             ),
             archive_side_effect=False,
             cli_kind_name="epic",

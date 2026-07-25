@@ -264,17 +264,17 @@ def _epic_context(tmp_path: Path) -> tuple[PlanApprovalActionContext, Path, Path
     )
 
 
-def test_headless_epic_approval_claims_host_ownership_before_spawning(
+def test_headless_epic_approval_claims_host_ownership_before_submitting(
     tmp_path: Path,
 ) -> None:
     context, response_dir, workspace = _epic_context(tmp_path)
     order: list[str] = []
 
-    def spawn(*_args: object, **_kwargs: object) -> object:
+    def submit(*_args: object, **_kwargs: object) -> object:
         response = json.loads((response_dir / "plan_response.json").read_text())
         assert response["epic_launch_owner"] == "host"
-        order.append("spawn")
-        return SimpleNamespace(pid=1234)
+        order.append("submit")
+        return SimpleNamespace(task_id="tsk1")
 
     with (
         patch(
@@ -282,23 +282,23 @@ def test_headless_epic_approval_claims_host_ownership_before_spawning(
             return_value=workspace,
         ) as resolve_cwd,
         patch(
-            "sase.bead.epic_launch.spawn_detached_epic_launch",
-            side_effect=spawn,
-        ) as spawn_launch,
+            "sase.bead.epic_launch.submit_epic_launch_task",
+            side_effect=submit,
+        ) as submit_launch,
     ):
         result = execute_plan_approval_response(context, "epic")
 
     assert result.response_json["epic_launch_owner"] == "host"
-    assert order == ["spawn"]
+    assert order == ["submit"]
     resolve_cwd.assert_called_once_with(
         str(workspace),
         agent_project_file=str(tmp_path / "projects" / "canonical" / "canonical.sase"),
     )
-    spawn_launch.assert_called_once()
-    assert spawn_launch.call_args.kwargs["cwd"] == workspace
+    submit_launch.assert_called_once()
+    assert submit_launch.call_args.kwargs["cwd"] == workspace
 
 
-def test_headless_epic_spawn_failure_keeps_durable_host_claim(
+def test_headless_epic_submit_failure_keeps_durable_host_claim(
     tmp_path: Path,
 ) -> None:
     context, response_dir, workspace = _epic_context(tmp_path)
@@ -308,10 +308,10 @@ def test_headless_epic_spawn_failure_keeps_durable_host_claim(
             return_value=workspace,
         ),
         patch(
-            "sase.bead.epic_launch.spawn_detached_epic_launch",
+            "sase.bead.epic_launch.submit_epic_launch_task",
             side_effect=OSError("no process"),
         ),
-        pytest.raises(PlanApprovalActionError, match="could not start"),
+        pytest.raises(PlanApprovalActionError, match="could not submit"),
     ):
         execute_plan_approval_response(context, "epic")
 
@@ -319,7 +319,7 @@ def test_headless_epic_spawn_failure_keeps_durable_host_claim(
     assert response["epic_launch_owner"] == "host"
 
 
-def test_headless_epic_refuses_unusable_store_before_detached_spawn(
+def test_headless_epic_refuses_unusable_store_before_task_submit(
     tmp_path: Path,
 ) -> None:
     context, response_dir, workspace = _epic_context(tmp_path)
@@ -332,12 +332,12 @@ def test_headless_epic_refuses_unusable_store_before_detached_spawn(
             "sase.bead.cli_work_from_plan.require_epic_launch_store_health",
             side_effect=SddRepositoryHealthError("plans store is mid-rebase"),
         ),
-        patch("sase.bead.epic_launch.spawn_detached_epic_launch") as spawn_launch,
+        patch("sase.bead.epic_launch.submit_epic_launch_task") as submit_launch,
         pytest.raises(PlanApprovalActionError, match="resume with"),
     ):
         execute_plan_approval_response(context, "epic")
 
-    spawn_launch.assert_not_called()
+    submit_launch.assert_not_called()
     response = json.loads((response_dir / "plan_response.json").read_text())
     assert response["epic_launch_owner"] == "host"
 
@@ -352,10 +352,10 @@ def test_headless_epic_resolution_failure_leaves_agent_fallback_unclaimed(
             side_effect=ValueError("invalid project identity"),
         ),
         patch(
-            "sase.bead.epic_launch.spawn_detached_epic_launch",
-        ) as spawn_launch,
+            "sase.bead.epic_launch.submit_epic_launch_task",
+        ) as submit_launch,
     ):
         result = execute_plan_approval_response(context, "epic")
 
     assert "epic_launch_owner" not in result.response_json
-    spawn_launch.assert_not_called()
+    submit_launch.assert_not_called()

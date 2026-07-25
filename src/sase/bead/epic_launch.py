@@ -4,17 +4,29 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shlex
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 
+
+if TYPE_CHECKING:
+    from sase.tasks.models import BackgroundTask
+
+
+TASK_LOG_PATH_ENV = "SASE_TASK_LOG_PATH"
+
+_EPIC_LAUNCH_TAGS = ("epic", "launch")
+_LOG_SETTLE_SECONDS = 2.0
+_LOG_SETTLE_POLL_SECONDS = 0.05
 
 _EPIC_ID_RE = re.compile(r"(?m)^Epic:\s+(\S+)\s*$")
 _PLAN_LINK_RE = re.compile(r"(?m)^.*Plan linked\s+bead_id:\s+\S+\s+·\s+(.+?)\s*$")
@@ -29,14 +41,6 @@ class _EpicLaunchOutput:
 
     epic_id: str | None
     archived_plan_path: str | None
-
-
-@dataclass(frozen=True)
-class _DetachedEpicLaunch:
-    """One successfully submitted detached epic-launch worker."""
-
-    pid: int
-    log_path: Path
 
 
 def build_epic_launch_argv(plan_file: str | Path) -> list[str]:
@@ -108,17 +112,27 @@ def run_epic_launch_foreground(
     )
 
 
-def spawn_detached_epic_launch(
+def submit_epic_launch_task(
     plan_file: str | Path,
     *,
     cwd: str | Path,
-    log_path: str | Path,
     artifacts_dir: str | Path | None = None,
     cl_name: str | None = None,
-) -> _DetachedEpicLaunch:
-    """Start a detached worker that logs, records, and reports epic completion."""
-    resolved_log = Path(log_path).expanduser().resolve(strict=False)
-    resolved_log.parent.mkdir(parents=True, exist_ok=True)
+    session_id: str | None = None,
+) -> BackgroundTask:
+    """Submit the epic-launch worker as a durable background task.
+
+    The worker records, reports, and notifies exactly as before; the task
+    supervisor owns its process and captures its output, so an approved epic
+    is visible work in ``sase task list`` and in the ACE Tasks tab instead of
+    an invisible detached fork.
+
+    Raises:
+        TaskSubmitError: The task could not be recorded or its supervisor
+            could not be started.
+    """
+    from sase.tasks.runner import submit_task
+
     argv = [
         sys.executable,
         "-m",
@@ -128,22 +142,31 @@ def spawn_detached_epic_launch(
         str(plan_file),
         "--cwd",
         str(cwd),
-        "--log-path",
-        str(resolved_log),
     ]
     if artifacts_dir is not None:
         argv.extend(["--artifacts-dir", str(artifacts_dir)])
     if cl_name:
         argv.extend(["--cl-name", cl_name])
-    process = subprocess.Popen(
+    return submit_task(
         argv,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-        close_fds=True,
+        label=f"Epic launch · {Path(plan_file).stem}",
+        cwd=cwd,
+        session_id=session_id if session_id is not None else _epic_launch_session_id(),
+        tags=_EPIC_LAUNCH_TAGS,
+        origin="epic-launch",
+        cl_name=cl_name,
     )
-    return _DetachedEpicLaunch(pid=process.pid, log_path=resolved_log)
+
+
+def _epic_launch_session_id() -> str | None:
+    """Resolve the session an unattributed epic launch should land in."""
+    try:
+        from sase.sessions import resolve_session_ref
+
+        identity = resolve_session_ref(None)
+    except Exception:
+        return None
+    return identity.session_id if identity is not None else None
 
 
 def update_epic_launch_metadata(
@@ -185,27 +208,21 @@ def update_epic_launch_metadata(
 
 
 def _run_detached_worker(args: argparse.Namespace) -> int:
-    log_path = Path(args.log_path).expanduser()
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("w", encoding="utf-8") as log_file:
-        try:
-            completed = subprocess.run(
-                build_epic_launch_argv(args.plan_file),
-                cwd=args.cwd,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                text=True,
-                check=False,
-            )
-            returncode = completed.returncode
-        except OSError as exc:
-            log_file.write(f"Could not start epic launch: {exc}\n")
-            returncode = -1
+    task_log = os.environ.get(TASK_LOG_PATH_ENV, "").strip()
+    if task_log:
+        log_path = Path(task_log).expanduser()
+        returncode = _run_launch_with_inherited_output(args)
+        # The supervisor drains our inherited output into the task log from
+        # another process, so give the last lines a bounded moment to land.
+        settle = returncode == 0
+    elif args.log_path:
+        log_path = Path(args.log_path).expanduser()
+        returncode = _run_launch_into_log(args, log_path)
+        settle = False
+    else:
+        return 2
 
-    try:
-        output = log_path.read_text(encoding="utf-8")
-    except OSError:
-        output = ""
+    output = _read_launch_output(log_path, settle=settle)
     parsed = parse_epic_launch_output(output)
     success = returncode == 0 and parsed.epic_id is not None
     if success:
@@ -224,6 +241,61 @@ def _run_detached_worker(args: argparse.Namespace) -> int:
         returncode=returncode,
     )
     return 0 if success else 1
+
+
+def _run_launch_with_inherited_output(args: argparse.Namespace) -> int:
+    """Run the launch with output inherited by the task supervisor."""
+    try:
+        completed = subprocess.run(
+            build_epic_launch_argv(args.plan_file),
+            cwd=args.cwd,
+            check=False,
+        )
+    except OSError as exc:
+        print(f"Could not start epic launch: {exc}", flush=True)
+        return -1
+    return completed.returncode
+
+
+def _run_launch_into_log(args: argparse.Namespace, log_path: Path) -> int:
+    """Run the launch into a private log file (pre-task-runner workers)."""
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("w", encoding="utf-8") as log_file:
+        try:
+            completed = subprocess.run(
+                build_epic_launch_argv(args.plan_file),
+                cwd=args.cwd,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=False,
+            )
+        except OSError as exc:
+            log_file.write(f"Could not start epic launch: {exc}\n")
+            return -1
+    return completed.returncode
+
+
+def _read_launch_output(log_path: Path, *, settle: bool) -> str:
+    """Read the retained launch output, optionally waiting for it to settle."""
+    deadline = time.monotonic() + _LOG_SETTLE_SECONDS
+    while True:
+        output = _read_retained_log(log_path)
+        if not settle or parse_epic_launch_output(output).epic_id is not None:
+            return output
+        if time.monotonic() >= deadline:
+            return output
+        time.sleep(_LOG_SETTLE_POLL_SECONDS)
+
+
+def _read_retained_log(log_path: Path) -> str:
+    chunks: list[str] = []
+    for candidate in (log_path.with_name(f"{log_path.name}.1"), log_path):
+        try:
+            chunks.append(candidate.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            pass
+    return "".join(chunks)
 
 
 def _notify_detached_completion(
@@ -267,7 +339,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--worker", action="store_true")
     parser.add_argument("--plan-file", required=True)
     parser.add_argument("--cwd", required=True)
-    parser.add_argument("--log-path", required=True)
+    # Still accepted so a worker spawned by a pre-task-runner version that is
+    # in flight during an upgrade keeps behaving.
+    parser.add_argument("--log-path")
     parser.add_argument("--artifacts-dir")
     parser.add_argument("--cl-name")
     return parser
@@ -285,10 +359,11 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "TASK_LOG_PATH_ENV",
     "build_epic_launch_argv",
     "parse_epic_launch_output",
     "resolve_epic_launch_cwd",
     "run_epic_launch_foreground",
-    "spawn_detached_epic_launch",
+    "submit_epic_launch_task",
     "update_epic_launch_metadata",
 ]

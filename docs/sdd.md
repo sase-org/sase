@@ -103,10 +103,13 @@ response, SDD copy, or notification dismissal, and failures leave the proposal p
 
 Tale approval promotes the plan and launches its coder through the agent runner. Epic approval instead delegates the
 plan to `sase bead work <plan-file> --yes`: the ACE TUI submits a tracked background task before recording host
-ownership, the CLI runs it in the foreground, and headless callers spawn a detached worker with a completion log and
-notification. The command's live output is visible in the TUI Tasks tab. If a surface cannot submit or claim the launch,
-the planner agent runs the same command as a subprocess, so the approval is not orphaned. In either case the planner
-finishes with `EPIC APPROVED` rather than failing after the handoff.
+ownership, the CLI runs it in the foreground, and headless callers (Telegram, `sase gate`) submit a durable background
+task that a detached supervisor owns. That task is attributed to the resolving ACE session — or, failing that, to the
+newest live one — so it is listable with `sase task list`, streamable with `sase task show <id> --follow`, and visible
+in the TUI Tasks tab, and it still ends with the same completion notification. The equivalent hand-run form is
+`sase task run --label 'Epic launch · <plan>' -- sase bead work <plan> --yes-to-all`. If a surface cannot submit or
+claim the launch, the planner agent runs the same command as a subprocess, so the approval is not orphaned. In either
+case the planner finishes with `EPIC APPROVED` rather than failing after the handoff.
 
 `--kind approve` runs the coder without committing an SDD plan, while `--kind commit` records the approved plan in SDD
 without launching a coder. `sase plan reject <id-prefix>` writes the same no-feedback rejection response as the TUI,
