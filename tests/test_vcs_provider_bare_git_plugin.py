@@ -190,6 +190,111 @@ def test_vcs_create_commit_stages_concrete_bead_files(
 
 
 @patch(_MOCK_TARGET)
+def test_vcs_create_commit_does_not_write_bead_notes(
+    mock_run: MagicMock, bare_git_provider: VCSPluginManager, tmp_path: Path
+) -> None:
+    """Committing a bead-carrying change must preserve the bead's notes."""
+    cwd = tmp_path
+    (cwd / "sdd" / "beads").mkdir(parents=True)
+    bead_stdout = "sdd/beads/issues.jsonl\0"
+
+    def handler(*args: object, **kwargs: object) -> MagicMock:
+        cmd = args[0] if args else kwargs.get("cmd", [])
+        if isinstance(cmd, list):
+            if cmd[:2] == ["git", "ls-files"]:
+                return MagicMock(returncode=0, stdout=bead_stdout, stderr="")
+            if cmd == ["git", "diff", "--cached", "--quiet"]:
+                return MagicMock(returncode=1, stdout="", stderr="")
+            if cmd[:3] == ["git", "symbolic-ref", "--short"]:
+                return MagicMock(returncode=1, stdout="", stderr="")
+            if cmd[:3] == ["git", "rev-parse", "--short"]:
+                return MagicMock(returncode=0, stdout="abc1234\n", stderr="")
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    mock_run.side_effect = handler
+
+    ok, result = bare_git_provider.create_commit(
+        {
+            "message": "fix: preserve bead notes",
+            "files": ["src/main.py"],
+            "bead_id": "sase-1",
+        },
+        str(cwd),
+    )
+
+    assert ok is True
+    assert result == "abc1234"
+    commands = [call[0][0] for call in mock_run.call_args_list]
+    assert not any(cmd[:3] == ["sase", "bead", "update"] for cmd in commands)
+    assert not any("--notes" in cmd for cmd in commands)
+
+
+@patch(_MOCK_TARGET)
+def test_vcs_finalize_commit_does_not_write_bead_notes(
+    mock_run: MagicMock, bare_git_provider: VCSPluginManager, tmp_path: Path
+) -> None:
+    """Resuming a bead-carrying commit must preserve the bead's notes."""
+    cwd = tmp_path
+    (cwd / "sdd" / "beads").mkdir(parents=True)
+
+    def handler(*args: object, **kwargs: object) -> MagicMock:
+        cmd = args[0] if args else kwargs.get("cmd", [])
+        if isinstance(cmd, list):
+            if cmd[:2] == ["git", "ls-files"]:
+                return MagicMock(
+                    returncode=0,
+                    stdout="sdd/beads/issues.jsonl\0",
+                    stderr="",
+                )
+            if cmd[:3] == ["git", "remote", "get-url"]:
+                return MagicMock(returncode=1, stdout="", stderr="")
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    mock_run.side_effect = handler
+
+    ok, result = bare_git_provider.finalize_commit({"bead_id": "sase-1"}, str(cwd))
+
+    assert ok is True
+    assert result is None
+    commands = [call[0][0] for call in mock_run.call_args_list]
+    assert not any(cmd[:3] == ["sase", "bead", "update"] for cmd in commands)
+    assert not any("--notes" in cmd for cmd in commands)
+
+
+@patch(_MOCK_TARGET)
+def test_vcs_finalize_commit_amends_straggler_bead_changes(
+    mock_run: MagicMock, bare_git_provider: VCSPluginManager, tmp_path: Path
+) -> None:
+    """Resume still folds bead-store changes into the existing commit."""
+    cwd = tmp_path
+    (cwd / "sdd" / "beads").mkdir(parents=True)
+    bead_files = [
+        "sdd/beads/issues.jsonl",
+        "sdd/beads/events/streams/sase-1.jsonl",
+    ]
+    bead_stdout = "\0".join(bead_files) + "\0"
+
+    def handler(*args: object, **kwargs: object) -> MagicMock:
+        cmd = args[0] if args else kwargs.get("cmd", [])
+        if isinstance(cmd, list):
+            if cmd[:2] == ["git", "ls-files"]:
+                return MagicMock(returncode=0, stdout=bead_stdout, stderr="")
+            if cmd[:3] == ["git", "remote", "get-url"]:
+                return MagicMock(returncode=1, stdout="", stderr="")
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    mock_run.side_effect = handler
+
+    ok, result = bare_git_provider.finalize_commit({"bead_id": "sase-1"}, str(cwd))
+
+    assert ok is True
+    assert result is None
+    commands = [call[0][0] for call in mock_run.call_args_list]
+    assert ["git", "add", "--", *bead_files] in commands
+    assert ["git", "commit", "--amend", "--no-edit", "--quiet"] in commands
+
+
+@patch(_MOCK_TARGET)
 def test_vcs_create_commit_push_fails(
     mock_run: MagicMock, bare_git_provider: VCSPluginManager
 ) -> None:

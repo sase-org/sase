@@ -308,19 +308,16 @@ class GitCommitDispatchMixin(CommandRunner):
 
         return (False, last_err or "exhausted branch re-suffix attempts")
 
-    def _post_commit_bead_amend(self, payload: dict, cwd: str) -> None:
-        """Add a COMMIT note to the bead and amend bead changes into the commit."""
+    def _amend_bead_changes(self, payload: dict, cwd: str) -> None:
+        """Fold any post-commit bead-store changes into the commit.
+
+        This intentionally does not write the commit SHA into bead notes: the SHA
+        would become stale after the amend or rebase, and ``--notes`` overwrites
+        existing notes rather than appending to them.
+        """
         bead_id = payload.get("bead_id")
         if not bead_id:
             return
-
-        rev = self._run(["git", "rev-parse", "--short", "HEAD"], cwd)
-        commit_hash = rev.stdout.strip() if rev.success else "unknown"
-
-        self._run(
-            ["sase", "bead", "update", bead_id, "--notes", f"COMMIT: {commit_hash}"],
-            cwd,
-        )
 
         # Fold bead tracking changes into the commit via amend
         changed_files = self._changed_bead_files(cwd)
@@ -357,9 +354,9 @@ class GitCommitDispatchMixin(CommandRunner):
         if not out.success:
             return self._to_result(out, "git commit")
 
-        # Post-commit bead note + amend (skip for create_proposal delegation)
+        # Fold post-commit bead changes in (skip for create_proposal delegation)
         if not payload.get("_skip_bead_amend"):
-            self._post_commit_bead_amend(payload, cwd)
+            self._amend_bead_changes(payload, cwd)
 
         ok, err = self._sync_with_origin_after_commit(cwd)
         if not ok:
@@ -439,7 +436,7 @@ class GitCommitDispatchMixin(CommandRunner):
     def vcs_finalize_commit(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
         """Re-run idempotent post-commit operations after a resumed workflow."""
         if not payload.get("_skip_bead_amend"):
-            self._post_commit_bead_amend(payload, cwd)
+            self._amend_bead_changes(payload, cwd)
         ok, err = self._push_current_branch_with_rebase_retry(cwd)
         if not ok:
             return (False, err)

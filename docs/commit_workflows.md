@@ -212,13 +212,13 @@ consumers should accept both historical and `SASE_`-prefixed spellings.
 
 Internal fields added by `CommitWorkflow`:
 
-| Field              | Set by              | Purpose                                 |
-| ------------------ | ------------------- | --------------------------------------- |
-| `_cl_name`         | Environment         | Fallback PR name for proposals          |
-| `_plan_path`       | `_handle_sase_plan` | Plan file path for VCS staging          |
-| `_pr_body`         | `_build_pr_body`    | Enriched PR description with agent info |
-| `_skip_bead_amend` | Internal            | Skip post-commit bead amend             |
-| `bead_id`          | Environment         | Bead ID resolved from `SASE_BEAD_ID`    |
+| Field              | Set by              | Purpose                                                     |
+| ------------------ | ------------------- | ----------------------------------------------------------- |
+| `_cl_name`         | Environment         | Fallback PR name for proposals                              |
+| `_plan_path`       | `_handle_sase_plan` | Plan file path for VCS staging                              |
+| `_pr_body`         | `_build_pr_body`    | Enriched PR description with agent info                     |
+| `_skip_bead_amend` | Internal            | Skip folding post-commit bead-store changes into the commit |
+| `bead_id`          | Environment         | Bead ID resolved from `SASE_BEAD_ID`                        |
 
 ## Result Format
 
@@ -253,7 +253,7 @@ Creates an actual git commit on the current branch and pushes it.
 3. Validate staged changes exist
 4. Merge with `origin/<default_branch>` to keep the branch current
 5. `git commit -m <message>`
-6. Post-commit bead amend (append bead note)
+6. Fold any straggler bead-store changes into the commit via amend
 7. Push to remote with retry on failure
 
 **Returns:** `(True, commit_hash)`
