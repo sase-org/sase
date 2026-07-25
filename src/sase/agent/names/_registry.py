@@ -44,6 +44,7 @@ from sase.agent.names._registry_store import (
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
+    LegacyV1GroupOwnershipClassification,
     current_owner_agent_name_lookup_candidates,
     present_agent_name,
 )
@@ -121,6 +122,10 @@ def claim_imported_registered_name(
     claiming_dir: str | Path,
     *,
     digest: str,
+    target_owner: AgentOwnerIdentity | None = None,
+    group_ownership: LegacyV1GroupOwnershipClassification = (
+        LegacyV1GroupOwnershipClassification.FOREIGN
+    ),
 ) -> None:
     """Claim an exact foreign machine-qualified imported agent name.
 
@@ -137,6 +142,8 @@ def claim_imported_registered_name(
         source_machine,
         claiming_dir,
         digest=digest,
+        target_owner=target_owner,
+        group_ownership=group_ownership,
     )
 
 

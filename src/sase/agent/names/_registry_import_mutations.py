@@ -22,6 +22,7 @@ from sase.core.agent_identity_facade import (
     AgentOwnerIdentity,
     AgentOwnershipClassification,
     AgentSourceOwnerIdentity,
+    LegacyV1GroupOwnershipClassification,
     classify_imported_agent_owner,
     current_owner_agent_name_lookup_candidates,
     localize_imported_agent_name,
@@ -48,6 +49,10 @@ def claim_imported_registered_name(
     claiming_dir: str | Path,
     *,
     digest: str,
+    target_owner: AgentOwnerIdentity | None = None,
+    group_ownership: LegacyV1GroupOwnershipClassification = (
+        LegacyV1GroupOwnershipClassification.FOREIGN
+    ),
 ) -> None:
     """Claim an exact foreign machine-qualified imported agent name.
 
@@ -61,6 +66,17 @@ def claim_imported_registered_name(
 
     source_machine = validate_machine(source_machine)
     name = validate_qualified_name(name, source_machine)
+    if (
+        target_owner is not None
+        and source_machine == target_owner.machine_name
+        and group_ownership is LegacyV1GroupOwnershipClassification.OWNER_OBSERVED
+    ):
+        from sase.agent.names._common import ImportedNameCollisionError
+
+        raise ImportedNameCollisionError(
+            name,
+            reason="the legacy v1 group is owner-observed by this machine",
+        )
     artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
     with operations.lock():
         entries = dict(operations.load()["entries"])

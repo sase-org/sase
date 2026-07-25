@@ -27,6 +27,7 @@ StatusState = Literal[
 SourceOwnerKind = Literal["exact", "username_unknown_v1"]
 CachedIntegrationDisposition = Literal[
     "applied",
+    "owner_observed",
     "already_applied",
     "stale",
     "missing",
@@ -285,6 +286,7 @@ class IntegrationCounts:
     families_imported: int = 0
     runs_imported: int = 0
     diagnostics: tuple[str, ...] = ()
+    owner_observed_groups: int = 0
 
     @property
     def changed(self) -> int:

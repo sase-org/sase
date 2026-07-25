@@ -18,6 +18,9 @@ from sase.agents_sync.models import (
     PortableAgentMetadata,
     ProjectTarget,
 )
+from sase.core.agent_identity_facade import AgentOwnerIdentity
+
+LOCAL_OWNER = AgentOwnerIdentity("alice", "athena")
 
 
 def _target(tmp_path: Path) -> ProjectTarget:
@@ -81,7 +84,7 @@ def test_foreign_bundle_round_trip_idempotence_and_refresh(
     monkeypatch.setattr(
         bundles,
         "claim_imported_registered_name",
-        lambda name, machine, path, digest: claims.append(
+        lambda name, machine, path, digest, **_kwargs: claims.append(
             (name, machine, Path(path), digest)
         ),
     )
@@ -92,7 +95,7 @@ def test_foreign_bundle_round_trip_idempotence_and_refresh(
         lambda path: indexed.append(Path(path)),
     )
 
-    counts = bundles.integrate_foreign_bundles(target, repo, manifest, "athena")
+    counts = bundles.integrate_foreign_bundles(target, repo, manifest, LOCAL_OWNER)
     assert counts.integrated == 1
     artifact = artifact_root / "20260722123456"
     meta = json.loads((artifact / "agent_meta.json").read_text())
@@ -104,7 +107,7 @@ def test_foreign_bundle_round_trip_idempotence_and_refresh(
     assert claims[-1][:2] == ("zeus.worker", "zeus")
     assert indexed == [artifact]
 
-    unchanged = bundles.integrate_foreign_bundles(target, repo, manifest, "athena")
+    unchanged = bundles.integrate_foreign_bundles(target, repo, manifest, LOCAL_OWNER)
     assert unchanged.unchanged == 1
     assert len(claims) == 1
 
@@ -112,7 +115,7 @@ def test_foreign_bundle_round_trip_idempotence_and_refresh(
     refreshed_manifest = AgentsManifest((_entry(refreshed_bundle),))
     write_bundle(repo, refreshed_bundle)
     refreshed = bundles.integrate_foreign_bundles(
-        target, repo, refreshed_manifest, "athena"
+        target, repo, refreshed_manifest, LOCAL_OWNER
     )
     assert refreshed.refreshed == 1
     refreshed_meta = json.loads((artifact / "agent_meta.json").read_text())
@@ -151,7 +154,7 @@ def test_import_probes_forward_on_artifact_timestamp_collision(
         lambda _path: None,
     )
 
-    bundles.integrate_foreign_bundles(target, repo, manifest, "athena")
+    bundles.integrate_foreign_bundles(target, repo, manifest, LOCAL_OWNER)
 
     assert (artifact_root / "20260722123457" / "done.json").is_file()
 
@@ -164,7 +167,7 @@ def test_v1_import_indexes_local_artifacts_once_for_multi_entry_manifest(
     repo = target.sidecar_path
     first = _bundle()
     second_meta = PortableAgentMetadata(
-        "zeus.worker-two",
+        "zeus.worker--code",
         "zeus",
         "20260722123457",
         2,
@@ -192,19 +195,19 @@ def test_v1_import_indexes_local_artifacts_once_for_multi_entry_manifest(
     monkeypatch.setattr(
         bundles,
         "_create_imported_artifact",
-        lambda _target, _bundle, entry: created.append(entry.name),
+        lambda _target, _bundle, entry, **_kwargs: created.append(entry.name),
     )
 
     counts = bundles.integrate_foreign_bundles(
         target,
         repo,
         AgentsManifest((_entry(first), _entry(second))),
-        "athena",
+        LOCAL_OWNER,
     )
 
     assert counts.integrated == 2
     assert scans == 1
-    assert created == ["zeus.worker", "zeus.worker-two"]
+    assert created == ["zeus.worker", "zeus.worker--code"]
 
 
 def test_same_machine_v1_requires_local_commit_proof(
@@ -268,7 +271,7 @@ def test_same_machine_v1_requires_local_commit_proof(
         target,
         repo,
         AgentsManifest((entry,)),
-        "athena",
+        LOCAL_OWNER,
     )
     assert imported.integrated == 1
     imported_meta = json.loads(
@@ -279,7 +282,7 @@ def test_same_machine_v1_requires_local_commit_proof(
     # Once the original artifact carries matching durable commit evidence,
     # the same v1 entry is only observed and is not duplicated again.
     (local / "commit_results.json").write_text(
-        json.dumps([{"result": ambiguous.commits[0].sha}]),
+        json.dumps([{"result": ambiguous.commits[0].sha[:9]}]),
         encoding="utf-8",
     )
     (artifact_root / "20260722123457" / "agent_meta.json").unlink()
@@ -288,10 +291,118 @@ def test_same_machine_v1_requires_local_commit_proof(
         target,
         repo,
         AgentsManifest((entry,)),
-        "athena",
+        LOCAL_OWNER,
     )
     assert observed.unchanged == 1
+    assert observed.owner_observed_groups == 1
     assert observed.integrated == 0
+
+
+def test_one_proven_entry_marks_the_whole_v1_group_owner_observed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    source_sha = "a1b2c3d4e" + "f" * 31
+    entries: list[ManifestEntry] = []
+    for index, role in enumerate(("plan", "code"), start=1):
+        metadata = PortableAgentMetadata(
+            f"athena.crew--{role}",
+            "athena",
+            f"2026072212345{index}",
+            2,
+        )
+        commits = (CommitRecord(source_sha, role, index),)
+        chat = f"{role}\n".encode()
+        bundle = AgentBundle(
+            metadata,
+            commits,
+            chat,
+            compute_bundle_digest(metadata, commits, chat),
+        )
+        entries.append(_entry(bundle))
+        write_bundle(repo, bundle)
+
+    local = tmp_path / entries[0].artifact_timestamp
+    local.mkdir()
+    (local / "commit_result.json").write_text(
+        json.dumps({"result": source_sha[:9]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        bundles,
+        "_v1_artifact_rows",
+        lambda _target: (
+            (
+                local,
+                {"name": "crew--plan"},
+                {"name": "crew--plan", "outcome": "completed"},
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        bundles,
+        "_create_imported_artifact",
+        lambda *_args, **_kwargs: pytest.fail("owner group was imported"),
+    )
+
+    counts = bundles.integrate_foreign_bundles(
+        target,
+        repo,
+        AgentsManifest(tuple(entries)),
+        LOCAL_OWNER,
+    )
+
+    assert counts.integrated == 0
+    assert counts.unchanged == 2
+    assert counts.owner_observed_groups == 1
+
+
+def test_v2_hood_coverage_marks_v1_group_owner_observed_without_artifact_scan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    foreign = _bundle()
+    metadata = PortableAgentMetadata(
+        "athena.worker",
+        "athena",
+        foreign.metadata.artifact_timestamp,
+        foreign.metadata.artifact_layout_version,
+        foreign.metadata.fields,
+    )
+    bundle = AgentBundle(
+        metadata,
+        foreign.commits,
+        foreign.chat_bytes,
+        compute_bundle_digest(metadata, foreign.commits, foreign.chat_bytes),
+    )
+    entry = _entry(bundle)
+    write_bundle(repo, bundle)
+    monkeypatch.setattr(
+        bundles,
+        "_v1_artifact_rows",
+        lambda _target: pytest.fail("v2 coverage should avoid an artifact scan"),
+    )
+    monkeypatch.setattr(
+        bundles,
+        "_create_imported_artifact",
+        lambda *_args, **_kwargs: pytest.fail("owner group was imported"),
+    )
+
+    counts = bundles.integrate_foreign_bundles(
+        target,
+        repo,
+        AgentsManifest((entry,)),
+        LOCAL_OWNER,
+        owner_v2_hoods={"worker"},
+    )
+
+    assert counts.integrated == 0
+    assert counts.unchanged == 1
+    assert counts.owner_observed_groups == 1
 
 
 def test_local_bundle_uses_legacy_footer_backfill_and_allowlists_meta(

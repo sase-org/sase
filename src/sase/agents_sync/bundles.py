@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from datetime import UTC, datetime, timedelta
 import json
 import os
@@ -14,6 +14,7 @@ from typing import Any
 
 from sase.agent.names import claim_imported_registered_name
 from sase.agents_sync.git import GitRunner, run_git
+from sase.agents_sync.incoming_cache_legacy import legacy_group_machine_hood
 from sase.agents_sync.io import (
     AgentsSyncFormatError,
     PORTABLE_META_FIELDS,
@@ -45,6 +46,13 @@ from sase.core.agent_artifact_paths import (
     iter_agent_artifact_dirs,
     parse_agent_artifact_path,
 )
+from sase.core.agent_identity_facade import (
+    AgentOwnerIdentity,
+    LegacyV1GroupOwnershipClassification,
+    LegacyV1GroupOwnershipEvidence,
+    classify_legacy_v1_group_ownership,
+)
+from sase.core.commit_sha_facade import commit_shas_equivalent
 from sase.core.machine_hood_facade import machine_qualify_v1_transport_agent_name
 from sase.core.paths import sase_home
 from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
@@ -54,21 +62,28 @@ def integrate_foreign_bundles(
     target: ProjectTarget,
     repo_root: Path,
     manifest: AgentsManifest,
-    machine: str,
+    owner: AgentOwnerIdentity,
+    *,
+    owner_v2_hoods: Collection[str] = (),
 ) -> IntegrationCounts:
     """Validate every selected v1 bundle before materializing local history.
 
-    A machine token matching the configured machine is only treated as a
-    current-owner observation when a matching local artifact and source
-    commit prove it. Every other entry retains unknown-username v1 import
-    provenance, including ambiguous same-machine entries.
+    The whole legacy hood is owner-observed when shared v1 ownership evidence
+    proves it. Owner-observed groups are recorded unchanged and never reach
+    imported artifact creation.
     """
 
     validated: list[tuple[ManifestEntry, AgentBundle]] = []
     for entry in manifest.entries:
         validated.append((entry, read_bundle(repo_root, entry)))
 
-    artifact_rows = _v1_artifact_rows(target)
+    group_machine, group_hood = legacy_group_machine_hood(manifest)
+    v2_hood_published = group_hood in owner_v2_hoods
+    artifact_rows = (
+        ()
+        if v2_hood_published and group_machine == owner.machine_name
+        else _v1_artifact_rows(target)
+    )
     rows_by_timestamp: dict[
         str,
         list[tuple[Path, dict[str, Any], dict[str, Any]]],
@@ -87,37 +102,63 @@ def integrate_foreign_bundles(
                 (artifact, meta),
             )
 
+    proven_entry_count = sum(
+        _find_proven_current_v1_artifact(
+            target,
+            entry,
+            bundle,
+            owner.machine_name,
+            candidates=tuple(rows_by_timestamp.get(entry.artifact_timestamp, ())),
+        )
+        is not None
+        for entry, bundle in validated
+        if entry.machine == owner.machine_name
+    )
+    group_ownership = classify_legacy_v1_group_ownership(
+        group_machine,
+        owner,
+        LegacyV1GroupOwnershipEvidence(
+            v2_hood_published,
+            proven_entry_count,
+            len(validated),
+        ),
+    )
+    if group_ownership is LegacyV1GroupOwnershipClassification.OWNER_OBSERVED:
+        return IntegrationCounts(
+            unchanged=len(validated),
+            owner_observed_groups=1,
+        )
+
     integrated = 0
     refreshed = 0
     unchanged = 0
     for entry, bundle in validated:
-        if (
-            entry.machine == machine
-            and _find_proven_current_v1_artifact(
-                target,
-                entry,
-                bundle,
-                machine,
-                candidates=tuple(rows_by_timestamp.get(entry.artifact_timestamp, ())),
-            )
-            is not None
-        ):
-            unchanged += 1
-            continue
         imported = imported_by_identity.get((entry.name, entry.machine))
         if imported is not None:
             existing, existing_meta = imported
             if existing_meta.get("imported_digest") == entry.digest:
                 unchanged += 1
                 continue
-            _refresh_imported_artifact(existing, bundle, entry)
+            _refresh_imported_artifact(
+                existing,
+                bundle,
+                entry,
+                owner=owner,
+                group_ownership=group_ownership,
+            )
             imported_by_identity[(entry.name, entry.machine)] = (
                 existing,
                 {**existing_meta, "imported_digest": entry.digest},
             )
             refreshed += 1
             continue
-        _create_imported_artifact(target, bundle, entry)
+        _create_imported_artifact(
+            target,
+            bundle,
+            entry,
+            owner=owner,
+            group_ownership=group_ownership,
+        )
         integrated += 1
     return IntegrationCounts(integrated, refreshed, unchanged)
 
@@ -156,7 +197,11 @@ def _find_proven_current_v1_artifact(
             )
             is not None
         }
-        if source_shas & local_shas:
+        if any(
+            commit_shas_equivalent(source_sha, local_sha)
+            for source_sha in source_shas
+            for local_sha in local_shas
+        ):
             return artifact_dir
     return None
 
@@ -479,7 +524,11 @@ def _create_imported_artifact(
     target: ProjectTarget,
     bundle: AgentBundle,
     entry: ManifestEntry,
+    *,
+    owner: AgentOwnerIdentity,
+    group_ownership: LegacyV1GroupOwnershipClassification,
 ) -> None:
+    _guard_owner_observed_legacy_import(entry, owner, group_ownership)
     artifact_dir = _available_artifact_path(target, entry.artifact_timestamp)
     artifact_dir.parent.mkdir(parents=True, exist_ok=True)
     stage = Path(
@@ -496,6 +545,8 @@ def _create_imported_artifact(
             entry.machine,
             artifact_dir,
             digest=entry.digest,
+            target_owner=owner,
+            group_ownership=group_ownership,
         )
         os.replace(stage, artifact_dir)
     except Exception:
@@ -513,7 +564,11 @@ def _refresh_imported_artifact(
     artifact_dir: Path,
     bundle: AgentBundle,
     entry: ManifestEntry,
+    *,
+    owner: AgentOwnerIdentity,
+    group_ownership: LegacyV1GroupOwnershipClassification,
 ) -> None:
+    _guard_owner_observed_legacy_import(entry, owner, group_ownership)
     existing_meta = _read_json_object(artifact_dir / "agent_meta.json") or {}
     raw_chat_path = existing_meta.get("chat_path")
     chat_path = (
@@ -526,12 +581,28 @@ def _refresh_imported_artifact(
         entry.machine,
         artifact_dir,
         digest=entry.digest,
+        target_owner=owner,
+        group_ownership=group_ownership,
     )
     meta, done = _imported_markers(bundle, entry, chat_path)
     atomic_write_bytes(chat_path, bundle.chat_bytes)
     atomic_write_json(artifact_dir / "done.json", done)
     atomic_write_json(artifact_dir / "agent_meta.json", meta)
     update_agent_artifact_index_for_marker_mutation(artifact_dir)
+
+
+def _guard_owner_observed_legacy_import(
+    entry: ManifestEntry,
+    owner: AgentOwnerIdentity,
+    group_ownership: LegacyV1GroupOwnershipClassification,
+) -> None:
+    if (
+        group_ownership is LegacyV1GroupOwnershipClassification.OWNER_OBSERVED
+        and entry.machine == owner.machine_name
+    ):
+        raise AgentsSyncFormatError(
+            "refusing to import an owner-observed legacy v1 agent"
+        )
 
 
 def _imported_markers(

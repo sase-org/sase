@@ -9,7 +9,11 @@ from sase.agent.names import _registry
 from sase.agent.names._common import ImportedNameCollisionError, NameCollisionError
 from sase.agent.names._registry_mutations import ImportedV2RegistryClaim
 from sase.agents_sync.io import AgentsSyncFormatError
-from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+from sase.core.agent_identity_facade import (
+    AgentIdentitySnapshot,
+    AgentOwnerIdentity,
+    LegacyV1GroupOwnershipClassification,
+)
 
 
 def test_imported_claim_preserves_exact_unknown_foreign_hood(
@@ -54,6 +58,15 @@ def test_imported_claim_preserves_exact_unknown_foreign_hood(
     with pytest.raises(AgentsSyncFormatError, match="does not belong"):
         _registry.claim_imported_registered_name(
             "zeus.worker", "hera", artifact, digest="d" * 64
+        )
+    with pytest.raises(ImportedNameCollisionError, match="owner-observed"):
+        _registry.claim_imported_registered_name(
+            "athena.worker",
+            "athena",
+            artifact,
+            digest="e" * 64,
+            target_owner=AgentOwnerIdentity("alice", "athena"),
+            group_ownership=(LegacyV1GroupOwnershipClassification.OWNER_OBSERVED),
         )
 
 

@@ -10,6 +10,7 @@ import subprocess
 import pytest
 
 from sase.agents_sync import (
+    bundles,
     incoming_cache,
     incoming_detection,
     incoming_integration,
@@ -536,10 +537,10 @@ def test_username_unknown_v1_entries_are_grouped_by_machine_and_hood(
     seed.mkdir()
     entries: list[ManifestEntry] = []
     for index, role in enumerate(("plan", "code"), start=1):
-        name = f"zeus.crew--{role}"
+        name = f"athena.crew--{role}"
         metadata = PortableAgentMetadata(
             name,
-            "zeus",
+            "athena",
             f"2026072412000{index}",
             2,
         )
@@ -551,7 +552,7 @@ def test_username_unknown_v1_entries_are_grouped_by_machine_and_hood(
         entries.append(
             ManifestEntry(
                 name,
-                "zeus",
+                "athena",
                 digest,
                 metadata.artifact_timestamp,
                 "2026-07-24T12:00:00+00:00",
@@ -583,10 +584,48 @@ def test_username_unknown_v1_entries_are_grouped_by_machine_and_hood(
     item = current.pending_updates[0]
     assert item.format_version == 1
     assert item.source_username is None
-    assert item.source_machine == "zeus"
+    assert item.source_machine == "athena"
     assert item.top_hood == "crew"
     assert item.run_count == 2
     assert incoming_cache.load_validated_cache_item(item).legacy_manifest is not None
+
+    local = tmp_path / entries[0].artifact_timestamp
+    local.mkdir()
+    (local / "commit_result.json").write_text(
+        json.dumps({"result": "1" * 9}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        bundles,
+        "_v1_artifact_rows",
+        lambda _target: (
+            (
+                local,
+                {"name": "crew--plan"},
+                {"name": "crew--plan", "outcome": "completed"},
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        bundles,
+        "_create_imported_artifact",
+        lambda *_args, **_kwargs: pytest.fail("owner group was imported"),
+    )
+
+    cached = incoming_integration.integrate_cached_agent_updates((item,))
+    full = incoming_integration.integrate_agent_imports_with_receipts(
+        target,
+        target.sidecar_path,
+        LOCAL_OWNER,
+    )
+
+    assert cached[0].disposition == "owner_observed"
+    assert cached[0].ok
+    assert cached[0].unchanged == 2
+    assert full.integrated == 0
+    assert full.unchanged == 2
+    assert full.owner_observed_groups == 1
+    assert incoming_cache.read_project_receipts(PROJECT.key) == ()
 
 
 def test_owner_machine_v1_with_exact_owner_v2_coverage_is_not_pending(

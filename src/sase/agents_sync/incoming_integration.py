@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from pathlib import Path
 import re
 import time
@@ -48,6 +48,7 @@ from sase.agents_sync.v2_import_planning import (
     build_import_preflight_context,
 )
 from sase.agents_sync.v2_importer import integrate_v2_hoods
+from sase.agents_sync.v2_io import read_owner_manifest
 from sase.agents_sync.v2_models import V2ProjectIdentity
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import (
@@ -160,6 +161,7 @@ def integrate_cached_agent_updates(
                     identity,
                     git_runner=git_runner,
                 )
+                owner_v2_hoods = _current_owner_v2_hoods(target, owner)
             except AgentsSyncFormatError as exc:
                 for index, item in rows:
                     results[index] = _cached_result(
@@ -175,6 +177,7 @@ def integrate_cached_agent_updates(
                     owner,
                     receipts.get(item.source_hood_key),
                     preflight_context,
+                    owner_v2_hoods,
                 )
                 results[index] = result
                 if receipt is not None:
@@ -213,6 +216,7 @@ def integrate_agent_imports_with_receipts(
     )
     identity = AgentIdentitySnapshot(owner)
     total = IntegrationCounts(diagnostics=discovery.diagnostics)
+    owner_v2_hoods = _current_owner_v2_hoods(target, owner, repo=repo)
     preflight_context = (
         build_import_preflight_context(
             target,
@@ -254,9 +258,12 @@ def integrate_agent_imports_with_receipts(
                 target,
                 repo,
                 manifest,
-                owner.machine_name,
+                owner,
+                owner_v2_hoods=owner_v2_hoods,
             )
             total = _merge_counts(total, counts)
+            if counts.owner_observed_groups:
+                continue
             evidence = _direct_legacy_evidence(
                 target,
                 repo,
@@ -283,6 +290,7 @@ def _integrate_one_cached(
     owner: AgentOwnerIdentity,
     prior: AgentHoodImportReceipt | None,
     preflight_context: ImportPreflightContext,
+    owner_v2_hoods: Collection[str],
 ) -> tuple[CachedIntegrationResult, AgentHoodImportReceipt | None]:
     if prior is not None and prior.hood_digest == item.hood_digest:
         return CachedIntegrationResult(item, "already_applied"), None
@@ -322,10 +330,20 @@ def _integrate_one_cached(
                 target,
                 loaded.payload_root,
                 loaded.legacy_manifest,
-                owner.machine_name,
+                owner,
+                owner_v2_hoods=owner_v2_hoods,
             )
     except Exception as exc:  # noqa: BLE001 - import quarantine contract
         return _cached_result(item, "quarantined", str(exc)), None
+    if counts.owner_observed_groups:
+        return (
+            CachedIntegrationResult(
+                item,
+                "owner_observed",
+                unchanged=counts.unchanged,
+            ),
+            None,
+        )
     receipt = receipt_for_item(item)
     try:
         write_import_receipt(receipt)
@@ -379,6 +397,23 @@ def _direct_v2_evidence(
     )
 
 
+def _current_owner_v2_hoods(
+    target: ProjectTarget,
+    owner: AgentOwnerIdentity,
+    *,
+    repo: Path | None = None,
+) -> frozenset[str]:
+    try:
+        manifest = read_owner_manifest(
+            target.sidecar_path if repo is None else repo,
+            owner,
+            V2ProjectIdentity(target.project_key, target.project),
+        )
+    except (AgentsSyncFormatError, OSError, RuntimeError, ValueError):
+        return frozenset()
+    return frozenset(hood for hood, _entry in manifest.hoods)
+
+
 def _direct_legacy_evidence(
     target: ProjectTarget,
     repo: Path,
@@ -417,6 +452,9 @@ def _merge_counts(
         integrated=left.integrated + right.integrated,
         refreshed=left.refreshed + right.refreshed,
         unchanged=left.unchanged + right.unchanged,
+        owner_observed_groups=(
+            left.owner_observed_groups + right.owner_observed_groups
+        ),
         hoods_imported=left.hoods_imported + right.hoods_imported,
         hoods_refreshed=left.hoods_refreshed + right.hoods_refreshed,
         hoods_unchanged=left.hoods_unchanged + right.hoods_unchanged,
