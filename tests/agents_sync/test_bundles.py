@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from sase.agents_sync import bundles
-from sase.agents_sync.io import _compute_bundle_digest, write_bundle
+from sase.agents_sync.io import _compute_bundle_digest
 from sase.agents_sync.models import (
     AgentBundle,
     AgentsManifest,
@@ -17,6 +17,8 @@ from sase.agents_sync.models import (
     ProjectTarget,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+
+from tests.agents_sync.bundle_fixtures import write_bundle
 
 LOCAL_OWNER = AgentOwnerIdentity("alice", "athena")
 

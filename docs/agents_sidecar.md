@@ -51,7 +51,9 @@ execution state. A publication is fully built and validated before rollback-safe
 cannot leave a half-rendered hood.
 
 Existing top-level v1 `manifest.json` and `agents/<machine-qualified-name>` bundles are left untouched. Sync can still
-read those records for compatibility, but it no longer creates or refreshes v1 transport data.
+read those records for compatibility, but it no longer creates or refreshes v1 transport data. `sase agent retire-v1` is
+the only path that removes them, and only under the explicit evidence gate described in
+[Legacy v1 limitations](#legacy-v1-limitations).
 
 ## Scope and reconciliation
 
@@ -179,22 +181,22 @@ sase agent sync --check --json
 
 Neither check mode imports agent history, publishes local hoods, changes the sidecar worktree, commits, or pushes.
 Without `--refresh`, `--check` does not run Git or scan local agent artifacts: it reconciles persisted incoming-hood
-entries against import receipts and rewrites the status snapshot while carrying forward previously recorded Git and
-unexported-agent counts. Those diagnostic counts can therefore be absent or stale.
+entries against import receipts and rewrites the status snapshot while carrying forward previously recorded Git counts.
+Those diagnostic counts can therefore be absent or stale.
 
 `--check --refresh` is the networked detection path. It fetches remote refs, validates the fetched agents commit without
 checking it out, stores independently valid incoming hoods from other owners in the local incoming cache, and recomputes
-ahead, behind, and legacy unexported-agent counts. Exact-current-owner hoods are observed but do not become pending
-updates. `--refresh` is rejected unless `--check` is also present. Use `--json` to inspect cached `pending_updates`,
-quarantine diagnostics, and the fetched ref and commit.
+ahead and behind counts. Exact-current-owner hoods — including owner-observed legacy v1 groups — are observed but do not
+become pending updates. `--refresh` is rejected unless `--check` is also present. Use `--json` to inspect cached
+`pending_updates`, quarantine diagnostics, and the fetched ref and commit.
 
 ## ACE integration
 
 ACE performs a networked detection check after first paint and then checks enabled agents repositories periodically. The
 green `⇅ N` badge counts only validated incoming hoods from other owners already captured in the incoming cache and not
 covered by an import receipt. Same-user/other-machine and other-user/same-machine hoods are incoming from another owner;
-exact-current-owner changes are not. Local ahead/unexported work, missing or disabled sidecars, Git behind counts, and
-errors remain available in CLI diagnostics but do not light the badge.
+exact-current-owner changes are not. Local ahead work, missing or disabled sidecars, Git behind counts, and errors
+remain available in CLI diagnostics but do not light the badge.
 
 Hover the badge for the project, source owner, hood, run, and family counts represented by that immutable snapshot.
 Clicking it imports exactly those displayed cache items as a tracked task. That path does not fetch, pull, push, export,
@@ -240,6 +242,34 @@ All Git, validation, cache import, and full-sync work runs outside the Textual e
 
 V1's top-level manifest and `agents/<machine-qualified-name>` files remain in place and read-only. A v1 row has no
 trustworthy username owner. SASE therefore treats it as foreign/unknown by default, imports it through the compatibility
-path when valid, and never republishes it as locally owned v2 data. Only matching local artifact or commit evidence can
-promote a current-machine v1 row to the configured v2 identity. A shared machine token alone is never proof of
+path when valid, and never republishes it as locally owned v2 data. A shared machine token alone is never proof of
 ownership, and v1 cannot reconstruct the complete transactional family and relationship state guaranteed by v2.
+
+### Owner-observed v1 groups
+
+A v1 manifest group whose machine token matches the current owner's machine is reclassified as **owner-observed** — this
+machine's own history rather than incoming work — when either kind of first-party evidence holds:
+
+- the current owner's v2 manifest already publishes that hood, or
+- an entry in the group matches a local non-imported artifact by timestamp and machine-qualified name and shares a
+  commit SHA, compared with prefix-aware equivalence so an abbreviated local marker matches a full sidecar SHA.
+
+Owner-observed groups count as exact-owner, never enter the incoming cache, never light the badge, and are recorded
+`unchanged` instead of imported. Both the cached `,U` leg and full sync share that verdict, neither writes an import
+receipt for such a group, and the name registry rejects an owner-machine legacy claim as a backstop. Everything else
+stays foreign, including any v1 group on a different machine and any same-machine group with no evidence.
+
+### Retiring this machine's v1 payload
+
+`sase agent retire-v1` removes the current machine's legacy-v1 payload once the owner's v2 manifest fully covers it:
+
+```bash
+sase agent retire-v1
+sase agent retire-v1 -p project-alias --json
+sase agent retire-v1 --apply
+```
+
+It is a dry run unless `--apply` is supplied, refuses and prints the uncovered hoods when any current-machine v1 hood is
+missing from the owner's v2 manifest, and removes only this machine's rows — another machine's v1 entries and bundles
+are left in place. `--apply` commits and pushes through the same locked sync transaction as ordinary publication, and
+Git history keeps the removed payload recoverable.

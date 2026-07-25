@@ -13,20 +13,18 @@ import tempfile
 from typing import Any
 
 from sase.agent.names import claim_imported_registered_name
-from sase.agents_sync.git import GitRunner, run_git
+from sase.agents_sync.git import GitRunner
 from sase.agents_sync.incoming_cache_legacy import legacy_group_machine_hood
 from sase.agents_sync.io import (
     AgentsSyncFormatError,
     atomic_write_bytes,
     atomic_write_json,
     read_bundle,
-    write_bundle,
 )
 from sase.agents_sync.models import (
     AgentBundle,
     AgentsManifest,
     CommitRecord,
-    ExportCounts,
     IntegrationCounts,
     ManifestEntry,
     ProjectTarget,

@@ -567,13 +567,12 @@ is independent of the `sase vcs log` CLI's sidecar opt-in and limit contract.
 
 Both intervals must be greater than zero. ACE schedules the first check after its initial paint, coalesces overlapping
 checks, and keeps the network-fetch cadence separate from the cheaper cache/receipt reconciliation cadence. Only a
-remote recomputation runs Git and refreshes ahead, behind, and legacy unexported-agent counts; the cheaper pass carries
-those diagnostic values forward. Neither value controls the badge. The badge counts only validated incoming hoods from
-other owners in the immutable incoming cache whose digests are not covered by import receipts. Clicking it imports
-exactly the displayed cache items without any fetch, pull, push, export, or sidecar-checkout mutation. Hiding the
-indicator also disables the periodic ACE status scheduler, but it does not disable `sase agent sync`, Updates-pane `a`,
-commit-triggered hood publication, or the `,U` cached-integration leg. See
-[Agent Hood Synchronization](agents_sidecar.md).
+remote recomputation runs Git and refreshes ahead and behind counts; the cheaper pass carries those diagnostic values
+forward. Neither value controls the badge. The badge counts only validated incoming hoods from other owners in the
+immutable incoming cache whose digests are not covered by import receipts. Clicking it imports exactly the displayed
+cache items without any fetch, pull, push, export, or sidecar-checkout mutation. Hiding the indicator also disables the
+periodic ACE status scheduler, but it does not disable `sase agent sync`, Updates-pane `a`, commit-triggered hood
+publication, or the `,U` cached-integration leg. See [Agent Hood Synchronization](agents_sidecar.md).
 
 #### `ace.tribes`
 

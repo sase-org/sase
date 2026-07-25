@@ -334,22 +334,6 @@ def read_bundle(repo_root: Path, entry: ManifestEntry) -> AgentBundle:
     return AgentBundle(metadata, commits, chat_bytes, digest)
 
 
-def write_bundle(repo_root: Path, bundle: AgentBundle) -> None:
-    """Atomically replace the three files in one transport bundle."""
-
-    bundle_dir = repo_root / "agents" / bundle.metadata.name
-    bundle_dir.mkdir(parents=True, exist_ok=True)
-    atomic_write_json(bundle_dir / "meta.json", bundle.metadata.to_json_dict())
-    atomic_write_json(
-        bundle_dir / "commits.json",
-        {
-            "schema_version": BUNDLE_SCHEMA_VERSION,
-            "commits": [record.to_json_dict() for record in bundle.commits],
-        },
-    )
-    atomic_write_bytes(bundle_dir / "chat.md", bundle.chat_bytes)
-
-
 def atomic_write_json(path: Path, value: object) -> None:
     payload = (
         json.dumps(
@@ -434,5 +418,4 @@ __all__ = [
     "read_manifest",
     "validate_machine",
     "validate_qualified_name",
-    "write_bundle",
 ]

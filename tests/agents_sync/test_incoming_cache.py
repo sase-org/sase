@@ -18,11 +18,7 @@ from sase.agents_sync import (
 )
 from sase.agents_sync.git import run_git
 from sase.agents_sync.inventory import InventoryRun, ProjectHoodInventory
-from sase.agents_sync.io import (
-    _compute_bundle_digest,
-    atomic_write_json,
-    write_bundle,
-)
+from sase.agents_sync.io import _compute_bundle_digest, atomic_write_json
 from sase.agents_sync.models import (
     AgentBundle,
     AgentsManifest,
@@ -36,6 +32,8 @@ from sase.agents_sync.models import (
 from sase.agents_sync.publication import publish_agent_hood
 from sase.agents_sync.v2_models import V2ProjectIdentity
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+
+from tests.agents_sync.bundle_fixtures import write_bundle
 
 PROJECT = V2ProjectIdentity("proj", "Project")
 LOCAL_OWNER = AgentOwnerIdentity("alice", "athena")
