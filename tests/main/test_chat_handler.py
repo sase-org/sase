@@ -12,6 +12,12 @@ import pytest
 from sase.chat.cli_list import handle_chat_list
 from sase.chat.cli_show import handle_chat_show
 from sase.history.chat_catalog import ChatTranscriptInfo
+from sase.history.chat_catalog_provenance import (
+    CHAT_PROVENANCE_VALUES,
+    ChatCatalogEntry,
+    ChatCatalogSnapshot,
+    chat_provenance_badge,
+)
 from sase.main.chat_handler import handle_chat_command
 from sase.main.parser import create_parser
 
@@ -69,6 +75,84 @@ def _info(**overrides: Any) -> ChatTranscriptInfo:
     return ChatTranscriptInfo(**defaults)
 
 
+def _entry(**overrides: Any) -> ChatCatalogEntry:
+    defaults: dict[str, Any] = {
+        "provenance": "local",
+        "source_machine": "athena",
+        "source_username": "alice",
+        "project_key": "sase",
+        "agent_artifact_dir": "/abs/artifacts/run/260429_101500",
+        "agent_local_name": "alpha",
+        "agent_global_name": "athena.alpha",
+        "sidecar_repo": None,
+        "sidecar_relpath": None,
+        "publication_pending": False,
+        "publication_last_error": None,
+    }
+    provenance_keys = set(defaults)
+    defaults.update({k: v for k, v in overrides.items() if k in provenance_keys})
+    info = _info(**{k: v for k, v in overrides.items() if k not in provenance_keys})
+    return ChatCatalogEntry(
+        path=info.path,
+        absolute_path=info.absolute_path,
+        basename=info.basename,
+        mtime=info.mtime,
+        size_bytes=info.size_bytes,
+        workflow=info.workflow,
+        agent=info.agent,
+        timestamp=info.timestamp,
+        prompt_snippet=info.prompt_snippet,
+        response_snippet=info.response_snippet,
+        **defaults,
+    )
+
+
+def _snapshot(entries: list[ChatCatalogEntry]) -> ChatCatalogSnapshot:
+    return ChatCatalogSnapshot(
+        entries=tuple(entries),
+        provenance_counts={
+            value: sum(e.provenance == value for e in entries)
+            for value in CHAT_PROVENANCE_VALUES
+        },
+        remote_machines=frozenset(
+            e.source_machine
+            for e in entries
+            if e.provenance == "remote" and e.source_machine
+        ),
+        truncated=False,
+    )
+
+
+def _fake_catalog(entries: list[ChatCatalogEntry]) -> Any:
+    """A ``load_chat_catalog`` stand-in that applies the CLI-level filters."""
+
+    calls: list[dict[str, Any]] = []
+
+    def loader(**kwargs: Any) -> ChatCatalogSnapshot:
+        calls.append(kwargs)
+        provenance = kwargs.get("provenance")
+        machine = kwargs.get("machine")
+        limit = kwargs.get("limit")
+        selected = [
+            entry
+            for entry in entries
+            if (provenance is None or entry.provenance == provenance)
+            and (
+                machine is None
+                or (
+                    entry.source_machine is not None
+                    and entry.source_machine.casefold() == machine.casefold()
+                )
+            )
+        ]
+        if limit is not None:
+            selected = selected[:limit]
+        return _snapshot(selected)
+
+    loader.calls = calls  # type: ignore[attr-defined]
+    return loader
+
+
 # ===========================================================================
 # parser
 # ===========================================================================
@@ -118,6 +202,44 @@ def test_parser_list_short_options() -> None:
     args = parser.parse_args(["chat", "list", "-q", "foo"])
     assert args.query == "foo"
     assert args.limit == 20  # default
+    assert args.machine is None
+    assert args.provenance is None
+
+
+def test_parser_list_provenance_filters() -> None:
+    parser = create_parser()
+    args = parser.parse_args(["chat", "list", "-P", "remote", "-m", "zeus"])
+    assert args.provenance == "remote"
+    assert args.machine == "zeus"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["chat", "list", "-P", "bogus"])
+
+
+def test_parser_list_provenance_choices_match_catalog() -> None:
+    """The CLI choices must not drift from the catalog's provenance states."""
+    subparser = _chat_list_subparser()
+    choices = next(
+        tuple(action.choices or ())
+        for action in subparser._actions  # noqa: SLF001 - argparse has no public view
+        if action.dest == "provenance"
+    )
+    assert choices == CHAT_PROVENANCE_VALUES
+
+
+def _chat_list_subparser() -> argparse.ArgumentParser:
+    parser = create_parser()
+    command_action = next(
+        action
+        for action in parser._actions  # noqa: SLF001 - argparse offers no public view
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    chat_parser = command_action.choices["chat"]
+    chat_action = next(
+        action
+        for action in chat_parser._actions  # noqa: SLF001 - see above
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    return chat_action.choices["list"]
 
 
 # ===========================================================================
@@ -147,7 +269,13 @@ def test_dispatch_unknown_subcommand(capsys: pytest.CaptureFixture[str]) -> None
 
 
 def _list_args(**overrides: Any) -> argparse.Namespace:
-    defaults: dict[str, Any] = {"json": False, "limit": 20, "query": None}
+    defaults: dict[str, Any] = {
+        "json": False,
+        "limit": 20,
+        "machine": None,
+        "provenance": None,
+        "query": None,
+    }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
 
@@ -192,7 +320,19 @@ def test_list_json_shape_and_key_order(
         "timestamp",
         "prompt_snippet",
         "response_snippet",
+        "provenance",
+        "source_machine",
+        "source_username",
+        "project_key",
+        "agent_artifact_dir",
+        "agent_local_name",
+        "agent_global_name",
+        "sidecar_repo",
+        "sidecar_relpath",
+        "publication_pending",
+        "publication_last_error",
     ]
+    assert row["provenance"] in CHAT_PROVENANCE_VALUES
     assert row["basename"] == "branch-run-planner-260429_101500"
     assert row["workflow"] == "run"
     assert row["agent"] == "planner"
@@ -218,12 +358,12 @@ def test_list_projects_only_local_machine_hood(
         "current",
         classmethod(lambda _cls: identity),
     )
-    infos = [
-        _info(agent="athena.alpha"),
-        _info(agent="zeus.beta", basename="foreign"),
+    entries = [
+        _entry(agent="athena.alpha"),
+        _entry(agent="zeus.beta", basename="foreign"),
     ]
 
-    with patch("sase.chat.cli_list.list_chat_transcripts", return_value=infos):
+    with patch("sase.chat.cli_list.load_chat_catalog", _fake_catalog(entries)):
         handle_chat_list(_list_args(json=True))
 
     rows = json.loads(capsys.readouterr().out)
@@ -257,27 +397,94 @@ def test_list_query(
 
 
 def test_list_pretty_table_renders(
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The pretty table delegates to list_chat_transcripts and renders rows."""
-    infos = [
-        _info(basename="alpha-run-260429_101500", agent="alpha"),
-        _info(basename="beta-run-260429_101501", agent="beta"),
+    """The pretty table delegates to load_chat_catalog and renders rows."""
+    monkeypatch.setenv("COLUMNS", "200")
+    entries = [
+        _entry(basename="alpha-run-260429_101500", agent="alpha"),
+        _entry(basename="beta-run-260429_101501", agent="beta"),
     ]
-    with patch("sase.chat.cli_list.list_chat_transcripts", return_value=infos):
+    with patch("sase.chat.cli_list.load_chat_catalog", _fake_catalog(entries)):
         handle_chat_list(_list_args(json=False))
     out = capsys.readouterr().out
     assert "Chat Transcripts (2)" in out
     assert "alpha-run-260429_101500" in out
     assert "beta-run-260429_101501" in out
+    # The table trims the ISO mtime to minute precision; JSON keeps it whole.
+    assert "2026-04-29 10:15" in out
+    assert "10:15:08-04:00" not in out
 
 
 def test_list_pretty_empty(capsys: pytest.CaptureFixture[str]) -> None:
-    with patch("sase.chat.cli_list.list_chat_transcripts", return_value=[]):
+    with patch("sase.chat.cli_list.load_chat_catalog", _fake_catalog([])):
         handle_chat_list(_list_args(json=False))
     out = capsys.readouterr().out
     assert "Chat Transcripts (0)" in out
     assert "No chat transcripts found" in out
+
+
+def test_list_pretty_renders_every_provenance_state(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Every provenance state renders its own badge without raising."""
+    monkeypatch.setenv("COLUMNS", "200")
+    entries = [
+        _entry(
+            basename=f"{provenance}-run-260429_10150{index}",
+            provenance=provenance,
+            source_machine="zeus" if provenance == "remote" else "athena",
+        )
+        for index, provenance in enumerate(CHAT_PROVENANCE_VALUES)
+    ]
+    with patch("sase.chat.cli_list.load_chat_catalog", _fake_catalog(entries)):
+        handle_chat_list(_list_args(json=False))
+    out = capsys.readouterr().out
+    assert "SYNC" in out
+    assert "MACHINE" in out
+    for provenance in CHAT_PROVENANCE_VALUES:
+        badge = chat_provenance_badge(provenance)
+        assert badge.glyph in out
+        if provenance != "unknown":
+            assert badge.label in out
+    assert "zeus" in out
+
+
+def test_list_forwards_provenance_and_machine_filters(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    entries = [
+        _entry(basename="local-chat", provenance="local", source_machine="athena"),
+        _entry(basename="remote-chat", provenance="remote", source_machine="zeus"),
+        _entry(basename="other-remote", provenance="remote", source_machine="hermes"),
+    ]
+    loader = _fake_catalog(entries)
+    with patch("sase.chat.cli_list.load_chat_catalog", loader):
+        handle_chat_list(_list_args(json=True, provenance="remote"))
+    rows = json.loads(capsys.readouterr().out)
+    assert [row["basename"] for row in rows] == ["remote-chat", "other-remote"]
+    assert loader.calls[-1]["provenance"] == "remote"
+
+    with patch("sase.chat.cli_list.load_chat_catalog", loader):
+        handle_chat_list(_list_args(json=True, machine="ZEUS"))
+    rows = json.loads(capsys.readouterr().out)
+    assert [row["basename"] for row in rows] == ["remote-chat"]
+    assert loader.calls[-1]["machine"] == "ZEUS"
+
+
+def test_list_ignores_unrecognized_provenance_value(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A bogus provenance value degrades to "no filter" instead of raising."""
+    entries = [_entry(basename="local-chat", provenance="local")]
+    loader = _fake_catalog(entries)
+    with patch("sase.chat.cli_list.load_chat_catalog", loader):
+        handle_chat_list(_list_args(json=True, provenance="bogus"))
+    rows = json.loads(capsys.readouterr().out)
+    assert [row["basename"] for row in rows] == ["local-chat"]
+    assert loader.calls[-1]["provenance"] is None
 
 
 # ===========================================================================

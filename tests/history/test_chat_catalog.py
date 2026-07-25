@@ -9,9 +9,10 @@ from sase.history.chat_catalog import (
     ChatRefError,
     ChatTranscriptInfo,
     chat_info_to_json,
-    list_chat_transcripts,
+    read_chat_transcript_info,
     resolve_chat_ref,
 )
+from sase.history.chat_catalog_provenance import ChatCatalogEntry, load_chat_catalog
 
 from tests.conftest import redirect_sase_home
 
@@ -89,8 +90,17 @@ def _write_named_agent(
     return artifact_dir
 
 
+def _list_transcripts(
+    *,
+    limit: int | None = None,
+    query: str | None = None,
+) -> list[ChatCatalogEntry]:
+    """Newest-first transcripts as the CLI sees them, via the catalog."""
+    return list(load_chat_catalog(limit=limit, query=query).entries)
+
+
 # ---------------------------------------------------------------------------
-# list_chat_transcripts
+# transcript discovery and header parsing
 # ---------------------------------------------------------------------------
 
 
@@ -107,7 +117,7 @@ def test_list_finds_sharded_and_legacy(
         prompt="from a synced machine",
     )
 
-    infos = list_chat_transcripts()
+    infos = _list_transcripts()
     paths = {info.absolute_path for info in infos}
     assert str(sharded) in paths
     assert str(legacy) in paths
@@ -123,7 +133,7 @@ def test_list_deduplicates_imported_duplicate_basename(
     os.utime(sharded, (1_700_000_000, 1_700_000_000))
     os.utime(imported, (1_800_000_000, 1_800_000_000))
 
-    infos = list_chat_transcripts()
+    infos = _list_transcripts()
 
     assert [info.absolute_path for info in infos] == [str(sharded)]
 
@@ -136,7 +146,7 @@ def test_list_newest_first(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     os.utime(older, (1_700_000_000, 1_700_000_000))
     os.utime(newer, (1_800_000_000, 1_800_000_000))
 
-    infos = list_chat_transcripts()
+    infos = _list_transcripts()
     assert infos[0].absolute_path == str(newer)
     assert infos[1].absolute_path == str(older)
 
@@ -145,7 +155,7 @@ def test_list_limit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = _setup_fake_home(monkeypatch, tmp_path)
     for i in range(5):
         _write_chat(home, f"branch-run-26042{i}_101500")
-    infos = list_chat_transcripts(limit=2)
+    infos = _list_transcripts(limit=2)
     assert len(infos) == 2
 
 
@@ -157,10 +167,10 @@ def test_list_query_matches_path_or_content(
     _write_chat(home, "beta-run-260429_101501", prompt="quick brown fox")
     _write_chat(home, "gamma-run-260429_101502", prompt="completely unrelated")
 
-    by_path = list_chat_transcripts(query="alpha")
+    by_path = _list_transcripts(query="alpha")
     assert [i.basename for i in by_path] == ["alpha-run-260429_101500"]
 
-    by_content = list_chat_transcripts(query="brown fox")
+    by_content = _list_transcripts(query="brown fox")
     assert [i.basename for i in by_content] == ["beta-run-260429_101501"]
 
 
@@ -176,7 +186,7 @@ def test_list_populates_snippets_and_header_fields(
         prompt="Can you help me?",
         response="Implemented the foo.",
     )
-    [info] = list_chat_transcripts()
+    [info] = _list_transcripts()
     assert info.workflow == "run"
     assert info.agent == "planner"
     assert info.timestamp == "260429_101500"
@@ -204,7 +214,7 @@ def test_list_tolerates_multi_agent_prompt_metadata_bullet(
         encoding="utf-8",
     )
 
-    [info] = list_chat_transcripts()
+    [info] = _list_transcripts()
 
     assert info.workflow == "ace-run"
     assert info.agent == "alpha"
@@ -223,7 +233,7 @@ def test_list_tolerates_malformed_transcript(
     bad.write_bytes(b"\xff\xfe not really markdown")
     _write_chat(home, "good-run-260429_101501")
 
-    infos = list_chat_transcripts()
+    infos = _list_transcripts()
     basenames = {i.basename for i in infos}
     assert "garbled-260429_101500" in basenames
     assert "good-run-260429_101501" in basenames
@@ -250,7 +260,7 @@ def test_list_handles_giant_transcript_without_full_read(
     # ~2 MB tail to confirm we don't read it all.
     big.write_text(head + ("x" * (2 * 1024 * 1024)), encoding="utf-8")
 
-    [info] = list_chat_transcripts()
+    [info] = _list_transcripts()
     assert info.prompt_snippet == "short prompt"
     assert info.response_snippet == "short response"
     assert info.size_bytes > 2 * 1024 * 1024
@@ -265,8 +275,9 @@ def test_chat_info_to_json_stable_key_order(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     home = _setup_fake_home(monkeypatch, tmp_path)
-    _write_chat(home, "branch-run-260429_101500")
-    [info] = list_chat_transcripts()
+    path = _write_chat(home, "branch-run-260429_101500")
+    info = read_chat_transcript_info(path)
+    assert info is not None
     payload = chat_info_to_json(info)
     assert list(payload.keys()) == [
         "path",

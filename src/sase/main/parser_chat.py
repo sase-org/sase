@@ -17,6 +17,13 @@ def register_chat_parser(subparsers: argparse._SubParsersAction) -> None:
     list_parser = chat_sub.add_parser(
         "list",
         help="List recent chat transcripts (pretty table by default, JSON with -j)",
+        description=(
+            "List recent chat transcripts, newest first, with the sync"
+            " provenance of each one: 'local' (written here, not published),"
+            " 'shared' (written here and published to an agents sidecar),"
+            " 'remote' (imported from another machine), or 'unknown'"
+            " (provenance could not be determined)."
+        ),
     )
     list_parser.add_argument(
         "-j",
@@ -30,6 +37,23 @@ def register_chat_parser(subparsers: argparse._SubParsersAction) -> None:
         type=int,
         default=20,
         help="Maximum number of transcripts to return (default: 20)",
+    )
+    list_parser.add_argument(
+        "-m",
+        "--machine",
+        default=None,
+        help=(
+            "Only show transcripts whose source machine matches this name"
+            " (case-insensitive); remote transcripts report their origin"
+            " machine, local and shared ones report this machine"
+        ),
+    )
+    list_parser.add_argument(
+        "-P",
+        "--provenance",
+        choices=("local", "shared", "remote", "unknown"),
+        default=None,
+        help="Only show transcripts with this sync provenance",
     )
     list_parser.add_argument(
         "-q",

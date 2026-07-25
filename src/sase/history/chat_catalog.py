@@ -11,15 +11,21 @@ The dataclass :class:`ChatTranscriptInfo` is the primary catalog row and
 suitable for ``sase chat list -j``.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.core.time import get_timezone
-from sase.history.chat_storage import iter_chat_files, resolve_chat_file_path
+from sase.history.chat_storage import resolve_chat_file_path
+
+if TYPE_CHECKING:
+    from sase.history.chat_catalog_provenance.models import ChatCatalogEntry
 
 # ---------------------------------------------------------------------------
 # Parsing helpers
@@ -41,7 +47,7 @@ _RESPONSE_HEADER_RE = re.compile(r"^#{1,6}\s+Response\s*$", re.MULTILINE)
 _ANY_HEADING_RE = re.compile(r"^#{1,6}\s+\S", re.MULTILINE)
 
 # Bound how much of each transcript is read for snippet/query purposes so a
-# single huge transcript cannot make ``list_chat_transcripts`` slow.
+# single huge transcript can make catalog construction slow.
 _READ_LIMIT_BYTES = 64 * 1024
 _SNIPPET_MAX_CHARS = 140
 
@@ -172,64 +178,22 @@ def read_chat_transcript_info(
 # ---------------------------------------------------------------------------
 
 
-def list_chat_transcripts(
-    limit: int | None = None,
-    query: str | None = None,
-) -> list[ChatTranscriptInfo]:
-    """List chat transcripts, newest first.
-
-    Iterates ``~/.sase/chats`` (sharded ``YYYYMM/``, legacy top-level, plus
-    imported non-shard directories) and returns one
-    :class:`ChatTranscriptInfo` per readable ``*.md`` file.
-
-    Args:
-        limit: If set, return at most this many entries after sorting.
-        query: Case-insensitive substring filter applied to path/basename
-            first, then to a bounded head of the transcript content.
-
-    Returns:
-        Newest-first list of :class:`ChatTranscriptInfo`.
-    """
-    entries: list[tuple[Path, float]] = []
-    for p in iter_chat_files():
-        try:
-            mtime = p.stat().st_mtime
-        except OSError:
-            continue
-        entries.append((p, mtime))
-    entries.sort(key=lambda e: e[1], reverse=True)
-
-    q = query.lower() if query else None
-    results: list[ChatTranscriptInfo] = []
-    for p, mtime in entries:
-        path_str = str(p)
-        head: str | None = None
-        if q is not None:
-            cheap = q in path_str.lower() or q in p.name.lower()
-            if not cheap:
-                head = _read_head(p)
-                if q not in head.lower():
-                    continue
-        if head is None:
-            head = _read_head(p)
-        info = _build_info(p, mtime, head)
-        if info is None:
-            continue
-        results.append(info)
-        if limit is not None and len(results) >= limit:
-            break
-    return results
-
-
-def chat_info_to_json(info: ChatTranscriptInfo) -> dict[str, object]:
+def chat_info_to_json(
+    info: ChatTranscriptInfo | ChatCatalogEntry,
+) -> dict[str, object]:
     """Return a stable-key-ordered dict for JSON serialization.
 
     The order matches the documented ``sase chat list -j`` shape so the
     resulting JSON is diff-friendly across runs.  ``absolute_path`` is
     intentionally omitted from the public JSON; callers that want it can
     use the dataclass field directly.
+
+    When ``info`` is a provenance-aware
+    :class:`~sase.history.chat_catalog_provenance.models.ChatCatalogEntry`,
+    the provenance fields are appended *after* the keys above so the
+    documented key order stays stable for existing consumers.
     """
-    return {
+    payload: dict[str, object] = {
         "path": info.path,
         "basename": info.basename,
         "mtime": info.mtime,
@@ -240,6 +204,23 @@ def chat_info_to_json(info: ChatTranscriptInfo) -> dict[str, object]:
         "prompt_snippet": info.prompt_snippet,
         "response_snippet": info.response_snippet,
     }
+    if not isinstance(info, ChatTranscriptInfo):
+        payload.update(
+            {
+                "provenance": info.provenance,
+                "source_machine": info.source_machine,
+                "source_username": info.source_username,
+                "project_key": info.project_key,
+                "agent_artifact_dir": info.agent_artifact_dir,
+                "agent_local_name": info.agent_local_name,
+                "agent_global_name": info.agent_global_name,
+                "sidecar_repo": info.sidecar_repo,
+                "sidecar_relpath": info.sidecar_relpath,
+                "publication_pending": info.publication_pending,
+                "publication_last_error": info.publication_last_error,
+            }
+        )
+    return payload
 
 
 def resolve_chat_ref(
