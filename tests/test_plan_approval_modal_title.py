@@ -92,6 +92,24 @@ def test_modal_constructor_accepts_provider_model_and_authored_tier() -> None:
     assert modal._gate.options[0].label == "Epic"
 
 
+def test_modal_constructor_copy_path_falls_back_to_reviewed_plan() -> None:
+    modal = PlanApprovalModal("/tmp/reviewed-plan.md")
+
+    assert modal._copy_plan_path == "/tmp/reviewed-plan.md"
+
+
+def test_bindings_swap_path_and_full_contents_shortcuts() -> None:
+    assert ("y", "copy_plan_path", "Copy path") in PlanApprovalModal.BINDINGS
+    assert ("Y", "copy_plan", "Copy all contents") in PlanApprovalModal.BINDINGS
+
+
+def test_footer_names_path_and_full_contents_shortcuts() -> None:
+    footer = PlanApprovalModal("/tmp/plan.md")._footer_text().plain
+
+    assert "y=Copy path" in footer
+    assert "Y=Copy all contents" in footer
+
+
 def test_bindings_use_shared_branch_actions_and_drop_presets() -> None:
     actions = {
         binding.action if isinstance(binding, Binding) else binding[1]
@@ -190,6 +208,35 @@ async def test_plan_document_uses_two_pane_shell_and_border_title(tmp_path) -> N
             "review-plan.md"
             not in modal.query_one("#plan-approval-title", Static).render().plain
         )
+
+
+async def test_copy_shortcuts_use_durable_path_and_all_preloaded_content(
+    tmp_path, monkeypatch
+) -> None:
+    home = tmp_path / "home"
+    reviewed_plan = tmp_path / "requests" / "plan.md"
+    durable_plan = home / ".sase" / "plans" / "202607" / "durable-plan.md"
+    content = "---\ntier: tale\n---\n# Complete plan\n\nFinal byte."
+    copied: list[str] = []
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plan_approval_modal.copy_to_system_clipboard",
+        lambda value: copied.append(value) or True,
+    )
+    modal = PlanApprovalModal(
+        str(reviewed_plan),
+        copy_plan_path=str(durable_plan),
+        plan_content=content,
+    )
+
+    async with _TestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.press("Y")
+        await pilot.pause()
+
+    assert copied == ["~/.sase/plans/202607/durable-plan.md", content]
 
 
 async def test_breakpoint_classes_switch_between_narrow_and_wide(tmp_path) -> None:

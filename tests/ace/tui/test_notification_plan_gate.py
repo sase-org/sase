@@ -120,6 +120,10 @@ async def test_plan_modal_bundle_loading_stays_off_the_message_pump(
         modal = pilot.app.screen
         assert isinstance(modal, PlanApprovalModal)
         assert modal._plan_content is not None
+        assert modal._plan_file == str(
+            paths.INTERACTION_REQUESTS_DIR / "plan" / "tui-async-branches" / "plan.md"
+        )
+        assert modal._copy_plan_path == str(plan)
         assert modal._gate.branches[0] == ("approve", "commit")
         coder_label = str(modal.query_one("#gate-option-0-0", Button).label)
         assert "🚀" in coder_label

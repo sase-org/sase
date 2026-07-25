@@ -45,8 +45,8 @@ _PLAN_GATE_STATIC_BINDINGS = [
     ("d", "debug_view", "Debug"),
     ("c", "custom", "Custom"),
     ("e", "edit", "Edit"),
-    ("y", "copy_plan", "Copy"),
-    ("Y", "copy_plan_path", "Copy path"),
+    ("y", "copy_plan_path", "Copy path"),
+    ("Y", "copy_plan", "Copy all contents"),
     ("ctrl+d", "scroll_down", "Scroll down"),
     ("ctrl+u", "scroll_up", "Scroll up"),
     ("g", "scroll_to_top", "Top"),
@@ -220,6 +220,7 @@ class PlanApprovalModal(
         plan_file: str,
         pending_approve_state: PendingApproveState | None = None,
         *,
+        copy_plan_path: str | None = None,
         llm_provider: str | None = None,
         model: str | None = None,
         default_choice: PlanApprovalChoice | None = None,
@@ -234,6 +235,8 @@ class PlanApprovalModal(
             plan_file: Path to the plan markdown file.
             pending_approve_state: If set, auto-push the custom approval modal on mount
                 with the given state (used after prompt editing round-trip).
+            copy_plan_path: Durable plan path copied by the path shortcut. Falls back
+                to ``plan_file`` for direct and legacy callers.
             llm_provider: Provider that produced the plan (e.g. "claude"), for
                 display in the modal title. Optional — when absent the title
                 omits the provider badge.
@@ -242,6 +245,7 @@ class PlanApprovalModal(
         """
         super().__init__()
         self._plan_file = plan_file
+        self._copy_plan_path = copy_plan_path or plan_file
         self._pending_approve_state = pending_approve_state
         self._llm_provider = llm_provider
         self._model = model
@@ -341,9 +345,9 @@ class PlanApprovalModal(
         hints.append("e", style="blue")
         hints.append("=Edit  ")
         hints.append("y", style="cyan")
-        hints.append("=Copy  ")
-        hints.append("Y", style="cyan")
         hints.append("=Copy path  ")
+        hints.append("Y", style="cyan")
+        hints.append("=Copy all contents  ")
         hints.append("d", style="cyan")
         hints.append("=Debug  ")
         hints.append("q", style="dim")
@@ -645,14 +649,14 @@ class PlanApprovalModal(
             self.notify("Failed to read plan file", severity="error")
             return
         if copy_to_system_clipboard(content):
-            self.notify("Copied: Plan")
+            self.notify("Copied: All contents")
         else:
             self.notify("Failed to copy to clipboard", severity="error")
 
     def _copy_plan_path_to_clipboard(self) -> None:
         """Copy the plan file path to clipboard (with ~ for home dir)."""
         home = os.path.expanduser("~")
-        path = os.path.expanduser(self._plan_file)
+        path = os.path.expanduser(self._copy_plan_path)
         if path.startswith(home):
             path = "~" + path[len(home) :]
         if copy_to_system_clipboard(path):

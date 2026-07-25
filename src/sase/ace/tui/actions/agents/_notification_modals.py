@@ -151,6 +151,8 @@ def handle_plan_approval(
         return False
 
     plan_file = _loaded.plan_file if _loaded is not None else notification.files[0]
+    original_plan_file = notification.action_data.get("original_plan_file", "").strip()
+    copy_plan_path = original_plan_file or plan_file
     plan_content = None if _loaded is None else _loaded.plan_content
     llm_provider = notification.action_data.get("llm_provider")
     model = notification.action_data.get("model")
@@ -197,6 +199,7 @@ def handle_plan_approval(
             app.push_screen(  # type: ignore[attr-defined]
                 PlanApprovalModal(
                     plan_file,
+                    copy_plan_path=copy_plan_path,
                     llm_provider=llm_provider,
                     model=model,
                     default_choice=default_choice,
@@ -361,6 +364,7 @@ def handle_plan_approval(
         PlanApprovalModal(
             plan_file,
             pending_approve_state=pending_approve_state,  # type: ignore[arg-type]
+            copy_plan_path=copy_plan_path,
             llm_provider=llm_provider,
             model=model,
             default_choice=default_choice,
