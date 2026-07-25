@@ -2896,10 +2896,10 @@ it with `A`, even after the agent has been dismissed and revived.
 `sase chat` discovers and inspects saved agent chat transcripts. With no subcommand, it defaults to `sase chat list`.
 Subcommands:
 
-| Subcommand | Flags                                                     | Description                                                                                              |
-| ---------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `list`     | `-j/--json`, `-l/--limit`, `-q/--query`                   | List recent transcripts. `-j` emits the stable JSON shape consumed by the `/sase_chats` skill.           |
-| `show`     | `-n/--agent`, `-p/--path`, `-b/--basename`, `-f/--format` | Show one transcript by agent name, path, or basename. `--format` accepts `raw`, `resume`, or `response`. |
+| Subcommand | Flags                                                                      | Description                                                                                                         |
+| ---------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `list`     | `-j/--json`, `-l/--limit`, `-m/--machine`, `-P/--provenance`, `-q/--query` | List recent transcripts with sync provenance. `-j` emits the stable JSON shape consumed by the `/sase_chats` skill. |
+| `show`     | `-n/--agent`, `-p/--path`, `-b/--basename`, `-f/--format`                  | Show one transcript by agent name, path, or basename. `--format` accepts `raw`, `resume`, or `response`.            |
 
 ## Directory Sharding
 

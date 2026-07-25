@@ -346,8 +346,9 @@ Purpose: show that chat history is not the source of truth; durable files and st
 
 - **Agents**: live and recent agents, groups, tags, hidden rows, child workflow steps, prompt panels, transcript panels,
   artifact viewers, tool metadata, file panels, retry/fork/wait/kill actions, and model/provider badges.
-- **Artifacts**: Commits, Plans, Bugs, and PRs sub-tabs. The PRs view owns ChangeSpec status, hooks, comments, mentor
-  output, diffs, file deltas, mail/submit flows, rewind, revert, restore, and archive operations.
+- **Artifacts**: Commits, Plans, Bugs, PRs, and Chats sub-tabs. The PRs view owns ChangeSpec status, hooks, comments,
+  mentor output, diffs, file deltas, mail/submit flows, rewind, revert, restore, and archive operations; Chats browses
+  transcripts with local/shared/remote sync provenance.
 - **Axe**: the daemon view: lumberjacks, chops, run history, live output, wait checks, hook checks, mentor checks,
   comment polling, and error digests.
 

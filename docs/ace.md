@@ -48,11 +48,11 @@ shortened path to the system clipboard (`pbcopy`, `wl-copy`, `xclip`, or `xsel` 
 
 ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
-| Tab           | Description                                                   |
-| ------------- | ------------------------------------------------------------- |
-| **Agents**    | View running and completed agents, their files and prompts    |
-| **Artifacts** | Browse commits, plans, bugs, and PRs in four focused sub-tabs |
-| **Axe**       | Monitor the Axe daemon and background commands                |
+| Tab           | Description                                                          |
+| ------------- | -------------------------------------------------------------------- |
+| **Agents**    | View running and completed agents, their files and prompts           |
+| **Artifacts** | Browse commits, plans, bugs, PRs, and chats in five focused sub-tabs |
+| **Axe**       | Monitor the Axe daemon and background commands                       |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press `,?` (leader mode) to open the Help
 modal on its **Keymaps** view, then `]` to switch to the tab's **Guide** view. While Help is open, the configured
@@ -65,16 +65,16 @@ project/ChangeSpec launch hint appears only when a launchable target exists — 
 the Admin Center when no third-party plugins are installed. Onboarding cards carry "learn more" links into the published
 docs.
 
-Within Artifacts, the strip is numbered **1 Commits · 2 Plans · 3 Bugs · 4 PRs**. Press `1`–`4` to jump directly to a
-sub-tab, or use `[` / `]` to cycle. These digits act only while Artifacts is visible. Press `p` in Commits, Plans, or
-Bugs to change the shared project scope, or use the command palette to jump directly to any sub-tab. PRs remains
-query-scoped and retains the existing ChangeSpec workflow.
+Within Artifacts, the strip is numbered **1 Commits · 2 Plans · 3 Bugs · 4 PRs · 5 Chats**. Press `1`–`5` to jump
+directly to a sub-tab, or use `[` / `]` to cycle. These digits act only while Artifacts is visible. Press `p` in
+Commits, Plans, Bugs, or Chats to change the shared project scope, or use the command palette to jump directly to any
+sub-tab. PRs remains query-scoped and retains the existing ChangeSpec workflow.
 
-### Navigation in Commits, Plans, and Bugs
+### Navigation in Commits, Plans, Bugs, and Chats
 
-The three non-PR panes share fast navigation over their selectable left-panel entries. Commits skip day headings, Plans
-skip section and empty-state rows, and Bugs always targets the issue list rather than its separately focusable Linked
-work list. Movement clamps at the first or last entry and silently does nothing when a list is empty.
+The four non-PR panes share fast navigation over their selectable left-panel entries. Commits and Chats skip day
+headings, Plans skip section and empty-state rows, and Bugs always targets the issue list rather than its separately
+focusable Linked work list. Movement clamps at the first or last entry and silently does nothing when a list is empty.
 
 | Key                       | Action                                                                                  |
 | ------------------------- | --------------------------------------------------------------------------------------- |

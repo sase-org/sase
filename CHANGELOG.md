@@ -11,6 +11,7 @@
 
 ### Features
 
+- **ace:** add Chats artifact visual snapshots and document the five-pane Artifacts flow.
 - **tui:** add in-place schema-driven xprompt property editing, bound definition write-back, conflict detection, and a unified save-as screen.
 
 ### Bug Fixes
