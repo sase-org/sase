@@ -71,7 +71,7 @@ def _common_placeholder_lock_file() -> Path:
     return sase_home() / "prompt_placeholders.lock"
 
 
-def common_placeholder_limit() -> int:
+def _common_placeholder_limit() -> int:
     """Return the configured cap on retained common placeholders.
 
     Reads ``ace.prompt_completion.common_placeholder_count`` through the cached
@@ -110,7 +110,7 @@ def record_prompt_placeholders(text: str) -> None:
     raises and never blocks the caller's prompt from being submitted.
     """
     try:
-        limit = common_placeholder_limit()
+        limit = _common_placeholder_limit()
         if limit <= 0:
             return
         texts = _placeholder_texts(text)

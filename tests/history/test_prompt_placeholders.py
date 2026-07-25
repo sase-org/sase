@@ -12,7 +12,7 @@ import pytest
 
 import sase.history.prompt_placeholders as store
 from sase.history.prompt_placeholders import (
-    common_placeholder_limit,
+    _common_placeholder_limit,
     common_placeholder_source_token,
     load_common_placeholders,
     record_prompt_placeholders,
@@ -37,7 +37,7 @@ def sase_home_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def set_limit(monkeypatch: pytest.MonkeyPatch, limit: int) -> None:
-    """Point ``common_placeholder_limit`` at a fixed configured value."""
+    """Point ``_common_placeholder_limit`` at a fixed configured value."""
     monkeypatch.setattr(
         store,
         "load_merged_config",
@@ -176,17 +176,17 @@ def test_limit_falls_back_to_the_default_for_unusable_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(store, "load_merged_config", dict)
-    assert common_placeholder_limit() == 100
+    assert _common_placeholder_limit() == 100
 
     monkeypatch.setattr(
         store,
         "load_merged_config",
         lambda: {"ace": {"prompt_completion": {"common_placeholder_count": "many"}}},
     )
-    assert common_placeholder_limit() == 100
+    assert _common_placeholder_limit() == 100
 
     set_limit(monkeypatch, -5)
-    assert common_placeholder_limit() == 0
+    assert _common_placeholder_limit() == 0
 
 
 @pytest.mark.parametrize(
