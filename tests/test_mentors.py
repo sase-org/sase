@@ -76,14 +76,16 @@ def testformat_mentors_field_with_error_suffix() -> None:
     assert any("!:" in line for line in lines)
 
 
-def test_add_mentor_entry_new() -> None:
+def test_add_mentor_entry_new(tmp_path: Path) -> None:
     """Test adding a new mentor entry to a file."""
     content = """NAME: test-cl
 STATUS: Ready
 DESCRIPTION:
   Test description
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".md", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 
@@ -101,7 +103,7 @@ DESCRIPTION:
     Path(file_path).unlink()
 
 
-def test_add_mentor_entry_last_changespec_with_trailing_blanks() -> None:
+def test_add_mentor_entry_last_changespec_with_trailing_blanks(tmp_path: Path) -> None:
     """Test MENTORS is inside ChangeSpec boundary when trailing blank lines exist.
 
     When the target is the last ChangeSpec and the file has trailing blank lines
@@ -111,7 +113,9 @@ def test_add_mentor_entry_last_changespec_with_trailing_blanks() -> None:
     from sase.ace.changespec.parser import parse_project_file
 
     content = "NAME: test-cl\nSTATUS: Ready\nDESCRIPTION:\n  Test description\n\n\n"
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 
@@ -129,14 +133,16 @@ def test_add_mentor_entry_last_changespec_with_trailing_blanks() -> None:
     Path(file_path).unlink()
 
 
-def test_add_mentor_entry_merge_profiles() -> None:
+def test_add_mentor_entry_merge_profiles(tmp_path: Path) -> None:
     """Test adding profiles to existing mentor entry."""
     content = """NAME: test-cl
 STATUS: Ready
 MENTORS:
   (1) feature
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".md", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 
@@ -155,7 +161,7 @@ MENTORS:
     Path(file_path).unlink()
 
 
-def test_set_mentor_status_update_existing() -> None:
+def test_set_mentor_status_update_existing(tmp_path: Path) -> None:
     """Test updating existing mentor status."""
     content = """NAME: test-cl
 STATUS: Ready
@@ -163,7 +169,9 @@ MENTORS:
   (1) feature
       | feature:complete - RUNNING - (@: mentor_complete-123)
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".md", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 
@@ -211,7 +219,7 @@ def testformat_mentors_field_commented_shows_timestamp_prefix() -> None:
     assert "3m15s" in content
 
 
-def test_set_mentor_status_commented() -> None:
+def test_set_mentor_status_commented(tmp_path: Path) -> None:
     """Test setting COMMENTED status."""
     content = """NAME: test-cl
 STATUS: Ready
@@ -219,7 +227,9 @@ MENTORS:
   (1) feature
       | feature:complete - RUNNING - (@: mentor_complete-123)
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".md", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 
@@ -244,7 +254,7 @@ MENTORS:
     Path(file_path).unlink()
 
 
-def test_parse_commented_status_roundtrip() -> None:
+def test_parse_commented_status_roundtrip(tmp_path: Path) -> None:
     """Test that COMMENTED status survives write-then-parse roundtrip."""
     from sase.ace.changespec import parse_project_file
 
@@ -255,7 +265,9 @@ MENTORS:
   (1) code[1/1]
       | [260321_120000] code:quality - COMMENTED - (3m15s)
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 
@@ -341,12 +353,14 @@ def testformat_mentors_field_with_plain_suffix() -> None:
     assert "some_suffix" in content
 
 
-def test_set_mentor_status_creates_entry_if_missing() -> None:
+def test_set_mentor_status_creates_entry_if_missing(tmp_path: Path) -> None:
     """Test that set_mentor_status creates entry if it doesn't exist."""
     content = """NAME: test-cl
 STATUS: Ready
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".md", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 

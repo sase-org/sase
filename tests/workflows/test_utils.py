@@ -319,13 +319,15 @@ def test_get_project_from_workspace_falls_back_when_resolution_fails(
 
 
 # Tests for get_changespec_from_file
-def test_get_changespec_from_file_not_found() -> None:
+def test_get_changespec_from_file_not_found(tmp_path: Path) -> None:
     """Test get_changespec_from_file returns None when ChangeSpec not found."""
     content = """NAME: other_feature
 DESCRIPTION: Test description
 STATUS: Ready
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         temp_path = f.name
 

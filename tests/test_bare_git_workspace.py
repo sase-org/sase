@@ -32,11 +32,13 @@ class TestSetBareRepoDir:
     @patch(f"{_REF_MOD}.write_changespec_atomic")
     @patch(f"{_REF_MOD}.changespec_lock")
     def test_updates_existing(
-        self, mock_lock: MagicMock, mock_write: MagicMock
+        self, mock_lock: MagicMock, mock_write: MagicMock, tmp_path: Path
     ) -> None:
         mock_lock.return_value.__enter__ = MagicMock()
         mock_lock.return_value.__exit__ = MagicMock(return_value=False)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            dir=tmp_path, mode="w", suffix=".sase", delete=False
+        ) as f:
             f.write("BARE_REPO_DIR: /old/repo.git\nNAME: cl\n")
             f.flush()
             assert set_bare_repo_dir(f.name, "/new/repo.git")
@@ -49,11 +51,13 @@ class TestSetBareRepoDir:
     @patch(f"{_REF_MOD}.write_changespec_atomic")
     @patch(f"{_REF_MOD}.changespec_lock")
     def test_inserts_before_running(
-        self, mock_lock: MagicMock, mock_write: MagicMock
+        self, mock_lock: MagicMock, mock_write: MagicMock, tmp_path: Path
     ) -> None:
         mock_lock.return_value.__enter__ = MagicMock()
         mock_lock.return_value.__exit__ = MagicMock(return_value=False)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            dir=tmp_path, mode="w", suffix=".sase", delete=False
+        ) as f:
             f.write("RUNNING:\n  #git 1 1234\nNAME: cl\n")
             f.flush()
             assert set_bare_repo_dir(f.name, "/repos/proj.git")

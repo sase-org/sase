@@ -37,9 +37,11 @@ def test_get_next_commit_number_wrong_changespec() -> None:
 
 
 # Tests for add_commit_entry
-def test_add_commit_entry_new_history_field() -> None:
+def test_add_commit_entry_new_history_field(tmp_path: Path) -> None:
     """Test adding history entry when COMMITS field doesn't exist."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("DESCRIPTION:\n")
         f.write("  Test description\n")
@@ -67,9 +69,11 @@ def test_add_commit_entry_new_history_field() -> None:
         os.unlink(temp_path)
 
 
-def test_add_commit_entry_existing_history_field() -> None:
+def test_add_commit_entry_existing_history_field(tmp_path: Path) -> None:
     """Test adding history entry when COMMITS field already exists."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("DESCRIPTION:\n")
         f.write("  Test description\n")
@@ -180,9 +184,11 @@ def test_get_next_proposal_letter_fills_gap() -> None:
 
 
 # Tests for add_proposed_commit_entry
-def test_add_proposed_commit_entry_new_history() -> None:
+def test_add_proposed_commit_entry_new_history(tmp_path: Path) -> None:
     """Test adding proposed entry when no COMMITS exists."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         temp_path = f.name
@@ -206,9 +212,11 @@ def test_add_proposed_commit_entry_new_history() -> None:
         os.unlink(temp_path)
 
 
-def test_add_proposed_commit_entry_existing_history() -> None:
+def test_add_proposed_commit_entry_existing_history(tmp_path: Path) -> None:
     """Test adding proposed entry to existing COMMITS."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
@@ -249,9 +257,11 @@ def test_add_proposed_commit_entry_nonexistent_file() -> None:
 
 
 # Tests for add_commit_entry_with_id
-def test_add_commit_entry_with_id_returns_entry_id() -> None:
+def test_add_commit_entry_with_id_returns_entry_id(tmp_path: Path) -> None:
     """Test that add_commit_entry_with_id returns the entry ID."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         temp_path = f.name
@@ -288,9 +298,11 @@ def test_add_commit_entry_with_id_nonexistent_file() -> None:
     assert entry_id is None
 
 
-def test_add_commit_entry_with_plan_path() -> None:
+def test_add_commit_entry_with_plan_path(tmp_path: Path) -> None:
     """Test that add_commit_entry_with_id emits | PLAN: when given a plan_path."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         temp_path = f.name
@@ -314,9 +326,11 @@ def test_add_commit_entry_with_plan_path() -> None:
         os.unlink(temp_path)
 
 
-def test_add_commit_entry_with_id_creates_timestamps() -> None:
+def test_add_commit_entry_with_id_creates_timestamps(tmp_path: Path) -> None:
     """add_commit_entry_with_id creates a TIMESTAMPS section with a COMMIT entry."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         temp_path = f.name
@@ -339,9 +353,11 @@ def test_add_commit_entry_with_id_creates_timestamps() -> None:
         os.unlink(temp_path)
 
 
-def test_add_proposed_commit_entry_with_plan_path() -> None:
+def test_add_proposed_commit_entry_with_plan_path(tmp_path: Path) -> None:
     """Test that add_proposed_commit_entry emits | PLAN: when given a plan_path."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")

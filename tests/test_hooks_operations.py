@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from pathlib import Path
 
 from sase.ace.changespec import (
     HookEntry,
@@ -255,9 +256,11 @@ def testapply_hooks_update_stops_at_field_header() -> None:
 
 
 # Tests for update_changespec_hooks_field
-def test_update_changespec_hooks_field_clear_status() -> None:
+def test_update_changespec_hooks_field_clear_status(tmp_path: Path) -> None:
     """Test clearing hook status (for rerun)."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("""## ChangeSpec
 NAME: test_cl
 DESCRIPTION:

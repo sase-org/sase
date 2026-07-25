@@ -2,16 +2,19 @@
 
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.workflows.commit.changespec_operations import compute_suffixed_cl_name
 
 
-def test_compute_suffixed_cl_name_basic() -> None:
+def test_compute_suffixed_cl_name_basic(tmp_path: Path) -> None:
     """Test compute_suffixed_cl_name returns suffixed name."""
     # Project file with one existing ChangeSpec (already prefixed)
     content = "NAME: test_project_eval_foobar_1\nSTATUS: Draft\n"
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         project_file = f.name
 
@@ -29,9 +32,11 @@ def test_compute_suffixed_cl_name_basic() -> None:
         os.unlink(project_file)
 
 
-def test_compute_suffixed_cl_name_no_existing() -> None:
+def test_compute_suffixed_cl_name_no_existing(tmp_path: Path) -> None:
     """Test compute_suffixed_cl_name starts at _1 when no existing names."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 
@@ -46,7 +51,7 @@ def test_compute_suffixed_cl_name_no_existing() -> None:
         os.unlink(project_file)
 
 
-def test_compute_suffixed_cl_name_skips_remote_branch_suffixes() -> None:
+def test_compute_suffixed_cl_name_skips_remote_branch_suffixes(tmp_path: Path) -> None:
     """Suffix allocation excludes _<N> whose branch already exists on the remote.
 
     Regression for the orphaned-PR bug: the ChangeSpec namespace is nearly
@@ -54,7 +59,9 @@ def test_compute_suffixed_cl_name_skips_remote_branch_suffixes() -> None:
     reserved name must skip every taken remote branch instead of colliding.
     """
     content = "NAME: test_project_eval_foo_1\nSTATUS: Draft\n"
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         project_file = f.name
 
@@ -84,10 +91,14 @@ def test_compute_suffixed_cl_name_skips_remote_branch_suffixes() -> None:
         os.unlink(project_file)
 
 
-def test_compute_suffixed_cl_name_skips_remote_query_without_cwd() -> None:
+def test_compute_suffixed_cl_name_skips_remote_query_without_cwd(
+    tmp_path: Path,
+) -> None:
     """Without cwd the remote namespace is not consulted (no network call)."""
     content = "NAME: test_project_eval_foo_1\nSTATUS: Draft\n"
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         project_file = f.name
 
@@ -131,9 +142,11 @@ def test_compute_suffixed_cl_name_no_project_file() -> None:
     assert result is None
 
 
-def test_compute_suffixed_cl_name_adds_project_prefix() -> None:
+def test_compute_suffixed_cl_name_adds_project_prefix(tmp_path: Path) -> None:
     """compute_suffixed_cl_name prepends project prefix when missing."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 
@@ -148,9 +161,11 @@ def test_compute_suffixed_cl_name_adds_project_prefix() -> None:
         os.unlink(project_file)
 
 
-def test_compute_suffixed_cl_name_uses_display_project_prefix() -> None:
+def test_compute_suffixed_cl_name_uses_display_project_prefix(tmp_path: Path) -> None:
     """Reservation uses the canonical project file but returns display NAME."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 
@@ -178,9 +193,11 @@ def test_compute_suffixed_cl_name_uses_display_project_prefix() -> None:
         os.unlink(project_file)
 
 
-def test_compute_suffixed_cl_name_no_double_prefix() -> None:
+def test_compute_suffixed_cl_name_no_double_prefix(tmp_path: Path) -> None:
     """compute_suffixed_cl_name does not double-prefix when already present."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 

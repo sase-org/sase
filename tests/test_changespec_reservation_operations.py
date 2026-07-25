@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.changespec.parser import parse_project_file
@@ -12,9 +13,11 @@ from sase.workflows.commit.changespec_operations import (
 )
 
 
-def test_reservation_replaced_by_add_changespec() -> None:
+def test_reservation_replaced_by_add_changespec(tmp_path: Path) -> None:
     """Reservation created by compute_suffixed_cl_name is replaced by add_changespec."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 
@@ -61,9 +64,11 @@ def test_reservation_replaced_by_add_changespec() -> None:
         os.unlink(project_file)
 
 
-def test_remove_reservation_cleans_up_stub() -> None:
+def test_remove_reservation_cleans_up_stub(tmp_path: Path) -> None:
     """remove_reservation correctly removes a Reserved stub from the project file."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 
@@ -95,9 +100,11 @@ def test_remove_reservation_cleans_up_stub() -> None:
         os.unlink(project_file)
 
 
-def test_suffix_slot_reused_after_reservation_cleanup() -> None:
+def test_suffix_slot_reused_after_reservation_cleanup(tmp_path: Path) -> None:
     """After removing a reservation, compute_suffixed_cl_name reuses the same suffix."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 

@@ -61,8 +61,10 @@ class TestNonInteractiveGitEnv:
 
 
 class TestParseWorkspaceDir:
-    def test_empty_value(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    def test_empty_value(self, tmp_path: Path) -> None:
+        with tempfile.NamedTemporaryFile(
+            dir=tmp_path, mode="w", suffix=".sase", delete=False
+        ) as f:
             f.write("WORKSPACE_DIR:\nNAME: my-cl\n")
             f.flush()
             assert parse_workspace_dir(f.name) is None
@@ -76,8 +78,10 @@ class TestParseBareRepoDir:
     def test_missing_file(self) -> None:
         assert parse_bare_repo_dir("/nonexistent/path/file.sase") is None
 
-    def test_empty_value(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    def test_empty_value(self, tmp_path: Path) -> None:
+        with tempfile.NamedTemporaryFile(
+            dir=tmp_path, mode="w", suffix=".sase", delete=False
+        ) as f:
             f.write("BARE_REPO_DIR:\nNAME: my-cl\n")
             f.flush()
             assert parse_bare_repo_dir(f.name) is None
@@ -97,11 +101,13 @@ class TestSetWorkspaceDir:
     @patch("sase.workspace_provider.utils.write_changespec_atomic")
     @patch("sase.workspace_provider.utils.changespec_lock")
     def test_updates_existing(
-        self, mock_lock: MagicMock, mock_write: MagicMock
+        self, mock_lock: MagicMock, mock_write: MagicMock, tmp_path: Path
     ) -> None:
         mock_lock.return_value.__enter__ = MagicMock()
         mock_lock.return_value.__exit__ = MagicMock(return_value=False)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            dir=tmp_path, mode="w", suffix=".sase", delete=False
+        ) as f:
             f.write("WORKSPACE_DIR: /old/\nNAME: cl\n")
             f.flush()
             assert set_workspace_dir(f.name, "/new/")
@@ -114,11 +120,13 @@ class TestSetWorkspaceDir:
     @patch("sase.workspace_provider.utils.write_changespec_atomic")
     @patch("sase.workspace_provider.utils.changespec_lock")
     def test_inserts_before_running(
-        self, mock_lock: MagicMock, mock_write: MagicMock
+        self, mock_lock: MagicMock, mock_write: MagicMock, tmp_path: Path
     ) -> None:
         mock_lock.return_value.__enter__ = MagicMock()
         mock_lock.return_value.__exit__ = MagicMock(return_value=False)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            dir=tmp_path, mode="w", suffix=".sase", delete=False
+        ) as f:
             f.write("RUNNING:\n  #git 1 1234\nNAME: cl\n")
             f.flush()
             assert set_workspace_dir(f.name, "/repo/")

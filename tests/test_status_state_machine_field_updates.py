@@ -13,10 +13,14 @@ from sase.status_state_machine.field_updates import (
 
 
 def _create_test_project_file_with_suffix(
-    name: str = "Test Feature", status: str = "Ready"
+    tmp_path: Path,
+    name: str = "Test Feature",
+    status: str = "Ready",
 ) -> str:
     """Create a temporary project file with a specific NAME for suffix testing."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", delete=False, suffix=".md"
+    ) as f:
         f.write(f"""# Test Project
 
 ## ChangeSpec
@@ -79,10 +83,10 @@ def test__apply_pr_url_update_adds_pr_before_status() -> None:
 # === Draft children constraint tests ===
 
 
-def test_transition_to_draft_blocked_when_child_is_ready() -> None:
+def test_transition_to_draft_blocked_when_child_is_ready(tmp_path: Path) -> None:
     """Test that transition to Draft is blocked when a child has Ready status."""
     project_file = _create_test_project_file_with_suffix(
-        name="Parent Feature", status="Ready"
+        tmp_path, name="Parent Feature", status="Ready"
     )
 
     try:
@@ -110,10 +114,12 @@ def test_transition_to_draft_blocked_when_child_is_ready() -> None:
         Path(project_file).unlink()
 
 
-def test_transition_to_draft_allowed_when_children_are_draft_or_reverted() -> None:
+def test_transition_to_draft_allowed_when_children_are_draft_or_reverted(
+    tmp_path: Path,
+) -> None:
     """Test that transition to Draft succeeds when children are Draft or Reverted."""
     project_file = _create_test_project_file_with_suffix(
-        name="Parent Feature", status="Ready"
+        tmp_path, name="Parent Feature", status="Ready"
     )
 
     try:
@@ -163,9 +169,11 @@ def test_transition_to_draft_allowed_when_children_are_draft_or_reverted() -> No
         Path(project_file).unlink()
 
 
-def test_transition_from_draft_blocked_when_parent_is_draft() -> None:
+def test_transition_from_draft_blocked_when_parent_is_draft(tmp_path: Path) -> None:
     """Test that child cannot transition away from Draft/Reverted when parent is Draft."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", delete=False, suffix=".md"
+    ) as f:
         f.write("""# Test Project
 
 ## ChangeSpec
@@ -212,9 +220,11 @@ STATUS: Draft
         Path(project_file).unlink()
 
 
-def test_transition_from_draft_allowed_when_parent_is_not_draft() -> None:
+def test_transition_from_draft_allowed_when_parent_is_not_draft(tmp_path: Path) -> None:
     """Test that child can transition when parent is not Draft."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", delete=False, suffix=".md"
+    ) as f:
         f.write("""# Test Project
 
 ## ChangeSpec
@@ -260,9 +270,11 @@ STATUS: Draft
         Path(project_file).unlink()
 
 
-def test_transition_to_reverted_allowed_when_parent_is_draft() -> None:
+def test_transition_to_reverted_allowed_when_parent_is_draft(tmp_path: Path) -> None:
     """Test that child can transition to Reverted even when parent is Draft."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", delete=False, suffix=".md"
+    ) as f:
         f.write("""# Test Project
 
 ## ChangeSpec

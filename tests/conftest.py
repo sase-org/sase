@@ -410,13 +410,16 @@ def tz_divergence(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 
 @pytest.fixture
-def make_changespec() -> "type[_ChangeSpecFactory]":  # Return a callable factory class
+def make_changespec(tmp_path: Path) -> "_ChangeSpecFactory":
     """Fixture that provides a factory for creating ChangeSpec objects for testing."""
-    return _ChangeSpecFactory
+    return _ChangeSpecFactory(tmp_path)
 
 
 class _ChangeSpecFactory:
     """Factory class for creating ChangeSpec objects in tests."""
+
+    def __init__(self, tmp_path: Path) -> None:
+        self._tmp_path = tmp_path
 
     @staticmethod
     def create(
@@ -444,8 +447,8 @@ class _ChangeSpecFactory:
             comments=comments,
         )
 
-    @staticmethod
     def create_with_file(
+        self,
         name: str = "test_feature",
         cl: str | None = "http://cl/123456789",
         status: str = "Mailed",
@@ -456,7 +459,12 @@ class _ChangeSpecFactory:
         The caller is responsible for cleaning up the temp file via
         ``Path(cs.file_path).unlink()``.
         """
-        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
+        with tempfile.NamedTemporaryFile(
+            dir=self._tmp_path,
+            mode="w",
+            delete=False,
+            suffix=".sase",
+        ) as f:
             parent_val = parent if parent else "None"
             cl_val = cl if cl else "None"
             f.write(f"""# Test Project

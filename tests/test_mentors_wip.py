@@ -97,7 +97,7 @@ def testformat_mentors_field_shows_all_profiles() -> None:
 # Tests for clear_mentor_draft_flags (was clear_mentor_wip_flags)
 
 
-def test_clear_mentor_draft_flags_clears_last_only() -> None:
+def test_clear_mentor_draft_flags_clears_last_only(tmp_path: Path) -> None:
     """Test that only the highest entry_id WIP entry has #Draft cleared."""
     content = """NAME: test-cl
 STATUS: Draft
@@ -110,7 +110,9 @@ MENTORS:
   (2) feature #Draft
   (3) feature #Draft
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".md", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 
@@ -131,7 +133,7 @@ MENTORS:
     Path(file_path).unlink()
 
 
-def test_clear_mentor_draft_flags_no_wip_entries() -> None:
+def test_clear_mentor_draft_flags_no_wip_entries(tmp_path: Path) -> None:
     """Test that nothing changes when no WIP entries exist."""
     content = """NAME: test-cl
 STATUS: Ready
@@ -139,7 +141,9 @@ MENTORS:
   (1) feature
   (2) tests
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".md", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 
@@ -157,7 +161,7 @@ MENTORS:
     Path(file_path).unlink()
 
 
-def test_clear_mentor_draft_flags_wrong_changespec() -> None:
+def test_clear_mentor_draft_flags_wrong_changespec(tmp_path: Path) -> None:
     """Test that other ChangeSpecs are not affected."""
     content = """NAME: other-cl
 STATUS: Draft
@@ -169,7 +173,9 @@ STATUS: Draft
 MENTORS:
   (1) feature #Draft
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".md", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 
@@ -194,12 +200,14 @@ MENTORS:
     Path(file_path).unlink()
 
 
-def test_clear_mentor_draft_flags_no_mentors() -> None:
+def test_clear_mentor_draft_flags_no_mentors(tmp_path: Path) -> None:
     """Test that function returns True when no mentors exist."""
     content = """NAME: test-cl
 STATUS: Ready
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".md", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 
@@ -209,12 +217,14 @@ STATUS: Ready
     Path(file_path).unlink()
 
 
-def test_clear_mentor_draft_flags_changespec_not_found() -> None:
+def test_clear_mentor_draft_flags_changespec_not_found(tmp_path: Path) -> None:
     """Test that function returns True when changespec not found."""
     content = """NAME: other-cl
 STATUS: Ready
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".md", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 
@@ -227,14 +237,16 @@ STATUS: Ready
 # Tests for set_mentor_draft_flags (was set_mentor_wip_flags)
 
 
-def test_set_mentor_draft_flags_keeps_all_profiles() -> None:
+def test_set_mentor_draft_flags_keeps_all_profiles(tmp_path: Path) -> None:
     """Test that set_mentor_draft_flags keeps all profiles (no filtering)."""
     content = """NAME: test-cl
 STATUS: Ready
 MENTORS:
   (1) profile_a profile_b
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".md", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 
@@ -253,12 +265,14 @@ MENTORS:
     Path(file_path).unlink()
 
 
-def test_set_mentor_draft_flags_no_mentors() -> None:
+def test_set_mentor_draft_flags_no_mentors(tmp_path: Path) -> None:
     """Test that function returns True when no mentors exist."""
     content = """NAME: test-cl
 STATUS: Ready
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".md", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 
@@ -268,12 +282,14 @@ STATUS: Ready
     Path(file_path).unlink()
 
 
-def test_set_mentor_draft_flags_changespec_not_found() -> None:
+def test_set_mentor_draft_flags_changespec_not_found(tmp_path: Path) -> None:
     """Test that function returns True when changespec not found."""
     content = """NAME: other-cl
 STATUS: Ready
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".md", delete=False
+    ) as f:
         f.write(content)
         file_path = f.name
 

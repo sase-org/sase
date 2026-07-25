@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from pathlib import Path
 
 from sase.ace.changespec.models import TimestampEntry
 from sase.ace.changespec.parser import parse_project_file
@@ -17,7 +18,7 @@ from sase.ace.timestamps.recording import (
 # ---------------------------------------------------------------------------
 
 
-def test_parse_timestamps_section() -> None:
+def test_parse_timestamps_section(tmp_path: Path) -> None:
     """Round-trip: parse a TIMESTAMPS section from a project spec file."""
     content = """\
 NAME: my-cl
@@ -37,7 +38,9 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -81,7 +84,7 @@ TIMESTAMPS:
         os.unlink(path)
 
 
-def test_parse_timestamps_old_format() -> None:
+def test_parse_timestamps_old_format(tmp_path: Path) -> None:
     """Backward compatibility: parse old [YYYY-MM-DD HH:MM:SS] format."""
     content = """\
 NAME: my-cl
@@ -94,7 +97,9 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -117,7 +122,7 @@ TIMESTAMPS:
         os.unlink(path)
 
 
-def test_parse_timestamps_hybrid_format() -> None:
+def test_parse_timestamps_hybrid_format(tmp_path: Path) -> None:
     """Parse hybrid [YYMMDD_HHMMSS] format from migration transition."""
     content = """\
 NAME: my-cl
@@ -129,7 +134,9 @@ TIMESTAMPS:
   [260330_102100] COMMIT  (1)
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -152,7 +159,7 @@ TIMESTAMPS:
         os.unlink(path)
 
 
-def test_parse_no_timestamps_section() -> None:
+def test_parse_no_timestamps_section(tmp_path: Path) -> None:
     """ChangeSpec without TIMESTAMPS should have timestamps=None."""
     content = """\
 NAME: my-cl
@@ -162,7 +169,9 @@ STATUS: WIP
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -271,7 +280,7 @@ def test_find_timestamps_insert_appends_to_hybrid_format() -> None:
     assert idx == 4  # right after entry on line 3
 
 
-def test_add_timestamp_entry_atomic_creates_entry() -> None:
+def test_add_timestamp_entry_atomic_creates_entry(tmp_path: Path) -> None:
     """add_timestamp_entry_atomic creates section and entry in file."""
     content = """\
 NAME: my-cl
@@ -281,7 +290,9 @@ STATUS: WIP
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -300,7 +311,7 @@ STATUS: WIP
         os.unlink(path)
 
 
-def test_add_timestamp_entry_atomic_appends() -> None:
+def test_add_timestamp_entry_atomic_appends(tmp_path: Path) -> None:
     """Second call appends to existing section."""
     content = """\
 NAME: my-cl
@@ -312,7 +323,9 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -333,7 +346,7 @@ TIMESTAMPS:
         os.unlink(path)
 
 
-def test_add_timestamp_entry_atomic_after_name_change() -> None:
+def test_add_timestamp_entry_atomic_after_name_change(tmp_path: Path) -> None:
     """Timestamp recording works when ChangeSpec name was changed by suffix strip."""
     # Simulate post-suffix-strip state: file has NAME: foo (not foo__1)
     content = """\
@@ -346,7 +359,9 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -367,7 +382,7 @@ TIMESTAMPS:
         os.unlink(path)
 
 
-def test_parse_timestamps_rename_entry() -> None:
+def test_parse_timestamps_rename_entry(tmp_path: Path) -> None:
     """RENAME entries round-trip correctly through parse -> model."""
     content = """\
 NAME: my-cl
@@ -380,7 +395,9 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -400,7 +417,7 @@ TIMESTAMPS:
         os.unlink(path)
 
 
-def test_add_timestamp_entry_atomic_rename() -> None:
+def test_add_timestamp_entry_atomic_rename(tmp_path: Path) -> None:
     """add_timestamp_entry_atomic with RENAME event writes correctly."""
     content = """\
 NAME: new-name
@@ -412,7 +429,9 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -434,7 +453,7 @@ TIMESTAMPS:
         os.unlink(path)
 
 
-def test_add_timestamp_entry_atomic_rebase() -> None:
+def test_add_timestamp_entry_atomic_rebase(tmp_path: Path) -> None:
     """add_timestamp_entry_atomic with REBASE event writes correctly."""
     content = """\
 NAME: my-cl
@@ -447,7 +466,9 @@ TIMESTAMPS:
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
         path = f.name
@@ -468,7 +489,7 @@ TIMESTAMPS:
         os.unlink(path)
 
 
-def test_add_timestamp_entry_wrong_cl_returns_false() -> None:
+def test_add_timestamp_entry_wrong_cl_returns_false(tmp_path: Path) -> None:
     """Returns False when ChangeSpec name not found."""
     content = """\
 NAME: my-cl
@@ -476,7 +497,9 @@ STATUS: WIP
 
 
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
         path = f.name

@@ -6,7 +6,9 @@ from pathlib import Path
 from sase.ace.changespec import ChangeSpec, get_raw_changespec_text
 
 
-def test_get_raw_changespec_text_with_changespec_header_delimiter() -> None:
+def test_get_raw_changespec_text_with_changespec_header_delimiter(
+    tmp_path: Path,
+) -> None:
     """Test extraction stops at ## ChangeSpec header."""
     content = """\
 ## ChangeSpec
@@ -19,7 +21,9 @@ NAME: second_cl
 DESCRIPTION: Second CL
 STATUS: Draft
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
 
@@ -40,7 +44,7 @@ STATUS: Draft
     Path(f.name).unlink()
 
 
-def test_get_raw_changespec_text_with_two_blank_lines_delimiter() -> None:
+def test_get_raw_changespec_text_with_two_blank_lines_delimiter(tmp_path: Path) -> None:
     """Test extraction stops at two consecutive blank lines."""
     content = """\
 NAME: first_cl
@@ -52,7 +56,9 @@ NAME: second_cl
 DESCRIPTION: Second CL
 STATUS: Draft
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
 
@@ -73,7 +79,7 @@ STATUS: Draft
     Path(f.name).unlink()
 
 
-def test_get_raw_changespec_text_with_name_delimiter() -> None:
+def test_get_raw_changespec_text_with_name_delimiter(tmp_path: Path) -> None:
     """Test extraction stops at NAME: line (ChangeSpec without header)."""
     content = """\
 NAME: first_cl
@@ -83,7 +89,9 @@ NAME: second_cl
 DESCRIPTION: Second CL
 STATUS: Draft
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
 
@@ -104,13 +112,15 @@ STATUS: Draft
     Path(f.name).unlink()
 
 
-def test_get_raw_changespec_text_eof() -> None:
+def test_get_raw_changespec_text_eof(tmp_path: Path) -> None:
     """Test extraction handles end of file properly."""
     content = """\
 NAME: last_cl
 DESCRIPTION: Last CL
 STATUS: Ready"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
 
@@ -147,10 +157,12 @@ def test_get_raw_changespec_text_file_not_found() -> None:
     assert result is None
 
 
-def test_get_raw_changespec_text_invalid_line_number() -> None:
+def test_get_raw_changespec_text_invalid_line_number(tmp_path: Path) -> None:
     """Test returns None when line number is out of range."""
     content = "NAME: test_cl\n"
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(content)
         f.flush()
 

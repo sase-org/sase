@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from pathlib import Path
 
 from sase.workflows.accept import (
     expand_shorthand_proposals,
@@ -102,9 +103,11 @@ def testfind_proposal_entry_none_history() -> None:
 
 
 # Tests for get_changespec_from_file
-def test_get_changespec_from_file_multiple_specs() -> None:
+def test_get_changespec_from_file_multiple_specs(tmp_path: Path) -> None:
     """Test getting changespec from file with multiple specs."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: first_cl\n")
         f.write("STATUS: Ready\n")
         f.write("\n")

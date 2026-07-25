@@ -2,13 +2,16 @@
 
 import os
 import tempfile
+from pathlib import Path
 
 from sase.workflows.rewind.renumber import rewind_commit_entries
 
 
-def test_rewind_with_existing_proposals() -> None:
+def test_rewind_with_existing_proposals(tmp_path: Path) -> None:
     """Test rewinding when there are existing proposals for the selected entry."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
@@ -42,9 +45,11 @@ def test_rewind_with_existing_proposals() -> None:
         os.unlink(temp_path)
 
 
-def test_rewind_updates_mentors() -> None:
+def test_rewind_updates_mentors(tmp_path: Path) -> None:
     """Test that MENTORS section is updated with correct ID mapping."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
@@ -73,9 +78,11 @@ def test_rewind_updates_mentors() -> None:
         os.unlink(temp_path)
 
 
-def test_rewind_deletes_entries_after_entry_after() -> None:
+def test_rewind_deletes_entries_after_entry_after(tmp_path: Path) -> None:
     """Test that entries N+2, N+3, etc. are deleted."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
@@ -119,9 +126,11 @@ def test_rewind_nonexistent_file() -> None:
     assert result is False
 
 
-def test_rewind_no_commits_section() -> None:
+def test_rewind_no_commits_section(tmp_path: Path) -> None:
     """Test that rewinding when no COMMITS section exists returns False."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         temp_path = f.name
@@ -133,9 +142,11 @@ def test_rewind_no_commits_section() -> None:
         os.unlink(temp_path)
 
 
-def test_rewind_no_entry_after() -> None:
+def test_rewind_no_entry_after(tmp_path: Path) -> None:
     """Test that rewinding fails when there's no entry after the selected one."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
@@ -151,9 +162,11 @@ def test_rewind_no_entry_after() -> None:
         os.unlink(temp_path)
 
 
-def test_rewind_deletes_orphaned_mentors_entries() -> None:
+def test_rewind_deletes_orphaned_mentors_entries(tmp_path: Path) -> None:
     """Test that MENTORS entries for non-existent commits are deleted."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")

@@ -23,16 +23,22 @@ STATUS: {status}
 """
 
 
-def _create_test_project_file(status: str = "Ready", suffix: str = ".sase") -> str:
+def _create_test_project_file(
+    tmp_path: Path,
+    status: str = "Ready",
+    suffix: str = ".sase",
+) -> str:
     """Create a temporary project file with a test ChangeSpec."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=suffix) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", delete=False, suffix=suffix
+    ) as f:
         f.write(_CHANGESPEC_TEMPLATE.format(status=status))
         return f.name
 
 
-def test_transition_changespec_status_invalid_transition() -> None:
+def test_transition_changespec_status_invalid_transition(tmp_path: Path) -> None:
     """Test that invalid transition is rejected."""
-    project_file = _create_test_project_file("Ready")
+    project_file = _create_test_project_file(tmp_path, "Ready")
 
     try:
         success, old_status, error, _ = transition_changespec_status(
@@ -54,11 +60,11 @@ def test_transition_changespec_status_invalid_transition() -> None:
         Path(project_file).unlink()
 
 
-def test_transition_changespec_status_skip_validation() -> None:
+def test_transition_changespec_status_skip_validation(tmp_path: Path) -> None:
     """Test that validation can be skipped and ChangeSpec moves to archive."""
     from sase.ace.changespec.archive import get_archive_file_path
 
-    project_file = _create_test_project_file("Ready")
+    project_file = _create_test_project_file(tmp_path, "Ready")
     archive_file = get_archive_file_path(project_file)
 
     try:
@@ -86,11 +92,13 @@ def test_transition_changespec_status_skip_validation() -> None:
             Path(archive_file).unlink()
 
 
-def test_mailed_to_submitted_records_status_timestamp_in_archive() -> None:
+def test_mailed_to_submitted_records_status_timestamp_in_archive(
+    tmp_path: Path,
+) -> None:
     """Mailed→Submitted records STATUS timestamp after moving to archive."""
     from sase.ace.changespec.archive import get_archive_file_path
 
-    project_file = _create_test_project_file("Mailed")
+    project_file = _create_test_project_file(tmp_path, "Mailed")
     archive_file = get_archive_file_path(project_file)
 
     try:
@@ -182,9 +190,9 @@ def test_transition_from_archive_to_main() -> None:
             assert "NAME: Test Feature" not in f.read()
 
 
-def test_transition_changespec_status_nonexistent_changespec() -> None:
+def test_transition_changespec_status_nonexistent_changespec(tmp_path: Path) -> None:
     """Test handling of nonexistent ChangeSpec."""
-    project_file = _create_test_project_file("Ready")
+    project_file = _create_test_project_file(tmp_path, "Ready")
 
     try:
         success, old_status, error, _ = transition_changespec_status(
@@ -201,6 +209,7 @@ def test_transition_changespec_status_nonexistent_changespec() -> None:
 
 
 def _create_project_file_with_multiple_changespecs(
+    tmp_path: Path,
     changespecs: list[tuple[str, str, str | None]],
 ) -> str:
     """Create a project file with multiple ChangeSpecs.
@@ -211,7 +220,9 @@ def _create_project_file_with_multiple_changespecs(
     Returns:
         Path to the created project file.
     """
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", delete=False, suffix=".sase"
+    ) as f:
         f.write("# Test Project\n\n")
         for name, status, parent in changespecs:
             parent_val = parent if parent else "None"
@@ -230,12 +241,12 @@ STATUS: {status}
         return f.name
 
 
-def test_draft_to_ready_records_timestamp_with_base_name() -> None:
+def test_draft_to_ready_records_timestamp_with_base_name(tmp_path: Path) -> None:
     """Draft→Ready transition records STATUS timestamp using the base name."""
     from unittest.mock import call, patch
 
     project_file = _create_project_file_with_multiple_changespecs(
-        [("foo__1", "Draft", None)]
+        tmp_path, [("foo__1", "Draft", None)]
     )
 
     try:
@@ -270,7 +281,7 @@ def test_draft_to_ready_records_timestamp_with_base_name() -> None:
         Path(project_file).unlink()
 
 
-def test_draft_to_ready_blocked_when_sibling_has_children() -> None:
+def test_draft_to_ready_blocked_when_sibling_has_children(tmp_path: Path) -> None:
     """Test Draft->Ready blocked when sibling Draft ChangeSpec has unreverted children."""
     from unittest.mock import patch
 
@@ -279,11 +290,12 @@ def test_draft_to_ready_blocked_when_sibling_has_children() -> None:
     # - foo_bar__2 (Draft) - sibling that has a child
     # - child_of_2 (Ready) - child of foo_bar__2
     project_file = _create_project_file_with_multiple_changespecs(
+        tmp_path,
         [
             ("foo_bar__1", "Draft", None),
             ("foo_bar__2", "Draft", None),
             ("child_of_2", "Ready", "foo_bar__2"),
-        ]
+        ],
     )
 
     try:
@@ -343,7 +355,7 @@ def test_draft_to_ready_blocked_when_sibling_has_children() -> None:
         Path(project_file).unlink()
 
 
-def test_draft_to_ready_allowed_when_sibling_children_reverted() -> None:
+def test_draft_to_ready_allowed_when_sibling_children_reverted(tmp_path: Path) -> None:
     """Test Draft->Ready allowed when sibling's children are all Reverted."""
     from unittest.mock import patch
 
@@ -352,11 +364,12 @@ def test_draft_to_ready_allowed_when_sibling_children_reverted() -> None:
     # - foo_bar__2 (Draft) - sibling
     # - child_of_2 (Reverted) - child of foo_bar__2 that is reverted
     project_file = _create_project_file_with_multiple_changespecs(
+        tmp_path,
         [
             ("foo_bar__1", "Draft", None),
             ("foo_bar__2", "Draft", None),
             ("child_of_2", "Reverted", "foo_bar__2"),
-        ]
+        ],
     )
 
     try:

@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from pathlib import Path
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
@@ -39,7 +40,7 @@ def testformat_chat_line_with_duration_no_extension() -> None:
 
 
 # Tests for add_commit_entry with duration suffix
-def test_add_commit_entry_with_chat_duration() -> None:
+def test_add_commit_entry_with_chat_duration(tmp_path: Path) -> None:
     """Test that add_commit_entry includes duration suffix for chat path."""
     # Create a chat path with a recent timestamp
     eastern = get_timezone()
@@ -47,7 +48,9 @@ def test_add_commit_entry_with_chat_duration() -> None:
     past_timestamp = past_time.strftime("%y%m%d_%H%M%S")
     chat_path = f"~/.sase/chats/test-run-{past_timestamp}.md"
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         temp_path = f.name
@@ -87,9 +90,11 @@ def test_format_chat_line_with_end_timestamp_exact() -> None:
 
 
 # Tests for reject_all_new_proposals
-def test_reject_all_new_proposals_success() -> None:
+def test_reject_all_new_proposals_success(tmp_path: Path) -> None:
     """Test rejecting all new proposals changes suffix from (!:) to (~!:)."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
@@ -111,9 +116,11 @@ def test_reject_all_new_proposals_success() -> None:
         os.unlink(temp_path)
 
 
-def test_reject_all_new_proposals_wrong_cl_name() -> None:
+def test_reject_all_new_proposals_wrong_cl_name(tmp_path: Path) -> None:
     """Test that returning 0 when ChangeSpec name doesn't match."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")

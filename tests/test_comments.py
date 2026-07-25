@@ -116,7 +116,7 @@ def test_changespec_with_multiple_comments() -> None:
 # --- Tests for display module helpers ---
 
 
-def test_comments_entry_with_suffix_parsing() -> None:
+def test_comments_entry_with_suffix_parsing(tmp_path: Path) -> None:
     """Test that COMMENTS entries with suffix are parsed correctly."""
     from sase.ace.changespec import parse_project_file
 
@@ -128,7 +128,9 @@ COMMENTS:
   [reviewer] ~/.sase/comments/test_feature-reviewer-241226_120000.json - (2a)
 """
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(project_content)
         project_file = f.name
 

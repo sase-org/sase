@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from pathlib import Path
 
 from sase.workflows.accept import renumber_commit_entries
 
@@ -12,9 +13,11 @@ def test_renumber_commit_entries_nonexistent_file() -> None:
     assert result is False
 
 
-def test_renumber_commit_entries_no_history_section() -> None:
+def test_renumber_commit_entries_no_history_section(tmp_path: Path) -> None:
     """Test renumbering when no COMMITS section exists."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         temp_path = f.name
@@ -26,9 +29,11 @@ def test_renumber_commit_entries_no_history_section() -> None:
         os.unlink(temp_path)
 
 
-def test_renumber_commit_entries_preserves_diffs() -> None:
+def test_renumber_commit_entries_preserves_diffs(tmp_path: Path) -> None:
     """Test that renumbering preserves DIFF paths."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
@@ -55,9 +60,13 @@ def test_renumber_commit_entries_preserves_diffs() -> None:
         os.unlink(temp_path)
 
 
-def test_renumber_commit_entries_mark_ready_to_mail_rejects_proposals() -> None:
+def test_renumber_commit_entries_mark_ready_to_mail_rejects_proposals(
+    tmp_path: Path,
+) -> None:
     """Test mark_ready_to_mail rejects remaining proposals."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
@@ -89,9 +98,13 @@ def test_renumber_commit_entries_mark_ready_to_mail_rejects_proposals() -> None:
         os.unlink(temp_path)
 
 
-def test_renumber_commit_entries_strips_rejected_proposal_suffix() -> None:
+def test_renumber_commit_entries_strips_rejected_proposal_suffix(
+    tmp_path: Path,
+) -> None:
     """Test that accepting a rejected proposal strips the (~!: NEW PROPOSAL) suffix."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")
@@ -113,9 +126,11 @@ def test_renumber_commit_entries_strips_rejected_proposal_suffix() -> None:
         os.unlink(temp_path)
 
 
-def test_renumber_commit_entries_strips_broken_proposal_suffix() -> None:
+def test_renumber_commit_entries_strips_broken_proposal_suffix(tmp_path: Path) -> None:
     """Test that accepting a broken proposal strips the (~!: BROKEN PROPOSAL) suffix."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")
         f.write("COMMITS:\n")

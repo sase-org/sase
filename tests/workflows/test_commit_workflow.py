@@ -36,9 +36,11 @@ def test_changespec_exists_no_project_file() -> None:
     assert changespec_exists("nonexistent_project_xyz123", "some_cl") is False
 
 
-def test_changespec_exists_multiple_changespecs() -> None:
+def test_changespec_exists_multiple_changespecs(tmp_path: Path) -> None:
     """Test changespec_exists finds NAME among multiple ChangeSpecs."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", delete=False, suffix=".sase"
+    ) as f:
         f.write("")
         f.write("NAME: feature_a\n")
         f.write("DESCRIPTION:\n  Feature A\n")
@@ -163,10 +165,12 @@ def _load_cl_workflow_module() -> types.ModuleType:
 
 
 @pytest.mark.skipif(not _CL_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
-def test_get_cl_description_valid_file() -> None:
+def test_get_cl_description_valid_file(tmp_path: Path) -> None:
     """Test that a valid pre-generated description file is used."""
     mod = _load_cl_workflow_module()
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", delete=False, suffix=".md"
+    ) as f:
         f.write("Pre-generated change description\n")
         desc_file = f.name
     try:
@@ -201,10 +205,12 @@ def test_get_cl_description_nonexistent_file_falls_back() -> None:
 
 
 @pytest.mark.skipif(not _CL_WORKFLOW_SCRIPT.exists(), reason=_SKIP_REASON)
-def test_get_cl_description_empty_file_falls_back() -> None:
+def test_get_cl_description_empty_file_falls_back(tmp_path: Path) -> None:
     """Test that an empty file falls back to get_file_summary."""
     mod = _load_cl_workflow_module()
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", delete=False, suffix=".md"
+    ) as f:
         f.write("")
         desc_file = f.name
     try:

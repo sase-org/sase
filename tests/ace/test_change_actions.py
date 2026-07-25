@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from pathlib import Path
 
 from sase.ace.change_actions import delete_proposal_entry
 
@@ -12,7 +13,7 @@ def testdelete_proposal_entry_file_not_found() -> None:
     assert result is False
 
 
-def testdelete_proposal_entry_wrong_cl_name() -> None:
+def testdelete_proposal_entry_wrong_cl_name(tmp_path: Path) -> None:
     """Test that we don't delete entries from wrong ChangeSpec."""
     project_content = """NAME: feature_a
 COMMITS:
@@ -24,7 +25,9 @@ COMMITS:
   (1a) [fix]
       | DIFF: ~/.sase/diffs/b.diff
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(project_content)
         project_file = f.name
 

@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 import threading
 import time
 
@@ -19,9 +20,9 @@ from sase.ace.changespec.locking import (
 )
 
 
-def test_acquire_creates_lock_file() -> None:
+def test_acquire_creates_lock_file(tmp_path: Path) -> None:
     """Verify .edit_lock is created with current PID."""
-    with tempfile.NamedTemporaryFile(suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(dir=tmp_path, suffix=".sase", delete=False) as f:
         project_file = f.name
     try:
         acquire_edit_lock(project_file)
@@ -37,9 +38,9 @@ def test_acquire_creates_lock_file() -> None:
             pass
 
 
-def test_release_removes_lock_file() -> None:
+def test_release_removes_lock_file(tmp_path: Path) -> None:
     """Verify release removes the .edit_lock file."""
-    with tempfile.NamedTemporaryFile(suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(dir=tmp_path, suffix=".sase", delete=False) as f:
         project_file = f.name
     try:
         acquire_edit_lock(project_file)
@@ -54,9 +55,9 @@ def test_release_removes_lock_file() -> None:
             pass
 
 
-def test_is_edit_locked_returns_true_for_active_lock() -> None:
+def test_is_edit_locked_returns_true_for_active_lock(tmp_path: Path) -> None:
     """Active lock (current PID) returns True."""
-    with tempfile.NamedTemporaryFile(suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(dir=tmp_path, suffix=".sase", delete=False) as f:
         project_file = f.name
     try:
         acquire_edit_lock(project_file)
@@ -69,9 +70,9 @@ def test_is_edit_locked_returns_true_for_active_lock() -> None:
             pass
 
 
-def test_is_edit_locked_cleans_stale_lock() -> None:
+def test_is_edit_locked_cleans_stale_lock(tmp_path: Path) -> None:
     """Dead PID lock is removed and returns False."""
-    with tempfile.NamedTemporaryFile(suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(dir=tmp_path, suffix=".sase", delete=False) as f:
         project_file = f.name
     lock_file = f"{project_file}.edit_lock"
     try:
@@ -88,9 +89,9 @@ def test_is_edit_locked_cleans_stale_lock() -> None:
             pass
 
 
-def test_is_edit_locked_returns_false_when_no_lock() -> None:
+def test_is_edit_locked_returns_false_when_no_lock(tmp_path: Path) -> None:
     """No lock file returns False."""
-    with tempfile.NamedTemporaryFile(suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(dir=tmp_path, suffix=".sase", delete=False) as f:
         project_file = f.name
     try:
         assert is_edit_locked(project_file) is False
@@ -106,9 +107,9 @@ def test_release_nonexistent_lock_is_noop() -> None:
 # --- wait_for_edit_lock_release tests ---
 
 
-def test_wait_returns_immediately_when_unlocked() -> None:
+def test_wait_returns_immediately_when_unlocked(tmp_path: Path) -> None:
     """No edit lock → instant return."""
-    with tempfile.NamedTemporaryFile(suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(dir=tmp_path, suffix=".sase", delete=False) as f:
         project_file = f.name
     try:
         start = time.monotonic()
@@ -119,9 +120,9 @@ def test_wait_returns_immediately_when_unlocked() -> None:
         os.unlink(project_file)
 
 
-def test_wait_blocks_then_proceeds() -> None:
+def test_wait_blocks_then_proceeds(tmp_path: Path) -> None:
     """Lock held by subprocess, released after delay → blocks then returns."""
-    with tempfile.NamedTemporaryFile(suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(dir=tmp_path, suffix=".sase", delete=False) as f:
         project_file = f.name
     lock_file = f"{project_file}.edit_lock"
 
@@ -163,9 +164,9 @@ def test_wait_blocks_then_proceeds() -> None:
             pass
 
 
-def test_wait_same_process_skips() -> None:
+def test_wait_same_process_skips(tmp_path: Path) -> None:
     """Lock with current PID → instant return (same-process exemption)."""
-    with tempfile.NamedTemporaryFile(suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(dir=tmp_path, suffix=".sase", delete=False) as f:
         project_file = f.name
     try:
         acquire_edit_lock(project_file)
@@ -181,9 +182,9 @@ def test_wait_same_process_skips() -> None:
             pass
 
 
-def test_wait_timeout_raises() -> None:
+def test_wait_timeout_raises(tmp_path: Path) -> None:
     """Lock with alive PID + short timeout → LockTimeoutError."""
-    with tempfile.NamedTemporaryFile(suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(dir=tmp_path, suffix=".sase", delete=False) as f:
         project_file = f.name
     lock_file = f"{project_file}.edit_lock"
 
@@ -207,9 +208,9 @@ def test_wait_timeout_raises() -> None:
             pass
 
 
-def test_changespec_lock_waits_for_edit_lock() -> None:
+def test_changespec_lock_waits_for_edit_lock(tmp_path: Path) -> None:
     """Integration: edit lock held → changespec_lock blocks until released."""
-    with tempfile.NamedTemporaryFile(suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(dir=tmp_path, suffix=".sase", delete=False) as f:
         project_file = f.name
     lock_file = f"{project_file}.edit_lock"
 

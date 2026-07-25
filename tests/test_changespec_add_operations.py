@@ -2,13 +2,14 @@
 
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.changespec.parser import parse_project_file
 from sase.workflows.commit.changespec_operations import add_changespec_to_project_file
 
 
-def test_add_changespec_inherits_parent_hooks() -> None:
+def test_add_changespec_inherits_parent_hooks(tmp_path: Path) -> None:
     """Test that child ChangeSpec inherits hooks from parent."""
     # Create a project file with a parent ChangeSpec containing hooks
     parent_content = """NAME: parent_feature
@@ -21,7 +22,9 @@ HOOKS:
   sase_hg_lint
   bb_rabbit_test //foo:parent_test
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(parent_content)
         project_file = f.name
 
@@ -67,7 +70,7 @@ HOOKS:
         os.unlink(project_file)
 
 
-def test_add_changespec_inherits_parent_bug() -> None:
+def test_add_changespec_inherits_parent_bug(tmp_path: Path) -> None:
     """Test that child ChangeSpec inherits BUG from parent."""
     # Create a project file with a parent ChangeSpec containing BUG
     parent_content = """NAME: parent_feature
@@ -77,7 +80,9 @@ BUG: http://b/12345678
 PR: http://cl/11111
 STATUS: Draft
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(parent_content)
         project_file = f.name
 
@@ -107,9 +112,11 @@ STATUS: Draft
         os.unlink(project_file)
 
 
-def test_add_changespec_initial_commit_plan_drawer() -> None:
+def test_add_changespec_initial_commit_plan_drawer(tmp_path: Path) -> None:
     """Plan path in position 5 of initial_commits tuple emits PLAN drawer."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 
@@ -147,9 +154,11 @@ def test_add_changespec_initial_commit_plan_drawer() -> None:
         os.unlink(project_file)
 
 
-def test_add_changespec_initial_commit_no_plan_drawer() -> None:
+def test_add_changespec_initial_commit_no_plan_drawer(tmp_path: Path) -> None:
     """4-element tuple (no plan_path) does not emit PLAN drawer."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 
@@ -180,9 +189,11 @@ def test_add_changespec_initial_commit_no_plan_drawer() -> None:
         os.unlink(project_file)
 
 
-def test_add_changespec_initial_commits_creates_timestamps() -> None:
+def test_add_changespec_initial_commits_creates_timestamps(tmp_path: Path) -> None:
     """ChangeSpec with initial_commits includes a TIMESTAMPS section with COMMIT entries."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 
@@ -214,9 +225,11 @@ def test_add_changespec_initial_commits_creates_timestamps() -> None:
         os.unlink(project_file)
 
 
-def test_add_changespec_initial_commits_multiple_timestamps() -> None:
+def test_add_changespec_initial_commits_multiple_timestamps(tmp_path: Path) -> None:
     """Multiple initial commits produce multiple COMMIT timestamp lines in order."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 
@@ -261,9 +274,11 @@ def test_add_changespec_initial_commits_multiple_timestamps() -> None:
         os.unlink(project_file)
 
 
-def test_add_changespec_no_commits_no_timestamps() -> None:
+def test_add_changespec_no_commits_no_timestamps(tmp_path: Path) -> None:
     """ChangeSpec without initial_commits has no TIMESTAMPS section."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 
@@ -289,9 +304,11 @@ def test_add_changespec_no_commits_no_timestamps() -> None:
         os.unlink(project_file)
 
 
-def test_add_changespec_no_parent_bug_inherited_when_no_parent() -> None:
+def test_add_changespec_no_parent_bug_inherited_when_no_parent(tmp_path: Path) -> None:
     """Test that no BUG is inherited when there's no parent."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 
@@ -320,14 +337,16 @@ def test_add_changespec_no_parent_bug_inherited_when_no_parent() -> None:
         os.unlink(project_file)
 
 
-def test_add_changespec_drops_parent_when_not_found_anywhere() -> None:
+def test_add_changespec_drops_parent_when_not_found_anywhere(tmp_path: Path) -> None:
     """Bogus parent (not in active file, not in archive) is dropped with a warning.
 
     Regression guard: previously ``PARENT: p4head`` (or any other unresolvable
     string) would be written verbatim into the generated ChangeSpec. Now the
     PARENT line is omitted entirely when the parent does not resolve.
     """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
 
@@ -361,9 +380,11 @@ def test_add_changespec_drops_parent_when_not_found_anywhere() -> None:
         os.unlink(project_file)
 
 
-def test_add_changespec_keeps_parent_when_in_archive() -> None:
+def test_add_changespec_keeps_parent_when_in_archive(tmp_path: Path) -> None:
     """Parent in the archive (terminal CS) is valid — PARENT line is kept."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write("")
         project_file = f.name
     archive_file = project_file[:-5] + "-archive.sase"
@@ -398,7 +419,7 @@ def test_add_changespec_keeps_parent_when_in_archive() -> None:
             os.unlink(archive_file)
 
 
-def test_add_changespec_keeps_real_active_parent() -> None:
+def test_add_changespec_keeps_real_active_parent(tmp_path: Path) -> None:
     """A real active parent still produces ``PARENT: <name>`` at the right spot."""
     parent_content = (
         "NAME: parent_feature\n"
@@ -406,7 +427,9 @@ def test_add_changespec_keeps_real_active_parent() -> None:
         "PR: http://cl/11111\n"
         "STATUS: Draft\n"
     )
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
         f.write(parent_content)
         project_file = f.name
 

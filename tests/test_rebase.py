@@ -16,11 +16,15 @@ from sase.status_state_machine.field_updates import _apply_parent_update
 
 
 def _create_test_project_file_with_parent(
-    status: str = "Ready", parent: str | None = None
+    tmp_path: Path,
+    status: str = "Ready",
+    parent: str | None = None,
 ) -> str:
     """Create a temporary project file with a test ChangeSpec."""
     parent_line = f"PARENT: {parent}\n" if parent else ""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", delete=False, suffix=".sase"
+    ) as f:
         f.write(f"""# Test Project
 
 ## ChangeSpec
@@ -36,9 +40,11 @@ STATUS: {status}
         return f.name
 
 
-def _create_multi_changespec_file() -> str:
+def _create_multi_changespec_file(tmp_path: Path) -> str:
     """Create a project file with multiple ChangeSpecs for testing eligible parents."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", delete=False, suffix=".sase"
+    ) as f:
         f.write("""# Test Project
 
 NAME: Feature A
@@ -107,9 +113,11 @@ def test_apply_parent_update_existing_field() -> None:
 # === Tests for update_changespec_parent_atomic ===
 
 
-def test_update_changespec_parent_atomic_add_parent() -> None:
+def test_update_changespec_parent_atomic_add_parent(tmp_path: Path) -> None:
     """Test adding PARENT when it doesn't exist."""
-    project_file = _create_test_project_file_with_parent(status="Ready", parent=None)
+    project_file = _create_test_project_file_with_parent(
+        tmp_path, status="Ready", parent=None
+    )
 
     try:
         update_changespec_parent_atomic(project_file, "Test Feature", "NewParent")
@@ -122,10 +130,10 @@ def test_update_changespec_parent_atomic_add_parent() -> None:
         Path(project_file).unlink()
 
 
-def test_update_changespec_parent_atomic_remove_parent() -> None:
+def test_update_changespec_parent_atomic_remove_parent(tmp_path: Path) -> None:
     """Test removing PARENT field."""
     project_file = _create_test_project_file_with_parent(
-        status="Ready", parent="OldParent"
+        tmp_path, status="Ready", parent="OldParent"
     )
 
     try:
