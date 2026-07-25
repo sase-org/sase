@@ -95,7 +95,11 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_output_variables import set_agent_output_variables
-from sase.bead.claims import claim_bead_for_waiting_agent
+from sase.bead.claims import (
+    claim_bead_for_waiting_agent,
+    clear_bead_claim_marker,
+    write_bead_claim_marker,
+)
 from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
 from sase.telemetry import init_telemetry, register_flush_on_exit
 from sase.telemetry.metrics import AGENT_KILLS
@@ -327,6 +331,12 @@ def main() -> None:
                 )
             ):
                 held_bead_claim = (info.bead_id, agent_name, project_name)
+                write_bead_claim_marker(
+                    artifacts_dir,
+                    project_name=project_name,
+                    bead_id=info.bead_id,
+                    agent_name=agent_name,
+                )
             wait_chats: list[str] = []
             repeat_stop: RepeatStopDecision | None = None
             blocking_wait_occurred = False
@@ -528,6 +538,7 @@ def main() -> None:
                     )
                     agent_meta["bead_claim_promoted"] = True
                     write_agent_meta(artifacts_dir, agent_meta)
+                    clear_bead_claim_marker(artifacts_dir)
                     held_bead_claim = None
 
                 sdd_base_sha = capture_sdd_base_sha(workspace_dir, workspace_num)

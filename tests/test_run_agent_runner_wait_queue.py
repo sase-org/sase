@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.axe import run_agent_runner
+from sase.bead.claims import BEAD_CLAIM_MARKER
 
 
 def _runner_args(tmp_path: Path) -> SimpleNamespace:
@@ -102,6 +103,17 @@ def _run_runner_with_wait_result(
         )
         assert persisted_meta["output_path"] == str(tmp_path / "output.log")
         assert agent_meta["output_path"] == str(tmp_path / "output.log")
+        if bead_id is not None:
+            claim_marker = json.loads(
+                (Path(wait_artifacts_dir) / BEAD_CLAIM_MARKER).read_text(
+                    encoding="utf-8"
+                )
+            )
+            assert claim_marker == {
+                "agent_name": "foo--reviewer",
+                "bead_id": bead_id,
+                "project_name": "sase",
+            }
         return wait_result
 
     with ExitStack() as stack:
@@ -233,6 +245,7 @@ def _run_runner_with_wait_result(
             )
             if bead_id is not None:
                 assert meta["bead_claim_promoted"] is True
+                assert not (artifacts_dir / BEAD_CLAIM_MARKER).exists()
             return exec_result
 
         run_execution_loop = stack.enter_context(

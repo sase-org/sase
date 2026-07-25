@@ -1,5 +1,6 @@
 """Shutdown and completion helpers for ``run_agent_runner``."""
 
+import json
 import os
 import sys
 from collections.abc import Callable
@@ -7,6 +8,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from sase.ace.tui.models.agent import AgentType
+from sase.bead.claims import (
+    BeadClaimMarker,
+    clear_bead_claim_marker,
+    read_bead_claim_marker,
+)
 from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
 )
@@ -113,6 +119,42 @@ def _should_hold_workspace(
     )
 
 
+def _held_bead_claim_from_state(
+    state: RunnerShutdownState,
+) -> BeadClaimMarker | None:
+    if (
+        state.held_bead_claim_id
+        and state.held_bead_claim_agent
+        and state.held_bead_claim_project
+    ):
+        return BeadClaimMarker(
+            bead_id=state.held_bead_claim_id,
+            agent_name=state.held_bead_claim_agent,
+            project_name=state.held_bead_claim_project,
+        )
+    return None
+
+
+def _agent_meta_has_promoted_bead_claim(artifacts_dir: str) -> bool:
+    try:
+        with open(
+            os.path.join(artifacts_dir, "agent_meta.json"), encoding="utf-8"
+        ) as f:
+            payload = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return False
+    return isinstance(payload, dict) and payload.get("bead_claim_promoted") is True
+
+
+def _held_bead_claim_for_shutdown(
+    context: RunnerShutdownContext,
+    state: RunnerShutdownState,
+) -> BeadClaimMarker | None:
+    return _held_bead_claim_from_state(state) or read_bead_claim_marker(
+        context.artifacts_dir
+    )
+
+
 def finalize_runner_shutdown(
     *,
     context: RunnerShutdownContext,
@@ -173,22 +215,22 @@ def finalize_runner_shutdown(
         except Exception as e:
             print(f"Error updating workspace claim: {e}", file=sys.stderr)
 
-    if (
-        state.held_bead_claim_id
-        and state.held_bead_claim_agent
-        and state.held_bead_claim_project
-    ):
+    held_bead_claim = _held_bead_claim_for_shutdown(context, state)
+    if held_bead_claim is not None:
         try:
             from sase.agent.pending_handoff import has_pending_handoff
 
-            if not has_pending_handoff(context.artifacts_dir):
+            if not has_pending_handoff(
+                context.artifacts_dir
+            ) and not _agent_meta_has_promoted_bead_claim(context.artifacts_dir):
                 from sase.bead.claims import release_bead_claim_for_agent
 
-                release_bead_claim_for_agent(
-                    project_name=state.held_bead_claim_project,
-                    bead_id=state.held_bead_claim_id,
-                    agent_name=state.held_bead_claim_agent,
-                )
+                if release_bead_claim_for_agent(
+                    project_name=held_bead_claim.project_name,
+                    bead_id=held_bead_claim.bead_id,
+                    agent_name=held_bead_claim.agent_name,
+                ):
+                    clear_bead_claim_marker(context.artifacts_dir)
         except Exception as e:
             print(
                 f"Warning: Failed to release waiting bead claim: {e}", file=sys.stderr

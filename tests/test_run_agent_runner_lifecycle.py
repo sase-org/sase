@@ -13,6 +13,7 @@ from sase.axe.run_agent_runner_lifecycle import (
     finalize_runner_shutdown,
     _should_hold_workspace,
 )
+from sase.bead.claims import BEAD_CLAIM_MARKER, write_bead_claim_marker
 from sase.running_field import ClaimResult
 
 
@@ -276,6 +277,99 @@ def test_finalize_releases_held_prelaunch_bead_claim(tmp_path: Path) -> None:
     )
 
 
+def test_finalize_releases_marker_only_prelaunch_bead_claim(tmp_path: Path) -> None:
+    output_path = tmp_path / "output.log"
+    assert write_bead_claim_marker(
+        tmp_path,
+        project_name="sase",
+        bead_id="sase-1.2",
+        agent_name="sase-1.2",
+    )
+    context = RunnerShutdownContext(
+        project_file="/tmp/project.sase",
+        workflow_name="run",
+        cl_name="feature",
+        artifacts_timestamp="20260712120000",
+        artifacts_dir=str(tmp_path),
+        output_path=str(output_path),
+        submitted_xprompt="do work",
+        prompt="do work",
+        is_home_mode=True,
+    )
+    deps = RunnerShutdownDeps(
+        update_artifact_index=MagicMock(),
+        was_killed=MagicMock(return_value=True),
+        all_steps_hidden=MagicMock(return_value=True),
+        write_error_report=MagicMock(),
+        send_completion_notification=MagicMock(),
+        auto_dismiss_completed_agent=MagicMock(),
+    )
+
+    with patch(
+        "sase.bead.claims.release_bead_claim_for_agent",
+        return_value=True,
+    ) as release:
+        finalize_runner_shutdown(
+            context=context,
+            state=_state(
+                error_summary=None,
+                suppress_completion_notification=True,
+            ),
+            deps=deps,
+        )
+
+    release.assert_called_once_with(
+        project_name="sase",
+        bead_id="sase-1.2",
+        agent_name="sase-1.2",
+    )
+    assert not (tmp_path / BEAD_CLAIM_MARKER).exists()
+
+
+def test_finalize_does_not_release_promoted_marker_claim(tmp_path: Path) -> None:
+    assert write_bead_claim_marker(
+        tmp_path,
+        project_name="sase",
+        bead_id="sase-1.2",
+        agent_name="sase-1.2",
+    )
+    (tmp_path / "agent_meta.json").write_text(
+        '{"bead_claim_promoted": true}',
+        encoding="utf-8",
+    )
+    context = RunnerShutdownContext(
+        project_file="/tmp/project.sase",
+        workflow_name="run",
+        cl_name="feature",
+        artifacts_timestamp="20260712120000",
+        artifacts_dir=str(tmp_path),
+        output_path=str(tmp_path / "output.log"),
+        submitted_xprompt="do work",
+        prompt="do work",
+        is_home_mode=True,
+    )
+    deps = RunnerShutdownDeps(
+        update_artifact_index=MagicMock(),
+        was_killed=MagicMock(return_value=True),
+        all_steps_hidden=MagicMock(return_value=True),
+        write_error_report=MagicMock(),
+        send_completion_notification=MagicMock(),
+        auto_dismiss_completed_agent=MagicMock(),
+    )
+
+    with patch("sase.bead.claims.release_bead_claim_for_agent") as release:
+        finalize_runner_shutdown(
+            context=context,
+            state=_state(
+                error_summary=None,
+                suppress_completion_notification=True,
+            ),
+            deps=deps,
+        )
+
+    release.assert_not_called()
+
+
 @pytest.mark.parametrize("marker", [".sase_plan_pending", ".sase_questions_pending"])
 def test_finalize_preserves_held_bead_claim_for_pending_handoff(
     tmp_path: Path, marker: str
@@ -315,3 +409,85 @@ def test_finalize_preserves_held_bead_claim_for_pending_handoff(
         )
 
     release.assert_not_called()
+
+
+def test_finalize_preserves_marker_only_bead_claim_for_pending_handoff(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".sase_plan_pending").touch()
+    assert write_bead_claim_marker(
+        tmp_path,
+        project_name="sase",
+        bead_id="sase-1.2",
+        agent_name="sase-1.2",
+    )
+    context = RunnerShutdownContext(
+        project_file="/tmp/project.sase",
+        workflow_name="run",
+        cl_name="feature",
+        artifacts_timestamp="20260712120000",
+        artifacts_dir=str(tmp_path),
+        output_path=str(tmp_path / "output.log"),
+        submitted_xprompt="do work",
+        prompt="do work",
+        is_home_mode=True,
+    )
+    deps = RunnerShutdownDeps(
+        update_artifact_index=MagicMock(),
+        was_killed=MagicMock(return_value=False),
+        all_steps_hidden=MagicMock(return_value=True),
+        write_error_report=MagicMock(),
+        send_completion_notification=MagicMock(),
+        auto_dismiss_completed_agent=MagicMock(),
+    )
+
+    with patch("sase.bead.claims.release_bead_claim_for_agent") as release:
+        finalize_runner_shutdown(
+            context=context,
+            state=_state(
+                error_summary=None,
+                suppress_completion_notification=True,
+            ),
+            deps=deps,
+        )
+
+    release.assert_not_called()
+    assert (tmp_path / BEAD_CLAIM_MARKER).exists()
+
+
+def test_finalize_ignores_corrupt_bead_claim_marker_with_warning(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / BEAD_CLAIM_MARKER).write_text("{", encoding="utf-8")
+    context = RunnerShutdownContext(
+        project_file="/tmp/project.sase",
+        workflow_name="run",
+        cl_name="feature",
+        artifacts_timestamp="20260712120000",
+        artifacts_dir=str(tmp_path),
+        output_path=str(tmp_path / "output.log"),
+        submitted_xprompt="do work",
+        prompt="do work",
+        is_home_mode=True,
+    )
+    deps = RunnerShutdownDeps(
+        update_artifact_index=MagicMock(),
+        was_killed=MagicMock(return_value=True),
+        all_steps_hidden=MagicMock(return_value=True),
+        write_error_report=MagicMock(),
+        send_completion_notification=MagicMock(),
+        auto_dismiss_completed_agent=MagicMock(),
+    )
+
+    with patch("sase.bead.claims.release_bead_claim_for_agent") as release:
+        finalize_runner_shutdown(
+            context=context,
+            state=_state(
+                error_summary=None,
+                suppress_completion_notification=True,
+            ),
+            deps=deps,
+        )
+
+    release.assert_not_called()
+    assert "Warning: Failed to read bead claim marker" in capsys.readouterr().err
