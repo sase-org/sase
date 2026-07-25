@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
+from dataclasses import replace
 import fcntl
 import os
 from pathlib import Path
@@ -40,6 +41,7 @@ def sync_agents(
     *,
     git_runner: GitRunner = run_git,
     lock_timeout_seconds: float | None = None,
+    retry_quarantined: bool = False,
 ) -> tuple[SyncOutcome, ...]:
     """Synchronize every selected project without cross-project fail-fast."""
 
@@ -68,10 +70,17 @@ def sync_agents(
         try:
             from sase.agents_sync.publication_outbox import (
                 acknowledge_agent_publications,
+                clear_quarantined_agent_publications,
                 list_agent_publications,
+                publication_quarantine_diagnostics,
             )
 
-            pending_publications = list_agent_publications(target.project_key)
+            if retry_quarantined:
+                clear_quarantined_agent_publications(target.project_key)
+            pending_publications = list_agent_publications(
+                target.project_key,
+                include_quarantined=False,
+            )
             outcome = _sync_project(
                 target,
                 owner,
@@ -82,6 +91,17 @@ def sync_agents(
                 acknowledge_agent_publications(
                     target.project_key,
                     (item.logical_key for item in pending_publications),
+                )
+            quarantine_diagnostics = publication_quarantine_diagnostics(
+                target.project_key
+            )
+            if quarantine_diagnostics:
+                outcome = replace(
+                    outcome,
+                    diagnostics=(
+                        *outcome.diagnostics,
+                        *quarantine_diagnostics,
+                    ),
                 )
             outcomes.append(outcome)
         except Exception as exc:  # noqa: BLE001 - per-project isolation contract

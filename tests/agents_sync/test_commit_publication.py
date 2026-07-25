@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -21,6 +22,7 @@ from sase.agents_sync.models import (
 )
 from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
+    enqueue_agent_publication,
     list_agent_publications,
 )
 from sase.agents_sync.v2_io import owner_manifest_path, v2_json_bytes
@@ -194,7 +196,7 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
     monkeypatch.setattr(
         commit_publication,
         "list_agent_publications",
-        lambda _project_key: requests,
+        lambda _project_key, **_kwargs: requests,
     )
 
     def integrate(*_args, **_kwargs):
@@ -255,10 +257,11 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
     monkeypatch.setattr(git_sync, "agents_ahead_count", lambda *_args: 0)
 
     started = time.perf_counter()
-    error = _publish_queued_locked(target, owner, run_git)
+    result = _publish_queued_locked(target, owner, run_git)
     elapsed = time.perf_counter() - started
 
-    assert error is None
+    assert result.error is None
+    assert result.drained == len(requests)
     assert integration_calls == 1
     assert build_calls == 1
     assert [hood for hood, _inventory in published] == list(hoods)
@@ -266,3 +269,118 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
     assert sorted(len(keys) for keys in updated) == [500, 500, 500, 500]
     assert acknowledged == [tuple(item.logical_key for item in requests)]
     assert elapsed < 1.0
+
+
+def test_mixed_queue_publishes_good_items_and_quarantines_only_bad_item(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("SASE_AGENTS_PUBLICATION_MAX_ATTEMPTS", "2")
+    target, remote = _setup_target(tmp_path)
+    owner = AgentOwnerIdentity("alice", "athena")
+    monkeypatch.setattr(
+        "sase.agents_sync.commit_publication.resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.commit_publication.require_agent_owner_identity",
+        lambda: owner,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.commit_publication.integrate_agent_imports_with_receipts",
+        lambda *_args, **_kwargs: IntegrationCounts(),
+    )
+    for hood, revision in (("good", "a" * 40), ("bad", "b" * 40)):
+        enqueue_agent_publication(
+            AgentPublicationOutboxItem(
+                project_key="proj",
+                project="Project",
+                local_agent=f"{hood}--code",
+                global_agent=f"alice.athena.{hood}--code",
+                primary_revision=revision,
+                local_hood=hood,
+            )
+        )
+
+    published: list[str] = []
+
+    def publish(_target, repo, agent, **_kwargs):
+        hood = agent.split("--", 1)[0]
+        if hood == "bad":
+            raise RuntimeError("broken historical record")
+        published.append(hood)
+        (repo / "README.md").write_text("# Published hoods\n")
+        (repo / "schema.json").write_text("{}\n")
+        (repo / "families").mkdir(exist_ok=True)
+        (repo / "families" / ".gitkeep").write_text("")
+        agent_page = repo / "agents" / hood / "README.md"
+        agent_page.parent.mkdir(parents=True, exist_ok=True)
+        agent_page.write_text(f"# {hood}\n")
+        entries = tuple(
+            (
+                published_hood,
+                V2OwnerHoodEntry(
+                    hashlib.sha256(published_hood.encode()).hexdigest(),
+                    (f"agents/{published_hood}/README.md",),
+                    1,
+                    1,
+                ),
+            )
+            for published_hood in dict.fromkeys(published)
+        )
+        manifest = V2OwnerManifest(
+            owner,
+            V2ProjectIdentity("proj", "Project"),
+            entries,
+        )
+        path = repo / owner_manifest_path(owner)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(v2_json_bytes(manifest.to_json_dict()))
+        return V2PublicationCounts(hoods_published=1)
+
+    monkeypatch.setattr(
+        "sase.agents_sync.commit_publication.publish_agent_hood",
+        publish,
+    )
+
+    first = publish_committed_agent_hood(
+        "other--code",
+        "c" * 40,
+        project="Project",
+        git_runner=run_git,
+    )
+
+    assert first.published and first.queued and first.drained == 2
+    assert published == ["good", "other"]
+    queued = list_agent_publications("proj")
+    assert len(queued) == 1
+    assert queued[0].local_hood == "bad"
+    assert queued[0].attempts == 1
+    assert queued[0].last_error is not None
+    assert "broken historical record" in queued[0].last_error
+
+    verify = tmp_path / "verify-mixed"
+    _git(tmp_path, "clone", str(remote), str(verify))
+    assert (verify / "agents" / "good" / "README.md").is_file()
+    assert (verify / "agents" / "other" / "README.md").is_file()
+
+    second = publish_committed_agent_hood(
+        "bad--code",
+        "b" * 40,
+        project="Project",
+        git_runner=run_git,
+    )
+    assert second.queued and not second.published
+    quarantined = list_agent_publications("proj")[0]
+    assert quarantined.quarantined
+    assert quarantined.attempts == 2
+
+    third = publish_committed_agent_hood(
+        "bad--code",
+        "b" * 40,
+        project="Project",
+        git_runner=run_git,
+    )
+    assert third.queued and not third.published
+    assert list_agent_publications("proj")[0].attempts == 2

@@ -16,6 +16,11 @@ from sase.agents_sync.models import (
     SyncStatusSnapshot,
     TargetSelection,
 )
+from sase.agents_sync.publication_outbox import (
+    AgentPublicationOutboxItem,
+    enqueue_agent_publication,
+    update_agent_publications,
+)
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 
@@ -93,6 +98,42 @@ def test_plain_status_reconciles_cache_without_running_git(
     current = snapshot.projects[0]
     assert (current.ahead, current.behind, current.unexported_agents) == (2, 3, 4)
     assert current.last_fetch_time == 90.0
+
+
+def test_plain_status_reports_publication_quarantine(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target = _target(tmp_path)
+    _patch_selection(monkeypatch, target)
+    item = enqueue_agent_publication(
+        AgentPublicationOutboxItem(
+            project_key="proj",
+            project="Project",
+            local_agent="bad--code",
+            global_agent="alice.athena.bad--code",
+            primary_revision="a" * 40,
+            local_hood="bad",
+        )
+    )
+    update_agent_publications(
+        "proj",
+        (item.logical_key,),
+        error="broken history",
+        increment_attempts=True,
+        quarantine_threshold=1,
+    )
+
+    snapshot = status.get_agents_sync_status(
+        now=101.0,
+        path=tmp_path / "status.json",
+    )
+
+    diagnostics = snapshot.projects[0].quarantine_diagnostics
+    assert len(diagnostics) == 1
+    assert "alice.athena.bad--code" in diagnostics[0]
+    assert "--retry-quarantined" in diagnostics[0]
 
 
 @pytest.mark.parametrize("cache_contents", [None, "{broken"])

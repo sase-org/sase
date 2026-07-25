@@ -29,6 +29,9 @@ from sase.agents_sync.models import (
     SyncOutcome,
     SyncStatusSnapshot,
 )
+from sase.agents_sync.publication_outbox import (
+    publication_quarantine_diagnostics,
+)
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import AgentOwnerIdentity
@@ -191,7 +194,10 @@ def _refresh_project_status(
             pending_updates=report.pending_updates,
             validated_foreign_count=report.validated_foreign_count,
             exact_owner_count=report.exact_owner_count,
-            quarantine_diagnostics=report.diagnostics,
+            quarantine_diagnostics=(
+                *report.diagnostics,
+                *_publication_diagnostics(target.project_key),
+            ),
             cache_updated_at=report.cache_updated_at,
         )
 
@@ -210,8 +216,15 @@ def _reconcile_project_status(
     quarantines = tuple(
         dict.fromkeys(
             (
-                *(prior.quarantine_diagnostics if prior is not None else ()),
+                *(
+                    diagnostic
+                    for diagnostic in (
+                        prior.quarantine_diagnostics if prior is not None else ()
+                    )
+                    if not diagnostic.startswith("publication request ")
+                ),
                 *diagnostics,
+                *_publication_diagnostics(target.project_key),
             )
         )
     )
@@ -244,6 +257,13 @@ def _reconcile_project_status(
         quarantine_diagnostics=quarantines,
         cache_updated_at=prior.cache_updated_at if prior is not None else None,
     )
+
+
+def _publication_diagnostics(project_key: str) -> tuple[str, ...]:
+    try:
+        return publication_quarantine_diagnostics(project_key)
+    except (OSError, RuntimeError, ValueError) as exc:
+        return (f"publication outbox diagnostics unavailable: {exc}",)
 
 
 def _revalidate_project_diagnostics(

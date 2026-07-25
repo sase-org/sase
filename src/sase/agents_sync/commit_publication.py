@@ -19,6 +19,7 @@ from sase.agents_sync.publication import publish_agent_hood
 from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
     acknowledge_agent_publications,
+    configured_publication_max_attempts,
     enqueue_agent_publication,
     list_agent_publications,
     update_agent_publications,
@@ -44,6 +45,14 @@ class _CommitPublicationOutcome:
     drained: int = 0
     skip_reason: str | None = None
     error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _DrainResult:
+    drained: int = 0
+    item_errors: tuple[str, ...] = ()
+    error: str | None = None
+    error_keys: tuple[tuple[str, str], ...] = ()
 
 
 def publish_committed_agent_hood(
@@ -84,10 +93,30 @@ def publish_committed_agent_hood(
     )
     try:
         enqueue_agent_publication(item)
-        queued_count = len(list_agent_publications(target.project_key))
+        active_requests = list_agent_publications(
+            target.project_key,
+            include_quarantined=False,
+        )
     except Exception as exc:
         return _CommitPublicationOutcome(
             error=f"could not persist agents publication retry: {exc}"
+        )
+    if not active_requests:
+        quarantined = next(
+            (
+                request
+                for request in list_agent_publications(target.project_key)
+                if request.logical_key == item.logical_key
+            ),
+            None,
+        )
+        return _CommitPublicationOutcome(
+            queued=True,
+            error=(
+                quarantined.last_error
+                if quarantined is not None
+                else "agent publication request is quarantined"
+            ),
         )
 
     from sase.agents_sync import git_sync
@@ -112,9 +141,9 @@ def publish_committed_agent_hood(
     with git_sync.bounded_agents_lock(lock_path, timeout) as acquired:
         if not acquired:
             return _record_failure(target, "agents sync lock is busy")
-        error = _publish_queued_locked(target, owner, git_runner)
-    if error is not None:
-        return _record_failure(target, error)
+        result = _publish_queued_locked(target, owner, git_runner)
+    if result.error is not None:
+        return _record_failure(target, result.error, result.error_keys)
 
     try:
         from sase.agents_sync.status import rewrite_agents_sync_status_after_sync
@@ -123,9 +152,12 @@ def publish_committed_agent_hood(
     except Exception:
         # Status projection is auxiliary and must not fail a completed publish.
         pass
+    remaining = list_agent_publications(target.project_key)
     return _CommitPublicationOutcome(
-        published=True,
-        drained=queued_count,
+        published=result.drained > 0,
+        queued=bool(remaining),
+        drained=result.drained,
+        error="; ".join(result.item_errors) if result.item_errors else None,
     )
 
 
@@ -133,17 +165,27 @@ def _publish_queued_locked(
     target: ProjectTarget,
     owner: AgentOwnerIdentity,
     git_runner: GitRunner,
-) -> str | None:
+) -> _DrainResult:
     from sase.agents_sync import git_sync
 
-    requests = list_agent_publications(target.project_key)
+    requests = list_agent_publications(
+        target.project_key,
+        include_quarantined=False,
+    )
+    if not requests:
+        return _DrainResult()
     logical_keys = tuple(item.logical_key for item in requests)
     pulled = git_sync.pull_agents_rebase(
         target.sidecar_path, git_runner, "agents_sync.commit_publish_pull"
     )
     if pulled.returncode != 0:
         cleanup = git_sync.abort_agents_rebase(target.sidecar_path, git_runner)
-        return git_sync.agents_git_error("git pull --rebase failed", pulled, cleanup)
+        return _DrainResult(
+            error=git_sync.agents_git_error(
+                "git pull --rebase failed", pulled, cleanup
+            ),
+            error_keys=logical_keys,
+        )
 
     identity = AgentIdentitySnapshot(owner)
     with name_registry_load_session():
@@ -159,7 +201,7 @@ def _publish_queued_locked(
             git_runner=git_runner,
         )
 
-    error = _prepare_publications(
+    prepared, item_errors = _prepare_publications(
         target,
         owner,
         requests,
@@ -167,20 +209,25 @@ def _publish_queued_locked(
         inventory,
         git_runner,
     )
-    if error is not None:
-        return error
+    prepared_keys = tuple(item.logical_key for item in prepared)
+    if not prepared:
+        return _DrainResult(item_errors=item_errors)
     commit_result = git_sync.commit_agents_payload_if_dirty(
         target.sidecar_path, owner, git_runner
     )
     if isinstance(commit_result, str):
-        return commit_result
+        return _DrainResult(
+            item_errors=item_errors,
+            error=commit_result,
+            error_keys=prepared_keys,
+        )
     committed = commit_result
     should_push = (
         committed or git_sync.agents_ahead_count(target.sidecar_path, git_runner) > 0
     )
     if not should_push:
-        acknowledge_agent_publications(target.project_key, logical_keys)
-        return None
+        acknowledge_agent_publications(target.project_key, prepared_keys)
+        return _DrainResult(drained=len(prepared), item_errors=item_errors)
 
     pushed = git_runner(
         target.sidecar_path,
@@ -189,10 +236,14 @@ def _publish_queued_locked(
         op="agents_sync.commit_publish_push",
     )
     if pushed.returncode == 0:
-        acknowledge_agent_publications(target.project_key, logical_keys)
-        return None
+        acknowledge_agent_publications(target.project_key, prepared_keys)
+        return _DrainResult(drained=len(prepared), item_errors=item_errors)
     if not git_sync.is_agents_non_fast_forward(pushed):
-        return git_sync.agents_git_error("git push failed", pushed)
+        return _DrainResult(
+            item_errors=item_errors,
+            error=git_sync.agents_git_error("git push failed", pushed),
+            error_keys=prepared_keys,
+        )
 
     if committed:
         dropped = git_runner(
@@ -201,32 +252,46 @@ def _publish_queued_locked(
             op="agents_sync.commit_publish_retry_drop",
         )
         if dropped.returncode != 0:
-            return git_sync.agents_git_error(
-                "could not prepare rejected publication for retry", dropped
+            return _DrainResult(
+                item_errors=item_errors,
+                error=git_sync.agents_git_error(
+                    "could not prepare rejected publication for retry", dropped
+                ),
+                error_keys=prepared_keys,
             )
     repulled = git_sync.pull_agents_rebase(
         target.sidecar_path, git_runner, "agents_sync.commit_publish_retry_pull"
     )
     if repulled.returncode != 0:
         cleanup = git_sync.abort_agents_rebase(target.sidecar_path, git_runner)
-        return git_sync.agents_git_error(
-            "git pull --rebase retry failed", repulled, cleanup
+        return _DrainResult(
+            item_errors=item_errors,
+            error=git_sync.agents_git_error(
+                "git pull --rebase retry failed", repulled, cleanup
+            ),
+            error_keys=prepared_keys,
         )
-    error = _prepare_publications(
+    retry_prepared, retry_errors = _prepare_publications(
         target,
         owner,
-        requests,
+        prepared,
         identity,
         inventory,
         git_runner,
     )
-    if error is not None:
-        return error
+    all_item_errors = (*item_errors, *retry_errors)
+    retry_keys = tuple(item.logical_key for item in retry_prepared)
+    if not retry_prepared:
+        return _DrainResult(item_errors=all_item_errors)
     retry_commit = git_sync.commit_agents_payload_if_dirty(
         target.sidecar_path, owner, git_runner
     )
     if isinstance(retry_commit, str):
-        return retry_commit
+        return _DrainResult(
+            item_errors=all_item_errors,
+            error=retry_commit,
+            error_keys=retry_keys,
+        )
     retry_push = git_runner(
         target.sidecar_path,
         ["push"],
@@ -234,9 +299,16 @@ def _publish_queued_locked(
         op="agents_sync.commit_publish_retry_push",
     )
     if retry_push.returncode != 0:
-        return git_sync.agents_git_error("git push retry failed", retry_push)
-    acknowledge_agent_publications(target.project_key, logical_keys)
-    return None
+        return _DrainResult(
+            item_errors=all_item_errors,
+            error=git_sync.agents_git_error("git push retry failed", retry_push),
+            error_keys=retry_keys,
+        )
+    acknowledge_agent_publications(target.project_key, retry_keys)
+    return _DrainResult(
+        drained=len(retry_prepared),
+        item_errors=all_item_errors,
+    )
 
 
 def _prepare_publications(
@@ -246,12 +318,15 @@ def _prepare_publications(
     identity: AgentIdentitySnapshot,
     inventory: ProjectHoodInventory,
     git_runner: GitRunner,
-) -> str | None:
+) -> tuple[tuple[AgentPublicationOutboxItem, ...], tuple[str, ...]]:
     repo = target.sidecar_path
     requests_by_hood: dict[str, list[AgentPublicationOutboxItem]] = {}
+    prepared: list[AgentPublicationOutboxItem] = []
+    errors: list[str] = []
     for request in requests:
         requests_by_hood.setdefault(request.local_hood, []).append(request)
 
+    published_by_hood: dict[str, list[AgentPublicationOutboxItem]] = {}
     for hood_requests in requests_by_hood.values():
         request = hood_requests[0]
         try:
@@ -263,36 +338,87 @@ def _prepare_publications(
                 inventory=inventory,
                 git_runner=git_runner,
             )
+            published_by_hood[request.local_hood] = hood_requests
         except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
-            return f"could not publish agent hood {request.local_hood!r}: {exc}"
+            error = f"could not publish agent hood {request.local_hood!r}: {exc}"
+            update_agent_publications(
+                target.project_key,
+                (item.logical_key for item in hood_requests),
+                error=error,
+                increment_attempts=True,
+                quarantine_threshold=configured_publication_max_attempts(),
+            )
+            errors.append(error)
 
-    manifest = read_owner_manifest(
-        repo,
-        owner,
-        V2ProjectIdentity(target.project_key, target.project),
-    )
-    entries = manifest.by_hood()
-    for hood, hood_requests in requests_by_hood.items():
-        entry = entries.get(hood)
-        if entry is None:
-            return f"published hood {hood!r} is absent from manifest"
-        update_agent_publications(
-            target.project_key,
-            (request.logical_key for request in hood_requests),
-            hood_digest=entry.digest,
-            error=None,
+    try:
+        entries = (
+            read_owner_manifest(
+                repo,
+                owner,
+                V2ProjectIdentity(target.project_key, target.project),
+            ).by_hood()
+            if published_by_hood
+            else {}
         )
-    return None
+    except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
+        for hood, hood_requests in published_by_hood.items():
+            error = f"could not publish agent hood {hood!r}: {exc}"
+            update_agent_publications(
+                target.project_key,
+                (item.logical_key for item in hood_requests),
+                error=error,
+                increment_attempts=True,
+                quarantine_threshold=configured_publication_max_attempts(),
+            )
+            errors.append(error)
+        return (), tuple(errors)
+    for hood, hood_requests in published_by_hood.items():
+        request = hood_requests[0]
+        try:
+            entry = entries.get(hood)
+            if entry is None:
+                raise RuntimeError(f"published hood {hood!r} is absent from manifest")
+            update_agent_publications(
+                target.project_key,
+                (item.logical_key for item in hood_requests),
+                hood_digest=entry.digest,
+                error=None,
+            )
+            prepared.extend(hood_requests)
+        except Exception as exc:  # noqa: BLE001 - durable auxiliary boundary
+            error = f"could not publish agent hood {request.local_hood!r}: {exc}"
+            update_agent_publications(
+                target.project_key,
+                (item.logical_key for item in hood_requests),
+                error=error,
+                increment_attempts=True,
+                quarantine_threshold=configured_publication_max_attempts(),
+            )
+            errors.append(error)
+    prepared_keys = {item.logical_key for item in prepared}
+    return (
+        tuple(item for item in requests if item.logical_key in prepared_keys),
+        tuple(errors),
+    )
 
 
 def _record_failure(
     target: ProjectTarget,
     error: str,
+    logical_keys: tuple[tuple[str, str], ...] | None = None,
 ) -> _CommitPublicationOutcome:
-    requests = list_agent_publications(target.project_key)
+    requests = list_agent_publications(
+        target.project_key,
+        include_quarantined=False,
+    )
+    selected = (
+        tuple(item.logical_key for item in requests)
+        if logical_keys is None
+        else logical_keys
+    )
     update_agent_publications(
         target.project_key,
-        (item.logical_key for item in requests),
+        selected,
         error=error,
         increment_attempts=True,
     )

@@ -96,6 +96,15 @@ class _SaseArgumentParser(argparse.ArgumentParser):
             and not getattr(parsed, "check", False)
         ):
             self.error("sase agent sync --refresh requires --check")
+        if (
+            getattr(parsed, "command", None) == "agent"
+            and getattr(parsed, "agent_subcommand", None) == "sync"
+            and getattr(parsed, "retry_quarantined", False)
+            and getattr(parsed, "check", False)
+        ):
+            self.error(
+                "sase agent sync --retry-quarantined cannot be used with --check"
+            )
         return parsed
 
 

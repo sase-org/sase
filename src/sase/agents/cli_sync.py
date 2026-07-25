@@ -49,7 +49,10 @@ def handle_agents_sync(args: argparse.Namespace) -> int:
             )
         )
 
-    outcomes = sync_agents(projects)
+    outcomes = sync_agents(
+        projects,
+        retry_quarantined=bool(getattr(args, "retry_quarantined", False)),
+    )
     if as_json:
         json.dump(
             {
@@ -118,9 +121,22 @@ def _render_status(statuses: Sequence[ProjectSyncStatus]) -> None:
             _number(status.ahead),
             _number(status.unexported_agents),
             _timestamp(status.last_fetch_time),
-            status.error or status.detail or "-",
+            _status_detail(status),
         )
     Console().print(table)
+
+
+def _status_detail(status: ProjectSyncStatus) -> str:
+    parts = tuple(
+        part
+        for part in (
+            status.error,
+            status.detail,
+            *status.quarantine_diagnostics,
+        )
+        if part
+    )
+    return "; ".join(dict.fromkeys(parts)) if parts else "-"
 
 
 def _number(value: int | None) -> str:

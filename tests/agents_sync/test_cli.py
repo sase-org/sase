@@ -32,6 +32,17 @@ def test_parser_rejects_refresh_without_check() -> None:
     assert exc_info.value.code == 2
 
 
+def test_parser_accepts_retry_quarantined_only_for_full_sync() -> None:
+    args = create_parser().parse_args(
+        ["agent", "sync", "--retry-quarantined", "--project", "one"]
+    )
+    assert args.retry_quarantined
+
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(["agent", "sync", "--check", "--retry-quarantined"])
+    assert exc_info.value.code == 2
+
+
 def test_sync_help_distinguishes_full_cached_and_refresh_modes() -> None:
     parser = create_parser()
     root_action = next(
@@ -101,13 +112,14 @@ def test_mutating_sync_json_allows_benign_skips(
 ) -> None:
     outcomes = (SyncOutcome("proj", "Project", skip_reason="project is disabled"),)
     args = argparse.Namespace(project=[], check=False, refresh=False, json=True)
-    with patch("sase.agents.cli_sync.sync_agents", return_value=outcomes):
+    with patch("sase.agents.cli_sync.sync_agents", return_value=outcomes) as sync:
         exit_code = handle_agents_sync(args)
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["mode"] == "sync"
     assert payload["projects"][0]["skip_reason"] == "project is disabled"
     assert exit_code == 0
+    sync.assert_called_once_with((), retry_quarantined=False)
 
 
 def test_mutating_sync_pretty_table_reports_counts_and_result(

@@ -110,6 +110,15 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
             "without importing them"
         ),
     )
+    sync_parser.add_argument(
+        "-q",
+        "--retry-quarantined",
+        action="store_true",
+        help=(
+            "Clear quarantined publication requests and retry them during "
+            "this full sync"
+        ),
+    )
 
     # sase agent tribe {list,set,unset}
     tribe_parser = agents_sub.add_parser(
