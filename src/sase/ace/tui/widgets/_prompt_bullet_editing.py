@@ -5,9 +5,13 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
+from sase.ace.tui.widgets._paired_text_editing import TextEdit
+from sase.ace.tui.widgets._vim_transforms import INDENT_UNIT
+
 __all__ = [
     "is_prompt_bullet_marker_only",
     "normalize_prompt_bullet_replay_text",
+    "plan_prompt_bullet_shift",
     "prompt_bullet_sibling_prefix",
 ]
 
@@ -47,6 +51,54 @@ def _is_bullet_boundary(line: str) -> bool:
 def is_prompt_bullet_marker_only(line: str) -> bool:
     """Return whether *line* is exactly a spaces-only hyphen bullet marker."""
     return _BULLET_MARKER_RE.fullmatch(line) is not None
+
+
+def plan_prompt_bullet_shift(
+    text: str,
+    offset: int,
+    *,
+    dedent: bool,
+) -> TextEdit | None:
+    """Plan one INSERT-mode indent or dedent of the bullet at *offset*.
+
+    The current line must begin with the prompt's supported space-indented
+    ``- `` marker, and the cursor must be at or before the marker's content
+    column. Indenting inserts one vim shift-width unit at the line start;
+    dedenting removes up to one unit. The cursor follows the shifted content.
+    """
+    if offset < 0 or offset > len(text):
+        return None
+
+    line_start = text.rfind("\n", 0, offset) + 1
+    line_end = text.find("\n", offset)
+    if line_end < 0:
+        line_end = len(text)
+    line = text[line_start:line_end]
+    marker = _BULLET_MARKER_RE.match(line)
+    if marker is None:
+        return None
+
+    cursor_col = offset - line_start
+    if cursor_col > marker.end():
+        return None
+
+    if not dedent:
+        return TextEdit(
+            start=line_start,
+            end=line_start,
+            text=INDENT_UNIT,
+            cursor=offset + len(INDENT_UNIT),
+        )
+
+    remove_count = min(len(marker.group(1)), len(INDENT_UNIT))
+    if remove_count == 0:
+        return None
+    return TextEdit(
+        start=line_start,
+        end=line_start + remove_count,
+        text="",
+        cursor=line_start + max(0, cursor_col - remove_count),
+    )
 
 
 def normalize_prompt_bullet_replay_text(

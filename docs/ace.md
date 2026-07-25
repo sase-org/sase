@@ -2550,7 +2550,8 @@ multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent
 | `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping                      |
 | `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, or history words; see [Completion](#completion)) |
 | `Ctrl+R`                     | Recursive fuzzy file finder using the same prompt-aware path root as file completion                       |
-| `Tab`                        | Snippet expansion (see below)                                                                              |
+| `Tab`                        | Indent a bullet from its marker region; otherwise expand a snippet or advance its tabstop                  |
+| `Shift+Tab`                  | Dedent a bullet from its marker region; otherwise do nothing                                               |
 | `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                            |
 | `Escape`                     | Switch to vim NORMAL mode                                                                                  |
 
@@ -2568,6 +2569,12 @@ with a bare newline and moves the cursor to column zero, ending the list. The co
 to create the next sibling marker and `Ctrl+J` again to exit the list. Those two edits are separate undo checkpoints. A
 selection uses the normal replacement path instead. Extra spaces after the marker, tab indentation, other Markdown
 markers, and markers containing text do not trigger the exit path.
+
+On a line beginning with zero or more spaces followed by `- `, INSERT-mode `Tab` and `Shift+Tab` indent or dedent the
+bullet when the selection is collapsed and the cursor is anywhere from column zero through the marker's content column.
+Each press shifts only that line by the same two-space unit as vim `>>` / `<<`; dedent removes up to one unit, and the
+cursor follows the shifted content. Wrapped continuation lines and other Markdown marker styles are excluded. Once the
+cursor is inside a bullet's content, use NORMAL-mode `>>` / `<<` (or VISUAL `>` / `<`) instead.
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word). Line numbers appear in cyan when
 the text exceeds one line. The native cursor cell is color-coded by prompt Vim mode: INSERT uses cyan, NORMAL uses gold,

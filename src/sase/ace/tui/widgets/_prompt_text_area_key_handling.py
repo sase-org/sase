@@ -15,6 +15,7 @@ from sase.ace.tui.widgets._paired_text_editing import (
     plan_pair_close_skip,
     plan_pair_insert,
 )
+from sase.ace.tui.widgets._prompt_bullet_editing import plan_prompt_bullet_shift
 from sase.ace.tui.widgets._prompt_text_area_actions import prompt_bar_class
 
 if TYPE_CHECKING:
@@ -56,7 +57,9 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         _active_xprompt_arg_hint: ActiveXPromptArgHint | None
         _pending_optional_spacer: PendingOptionalSpacer | None
         _completion_kind: str
+        _dot_insert_capture_offset: int | None
         _file_completion_active: bool
+        _snippet_tabstops: list[int]
         _count_prefix: str
         _insert_g_prefix_pending: bool
         _normal_g_prefix_pending: bool
@@ -349,12 +352,29 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             self._try_file_completion_tab()
             return
 
-        # Tab in INSERT mode: expand snippet or advance tabstop; never insert a
-        # literal tab.
-        if event.key == "tab":
+        # Tab / Shift+Tab in INSERT mode shift a bullet while the cursor is in
+        # its marker region. A queued snippet tabstop still wins; elsewhere Tab
+        # keeps its snippet behavior and Shift+Tab is a consumed no-op.
+        if event.key in {"tab", "shift+tab"}:
             event.stop()
             event.prevent_default()
             self._clear_soft_completion(cancel_timer=True)
+            if not self._snippet_tabstops:
+                start, end = self.selection
+                if start == end:
+                    plan = plan_prompt_bullet_shift(
+                        self.text,
+                        self._absolute_offset(self.cursor_location),
+                        dedent=event.key == "shift+tab",
+                    )
+                    if plan is not None:
+                        self._apply_planned_text_edit(
+                            plan,
+                            remap_dot_capture=True,
+                        )
+                        return
+            if event.key == "shift+tab":
+                return
             if self._try_expand_snippet():
                 return
             self._try_advance_tabstop()
@@ -571,8 +591,21 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             self._open_auto_reference_completion_after_change(char)
         return True
 
-    def _apply_planned_text_edit(self, plan: TextEdit) -> None:
+    def _apply_planned_text_edit(
+        self,
+        plan: TextEdit,
+        *,
+        remap_dot_capture: bool = False,
+    ) -> None:
         """Apply a :class:`TextEdit` and clear transient completion state."""
+        if remap_dot_capture:
+            capture = self._dot_insert_capture_offset
+            if capture is not None and capture >= plan.start:
+                if capture < plan.end:
+                    capture = plan.start + len(plan.text)
+                else:
+                    capture += len(plan.text) - (plan.end - plan.start)
+                self._dot_insert_capture_offset = max(0, capture)
         self._replace_via_keyboard(
             plan.text,
             self._location_from_absolute(plan.start),

@@ -42,6 +42,7 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "Hint jump (' first / back)" in combined
     assert "omitted/all unlimited" in combined
     assert "PR Navigation" in combined
+    assert "Indent / dedent bullet marker" in combined
 
     modal.refresh_for_tab("agents", active_query=None)
 

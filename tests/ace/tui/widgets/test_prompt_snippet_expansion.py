@@ -123,6 +123,23 @@ class TestTriggerInContext:
         assert expanded is True
         assert ta.text == "replaced"
 
+    async def test_tab_dispatch_expands_trigger_later_on_bullet_line(self) -> None:
+        """Bullet shifting does not take over Tab once inside item content."""
+        app = _SnippetTestApp({"snip": "EXPANDED"})
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("- snip")
+            ta.cursor_location = (0, 6)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _self: app),
+            ):
+                await pilot.press("tab")
+
+            assert ta.text == "- EXPANDED"
+            assert ta.cursor_location == (0, 10)
+
 
 class TestMultiLineExpansion:
     async def test_cursor_on_second_line(self) -> None:

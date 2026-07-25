@@ -9,8 +9,10 @@ from sase.ace.testing import PromptPage, VimEditorPage
 from sase.ace.tui.widgets._prompt_bullet_editing import (
     is_prompt_bullet_marker_only,
     normalize_prompt_bullet_replay_text,
+    plan_prompt_bullet_shift,
     prompt_bullet_sibling_prefix,
 )
+from sase.ace.tui.widgets._paired_text_editing import TextEdit
 
 
 @pytest.mark.parametrize(
@@ -50,6 +52,96 @@ from sase.ace.tui.widgets._prompt_bullet_editing import (
 )
 def test_is_prompt_bullet_marker_only(line: str, expected: bool) -> None:
     assert is_prompt_bullet_marker_only(line) is expected
+
+
+@pytest.mark.parametrize(
+    ("text", "offset", "expected"),
+    [
+        ("- item", 0, TextEdit(start=0, end=0, text="  ", cursor=2)),
+        ("- ", 2, TextEdit(start=0, end=0, text="  ", cursor=4)),
+        ("  - item", 0, TextEdit(start=0, end=0, text="  ", cursor=2)),
+        ("  - item", 1, TextEdit(start=0, end=0, text="  ", cursor=3)),
+        ("  - item", 2, TextEdit(start=0, end=0, text="  ", cursor=4)),
+        ("  - item", 4, TextEdit(start=0, end=0, text="  ", cursor=6)),
+        (
+            "intro\n  - item",
+            10,
+            TextEdit(start=6, end=6, text="  ", cursor=12),
+        ),
+        ("- item", 3, None),
+        ("plain prose", 0, None),
+        ("\t- item", 2, None),
+        ("* item", 2, None),
+        ("+ item", 2, None),
+        ("1. item", 3, None),
+        ("> item", 2, None),
+        ("-tight", 1, None),
+        ("-", 1, None),
+        ("---", 0, None),
+        ("- item\n  wrapped", 9, None),
+    ],
+    ids=[
+        "top-level-dash",
+        "marker-only-content",
+        "nested-column-zero",
+        "inside-indentation",
+        "on-dash",
+        "content-column",
+        "later-row-offset",
+        "past-content-column",
+        "prose",
+        "tab-indented",
+        "asterisk",
+        "plus",
+        "ordered",
+        "blockquote",
+        "tight-dash",
+        "dash-without-space",
+        "thematic-break",
+        "physical-continuation",
+    ],
+)
+def test_plan_prompt_bullet_indent(
+    text: str,
+    offset: int,
+    expected: TextEdit | None,
+) -> None:
+    assert plan_prompt_bullet_shift(text, offset, dedent=False) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "offset", "expected"),
+    [
+        ("    - item", 0, TextEdit(start=0, end=2, text="", cursor=0)),
+        ("    - item", 1, TextEdit(start=0, end=2, text="", cursor=0)),
+        ("    - item", 4, TextEdit(start=0, end=2, text="", cursor=2)),
+        ("    - item", 6, TextEdit(start=0, end=2, text="", cursor=4)),
+        (" - item", 3, TextEdit(start=0, end=1, text="", cursor=2)),
+        ("- item", 2, None),
+        (
+            "intro\n   - item",
+            11,
+            TextEdit(start=6, end=8, text="", cursor=9),
+        ),
+        ("  - item", 5, None),
+    ],
+    ids=[
+        "column-zero",
+        "inside-removed-indentation",
+        "on-dash",
+        "content-column",
+        "one-space",
+        "zero-space",
+        "later-row-offset",
+        "past-content-column",
+    ],
+)
+def test_plan_prompt_bullet_dedent(
+    text: str,
+    offset: int,
+    expected: TextEdit | None,
+) -> None:
+    assert plan_prompt_bullet_shift(text, offset, dedent=True) == expected
 
 
 @pytest.mark.parametrize(
@@ -248,6 +340,94 @@ async def test_prompt_insert_ctrl_j_prefix_is_its_own_undo_checkpoint() -> None:
 
         await page.press("u")
         assert page.text == "- item"
+
+
+async def test_prompt_insert_tab_indents_and_shift_tab_dedents_marker() -> None:
+    async with PromptPage("- ", cursor=(0, 2), mode="insert") as page:
+        await page.press("tab")
+        assert page.text == "  - "
+        assert page.cursor == (0, 4)
+        assert page.mode == "insert"
+
+        await page.press("shift+tab")
+        assert page.text == "- "
+        assert page.cursor == (0, 2)
+        assert page.mode == "insert"
+
+
+async def test_prompt_insert_repeated_tabs_accumulate_bullet_indent() -> None:
+    async with PromptPage("- item", cursor=(0, 2), mode="insert") as page:
+        await page.press("tab", "tab")
+
+        assert page.text == "    - item"
+        assert page.cursor == (0, 6)
+        assert page.mode == "insert"
+
+
+async def test_prompt_insert_shift_tab_dedents_one_unit() -> None:
+    async with PromptPage("      - item", cursor=(0, 8), mode="insert") as page:
+        await page.press("shift+tab")
+
+        assert page.text == "    - item"
+        assert page.cursor == (0, 6)
+        assert page.mode == "insert"
+
+
+@pytest.mark.parametrize(
+    ("text", "cursor"),
+    [
+        ("- item", (0, 2)),
+        ("plain prose", (0, 0)),
+    ],
+    ids=["unindented-bullet", "prose"],
+)
+async def test_prompt_insert_shift_tab_noop(
+    text: str,
+    cursor: tuple[int, int],
+) -> None:
+    async with PromptPage(text, cursor=cursor, mode="insert") as page:
+        await page.press("shift+tab")
+
+        assert page.text == text
+        assert page.cursor == cursor
+        assert page.mode == "insert"
+
+
+async def test_prompt_insert_tab_does_not_indent_active_selection() -> None:
+    async with PromptPage("- item", mode="insert") as page:
+        page.ta.selection = Selection((0, 0), (0, 2))
+        await page.press("tab")
+
+        assert page.text == "- item"
+        assert page.ta.selection == Selection((0, 0), (0, 2))
+        assert page.mode == "insert"
+
+
+async def test_prompt_insert_tab_indent_is_one_undo_checkpoint() -> None:
+    async with PromptPage("- item", cursor=(0, 2), mode="insert") as page:
+        await page.press("tab", "escape", "u")
+
+        assert page.text == "- item"
+        assert page.mode == "normal"
+
+
+async def test_prompt_insert_tab_advances_queued_tabstop_before_bullet_indent() -> None:
+    async with PromptPage("- \nnext", cursor=(0, 2), mode="insert") as page:
+        page.ta._snippet_tabstops = [0]
+        page.ta._snippet_end_from_doc_end = 0
+        await page.press("tab")
+
+        assert page.text == "- \nnext"
+        assert page.cursor == (1, 4)
+        assert page.mode == "insert"
+
+
+async def test_prompt_bullet_indent_remaps_insert_dot_capture() -> None:
+    async with PromptPage("- item\nplain", cursor=(0, 2)) as page:
+        await page.press("i", "tab", "x", "escape", "j", "0", ".")
+
+        assert page.text == "  - xitem\nxplain"
+        assert page.mode == "normal"
 
 
 @pytest.mark.parametrize(

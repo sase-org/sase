@@ -21,6 +21,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("jinja chip", "Parse and unknown-var status"),
         ("{{ / {% / {#", "Auto-pair delimiters"),
         ("Ctrl+T / Ctrl+L", "Manual completion / accept"),
+        ("Tab / Shift+Tab", "Indent / dedent bullet marker"),
         ("#name / #!name", "Auto-open xprompt menu"),
         ("%model: / %auto: / %effort:", "Auto-open directive values"),
         ("%wait: / #fork:", "Complete agent/family/clan/tribe targets"),
