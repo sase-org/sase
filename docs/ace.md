@@ -2805,7 +2805,9 @@ completion in the prompt input and does not toggle this save screen. A successfu
 source. `gw` then performs atomic write-back, and if the source changed since load it offers overwrite, reload, or
 save-as instead of clobbering it. `gd` loads the simple xprompt under the cursor for the same bound editing loop. `gX`
 instead converts the active pane through a prefilled frontmatter ghost row and rewrites the pane to invoke the committed
-helper.
+helper. In xprompt mode, both save paths convert live `<label>` tags into required Jinja `text` inputs while preserving
+tags inside inline and fenced code; snippet mode keeps the captured body unchanged. See
+[Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact conversion and naming rules.
 
 `Ctrl+G p` opens the unified stashed-prompt picker from the prompt bar, and `@` opens the same picker from the main ACE
 tabs even when the prompt bar is not active. In the picker, `space` toggles a row's persistent pin, `Tab` marks a row to
@@ -2864,7 +2866,9 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   `ace.prompt_completion.common_placeholder_count` saved placeholders, ranked by use count and recency. Automatic
   completion stays quiet for a bare `<` and adds saved placeholders only after you type at least one prefix character;
   manual `Ctrl+T` on a bare `<` shows the saved list explicitly. Set `common_placeholder_count: 0` to disable saving and
-  display of common placeholders.
+  display of common placeholders. These tags are authoring markers: ordinary launch preserves them verbatim, while
+  saving an xprompt converts live tags to typed inputs. Inline-code and fenced-code tags stay literal in both paths; see
+  [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders).
 - **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
   `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
   preserved in the completed path (useful for file-reference arguments). Relative paths use the prompt-selected base
@@ -3186,9 +3190,9 @@ finished ones.
 
 Tasks the TUI runs itself are **mirrored** into the durable background-task store (`~/.sase/tasks/tasks.jsonl`, with one
 combined output log per task under `~/.sase/tasks/logs/`), so their outcome survives the session that produced them and
-is visible from `sase task list` / `sase task show`. Detached tasks — anything submitted with `sase task run`, plus epic
-launches started from a gate approval — are read back out of that store and rendered here, so work that this process
-never owned still shows up on the tab.
+is visible from `sase task list` / `sase task show`. Supervisor-backed tasks — commands submitted with `sase task run`,
+epic launches started from a gate approval, and programmatic detached tasks — are read back out of that store and
+rendered here, so work that this process never owned still shows up on the tab.
 
 The pane defaults to **this session** plus unattributed tasks and every global `detached` task; press `a` to widen it to
 every session. Detached tasks remain visible in both modes. The pane title names the active scope, e.g.
@@ -3235,11 +3239,17 @@ final, and a task whose supervisor died without reporting is reconciled to `erro
 
 **Kinds and ownership.**
 
-| Kind       | Owner               | Scope                                      |
-| ---------- | ------------------- | ------------------------------------------ |
-| `tui`      | The ACE process     | The session that runs and mirrors it       |
-| `command`  | The task supervisor | The session the submitter attributes it to |
-| `detached` | The task supervisor | Global; no interactive session owns it     |
+| Kind       | Typical producer                                               | Owner and scope                                                        |
+| ---------- | -------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `tui`      | Work run and mirrored by ACE                                   | The ACE process; scoped to its session                                 |
+| `command`  | `sase task run` or `sase.tasks.submit_task()`                  | The task supervisor; scoped to the session attributed by the submitter |
+| `detached` | `sase task run --detached`, epic launches, or the detached API | The task supervisor; global because no interactive session owns it     |
+
+The programmatic detached API is `sase.tasks.submit_detached_task()`. It requires an explicit `origin` argument, uses
+the same detached supervisor and validation as `submit_task()`, and never inherits a live ACE session. The public
+`read_tasks()` and `filter_tasks()` helpers accept `kind=` as either one kind or a collection. A `command` or `detached`
+row that remains `pending` without a supervisor PID for 60 seconds is reconciled to `error`; a mirrored `tui` row is
+left to its owning TUI.
 
 Session attribution is not delegation: a `command` task always executes under its own supervisor, while its session id
 decides which TUI includes it by default. `--session` accepts a full session id, a unique id prefix or short handle, or

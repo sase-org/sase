@@ -46,6 +46,7 @@ version of this model; the text model above is the authoritative current referen
 - [Output Specification](#output-specification)
 - [Jinja2 Integration](#jinja2-integration)
 - [Legacy Placeholders](#legacy-placeholders)
+- [Raw Prompt Placeholders](#raw-prompt-placeholders)
 - [Tags](#tags)
 - [Snippet Field](#snippet-field)
 - [Skill Field](#skill-field)
@@ -617,6 +618,48 @@ Review the {1} module and check for {2:correctness}.
 
 Legacy mode is auto-detected: if the body contains no Jinja2 markers, legacy substitution is used.
 
+## Raw Prompt Placeholders
+
+ACE recognizes single-line `<label>` tags as authoring placeholders. They are highlighted in prompt panes, participate
+in placeholder completion, and feed the saved common-placeholder history described in
+[ACE completion](ace.md#completion). Repeated tags with the same exact inner text are one logical placeholder. Tags
+inside inline code or fenced code blocks stay literal and are excluded from highlighting, completion history, and
+conversion.
+
+Classification is syntactic rather than HTML-aware: `<div>`, `</div>`, and an angle-bracket link destination outside a
+code zone are placeholders too, and a preceding backslash does not escape them. Keep literal angle-bracket markup in an
+inline or fenced code zone, or inspect and edit the xprompt save preview before writing it.
+
+Raw placeholders are an editing and xprompt-authoring convention, not launch arguments. Submitting an ordinary ACE
+prompt leaves `<label>` text unchanged; use frontmatter [`input:`](#frontmatter-declared-inputs) and `{{ name }}` when a
+value must be collected before launch.
+
+When an ACE draft is saved as an xprompt (`gx`, `Ctrl+G x`, or `Ctrl+G Ctrl+X` in xprompt mode), live raw placeholders
+are converted into required `text` inputs:
+
+```text
+Deploy <service> to <target file>
+```
+
+becomes:
+
+```markdown
+---
+input:
+  service: text
+  target_file: text
+---
+
+Deploy {{ service }} to {{ target_file }}
+```
+
+The `gX` active-pane conversion applies the same rewrite to a frontmatter-local xprompt. Generated names are Jinja-safe
+slugs allocated in document order; collisions receive `_2`, `_3`, and so on. A matching authored input or undeclared
+Jinja variable is reused instead of redeclared, preserving an authored type, default, and description. Repeated
+placeholder values are substituted together, literal code-zone tags remain untouched, and inserted values are not
+scanned again for more placeholders. Saving the same draft as a snippet keeps the original snippet body rather than
+applying this xprompt-only conversion.
+
 ## Tags
 
 XPrompts and workflows can be annotated with semantic role tags. Tags enable lookup-by-role instead of lookup-by-name,
@@ -870,8 +913,8 @@ defaults. Common entries include:
 | `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                  |
 | `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                 |
 | `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`                                                   |
-| `#bd/land_epic`       | Final land agent prompt used by `sase bead work`: verifies, integrates, and closes the epic       |
-| `#bd/next`            | "What should I work on next?" helper that consults the bead tracker                               |
+| `#bd/land_epic`       | Final land agent prompt used by `sase bead work`; carries wait priority 15                        |
+| `#bd/next`            | "What should I work on next?" helper; carries wait priority 15                                    |
 | `#bd/review/plan`     | Plan-review helper for an epic plan                                                               |
 | `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                             |
 
@@ -1866,11 +1909,16 @@ input:
 Refactor the {{ service }} module ({{ retries }} retries, dry_run={{ dry_run }}).
 ```
 
-When a prompt with required (default-less) inputs is submitted in `sase ace`, an **Input Collection Modal** opens after
-the whole-stack submit: each required input gets a typed, validated field (optional inputs stay collapsed behind a
-reveal toggle, showing their defaults), and the agents launch only once every value is valid. Non-interactive CLI
-launches (`sase run`) cannot prompt, so a required input without a default fails fast with a clear message instead of a
-cryptic template error — give such inputs a default or launch from the TUI.
+When a prompt with required (default-less) inputs is submitted in `sase ace`, the **Fill in this prompt** panel opens
+after the whole-stack submit. Each required input gets a typed, live-validated field; optional inputs stay collapsed
+behind a reveal toggle and show their defaults when opened. `Enter` advances through visible fields and launches from
+the last one once every required value is valid. `Escape` cancels and returns to the draft; from field INSERT mode, the
+first press returns to NORMAL and the second cancels. `path` fields reuse `Ctrl+T` path completion. This panel collects
+declared `input:` values only; raw `<label>` tags remain ordinary prompt text as described in
+[Raw Prompt Placeholders](#raw-prompt-placeholders).
+
+Non-interactive CLI launches (`sase run`) cannot prompt, so a required input without a default fails fast with a clear
+message instead of a cryptic template error — give such inputs a default or launch from the TUI.
 
 ### Segment Separators
 

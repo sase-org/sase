@@ -155,7 +155,9 @@ excludes `slow`, `terminal_smoke`, and `visual` unless you pass your own `-m` se
 
 Use `just test-terminal-smoke` only when you need to verify the ACE startup path through a real PTY. It installs
 `pexpect` and `pyte`, runs the optional `terminal_smoke` marker, and stays out of default tests and CI until that path
-has proved stable.
+has proved stable. The recipe uses the shared pytest runner's private disk-backed temp root and leak guard, but it is
+always serial and never leases xdist worker tokens; `SASE_PYTEST_DIST` is therefore ignored. Set `SASE_PYTEST_TMPDIR` to
+override its scratch root while diagnosing temp-path behavior.
 
 ## Visual Snapshot Workflow
 

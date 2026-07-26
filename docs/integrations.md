@@ -109,6 +109,52 @@ Explicit `%wait(runners=N)` rows keep `WAITING` but still receive an admission r
 
 Source: `src/sase/integrations/agent_list_entries.py`, `src/sase/integrations/provider_badges.py`
 
+## Durable Background Tasks
+
+Plugins and host integrations can submit supervised work through `sase.tasks`. Use `submit_task()` when the row may be
+attributed to an ACE session, and `submit_detached_task()` when no interactive session owns the work:
+
+```python
+from pathlib import Path
+
+from sase.tasks import (
+    DETACHED_TASK_KIND,
+    read_tasks,
+    submit_detached_task,
+)
+
+task = submit_detached_task(
+    ["python", "-m", "my_plugin.worker"],
+    label="Refresh external catalog",
+    cwd=Path.cwd(),
+    origin="my-plugin",
+    project="sase",
+    tags=("catalog", "refresh"),
+)
+
+assert task.kind == DETACHED_TASK_KIND
+assert task.session_id is None
+detached_rows = read_tasks(kind=DETACHED_TASK_KIND)
+```
+
+Both submission functions validate a non-empty argument vector and an existing working directory, append a durable
+`pending` row, then start the same detached supervisor. The supervisor owns the child process group, captures combined
+stdout/stderr, and writes the terminal status. `submit_detached_task()` deliberately accepts no `session_id`: `origin`
+is a required explicit argument, and the resulting `detached` row is unattributed even when called from a live ACE
+process. That makes it visible in every session's default Tasks scope without adding it to any session's top-bar count.
+
+`read_tasks()` and `filter_tasks()` accept `kind=` as one string or a collection. Public constants are
+`COMMAND_TASK_KIND`, `TUI_TASK_KIND`, `DETACHED_TASK_KIND`, and `TASK_KINDS`; status filters have the same one-or-many
+shape. Use `wait_for_task()` to stream retained log lines and await completion, or `kill_task()` to terminate the
+supervised process group. Active `command` and `detached` rows with no supervisor PID are allowed a 60-second startup
+grace period, then reconciled to `error`; `tui` rows are owned by the mirroring TUI and are not treated as supervisor
+orphans.
+
+The storage model, CLI inspection commands, retention, and ACE rendering are documented under
+[Durable Background Tasks](ace.md#durable-background-tasks).
+
+Source: `src/sase/tasks/__init__.py`, `src/sase/tasks/runner.py`, `src/sase/tasks/store.py`
+
 ## Mobile Notification Bridge
 
 `sase.integrations.mobile_notifications` is the stable host-side facade used by the Rust mobile gateway to expose the
