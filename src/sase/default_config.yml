@@ -632,6 +632,10 @@ sdd:
   #           preserved so the user can push manually later.
   #   false - never push; commit locally only.
   #   async - launch a detached background `git push` (default).
+  # Runner-owned `%id(..., bead=...)` claim transitions are an exception: they
+  # commit locally and synchronously run managed publication so reservations,
+  # promotions, and releases are promptly visible regardless of this setting.
+  # Failed publication preserves the local transition for periodic retry.
   push_after_commit: async
 
 workspace:

@@ -8,9 +8,11 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
+from sase.axe.run_agent_runner_bead import claim_bead_for_agent_launch
 from sase.bead.claims import (
     BEAD_CLAIM_MARKER,
     claim_bead_for_waiting_agent,
@@ -21,8 +23,10 @@ from sase.bead.claims import (
 )
 from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
+from sase.bead.sync import _PushOutcome
 from sase.sdd._repository_transaction import integrate_sdd_repository
 from sase.sdd._repository_types import SddIntegrationOutcome, SddIntegrationStatus
+from sase.sdd.store import SddStore
 
 from .sync_test_helpers import init_git_repo
 
@@ -62,10 +66,16 @@ def _commit_count(repo: Path) -> int:
 def _install_claim_attempts(
     monkeypatch: pytest.MonkeyPatch,
     attempts: list[object],
-) -> tuple[list[tuple[str, str]], list[Path], list[tuple[Path, str, str]]]:
+) -> tuple[
+    list[tuple[str, str]],
+    list[Path],
+    list[tuple[Path, str, str]],
+    list[tuple[Path, str, str]],
+]:
     claim_calls: list[tuple[str, str]] = []
     refresh_calls: list[Path] = []
     commit_calls: list[tuple[Path, str, str]] = []
+    publish_calls: list[tuple[Path, str, str]] = []
     beads_dir = Path("/canonical/beads")
 
     class _Project:
@@ -92,14 +102,23 @@ def _install_claim_attempts(
         "sase.bead.sync.refresh_bead_store",
         lambda path: refresh_calls.append(path),
     )
+
+    def commit(path: Path, bead_id: str, agent_name: str) -> bool:
+        commit_calls.append((path, bead_id, agent_name))
+        return True
+
     monkeypatch.setattr(
         "sase.bead.sync.commit_bead_claim",
-        lambda path, bead_id, agent_name: commit_calls.append(
+        commit,
+    )
+    monkeypatch.setattr(
+        "sase.bead.sync.publish_bead_claim",
+        lambda path, bead_id, agent_name: publish_calls.append(
             (path, bead_id, agent_name)
         ),
     )
     monkeypatch.setattr("sase.bead.claims.time.sleep", lambda _delay: None)
-    return claim_calls, refresh_calls, commit_calls
+    return claim_calls, refresh_calls, commit_calls, publish_calls
 
 
 def _issue(status: Status, assignee: str) -> SimpleNamespace:
@@ -107,7 +126,7 @@ def _issue(status: Status, assignee: str) -> SimpleNamespace:
 
 
 def test_wait_claim_hit_performs_no_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
-    claim_calls, refresh_calls, commit_calls = _install_claim_attempts(
+    claim_calls, refresh_calls, commit_calls, publish_calls = _install_claim_attempts(
         monkeypatch,
         [(_issue(Status.CLAIMED, "worker"), True)],
     )
@@ -121,12 +140,78 @@ def test_wait_claim_hit_performs_no_refresh(monkeypatch: pytest.MonkeyPatch) -> 
     assert claim_calls == [("sase-1", "worker")]
     assert refresh_calls == []
     assert commit_calls == [(Path("/canonical/beads"), "sase-1", "worker")]
+    assert publish_calls == [(Path("/canonical/beads"), "sase-1", "worker")]
+
+
+def test_wait_claim_publishes_after_store_lock_is_released(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    beads_dir = Path("/canonical/beads")
+    lock_held = False
+    events: list[str] = []
+
+    class _Project:
+        def claim_for_agent_wait(
+            self, _bead_id: str, _agent_name: str
+        ) -> tuple[SimpleNamespace, bool]:
+            assert lock_held
+            return _issue(Status.CLAIMED, "worker"), True
+
+    @contextmanager
+    def open_project(_beads_dir: Path) -> Iterator[_Project]:
+        yield _Project()
+
+    @contextmanager
+    def store_lock(_beads_dir: Path) -> Iterator[bool]:
+        nonlocal lock_held
+        lock_held = True
+        events.append("lock")
+        try:
+            yield True
+        finally:
+            lock_held = False
+            events.append("unlock")
+
+    def commit(
+        _beads_dir: Path,
+        _bead_id: str,
+        _agent_name: str,
+        *,
+        already_locked: bool,
+    ) -> bool:
+        assert lock_held
+        assert already_locked
+        events.append("commit")
+        return True
+
+    def publish(_beads_dir: Path, _bead_id: str, _agent_name: str) -> None:
+        assert not lock_held
+        events.append("publish")
+
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+    monkeypatch.setattr(
+        "sase.bead.store_locator.open_bead_project_for_beads_dir",
+        open_project,
+    )
+    monkeypatch.setattr("sase.bead.sync.bead_store_write_lock", store_lock)
+    monkeypatch.setattr("sase.bead.sync.commit_bead_claim", commit)
+    monkeypatch.setattr("sase.bead.sync.publish_bead_claim", publish)
+
+    assert claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id="sase-1",
+        agent_name="worker",
+    )
+    assert events == ["lock", "commit", "unlock", "publish"]
 
 
 def test_wait_claim_not_found_refreshes_once_then_succeeds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    claim_calls, refresh_calls, _commit_calls = _install_claim_attempts(
+    claim_calls, refresh_calls, _commit_calls, _publish_calls = _install_claim_attempts(
         monkeypatch,
         [
             KeyError("Issue not found: sase-1"),
@@ -147,7 +232,7 @@ def test_wait_claim_not_found_refreshes_once_then_succeeds(
 def test_wait_claim_lock_timeout_retries_without_refresh(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    claim_calls, refresh_calls, _commit_calls = _install_claim_attempts(
+    claim_calls, refresh_calls, _commit_calls, _publish_calls = _install_claim_attempts(
         monkeypatch,
         [
             ValueError("lock_timeout: timed out waiting for bead mutation lock"),
@@ -168,7 +253,7 @@ def test_wait_claim_lock_timeout_retries_without_refresh(
 def test_wait_claim_legitimate_decline_does_not_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    claim_calls, refresh_calls, commit_calls = _install_claim_attempts(
+    claim_calls, refresh_calls, commit_calls, publish_calls = _install_claim_attempts(
         monkeypatch,
         [(_issue(Status.IN_PROGRESS, "active"), False)],
     )
@@ -182,13 +267,33 @@ def test_wait_claim_legitimate_decline_does_not_retry(
     assert claim_calls == [("sase-1", "worker")]
     assert refresh_calls == []
     assert commit_calls == []
+    assert publish_calls == []
+
+
+def test_same_owner_wait_claim_does_not_commit_or_publish(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    claim_calls, _refresh_calls, commit_calls, publish_calls = _install_claim_attempts(
+        monkeypatch,
+        [(_issue(Status.CLAIMED, "worker"), False)],
+    )
+
+    assert claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id="sase-1",
+        agent_name="worker",
+    )
+
+    assert claim_calls == [("sase-1", "worker")]
+    assert commit_calls == []
+    assert publish_calls == []
 
 
 def test_wait_claim_exhausted_budget_warns_without_raising(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    claim_calls, refresh_calls, _commit_calls = _install_claim_attempts(
+    claim_calls, refresh_calls, _commit_calls, _publish_calls = _install_claim_attempts(
         monkeypatch,
         [
             KeyError("Issue not found: sase-1"),
@@ -256,6 +361,160 @@ def test_claim_reclaim_and_release_use_canonical_store_without_commit_churn(
         f"chore(beads): release claim on {bead_id} from worker",
         f"chore(beads): claim {bead_id} for worker",
     ]
+
+
+def test_claim_publication_failures_warn_and_preserve_local_transitions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    beads_dir, bead_id = _project_with_committed_phase(tmp_path)
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+    publish_calls: list[Path] = []
+    log_path = tmp_path / "managed-sync.log"
+
+    def fail_publication(path: Path) -> _PushOutcome:
+        publish_calls.append(path)
+        return _PushOutcome(
+            pushed=False,
+            skipped_no_remote=False,
+            error="git push failed: rejected",
+            log_path=log_path,
+        )
+
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        fail_publication,
+    )
+
+    assert claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id=bead_id,
+        agent_name="worker",
+    )
+    with BeadProject(tmp_path) as project:
+        issue = project.show(bead_id)
+        assert (issue.status, issue.assignee) == (Status.CLAIMED, "worker")
+
+    assert release_bead_claim_for_agent(
+        project_name="proj",
+        bead_id=bead_id,
+        agent_name="worker",
+    )
+    with BeadProject(tmp_path) as project:
+        issue = project.show(bead_id)
+        assert (issue.status, issue.assignee) == (Status.OPEN, "")
+
+    assert publish_calls == [beads_dir, beads_dir]
+    stderr = capsys.readouterr().err
+    assert stderr.count("Failed to publish bead claim transition") == 2
+    assert bead_id in stderr
+    assert "worker" in stderr
+    assert "git push failed: rejected" in stderr
+    assert str(log_path) in stderr
+
+
+def test_wait_claim_release_and_launch_promotion_publish_to_remote(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = tmp_path / "remote.git"
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(remote)],
+        check=True,
+        capture_output=True,
+    )
+    canonical = tmp_path / "canonical"
+    canonical.mkdir()
+    init_git_repo(canonical)
+    subprocess.run(
+        ["git", "branch", "-M", "main"],
+        cwd=canonical,
+        check=True,
+        capture_output=True,
+    )
+    (canonical / ".gitignore").write_text("beads/beads.db*\n", encoding="utf-8")
+    with BeadProject.init(canonical, beads_dirname="beads") as project:
+        bead_id = project.create("Remote claim", IssueType.PLAN).id
+    subprocess.run(
+        ["git", "add", ".gitignore", "beads"],
+        cwd=canonical,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "seed remote bead"],
+        cwd=canonical,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)],
+        cwd=canonical,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "push", "-u", "origin", "main"],
+        cwd=canonical,
+        check=True,
+        capture_output=True,
+    )
+    beads_dir = canonical / "beads"
+    monkeypatch.setattr(
+        "sase.bead.store_locator.canonical_beads_dir_for_project",
+        lambda _project: beads_dir,
+    )
+
+    def observe_remote(name: str) -> tuple[Status, str]:
+        clone = tmp_path / name
+        subprocess.run(
+            ["git", "clone", str(remote), str(clone)],
+            check=True,
+            capture_output=True,
+        )
+        with BeadProject(clone, beads_dirname="beads") as project:
+            issue = project.show(bead_id)
+            return issue.status, issue.assignee
+
+    assert claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id=bead_id,
+        agent_name="worker",
+    )
+    assert observe_remote("claimed") == (Status.CLAIMED, "worker")
+
+    assert release_bead_claim_for_agent(
+        project_name="proj",
+        bead_id=bead_id,
+        agent_name="worker",
+    )
+    assert observe_remote("released") == (Status.OPEN, "")
+
+    assert claim_bead_for_waiting_agent(
+        project_name="proj",
+        bead_id=bead_id,
+        agent_name="worker",
+    )
+    store = SddStore(
+        storage="separate_repo",
+        sdd_dir=canonical,
+        repo_root=canonical,
+        remote_url=str(remote),
+    )
+    with patch("sase.sdd.store.resolve_sdd_store", return_value=store):
+        promoted = claim_bead_for_agent_launch(
+            agent_name="worker",
+            bead_id=bead_id,
+            workspace_dir=str(tmp_path),
+            workspace_num=1,
+            artifacts_dir=str(tmp_path / "artifacts"),
+        )
+
+    assert (promoted.status, promoted.assignee) == (Status.IN_PROGRESS, "worker")
+    assert observe_remote("promoted") == (Status.IN_PROGRESS, "worker")
 
 
 def test_wait_claim_holds_store_lock_from_materialization_through_commit(

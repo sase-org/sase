@@ -126,7 +126,7 @@ def claim_bead_for_waiting_agent(
     bead_id: str,
     agent_name: str,
 ) -> bool:
-    """Claim *bead_id* in its canonical store without blocking agent startup."""
+    """Claim *bead_id* locally, then synchronously publish without rollback."""
     try:
         from sase.bead.store_locator import (
             canonical_beads_dir_for_project,
@@ -135,6 +135,7 @@ def claim_bead_for_waiting_agent(
         from sase.bead.sync import (
             bead_store_write_lock,
             commit_bead_claim,
+            publish_bead_claim,
             refresh_bead_store,
         )
 
@@ -145,6 +146,7 @@ def claim_bead_for_waiting_agent(
         refreshed = False
         for attempt in range(_MAX_CLAIM_ATTEMPTS):
             try:
+                committed = False
                 with bead_store_write_lock(beads_dir) as already_locked:
                     with open_bead_project_for_beads_dir(beads_dir) as project:
                         issue, changed = project.claim_for_agent_wait(
@@ -156,15 +158,19 @@ def claim_bead_for_waiting_agent(
                     )
                     if changed:
                         if already_locked:
-                            commit_bead_claim(
+                            committed = commit_bead_claim(
                                 beads_dir,
                                 bead_id,
                                 agent_name,
                                 already_locked=True,
                             )
                         else:
-                            commit_bead_claim(beads_dir, bead_id, agent_name)
+                            committed = commit_bead_claim(
+                                beads_dir, bead_id, agent_name
+                            )
 
+                if committed:
+                    publish_bead_claim(beads_dir, bead_id, agent_name)
                 if held_by_us:
                     action = "Claimed" if changed else "Retained claim on"
                     print(f"{action} bead {bead_id} for waiting agent {agent_name}")
@@ -221,32 +227,41 @@ def release_bead_claim_for_agent(
     bead_id: str,
     agent_name: str,
 ) -> bool:
-    """Release *agent_name*'s waiting claim without disrupting shutdown."""
+    """Release and publish *agent_name*'s claim without disrupting shutdown."""
     try:
         from sase.bead.store_locator import (
             canonical_beads_dir_for_project,
             open_bead_project_for_beads_dir,
         )
-        from sase.bead.sync import bead_store_write_lock, commit_bead_claim_release
+        from sase.bead.sync import (
+            bead_store_write_lock,
+            commit_bead_claim_release,
+            publish_bead_claim,
+        )
 
         beads_dir = canonical_beads_dir_for_project(project_name)
         if beads_dir is None:
             raise RuntimeError(f"no canonical bead store for project '{project_name}'")
 
+        committed = False
         with bead_store_write_lock(beads_dir) as already_locked:
             with open_bead_project_for_beads_dir(beads_dir) as project:
                 _issue, changed = project.release_agent_claim(bead_id, agent_name)
 
             if changed:
                 if already_locked:
-                    commit_bead_claim_release(
+                    committed = commit_bead_claim_release(
                         beads_dir,
                         bead_id,
                         agent_name,
                         already_locked=True,
                     )
                 else:
-                    commit_bead_claim_release(beads_dir, bead_id, agent_name)
+                    committed = commit_bead_claim_release(
+                        beads_dir, bead_id, agent_name
+                    )
+        if committed:
+            publish_bead_claim(beads_dir, bead_id, agent_name)
         if changed:
             print(f"Released bead claim on {bead_id} from waiting agent {agent_name}")
         return changed

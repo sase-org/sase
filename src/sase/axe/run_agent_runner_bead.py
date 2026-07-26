@@ -27,7 +27,8 @@ def claim_bead_for_agent_launch(
 
         # In-tree bead mutations remain ordinary workspace edits that the agent
         # will commit with its implementation. Every managed standalone SDD
-        # repository must durably record the claim before model execution.
+        # repository must durably record and synchronously publish the claim
+        # before model execution.
         if not store.is_in_tree:
             from sase.sdd.files import commit_sdd_store_files
 
@@ -36,12 +37,16 @@ def claim_bead_for_agent_launch(
                 f"chore(beads): claim {bead_id} for {agent_name}",
                 auto_commit_type="beads",
                 paths=[beads_dir],
+                push_after_commit=False,
                 artifacts_dir=Path(artifacts_dir),
             )
             if not committed:
                 raise RuntimeError(
                     f"bead store mutation for {bead_id} produced no local SDD commit"
                 )
+            from sase.bead.sync import publish_bead_claim
+
+            publish_bead_claim(beads_dir, bead_id, agent_name)
         return issue
     except Exception as exc:
         raise RuntimeError(

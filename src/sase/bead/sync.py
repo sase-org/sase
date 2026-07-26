@@ -40,6 +40,7 @@ class _PushOutcome:
     pushed: bool
     skipped_no_remote: bool
     error: str | None
+    log_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -66,18 +67,57 @@ def push_bead_work_launch(beads_dir: Path) -> _PushOutcome:
 
     from sase.bead.sync_worker import run_managed_sync_worker
 
+    log_path = _new_sync_log_path()
     result = run_managed_sync_worker(
         repo_root,
         beads_dir.resolve(),
-        log_path=_new_sync_log_path(),
+        log_path=log_path,
     )
     if result.pushed:
-        return _PushOutcome(pushed=True, skipped_no_remote=False, error=None)
+        return _PushOutcome(
+            pushed=True,
+            skipped_no_remote=False,
+            error=None,
+            log_path=log_path,
+        )
     return _PushOutcome(
         pushed=False,
         skipped_no_remote=False,
         error=result.error or "managed bead sync did not push",
+        log_path=log_path,
     )
+
+
+def publish_bead_claim(
+    beads_dir: Path,
+    bead_id: str,
+    agent_name: str,
+) -> _PushOutcome:
+    """Synchronously publish one runner-owned bead claim transition.
+
+    Missing repositories and remotes are benign local-only outcomes. Any real
+    managed-sync failure is reported with claim context and its log location,
+    while the caller's already-created local commit remains intact.
+    """
+    try:
+        outcome = push_bead_work_launch(beads_dir)
+    except Exception as exc:  # noqa: BLE001 - publication must preserve claims.
+        outcome = _PushOutcome(
+            pushed=False,
+            skipped_no_remote=False,
+            error=str(exc),
+        )
+
+    if outcome.error:
+        detail = outcome.error
+        if outcome.log_path is not None:
+            detail = f"{detail} (managed sync log: {outcome.log_path})"
+        print(
+            f"Warning: Failed to publish bead claim transition for bead "
+            f"'{bead_id}' and agent '{agent_name}': {detail}",
+            file=sys.stderr,
+        )
+    return outcome
 
 
 def _has_push_remote(repo_root: Path) -> bool:

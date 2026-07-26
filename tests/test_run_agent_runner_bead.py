@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -27,8 +27,14 @@ def test_claim_helper_claims_in_tree_store_and_refreshes_projection(
         sdd_dir=tmp_path / "sdd",
         repo_root=tmp_path / "sdd",
     )
+    commit = MagicMock()
+    publish = MagicMock()
 
-    with patch("sase.sdd.store.resolve_sdd_store", return_value=store):
+    with (
+        patch("sase.sdd.store.resolve_sdd_store", return_value=store),
+        patch("sase.sdd.files.commit_sdd_store_files", commit),
+        patch("sase.bead.sync.publish_bead_claim", publish),
+    ):
         issue = claim_bead_for_agent_launch(
             agent_name="worker",
             bead_id=bead_id,
@@ -42,6 +48,8 @@ def test_claim_helper_claims_in_tree_store_and_refreshes_projection(
     with BeadProject(tmp_path) as project:
         assert project.show(bead_id).assignee == "worker"
     assert '"assignee":"worker"' in (tmp_path / "sdd/beads/issues.jsonl").read_text()
+    commit.assert_not_called()
+    publish.assert_not_called()
 
 
 def test_claim_helper_commits_managed_store_and_allows_reassignment(
@@ -51,10 +59,12 @@ def test_claim_helper_commits_managed_store_and_allows_reassignment(
     bead_id = _seed_store(sdd_dir, beads_dirname="beads")
     store = SddStore(storage="local", sdd_dir=sdd_dir, repo_root=sdd_dir)
     commit = MagicMock(return_value=True)
+    publish = MagicMock()
 
     with (
         patch("sase.sdd.store.resolve_sdd_store", return_value=store),
         patch("sase.sdd.files.commit_sdd_store_files", commit),
+        patch("sase.bead.sync.publish_bead_claim", publish),
     ):
         first = claim_bead_for_agent_launch(
             agent_name="worker.1",
@@ -76,7 +86,12 @@ def test_claim_helper_commits_managed_store_and_allows_reassignment(
     assert commit.call_count == 2
     assert commit.call_args.kwargs["auto_commit_type"] == "beads"
     assert commit.call_args.kwargs["paths"] == [sdd_dir / "beads"]
+    assert commit.call_args.kwargs["push_after_commit"] is False
     assert commit.call_args.kwargs["artifacts_dir"] == tmp_path / "artifacts"
+    assert publish.call_args_list == [
+        call(sdd_dir / "beads", bead_id, "worker.1"),
+        call(sdd_dir / "beads", bead_id, "worker.2"),
+    ]
 
 
 @pytest.mark.parametrize("failure", ["missing", "closed"])

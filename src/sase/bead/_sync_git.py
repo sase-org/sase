@@ -135,7 +135,7 @@ def commit_bead_claim(
     *,
     already_locked: bool = False,
 ) -> bool:
-    """Commit a waiting agent's canonical bead claim without pushing it."""
+    """Commit a waiting claim locally for post-lock lifecycle publication."""
     return _commit_bead_state(
         beads_dir,
         message=f"chore(beads): claim {bead_id} for {agent_name}",
@@ -152,7 +152,7 @@ def commit_bead_claim_release(
     *,
     already_locked: bool = False,
 ) -> bool:
-    """Commit release of a waiting agent's canonical bead claim."""
+    """Commit a waiting-claim release for post-lock lifecycle publication."""
     return _commit_bead_state(
         beads_dir,
         message=f"chore(beads): release claim on {bead_id} from {agent_name}",
