@@ -17,7 +17,6 @@ CleanupTarget = cli_work_cleanup.CleanupTarget
 confirm_cleanup = cli_work_plan.confirm_cleanup
 confirm_launch = cli_work_plan.confirm_launch
 expected_agent_names = cli_work_plan.expected_agent_names
-find_live_name_collisions = cli_work_plan.find_live_name_collisions
 handle_bead_work = cli_work_handler.handle_bead_work
 preview_bead_work_force_reuse = cli_work_cleanup.preview_bead_work_force_reuse
 print_work_plan_summary = cli_work_plan.print_work_plan_summary
@@ -35,7 +34,6 @@ __all__ = [
     "confirm_cleanup",
     "confirm_launch",
     "expected_agent_names",
-    "find_live_name_collisions",
     "handle_bead_work",
     "preview_bead_work_force_reuse",
     "print_work_plan_summary",

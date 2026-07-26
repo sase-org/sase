@@ -29,7 +29,6 @@ _confirm_cleanup = cli_work.confirm_cleanup
 _confirm_launch = cli_work.confirm_launch
 _expected_agent_names = cli_work.expected_agent_names
 _find_beads_location = cli_common.find_beads_location
-_find_live_name_collisions = cli_work.find_live_name_collisions
 _get_project = cli_common.get_project
 _get_read_view = cli_common.get_read_view
 _init_beads = cli_common.init_beads
@@ -49,7 +48,6 @@ __all__ = [
     "_confirm_launch",
     "_expected_agent_names",
     "_find_beads_location",
-    "_find_live_name_collisions",
     "_get_project",
     "_get_read_view",
     "_init_beads",

@@ -217,26 +217,6 @@ class BeadProject:
         self._refresh_db_from_jsonl()
         return issue
 
-    def preclaim_epic_work(
-        self,
-        epic_id: str,
-        assignments: list[tuple[str, str]],
-    ) -> list[tuple[str, Status, str]]:
-        """Batch-claim epic phase beads for ``sase bead work``.
-
-        Returns rollback entries as ``(bead_id, prior_status, prior_assignee)``.
-        """
-        from sase.core import bead_mutation_facade as rust_beads
-
-        _issues, rollback, _outcome = rust_beads.preclaim_epic_work(
-            self.beads_dir,
-            epic_id,
-            assignments,
-            now=_now(),
-        )
-        self._refresh_db_from_jsonl()
-        return rollback
-
     def claim_for_agent_launch(self, bead_id: str, agent_name: str) -> Issue:
         """Atomically claim one non-closed bead for an agent launch."""
         from sase.core import bead_mutation_facade as rust_beads

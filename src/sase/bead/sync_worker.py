@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import fcntl
 import json
-import os
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from sase.sdd._repository_health import default_git_runner as _git
 
 
 @dataclass(frozen=True)
@@ -132,42 +133,6 @@ def _failure(
         integrated=integrated,
         error=error,
     )
-
-
-def _git(
-    repo_root: Path,
-    args: list[str],
-    *,
-    op: str,
-    network: bool = False,
-) -> subprocess.CompletedProcess[str]:
-    from sase.sdd._git import (
-        SddGitCommandTimeout,
-        network_git_timeout,
-    )
-    from sase.sdd._git_contention import run_sdd_git_write
-
-    try:
-        return run_sdd_git_write(
-            args,
-            cwd=repo_root,
-            op=op,
-            timeout=network_git_timeout() if network else None,
-            check=False,
-            capture_output=True,
-            text=True,
-            # Disable git's interactive prompting for this subprocess only: the
-            # worker also runs in-process inside long-lived hosts, where
-            # mutating os.environ would silently disarm every later subprocess.
-            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
-        )
-    except (OSError, SddGitCommandTimeout) as exc:
-        return subprocess.CompletedProcess(
-            ["git", *args],
-            returncode=124,
-            stdout="",
-            stderr=str(exc),
-        )
 
 
 def _git_dir(repo_root: Path) -> Path:

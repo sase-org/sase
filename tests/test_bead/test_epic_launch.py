@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -237,14 +238,15 @@ def test_update_epic_launch_metadata_backfills_all_host_fields(
             artifacts,
             epic_id="sase-64",
             sdd_plan_path="/plans/epic.md",
-            started_at="2026-07-15T12:00:00+00:00",
         )
 
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    epic_started_at = meta.pop("epic_started_at")
+    assert isinstance(epic_started_at, str)
+    datetime.fromisoformat(epic_started_at)
     assert meta == {
         "name": "planner",
         "epic_bead_id": "sase-64",
-        "epic_started_at": "2026-07-15T12:00:00+00:00",
         "plan_committed": True,
         "sdd_plan_path": "/plans/epic.md",
     }

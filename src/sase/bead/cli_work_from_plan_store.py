@@ -11,7 +11,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from sase.bead.cli_common import (
     find_beads_location,
@@ -166,22 +166,8 @@ def commit_plan_file(
     *,
     workspace_dir: Path,
     plan_path: Path,
-    no_push: bool,
-    push_after_commit: bool | Literal["async"] | None,
     message: str,
 ) -> bool:
-    effective_push = False if no_push else push_after_commit
-    if store.is_in_tree and effective_push is not False:
-        from sase.axe.run_agent_exec_plan_sdd import commit_sdd_files_for_exec_plan
-
-        return commit_sdd_files_for_exec_plan(
-            str(workspace_dir),
-            plan_path.stem,
-            plan_tier="epic",
-            logger=_logger,
-            subprocess_run=subprocess.run,
-        )
-
     from sase.sdd.files import commit_sdd_store_files
 
     commit_store = store
@@ -191,7 +177,7 @@ def commit_plan_file(
         commit_store,
         message,
         paths=[plan_path],
-        push_after_commit=effective_push,
+        push_after_commit=False,
     )
 
 

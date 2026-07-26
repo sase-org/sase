@@ -108,7 +108,6 @@ def git_sync(beads_dir: Path, *, already_locked: bool = False) -> None:
 def commit_bead_work_launch(
     beads_dir: Path,
     bead_id: str,
-    title: str,
     *,
     kind: str,
     already_locked: bool = False,
@@ -118,7 +117,6 @@ def commit_bead_work_launch(
     Returns False for benign no-op cases: no git repo, no bead state, or no
     staged bead-state change after adding the store.
     """
-    del title
     return _commit_bead_state(
         beads_dir,
         message=f"chore: mark bead work launched for {bead_id}",

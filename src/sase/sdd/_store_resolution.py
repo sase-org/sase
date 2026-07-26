@@ -63,7 +63,7 @@ def resolve_sdd_store(
 ) -> SddStore:
     """Resolve provider-owned storage policy and concrete filesystem paths."""
 
-    storage, record, _primary = resolve_sdd_storage(
+    storage, record, _primary = _resolve_sdd_storage(
         workspace_dir,
         workspace_num,
         primary_workspace_resolver=primary_workspace_resolver,
@@ -85,7 +85,7 @@ def resolve_sdd_store(
             research_remote_url=record.research.remote_url,
         )
 
-    sdd_dir = sdd_dir_for_storage(
+    sdd_dir = _sdd_dir_for_storage(
         workspace_dir,
         workspace_num,
         storage,
@@ -143,7 +143,7 @@ def materialized_sdd_clone(
     return clone if clone_matches_record(clone, record) else None
 
 
-def resolve_sdd_storage(
+def _resolve_sdd_storage(
     workspace_dir: str | Path,
     workspace_num: int,
     *,
@@ -161,7 +161,7 @@ def resolve_sdd_storage(
     return cast(SddStorage, storage), record, primary
 
 
-def sdd_dir_for_storage(
+def _sdd_dir_for_storage(
     workspace_dir: str | Path,
     workspace_num: int,
     storage: SddStorage,

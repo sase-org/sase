@@ -12,52 +12,26 @@ from sase.sdd._paths import get_primary_workspace_dir
 from sase.sdd._store_materialization import (
     SddInitOutcome,
     create_and_materialize_sdd_store as _create_and_materialize_sdd_store,
-    ensure_materialized_store_initialized as _ensure_materialized_store_initialized,
-    finalize_existing_store as _finalize_existing_store,
-    is_positive_materialization_result as _positive_result,
-    is_remote_backed_record as _is_remote_backed_record,
-    is_sidecar_record as _is_sidecar_record,
     materialize_sdd_store as _materialize_store,
-    materialize_sdd_store_with_created as _materialize_sdd_store,
     preflight_sdd_sidecar as _preflight_sdd_sidecar,
-    primary_record_needs_legacy_adoption as _legacy_adoption_needed,
-    provider_materialization_result as _provider_materialization_result,
-    provider_options as _provider_options,
-    refresh_materialized_store as _refresh_materialized_store,
-    resolve_sdd_creation_authorization as _sdd_creation_authorized,
-    usable_primary_record as _usable_primary_record,
 )
 from sase.sdd._store_records import (
-    coerce_sdd_store_record,
     delete_sdd_store_record,
-    is_materialized_record,
-    load_sdd_store_record,
     normalize_sdd_store_record,
-    optional_str,
     read_sdd_store_record,
-    record_cache,
-    record_to_json,
-    sdd_store_record_path,
-    store_not_materialized_message,
     write_sdd_store_record,
 )
 from sase.sdd._store_resolution import (
-    detect_vcs_name as _detect_vcs_name,
     materialized_sdd_clone as _materialized_sdd_clone,
-    provider_sdd_storage_policy as _provider_sdd_storage_policy,
-    resolve_sdd_storage as _resolve_sdd_storage,
     resolve_sdd_store as _resolve_sdd_store,
-    sdd_dir_for_storage as _sdd_dir_for_storage,
 )
 from sase.sdd._store_types import (
-    _STORAGE_VALUES,
     SDD_STORAGE_IN_TREE,
     SDD_STORAGE_LOCAL,
     SDD_STORAGE_SEPARATE_REPO,
     SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORE_RECORD_FILENAME,
     SddMaterializationError,
-    SddPushAfterCommit,
     SddSidecar,
     SddStorage,
     SddStore,
@@ -66,18 +40,7 @@ from sase.sdd._store_types import (
 from sase.sdd._store_workspace import (
     ensure_sdd_kind_clone as _ensure_sdd_kind_clone,
     ensure_workspace_sdd_clone as _ensure_workspace_sdd_clone,
-    inherited_sdd_record_owner_anchor as _inherited_sdd_record_owner_anchor,
 )
-
-_coerce_sdd_store_record = coerce_sdd_store_record
-_is_materialized_record = is_materialized_record
-_load_sdd_store_record = load_sdd_store_record
-_optional_str = optional_str
-_record_cache = record_cache
-_record_to_json = record_to_json
-_sdd_store_record_path = sdd_store_record_path
-_store_not_materialized_message = store_not_materialized_message
-_write_sdd_store_record = write_sdd_store_record
 
 __all__ = [
     "SDD_STORAGE_IN_TREE",
@@ -88,20 +51,9 @@ __all__ = [
     "SddInitOutcome",
     "SddSidecar",
     "SddMaterializationError",
-    "SddPushAfterCommit",
     "SddStorage",
     "SddStore",
     "SddStoreRecord",
-    "_coerce_sdd_store_record",
-    "_is_materialized_record",
-    "_load_sdd_store_record",
-    "_optional_str",
-    "_record_cache",
-    "_record_to_json",
-    "_refresh_materialized_store",
-    "_sdd_store_record_path",
-    "_store_not_materialized_message",
-    "_write_sdd_store_record",
     "create_and_materialize_sdd_store",
     "delete_sdd_store_record",
     "ensure_workspace_sdd_clone",

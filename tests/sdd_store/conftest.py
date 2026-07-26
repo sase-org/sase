@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from sase.sdd.store import _record_cache
+from sase.sdd._store_records import record_cache
 import sase.workspace_provider._registry as workspace_registry
 
 
@@ -23,10 +23,10 @@ def _configure_git_commit_environment(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _clear_store_record_cache() -> None:
-    _record_cache.clear()
+    record_cache.clear()
     workspace_registry.get_all_workflow_metadata.cache_clear()
     yield
-    _record_cache.clear()
+    record_cache.clear()
     workspace_registry.get_all_workflow_metadata.cache_clear()
 
 

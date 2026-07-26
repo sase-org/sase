@@ -5,7 +5,7 @@ import shutil
 
 import pytest
 
-from sase.sdd.store import _write_sdd_store_record, ensure_workspace_sdd_clone
+from sase.sdd.store import ensure_workspace_sdd_clone, write_sdd_store_record
 from tests.sdd_store._helpers import (
     build_separate_repo_clones,
     clone,
@@ -64,7 +64,7 @@ def test_ensure_workspace_sdd_clone_pulls_stale_clean_clone(
     provider_patch,
 ) -> None:
     sidecar, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
-    _write_sdd_store_record(
+    write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",
@@ -90,7 +90,7 @@ def test_ensure_workspace_sdd_clone_is_idempotent(
     provider_patch,
 ) -> None:
     sidecar, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
-    _write_sdd_store_record(
+    write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",
@@ -116,7 +116,7 @@ def test_ensure_workspace_sdd_clone_store_clone_with_commits_ahead_is_rebased(
     sidecar, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
     (workspace_sdd / "local_work.md").write_text("wip\n", encoding="utf-8")
     commit_all(workspace_sdd, "Local work")
-    _write_sdd_store_record(
+    write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",
@@ -142,7 +142,7 @@ def test_ensure_workspace_sdd_clone_store_clone_with_dirty_tree_is_preserved(
 ) -> None:
     sidecar, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
     (workspace_sdd / "local_notes.md").write_text("draft\n", encoding="utf-8")
-    _write_sdd_store_record(
+    write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",
@@ -172,7 +172,7 @@ def test_ensure_workspace_sdd_clone_non_matching_remote_clone_is_preserved(
     init_bare_repo(other)
     clone(other, workspace_sdd)
     (workspace_sdd / "unrelated.md").write_text("unrelated\n", encoding="utf-8")
-    _write_sdd_store_record(
+    write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",
@@ -197,7 +197,7 @@ def test_ensure_workspace_sdd_clone_stale_clone_makes_relative_prompt_ref_resolv
     from sase.file_references import process_file_references
 
     sidecar, _primary_sdd, _workspace_sdd = build_separate_repo_clones(tmp_path)
-    _write_sdd_store_record(
+    write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",
@@ -225,7 +225,7 @@ def test_ensure_workspace_sdd_clone_replaces_stale_symlink(
     stale_target.mkdir()
     workspace_sdd.parent.mkdir(parents=True, exist_ok=True)
     workspace_sdd.symlink_to(stale_target, target_is_directory=True)
-    _write_sdd_store_record(
+    write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",
@@ -250,7 +250,7 @@ def test_ensure_workspace_sdd_clone_remote_failure_uses_primary_fallback(
 ) -> None:
     _sidecar, primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
     shutil.rmtree(workspace_sdd)
-    _write_sdd_store_record(
+    write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",

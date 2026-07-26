@@ -87,7 +87,7 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     with BeadProject(project_dir) as project:
         project.update(epic_id, design=plan_ref)
     captured: dict[str, Any] = {}
-    commit_calls: list[tuple[Path, str, str, str]] = []
+    commit_calls: list[tuple[Path, str, str]] = []
 
     def fake_launch(
         query: str,
@@ -102,11 +102,10 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     def fake_commit(
         beads_dir: Path,
         bead_id: str,
-        title: str,
         *,
         kind: str,
     ) -> bool:
-        commit_calls.append((beads_dir, bead_id, title, kind))
+        commit_calls.append((beads_dir, bead_id, kind))
         return True
 
     monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
@@ -168,9 +167,7 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     ):
         _, directives = extract_prompt_directives(segment)
         assert directives.bead_id == env[SASE_BEAD_ID_ENV]
-    assert commit_calls == [
-        (project_dir / "sdd/beads", epic_id, "Diamond epic", "epic")
-    ]
+    assert commit_calls == [(project_dir / "sdd/beads", epic_id, "epic")]
 
     # Launch approval owns readiness; mocked runners have not claimed anything.
     with BeadProject(project_dir) as proj:

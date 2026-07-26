@@ -38,7 +38,6 @@ from sase.bead.cli_work_plan import (
 )
 from sase.bead.model import BeadTier, IssueType
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
-from sase.bead.sync import BeadWorkLaunchCommitError
 
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
@@ -497,7 +496,6 @@ def launch_epic_bead_work(
             )
 
     from sase.bead.work import (
-        ChangeSpecLaunchContext,
         EpicPlanError,
         build_epic_work_plan_from_beads_dir,
         epic_work_segment_env,
@@ -689,17 +687,10 @@ def launch_epic_bead_work(
         commit_successful_work_launch(
             proj.beads_dir,
             epic_id,
-            issue.title,
             kind="epic",
             no_push=no_push or defer_push,
             timer=timer,
         )
-    except BeadWorkLaunchCommitError as exc:
-        raise _post_launch_commit_error(
-            epic_id,
-            exc,
-            graph_published=graph_published,
-        ) from exc
     except Exception as exc:
         raise _post_launch_commit_error(
             epic_id,

@@ -166,7 +166,6 @@ def test_host_epic_metadata_reload_crosses_real_artifact_loader_boundary(
         artifacts_dir,
         epic_id="sase-64",
         sdd_plan_path="/plans/202607/epic.md",
-        started_at="2026-07-15T12:10:00+00:00",
     )
     after, _ = load_artifact_delta_agents(
         [artifacts_dir],

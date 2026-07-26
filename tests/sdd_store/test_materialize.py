@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from sase.sdd._repository_recovery_markers import FAILED_INTEGRATION_MARKER
-from sase.sdd._store_materialization import refresh_materialized_store
+from sase.sdd._store_materialization import _refresh_materialized_store
 from sase.sdd.store import (
     SDD_STORAGE_SEPARATE_REPO,
     SddMaterializationError,
@@ -646,6 +646,6 @@ def test_refresh_clears_failed_integration_marker(
         lambda *_args, **_kwargs: SimpleNamespace(succeeded=True),
     )
 
-    refresh_materialized_store(sdd_dir)
+    _refresh_materialized_store(sdd_dir)
 
     assert not marker.exists()

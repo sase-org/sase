@@ -334,16 +334,6 @@ def _utc_now_iso() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _store_not_materialized_message(record: SddStoreRecord | None) -> str:
-    repo = record.repo if record is not None and record.repo else None
-    target = f"'{repo}'" if repo else "the expected SDD sidecar repository"
-    return (
-        f"The provider requires a sidecar SDD repository, but {target} is not "
-        "materialized. Run `sase repo init` after fixing provider authentication, "
-        "permissions, or network access."
-    )
-
-
 def _optional_str(value: object) -> str | None:
     return value if isinstance(value, str) and value else None
 
@@ -351,18 +341,8 @@ def _optional_str(value: object) -> str | None:
 record_cache = _record_cache
 
 
-def coerce_sdd_store_record(
-    record: SddStoreRecord | Mapping[str, Any],
-) -> SddStoreRecord:
-    return _coerce_sdd_store_record(record)
-
-
 def is_materialized_record(record: SddStoreRecord | None) -> bool:
     return _is_materialized_record(record)
-
-
-def load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
-    return _load_sdd_store_record(record_path)
 
 
 def optional_str(value: object) -> str | None:
@@ -375,7 +355,3 @@ def record_to_json(record: SddStoreRecord) -> dict[str, Any]:
 
 def sdd_store_record_path(primary_workspace_dir: str | Path) -> Path:
     return _sdd_store_record_path(primary_workspace_dir)
-
-
-def store_not_materialized_message(record: SddStoreRecord | None) -> str:
-    return _store_not_materialized_message(record)

@@ -78,9 +78,9 @@ def _reap_sdd_recovery_snapshots(
     root = repo_root.expanduser().resolve()
     runner = git_runner or default_git_runner
     if lock_factory is None:
-        from sase.sdd._git_contention import store_git_write_lock
+        from sase.sdd._git_contention import store_git_write_lock_factory
 
-        lock_factory = store_git_write_lock
+        lock_factory = store_git_write_lock_factory(op=f"{op_prefix}.lock")
     clock = time.time() if now is None else now
     cutoff = clock - max(0.0, retention_seconds)
     removal_budget = max(0, max_removals)

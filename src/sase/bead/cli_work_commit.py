@@ -39,7 +39,6 @@ def _resolve_push_mode(no_push: bool) -> str:
 def commit_successful_work_launch(
     beads_dir: Path,
     bead_id: str,
-    title: str,
     *,
     kind: str,
     no_push: bool,
@@ -52,7 +51,7 @@ def commit_successful_work_launch(
     )
 
     with timer.stage("commit"):
-        committed = commit_bead_work_launch(beads_dir, bead_id, title, kind=kind)
+        committed = commit_bead_work_launch(beads_dir, bead_id, kind=kind)
 
     if not committed:
         return

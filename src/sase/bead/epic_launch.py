@@ -157,7 +157,6 @@ def _update_epic_launch_metadata(
     *,
     epic_id: str,
     sdd_plan_path: str,
-    started_at: str | None = None,
 ) -> None:
     """Best-effort back-fill of planner metadata after a host launch."""
     if artifacts_dir is None:
@@ -173,7 +172,7 @@ def _update_epic_launch_metadata(
     data.update(
         {
             "epic_bead_id": epic_id,
-            "epic_started_at": started_at or datetime.now(UTC).isoformat(),
+            "epic_started_at": datetime.now(UTC).isoformat(),
             "plan_committed": True,
             "sdd_plan_path": sdd_plan_path,
         }

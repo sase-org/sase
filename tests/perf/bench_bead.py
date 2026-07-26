@@ -324,66 +324,6 @@ def _bench_work_plan(root: Path, *, runs: int) -> dict[str, dict[str, float]]:
     return {"build_epic_work_plan": _summarize(timings)}
 
 
-def _bench_preclaim_epic_work(*, runs: int) -> dict[str, dict[str, float]]:
-    results: dict[str, dict[str, float]] = {}
-    for phase_count in (50, 100, 250):
-        batch_timings: list[float] = []
-        legacy_timings: list[float] = []
-        for _ in range(runs):
-            with tempfile.TemporaryDirectory(prefix="sase_bead_preclaim_") as td:
-                root = Path(td) / "batch"
-                root.mkdir()
-                _write_work_plan_project(root, phase_count=phase_count)
-                batch_timings.append(
-                    _time_call(lambda root=root: _preclaim_batch(root))
-                )
-
-            with tempfile.TemporaryDirectory(prefix="sase_bead_preclaim_") as td:
-                root = Path(td) / "legacy"
-                root.mkdir()
-                _write_work_plan_project(root, phase_count=phase_count)
-                legacy_timings.append(
-                    _time_call(lambda root=root: _preclaim_legacy(root))
-                )
-
-        batch_summary = _summarize(batch_timings)
-        legacy_summary = _summarize(legacy_timings)
-        speedup = 0.0
-        batch_median = batch_summary.get("median_ms", 0.0)
-        if batch_median:
-            speedup = legacy_summary.get("median_ms", 0.0) / batch_median
-        results[f"{phase_count}_phases_batch"] = batch_summary
-        results[f"{phase_count}_phases_legacy_loop"] = legacy_summary
-        results[f"{phase_count}_phases_speedup_vs_legacy"] = {
-            "median_x": speedup,
-        }
-    return results
-
-
-def _preclaim_batch(root: Path) -> None:
-    plan = build_epic_work_plan_from_beads_dir(root / "sdd/beads", "work-1")
-    assignments = [
-        (assignment.bead_id, assignment.agent_name)
-        for wave in plan.waves
-        for assignment in wave
-    ]
-    with BeadProject(root) as project:
-        project.preclaim_epic_work("work-1", assignments)
-
-
-def _preclaim_legacy(root: Path) -> None:
-    plan = build_epic_work_plan_from_beads_dir(root / "sdd/beads", "work-1")
-    with BeadProject(root) as project:
-        for wave in plan.waves:
-            for assignment in wave:
-                project.show(assignment.bead_id)
-                project.update(
-                    assignment.bead_id,
-                    status="in_progress",
-                    assignee=assignment.agent_name,
-                )
-
-
 @contextlib.contextmanager
 def _temp_sase_home(home: Path) -> Iterator[None]:
     """Point ``sase_home()`` at *home* and reset the name-registry cache."""
@@ -607,7 +547,6 @@ def run_benchmark(
             ),
             "project": _bench_project(root, runs=runs),
             "work_plan": _bench_work_plan(work_root, runs=runs),
-            "preclaim_epic_work": _bench_preclaim_epic_work(runs=runs),
             "name_validation": _bench_name_validation(
                 runs=runs,
                 registry_sizes=registry_sizes,

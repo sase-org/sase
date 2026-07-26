@@ -8,9 +8,9 @@ import subprocess
 import pytest
 
 from sase.sdd.store import (
-    _write_sdd_store_record,
     ensure_sdd_kind_clone,
     ensure_workspace_sdd_clone,
+    write_sdd_store_record,
 )
 from tests.sdd_store._helpers import (
     build_separate_repo_clones,
@@ -27,7 +27,7 @@ def test_ensure_workspace_sdd_clone_managed_separate_repo(
 ) -> None:
     sidecar, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
     shutil.rmtree(workspace_sdd)
-    _write_sdd_store_record(
+    write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",
@@ -74,7 +74,7 @@ def test_ensure_workspace_sdd_clone_syncs_plans_sidecar_only(
     workspace = tmp_path / "repo_2"
     primary.mkdir()
     workspace.mkdir()
-    _write_sdd_store_record(
+    write_sdd_store_record(
         primary,
         {
             "schema_version": 2,
@@ -217,7 +217,7 @@ def test_nested_repo_inherits_owner_sdd_record_without_nested_sidecar(
         ),
         encoding="utf-8",
     )
-    _write_sdd_store_record(
+    write_sdd_store_record(
         primary,
         {
             "schema_version": 2,

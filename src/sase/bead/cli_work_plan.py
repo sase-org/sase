@@ -34,17 +34,6 @@ def legacy_epic_cleanup_names(plan: EpicWorkPlan) -> frozenset[str]:
     return frozenset({legacy}) if legacy else frozenset()
 
 
-def find_live_name_collisions(plan: EpicWorkPlan) -> dict[str, str]:
-    """Return ``{agent_name: artifact_dir}`` for plan names owned by live agents."""
-    from sase.agent.names import get_live_agent_name_subset
-
-    expected = expected_agent_names(plan)
-    legacy_land_name = _legacy_land_agent_name(plan)
-    if legacy_land_name:
-        expected.add(legacy_land_name)
-    return get_live_agent_name_subset(expected)
-
-
 def print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> None:
     phase_count = sum(len(w) for w in plan.waves)
     wave_count = len(plan.waves)

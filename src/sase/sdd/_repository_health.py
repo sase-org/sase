@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -174,6 +175,7 @@ def default_git_runner(
             check=False,
             capture_output=True,
             text=True,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
         )
     except (OSError, SddGitCommandTimeout) as exc:
         return subprocess.CompletedProcess(

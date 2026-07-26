@@ -27,7 +27,7 @@ def snapshot_managed_changes(
     recovery_ref: str,
     runner: GitRunner,
     op_prefix: str,
-) -> tuple[str | None, str | None, bool]:
+) -> tuple[str, str | None, bool]:
     try:
         before = inspect_sdd_repository(repo_root, runner)
     except Exception as exc:  # noqa: BLE001 - fail closed

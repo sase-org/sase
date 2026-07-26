@@ -194,7 +194,7 @@ async def test_real_fakey_running_fallback_png_snapshot(
 
     handle = harness.run_in_background()
     try:
-        fallback.wait_until_started()
+        fallback.wait_until_started(timeout=15)
         state = harness.wait_for_retry_state("running_fallback")
         assert state.fallback_model == "fakey-small"
         harness.normalize_visual_timestamps(_VISUAL_NOW)

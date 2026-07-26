@@ -267,7 +267,7 @@ def recover_machine_managed_sdd_repository(
                 detail=snapshot_error,
                 runner=runner,
                 expected_branch=branch,
-                recovery_ref=snapshot_ref or recovery_ref,
+                recovery_ref=snapshot_ref,
                 force_unsafe=not snapshot_safe,
             )
 

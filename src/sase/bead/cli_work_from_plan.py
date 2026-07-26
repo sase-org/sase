@@ -252,8 +252,6 @@ def _work_from_plan_file_locked(
         store,
         workspace_dir=workspace_dir,
         plan_path=archived_path,
-        no_push=no_push,
-        push_after_commit=False,
         message=f"Archive approved plan {archived_path.stem}",
     ):
         raise _error_with_resume(
@@ -315,8 +313,6 @@ def _work_from_plan_file_locked(
             store,
             workspace_dir=workspace_dir,
             plan_path=path,
-            no_push=no_push,
-            push_after_commit=False,
             message=message,
         )
 

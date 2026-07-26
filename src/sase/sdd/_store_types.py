@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Literal
 
 SddStorage = Literal["in_tree", "local", "separate_repo", "sidecar_repos"]
-SddPushAfterCommit = bool | Literal["async"]
 
 SDD_STORAGE_IN_TREE: SddStorage = "in_tree"
 SDD_STORAGE_LOCAL: SddStorage = "local"

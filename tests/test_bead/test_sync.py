@@ -150,7 +150,6 @@ def test_commit_bead_work_launch_commits_bead_state(tmp_path):
     committed = commit_bead_work_launch(
         beads_dir,
         "sase-1",
-        "Test epic",
         kind="epic",
     )
 
@@ -183,9 +182,7 @@ def test_commit_bead_work_launch_noops_outside_git(tmp_path):
     beads_dir.mkdir(parents=True)
     (beads_dir / "issues.jsonl").write_text('{"id":"test"}\n')
 
-    assert (
-        commit_bead_work_launch(beads_dir, "sase-1", "Test epic", kind="epic") is False
-    )
+    assert commit_bead_work_launch(beads_dir, "sase-1", kind="epic") is False
 
 
 def test_commit_bead_work_launch_noops_when_bead_state_has_no_change(tmp_path):
@@ -197,9 +194,7 @@ def test_commit_bead_work_launch_noops_when_bead_state_has_no_change(tmp_path):
     subprocess.run(["git", "add", "sdd/beads/issues.jsonl"], cwd=tmp_path, check=True)
     subprocess.run(["git", "commit", "-m", "add jsonl"], cwd=tmp_path, check=True)
 
-    assert (
-        commit_bead_work_launch(beads_dir, "sase-1", "Test epic", kind="epic") is False
-    )
+    assert commit_bead_work_launch(beads_dir, "sase-1", kind="epic") is False
     subject = subprocess.run(
         ["git", "log", "-1", "--format=%s"],
         cwd=tmp_path,
@@ -239,7 +234,6 @@ def test_bead_git_writers_refuse_operations_before_staging(
         commit_bead_work_launch(
             beads_dir,
             "sase-1",
-            "Test epic",
             kind="epic",
         )
 
@@ -278,7 +272,6 @@ def test_commit_bead_work_launch_leaves_unrelated_staged_files_staged(tmp_path):
     committed = commit_bead_work_launch(
         beads_dir,
         "sase-1",
-        "Test epic",
         kind="epic",
     )
 
@@ -352,7 +345,7 @@ def test_commit_bead_work_launch_succeeds_when_gitignored_beads_db_present(tmp_p
     stream.parent.mkdir(parents=True)
     stream.write_text('{"event_id":"sase-1:000001"}\n')
 
-    committed = commit_bead_work_launch(beads_dir, "sase-1", "Test epic", kind="epic")
+    committed = commit_bead_work_launch(beads_dir, "sase-1", kind="epic")
 
     assert committed is True
     files = subprocess.run(
@@ -389,7 +382,7 @@ def test_commit_bead_work_launch_records_event_stream_deletion(tmp_path):
     stream.unlink()
     jsonl.write_text('{"id":"sase-1","updated":true}\n')
 
-    committed = commit_bead_work_launch(beads_dir, "sase-1", "Test epic", kind="epic")
+    committed = commit_bead_work_launch(beads_dir, "sase-1", kind="epic")
 
     assert committed is True
     name_status = subprocess.run(
@@ -409,7 +402,7 @@ def test_commit_bead_work_launch_noops_when_only_ignored_db_changed(tmp_path):
     beads_dir.mkdir(parents=True)
     (beads_dir / "beads.db").write_bytes(b"SQLite")
 
-    committed = commit_bead_work_launch(beads_dir, "sase-1", "Test epic", kind="epic")
+    committed = commit_bead_work_launch(beads_dir, "sase-1", kind="epic")
 
     assert committed is False
     log_count = subprocess.run(
@@ -431,7 +424,7 @@ def test_commit_bead_work_launch_picks_up_new_nested_subdirectory_files(tmp_path
     nested.parent.mkdir(parents=True)
     nested.write_text('{"event_id":"sase-2:000001"}\n')
 
-    committed = commit_bead_work_launch(beads_dir, "sase-2", "Test epic", kind="epic")
+    committed = commit_bead_work_launch(beads_dir, "sase-2", kind="epic")
 
     assert committed is True
     files = subprocess.run(

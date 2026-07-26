@@ -111,9 +111,9 @@ def admit_failed_integration_cooldown(
     if _repository_git_dir(root, runner, op="sdd.integration_cooldown.inspect") is None:
         return None
     if lock_factory is None:
-        from sase.sdd._git_contention import store_git_write_lock
+        from sase.sdd._git_contention import store_git_write_lock_factory
 
-        lock_factory = store_git_write_lock
+        lock_factory = store_git_write_lock_factory(op="sdd.integration_cooldown")
     now = (clock or time.time)()
     cooldown = max(0.0, cooldown_seconds)
 
@@ -164,9 +164,9 @@ def record_failed_integration_marker(
     if _repository_git_dir(root, runner, op="sdd.integration_failure.inspect") is None:
         return False
     if lock_factory is None:
-        from sase.sdd._git_contention import store_git_write_lock
+        from sase.sdd._git_contention import store_git_write_lock_factory
 
-        lock_factory = store_git_write_lock
+        lock_factory = store_git_write_lock_factory(op="sdd.integration_failure")
     now = (clock or time.time)()
 
     with lock_factory(root) as acquired:
@@ -201,9 +201,9 @@ def clear_failed_integration_marker(
     if _repository_git_dir(root, runner, op="sdd.integration_success.inspect") is None:
         return False
     if lock_factory is None:
-        from sase.sdd._git_contention import store_git_write_lock
+        from sase.sdd._git_contention import store_git_write_lock_factory
 
-        lock_factory = store_git_write_lock
+        lock_factory = store_git_write_lock_factory(op="sdd.integration_success")
 
     with lock_factory(root) as acquired:
         if not acquired:

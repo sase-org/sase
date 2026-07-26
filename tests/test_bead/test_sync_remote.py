@@ -285,7 +285,6 @@ def test_commit_bead_work_launch_retries_transient_index_lock(
         committed = commit_bead_work_launch(
             beads_dir,
             "sase-1",
-            "Test epic",
             kind="epic",
         )
     finally:

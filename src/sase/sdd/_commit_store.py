@@ -275,12 +275,26 @@ def _sdd_store_record_label(store: "SddStore") -> str | None:
     try:
         from sase.sdd.store import read_sdd_store_record
 
-        workspace_dir = store.sdd_dir.parent.parent
+        workspace_dir = _sdd_store_record_workspace_dir(store)
+        if workspace_dir is None:
+            return None
         record = read_sdd_store_record(workspace_dir)
     except Exception:
         return None
     if record is not None and record.repo:
         return record.repo
+    return None
+
+
+def _sdd_store_record_workspace_dir(store: "SddStore") -> Path | None:
+    sdd_dir = store.sdd_dir.expanduser()
+    if store.storage == SDD_STORAGE_SEPARATE_REPO:
+        if sdd_dir.name == "sdd" and sdd_dir.parent.name == ".sase":
+            return sdd_dir.parent.parent
+        return None
+    if store.storage == SDD_STORAGE_SIDECAR_REPOS:
+        if sdd_dir.parent.name == "repos" and sdd_dir.parent.parent.name == "sase":
+            return sdd_dir.parent.parent.parent
     return None
 
 

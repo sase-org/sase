@@ -477,11 +477,6 @@ def add_dependency(
     )
 
 
-def _get_dependencies(conn: sqlite3.Connection, issue_id: str) -> list[Dependency]:
-    """Get all dependencies for an issue."""
-    return _load_dependencies(conn, issue_id)
-
-
 def get_epic_children(conn: sqlite3.Connection, epic_id: str) -> list[Issue]:
     """Get all child issues of an epic."""
     rows = conn.execute(
@@ -491,7 +486,7 @@ def get_epic_children(conn: sqlite3.Connection, epic_id: str) -> list[Issue]:
     issues = []
     for row in rows:
         issue = _row_to_issue(row)
-        issue.dependencies = _get_dependencies(conn, issue.id)
+        issue.dependencies = _load_dependencies(conn, issue.id)
         issues.append(issue)
     return issues
 
