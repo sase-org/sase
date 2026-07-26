@@ -7,13 +7,14 @@ import subprocess
 
 import pytest
 
+from sase.sdd._git import run_sdd_git
+from sase.sdd._integration_marker import integration_is_fresh
 from sase.sdd._repository_transaction import (
     SddIntegrationStatus,
     integrate_machine_managed_sdd_repository,
     integrate_sdd_repository,
     require_sdd_repository_health,
 )
-from sase.sdd._integration_marker import integration_is_fresh
 from tests.sdd_store._helpers import (
     clone,
     commit_all,
@@ -78,6 +79,72 @@ def _runner(
         capture_output=True,
         text=True,
     )
+
+
+def _enable_ambient_rerere(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    global_config = tmp_path / "gitconfig"
+    global_config.write_text(
+        "[rerere]\n\tenabled = true\n\tautoupdate = true\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+
+
+def _rr_cache_files(repo: Path) -> tuple[Path, ...]:
+    rr_cache = repo / ".git" / "rr-cache"
+    if not rr_cache.exists():
+        return ()
+    return tuple(path for path in rr_cache.rglob("*") if path.is_file())
+
+
+def test_sdd_git_runner_disables_ambient_rerere(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(["init", "-q"], repo)
+    _enable_ambient_rerere(tmp_path, monkeypatch)
+
+    enabled = run_sdd_git(
+        ["config", "--get", "rerere.enabled"],
+        cwd=repo,
+        op="test.rerere.enabled",
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    autoupdate = run_sdd_git(
+        ["config", "--get", "rerere.autoupdate"],
+        cwd=repo,
+        op="test.rerere.autoupdate",
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert enabled.stdout.strip() == "false"
+    assert autoupdate.stdout.strip() == "false"
+
+
+def test_machine_managed_integration_does_not_create_rerere_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _remote, left, _right = _build_diverged_clones(tmp_path)
+    _enable_ambient_rerere(tmp_path, monkeypatch)
+
+    outcome = integrate_machine_managed_sdd_repository(
+        left,
+        recovery_cooldown_seconds=0,
+    )
+
+    assert outcome.status is SddIntegrationStatus.RECOVERED
+    assert _rr_cache_files(left) == ()
 
 
 def test_unsupported_plan_conflict_aborts_to_exact_starting_state(

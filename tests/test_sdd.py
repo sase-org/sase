@@ -173,14 +173,20 @@ def test_commit_bare_git_sdd_init_paths_push_timeout_is_best_effort(
     generated.write_text("guide\n", encoding="utf-8")
     calls: list[tuple[list[str], float | None]] = []
 
+    def git_subcommand(cmd: list[str]) -> str:
+        index = 1
+        while index + 1 < len(cmd) and cmd[index] == "-c":
+            index += 2
+        return cmd[index] if index < len(cmd) else ""
+
     def fake_run(
         cmd: list[str],
         **kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         calls.append((cmd, kwargs.get("timeout")))  # type: ignore[arg-type]
-        if cmd[:2] == ["git", "diff"]:
+        if git_subcommand(cmd) == "diff":
             return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
-        if cmd[:2] == ["git", "push"]:
+        if git_subcommand(cmd) == "push":
             raise subprocess.TimeoutExpired(
                 cmd=cmd,
                 timeout=kwargs.get("timeout"),
@@ -199,7 +205,7 @@ def test_commit_bare_git_sdd_init_paths_push_timeout_is_best_effort(
         commit_bare_git_sdd_init_paths(tmp_path, [generated], push=True)
 
     assert calls[0][1] == 3.0
-    assert calls[-1][0][:2] == ["git", "push"]
+    assert git_subcommand(calls[-1][0]) == "push"
     assert calls[-1][1] == 7.0
     records = [
         json.loads(line)

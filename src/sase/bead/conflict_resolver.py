@@ -16,6 +16,7 @@ from sase.core.bead_conflict_facade import (
     reduce_event_streams,
 )
 from sase.git_lock_retry import run_with_git_lock_retry
+from sase.sdd._git import sdd_git_command
 
 
 @dataclass(frozen=True)
@@ -111,7 +112,7 @@ def _repo_root(cwd: Path) -> Path | None:
     # The resolver's direct probes are read-only; only _git_add can contend on
     # index.lock and is routed through the shared retry policy below.
     result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
+        sdd_git_command(["rev-parse", "--show-toplevel"]),
         cwd=cwd,
         capture_output=True,
         text=True,
@@ -124,7 +125,7 @@ def _repo_root(cwd: Path) -> Path | None:
 
 def _conflicted_files(repo_root: Path) -> list[str]:
     result = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=U"],
+        sdd_git_command(["diff", "--name-only", "--diff-filter=U"]),
         cwd=repo_root,
         capture_output=True,
         text=True,
@@ -196,7 +197,7 @@ def _read_stage_stream(
     repo_root: Path, path: str, stage: int, stream_id: str
 ) -> dict[str, Any]:
     result = subprocess.run(
-        ["git", "show", f":{stage}:{path}"],
+        sdd_git_command(["show", f":{stage}:{path}"]),
         cwd=repo_root,
         capture_output=True,
         text=True,
@@ -227,7 +228,7 @@ def _upstream_and_local_stages(repo_root: Path) -> tuple[int, int]:
 
 def _git_dir(repo_root: Path) -> Path | None:
     result = subprocess.run(
-        ["git", "rev-parse", "--git-dir"],
+        sdd_git_command(["rev-parse", "--git-dir"]),
         cwd=repo_root,
         capture_output=True,
         text=True,
@@ -278,7 +279,7 @@ def _git_add(repo_root: Path, paths: list[str]) -> None:
     if paths:
         result, _outcome = run_with_git_lock_retry(
             lambda: subprocess.run(
-                ["git", "add", "--", *paths],
+                sdd_git_command(["add", "--", *paths]),
                 cwd=repo_root,
                 capture_output=True,
                 text=True,

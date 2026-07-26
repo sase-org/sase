@@ -17,6 +17,12 @@ ENV_SLOW_MS = "SASE_SDD_GIT_SLOW_MS"
 DEFAULT_LOCAL_GIT_TIMEOUT_SECONDS = 30.0
 DEFAULT_NETWORK_GIT_TIMEOUT_SECONDS = 120.0
 DEFAULT_SLOW_GIT_MS = 1_000.0
+_DISABLE_RERERE_ARGS = (
+    "-c",
+    "rerere.enabled=false",
+    "-c",
+    "rerere.autoupdate=false",
+)
 
 
 class SddGitCommandTimeout(RuntimeError):
@@ -37,7 +43,7 @@ def run_sdd_git(
 ) -> subprocess.CompletedProcess[Any]:
     """Run a bounded git command with SDD telemetry."""
     timeout_seconds = timeout if timeout is not None else _local_git_timeout()
-    cmd = ["git", *args]
+    cmd = sdd_git_command(args)
     start = time.perf_counter()
     try:
         result = subprocess.run(
@@ -94,6 +100,14 @@ def run_sdd_git(
             stderr=result.stderr,
         )
     return result
+
+
+def sdd_git_command(args: list[str]) -> list[str]:
+    """Return a git argv for machine-managed SDD repositories."""
+    # SDD stores contain generated append-only JSONL. Their conflicts are
+    # resolved semantically by SASE, so ambient rerere must not replay or
+    # auto-stage a cached textual resolution over that semantic merge.
+    return ["git", *_DISABLE_RERERE_ARGS, *args]
 
 
 def network_git_timeout() -> float:
