@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -25,6 +26,15 @@ from sase.core.paths import sase_projects_dir
 _RUN_EVERY_SECONDS = 30
 _MAX_BACKOFF_SECONDS = 15 * 60
 _BACKOFF_STATE_FILENAME = "bead_store_refresh_backoff.json"
+# Keep in sync with the ``bead_store_refresh`` chop timeout in default_config.yml.
+# The chop is SIGKILLed at that deadline, so every refresh this run attempts has
+# to fit inside it: the whole pass declines once it has spent the work budget,
+# and each project's lock wait gets an equal slice of the smaller wait budget.
+_CHOP_TIMEOUT_SECONDS = 120.0
+_WORK_BUDGET_SECONDS = 0.75 * _CHOP_TIMEOUT_SECONDS
+_LOCK_WAIT_BUDGET_SECONDS = 0.5 * _CHOP_TIMEOUT_SECONDS
+# The chop reruns every 30s, so declining a contended refresh is cheap.
+_MIN_LOCK_WAIT_SECONDS = 10.0
 _SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     only_workflow_dirs=("ace-run",),
     include_prompt_step_markers=False,
@@ -161,6 +171,27 @@ def _next_backoff_entry(
     )
 
 
+def _refresh_lock_timeout(project_count: int) -> float:
+    """Bound one project's lock wait so the whole pass fits the chop budget."""
+    return max(
+        _MIN_LOCK_WAIT_SECONDS,
+        _LOCK_WAIT_BUDGET_SECONDS / max(project_count, 1),
+    )
+
+
+def _persist_backoff_state(
+    runtime: BuiltinChopRuntime,
+    state_path: Path,
+    state: dict[str, _BackoffEntry],
+) -> None:
+    try:
+        _write_backoff_state(state_path, state)
+    except Exception as exc:  # noqa: BLE001 - state failure cannot fail the chop.
+        runtime.log.warning(
+            f"[bead_store_refresh] Failed to persist refresh backoff state: {exc}"
+        )
+
+
 def _summary(
     runtime: BuiltinChopRuntime,
     *,
@@ -168,6 +199,7 @@ def _summary(
     stores_refreshed: int = 0,
     stores_failed: int = 0,
     stores_backed_off: int = 0,
+    stores_deferred: int = 0,
     reason: str | None = None,
 ) -> ChopResultBuilder:
     return runtime.emit_summary(
@@ -176,22 +208,10 @@ def _summary(
             "stores_refreshed": stores_refreshed,
             "stores_failed": stores_failed,
             "stores_backed_off": stores_backed_off,
+            "stores_deferred": stores_deferred,
         },
         reason=reason,
     )
-
-
-def _persist_backoff_state(
-    runtime: BuiltinChopRuntime,
-    state_path: Path,
-    backoff_state: dict[str, _BackoffEntry],
-) -> None:
-    try:
-        _write_backoff_state(state_path, backoff_state)
-    except Exception as exc:  # noqa: BLE001 - state failure cannot fail the chop.
-        runtime.log.warning(
-            f"[bead_store_refresh] Failed to persist refresh backoff state: {exc}"
-        )
 
 
 @builtin_chop("bead_store_refresh")
@@ -213,17 +233,19 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     stale_projects = [name for name in backoff_state if name not in projects]
     for stale_project in stale_projects:
         del backoff_state[stale_project]
-    state_changed = bool(stale_projects)
+    if stale_projects:
+        _persist_backoff_state(runtime, state_path, backoff_state)
 
     if not projects:
-        if state_changed:
-            _persist_backoff_state(runtime, state_path, backoff_state)
         return _summary(runtime, projects_waiting=0, reason="no_bead_waits")
 
+    lock_timeout = _refresh_lock_timeout(len(projects))
+    work_deadline = time.monotonic() + _WORK_BUDGET_SECONDS
     canonical_stores = 0
     stores_refreshed = 0
     stores_failed = 0
     stores_backed_off = 0
+    stores_deferred = 0
 
     for project_name in sorted(projects):
         entry = backoff_state.get(project_name)
@@ -231,16 +253,25 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             stores_backed_off += 1
             continue
 
+        if time.monotonic() >= work_deadline:
+            stores_deferred += 1
+            continue
+
+        beads_dir = canonical_beads_dir_for_project(project_name)
+        if beads_dir is None:
+            continue
+        canonical_stores += 1
+
+        # Record the failure backoff before attempting the refresh: the chop is
+        # SIGKILLed at its timeout, so an entry written only on the way out
+        # would be erased by exactly the overrun it needs to back off from.
+        backoff_state[project_name] = _next_backoff_entry(entry, now=now)
+        _persist_backoff_state(runtime, state_path, backoff_state)
+
         try:
-            beads_dir = canonical_beads_dir_for_project(project_name)
-            if beads_dir is None:
-                continue
-            canonical_stores += 1
-            refresh_bead_store(beads_dir)
+            refresh_bead_store(beads_dir, lock_timeout=lock_timeout)
         except Exception as exc:  # noqa: BLE001 - refreshes are best effort.
             stores_failed += 1
-            backoff_state[project_name] = _next_backoff_entry(entry, now=now)
-            state_changed = True
             runtime.log.warning(
                 f"[bead_store_refresh] Failed to refresh bead store for "
                 f"{project_name}: {exc}"
@@ -248,11 +279,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             continue
 
         stores_refreshed += 1
-        if project_name in backoff_state:
-            del backoff_state[project_name]
-            state_changed = True
-
-    if state_changed:
+        del backoff_state[project_name]
         _persist_backoff_state(runtime, state_path, backoff_state)
 
     reason = None
@@ -261,6 +288,8 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             reason = "refresh_failed"
         elif stores_backed_off:
             reason = "all_backed_off"
+        elif stores_deferred:
+            reason = "budget_exhausted"
         elif canonical_stores == 0:
             reason = "no_canonical_stores"
 
@@ -270,6 +299,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         stores_refreshed=stores_refreshed,
         stores_failed=stores_failed,
         stores_backed_off=stores_backed_off,
+        stores_deferred=stores_deferred,
         reason=reason,
     )
 

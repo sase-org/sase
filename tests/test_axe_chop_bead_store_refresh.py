@@ -86,13 +86,17 @@ def test_live_bead_wait_refreshes_its_project_once(
 
     result = store_refresh._run(_runtime(tmp_path))
 
-    refresh.assert_called_once_with(tmp_path / "stores/proj/beads")
+    refresh.assert_called_once_with(
+        tmp_path / "stores/proj/beads",
+        lock_timeout=store_refresh._refresh_lock_timeout(1),
+    )
     assert result.status == "ok"
     assert result.counters == {
         "projects_waiting": 1,
         "stores_refreshed": 1,
         "stores_failed": 0,
         "stores_backed_off": 0,
+        "stores_deferred": 0,
     }
 
 
@@ -167,7 +171,7 @@ def test_dead_waiter_is_dropped_but_uncertain_liveness_fails_open(
     monkeypatch.setattr(
         store_refresh,
         "refresh_bead_store",
-        refreshed.append,
+        lambda beads_dir, **_kwargs: refreshed.append(beads_dir),
     )
 
     result = store_refresh._run(_runtime(tmp_path))
@@ -273,6 +277,95 @@ def test_backoff_state_is_pruned_when_no_project_has_waiters(
 
     assert result.reason == "no_bead_waits"
     assert json.loads(state_path.read_text(encoding="utf-8")) == {}
+
+
+def test_lock_wait_is_split_across_waiting_projects_above_a_floor() -> None:
+    assert (
+        store_refresh._refresh_lock_timeout(1)
+        == store_refresh._LOCK_WAIT_BUDGET_SECONDS
+    )
+    assert store_refresh._refresh_lock_timeout(1) < store_refresh._CHOP_TIMEOUT_SECONDS
+    # Every project's share stays at or above the floor, and the whole pass
+    # still fits inside the chop's own timeout.
+    for count in (2, 3, 6, 12, 50):
+        share = store_refresh._refresh_lock_timeout(count)
+        assert share >= store_refresh._MIN_LOCK_WAIT_SECONDS
+        assert share <= store_refresh._LOCK_WAIT_BUDGET_SECONDS
+
+
+def test_contended_refresh_declines_and_records_backoff_within_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_scan(monkeypatch, tmp_path, [_record(tmp_path)])
+    timeouts: list[float | None] = []
+
+    def contended(_beads_dir: Path, *, lock_timeout: float | None = None) -> None:
+        timeouts.append(lock_timeout)
+        raise RuntimeError("could not acquire the bead-store refresh lock")
+
+    monkeypatch.setattr(store_refresh, "refresh_bead_store", contended)
+    runtime = _runtime(tmp_path)
+
+    result = store_refresh._run(runtime)
+
+    assert timeouts == [store_refresh._refresh_lock_timeout(1)]
+    assert timeouts[0] < store_refresh._CHOP_TIMEOUT_SECONDS
+    assert result.reason == "refresh_failed"
+    state_path = Path(runtime.context.state_dir) / store_refresh._BACKOFF_STATE_FILENAME
+    assert json.loads(state_path.read_text(encoding="utf-8"))["proj"]["failures"] == 1
+
+
+def test_backoff_survives_a_kill_during_the_refresh(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_scan(monkeypatch, tmp_path, [_record(tmp_path)])
+
+    def killed(_beads_dir: Path, **_kwargs: object) -> None:
+        # A chop-timeout SIGKILL gives the handler no chance to record state.
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(store_refresh, "refresh_bead_store", killed)
+    runtime = _runtime(tmp_path)
+
+    with pytest.raises(KeyboardInterrupt):
+        store_refresh._run(runtime)
+
+    state_path = Path(runtime.context.state_dir) / store_refresh._BACKOFF_STATE_FILENAME
+    assert json.loads(state_path.read_text(encoding="utf-8"))["proj"]["failures"] == 1
+
+    # The next run sees the recorded backoff instead of re-attacking the lock.
+    monkeypatch.setattr(
+        store_refresh,
+        "refresh_bead_store",
+        lambda *_args, **_kwargs: pytest.fail("backed-off project was re-attempted"),
+    )
+    backed_off = store_refresh._run(runtime)
+
+    assert backed_off.reason == "all_backed_off"
+    assert backed_off.counters["stores_backed_off"] == 1
+
+
+def test_exhausted_work_budget_defers_remaining_projects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_scan(
+        monkeypatch,
+        tmp_path,
+        [_record(tmp_path, project_name="one"), _record(tmp_path, project_name="two")],
+    )
+    clock = iter([0.0, 0.0, store_refresh._WORK_BUDGET_SECONDS + 1.0])
+    monkeypatch.setattr(store_refresh.time, "monotonic", lambda: next(clock))
+    refresh = MagicMock()
+    monkeypatch.setattr(store_refresh, "refresh_bead_store", refresh)
+
+    result = store_refresh._run(_runtime(tmp_path))
+
+    assert refresh.call_count == 1
+    assert result.counters["stores_refreshed"] == 1
+    assert result.counters["stores_deferred"] == 1
 
 
 def test_corrupt_backoff_state_is_treated_as_empty(

@@ -192,6 +192,13 @@ leave the agent parked; ACE's run-now action remains the manual escape hatch. Wh
 `bead_store_refresh` integrates their projects' canonical stores every 30 seconds, with the waiting runner providing a
 coarser outage backstop. Setting `sdd.bead_refresh.mode: off` disables both refresh paths.
 
+Each cycle has to fit inside the chop's own 2-minute timeout, so the refresh bounds itself rather than waiting out the
+default 180-second store-write-lock timeout: every waiting project gets an equal slice of the lock-wait budget (at least
+10 seconds each), a project whose store lock is held elsewhere is declined instead of blocked, and projects still
+unattempted once the work budget is spent are deferred to the next cycle. A declined or failed refresh records the
+project's exponential backoff _before_ the attempt starts, so a timeout kill leaves the backoff behind instead of
+erasing it and re-attacking the same contended lock 30 seconds later.
+
 ### checks (5-minute interval)
 
 Lower-frequency status checks:

@@ -245,12 +245,18 @@ def refresh_current_bead_store() -> None:
     refresh_bead_store(location.beads_dir)
 
 
-def refresh_bead_store(beads_dir: Path) -> None:
+def refresh_bead_store(beads_dir: Path, *, lock_timeout: float | None = None) -> None:
     """Synchronously integrate one remote-backed project bead store.
 
     A recovery refresh is serialized with other store writers. The integration
     marker lets waiters skip work when another process completed the same
     recovery after they started waiting for the lock.
+
+    ``lock_timeout`` bounds only the wait for the store write lock. A caller
+    that runs under its own deadline (the ``bead_store_refresh`` chop) passes a
+    bound below that deadline so a contended clone raises promptly instead of
+    waiting out the default worktree-mutation timeout; the default ``None``
+    keeps the shared bound for callers without one.
     """
     beads_dir = beads_dir.expanduser().resolve()
     if _is_in_tree_beads_dir(beads_dir):
@@ -273,6 +279,7 @@ def refresh_bead_store(beads_dir: Path) -> None:
     observed_generation = integration_marker_generation(repo_root)
     with store_git_write_lock(
         repo_root,
+        timeout=lock_timeout,
         op="bead.refresh",
         mutates_worktree=True,
     ) as acquired:

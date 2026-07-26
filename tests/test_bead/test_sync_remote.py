@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 import threading
+import time
 from contextlib import contextmanager
 from types import SimpleNamespace
 
@@ -19,7 +20,11 @@ from sase.bead.sync import (
     refresh_current_bead_store,
 )
 from sase.bead.sync_worker import run_managed_sync_worker
-from sase.sdd._git_contention import ENV_GIT_LOCK_RETRY_DELAYS
+from sase.sdd._git_contention import (
+    DEFAULT_WORKTREE_MUTATION_LOCK_TIMEOUT_SECONDS,
+    ENV_GIT_LOCK_RETRY_DELAYS,
+    store_git_write_lock,
+)
 from sase.sdd._repository_recovery_markers import FAILED_INTEGRATION_MARKER
 
 from .sync_test_helpers import configure_git_identity, init_git_repo
@@ -158,6 +163,50 @@ def test_refresh_current_bead_store_raises_on_failed_integration(
 
     with pytest.raises(RuntimeError, match="git fetch failed"):
         refresh_current_bead_store()
+
+
+def test_refresh_bead_store_lock_timeout_declines_a_contended_clone(
+    tmp_path,
+    monkeypatch,
+):
+    init_git_repo(tmp_path)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "git@example.test:plans.git"],
+        cwd=tmp_path,
+        check=True,
+    )
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    monkeypatch.setattr(
+        "sase.sdd._repository_transaction.integrate_sdd_repository",
+        lambda *_args, **_kwargs: pytest.fail("contended refresh must not integrate"),
+    )
+    holder_acquired = threading.Event()
+    release_holder = threading.Event()
+
+    def hold_lock():
+        with store_git_write_lock(
+            tmp_path,
+            op="test.hold",
+            mutates_worktree=True,
+        ) as acquired:
+            assert acquired
+            holder_acquired.set()
+            release_holder.wait(timeout=30)
+
+    holder = threading.Thread(target=hold_lock)
+    holder.start()
+    try:
+        assert holder_acquired.wait(timeout=10)
+        started = time.monotonic()
+        with pytest.raises(RuntimeError, match="refresh lock"):
+            refresh_bead_store(beads_dir, lock_timeout=0.5)
+        elapsed = time.monotonic() - started
+    finally:
+        release_holder.set()
+        holder.join(timeout=30)
+
+    assert elapsed < DEFAULT_WORKTREE_MUTATION_LOCK_TIMEOUT_SECONDS
 
 
 def test_refresh_bead_store_skips_in_tree_store(tmp_path, monkeypatch):

@@ -221,8 +221,13 @@ def test_wait_checks_observes_closed_bead_after_store_refresh(
         lambda _project: beads_dir,
     )
 
-    def close_bead_during_refresh(refreshed_dir: Path) -> None:
+    def close_bead_during_refresh(
+        refreshed_dir: Path,
+        *,
+        lock_timeout: float | None = None,
+    ) -> None:
         assert refreshed_dir == beads_dir
+        assert lock_timeout is not None
         with BeadProject(root) as project:
             project.close([open_bead])
 
