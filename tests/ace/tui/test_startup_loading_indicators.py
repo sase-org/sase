@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
-from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 from sase.ace.tui.widgets.axe_info_panel import AxeInfoPanel
 
@@ -59,45 +58,20 @@ def test_axe_info_panel_loading_renders_ellipsis() -> None:
     panel = AxeInfoPanel()
     panel._loading = True
     plain = _collect_text(panel)
-    assert "AXE" in plain
-    assert "…" in plain
-    assert "?" in plain
-    assert "]" in plain
-    assert "tab guide" in plain
+    assert plain == "AXE …"
+    assert "tab guide" not in plain
 
 
 def test_axe_info_panel_loading_clears() -> None:
-    """Clearing loading removes the ellipsis."""
+    """Clearing loading restores the countdown without the Guide hint."""
     panel = AxeInfoPanel()
     panel._loading = False
     panel._countdown = 5
     panel._interval = 10
     plain = _collect_text(panel)
+    assert plain == "(auto-refresh in 5s)"
     assert "…" not in plain
-    assert "?" in plain
-    assert "]" in plain
-
-
-def test_axe_info_panel_uses_configured_help_key() -> None:
-    panel = AxeInfoPanel()
-    captured: list[str] = []
-    with patch.object(
-        panel,
-        "update",
-        lambda text, **_kwargs: captured.append(text.plain),
-    ):
-        panel.set_keymap_registry(
-            load_keymap_registry(
-                {"keymaps": {"modes": {"leader_mode": {"keys": {"show_help": "f1"}}}}}
-            )
-        )
-
-    assert captured, "panel.set_keymap_registry did not refresh display"
-    plain = captured[-1]
-
-    assert "f1" in plain
-    assert "]" in plain
-    assert "tab guide" in plain
+    assert "tab guide" not in plain
 
 
 def test_axe_info_panel_uses_bgcmd_display_project() -> None:

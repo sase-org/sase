@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING, Any
 from rich.text import Text
 from textual.widgets import Static
 
-from ..keymaps import KeymapRegistry, leader_key_display, load_keymap_registry
-
 if TYPE_CHECKING:
     from ..bgcmd import BackgroundCommandInfo
 
@@ -34,12 +32,6 @@ class AxeInfoPanel(Static):
         self._chop_run_idx: int = 0
         self._chop_run_total: int = 0
         self._loading: bool = False
-        self._registry: KeymapRegistry = load_keymap_registry({})
-
-    def set_keymap_registry(self, registry: KeymapRegistry) -> None:
-        """Use the active keymap registry and refresh the guide hint."""
-        self._registry = registry
-        self._update_display()
 
     def set_loading(self, loading: bool) -> None:
         """Show or hide the startup-loading ellipsis.
@@ -143,7 +135,6 @@ class AxeInfoPanel(Static):
         if self._loading:
             text.append("AXE ", style="bold")
             text.append("…", style="dim italic")
-            self._append_help_guide_hint(text)
             self.update(text)
             return
 
@@ -182,16 +173,4 @@ class AxeInfoPanel(Static):
             text.append(f"{self._countdown}s", style="bold #FFD700")
             text.append(")", style="dim")
 
-        self._append_help_guide_hint(text)
         self.update(text)
-
-    def _append_help_guide_hint(self, text: Text) -> None:
-        """Append the persistent Help Guide hint."""
-        if text.plain:
-            text.append("  ", style="")
-        text.append(
-            f" {leader_key_display(self._registry, 'show_help')} ",
-            style="bold #1a1a1a on #00D7AF",
-        )
-        text.append(" ] ", style="bold #1a1a1a on #00D7AF")
-        text.append(" tab guide", style="dim")
