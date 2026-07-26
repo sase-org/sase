@@ -267,7 +267,12 @@ The `query` setting uses the same ChangeSpec query language as ACE. CLI flags on
 axe:
   lumberjacks:
     my_lumberjack:
-      description: Run custom checks once a minute
+      description: |-
+        Run project-scoped custom checks once a minute
+
+        Use this lane for inexpensive checks that should react within a minute. Individual chops may use run_every to
+        reduce their own cadence; long-running maintenance and high-frequency lifecycle checks belong in separate
+        lumberjacks.
       interval: 60 # Seconds between cycles
       chop_timeout: "60s" # Default timeout for all chops in this lumberjack
       env: # Inherited by every chop; individual chop env wins
@@ -275,7 +280,12 @@ axe:
       chops:
         my_chop:
           script: my_chop_executable # Optional; defaults to name
-          description: "What this chop does"
+          description: |-
+            Run a custom validation after meaningful repository changes
+
+            Creates one instance per enabled Git or GitHub project and runs at most once every 1h30m after ten new
+            commits. A successful action advances the trigger checkpoint; an active toobig agent clan inhibits the
+            check, and the per-chop timeout limits each run to 30 seconds.
           run_every: "1h30m" # Run at most once per compound duration
           timeout: "30s" # Per-chop timeout (overrides chop_timeout)
           env:

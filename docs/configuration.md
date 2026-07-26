@@ -1212,73 +1212,181 @@ axe:
   chop_script_dirs: [] # additional directories to search for chop scripts
   lumberjacks:
     hooks:
-      description: Fast lane that advances hook, mentor, and workflow lifecycle state every few seconds
+      description: |-
+        Fast lane that advances hook, mentor, and workflow lifecycle state every few seconds
+
+        Runs every five seconds with a 90-second per-chop timeout so completed work is noticed and new work starts
+        promptly. Put latency-sensitive ChangeSpec lifecycle reconciliation here; slower remote polling, wait
+        coordination, and maintenance belong in the other lanes.
       interval: 5
       chop_timeout: "90s"
       chops:
         - name: hook_checks
           script: sase_chop_hook_checks
-          description: Complete finished hooks and start stale ones, with zombie detection
+          description: |-
+            Complete finished hooks and start stale ones, with zombie detection
+
+            Scans hook entries on every matching ChangeSpec, records completed process results, and starts stale hooks
+            when a runner slot is free. Honors max_hook_runners across the tick; stale fix-hook suffixes older than
+            zombie_timeout_seconds become ZOMBIE, while terminal ChangeSpecs may finish hooks but cannot start new ones.
         - name: mentor_checks
           script: sase_chop_mentor_checks
-          description: Start mentor workflows once all hook prerequisites are met
+          description: |-
+            Start mentor workflows once all hook prerequisites are met
+
+            Reconciles running mentors, stops mentors left behind by older commits, adds matching mentor profiles, and
+            launches ready profiles after their hooks finish. Mentor launches share max_agent_runners with other agent
+            workflows, and review-ineligible or terminal ChangeSpecs are skipped.
         - name: workflow_checks
           script: sase_chop_workflow_checks
-          description: Complete finished CRS/fix-hook workflows and start stale ones
+          description: |-
+            Complete finished CRS/fix-hook workflows and start stale ones
+
+            Reads workflow state from every matching ChangeSpec, records results for finished CRS and fix-hook agents,
+            and launches stale workflows. New workflows share max_agent_runners and the current tick's agent-launch
+            budget with mentors, so a full runner pool defers work instead of queueing it.
         - name: pending_checks_poll
           script: sase_chop_pending_checks_poll
-          description: Poll background is_cl_submitted and critique_comments checks for results
+          description: |-
+            Poll background is_cl_submitted and critique_comments checks for results
+
+            Scans the pending-check directory once per tick, applies completed results to matching ChangeSpecs, and
+            reaps output files orphaned by killed or crashed checks. This chop only consumes background results;
+            pr_submitted_checks and comment_checks launch the remote checks.
         - name: comment_zombie_checks
           script: sase_chop_comment_zombie_checks
-          description: Mark comment threads older than zombie_timeout as ZOMBIE
+          description: |-
+            Mark comment threads older than zombie_timeout as ZOMBIE
+
+            Examines comment-entry suffix timestamps on matching ChangeSpecs and writes a ZOMBIE suffix when an entry
+            exceeds zombie_timeout_seconds. It performs no remote comment fetch; comment_checks starts those checks and
+            pending_checks_poll applies their results.
         - name: suffix_transforms
           script: sase_chop_suffix_transforms
-          description: Strip stale suffixes from older proposals and update mail-readiness markers
+          description: |-
+            Strip stale suffixes from older proposals and update mail-readiness markers
+
+            Normalizes matching ChangeSpecs in place by converting old proposal markers from !: to ~:, removing error
+            markers from superseded commit entries, and acknowledging attention markers on terminal statuses. It only
+            repairs stored suffix state and never launches hooks or agents.
         - name: orphan_cleanup
           script: sase_chop_orphan_cleanup
-          description: Release workspace claims orphaned by reverted PRs with dead PIDs
+          description: |-
+            Release workspace claims orphaned by reverted PRs with dead PIDs
+
+            Reads all ChangeSpecs and workspace claims, regardless of the axe query, then releases unpinned claims tied
+            to Reverted ChangeSpecs when their owning PID is absent or dead. Live claims and pinned workspaces are left
+            untouched.
         - name: stale_running_cleanup
           script: sase_chop_stale_running_cleanup
-          description: Release workspace claims held by dead processes
+          description: |-
+            Release workspace claims held by dead processes
+
+            Walks every project, including disabled projects, and releases unpinned workspace claims whose owning
+            process has exited. A pinned held claim is preserved while its agent artifacts still exist; this fast-lane
+            placement frees ordinary dead claims within seconds.
     waits:
-      description: Resolve agent wait dependencies and keep bead claims and stores in sync
+      description: |-
+        Resolve agent wait dependencies and keep bead claims and stores in sync
+
+        Runs every ten seconds so waiting agents resume promptly and short-lived bead claims are reconciled quickly.
+        Put agent dependency, bead-claim, and bead-store coordination here; ChangeSpec lifecycle checks and general
+        cleanup belong in their dedicated lanes.
       interval: 10
       chops:
+        - name: bead_claim_checks
+          script: sase_chop_bead_claim_checks
+          description: |-
+            Acquire missing bead claims for live pre-launch agents and release claims held by dead ones
+
+            Scans pre-launch agent artifacts, backfills a missing claim for a live waiting agent, and releases a
+            claimed bead when its unpromoted owner has died. Reconciled dead records are tombstoned so later ticks avoid
+            reopening their stores, while a failed project read is retried safely.
         - name: bead_store_refresh
           script: sase_chop_bead_store_refresh
           run_every: "30s"
           timeout: "2m"
-          description: Integrate canonical bead stores for projects with outstanding bead waits
+          description: |-
+            Integrate the canonical bead store for projects with agents waiting on beads
+
+            Finds projects with a live agent waiting on bead completion and refreshes each canonical store at most
+            every 30 seconds. The two-minute timeout is protected by bounded per-project lock waits, a whole-pass work
+            budget, and persistent exponential backoff so one contended store cannot stall all waiters.
         - name: wait_checks
           script: sase_chop_wait_checks
-          description: Resolve successful agent wait dependencies and write ready.json
+          description: |-
+            Resolve agent wait dependencies and write ready.json when satisfied
+
+            Scans waiting markers across projects and resolves named-agent, artifact, and closed-bead dependencies from
+            shared agent metadata and canonical bead state. It writes ready.json only after every dependency is
+            satisfied; invalid or already-ready markers are skipped without blocking other agents.
     checks:
-      description: Poll slower PR-submission and workspace-claim checks on a five-minute cadence
+      description: |-
+        Poll slower PR-submission and workspace-claim checks on a five-minute cadence
+
+        Runs every five minutes for checks that can tolerate delay or may touch remote PR state, reducing needless
+        polling while retaining a cleanup backstop. Fast hook progression, minute-level comments, and hourly
+        maintenance deliberately live elsewhere.
       interval: 300
       chops:
         - name: pr_submitted_checks
           script: sase_chop_pr_submitted_checks
-          description: Check if PRs have been submitted
+          description: |-
+            Start background is_cl_submitted checks for leaf PRs with a submitted parent
+
+            Applies the axe query, finds eligible leaf ChangeSpecs with PR URLs, and launches non-blocking submission
+            checks whose results are collected by pending_checks_poll. A five-minute sync cache suppresses duplicate
+            remote work, except that the first cycle checks eligible leaves immediately.
         - name: stale_running_cleanup
           script: sase_chop_stale_running_cleanup
-          description: Backstop cleanup of stale RUNNING entries
+          description: |-
+            Backstop release of workspace claims held by dead processes
+
+            Runs the same all-project dead-process reconciliation as the hooks-lane cleanup, including conservative
+            handling of pinned claims with agent artifacts. This five-minute placement still frees stale workspace
+            claims if the fast hooks lane is disabled, restarting, or repeatedly failing.
     comments:
-      description: Start background critique-comment checks for mailed PRs every minute
+      description: |-
+        Start background critique-comment checks for mailed PRs every minute
+
+        Runs every minute so reviewer feedback reaches active ChangeSpecs promptly without polling on every hooks tick.
+        Only remote comment-check launches belong here; pending result collection and zombie marking remain in the
+        faster hooks lane.
       interval: 60
       chops:
         - name: comment_checks
           script: sase_chop_comment_checks
-          description: Check for new comments on PRs
+          description: |-
+            Start background critique_comments checks for all mailed PRs
+
+            Applies the axe query and starts non-blocking critique_comments checks for mailed ChangeSpecs that have an
+            available workspace, then records a comment-cycle summary. The lumberjack's one-minute interval is the
+            polling throttle; pending_checks_poll later consumes each background result.
     housekeeping:
-      description: Hourly error digest and managed-temp cleanup
+      description: |-
+        Run hourly error digests and managed-temp cleanup
+
+        Runs once an hour because notification batching and bounded scratch reclamation are useful but not
+        latency-sensitive. Put durable maintenance that may scan substantial local state here, not lifecycle,
+        dependency, or remote polling work.
       interval: 3600
       chops:
         - name: error_digest
           script: sase_chop_error_digest
-          description: Summarize recent errors into a notification
+          description: |-
+            Send a notification digest of errors from the last hour
+
+            Reads the AXE error log and the last successful digest timestamp, then notifies only about newer errors
+            within the rolling one-hour window. The checkpoint advances to the newest notified timestamp, preventing
+            duplicate digests while leaving unsent errors eligible after a notification failure.
         - name: managed_tmp_reap
           script: sase_chop_managed_tmp_reap
-          description: Prune stale scratch under the managed SASE temp root
+          description: |-
+            Prune stale scratch under the managed SASE temp root
+
+            Removes old children from known managed-temp buckets using workload-specific age limits, without following
+            symlinks or deleting the stable bucket directories. Each pass removes at most 2,000 entries and de-indexes
+            deleted agent-artifact directories, so a neglected root converges without blocking interactive commands.
 ```
 
 **Top-level fields:**
