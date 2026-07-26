@@ -60,13 +60,14 @@ def test_handle_plan_approval_auto_epic_skips_notification(
         patch(
             "sase.plan_approval_actions.prepare_epic_launch",
             return_value=SimpleNamespace(task_id="task-auto-epic"),
-        ),
+        ) as prepare_launch,
     ):
         result = handle_plan_approval(str(plan), "session-123")
 
     _plan_gate_bundle(sase_home, "epic", "session-123")
     assert result == PlanApprovalResult(action="epic", plan_file=str(plan))
     assert result.epic_launch_owner == "host"
+    assert prepare_launch.call_args.kwargs["origin"] == "axe"
 
 
 def test_handle_plan_approval_auto_tale_skips_notification(

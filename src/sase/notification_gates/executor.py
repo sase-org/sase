@@ -12,7 +12,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from sase.notification_gates.durability import (
@@ -37,6 +37,9 @@ from sase.notification_gates.paths import (
     owned_resource_path,
 )
 
+if TYPE_CHECKING:
+    from sase.bead.epic_launch import EpicLaunchOrigin
+
 log = logging.getLogger(__name__)
 
 
@@ -47,6 +50,7 @@ def execute_gate_selection(
     *,
     feedback: str | None = None,
     source: str = "host",
+    epic_launch_origin: EpicLaunchOrigin | None = None,
     on_command_start: Callable[[str, str, str, tuple[str, ...]], None] | None = None,
     on_output_line: Callable[[str, str, str, str], None] | None = None,
     on_process_state: Callable[[subprocess.Popen[bytes], bool], None] | None = None,
@@ -205,7 +209,11 @@ def execute_gate_selection(
             return GateExecutionResult(response=existing, already_completed=True)
         _settle_gate_notification(envelope, response, source=source)
         try:
-            adapter.apply_side_effects(bundle_path=bundle_path, response=response)
+            adapter.apply_side_effects(
+                bundle_path=bundle_path,
+                response=response,
+                epic_launch_origin=epic_launch_origin,
+            )
         except GateError as exc:
             _record_execution_error(
                 bundle_path,

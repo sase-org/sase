@@ -14,6 +14,7 @@ from sase._plan_approval_protocol import (
 )
 
 if TYPE_CHECKING:
+    from sase.bead.epic_launch import EpicLaunchOrigin
     from sase.tasks.models import BackgroundTask
 
 
@@ -24,6 +25,7 @@ def prepare_epic_launch(
     mode: EpicLaunchMode,
     response_dir: Path,
     resolved_cwd: Path | None = None,
+    origin: EpicLaunchOrigin = "api",
 ) -> BackgroundTask | None:
     """Start the host-owned epic launch, or intentionally skip it."""
     # Detached launches now log through the task supervisor, so no caller-owned
@@ -73,7 +75,7 @@ def prepare_epic_launch(
                 notification.host_action_data
             ),
             cl_name=notification.host_action_data.get("agent_cl_name"),
-            origin="epic-launch",
+            origin=origin,
         )
     except Exception as exc:
         resume = shlex.join(build_epic_launch_argv(plan_path))

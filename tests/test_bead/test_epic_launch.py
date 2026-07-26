@@ -13,6 +13,7 @@ import pytest
 from sase.bead.epic_launch import (
     _update_epic_launch_metadata,
     build_epic_launch_argv,
+    epic_launch_origin_from_gate_source,
     finish_epic_launch,
     resolve_epic_launch_cwd,
     submit_epic_launch_task,
@@ -35,6 +36,24 @@ def test_build_epic_launch_argv_carries_approval_linking_options() -> None:
         "--cl-name",
         "demo",
     ]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("tui", "ace"),
+        ("telegram", "telegram"),
+        ("auto_resolution", "axe"),
+        ("host", "api"),
+        ("unknown", "api"),
+        (None, "api"),
+    ],
+)
+def test_epic_launch_origin_maps_gate_response_sources(
+    source: str | None,
+    expected: str,
+) -> None:
+    assert epic_launch_origin_from_gate_source(source) == expected
 
 
 def test_resolve_epic_launch_cwd_prefers_canonical_project_file(
@@ -169,7 +188,7 @@ def test_submit_epic_launch_task_submits_literal_detached_command(
             cwd=tmp_path,
             artifacts_dir=tmp_path / "artifacts",
             cl_name="demo",
-            origin="ace",
+            origin="telegram",
         )
 
     assert submitted is task
@@ -187,7 +206,7 @@ def test_submit_epic_launch_task_submits_literal_detached_command(
     kwargs = submit_task.call_args.kwargs
     assert kwargs["label"] == "Epic launch · auth rewrite"
     assert kwargs["cwd"] == tmp_path
-    assert kwargs["origin"] == "ace"
+    assert kwargs["origin"] == "telegram"
     assert kwargs["project"] == "sase"
     assert kwargs["cl_name"] == "demo"
     assert sorted(kwargs["tags"]) == ["epic", "launch"]

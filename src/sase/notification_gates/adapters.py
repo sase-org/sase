@@ -5,9 +5,12 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.notification_gates.models import GateError, GateOption, GateSpec
+
+if TYPE_CHECKING:
+    from sase.bead.epic_launch import EpicLaunchOrigin
 
 
 @dataclass(frozen=True)
@@ -57,7 +60,11 @@ class GateAdapter:
         return _default_branch_selection(spec.primary_branch, by_id)
 
     def apply_side_effects(
-        self, *, bundle_path: Path, response: Mapping[str, Any]
+        self,
+        *,
+        bundle_path: Path,
+        response: Mapping[str, Any],
+        epic_launch_origin: EpicLaunchOrigin | None = None,
     ) -> None:
         """Apply adapter-declared host effects after terminal persistence."""
         if self.kind not in {"plan", "epic_plan"}:
@@ -135,6 +142,9 @@ class GateAdapter:
                 launch_plan = durable_plan_file_for_context(context) or (
                     bundle_path / "plan.md"
                 )
+                from sase.bead.epic_launch import (
+                    epic_launch_origin_from_gate_source,
+                )
 
                 try:
                     task = prepare_epic_launch(
@@ -142,6 +152,13 @@ class GateAdapter:
                         launch_plan,
                         mode="detached",
                         response_dir=bundle_path,
+                        origin=(
+                            epic_launch_origin
+                            if epic_launch_origin is not None
+                            else epic_launch_origin_from_gate_source(
+                                str(response.get("source") or "")
+                            )
+                        ),
                     )
                 except PlanApprovalActionError as exc:
                     raise GateError(exc.code, exc.target, str(exc)) from exc

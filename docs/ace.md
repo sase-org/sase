@@ -3293,7 +3293,8 @@ The programmatic detached API is `sase.tasks.submit_detached_task()`. It require
 the same detached supervisor and validation as `submit_task()`, and never inherits a live ACE session. The public
 `read_tasks()` and `filter_tasks()` helpers accept `kind=` as either one kind or a collection. A `command` or `detached`
 row that remains `pending` without a supervisor PID for 60 seconds is reconciled to `error`; a mirrored `tui` row is
-left to its owning TUI.
+left to its owning TUI. Detached epic launches record the approving surface as `ace`, `telegram`, `cli`, or `axe`, with
+`api` retained as the fallback for direct or unrecognized API callers.
 
 Session attribution is not delegation: a `command` task always executes under its own supervisor, while its session id
 decides which TUI includes it by default. `--session` accepts a full session id, a unique id prefix or short handle, or

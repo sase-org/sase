@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Literal, NoReturn, cast
 
 from sase.core.shell import get_vendored_tool
+from sase.env_contracts import provider_project_dir_from_env
 from sase.main.plan_pending import (
     ensure_plan_notification_available,
     plan_context_from_notification,
@@ -165,6 +166,7 @@ def _approve_plan_from_cli(
         coder_prompt=coder_prompt,
         coder_model=coder_model,
         epic_launch_mode="detached",
+        epic_launch_origin="cli",
     )
 
 
@@ -185,7 +187,7 @@ def is_auto_approve_active() -> bool:
 
 def get_tmux_prefix() -> str:
     """Get the tmux window prefix for notifications."""
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
+    project_dir = provider_project_dir_from_env() or "."
     project_name = os.path.basename(project_dir)
     prefix = f"[{project_name}]"
 

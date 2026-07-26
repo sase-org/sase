@@ -237,7 +237,18 @@ def test_plan_context_recovers_original_file_from_old_bundle_payload(
     assert context.host_action_data["original_plan_file"] == str(plan)
 
 
-def test_epic_gate_host_launch_uses_durable_plan_path(gate_home: Path) -> None:
+@pytest.mark.parametrize(
+    ("source", "expected_origin"),
+    [
+        ("telegram", "telegram"),
+        ("tui", "ace"),
+    ],
+)
+def test_epic_gate_host_launch_uses_durable_plan_path(
+    gate_home: Path,
+    source: str,
+    expected_origin: str,
+) -> None:
     from sase.notification_gates.registry import adapter_for_kind
 
     plan = _write_plan(gate_home, "durable_epic.md", VALID_EPIC_PLAN)
@@ -256,7 +267,7 @@ def test_epic_gate_host_launch_uses_durable_plan_path(gate_home: Path) -> None:
                 },
             }
         ],
-        "source": "test",
+        "source": source,
     }
 
     with (
@@ -273,6 +284,7 @@ def test_epic_gate_host_launch_uses_durable_plan_path(gate_home: Path) -> None:
 
     assert prepare.call_args.args[1] == plan
     assert prepare.call_args.kwargs["mode"] == "detached"
+    assert prepare.call_args.kwargs["origin"] == expected_origin
     assert response["epic_launch_task_id"] == "task-durable"
 
 

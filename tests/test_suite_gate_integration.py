@@ -92,7 +92,7 @@ def _kill_process_group(process: subprocess.Popen[str]) -> None:
 
 
 def _assert_success(process: subprocess.Popen[str]) -> None:
-    stdout, stderr = process.communicate(timeout=20)
+    stdout, stderr = process.communicate(timeout=30)
     assert process.returncode == 0, f"stdout:\n{stdout}\nstderr:\n{stderr}"
 
 

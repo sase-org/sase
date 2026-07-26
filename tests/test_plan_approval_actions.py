@@ -265,8 +265,17 @@ def _epic_context(tmp_path: Path) -> tuple[PlanApprovalActionContext, Path, Path
     )
 
 
+@pytest.mark.parametrize(
+    ("execute_kwargs", "expected_origin"),
+    [
+        ({}, "api"),
+        ({"epic_launch_origin": "cli"}, "cli"),
+    ],
+)
 def test_headless_epic_approval_claims_host_ownership_before_submitting(
     tmp_path: Path,
+    execute_kwargs: dict[str, str],
+    expected_origin: str,
 ) -> None:
     context, response_dir, workspace = _epic_context(tmp_path)
     order: list[str] = []
@@ -287,7 +296,7 @@ def test_headless_epic_approval_claims_host_ownership_before_submitting(
             side_effect=submit,
         ) as submit_launch,
     ):
-        result = execute_plan_approval_response(context, "epic")
+        result = execute_plan_approval_response(context, "epic", **execute_kwargs)
 
     assert result.response_json["epic_launch_owner"] == "host"
     assert result.epic_launch_task_id == "tsk1"
@@ -299,7 +308,7 @@ def test_headless_epic_approval_claims_host_ownership_before_submitting(
     )
     submit_launch.assert_called_once()
     assert submit_launch.call_args.kwargs["cwd"] == workspace
-    assert submit_launch.call_args.kwargs["origin"] == "epic-launch"
+    assert submit_launch.call_args.kwargs["origin"] == expected_origin
 
 
 def test_epic_launch_cwd_resolves_from_project_file_without_project_dir(

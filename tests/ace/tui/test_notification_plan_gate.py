@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Literal
+from unittest.mock import patch
 
 import pytest
 from textual.app import App
@@ -200,3 +201,38 @@ def test_neutral_plan_submission_executes_actual_modal_choice(
     assert _plan_approval_status(result) == expected_status
     assert app.notifications == []
     assert app.refresh_count == 1
+
+
+def test_neutral_epic_submission_records_ace_origin(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = gate_home / "workspace"
+    workspace.mkdir()
+    monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(workspace))
+    plan = gate_home / "epic-origin.md"
+    plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    create_plan_approval_gate(plan, "tui-epic-origin")
+    [notification] = load_notifications()
+    result = _plan_approval_result_for_choice("epic")
+    app = _TrackedPlanApp()
+
+    with (
+        patch(
+            "sase.bead.epic_launch.resolve_epic_launch_cwd",
+            return_value=workspace,
+        ),
+        patch(
+            "sase.bead.cli_work_from_plan.require_epic_launch_store_health",
+        ),
+        patch(
+            "sase.bead.epic_launch.submit_epic_launch_task",
+            return_value=SimpleNamespace(task_id="task-ace"),
+        ) as submit_launch,
+    ):
+        submitted = submit_neutral_plan_response(app, notification, None, result)
+
+    assert submitted is True
+    assert getattr(app.completion, "success", False) is True
+    submit_launch.assert_called_once()
+    assert submit_launch.call_args.kwargs["origin"] == "ace"

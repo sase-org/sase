@@ -10,7 +10,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase._plan_approval_artifacts import (
     durable_plan_file_for_context as durable_plan_file_for_context,
@@ -61,6 +61,9 @@ from sase.plan_approval_choices import (
     plan_approval_selection_for_choice,
 )
 
+if TYPE_CHECKING:
+    from sase.bead.epic_launch import EpicLaunchOrigin
+
 _logger = logging.getLogger(__name__)
 
 
@@ -74,6 +77,7 @@ def execute_plan_approval_response(
     coder_prompt: str | None = None,
     coder_model: str | None = None,
     epic_launch_mode: EpicLaunchMode = "detached",
+    epic_launch_origin: EpicLaunchOrigin = "api",
 ) -> PlanApprovalActionResult:
     """Resolve a neutral plan gate, with legacy in-flight fallback."""
     request_kind = notification.host_action_data.get("request_kind")
@@ -92,6 +96,7 @@ def execute_plan_approval_response(
             coder_prompt=coder_prompt,
             coder_model=coder_model,
             epic_launch_mode=epic_launch_mode,
+            epic_launch_origin=epic_launch_origin,
         )
     return _execute_legacy_plan_approval_response(
         notification,
@@ -102,6 +107,7 @@ def execute_plan_approval_response(
         coder_prompt=coder_prompt,
         coder_model=coder_model,
         epic_launch_mode=epic_launch_mode,
+        epic_launch_origin=epic_launch_origin,
     )
 
 
@@ -115,6 +121,7 @@ def _execute_legacy_plan_approval_response(
     coder_prompt: str | None,
     coder_model: str | None,
     epic_launch_mode: EpicLaunchMode,
+    epic_launch_origin: EpicLaunchOrigin,
 ) -> PlanApprovalActionResult:
     """Write the runner response for an in-flight legacy PlanApproval."""
     raw_response_dir = notification.host_action_data.get("response_dir")
@@ -168,6 +175,7 @@ def _execute_legacy_plan_approval_response(
             mode=epic_launch_mode,
             response_dir=response_dir,
             resolved_cwd=epic_launch_cwd,
+            origin=epic_launch_origin,
         )
         epic_launch_task_id = task.task_id if task is not None else None
     return PlanApprovalActionResult(
@@ -191,6 +199,7 @@ def _execute_neutral_plan_approval_response(
     coder_prompt: str | None,
     coder_model: str | None,
     epic_launch_mode: EpicLaunchMode,
+    epic_launch_origin: EpicLaunchOrigin,
 ) -> PlanApprovalActionResult:
     """Execute one selected option set through the shared gate executor."""
     if not notification.host_files:
@@ -248,6 +257,7 @@ def _execute_neutral_plan_approval_response(
             input_data,
             feedback=feedback,
             source="plan_response",
+            epic_launch_origin=epic_launch_origin,
         )
     except GateError as exc:
         code = (

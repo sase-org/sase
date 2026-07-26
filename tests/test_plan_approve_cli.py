@@ -15,6 +15,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.time import get_timezone
 from sase.main.plan_approve_handler import (
     _approve_plan_from_cli,
+    get_tmux_prefix,
     handle_plan_approve_command,
 )
 from sase.notifications.models import Notification
@@ -88,6 +89,20 @@ def _live_agent() -> Agent:
         agent_name="planner",
         workspace_dir="/work/demo-project",
     )
+
+
+def test_tmux_prefix_uses_runtime_neutral_project_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.env_contracts import PROVIDER_PROJECT_DIR_ENV_VARS
+
+    for env_name in PROVIDER_PROJECT_DIR_ENV_VARS:
+        monkeypatch.delenv(env_name, raising=False)
+    monkeypatch.setenv("CODEX_PROJECT_DIR", str(tmp_path / "codex-project"))
+    monkeypatch.delenv("TMUX_PANE", raising=False)
+
+    assert get_tmux_prefix() == "[codex-project]"
 
 
 @pytest.fixture(autouse=True)
@@ -220,6 +235,7 @@ def test_cli_epic_approval_submits_detached_after_claiming_ownership(
     launch.assert_called_once()
     assert launch.call_args.args == (str(plan),)
     assert launch.call_args.kwargs["cwd"] == workspace
+    assert launch.call_args.kwargs["origin"] == "cli"
 
 
 def test_failed_epic_gate_leaves_proposal_pending_and_retryable(

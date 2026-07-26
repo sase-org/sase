@@ -7,7 +7,7 @@ import re
 import shlex
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 
@@ -18,6 +18,21 @@ if TYPE_CHECKING:
 
 _EPIC_LAUNCH_TAGS = ("epic", "launch")
 _EPIC_LAUNCH_SUBMIT_LOCK = "epic-launch-submit"
+
+type EpicLaunchOrigin = Literal["ace", "telegram", "cli", "axe", "api"]
+
+_GATE_SOURCE_TO_EPIC_LAUNCH_ORIGIN: dict[str, EpicLaunchOrigin] = {
+    "tui": "ace",
+    "telegram": "telegram",
+    "auto_resolution": "axe",
+}
+
+
+def epic_launch_origin_from_gate_source(
+    source: str | None,
+) -> EpicLaunchOrigin:
+    """Map a neutral gate response source to its detached-task origin."""
+    return _GATE_SOURCE_TO_EPIC_LAUNCH_ORIGIN.get(source or "", "api")
 
 
 def build_epic_launch_argv(
@@ -89,7 +104,7 @@ def submit_epic_launch_task(
     cwd: str | Path,
     artifacts_dir: str | Path | None = None,
     cl_name: str | None = None,
-    origin: str = "api",
+    origin: EpicLaunchOrigin = "api",
 ) -> BackgroundTask:
     """Submit one globally visible task for an approved epic plan.
 
@@ -256,7 +271,9 @@ def finish_epic_launch(
 
 
 __all__ = [
+    "EpicLaunchOrigin",
     "build_epic_launch_argv",
+    "epic_launch_origin_from_gate_source",
     "finish_epic_launch",
     "resolve_epic_launch_cwd",
     "submit_epic_launch_task",

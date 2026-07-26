@@ -395,6 +395,7 @@ def _submit_legacy_epic_launch_task(
                 plan_file,
                 mode="detached",
                 response_dir=response_dir,
+                origin="ace",
             )
         except PlanApprovalActionError as exc:
             return TrackedTaskResult(
