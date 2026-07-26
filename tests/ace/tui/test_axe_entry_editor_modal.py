@@ -501,6 +501,42 @@ async def test_invalid_draft_surfaces_in_status_and_blocks_preview() -> None:
         assert "run_every" in modal.query_one("#axe-editor-status").render().plain
 
 
+async def test_required_description_cannot_be_cleared() -> None:
+    seed = AxeEntryEditorSeed(
+        identity=AxeEntryIdentity("chop", "checks", "lint"),
+        schema=load_config_schema(),
+        writable_scopes=(AxeWritableScope("user"),),
+        effective_values={
+            "description": "Run lint checks",
+            "script": "sase_lint",
+        },
+        raw_values={
+            "description": "Run lint checks",
+            "script": "sase_lint",
+        },
+        provenance={"description": "user", "script": "user"},
+    )
+
+    async with AcePage() as page:
+        modal = AxeEntryEditorModal(seed, plan=lambda _request: _preview())
+        page.app.push_screen(modal)
+        await page.expect_modal("AxeEntryEditorModal")
+        modal._form = modal._form.set_value("description", "")
+        modal._render_all()
+        await page.pause()
+        assert modal._form.diagnostics()[0].message == (
+            "required field must have a value"
+        )
+        modal.action_confirm()
+        await page.pause()
+
+        assert modal._stage == "edit"
+        assert modal._plan is None
+        assert "required field must have a value" in (
+            modal.query_one("#axe-editor-status").render().plain
+        )
+
+
 async def test_preview_back_retains_sparse_draft_and_running_primary_restarts() -> None:
     requests: list[AxeEntryMutationRequest] = []
     applied: list[object] = []

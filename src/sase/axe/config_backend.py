@@ -296,7 +296,12 @@ def compose_axe_config(
     layer_inputs = [serialize_config_layer(layer) for layer in discovered]
     binding = require_rust_binding("axe_config_compose")
     try:
-        payload = binding({"layers": layer_inputs})
+        payload = binding(
+            {
+                "layers": layer_inputs,
+                "require_descriptions": True,
+            }
+        )
     except ValueError as exc:
         raise ConfigBackendError(str(exc)) from exc
     return AxeConfigComposition.from_wire(payload, layer_inputs=layer_inputs)
@@ -335,6 +340,7 @@ def plan_axe_entry_edit(
         "target_layer": target,
         "selector": selector.to_wire(),
         "operations": [operation.to_wire() for operation in operations],
+        "require_descriptions": True,
     }
     binding = require_rust_binding("axe_config_plan_entry")
     try:

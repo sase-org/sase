@@ -99,11 +99,13 @@
     },
     "axeChop": {
       "type": "object",
+      "required": ["description"],
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "description": {
           "type": "string",
+          "minLength": 1,
           "description": "Human-readable description shown in AXE listings and notifications"
         },
         "script": {
@@ -255,7 +257,7 @@
         {
           "allOf": [
             { "$ref": "#/definitions/axeChop" },
-            { "required": ["name"] }
+            { "required": ["name", "description"] }
           ]
         }
       ]
@@ -894,10 +896,12 @@
           "description": "Named lumberjack definitions. Each key is a lumberjack name with interval and chops config.",
           "additionalProperties": {
             "type": "object",
+            "required": ["description"],
             "additionalProperties": false,
             "properties": {
               "description": {
                 "type": "string",
+                "minLength": 1,
                 "description": "Description of the cadence and class of work this lumberjack owns"
               },
               "interval": {
@@ -925,7 +929,7 @@
                     { "type": "string" },
                     {
                       "type": "object",
-                      "required": ["name"],
+                      "required": ["name", "description"],
                       "additionalProperties": false,
                       "properties": {
                         "name": {
@@ -934,6 +938,7 @@
                         },
                         "description": {
                           "type": "string",
+                          "minLength": 1,
                           "description": "Description of what this chop does"
                         },
                         "script": {

@@ -35,6 +35,7 @@ def _lumberjack_config(
 ) -> LumberjackConfig:
     return LumberjackConfig(
         name=name,
+        description=f"Collect {name} test status",
         interval=interval,
         chops=chops or [ChopConfig(name="hook_checks", description="test")],
     )

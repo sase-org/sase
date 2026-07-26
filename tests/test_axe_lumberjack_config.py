@@ -42,7 +42,11 @@ def test_lumberjack_config_basic() -> None:
 
 def test_lumberjack_config_default_chops() -> None:
     """Test LumberjackConfig defaults to empty chops list."""
-    cfg = LumberjackConfig(name="test", interval=10)
+    cfg = LumberjackConfig(
+        name="test",
+        description="Run test chops",
+        interval=10,
+    )
     assert cfg.chops == []
 
 
@@ -60,21 +64,137 @@ def test_axe_config_defaults() -> None:
     assert cfg.lumberjacks == {}
 
 
-def test_parse_lumberjacks_string_chops_backward_compat() -> None:
-    """Test that plain string chops are parsed with empty descriptions."""
-    raw = {
-        "hooks": {"interval": 1, "chops": ["hook_checks", "mentor_checks"]},
+def test_load_axe_config_rejects_bare_string_chops() -> None:
+    data = {
+        "axe": {
+            "lumberjacks": {
+                "hooks": {
+                    "description": "Run hook checks",
+                    "interval": 1,
+                    "chops": ["hook_checks"],
+                }
+            }
+        }
     }
-    result = _parse_lumberjacks(raw)
-    assert result["hooks"].chop_names == ["hook_checks", "mentor_checks"]
-    assert result["hooks"].chops[0].description == ""
-    assert result["hooks"].chops[1].description == ""
+
+    with (
+        patch("sase.axe.config.load_merged_config", return_value=data),
+        pytest.raises(AxeConfigError) as exc_info,
+    ):
+        load_axe_config()
+
+    diagnostic = exc_info.value.diagnostics[0]
+    assert diagnostic.code == "required_missing"
+    assert diagnostic.path == "axe.lumberjacks.hooks.chops.hook_checks.description"
+    assert "list-form string entries cannot carry one" in diagnostic.message
+
+
+def test_load_axe_config_requires_lumberjack_description() -> None:
+    data = {
+        "axe": {
+            "lumberjacks": {
+                "hooks": {
+                    "interval": 1,
+                    "chops": {
+                        "hook_checks": {
+                            "description": "Check hooks",
+                        }
+                    },
+                }
+            }
+        }
+    }
+
+    with (
+        patch("sase.axe.config.load_merged_config", return_value=data),
+        pytest.raises(AxeConfigError) as exc_info,
+    ):
+        load_axe_config()
+
+    diagnostic = exc_info.value.diagnostics[0]
+    assert diagnostic.code == "required_missing"
+    assert diagnostic.path == "axe.lumberjacks.hooks.description"
+
+
+def test_load_axe_config_requires_chop_description() -> None:
+    data = {
+        "axe": {
+            "lumberjacks": {
+                "hooks": {
+                    "description": "Run hook checks",
+                    "interval": 1,
+                    "chops": {"hook_checks": {}},
+                }
+            }
+        }
+    }
+
+    with (
+        patch("sase.axe.config.load_merged_config", return_value=data),
+        pytest.raises(AxeConfigError) as exc_info,
+    ):
+        load_axe_config()
+
+    diagnostic = exc_info.value.diagnostics[0]
+    assert diagnostic.code == "required_missing"
+    assert diagnostic.path == "axe.lumberjacks.hooks.chops.hook_checks.description"
+
+
+def test_load_axe_config_allows_sparse_interval_overlay() -> None:
+    base = ConfigLayer(
+        name="default",
+        path=None,
+        exists=True,
+        list_strategy="concatenate",
+        data={
+            "axe": {
+                "lumberjacks": {
+                    "hooks": {
+                        "description": "Run hook checks",
+                        "interval": 1,
+                        "chops": {
+                            "hook_checks": {
+                                "description": "Check hooks",
+                            }
+                        },
+                    }
+                }
+            }
+        },
+    )
+    overlay = ConfigLayer(
+        name="overlay:test.yml",
+        path="/tmp/test.yml",
+        exists=True,
+        list_strategy="concatenate",
+        data={
+            "axe": {
+                "lumberjacks": {
+                    "hooks": {
+                        "interval": 5,
+                    }
+                }
+            }
+        },
+    )
+
+    with (
+        patch("sase.axe.config.load_merged_config", return_value=overlay.data),
+        patch("sase.axe.config.load_config_layers", return_value=[base, overlay]),
+    ):
+        config = load_axe_config()
+
+    assert config.lumberjacks["hooks"].interval == 5
 
 
 def test_parse_lumberjacks_skips_non_dict_entries() -> None:
     """Test that non-dict entries are skipped."""
     raw = {
-        "hooks": {"interval": 1, "chops": []},
+        "hooks": {
+            "description": "Run hook checks",
+            "interval": 1,
+            "chops": [],
+        },
         "bad": "not a dict",
     }
     result = _parse_lumberjacks(raw)
@@ -133,8 +253,15 @@ def test_parse_lumberjacks_run_every_from_dict() -> None:
     """Test that run_every is parsed from duration string in dict chop entries."""
     raw = {
         "checks": {
+            "description": "Run slower checks",
             "interval": 60,
-            "chops": [{"name": "slow_check", "run_every": "5m"}],
+            "chops": [
+                {
+                    "name": "slow_check",
+                    "description": "Run a throttled check",
+                    "run_every": "5m",
+                }
+            ],
         },
     }
     result = _parse_lumberjacks(raw)
@@ -144,10 +271,12 @@ def test_parse_lumberjacks_run_every_from_dict() -> None:
 def test_parse_lumberjacks_normalizes_declarative_chop_policy() -> None:
     raw = {
         "checks": {
+            "description": "Run declarative policy checks",
             "interval": 60,
             "chops": [
                 {
                     "name": "audit",
+                    "description": "Audit configured changes",
                     "inhibit_if": {
                         "changespec": {"name_prefix": "audit_"},
                         "agent_hood": [{"hood": "audit"}],
@@ -185,6 +314,7 @@ def test_parse_lumberjacks_normalizes_declarative_chop_policy() -> None:
 def test_parse_lumberjacks_map_form_merges_env_and_expands_literal_targets() -> None:
     raw = {
         "docs": {
+            "description": "Refresh project documentation",
             "interval": 60,
             "env": {
                 "SHARED": "lumberjack",
@@ -192,6 +322,7 @@ def test_parse_lumberjacks_map_form_merges_env_and_expands_literal_targets() -> 
             },
             "chops": {
                 "refresh_docs": {
+                    "description": "Refresh project documentation",
                     "script": "sase_chop_refresh_docs",
                     "env": {"SHARED": "chop"},
                     "vars": {"prompt": "Update docs"},
@@ -204,7 +335,10 @@ def test_parse_lumberjacks_map_form_merges_env_and_expands_literal_targets() -> 
                         {"name": "sase"},
                     ],
                 },
-                "retired": {"enabled": False},
+                "retired": {
+                    "description": "Retain a disabled documentation check",
+                    "enabled": False,
+                },
             },
         }
     }
@@ -231,9 +365,11 @@ def test_parse_lumberjacks_map_form_merges_env_and_expands_literal_targets() -> 
 def test_parse_lumberjacks_project_source_uses_target_templates() -> None:
     raw = {
         "docs": {
+            "description": "Refresh project documentation",
             "interval": 60,
             "chops": {
                 "refresh_docs": {
+                    "description": "Refresh project documentation",
                     "trigger": {
                         "git.commits_since": {
                             "project": "{target.name}",
@@ -267,9 +403,11 @@ def test_parse_lumberjacks_project_source_uses_target_templates() -> None:
 def test_parse_lumberjacks_revalidates_rendered_target_templates() -> None:
     raw = {
         "docs": {
+            "description": "Refresh project documentation",
             "interval": 60,
             "chops": {
                 "refresh_docs": {
+                    "description": "Refresh project documentation",
                     "trigger": {
                         "git.commits_since": {
                             "project": "{target.project}",
@@ -289,9 +427,11 @@ def test_parse_lumberjacks_revalidates_rendered_target_templates() -> None:
 def test_parse_lumberjacks_wraps_target_expansion_errors() -> None:
     raw = {
         "docs": {
+            "description": "Refresh project documentation",
             "interval": 60,
             "chops": {
                 "refresh_docs": {
+                    "description": "Refresh project documentation",
                     "for_each": [{"name": "sase"}, {"name": "sase"}],
                 }
             },
@@ -312,6 +452,7 @@ def test_keyed_layer_composition_patches_fields_and_tracks_provenance() -> None:
             "axe": {
                 "lumberjacks": {
                     "checks": {
+                        "description": "Run audit checks",
                         "interval": 60,
                         "chops": [
                             {
@@ -336,7 +477,10 @@ def test_keyed_layer_composition_patches_fields_and_tracks_provenance() -> None:
                     "checks": {
                         "chops": {
                             "audit": {"run_every": "1d"},
-                            "unused": {"enabled": False},
+                            "unused": {
+                                "description": "Retain a disabled audit check",
+                                "enabled": False,
+                            },
                         }
                     }
                 }
@@ -388,8 +532,14 @@ def test_keyed_composition_keeps_legacy_list_duplicates_fail_closed() -> None:
                 "axe": {
                     "lumberjacks": {
                         "checks": {
+                            "description": "Run audit checks",
                             "interval": 60,
-                            "chops": [{"name": "audit"}],
+                            "chops": [
+                                {
+                                    "name": "audit",
+                                    "description": "Audit configured changes",
+                                }
+                            ],
                         }
                     }
                 }
@@ -408,11 +558,23 @@ def test_parse_lumberjacks_run_every_invalid_becomes_none() -> None:
     """Test that invalid run_every values become None (run every tick)."""
     raw = {
         "checks": {
+            "description": "Run cadence parsing checks",
             "interval": 60,
             "chops": [
-                {"name": "bare_int", "run_every": 60},
-                {"name": "bad_string", "run_every": "bad"},
-                {"name": "missing"},
+                {
+                    "name": "bare_int",
+                    "description": "Check integer cadence parsing",
+                    "run_every": 60,
+                },
+                {
+                    "name": "bad_string",
+                    "description": "Check invalid cadence parsing",
+                    "run_every": "bad",
+                },
+                {
+                    "name": "missing",
+                    "description": "Check missing cadence parsing",
+                },
             ],
         },
     }
@@ -421,10 +583,18 @@ def test_parse_lumberjacks_run_every_invalid_becomes_none() -> None:
         assert chop.run_every is None
 
 
-def test_parse_lumberjacks_string_chops_get_default_run_every() -> None:
-    """Test that string chops get default run_every=None."""
+def test_parse_lumberjacks_map_chops_get_default_run_every() -> None:
+    """Test that map-form chops get default run_every=None."""
     raw = {
-        "hooks": {"interval": 1, "chops": ["hook_checks"]},
+        "hooks": {
+            "description": "Run hook checks",
+            "interval": 1,
+            "chops": {
+                "hook_checks": {
+                    "description": "Check hooks",
+                }
+            },
+        },
     }
     result = _parse_lumberjacks(raw)
     assert result["hooks"].chops[0].run_every is None
@@ -434,9 +604,15 @@ def test_parse_lumberjacks_chop_timeout() -> None:
     """Test that chop_timeout is parsed from the lumberjack config."""
     raw = {
         "hooks": {
+            "description": "Run hook checks",
             "interval": 5,
             "chop_timeout": "30s",
-            "chops": [{"name": "hook_checks"}],
+            "chops": [
+                {
+                    "name": "hook_checks",
+                    "description": "Check hooks",
+                }
+            ],
         },
     }
     result = _parse_lumberjacks(raw)
@@ -446,7 +622,11 @@ def test_parse_lumberjacks_chop_timeout() -> None:
 def test_parse_lumberjacks_chop_timeout_defaults_to_none() -> None:
     """Test that missing chop_timeout defaults to None."""
     raw = {
-        "hooks": {"interval": 5, "chops": []},
+        "hooks": {
+            "description": "Run hook checks",
+            "interval": 5,
+            "chops": [],
+        },
     }
     result = _parse_lumberjacks(raw)
     assert result["hooks"].chop_timeout is None
@@ -456,10 +636,18 @@ def test_parse_lumberjacks_per_chop_timeout() -> None:
     """Test that per-chop timeout is parsed from dict chop entries."""
     raw = {
         "hooks": {
+            "description": "Run hook checks",
             "interval": 5,
             "chops": [
-                {"name": "slow_chop", "timeout": "10s"},
-                {"name": "fast_chop"},
+                {
+                    "name": "slow_chop",
+                    "description": "Run a slow check",
+                    "timeout": "10s",
+                },
+                {
+                    "name": "fast_chop",
+                    "description": "Run a fast check",
+                },
             ],
         },
     }
@@ -549,9 +737,11 @@ def test_load_axe_config_rejects_agent_chops_with_source_provenance() -> None:
 axe:
   lumberjacks:
     audits:
+      description: Run audit checks
       interval: 60
       chops:
         - name: recent
+          description: Audit recent changes
           agent: "#!audit"
 """)
     layer = ConfigLayer(

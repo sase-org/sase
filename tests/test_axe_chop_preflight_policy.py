@@ -77,6 +77,7 @@ def test_changespec_guard_skips_scheduled_run_and_force_bypasses_it(
             lumberjacks={
                 "checks": LumberjackConfig(
                     name="checks",
+                    description="Run preflight policy checks",
                     interval=60,
                     chops=[chop],
                 )

@@ -143,6 +143,7 @@ def test_run_every_skip_does_not_record_history(
     """run_every-throttled chops do not pollute the history with skip entries."""
     config = LumberjackConfig(
         name="throttled",
+        description="Run throttled history checks",
         interval=10,
         chops=[ChopConfig(name="slow_chop", description="", run_every=3600)],
     )

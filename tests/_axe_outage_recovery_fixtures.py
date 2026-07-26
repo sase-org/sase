@@ -33,7 +33,15 @@ def axe_config() -> AxeConfig:
         zombie_timeout_seconds=7200,
         query="",
         lumberjacks={
-            "hooks": LumberjackConfig(name="hooks", interval=5),
-            "waits": LumberjackConfig(name="waits", interval=5),
+            "hooks": LumberjackConfig(
+                name="hooks",
+                description="Run hook recovery checks",
+                interval=5,
+            ),
+            "waits": LumberjackConfig(
+                name="waits",
+                description="Run wait recovery checks",
+                interval=5,
+            ),
         },
     )

@@ -556,6 +556,10 @@ def _parse_schema_field_value(
 
 def _validate_schema_value(field: SchemaObjectField, value: Any) -> str | None:
     """Apply direct type and scalar constraints without schema/file access."""
+    if field.required and value == "":
+        # Required string fields use the clearer required-value diagnostic
+        # instead of surfacing their supporting minLength constraint.
+        return None
     types = set(field.types)
     value_type = _json_type(value)
     type_matches = value_type in types or (
@@ -575,7 +579,7 @@ def _required_field_missing(field: SchemaObjectField) -> bool:
     if field.touched and field.reset:
         return not field.has_inherited
     if field.touched:
-        return field.draft_value is None
+        return field.draft_value is None or field.draft_value == ""
     return not field.has_effective and "default" not in field.schema
 
 

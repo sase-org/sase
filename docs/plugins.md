@@ -602,9 +602,11 @@ Configure the exact script name and debug it through the runner:
 axe:
   lumberjacks:
     audits:
+      description: Run project audits every five minutes
       interval: 300
       chops:
         project_audit:
+          description: Audit enabled projects for actionable improvements
           script: my_chop_audit
           for_each: { source: projects }
 ```

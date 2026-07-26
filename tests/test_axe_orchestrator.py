@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.axe.config import AxeConfig, LumberjackConfig
+from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.orchestrator import (
     Orchestrator,
 )
@@ -34,9 +34,22 @@ def axe_config() -> AxeConfig:
         zombie_timeout_seconds=7200,
         query="",
         lumberjacks={
-            "hooks": LumberjackConfig(name="hooks", interval=1, chops=["hook_checks"]),
+            "hooks": LumberjackConfig(
+                name="hooks",
+                description="Run hook orchestration checks",
+                interval=1,
+                chops=[ChopConfig(name="hook_checks", description="Check hooks")],
+            ),
             "checks": LumberjackConfig(
-                name="checks", interval=300, chops=["cl_submitted_checks"]
+                name="checks",
+                description="Run submission orchestration checks",
+                interval=300,
+                chops=[
+                    ChopConfig(
+                        name="cl_submitted_checks",
+                        description="Check submitted changes",
+                    )
+                ],
             ),
         },
     )

@@ -30,7 +30,12 @@ from sase.axe.lumberjack import (
 def _make_lumberjack(tmp_path: Any) -> Lumberjack:
     """Construct a Lumberjack instance with one no-op chop, anchored at tmp_path."""
     chop = ChopConfig(name="probe", description="probe chop for tests")
-    lj_config = LumberjackConfig(name="test", interval=60, chops=[chop])
+    lj_config = LumberjackConfig(
+        name="test",
+        description="Run traceback test probes",
+        interval=60,
+        chops=[chop],
+    )
     axe_config = AxeConfig()
     with patch("sase.axe.lumberjack.ensure_lumberjack_dirs", return_value=tmp_path):
         return Lumberjack("test", lj_config, axe_config)

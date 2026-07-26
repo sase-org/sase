@@ -19,7 +19,11 @@ pytestmark = pytest.mark.usefixtures("allow_axe_lifecycle_in_tests")
 def _config() -> AxeConfig:
     return AxeConfig(
         lumberjacks={
-            "hooks": LumberjackConfig(name="hooks", interval=5),
+            "hooks": LumberjackConfig(
+                name="hooks",
+                description="Run restart test checks",
+                interval=5,
+            ),
         }
     )
 

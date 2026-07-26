@@ -88,6 +88,10 @@ def test_required_and_pattern_diagnostics_are_pure() -> None:
     assert not required_reset.is_valid
     assert required_reset.diagnostics[0].code == "required"
 
+    required_blank = _form().set_value("script", "").patch()
+    assert not required_blank.is_valid
+    assert required_blank.diagnostics[0].message == "required field must have a value"
+
     invalid = _form().set_text("run.every", "whenever", live=True).patch()
     assert not invalid.is_valid
     assert "pattern" in invalid.diagnostics[0].message

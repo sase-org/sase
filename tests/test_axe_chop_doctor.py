@@ -58,6 +58,7 @@ def _config_with_missing_chop() -> AxeConfig:
         lumberjacks={
             "hooks": LumberjackConfig(
                 name="hooks",
+                description="Run hook doctor checks",
                 interval=10,
                 chops=[ChopConfig(name="missing", description="")],
             )
@@ -92,6 +93,7 @@ def test_build_chop_checks_errors_on_unknown_trigger_project(
         lumberjacks={
             "checks": LumberjackConfig(
                 name="checks",
+                description="Run chop doctor checks",
                 interval=10,
                 chops=[
                     ChopConfig(
@@ -158,6 +160,7 @@ def test_build_chop_checks_accepts_telegram_chop_env(
         lumberjacks={
             "telegram": LumberjackConfig(
                 name="telegram",
+                description="Run Telegram doctor checks",
                 interval=10,
                 chops=[
                     ChopConfig(
@@ -194,6 +197,7 @@ def test_build_chop_checks_accepts_telegram_token_from_chop_env(
         lumberjacks={
             "telegram": LumberjackConfig(
                 name="telegram",
+                description="Run Telegram doctor checks",
                 interval=10,
                 chops=[
                     ChopConfig(
@@ -251,6 +255,7 @@ def test_build_chop_checks_errors_when_enabled_configured_and_token_missing(
         lumberjacks={
             "telegram": LumberjackConfig(
                 name="telegram",
+                description="Run Telegram doctor checks",
                 interval=10,
                 chops=[
                     ChopConfig(
@@ -326,6 +331,7 @@ def test_handle_axe_chop_list_json_has_schema_version(
         lumberjacks={
             "hooks": LumberjackConfig(
                 name="hooks",
+                description="Run hook inventory checks",
                 interval=10,
                 chops=[
                     ChopConfig(
@@ -360,11 +366,13 @@ def test_handle_axe_chop_list_json_keeps_per_lumberjack_rows(
         lumberjacks={
             "jack1": LumberjackConfig(
                 name="jack1",
+                description="Run first shared-chop checks",
                 interval=10,
                 chops=[ChopConfig(name="shared", description="")],
             ),
             "jack2": LumberjackConfig(
                 name="jack2",
+                description="Run second shared-chop checks",
                 interval=10,
                 chops=[ChopConfig(name="shared", description="")],
             ),

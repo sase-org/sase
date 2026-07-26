@@ -35,6 +35,7 @@ def test_run_tick_multiple_chops(
     """Test that _run_tick invokes multiple chop scripts."""
     multi_config = LumberjackConfig(
         name="multi",
+        description="Run multiple test chops",
         interval=5,
         chops=[
             ChopConfig(name="hook_checks", description=""),
@@ -185,6 +186,7 @@ def test_run_every_skips_when_not_enough_time_elapsed(
     """Test that chops with run_every are skipped when not enough time has elapsed."""
     config = LumberjackConfig(
         name="throttled",
+        description="Run throttled test chops",
         interval=10,
         chops=[ChopConfig(name="slow_chop", description="", run_every=3600)],
     )
@@ -216,6 +218,7 @@ def test_failed_run_every_chop_waits_until_next_cadence(
 ) -> None:
     config = LumberjackConfig(
         name="throttled_failure",
+        description="Run throttled failure checks",
         interval=10,
         chops=[ChopConfig(name="slow_chop", description="", run_every=3600)],
     )
@@ -255,6 +258,7 @@ def test_all_chops_run_on_first_tick(
     """Test that all chops run on the first tick (no prior timestamps)."""
     config = LumberjackConfig(
         name="first_tick",
+        description="Run first-tick checks",
         interval=10,
         chops=[
             ChopConfig(name="every_tick", description=""),
@@ -284,6 +288,7 @@ def test_chops_without_run_every_run_every_tick(
     """Test that chops without run_every always run."""
     config = LumberjackConfig(
         name="always",
+        description="Run every-tick checks",
         interval=10,
         chops=[ChopConfig(name="always_chop", description="")],
     )
@@ -311,6 +316,7 @@ def test_timeout_expired_records_error_and_continues(
     """Test that TimeoutExpired is caught and subsequent chops still run."""
     config = LumberjackConfig(
         name="timeout_test",
+        description="Run timeout handling checks",
         interval=10,
         chop_timeout=5,
         chops=[
@@ -342,6 +348,7 @@ def test_per_chop_timeout_overrides_lumberjack_default(
     """Test that per-chop timeout overrides lumberjack-level chop_timeout."""
     config = LumberjackConfig(
         name="override_test",
+        description="Run timeout override checks",
         interval=10,
         chop_timeout=30,
         chops=[
@@ -376,6 +383,7 @@ def test_tick_overrun_logs_warning(
     """Test that a warning is logged when tick duration exceeds interval."""
     config = LumberjackConfig(
         name="overrun_test",
+        description="Run interval overrun checks",
         interval=1,
         chops=[ChopConfig(name="slow_chop", description="")],
     )
@@ -411,6 +419,7 @@ def test_chops_run_concurrently(
     """Test that chops run concurrently (two 1s chops complete in ~1s, not ~2s)."""
     config = LumberjackConfig(
         name="concurrent_test",
+        description="Run concurrent chop checks",
         interval=10,
         chops=[
             ChopConfig(name="slow_a", description=""),
@@ -449,6 +458,7 @@ def test_one_chop_failure_does_not_block_others(
     """Test that one chop failing doesn't prevent others from running."""
     config = LumberjackConfig(
         name="isolation_test",
+        description="Run failure isolation checks",
         interval=10,
         chops=[
             ChopConfig(name="failing_chop", description=""),

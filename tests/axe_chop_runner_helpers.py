@@ -10,7 +10,12 @@ from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 def config_with(**chops_per_jack: list[ChopConfig]) -> AxeConfig:
     return AxeConfig(
         lumberjacks={
-            name: LumberjackConfig(name=name, interval=10, chops=chops)
+            name: LumberjackConfig(
+                name=name,
+                description=f"Run {name} test chops",
+                interval=10,
+                chops=chops,
+            )
             for name, chops in chops_per_jack.items()
         }
     )

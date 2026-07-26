@@ -1210,6 +1210,7 @@ axe:
   chop_script_dirs: [] # additional directories to search for chop scripts
   lumberjacks:
     hooks:
+      description: Fast lane that advances hook, mentor, and workflow lifecycle state every few seconds
       interval: 5
       chop_timeout: "90s"
       chops:
@@ -1238,6 +1239,7 @@ axe:
           script: sase_chop_stale_running_cleanup
           description: Release workspace claims held by dead processes
     waits:
+      description: Resolve agent wait dependencies and keep bead claims and stores in sync
       interval: 10
       chops:
         - name: bead_store_refresh
@@ -1249,6 +1251,7 @@ axe:
           script: sase_chop_wait_checks
           description: Resolve successful agent wait dependencies and write ready.json
     checks:
+      description: Poll slower PR-submission and workspace-claim checks on a five-minute cadence
       interval: 300
       chops:
         - name: pr_submitted_checks
@@ -1258,12 +1261,14 @@ axe:
           script: sase_chop_stale_running_cleanup
           description: Backstop cleanup of stale RUNNING entries
     comments:
+      description: Start background critique-comment checks for mailed PRs every minute
       interval: 60
       chops:
         - name: comment_checks
           script: sase_chop_comment_checks
           description: Check for new comments on PRs
     housekeeping:
+      description: Hourly error digest and managed-temp cleanup
       interval: 3600
       chops:
         - name: error_digest
@@ -1291,12 +1296,13 @@ axe:
 
 **Lumberjack fields** (per entry under `lumberjacks`):
 
-| Field          | Type                        | Default | Description                                                             |
-| -------------- | --------------------------- | ------- | ----------------------------------------------------------------------- |
-| `interval`     | int                         | `1`     | Seconds between chop polling cycles.                                    |
-| `chop_timeout` | string                      | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"` |
-| `env`          | dict[string, env-value]     | `{}`    | Environment inherited by every chop in this lumberjack.                 |
-| `chops`        | list[string\|object] or map | `[]`    | Legacy list or composable map of chops (see below).                     |
+| Field          | Type                    | Required | Default | Description                                                             |
+| -------------- | ----------------------- | -------- | ------- | ----------------------------------------------------------------------- |
+| `description`  | string                  | yes      | -       | Non-blank description of the lane's cadence and work.                   |
+| `interval`     | int                     | no       | `1`     | Seconds between chop polling cycles.                                    |
+| `chop_timeout` | string                  | no       | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"` |
+| `env`          | dict[string, env-value] | no       | `{}`    | Environment inherited by every chop in this lumberjack.                 |
+| `chops`        | list[object] or map     | no       | `[]`    | Composable chop definitions (see below).                                |
 
 **Chop fields** (per entry under `chops`):
 
@@ -1305,7 +1311,7 @@ axe:
 | `name`        | string                  | list only | -        | Stable identity; map form uses the entry key.                      |
 | `script`      | string                  | no        | `name`   | Exact executable name; no prefix is added automatically.           |
 | `enabled`     | boolean                 | no        | `true`   | Soft-disable a keyed entry while retaining inherited fields.       |
-| `description` | string                  | no        | `""`     | Human-readable description of what the chop does.                  |
+| `description` | string                  | yes       | -        | Non-blank description of what the chop does.                       |
 | `run_every`   | string                  | no        | -        | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`.   |
 | `timeout`     | string                  | no        | -        | Per-chop duration limit. Overrides lumberjack `chop_timeout`.      |
 | `env`         | dict[string, env-value] | no        | `{}`     | Literal values or `{env:}`, `{file:}`, `{pass:}` references.       |
@@ -1333,11 +1339,13 @@ provenance is shown by the verbose chop inventory:
 axe:
   lumberjacks:
     docs:
+      description: Refresh project documentation when repositories accumulate meaningful changes
       interval: 60
       env:
         API_TOKEN: { env: DOCS_API_TOKEN }
       chops:
         refresh_docs:
+          description: Refresh documentation after meaningful repository drift
           script: sase_chop_refresh_docs
           run_every: "30m"
           trigger:
@@ -1349,6 +1357,7 @@ axe:
             source: projects
             vcs: [git, gh]
         packaged_but_disabled:
+          description: Retain a packaged documentation check without running it
           enabled: false
 ```
 
@@ -1375,11 +1384,12 @@ the scoping language in replacement prompts. See
 [Axe structured results and launch proposals](axe.md#structured-results-and-launch-proposals) for the result document,
 proposal fields, lifecycle statuses, and debugging commands.
 
-Each chop entry can also be a plain string (chop name only, legacy format):
+Every chop entry must carry a non-blank `description`. Bare-string list entries are no longer valid because they cannot
+carry one; use map form or object-form list entries:
 
 ```yaml
 chops:
-  # Object format (required for new chops)
+  # Object-form list entry
   - name: hook_checks
     script: sase_chop_hook_checks
     description: Check for completed or failed hooks
@@ -1389,8 +1399,6 @@ chops:
     run_every: "1h30m"
     env:
       MY_API_KEY: { env: MY_API_KEY }
-  # String format (legacy, description defaults to empty)
-  - hook_checks
 ```
 
 CLI flags on `sase axe start` override `max_hook_runners`, `max_agent_runners`, `zombie_timeout_seconds`, and `query`

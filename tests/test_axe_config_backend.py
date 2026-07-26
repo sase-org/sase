@@ -28,13 +28,19 @@ def _layers(target: Path) -> list[ConfigLayer]:
                 "axe": {
                     "lumberjacks": {
                         "checks.main": {
+                            "description": "Run primary checks",
                             "interval": 10,
                             "chops": [
                                 {
                                     "name": "release.check",
+                                    "description": "Check release readiness",
                                     "script": "sase_chop_release",
                                 },
-                                {"name": "space name", "script": "sase_chop_space"},
+                                {
+                                    "name": "space name",
+                                    "description": "Check spaced identities",
+                                    "script": "sase_chop_space",
+                                },
                             ],
                         }
                     }
@@ -114,8 +120,12 @@ def test_legacy_list_promotion_rewrites_only_chops_subtree(tmp_path: Path) -> No
     target = tmp_path / "sase.yml"
     target.write_text(
         "# outside\naxe:\n  max_hook_runners: 4  # outside-field\n"
-        "  lumberjacks:\n    checks:\n      interval: 5\n"
-        "      chops:\n        - base\n        - name: other\n          enabled: true\n",
+        "  lumberjacks:\n    checks:\n"
+        "      description: Run promotion checks\n"
+        "      interval: 5\n"
+        "      chops:\n        - name: base\n          description: Base check\n"
+        "        - name: other\n          description: Other check\n"
+        "          enabled: true\n",
         encoding="utf-8",
     )
     layer = ConfigLayer(
@@ -140,8 +150,12 @@ def test_legacy_list_promotion_rewrites_only_chops_subtree(tmp_path: Path) -> No
     assert "# outside-field" in plan.new_text
     data = yaml.safe_load(plan.new_text)
     assert data["axe"]["lumberjacks"]["checks"]["chops"] == {
-        "base": {"description": "promoted"},
-        "other": {"name": "other", "enabled": True},
+        "base": {"name": "base", "description": "promoted"},
+        "other": {
+            "name": "other",
+            "description": "Other check",
+            "enabled": True,
+        },
     }
 
 

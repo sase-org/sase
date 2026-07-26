@@ -203,8 +203,14 @@ def test_sparse_plan_projects_missing_script_warning_and_exact_diff(
         "axe": {
             "lumberjacks": {
                 "checks.main": {
+                    "description": "Run primary checks",
                     "interval": 5,
-                    "chops": {"lint.rule": {"script": "definitely_missing_chop"}},
+                    "chops": {
+                        "lint.rule": {
+                            "description": "Run lint rule checks",
+                            "script": "definitely_missing_chop",
+                        }
+                    },
                 }
             }
         }
@@ -213,9 +219,11 @@ def test_sparse_plan_projects_missing_script_warning_and_exact_diff(
         "axe:\n"
         "  lumberjacks:\n"
         "    checks.main:\n"
+        "      description: Run primary checks\n"
         "      interval: 5\n"
         "      chops:\n"
         "        lint.rule:\n"
+        "          description: Run lint rule checks\n"
         "          script: definitely_missing_chop\n",
         encoding="utf-8",
     )

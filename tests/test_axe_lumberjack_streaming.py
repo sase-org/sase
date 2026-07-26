@@ -46,6 +46,7 @@ def test_streaming_chop_writes_output_before_exit(
     )
     config = LumberjackConfig(
         name="live",
+        description="Run live streaming checks",
         interval=10,
         chops=[ChopConfig(name="live_chop", description="")],
     )

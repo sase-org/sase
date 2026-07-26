@@ -68,6 +68,7 @@ def _config_with_chop(
         lumberjacks={
             lumberjack: LumberjackConfig(
                 name=lumberjack,
+                description=f"Run {lumberjack} TUI test chops",
                 interval=60,
                 chops=[ChopConfig(name=chop, description="")],
                 chop_timeout=timeout,

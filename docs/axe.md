@@ -260,6 +260,7 @@ The `query` setting uses the same ChangeSpec query language as ACE. CLI flags on
 axe:
   lumberjacks:
     my_lumberjack:
+      description: Run custom checks once a minute
       interval: 60 # Seconds between cycles
       chop_timeout: "60s" # Default timeout for all chops in this lumberjack
       env: # Inherited by every chop; individual chop env wins
@@ -287,26 +288,27 @@ axe:
 
 #### Chop Fields
 
-| Field         | Type                   | Description                                                                           |
-| ------------- | ---------------------- | ------------------------------------------------------------------------------------- |
-| `name`        | `str`                  | Chop identity in legacy list form; map form uses the mapping key                      |
-| `script`      | `str \| null`          | Exact executable name; defaults to the chop identity                                  |
-| `enabled`     | `bool`                 | Soft-disable a keyed entry without deleting the packaged/base configuration           |
-| `description` | `str`                  | Human-readable description                                                            |
-| `run_every`   | `str \| null`          | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)                          |
-| `timeout`     | `str \| null`          | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)                 |
-| `env`         | `dict[str, env-value]` | Values merged over lumberjack env; literals or `{env:}`, `{file:}`, `{pass:}` refs    |
-| `inhibit_if`  | list or map            | `changespec` / `agent_hood` / `agent_clan` guards evaluated before the script         |
-| `trigger`     | string or map          | `always` or `git.commits_since`; scheduled runs fire only when it accepts             |
-| `once_per`    | string or object       | Bounded per-proposal dedupe-key template                                              |
-| `for_each`    | list or source         | Literal target objects or `source: projects`, expanded to stable per-target instances |
-| `vars`        | `dict`                 | Non-secret configuration copied into the script context                               |
+| Field         | Type                   | Required  | Description                                                                           |
+| ------------- | ---------------------- | --------- | ------------------------------------------------------------------------------------- |
+| `name`        | `str`                  | list only | Chop identity in object-list form; map form uses the mapping key                      |
+| `description` | `str`                  | yes       | Non-blank human-readable description                                                  |
+| `script`      | `str \| null`          | no        | Exact executable name; defaults to the chop identity                                  |
+| `enabled`     | `bool`                 | no        | Soft-disable a keyed entry without deleting the packaged/base configuration           |
+| `run_every`   | `str \| null`          | no        | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)                          |
+| `timeout`     | `str \| null`          | no        | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)                 |
+| `env`         | `dict[str, env-value]` | no        | Values merged over lumberjack env; literals or `{env:}`, `{file:}`, `{pass:}` refs    |
+| `inhibit_if`  | list or map            | no        | `changespec` / `agent_hood` / `agent_clan` guards evaluated before the script         |
+| `trigger`     | string or map          | no        | `always` or `git.commits_since`; scheduled runs fire only when it accepts             |
+| `once_per`    | string or object       | no        | Bounded per-proposal dedupe-key template                                              |
+| `for_each`    | list or source         | no        | Literal target objects or `source: projects`, expanded to stable per-target instances |
+| `vars`        | `dict`                 | no        | Non-secret configuration copied into the script context                               |
 
 Map-form chops compose by identity across config layers. A higher-priority layer can patch a single field or set
-`enabled: false` while retaining the rest of a packaged entry. Legacy list form remains accepted. Target instances use
-names such as `my_chop[sase-core]`, with independent cadence, run history, checkpoints, and dedupe state. Literal
-targets may include an `overrides:` object for per-target fields such as `run_every`; the `projects` source accepts
-`name`/`names` and `vcs` filters.
+`enabled: false` while retaining the rest of a packaged entry. Object-list form remains accepted, but bare-string list
+entries are invalid because they cannot provide the required description. Target instances use names such as
+`my_chop[sase-core]`, with independent cadence, run history, checkpoints, and dedupe state. Literal targets may include
+an `overrides:` object for per-target fields such as `run_every`; the `projects` source accepts `name`/`names` and `vcs`
+filters.
 
 Configuration is validated fail-closed. Unknown fields, duplicate chop identities, and invalid or non-positive durations
 produce actionable errors with their config paths. Secret references resolve at dispatch and fail closed with
@@ -464,6 +466,7 @@ and checkpoints belong to `git.commits_since`; project fan-out belongs to `for_e
 axe:
   lumberjacks:
     docs:
+      description: Refresh project documentation when repositories accumulate meaningful changes
       interval: 300
       chops:
         refresh_docs:

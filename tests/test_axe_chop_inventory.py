@@ -42,6 +42,7 @@ def test_chop_inventory_resolves_scripts_and_available_unconfigured(
         lumberjacks={
             "hooks": LumberjackConfig(
                 name="hooks",
+                description="Run chop inventory checks",
                 interval=10,
                 chops=[
                     ChopConfig(name="resolved", description=""),
@@ -88,6 +89,7 @@ def test_chop_inventory_to_dict_is_json_safe() -> None:
         lumberjacks={
             "hooks": LumberjackConfig(
                 name="hooks",
+                description="Serialize hook inventory rows",
                 interval=10,
                 chops=[
                     ChopConfig(
@@ -122,6 +124,7 @@ def test_chop_inventory_surfaces_disabled_and_target_instances() -> None:
         lumberjacks={
             "docs": LumberjackConfig(
                 name="docs",
+                description="Run documentation inventory checks",
                 interval=60,
                 chops=[
                     ChopConfig(

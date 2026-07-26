@@ -29,6 +29,7 @@ def test_axe_chops_check_errors_on_missing_configured_chop(
         lumberjacks={
             "hooks": LumberjackConfig(
                 name="hooks",
+                description="Run AXE doctor hook checks",
                 interval=10,
                 chops=[ChopConfig(name="missing", description="")],
             )

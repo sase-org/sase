@@ -81,6 +81,7 @@ def default_axe_config() -> AxeConfig:
                     ],
                 },
                 "housekeeping": {
+                    "description": "Run hourly housekeeping checks",
                     "interval": 3600,
                     "chops": [
                         {"name": "error_digest", "description": "Digest errors"},
@@ -106,12 +107,14 @@ def test_handle_axe_chop_list_renders_configured_chops(
         lumberjacks=_parse_lumberjacks(
             {
                 "lumberjack1": {
+                    "description": "Run first shared-chop checks",
                     "interval": 1,
                     "chops": [
                         {"name": "shared_chop", "description": "From lumberjack1"},
                     ],
                 },
                 "lumberjack2": {
+                    "description": "Run second shared-chop checks",
                     "interval": 60,
                     "chops": [
                         {"name": "shared_chop", "description": "From lumberjack2"},
@@ -137,7 +140,12 @@ def test_handle_axe_chop_list_renders_configured_chops(
 def _config_with(**chops_per_jack: list[ChopConfig]) -> AxeConfig:
     return AxeConfig(
         lumberjacks={
-            name: LumberjackConfig(name=name, interval=10, chops=chops)
+            name: LumberjackConfig(
+                name=name,
+                description=f"Run {name} CLI test chops",
+                interval=10,
+                chops=chops,
+            )
             for name, chops in chops_per_jack.items()
         }
     )
@@ -288,7 +296,12 @@ def test_handle_axe_chop_run_records_run_history_under_lumberjack(
     config = AxeConfig(
         chop_script_dirs=[str(scripts_dir)],
         lumberjacks={
-            "hooks": LumberjackConfig(name="hooks", interval=10, chops=[chop]),
+            "hooks": LumberjackConfig(
+                name="hooks",
+                description="Run hook CLI test chops",
+                interval=10,
+                chops=[chop],
+            ),
         },
     )
     args = argparse.Namespace(chop_name="hook_checks", lumberjack="hooks")
@@ -344,7 +357,12 @@ def test_handle_axe_chop_run_already_running_skips(
     chop = ChopConfig(name="hook_checks", description="")
     config = AxeConfig(
         lumberjacks={
-            "hooks": LumberjackConfig(name="hooks", interval=10, chops=[chop]),
+            "hooks": LumberjackConfig(
+                name="hooks",
+                description="Run hook CLI test chops",
+                interval=10,
+                chops=[chop],
+            ),
         }
     )
 
@@ -390,9 +408,8 @@ def test_handle_axe_lumberjack_list_prints_lumberjacks(
 
     output = capsys.readouterr().out
     lines = [line for line in output.strip().split("\n") if line.strip()]
-    # 3 described lumberjacks × (name + description + interval + "chops:" + 1 chop)
-    # plus housekeeping, which has no description, without its description line.
-    assert len(lines) == 19
+    # 4 lumberjacks × (name + description + interval + "chops:" + 1 chop).
+    assert len(lines) == 20
     assert "hooks" in output
     assert "checks" in output
     assert "comments" in output
@@ -420,9 +437,11 @@ def test_handle_axe_lumberjack_list_prints_descriptions(
         "description: Fast lane that advances hook lifecycle state"
     )
     assert lines[hooks_index + 2].startswith("interval:")
-    # ``housekeeping`` has no description, so the line is omitted entirely.
     housekeeping_index = lines.index("housekeeping")
-    assert lines[housekeeping_index + 1].startswith("interval:")
+    assert lines[housekeeping_index + 1] == (
+        "description: Run hourly housekeeping checks"
+    )
+    assert lines[housekeeping_index + 2].startswith("interval:")
 
 
 # --- handle_axe_lumberjack_status Tests ---
@@ -463,6 +482,7 @@ def test_handle_axe_lumberjack_status_with_running(
         lumberjacks={
             "hooks": LumberjackConfig(
                 name="hooks",
+                description="Run hook status checks",
                 interval=1,
                 chops=[ChopConfig(name="hook_checks", description="Check hooks")],
             )

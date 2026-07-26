@@ -29,6 +29,7 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
 def lumberjack_config() -> LumberjackConfig:
     return LumberjackConfig(
         name="test_lumberjack",
+        description="Run lumberjack fixture chops",
         interval=10,
         chops=[ChopConfig(name="hook_checks", description="")],
     )
