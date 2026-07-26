@@ -16,6 +16,7 @@ import sase.tasks.runner as task_runner
 from sase.ace.hooks.processes import is_process_running
 from sase.sessions import SessionIdentity
 from sase.tasks import (
+    DETACHED_TASK_KIND,
     BackgroundTask,
     TaskSubmitError,
     append_task,
@@ -23,6 +24,7 @@ from sase.tasks import (
     kill_task,
     read_tasks,
     reconcile_running_tasks,
+    submit_detached_task,
     submit_task,
     wait_for_task,
 )
@@ -141,6 +143,75 @@ def test_submit_validation_and_supervisor_spawn_failure_stay_visible(
     assert tasks[0].message == ("could not start task supervisor: detachment failed")
 
 
+def test_detached_submit_is_owned_by_no_session(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """A detached row stays unattributed even inside a live ACE session."""
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    identity = SessionIdentity(
+        session_id="session-live",
+        kind="ace",
+        pid=os.getpid(),
+        started_at="2026-07-25T12:00:00Z",
+        project="sase",
+        workspace_num=14,
+    )
+    monkeypatch.setattr("sase.sessions.live_sessions", lambda: [identity])
+
+    task = submit_detached_task(
+        [sys.executable, "-c", "print('detached', flush=True)"],
+        label="Epic launch",
+        cwd=tmp_path,
+        origin="telegram",
+        project="sase",
+        tags=["epic", "launch"],
+    )
+    lines: list[str] = []
+    finished = wait_for_task(task.task_id, timeout=10, on_line=lines.append)
+
+    assert task.kind == DETACHED_TASK_KIND
+    assert task.session_id is None
+    assert task.session_label is None
+    assert task.origin == "telegram"
+    assert task.tags == ["epic", "launch"]
+    assert finished.status == "success"
+    assert finished.session_id is None
+    assert lines == ["detached"]
+    assert read_tasks(session_id=None) == [finished]
+
+
+def test_detached_submit_validates_argv_and_cwd(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    with pytest.raises(TaskSubmitError, match="non-empty argv"):
+        submit_detached_task([], label="Empty", cwd=tmp_path, origin="cli")
+    with pytest.raises(TaskSubmitError, match="existing directory"):
+        submit_detached_task(
+            ["true"], label="Bad cwd", cwd=tmp_path / "missing", origin="cli"
+        )
+    assert read_tasks() == []
+
+
+def test_kill_task_terminates_a_detached_task(monkeypatch: Any, tmp_path: Path) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    task = submit_detached_task(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        label="Long detached launch",
+        cwd=tmp_path,
+        origin="cli",
+    )
+    running = _wait_for_running(task.task_id)
+
+    killed = kill_task(task.task_id)
+    finished = wait_for_task(task.task_id, timeout=10)
+
+    assert killed.status == "killed"
+    assert finished.status == "killed"
+    assert running.pid is not None
+    _wait_for_process_exit(running.pid)
+
+
 def test_kill_task_terminates_the_supervised_process_group(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
@@ -238,6 +309,38 @@ def test_reconcile_leaves_mirrored_tui_rows_alone(
     current = get_task(mirrored.task_id)
     assert current is not None
     assert current.status == "running"
+
+
+def test_reconcile_owns_stale_pidless_detached_rows(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """A detached submit that died before it spawned must not sit pending."""
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    stale = _recorded_task(
+        "stale-detach",
+        pid=None,
+        status="pending",
+        tmp_path=tmp_path,
+        kind=DETACHED_TASK_KIND,
+    )
+    fresh = _recorded_task(
+        "fresh-detach",
+        pid=None,
+        status="pending",
+        tmp_path=tmp_path,
+        kind=DETACHED_TASK_KIND,
+        created_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+    )
+    append_task(stale)
+    append_task(fresh)
+
+    reconciled = reconcile_running_tasks()
+
+    assert [task.task_id for task in reconciled] == [stale.task_id]
+    assert reconciled[0].status == "error"
+    current = get_task(fresh.task_id)
+    assert current is not None
+    assert current.status == "pending"
 
 
 def test_killed_supervisor_is_reconciled_to_terminal_error(

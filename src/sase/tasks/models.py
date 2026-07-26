@@ -13,6 +13,14 @@ TASK_WIRE_SCHEMA_VERSION: Final = 1
 ACTIVE_TASK_STATUSES: Final = frozenset({"pending", "running"})
 TERMINAL_TASK_STATUSES: Final = frozenset({"success", "error", "killed"})
 
+# A supervised task submitted by a session, attributed to it.
+COMMAND_TASK_KIND: Final = "command"
+# A task a TUI process runs itself and mirrors into the store.
+TUI_TASK_KIND: Final = "tui"
+# A supervised task no session owns, so every surface always shows it.
+DETACHED_TASK_KIND: Final = "detached"
+TASK_KINDS: Final = frozenset({COMMAND_TASK_KIND, TUI_TASK_KIND, DETACHED_TASK_KIND})
+
 
 @dataclass(frozen=True)
 class BackgroundTask:
@@ -254,8 +262,12 @@ def _require_schema(data: Mapping[str, Any]) -> None:
 
 __all__ = [
     "ACTIVE_TASK_STATUSES",
+    "COMMAND_TASK_KIND",
+    "DETACHED_TASK_KIND",
+    "TASK_KINDS",
     "TASK_WIRE_SCHEMA_VERSION",
     "TERMINAL_TASK_STATUSES",
+    "TUI_TASK_KIND",
     "UNSET",
     "BackgroundTask",
     "TaskAppendOutcome",

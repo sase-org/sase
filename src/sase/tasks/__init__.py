@@ -10,8 +10,12 @@ from .logs import (
 )
 from .models import (
     ACTIVE_TASK_STATUSES,
+    COMMAND_TASK_KIND,
+    DETACHED_TASK_KIND,
+    TASK_KINDS,
     TASK_WIRE_SCHEMA_VERSION,
     TERMINAL_TASK_STATUSES,
+    TUI_TASK_KIND,
     UNSET,
     BackgroundTask,
     TaskAppendOutcome,
@@ -27,6 +31,7 @@ from .runner import (
     TaskSubmitError,
     kill_task,
     reconcile_running_tasks,
+    submit_detached_task,
     submit_task,
     wait_for_task,
 )
@@ -42,8 +47,12 @@ from .store import (
 
 __all__ = [
     "ACTIVE_TASK_STATUSES",
+    "COMMAND_TASK_KIND",
+    "DETACHED_TASK_KIND",
+    "TASK_KINDS",
     "TASK_WIRE_SCHEMA_VERSION",
     "TERMINAL_TASK_STATUSES",
+    "TUI_TASK_KIND",
     "UNSET",
     "BackgroundTask",
     "TaskAppendOutcome",
@@ -70,6 +79,7 @@ __all__ = [
     "reconcile_running_tasks",
     "resolve_task_ref",
     "short_task_id",
+    "submit_detached_task",
     "submit_task",
     "task_log_path",
     "task_logs_dir",

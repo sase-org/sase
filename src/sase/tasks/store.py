@@ -36,6 +36,7 @@ def read_tasks(
     *,
     path: Path | str | None = None,
     status: str | Collection[str] | None = None,
+    kind: str | Collection[str] | None = None,
     session_id: str | None | _AnySession = _ANY_SESSION,
     project: str | None = None,
     tag: str | None = None,
@@ -49,6 +50,7 @@ def read_tasks(
     return filter_tasks(
         snapshot.tasks,
         status=status,
+        kind=kind,
         session_id=session_id,
         project=project,
         tag=tag,
@@ -126,17 +128,21 @@ def filter_tasks(
     tasks: Sequence[BackgroundTask],
     *,
     status: str | Collection[str] | None = None,
+    kind: str | Collection[str] | None = None,
     session_id: str | None | _AnySession = _ANY_SESSION,
     project: str | None = None,
     tag: str | None = None,
     query: str | None = None,
 ) -> list[BackgroundTask]:
     """Apply the canonical exact-match fields and free-text task query."""
-    statuses = _status_set(status)
+    statuses = _value_set(status)
+    kinds = _value_set(kind)
     needle = query.casefold() if query else None
     result: list[BackgroundTask] = []
     for task in tasks:
         if statuses is not None and task.status not in statuses:
+            continue
+        if kinds is not None and task.kind not in kinds:
             continue
         if session_id is not _ANY_SESSION and task.session_id != session_id:
             continue
@@ -150,14 +156,14 @@ def filter_tasks(
     return result
 
 
-def _status_set(
-    status: str | Collection[str] | None,
+def _value_set(
+    value: str | Collection[str] | None,
 ) -> frozenset[str] | None:
-    if status is None:
+    if value is None:
         return None
-    if isinstance(status, str):
-        return frozenset({status})
-    return frozenset(status)
+    if isinstance(value, str):
+        return frozenset({value})
+    return frozenset(value)
 
 
 def _search_text(task: BackgroundTask) -> str:

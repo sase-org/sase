@@ -13,7 +13,10 @@ import yaml
 
 from sase.config import core as config_core
 from sase.tasks import (
+    COMMAND_TASK_KIND,
+    DETACHED_TASK_KIND,
     TASK_WIRE_SCHEMA_VERSION,
+    TUI_TASK_KIND,
     BackgroundTask,
     TaskRefError,
     TaskUpdate,
@@ -37,6 +40,7 @@ from sase.tasks.ids import TASK_ID_ALPHABET, TASK_ID_LENGTH
 def _task(
     task_id: str,
     *,
+    kind: str = "command",
     status: str = "pending",
     created_at: str = "2026-07-25T12:00:00Z",
     label: str = "Build docs",
@@ -49,7 +53,7 @@ def _task(
     return BackgroundTask(
         task_id=task_id,
         label=label,
-        kind="command",
+        kind=kind,
         status=status,
         command=command or ["just", "docs"],
         cwd="/tmp",
@@ -214,6 +218,30 @@ def test_filter_tasks_applies_every_supported_filter() -> None:
     assert filter_tasks(tasks, tag="docs") == [wanted]
     assert filter_tasks(tasks, query="MKDOCS BUILD") == [wanted]
     assert filter_tasks(tasks, query="test_suite") == [other]
+
+
+def test_kind_filter_selects_one_or_many_task_kinds(tmp_path: Path) -> None:
+    store = tmp_path / "tasks.jsonl"
+    command = _task("command-task", created_at="2026-07-25T12:00:00Z")
+    detached = _task(
+        "detach-task1",
+        kind=DETACHED_TASK_KIND,
+        session_id=None,
+        created_at="2026-07-25T12:01:00Z",
+    )
+    mirrored = _task(
+        "mirror-task1", kind=TUI_TASK_KIND, created_at="2026-07-25T12:02:00Z"
+    )
+    for task in (command, detached, mirrored):
+        append_task(task, path=store, history_limit=10)
+
+    assert read_tasks(path=store, kind=DETACHED_TASK_KIND) == [detached]
+    assert read_tasks(path=store, kind={COMMAND_TASK_KIND, DETACHED_TASK_KIND}) == [
+        detached,
+        command,
+    ]
+    assert len(read_tasks(path=store)) == 3
+    assert filter_tasks([command, detached, mirrored], kind=TUI_TASK_KIND) == [mirrored]
 
 
 def test_rust_facade_round_trip_update_and_get(tmp_path: Path) -> None:

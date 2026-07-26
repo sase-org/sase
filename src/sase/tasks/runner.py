@@ -18,6 +18,8 @@ from .ids import new_task_id
 from .logs import task_log_path
 from .models import (
     ACTIVE_TASK_STATUSES,
+    COMMAND_TASK_KIND,
+    DETACHED_TASK_KIND,
     TERMINAL_TASK_STATUSES,
     BackgroundTask,
 )
@@ -29,9 +31,13 @@ _INITIAL_POLL_SECONDS = 0.05
 _MAX_POLL_SECONDS = 0.5
 _CHILD_ENV_VAR = "_SASE_TASK_CHILD_ENV_JSON"
 
-# How long a command row may sit without a supervisor pid before
+# How long a supervisor-owned row may sit without a supervisor pid before
 # reconciliation treats it as a submit that died before it spawned.
 _UNCLAIMED_GRACE_SECONDS = 60.0
+
+# Kinds whose rows are driven by ``sase.tasks.supervisor`` rather than by the
+# process that recorded them.
+_SUPERVISOR_OWNED_KINDS = frozenset({COMMAND_TASK_KIND, DETACHED_TASK_KIND})
 
 
 class TaskSubmitError(RuntimeError):
@@ -56,13 +62,76 @@ def submit_task(
     env: Mapping[str, str] | None = None,
 ) -> BackgroundTask:
     """Record and detach a command task under the task supervisor."""
+    return _submit_supervised_task(
+        argv,
+        kind=COMMAND_TASK_KIND,
+        label=label,
+        cwd=cwd,
+        session_id=session_id,
+        project=project,
+        workspace_num=workspace_num,
+        tags=tags,
+        origin=origin,
+        cl_name=cl_name,
+        env=env,
+    )
+
+
+def submit_detached_task(
+    argv: Sequence[str],
+    *,
+    label: str,
+    cwd: str | Path,
+    origin: str,
+    project: str | None = None,
+    workspace_num: int | None = None,
+    tags: Sequence[str] = (),
+    cl_name: str | None = None,
+    env: Mapping[str, str] | None = None,
+) -> BackgroundTask:
+    """Record and detach a task that no interactive session owns.
+
+    A detached row carries no ``session_id``, so every surface keeps it in
+    scope no matter which session — if any — submitted it. ``origin`` is the
+    only record of where the work came from and is therefore required.
+    """
+    return _submit_supervised_task(
+        argv,
+        kind=DETACHED_TASK_KIND,
+        label=label,
+        cwd=cwd,
+        session_id=None,
+        project=project,
+        workspace_num=workspace_num,
+        tags=tags,
+        origin=origin,
+        cl_name=cl_name,
+        env=env,
+    )
+
+
+def _submit_supervised_task(
+    argv: Sequence[str],
+    *,
+    kind: str,
+    label: str,
+    cwd: str | Path,
+    session_id: str | None,
+    project: str | None,
+    workspace_num: int | None,
+    tags: Sequence[str],
+    origin: str,
+    cl_name: str | None,
+    env: Mapping[str, str] | None,
+) -> BackgroundTask:
+    """Record a row, then spawn the supervisor that owns it."""
     command = _validated_argv(argv)
     resolved_cwd = _validated_cwd(cwd)
     task_id = new_task_id()
     task = BackgroundTask(
         task_id=task_id,
         label=label,
-        kind="command",
+        kind=kind,
         status="pending",
         command=command,
         cwd=str(resolved_cwd),
@@ -202,12 +271,12 @@ def _is_orphaned(task: BackgroundTask) -> bool:
     """Return whether an active row's owner is gone without a terminal write."""
     if task.pid is not None:
         return not is_process_running(task.pid)
-    # No supervisor pid yet. ``submit_task`` stamps one within milliseconds of
+    # No supervisor pid yet. A submit stamps one within milliseconds of
     # appending the row, and mirrored in-TUI tasks are owned by their own
-    # process, so only a stale command row is a genuine ghost: reconciling a
-    # just-submitted row would race its supervisor to a terminal status the
-    # store then refuses to move off.
-    if task.kind != "command":
+    # process, so only a stale supervisor-owned row is a genuine ghost:
+    # reconciling a just-submitted row would race its supervisor to a terminal
+    # status the store then refuses to move off.
+    if task.kind not in _SUPERVISOR_OWNED_KINDS:
         return False
     return _age_seconds(task.created_at) >= _UNCLAIMED_GRACE_SECONDS
 
@@ -311,6 +380,7 @@ __all__ = [
     "TaskSubmitError",
     "kill_task",
     "reconcile_running_tasks",
+    "submit_detached_task",
     "submit_task",
     "wait_for_task",
 ]

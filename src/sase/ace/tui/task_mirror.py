@@ -28,6 +28,7 @@ from sase.tasks import (
     ACTIVE_TASK_STATUSES,
     BackgroundTask,
     TERMINAL_TASK_STATUSES,
+    TUI_TASK_KIND,
     append_task,
     append_task_log_text,
     new_task_id,
@@ -42,7 +43,7 @@ from .task_queue import TaskInfo
 
 log = logging.getLogger(__name__)
 
-MIRROR_KIND = "tui"
+MIRROR_KIND = TUI_TASK_KIND
 MIRROR_ORIGIN = "ace"
 STATE_WRITE_CATEGORY = "tasks"
 
